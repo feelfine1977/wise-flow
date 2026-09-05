@@ -1,0 +1,86 @@
+/*
+ * Design tokens of @wise/flow. The workbench ships its own tokens package;
+ * until then this file carries the same variable names so that the renderers
+ * pick up the application theme when it is present. Light and dark schemes.
+ */
+:root {
+  --wf-font: Inter, "Segoe UI", Helvetica, Arial, sans-serif;
+  --wf-font-mono: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+  --wf-paper: #ffffff;
+  --wf-surface: #f6f7f9;
+  --wf-ink: #1f1f1f;
+  --wf-ink-muted: #5b6270;
+  --wf-line: #cfd4dc;
+  --wf-line-strong: #8c94a1;
+  --wf-focus: #0072b2;
+  --wf-selection: rgba(0, 114, 178, 0.14);
+  --wf-hover: rgba(0, 0, 0, 0.05);
+  --wf-neutral: #8c8c8c;
+  --wf-out-of-scope: #b0b0b0;
+
+  /* Fixed colours: hotspot types and gate states (Okabe–Ito). */
+  --wf-severity: #d55e00;
+  --wf-mechanism: #0072b2;
+  --wf-reservoir: #009e73;
+  --wf-pass: #009e73;
+  --wf-warn: #e69f00;
+  --wf-fail: #d55e00;
+
+  /* Categorical palette (Okabe–Ito), used with pattern twins. */
+  --wf-cat-0: #0072b2;
+  --wf-cat-1: #e69f00;
+  --wf-cat-2: #009e73;
+  --wf-cat-3: #cc79a7;
+  --wf-cat-4: #56b4e9;
+  --wf-cat-5: #d55e00;
+  --wf-cat-6: #f0e442;
+  --wf-cat-7: #999999;
+
+  /* Sequential (single-hue orange) and diverging (purple–orange) stops. */
+  --wf-seq-0: #fff5eb;
+  --wf-seq-1: #fdd0a2;
+  --wf-seq-2: #fd8d3c;
+  --wf-seq-3: #d94801;
+  --wf-seq-4: #7f2704;
+  --wf-div-neg: #542788;
+  --wf-div-mid: #f7f7f7;
+  --wf-div-pos: #b35806;
+
+  --wf-radius: 6px;
+  --wf-radius-lg: 10px;
+  --wf-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  --wf-node-width: 180px;
+  --wf-node-height: 48px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --wf-paper: #16181d;
+    --wf-surface: #1f2229;
+    --wf-ink: #ececec;
+    --wf-ink-muted: #a7adb8;
+    --wf-line: #3a3f49;
+    --wf-line-strong: #6b7280;
+    --wf-selection: rgba(86, 180, 233, 0.22);
+    --wf-hover: rgba(255, 255, 255, 0.07);
+  }
+}
+
+:root[data-theme="dark"] {
+  --wf-paper: #16181d;
+  --wf-surface: #1f2229;
+  --wf-ink: #ececec;
+  --wf-ink-muted: #a7adb8;
+  --wf-line: #3a3f49;
+  --wf-line-strong: #6b7280;
+  --wf-selection: rgba(86, 180, 233, 0.22);
+  --wf-hover: rgba(255, 255, 255, 0.07);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wf-process-map *,
+  .wf-trace-timeline * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

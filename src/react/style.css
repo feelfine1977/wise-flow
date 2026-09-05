@@ -1,0 +1,528 @@
+/* Component styles of @wise/flow/react. Requires tokens.css and @xyflow/react/dist/style.css. */
+
+.wf-process-map {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+  font-family: var(--wf-font);
+  color: var(--wf-ink);
+  background: var(--wf-paper);
+  outline: none;
+}
+.wf-process-map:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--wf-focus);
+}
+.wf-process-map .react-flow__attribution {
+  font-size: 9px;
+}
+.wf-process-map .react-flow__edge-path {
+  stroke-linejoin: round;
+}
+.wf-process-map .react-flow__edge.selected .react-flow__edge-path,
+.wf-process-map .react-flow__edge:focus .react-flow__edge-path {
+  stroke: var(--wf-focus);
+}
+.wf-process-map .react-flow__node {
+  cursor: pointer;
+}
+.wf-process-map .react-flow__handle {
+  opacity: 0;
+  width: 6px;
+  height: 6px;
+  pointer-events: none;
+}
+
+/* Level of detail: the map sets wf-lod--* classes from the zoom level. */
+.wf-process-map:not(.wf-lod--labels) .wf-lod-labels,
+.wf-process-map:not(.wf-lod--badges) .wf-lod-badges,
+.wf-process-map:not(.wf-lod--chips) .wf-lod-chips,
+.wf-process-map:not(.wf-lod--edge-labels) .wf-lod-edge-labels {
+  visibility: hidden;
+}
+.wf-process-map:not(.wf-lod--hatch) .wf-node--hatched::after {
+  display: none;
+}
+
+.wf-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Nodes */
+.wf-node {
+  position: relative;
+  box-sizing: border-box;
+  width: var(--wf-node-width);
+  height: var(--wf-node-height);
+  border: 2px solid var(--wf-node-color, var(--wf-neutral));
+  border-radius: var(--wf-radius);
+  background: var(--wf-paper);
+  color: var(--wf-ink);
+  font-size: 12px;
+  line-height: 1.2;
+  display: flex;
+  align-items: center;
+  padding: 4px 8px 4px 16px;
+  box-shadow: var(--wf-shadow);
+}
+.wf-node--stage {
+  border-width: 3px;
+  font-weight: 600;
+}
+.wf-node--reconnected {
+  border-style: dashed;
+}
+.wf-node--selected {
+  box-shadow: 0 0 0 3px var(--wf-selection), var(--wf-shadow);
+  border-color: var(--wf-focus);
+}
+.wf-node--focused {
+  outline: 2px solid var(--wf-focus);
+  outline-offset: 2px;
+}
+.wf-node--hovered {
+  background: var(--wf-surface);
+}
+.wf-node--dimmed {
+  opacity: 0.35;
+}
+.wf-node__band {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  border-radius: 3px 0 0 3px;
+  background: var(--wf-node-color, var(--wf-neutral));
+}
+.wf-node__band svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.wf-node__label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wf-node__meta {
+  font-size: 9px;
+  color: var(--wf-ink-muted);
+  margin-left: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.wf-node--hatched::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: repeating-linear-gradient(135deg, transparent 0 5px, var(--wf-out-of-scope) 5px 7px);
+  opacity: 0.55;
+  pointer-events: none;
+}
+.wf-node--event {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  padding: 0;
+  justify-content: center;
+  border-color: var(--wf-ink);
+  font-size: 9px;
+}
+.wf-node--event-end {
+  border-width: 3px;
+}
+.wf-node--gateway {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  justify-content: center;
+  border-color: var(--wf-ink);
+  transform: rotate(45deg);
+}
+.wf-node--gateway .wf-node__label {
+  transform: rotate(-45deg);
+  text-align: center;
+  font-weight: 700;
+}
+.wf-node--note {
+  width: 160px;
+  height: 60px;
+  background: var(--wf-surface);
+  border-style: dotted;
+  font-size: 11px;
+  white-space: normal;
+}
+
+/* Badges */
+.wf-badges {
+  position: absolute;
+  right: 4px;
+  top: -12px;
+  display: flex;
+  flex-direction: row-reverse;
+  gap: 4px;
+  pointer-events: none;
+}
+.wf-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 11px;
+  border: 1.5px solid var(--wf-paper);
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+.wf-badge__share {
+  font-weight: 500;
+}
+
+/* Group nodes */
+.wf-group {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  border: 1.5px dashed var(--wf-group-color, var(--wf-line-strong));
+  border-radius: var(--wf-radius-lg);
+  background: color-mix(in srgb, var(--wf-group-color, var(--wf-line)) 6%, transparent);
+  position: relative;
+}
+.wf-group--tinted {
+  background: var(--wf-tint, transparent);
+}
+.wf-group__label {
+  position: absolute;
+  left: 12px;
+  top: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wf-ink);
+}
+.wf-group__chips {
+  position: absolute;
+  right: 8px;
+  top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+}
+.wf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 12px;
+  border: 2px solid var(--wf-chip-color, var(--wf-neutral));
+  background: var(--wf-paper);
+  color: var(--wf-ink);
+  font-size: 10px;
+  white-space: nowrap;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wf-chip__gauge {
+  width: 40px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--wf-line);
+  position: relative;
+  overflow: hidden;
+}
+.wf-chip__gauge-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--wf-chip-color, var(--wf-neutral));
+}
+.wf-chip__gauge-mark {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  width: 2px;
+  background: var(--wf-ink);
+}
+
+/* Overlay SVG layer (arcs, self-loops) */
+.wf-overlay-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.wf-overlay-layer path {
+  pointer-events: stroke;
+  cursor: pointer;
+}
+.wf-overlay-layer text {
+  font-family: var(--wf-font);
+  font-size: 11px;
+  fill: var(--wf-ink);
+  paint-order: stroke;
+  stroke: var(--wf-paper);
+  stroke-width: 3px;
+  pointer-events: none;
+}
+
+/* Edge labels */
+.wf-edge-label {
+  font-family: var(--wf-font);
+  font-size: 10px;
+  fill: var(--wf-ink);
+  paint-order: stroke;
+  stroke: var(--wf-paper);
+  stroke-width: 3px;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Panels: controls, legend, map chips */
+.wf-panel {
+  background: var(--wf-paper);
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius-lg);
+  box-shadow: var(--wf-shadow);
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--wf-ink);
+  max-width: 260px;
+}
+.wf-panel h3 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.wf-controls label {
+  display: grid;
+  grid-template-columns: 70px 1fr 42px;
+  gap: 8px;
+  align-items: center;
+  margin: 4px 0;
+}
+.wf-controls input[type="range"] {
+  width: 100%;
+  accent-color: var(--wf-focus);
+}
+.wf-controls output {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--wf-ink-muted);
+}
+.wf-controls .wf-controls__row {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+.wf-controls .wf-controls__row label {
+  display: inline-flex;
+  gap: 6px;
+  grid-template-columns: none;
+  margin: 0;
+}
+.wf-button {
+  font: inherit;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--wf-line-strong);
+  background: var(--wf-surface);
+  color: var(--wf-ink);
+  cursor: pointer;
+}
+.wf-button[aria-pressed="true"] {
+  background: var(--wf-focus);
+  color: #fff;
+  border-color: var(--wf-focus);
+}
+.wf-button:focus-visible {
+  outline: 2px solid var(--wf-focus);
+  outline-offset: 2px;
+}
+
+.wf-legend dl {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+.wf-legend dt {
+  font-weight: 600;
+  font-size: 11px;
+}
+.wf-legend dd {
+  margin: 0;
+  font-size: 10px;
+  color: var(--wf-ink-muted);
+}
+.wf-legend__gradient {
+  height: 10px;
+  border-radius: 3px;
+  border: 1px solid var(--wf-line);
+}
+.wf-legend__range {
+  display: flex;
+  justify-content: space-between;
+  font-variant-numeric: tabular-nums;
+}
+.wf-legend__cat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.wf-legend__swatch {
+  width: 14px;
+  height: 12px;
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+  flex: none;
+}
+.wf-legend__swatch svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.wf-legend__width {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.wf-legend__width span {
+  display: inline-block;
+  width: 28px;
+  background: var(--wf-neutral);
+  border-radius: 2px;
+}
+.wf-legend__glyph {
+  display: inline-block;
+  width: 18px;
+  text-align: center;
+}
+.wf-map-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+/* Table alternative */
+.wf-table {
+  font-family: var(--wf-font);
+  font-size: 12px;
+  color: var(--wf-ink);
+  overflow: auto;
+}
+.wf-table table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 16px;
+}
+.wf-table caption {
+  text-align: left;
+  font-weight: 700;
+  padding: 6px 0;
+}
+.wf-table th,
+.wf-table td {
+  border-bottom: 1px solid var(--wf-line);
+  padding: 4px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+.wf-table th {
+  background: var(--wf-surface);
+  position: sticky;
+  top: 0;
+}
+.wf-table td.wf-num,
+.wf-table th.wf-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.wf-table tr.wf-row--selected td {
+  background: var(--wf-selection);
+}
+.wf-table tr:hover td {
+  background: var(--wf-hover);
+}
+.wf-table .wf-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+/* Trace timeline */
+.wf-trace-timeline {
+  font-family: var(--wf-font);
+  color: var(--wf-ink);
+  background: var(--wf-paper);
+  position: relative;
+}
+.wf-trace-timeline svg {
+  display: block;
+  max-width: 100%;
+}
+.wf-trace-timeline .wf-axis text {
+  font-size: 10px;
+  fill: var(--wf-ink-muted);
+}
+.wf-trace-timeline .wf-axis line,
+.wf-trace-timeline .wf-axis path {
+  stroke: var(--wf-line);
+}
+.wf-trace-timeline .wf-row-label {
+  font-size: 11px;
+  fill: var(--wf-ink);
+}
+.wf-trace-timeline .wf-event {
+  stroke: var(--wf-paper);
+  stroke-width: 1;
+  cursor: pointer;
+}
+.wf-trace-timeline .wf-event--violates {
+  stroke: var(--wf-fail);
+  stroke-width: 2;
+}
+.wf-trace-timeline .wf-anchor-line {
+  stroke: var(--wf-ink-muted);
+  stroke-dasharray: 4 3;
+}
+.wf-trace-timeline .wf-annotation text {
+  font-size: 10px;
+  fill: var(--wf-fail);
+}
+.wf-tooltip {
+  position: absolute;
+  z-index: 10;
+  pointer-events: none;
+  background: var(--wf-ink);
+  color: var(--wf-paper);
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  max-width: 280px;
+  white-space: pre-line;
+}
