@@ -3,6 +3,7 @@
  */
 import { type Locale, formatCompact, formatCount, formatNumber, formatShare } from "./format";
 import { type Box, type Positions, straightRoute } from "./layout";
+import { type LaneBand, type LaneMode, laneBands } from "./lanes";
 import { type FlowGraph, type Overlay, MAP_TARGET, hasTag, metric } from "./model";
 import { type OverlayGeometryOptions, type OverlayShape, canonicalOverlays, overlayGeometry } from "./overlays";
 import { type LegendItem, type Scales, type StyleSpec, buildScales, contrastText, defaultStyle, fixedColors, lodAt, patternDefs } from "./style";
@@ -17,6 +18,8 @@ export interface Scene {
   title?: string;
   subtitle?: string;
   locale?: Locale;
+  /** Draw stage or lane groups as bands (see `laneBands`). Default `none`. */
+  lanes?: LaneMode;
 }
 
 export type FigurePreset = "single-column" | "double-column" | "slide" | "none";
@@ -53,6 +56,7 @@ interface Ctx {
   locale: Locale;
   lod: ReturnType<typeof lodAt>;
   font: string;
+  bands: Map<string, LaneBand>;
 }
 
 function rect(b: Box, attrs: string): string {
@@ -74,8 +78,15 @@ function drawGroups(ctx: Ctx): string {
     const b = positions.groups[g.id];
     if (!b) continue;
     const c = ctx.scales.categorical(g.id);
-    out.push(`<g class="wf-group" data-id="${esc(g.id)}">`);
-    out.push(rect(b, `rx="10" fill="${c.color}" fill-opacity="0.06" stroke="${c.color}" stroke-opacity="0.5" stroke-width="1.5" stroke-dasharray="6 4"`));
+    const band = ctx.bands.get(g.id);
+    out.push(`<g class="wf-group${band ? " wf-group-band" : ""}" data-id="${esc(g.id)}">`);
+    if (band) {
+      out.push(rect(b, `fill="${c.color}" fill-opacity="${band.index % 2 === 0 ? 0.06 : 0.02}" stroke="${fixedColors.neutral}" stroke-opacity="0.5" stroke-width="1"`));
+      const edge = band.axis === "main" ? `M${num(b.x)} ${num(b.y)}H${num(b.x + b.width)}` : `M${num(b.x)} ${num(b.y)}V${num(b.y + b.height)}`;
+      out.push(`<path d="${edge}" stroke="${c.color}" stroke-width="3" fill="none"/>`);
+    } else {
+      out.push(rect(b, `rx="10" fill="${c.color}" fill-opacity="0.06" stroke="${c.color}" stroke-opacity="0.5" stroke-width="1.5" stroke-dasharray="6 4"`));
+    }
     out.push(text(b.x + 12, b.y + 22, g.label, `font-size="14" font-weight="600" fill="${fixedColors.ink}"`));
     out.push(`</g>`);
   }
@@ -311,12 +322,14 @@ function drawLegend(ctx: Ctx, x: number, y: number, width: number, mapChips: Ove
  * elements are drawn in id order, numbers are formatted with fixed precision and
  * no time-dependent data is embedded.
  */
-export function toSVG(scene: Scene, options: ExportOptions = {}): string {
+export function toSVG(givenScene: Scene, options: ExportOptions = {}): string {
+  const laid = givenScene.lanes && givenScene.lanes !== "none" ? laneBands(givenScene.graph, givenScene.positions, { lanes: givenScene.lanes }) : undefined;
+  const scene: Scene = laid ? { ...givenScene, positions: laid.positions } : givenScene;
   const locale = scene.locale ?? "en";
   const scales = buildScales(scene.graph, scene.style ?? defaultStyle);
   const lod = lodAt(options.lodZoom ?? 1, scene.style?.lod);
   const font = options.fontFamily ?? "Inter, 'Segoe UI', Helvetica, Arial, sans-serif";
-  const ctx: Ctx = { scene, scales, locale, lod, font };
+  const ctx: Ctx = { scene, scales, locale, lod, font, bands: new Map((laid?.bands ?? []).map((b) => [b.id, b])) };
   const overlays = canonicalOverlays(scene.overlays ?? scene.graph.overlays ?? []);
   const geometry = overlayGeometry(overlays, scene.positions, { ...(options.overlayGeometry ?? {}), lod: scene.style?.lod });
   const pad = options.padding ?? 24;

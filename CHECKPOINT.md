@@ -2,18 +2,19 @@
 
 How to try the milestones by hand. Requires Node 18.18 or later and npm 10.
 Commands run from this directory. CP-E1 covers milestone 0.1, CP-E2
-milestone 0.2 (section 6).
+milestone 0.2 (section 6), CP-E3 milestone 0.3 (section 7).
 
 ## 1. Install and verify
 
 ```sh
 npm install
-npm test                # Vitest: 13 files, 71 tests
+npm test                # Vitest: 23 files, 126 tests
 npm run build           # tsc → dist/ (ESM + types) and the stylesheets
 ```
 
 Expected: every test passes; `dist/index.js`, `dist/react/index.js`,
-`dist/bpmn/index.js`, `dist/tokens.css`, `dist/style.css` exist.
+`dist/bpmn/index.js`, `dist/canvas/index.js`, `dist/tokens.css`,
+`dist/style.css` exist.
 
 ## 2. Storybook (CP-E1)
 
@@ -107,10 +108,13 @@ npm run test:visual
 ```
 
 Playwright starts Storybook on port 6007 and compares the P2P map, the
-stable-layout story, the BPMN stage-model diagram and the view grid with
-the baselines in `tests/visual/__screenshots__/` (recorded on macOS), and
-checks that the viewport of the BPMN model does not move while overlay
-datasets switch. On a platform without a baseline the first run records
+stable-layout story, the BPMN stage-model diagram, the view grid, the
+paths of a focused activity and the stage lanes with the baselines in
+`tests/visual/__screenshots__/` (recorded on macOS; Linux baselines exist
+for the 0.1 and 0.2 stories), checks that the viewport of the BPMN model
+does not move while overlay datasets switch, operates the actions menu by
+keyboard, adds and removes filter chips and hovers and right-clicks on the
+Canvas renderer. On a platform without a baseline the first run records
 one and reports it as a failure; the second run passes. Refresh baselines
 after an intended change with `npm run test:visual -- --update-snapshots`.
 
@@ -274,12 +278,170 @@ and the grid shows all four maps with their legends.
   (the first run on a fresh platform records the two new baselines and
   reports them, the second run passes).
 
+## 7. CP-E3 — milestone 0.3: interaction, paths, filters, lanes, canvas
+
+Open Storybook (`npm run storybook`) and walk through the *Interaction*,
+*Layout* and *Canvas* groups. All three use the BPI Challenge 2019 map at
+activities ≥ 1 %, paths ≥ 3 %, except the synthetic large map.
+
+### 7.1 Interaction › select and context menu
+
+What appears: the P2P map with the header "Selection: nothing · Last
+action: –".
+
+What to do:
+
+- Click *Clear Invoice*: the header reads "activities Clear Invoice",
+  unrelated elements dim. Shift-click *Record Goods Receipt*: both are
+  listed, and the path between them appears at the side (two selected
+  activities show their path).
+- Right-click *Clear Invoice*: the actions menu opens under the pointer
+  with the identity line (label, kind, stage, the worst expectation
+  touching it) and the groups *Filter* (filter to, exclude), *Explore*
+  (paths in and out, distribution lens, worst cases, and the host's own
+  entry "Open the activity profile" added through `onContextMenu`),
+  *Compare* (pin), *Author* (add expectation); every entry shows its
+  accelerator letter. Press `o`: the menu closes and the header reads
+  "profile on Clear Invoice". Press `w` after opening it again: "worst-cases
+  on Clear Invoice".
+- With two activities selected, right-click one of them: the menu is
+  titled for the pair and offers the pair actions (filter to cases where
+  one is followed by the other, the path between them, the lag lens, a
+  lag or precedence expectation).
+- Keyboard only: press Tab until the map has focus, an arrow key to move
+  the focus ring, Enter to open the menu for the focused activity, the
+  arrow keys, Home and End inside the menu, Enter or a letter to choose,
+  Escape to close (focus returns to the map). Alt with an arrow key moves
+  the focus along the paths (the focused path is highlighted; Enter opens
+  its menu). Shift with an arrow key extends the selection.
+- A screen reader (or the hidden live region, `data-testid="wf-live"`)
+  announces "Selected: …", "Actions menu for … opened; 8 actions.",
+  "Actions menu closed." and the result of every action.
+
+Pass when: the menu opens on a right click and on Enter, every entry is
+reachable by keyboard, the host's entry appears, the header shows the
+chosen action, and two selected activities open the pair menu.
+
+### 7.2 Interaction › paths for an activity
+
+What appears: *Record Invoice Receipt* is focused: it, its predecessors and
+successors and the paths between them stay bright while the rest of the
+map is dimmed; the map is fitted beside a side list "Paths of Record
+Invoice Receipt" with *Incoming paths (26 paths)* and *Outgoing paths* —
+transitions, cases (share of the activity's cases), median and 90th
+percentile lag, expectation shortfall — and a total row equal to the
+activity's in- and out-counts. The note under the title says where the
+numbers come from: with *paths from the analysis (full graph)* ticked, the
+list reads the `paths` block of a focused flow response (here computed
+from the full directly-follows graph, so it also lists paths the
+abstraction hides); unticked, the numbers come from the map.
+
+What to do:
+
+- Click a column header to sort (▲ / ▼ and `aria-sort`); click a row: its
+  path is selected on the map (or, for a path the abstraction hides, its
+  two endpoints). Hover a row: the path is highlighted.
+- Change the focus in the header select; press × on the list or Escape on
+  the map to clear it (the map fits again).
+- Select two activities (click, Shift-click): the list shows the path from
+  the first to the second and the reverse path when one exists.
+
+Pass when: dimming, the side list and the totals agree with the map, rows
+select paths, and the source note changes with the checkbox.
+
+### 7.3 Interaction › filters
+
+What appears: two chips above the map ("case start 2018-01-01 –
+2018-06-30", "cases with Record Goods Receipt"), "N_in of 251,734 cases ·
+N_out removed" and per chip "−n by this filter alone" (the preview here is
+a fixed share per clause; the workbench's numbers come from
+`GET …/filters/preview`); the header prints the canonical filter JSON.
+
+What to do: right-click an activity and choose *Filter to cases with this
+activity* (`f`) or *Exclude* (`x`): a chip is added and the live region
+says "Filter added: …"; press × on a chip (or Delete on a focused chip):
+the chip is removed; *Clear filters* empties the bar. A time window with
+`events_inside` would carry the "changes cases" mark. The map itself never
+changes: it only calls `onFilterChange`.
+
+Pass when: chips follow the actions, the canonical JSON in the header is
+the same for any order of the same clauses, and the map does not filter.
+
+### 7.4 Layout › stage lanes and role lanes
+
+What appears: the P2P map with the stage groups Requisition → Purchase
+order → Goods receipt → Invoice → Payment as five consecutive bands along
+the flow, cut half-way between neighbouring stages and spanning the map;
+no activity moved compared with *none*, which draws the groups as boxes
+as before. *Role lanes*: the BPMN-lite model of the stage model with the
+lanes Requester, Purchasing, Warehouse, Accounts payable stacked across
+the flow; every task sits inside its lane, the flow order along the map
+stays.
+
+Pass when: the bands are in stage order and contiguous, switching the mode
+does not move activities in the stage mode, and every task lies inside its
+role lane.
+
+### 7.5 Canvas › large map, P2P map on canvas, PNG export
+
+What appears: a synthetic process with 5,000 activities and 19,800 paths
+in ten stages (sizes selectable in the controls), drawn on a canvas
+(`data-renderer="canvas"` on the map element, "renderer: canvas" in the
+header) with stage bands, badges on every 97th activity, the abstraction
+controls hidden and the legend at the bottom right.
+
+What to do:
+
+- Drag to pan, Ctrl or Cmd with the wheel (or the + / − buttons) to zoom:
+  labels and badges appear as the zoom passes the level-of-detail
+  thresholds; only the elements inside the viewport are drawn (the
+  renderer's `lastDraw` counts them).
+- Hover an activity: a tooltip with its description; click to select
+  (Shift-click extends); right-click: the same actions menu as on the SVG
+  renderer.
+- Press Tab to focus the map, Home: the first activity is focused and
+  centred; the arrow keys move the focus; Enter opens the menu.
+- *P2P map on canvas*: the fixture map forced onto the canvas: the same
+  overlays (badges, arcs, self-loops, hatching, chips), selection and
+  menu.
+- *PNG export*: press *Render PNG*: the abstracted P2P map with stage
+  bands, title, context line and legend as a single-column figure at 2×
+  density; the link downloads it.
+
+Pass when: the large map pans and zooms smoothly, hover and the menu work
+on canvas hits, the keyboard routes work, and the PNG shows the map with
+its legend.
+
+### 7.6 Results at hand-over of 0.3
+
+- `npm test`: 23 files, 126 tests passed (the 71 of 0.2 plus the
+  selection model, the default actions, the paths from the map and from
+  the response, canonical filters and chip texts, stage and role lanes,
+  `prepareScene` / `drawScene` / `toPNG` / `CanvasRenderer` on a recording
+  context, `<ContextMenu/>`, `<FilterChips/>`, `<PathList/>` and the map's
+  interaction in jsdom).
+- `npm run lint`, `npm run typecheck`, `npm run build`: clean; `dist/canvas/`
+  is emitted for the `./canvas` entry.
+- `npm run storybook`: 35 stories render without console errors.
+- `npm run test:visual`: 10 tests passed against the recorded baselines
+  (six screenshots; the paths and stage-lanes baselines are recorded for
+  macOS, the 0.1 and 0.2 stories also for Linux).
+
 ## Not done
 
-- Canvas renderer, `toPNG`, orthogonal edge routing and bundling on the
-  abstracted map, the position cache keyed by norm fingerprint and mapping
-  version: moved to 0.3 (see `docs/ROADMAP.md`); `renderer: "canvas"` still
-  falls back to the React Flow renderer.
+- Orthogonal edge routing and bundling on the abstracted map and the
+  position cache keyed by norm fingerprint and mapping version: moved to
+  0.4 (see `docs/ROADMAP.md`).
+- The Canvas renderer draws the whole scene in one pass per frame (with
+  viewport culling above 1,500 elements); there is no dirty-rectangle
+  redraw yet. Edge labels on the canvas are drawn at the polyline midpoint
+  without collision avoidance.
+- The default actions name what the host has to do (`lens`,
+  `worst-cases`, `pin`, `add-constraint`); the map performs the filter,
+  paths, collapse and expand actions itself. The distribution lens, worst
+  cases, pinning and the norm editor belong to the workbench.
+- Role lanes drop the routes of paths that cross lanes (they are drawn as
+  straight connections); a swimlane routing lives in `layoutBpmn`.
 - BPMN authoring forms: `<BpmnView/>` reports selected tasks, flows and
   lanes; the forms that turn a selection into a constraint belong to the
   workbench (0.4 in the roadmap).

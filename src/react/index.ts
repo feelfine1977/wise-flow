@@ -8,6 +8,10 @@ export { TraceTimeline, type TraceTimelineProps, type Trace, type TraceEvent, ty
 export { AbstractionControls, type AbstractionControlsProps } from "./AbstractionControls";
 export { Legend, type LegendProps } from "./Legend";
 export { OverlayLayer, type OverlayLayerProps } from "./OverlayLayer";
+export { ContextMenu, type ContextMenuProps } from "./ContextMenu";
+export { PathList, type PathListProps } from "./PathList";
+export { FilterChips, type FilterChipsProps } from "./FilterChips";
+export { CanvasMap, type CanvasMapProps, type CanvasMapHandle } from "./CanvasMap";
 export { nodeTypes, Badges, Chip } from "./nodes";
 export { edgeTypes, midpoint } from "./edges";
 export { PatternSwatch } from "./patterns";

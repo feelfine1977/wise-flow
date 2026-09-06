@@ -12,7 +12,7 @@ const preview: Preview = {
     controls: { expanded: true },
     backgrounds: { disable: true },
     options: {
-      storySort: { order: ["Process map", "Stable layout", "Overlays", "BPMN", "Views", "Table alternative", "Trace timeline"] },
+      storySort: { order: ["Process map", "Interaction", "Layout", "Canvas", "Stable layout", "Overlays", "BPMN", "Views", "Table alternative", "Trace timeline"] },
     },
   },
 };

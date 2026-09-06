@@ -1,5 +1,99 @@
 # Changelog
 
+## 0.3.0 — milestone 0.3
+
+"Interaction: select, ask, follow the paths, filter, draw large maps."
+Additions only; the 0.1 and 0.2 API is unchanged (see "Changes in 0.3
+against 0.2" in `docs/API.md`). One behaviour change on the map: Enter on
+the focused element opens the actions menu (Space still selects); with
+`contextMenu={false}` Enter selects as before.
+
+### Selection and actions menu
+
+- Selection model in the core (`selectElement`, `selectMany`,
+  `selectionShape`, `relatedToSelection`, `describeSelection`): single and
+  multi-select of activities, paths and groups; Shift, Ctrl or Cmd click
+  and Shift with an arrow key extend the selection; two activities form a
+  pair, more a set; groups are selected alone. The renderers dim what is
+  unrelated to the selection.
+- Actions menu: `menuTargetFor`, `defaultActions` (filter to, exclude,
+  paths in and out, distribution lens, worst cases, pin, add expectation,
+  collapse or expand a stage, hide the paths; pair and set actions on a
+  multi-selection; closed and open cases on the end event) grouped in the
+  order filter, explore, compare, author, with accelerator letters and the
+  filter clause every filter action adds. `<ContextMenu/>`: `role="menu"`,
+  arrow keys, Home, End, accelerators, Enter, Escape, focus returned to
+  the map. `<ProcessMap/>` opens it on a right click and on Enter,
+  `onContextMenu(target, actions)` lets the host fill or replace the
+  entries, `onAction(action, target)` receives the choice, and every
+  result is announced through the map's live region.
+
+### Paths
+
+- `pathsFor`, `neighbourhood`, `focusMembers`, `pathBetween`, `pathRows`,
+  `focusHighlight`: incoming and outgoing paths of an activity or a stage
+  with transitions, cases, share, median and 90th percentile lag and the
+  expectation shortfall, from the `paths` block of a focused flow response
+  (`GET …/flow?focus=`, snake_case accepted) or computed from the map;
+  the shortest, then strongest path between two activities and its reverse.
+- `<ProcessMap focus>` highlights predecessors and successors, dims the
+  rest and shows `<PathList/>` at the side (sortable, totals equal to the
+  activity's in- and out-counts, rows select and hover the path); two
+  selected activities show the path between them. `FlowGraph` gained
+  `focus` and `paths`.
+
+### Filters
+
+- Typed filter clauses of the workbench contract (`time`, `attribute`,
+  `activity`, `follows`, `lag`, `count`, `open`, `constraint`, `slice`,
+  `any`), `canonicalFilter` (aliases resolved, clauses sorted, duplicates
+  removed, byte-identical for any order), `addClause`, `removeClause`,
+  `describeClause` in plain words (en, de), `changesCases`,
+  `clauseForTarget` for the map actions, `normalizeFilterPreview`.
+- `<FilterChips/>` and the `filters` / `filterPreview` / `onFilterChange`
+  props of `<ProcessMap/>`: one chip per clause with cases in and out and
+  the marginal removal, "changes cases" marked, remove by button or Delete;
+  the map never filters data, it calls back.
+
+### Lanes
+
+- `laneBands`, `laneGroups`, `laneAssignment`: stage groups as ordered
+  bands along the flow (cut half-way between neighbouring stages, nodes
+  untouched) or lane groups (roles) as bands stacked across the flow with
+  the nodes moved into their lane; `<ProcessMap lanes="stages" | "roles" |
+  "none">`, `Scene.lanes` for `toSVG` and `toPNG`.
+
+### Canvas (`@wise/flow/canvas`, new entry point)
+
+- `prepareScene` (retained geometry, colours, overlay shapes, R-tree),
+  `drawScene` (viewport culling above 1,500 elements, level of detail by
+  zoom, selection, hover, focus dimming, pattern twins and hatching),
+  `CanvasRenderer` (pan, zoom, fit, hit-testing, animation-frame redraw),
+  `<CanvasMap/>` (pointer handling, tooltip from the element description,
+  hidden element list for assistive technology). `<ProcessMap
+  renderer="auto">` draws on the canvas above `canvasThreshold` (2,000
+  activities plus paths) with the same overlays, selection, menu, keyboard
+  routes and controls.
+- `toPNG`, `toPNGCanvas`, `toPNGDataUrl`: the scene as a bitmap with the
+  figure presets, title, context line and embedded legend of `toSVG`.
+
+### Core and React
+
+- `LayoutEngine` accepts `"given"` for positions supplied by the caller;
+  strings `selection.*`, `menu.*`, `paths.*`, `filters.*`, `clause.*`,
+  `lanes.*`, `unit.*` and new `map.*` entries (en, de); the map's
+  instructions name every keyboard route.
+
+### Tooling
+
+- Stories "Interaction › select and context menu", "paths for an
+  activity", "filters"; "Layout › stage lanes", "role lanes"; "Canvas ›
+  large map", "P2P map on canvas", "PNG export". Vitest suites for the
+  selection, the actions, the paths, the filters, the lanes, the canvas
+  (recording context, PNG, renderer), `<ContextMenu/>`, `<FilterChips/>`,
+  `<PathList/>` and the map's interaction; Playwright screenshots of the
+  paths and stage-lanes stories plus keyboard, filter and canvas checks.
+
 ## 0.2.0 — milestone 0.2
 
 "Create the process flow from known activities, and show different views."

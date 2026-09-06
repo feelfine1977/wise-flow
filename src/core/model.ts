@@ -77,12 +77,43 @@ export interface Overlay {
   payload?: OverlayPayload;
 }
 
+/**
+ * One path in the `paths` block of a focused flow response
+ * (`GET …/flow?focus=<activity>`): the contract's field names (`median_lag`,
+ * `violation_share`) and the metric names of the graph are both accepted.
+ */
+export interface FlowPath {
+  from?: string;
+  to?: string;
+  count?: number;
+  cases?: number;
+  share?: number;
+  medianLagHours?: number;
+  p90LagHours?: number;
+  violationShare?: number;
+  median_lag?: number;
+  violation_share?: number;
+  [key: string]: unknown;
+}
+
+/** Incoming and outgoing paths of the focused activity, as the API returns them. */
+export interface FlowPaths {
+  /** Activity the paths belong to; defaults to `FlowGraph.focus`. */
+  focus?: string;
+  incoming: FlowPath[];
+  outgoing: FlowPath[];
+}
+
 export interface FlowGraph {
   nodes: FlowNode[];
   edges: FlowEdge[];
   groups?: FlowGroup[];
   overlays?: Overlay[];
   meta?: Record<string, unknown>;
+  /** Activity the response was focused on (`focus` query parameter). */
+  focus?: string;
+  /** Paths of the focused activity from the full directly-follows graph. */
+  paths?: FlowPaths;
 }
 
 /** Target id of overlays that belong to the whole map rather than an element. */
@@ -202,6 +233,8 @@ export function normalizeGraph(graph: FlowGraph): FlowGraph {
     groups: graph.groups ? byId(graph.groups) : undefined,
     overlays: graph.overlays,
     meta: graph.meta,
+    focus: graph.focus,
+    paths: graph.paths,
   };
 }
 

@@ -37,7 +37,7 @@ const Follows = memo(function Follows(props: EdgeProps<WfEdge>) {
   const mid = route ? midpoint(route) : { x: (sourceX + targetX) / 2, y: (sourceY + targetY) / 2 };
   const dash = data.reconnected ? "6 5" : data.edge.kind === "constraint" ? "2 4" : undefined;
   return (
-    <g className={`wf-edge wf-edge--${data.edge.kind}${data.hovered ? " wf-edge--hovered" : ""}${data.dimmed ? " wf-edge--dimmed" : ""}`} data-id={id}>
+    <g id={`wf-edge-${id}`} className={`wf-edge wf-edge--${data.edge.kind}${data.hovered ? " wf-edge--hovered" : ""}${data.dimmed ? " wf-edge--dimmed" : ""}${data.focused ? " wf-edge--focused" : ""}`} data-id={id}>
       <title>{data.description}</title>
       <BaseEdge
         id={id}
@@ -45,8 +45,8 @@ const Follows = memo(function Follows(props: EdgeProps<WfEdge>) {
         markerEnd={markerEnd}
         interactionWidth={14}
         style={{
-          stroke: selected || data.hovered ? "var(--wf-focus)" : data.color,
-          strokeWidth: data.width,
+          stroke: selected || data.hovered || data.focused ? "var(--wf-focus)" : data.color,
+          strokeWidth: data.focused ? Math.max(data.width, 3) : data.width,
           strokeDasharray: dash,
           opacity: data.dimmed ? 0.25 : 1,
         }}

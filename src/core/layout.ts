@@ -25,8 +25,8 @@ export interface EdgeRoute {
   labelY?: number;
 }
 
-/** `di` marks positions read from BPMN diagram interchange rather than computed. */
-export type LayoutEngine = "elk" | "dagre" | "di";
+/** `di` marks positions read from BPMN diagram interchange, `given` positions supplied by the caller. */
+export type LayoutEngine = "elk" | "dagre" | "di" | "given";
 export type LayoutDirection = "RIGHT" | "DOWN" | "LEFT" | "UP";
 
 /**

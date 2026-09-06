@@ -1,7 +1,7 @@
 {
   "name": "@wise/flow",
-  "version": "0.2.0",
-  "description": "Process-flow visualisation: headless core (graph model, abstraction, stable layouts, scales, constraint overlays, hit-testing, SVG export, named views) with a React renderer and a BPMN 2.0 bridge (BPMN-lite, export, import, bpmn-js view)",
+  "version": "0.3.0",
+  "description": "Process-flow visualisation: headless core (graph model, abstraction, stable layouts, scales, constraint overlays, selection and paths, filter clauses, lanes, hit-testing, SVG export, named views) with a React renderer (context menu, path list, filter chips), a Canvas renderer with PNG export and a BPMN 2.0 bridge (BPMN-lite, export, import, bpmn-js view)",
   "type": "module",
   "exports": {
     ".": {
@@ -15,6 +15,10 @@
     "./bpmn": {
       "types": "./dist/bpmn/index.d.ts",
       "import": "./dist/bpmn/index.js"
+    },
+    "./canvas": {
+      "types": "./dist/canvas/index.d.ts",
+      "import": "./dist/canvas/index.js"
     },
     "./tokens.css": "./dist/tokens.css",
     "./style.css": "./dist/style.css",

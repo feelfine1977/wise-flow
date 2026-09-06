@@ -694,3 +694,347 @@
   gap: 8px;
   flex-wrap: wrap;
 }
+
+/* Map container with chips above the map and a side list (0.3) */
+.wf-process-map {
+  display: flex;
+  flex-direction: column;
+}
+.wf-process-map__body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+/* The map area shrinks while the side list is shown; the view is fitted again. */
+.wf-process-map__main {
+  position: absolute;
+  inset: 0;
+}
+.wf-process-map--side .wf-process-map__main {
+  right: 400px;
+}
+.wf-process-map__side {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  bottom: 10px;
+  width: 380px;
+  max-width: calc(100% - 20px);
+  overflow: auto;
+  z-index: 6;
+}
+
+/* Lane bands */
+.wf-group--band {
+  border: none;
+  border-radius: 0;
+  background: color-mix(in srgb, var(--wf-group-color, var(--wf-line)) 6%, transparent);
+  box-shadow: inset 0 3px 0 var(--wf-group-color, var(--wf-line-strong));
+}
+.wf-group--band-odd {
+  background: color-mix(in srgb, var(--wf-group-color, var(--wf-line)) 2%, transparent);
+}
+.wf-group--band-main {
+  border-left: 1px solid var(--wf-line);
+  border-right: 1px solid var(--wf-line);
+}
+.wf-group--band-cross {
+  border-top: 1px solid var(--wf-line);
+  border-bottom: 1px solid var(--wf-line);
+  box-shadow: inset 3px 0 0 var(--wf-group-color, var(--wf-line-strong));
+}
+.wf-group--band.wf-group--selected {
+  outline: 2px solid var(--wf-focus);
+  outline-offset: -2px;
+}
+.wf-group--band.wf-group--tinted {
+  background: var(--wf-tint, transparent);
+}
+
+/* Focused path (keyboard) */
+.wf-edge--focused .react-flow__edge-path {
+  stroke: var(--wf-focus);
+}
+
+/* Actions menu */
+.wf-menu {
+  position: absolute;
+  z-index: 30;
+  min-width: 260px;
+  max-width: 340px;
+  background: var(--wf-paper);
+  color: var(--wf-ink);
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius-lg);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+  padding: 6px 0;
+  font-size: 12px;
+  font-family: var(--wf-font);
+}
+.wf-menu__header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 12px 8px;
+  border-bottom: 1px solid var(--wf-line);
+}
+.wf-menu__header strong {
+  font-size: 13px;
+}
+.wf-menu__subtitle {
+  color: var(--wf-ink-muted);
+}
+.wf-menu__note {
+  color: var(--wf-ink);
+  font-size: 11px;
+}
+.wf-menu__group-label {
+  padding: 6px 12px 2px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--wf-ink-muted);
+}
+.wf-menu__separator {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--wf-line);
+}
+.wf-menu__item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.wf-menu__item--active,
+.wf-menu__item:hover,
+.wf-menu__item:focus-visible {
+  background: var(--wf-selection);
+  outline: none;
+}
+.wf-menu__item[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: default;
+}
+.wf-menu__key {
+  font-family: var(--wf-font-mono);
+  font-size: 10px;
+  border: 1px solid var(--wf-line-strong);
+  border-radius: 3px;
+  padding: 0 4px;
+  color: var(--wf-ink-muted);
+}
+
+/* Path list */
+.wf-paths {
+  background: var(--wf-paper);
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius-lg);
+  box-shadow: var(--wf-shadow);
+  padding: 8px 12px 4px;
+}
+.wf-paths__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.wf-paths__header h3 {
+  margin: 0;
+  font-size: 13px;
+}
+.wf-paths__close {
+  padding: 0 8px;
+  line-height: 1.4;
+}
+.wf-paths__source {
+  margin: 2px 0 6px;
+  font-size: 11px;
+  color: var(--wf-ink-muted);
+}
+.wf-paths table {
+  margin-bottom: 10px;
+}
+.wf-paths th,
+.wf-paths td {
+  padding: 3px 6px;
+  font-size: 11px;
+}
+.wf-paths__sort {
+  font: inherit;
+  font-weight: 700;
+  border: none;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+.wf-paths__sort:focus-visible {
+  outline: 2px solid var(--wf-focus);
+  outline-offset: 1px;
+}
+.wf-paths__count {
+  font-weight: 400;
+  color: var(--wf-ink-muted);
+}
+.wf-paths tfoot th,
+.wf-paths tfoot td {
+  font-weight: 700;
+  border-bottom: none;
+}
+.wf-paths tr.wf-row--reconnected th {
+  font-style: italic;
+}
+.wf-paths tr[tabindex]:focus-visible td,
+.wf-paths tr[tabindex]:focus-visible th {
+  outline: 2px solid var(--wf-focus);
+  outline-offset: -2px;
+}
+
+/* Filter chips */
+.wf-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--wf-line);
+  background: var(--wf-surface);
+  font-family: var(--wf-font);
+  font-size: 12px;
+  color: var(--wf-ink);
+}
+.wf-filters__title {
+  font-weight: 700;
+}
+.wf-filters__count {
+  font-variant-numeric: tabular-nums;
+}
+.wf-filters__out,
+.wf-filters__none {
+  color: var(--wf-ink-muted);
+}
+.wf-filters__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.wf-filter-chip {
+  height: auto;
+  min-height: 24px;
+  max-width: none;
+  border-color: var(--wf-focus);
+  gap: 8px;
+  padding: 0 4px 0 10px;
+  font-size: 11px;
+}
+.wf-filter-chip:focus-visible {
+  outline: 2px solid var(--wf-focus);
+  outline-offset: 2px;
+}
+.wf-filter-chip--changes {
+  border-color: var(--wf-warn);
+}
+.wf-filter-chip__flag {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--wf-warn);
+}
+.wf-filter-chip__marginal {
+  font-size: 10px;
+  color: var(--wf-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.wf-filter-chip__remove {
+  border: none;
+  background: transparent;
+  color: var(--wf-ink-muted);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.wf-filter-chip__remove:hover,
+.wf-filter-chip__remove:focus-visible {
+  background: var(--wf-selection);
+  color: var(--wf-ink);
+  outline: none;
+}
+
+/* Canvas renderer */
+.wf-canvas-map {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+}
+.wf-canvas-map--dragging {
+  cursor: grabbing;
+}
+.wf-canvas-map--hit {
+  cursor: pointer;
+}
+.wf-canvas-map canvas {
+  display: block;
+}
+.wf-canvas-map__tooltip {
+  position: absolute;
+  z-index: 10;
+  pointer-events: none;
+  background: var(--wf-ink);
+  color: var(--wf-paper);
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  max-width: 320px;
+  white-space: pre-line;
+}
+.wf-overlay-panel {
+  position: absolute;
+  z-index: 5;
+}
+.wf-overlay-panel--top-left {
+  top: 10px;
+  left: 10px;
+}
+.wf-overlay-panel--top-right {
+  top: 10px;
+  right: 10px;
+}
+.wf-overlay-panel--bottom-left {
+  bottom: 10px;
+  left: 10px;
+}
+.wf-overlay-panel--bottom-right {
+  bottom: 10px;
+  right: 10px;
+}
+.wf-zoom {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+}
+.wf-zoom .wf-button {
+  width: 28px;
+  height: 26px;
+  padding: 0;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1;
+}

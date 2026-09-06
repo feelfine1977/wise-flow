@@ -3,10 +3,12 @@
 Process-flow visualisation for process mining and norm-based analysis:
 a headless TypeScript core (graph model, directly-follows aggregation with
 abstraction, stable layouts, metric-to-style scales, constraint overlays,
-hit-testing, SVG export, named views) with a React renderer on React Flow
-and a BPMN 2.0 bridge on bpmn-js (BPMN-lite from a stage model or a log,
-export with diagram interchange, import with a task ↔ activity mapping,
-`<BpmnView/>` with overlays). A Canvas renderer follows in a later milestone.
+hit-testing, SVG and PNG export, named views, selection and actions,
+paths, filter clauses, lanes) with a React renderer on React Flow (actions
+menu, path list, filter chips), a Canvas renderer for large maps and a
+BPMN 2.0 bridge on bpmn-js (BPMN-lite from a stage model or a log, export
+with diagram interchange, import with a task ↔ activity mapping,
+`<BpmnView/>` with overlays).
 
 Built for WISE Workbench, usable on its own: any application that has
 activities, stages, directly-follows counts and per-element metrics can
@@ -17,21 +19,26 @@ render maps, diff maps, BPMN diagrams and trace timelines with it.
 - `core/` — framework-free; runs in Node and in the browser.
 - `react/` — components on React Flow and bpmn-js for interactive scenes.
 - `bpmn/` — BPMN-lite, BPMN 2.0 export and import, swimlane layout, `<BpmnView/>`.
-- `canvas/` — Canvas 2D renderer for large maps on the same model (0.3).
+- `canvas/` — Canvas 2D renderer for large maps on the same model, and `toPNG`.
 
 Non-goals: a general diagramming editor (ports, routers, shape libraries),
 statistical charts (use ECharts or similar), conformance checking.
 
 ## Status
 
-Milestone 0.2 (see `docs/ROADMAP.md`): everything of 0.1 (core model,
+Milestone 0.3 (see `docs/ROADMAP.md`): everything of 0.1 (core model,
 `abstract`, `diff`, ELK layout with Dagre fallback, `layoutUnion`, scales
 and overlay presets, level-of-detail rules, R-tree hit index, `toSVG`,
-`<ProcessMap/>`, `<TableAlternative/>`, `<TraceTimeline/>`) plus the BPMN
-bridge (`liteFromStages`, `liteFromGraph`, `exportBpmn`, `importBpmn`,
-`layoutBpmn`, `<BpmnView/>`) and named views of one map (`buildViews`,
-`<ViewSwitcher/>`). `docs/API.md` is the public contract; `CHECKPOINT.md`
-explains how to try the milestones by hand.
+`<ProcessMap/>`, `<TableAlternative/>`, `<TraceTimeline/>`) and 0.2 (the
+BPMN bridge `liteFromStages`, `liteFromGraph`, `exportBpmn`, `importBpmn`,
+`layoutBpmn`, `<BpmnView/>`; named views `buildViews`, `<ViewSwitcher/>`)
+plus the interaction model of 0.3: selection with single and multi-select,
+an actions menu the host fills (`onContextMenu`, `onAction`), keyboard
+routes and announcements, incoming and outgoing paths of an activity with
+a side list (`focus`, `paths`), filter chips on the contract's clause kinds
+(`filters`, `onFilterChange`), stage and role lanes (`lanes`), the Canvas
+renderer for large maps and `toPNG`. `docs/API.md` is the public contract;
+`CHECKPOINT.md` explains how to try the milestones by hand.
 
 ## Install and run
 
@@ -39,7 +46,7 @@ Node 18.18 or later and npm 10.
 
 ```sh
 npm install
-npm test              # Vitest: core invariants, BPMN round trips, React components
+npm test              # Vitest: core invariants, BPMN round trips, interaction, canvas, React components
 npm run build         # tsc → dist/ (ESM + types) and the stylesheets
 npm run storybook     # http://localhost:6006
 npm run test:visual   # Playwright screenshots of the stories (needs Chromium)
@@ -76,7 +83,34 @@ const overlays = constraintOverlays(
 
 // Scales for the renderer or a figure for the report.
 const scales = buildScales(shown);
-const svg = toSVG({ graph: shown, positions, overlays, title: "Purchase-to-pay" }, { preset: "single-column" });
+const svg = toSVG({ graph: shown, positions, overlays, title: "Purchase-to-pay", lanes: "stages" }, { preset: "single-column" });
+```
+
+### Selection, actions, paths, filters
+
+```ts
+import { selectElement, defaultActions, menuTargetFor, pathsFor, pathBetween, canonicalFilter, describeClause, laneBands } from "@wise/flow";
+import type { Filter, Selection } from "@wise/flow";
+
+// Selection state shared by every renderer: replace, toggle (Shift-click), add, remove.
+let selection: Selection = selectElement({ nodes: [], edges: [], groups: [] }, { kind: "node", id: "record_goods_receipt" });
+selection = selectElement(selection, { kind: "node", id: "record_invoice_receipt" }, "toggle");   // a pair
+
+// The actions a menu offers for an element (or the pair / set it belongs to), with the filter clause each filter action adds.
+const target = menuTargetFor(shown, { kind: "node", id: "record_invoice_receipt" }, selection);
+const actions = defaultActions(shown, target);   // filter-to, exclude, paths, lens, pin, add-constraint … with accelerators
+
+// Paths of an activity: from the response's `paths` block (GET …/flow?focus=) when present, else from the map.
+const paths = pathsFor(graph, "record_invoice_receipt");        // incoming, outgoing, totals, source: "payload" | "graph"
+const between = pathBetween(shown, "record_goods_receipt", "clear_invoice");   // shortest, then strongest, plus the reverse path
+
+// Filter clauses of the workbench contract: canonical form, plain words for chips.
+const filter: Filter = { and: [{ kind: "activity", op: "contains", activity: "record_goods_receipt" }, { kind: "open", value: false }] };
+canonicalFilter(filter);                                       // byte-identical for any order or spelling of the same clauses
+describeClause(filter.and[0], "en", (id) => labels[id]);       // "cases with Record Goods Receipt"
+
+// Stage groups as ordered bands along the flow (nodes stay where they are).
+const banded = laneBands(shown, positions, { lanes: "stages" }).positions;
 ```
 
 `elkWorkerUrl` is the URL under which the application serves
@@ -130,6 +164,23 @@ const set = await buildViews(shown, [
 // set.positions is shared; set.views[i].style carries the shared domains, set.views[i].scales is ready to draw.
 ```
 
+### Canvas and PNG (`@wise/flow/canvas`)
+
+```ts
+import { toPNG, prepareScene, CanvasRenderer } from "@wise/flow/canvas";
+
+// The scene as a bitmap with the same figure presets and embedded legend as toSVG.
+const blob = await toPNG({ graph: shown, positions, overlays, title: "Purchase-to-pay", lanes: "stages" }, { preset: "single-column", scale: 2 });
+
+// The renderer on its own (the React wrapper is <CanvasMap/>; <ProcessMap renderer="canvas"/> uses it).
+const scene = prepareScene(shown, positions, { overlays, lanes: "stages" });
+const renderer = new CanvasRenderer(canvasElement);
+renderer.resize(800, 600);
+renderer.setScene(scene);
+renderer.fit();
+renderer.hitAt(x, y);   // node, path, group or overlay under a screen point through the R-tree
+```
+
 ### React
 
 ```tsx
@@ -150,6 +201,16 @@ import { BpmnView } from "@wise/flow/bpmn";
     defaultAbstraction={{ minNodeShare: 0.01, minEdgeShare: 0.03 }}
     onSelect={(s) => console.log(s.nodes, s.edges)}
     onHover={(id) => setHovered(id)}
+    focus={focus}                  // activity id, or two ids: paths highlighted, side list shown
+    onFocusChange={setFocus}
+    paths={graph.paths}            // the response's paths block; computed from the map when absent
+    filters={filter}               // the contract's clauses as chips; the map never filters, it calls back
+    filterPreview={preview}        // cases in / out and the marginal removal per clause
+    onFilterChange={setFilter}
+    lanes="stages"                 // "stages" | "roles" | "none"
+    onContextMenu={(target, actions) => [...actions, { id: "profile", label: "Open profile", group: "explore", accelerator: "o" }]}
+    onAction={(action, target) => run(action.id, target.ids)}   // a returned string is announced
+    renderer="auto"                // canvas above 2,000 activities plus paths
     locale="en"
     layout={{ elkWorkerUrl }}
   />
@@ -170,9 +231,15 @@ import { BpmnView } from "@wise/flow/bpmn";
 ```
 
 `<ProcessMap/>` ships the abstraction controls (activities, paths, stage
-view, keep connected), a legend, keyboard navigation (arrow keys, Enter,
-Escape, Home, End), ARIA descriptions for the map and every element, and a
-table view that lists the same activities, paths and overlays. `<BpmnView/>`
+view, keep connected), a legend, selection (click, Shift-click, Shift with
+an arrow key), an actions menu (right click or Enter: filter to, exclude,
+paths, distribution lens, worst cases, pin, add expectation; accelerator
+letters; the host fills or replaces the entries), the paths of a focused
+activity with a side list, filter chips, stage or role lanes, keyboard
+navigation (arrow keys, Alt with an arrow key along the paths, Space,
+Enter, Escape, Home, End), live-region announcements, ARIA descriptions for
+the map and every element, a Canvas renderer for large maps and a table
+view that lists the same activities, paths and overlays. `<BpmnView/>`
 keeps the diagram and its viewport fixed while overlay datasets switch,
 reports selected tasks, flows and lanes for constraint authoring, offers the
 same table alternative, and keeps the bpmn.io watermark (licence).

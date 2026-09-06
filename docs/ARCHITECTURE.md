@@ -5,16 +5,18 @@
 ```
 ┌────────────────────────────────────────────────────────────┐
 │ react/   <ProcessMap/> <TableAlternative/> <TraceTimeline/> │
-│          <BpmnView/> <ViewSwitcher/>                         │
+│          <BpmnView/> <ViewSwitcher/> <ContextMenu/>          │
+│          <PathList/> <FilterChips/> <CanvasMap/>             │
 │          <VariantStrip/> <PerformanceSpectrum/> <DottedChart/>│
-│          (0.3)                                               │
+│          (0.4)                                               │
 │          hooks: useFlowGraph, useStableLayout, useOverlays   │
 ├──────────────────────────┬─────────────────────────────────┤
-│ canvas/  renderer (0.3)  │ bpmn/  lite · layout · export ·   │
-│          (large scenes)  │        import · mapping · moddle  │
+│ canvas/  scene · draw ·  │ bpmn/  lite · layout · export ·   │
+│          renderer · png  │        import · mapping · moddle  │
 ├──────────────────────────┴─────────────────────────────────┤
 │ core/    model · aggregate · layout · style · overlays ·    │
-│          views · hit · export · format · strings            │
+│          views · hit · export · format · strings ·          │
+│          selection · actions · paths · filters · lanes      │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -92,8 +94,8 @@ canonical order so that exports do not depend on input order.
 An R-tree (rbush) over nodes, groups, edge segments and overlay shapes for
 hover and click on Canvas and in exports; `toSVG(scene)` with figure presets
 (single column, double column, slide), an embedded legend with the scales
-and overlay glyphs, deterministic output. `toPNG` follows with the Canvas
-renderer.
+and overlay glyphs, deterministic output. `toPNG` (in `canvas/`) draws the
+same scene, presets and legend into a bitmap.
 
 ## 3. React renderer
 Thin mapping to React Flow nodes and edges with custom components per node
@@ -102,10 +104,41 @@ inside the node components, arcs and self-loops in an SVG layer in the
 viewport; edge labels and node details toggled through level-of-detail
 classes on the container. Abstraction controls (activities, paths, stage
 view, keep connected, table view) in a panel; the legend always visible.
-Keyboard navigation over activities (arrow keys, Enter, Escape, Home, End)
-with `aria-activedescendant`; ARIA labels on every element and a hidden
-description of the map; `TableAlternative` lists the same activities, paths
-and overlays as rows. Reduced motion is respected.
+Keyboard navigation over activities (arrow keys; Alt with an arrow key
+along the paths; Space selects; Enter opens the actions menu; Shift with
+an arrow key extends the selection; Escape; Home, End) with
+`aria-activedescendant`; ARIA labels on every element, a hidden
+description of the map and a polite live region that announces the
+selection, the menu and the result of every action; `TableAlternative`
+lists the same activities, paths and overlays as rows. Reduced motion is
+respected. The actions menu (`ContextMenu`, `role="menu"`, accelerator
+letters, focus returned to the map) opens on a right click or Enter; a
+focus shows the paths of an activity with `PathList` at the side (the map
+area shrinks and is fitted again); `FilterChips` sit above the map;
+`lanes` draws bands instead of group boxes.
+
+### 2.8 Interaction model (0.3)
+The interaction state is data in the core so that the React renderer, the
+Canvas renderer, the table alternative and the tests share one model.
+`selection.ts`: a `Selection` of node, edge and group ids and the
+transitions a click or a key makes (`replace`, `toggle`, `add`, `remove`;
+groups alone; a pair or a set of activities), what stays bright for a
+selection, and the sentence a live region announces. `actions.ts`: the
+target of a menu (the element, or the pair or set it belongs to) and the
+default actions per target in the order filter, explore, compare, author,
+with accelerator letters and the filter clause every filter action adds;
+the host fills or replaces them. `paths.ts`: incoming and outgoing paths
+of an activity or a stage from the response's `paths` block or from the
+map, the shortest-then-strongest path between two activities with its
+reverse, and the sets a renderer highlights for a focus. `filters.ts`:
+the workbench's filter clauses as typed data, their canonical form (so
+that two orderings of the same clauses are byte-identical), plain-word
+descriptions for chips, and the clause a map action produces; the map
+never filters data, it calls back. `lanes.ts`: stage groups as ordered
+bands along the flow (the ELK partitioning already orders them; the bands
+are cut half-way between neighbouring stages and nodes do not move) or
+lane groups as bands stacked across the flow with the nodes moved into
+their lane.
 
 ### 2.7 Views
 `buildViews(graph, views)` lays the base graph out once and resolves named
@@ -117,9 +150,22 @@ are returned with each view's style. `<ViewSwitcher/>` renders the views
 as tabs or as small multiples with a shared selection.
 
 ## 4. Canvas renderer (0.3)
-Draws the same scene with retained geometry, dirty-rect redraw, pan and
-zoom at 60 fps for ≤ 5k nodes and 20k edges, and hover from the R-tree.
-Used automatically above an element threshold or on request.
+`prepareScene` resolves the graph, positions, scales, overlays and lane
+bands into retained geometry with the R-tree of the core; `drawScene`
+issues plain 2D context calls for a viewport (groups and bands, edges with
+arrowheads, nodes with pattern twins, hatching and badges, arcs,
+self-loops, chips, edge labels), decides the level of detail from the
+zoom and, above 1,500 elements, draws only what the R-tree finds inside
+the viewport; `CanvasRenderer` owns the canvas, the viewport and the
+interaction state and redraws on animation frames; `CanvasMap` adds the
+pointer handling (drag to pan, wheel, Ctrl or Cmd with the wheel and pinch
+to zoom, hover through the R-tree with a tooltip, click, right click), a
+hidden element list for assistive technology and the zoom buttons.
+`ProcessMap` switches to it above `canvasThreshold` (2,000 activities
+plus paths) or on `renderer="canvas"` and keeps the selection, the menu,
+the keyboard routes, the controls and the legend. `toPNG` draws a scene
+with the same routines into an offscreen canvas with the figure presets
+and the legend of `toSVG`.
 
 ## 5. BPMN bridge (0.2)
 BPMN-lite is BPMN in the core's own vocabulary: activity nodes tagged
@@ -166,12 +212,14 @@ on the events, span annotations, alignment by an anchor activity, table
 alternative) ships in 0.1. Variant strip (chevrons with frequency and a
 metric), performance spectrum (segments between two activities over time,
 classified by duration band) and dotted chart (events by case over time,
-colour by a categorical) follow in 0.3. All draw with d3 scales on SVG for
+colour by a categorical) follow in 0.4. All draw with d3 scales on SVG for
 small data and Canvas for large samples.
 
 ## 7. Quality
 Vitest for the core (aggregation invariants on the fixture and on random
 graphs, layout stability, overlay geometry, deterministic scales and
-export) and for the components (jsdom), Storybook for components with the
-design tokens, Playwright screenshots of the stories, strict TypeScript,
-ESLint, Changesets for releases.
+export, selection transitions, default actions, path computation,
+canonical filters, lane bands, the canvas routines on a recording
+context) and for the components (jsdom), Storybook for components with the
+design tokens, Playwright screenshots of the stories plus keyboard, filter
+and canvas checks, strict TypeScript, ESLint, Changesets for releases.

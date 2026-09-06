@@ -169,13 +169,15 @@ export function Chip({ chip, locale }: { chip: Overlay; locale: ActivityNodeData
 const Group = memo(function Group({ id, data, selected }: NodeProps<WfGroupNode>) {
   const style: React.CSSProperties & Record<string, string | undefined> = { "--wf-group-color": data.color };
   if (data.tint) style["--wf-tint"] = data.tint;
+  const band = data.band;
   return (
     <div
       id={`wf-group-${id}`}
-      className={`wf-group${data.tint ? " wf-group--tinted" : ""}${selected ? " wf-group--selected" : ""}`}
+      className={`wf-group${data.tint ? " wf-group--tinted" : ""}${selected ? " wf-group--selected" : ""}${band ? ` wf-group--band wf-group--band-${band.axis}${band.index % 2 ? " wf-group--band-odd" : ""}` : ""}`}
       style={style}
       title={data.description}
       data-kind="group"
+      data-band={band ? band.axis : undefined}
     >
       <span className="wf-group__label">{data.group.label}</span>
       {data.chips.length ? (

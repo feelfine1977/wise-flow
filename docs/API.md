@@ -1,9 +1,11 @@
-# Public API (0.2)
+# Public API (0.3)
 
-The contract the 0.2 release implements: the 0.1 surface unchanged, the BPMN
-bridge and the view helper added. Changes against the earlier draft
-are listed at the end. Types are exported from `@wise/flow`, components from
-`@wise/flow/react`.
+The contract the 0.3 release implements: the 0.1 and 0.2 surface unchanged,
+the interaction model (selection, actions menu, paths, filters, lanes) and
+the Canvas renderer with `toPNG` added. Changes against the earlier draft
+and between the milestones are listed at the end. Types are exported from
+`@wise/flow`, components from `@wise/flow/react`, the BPMN bridge from
+`@wise/flow/bpmn`, the Canvas renderer from `@wise/flow/canvas`.
 
 ## Model (`#/components/schemas/FlowGraph` of the workbench API)
 
@@ -20,7 +22,7 @@ export interface FlowEdge { id: string; kind: EdgeKind; source: string; target: 
 export interface FlowGroup { id: string; kind: GroupKind; label: string; parent?: string; }
 export interface Overlay { kind: OverlayKind; target: string; payload?: OverlayPayload; }
 export interface FlowGraph { nodes: FlowNode[]; edges: FlowEdge[]; groups?: FlowGroup[];
-  overlays?: Overlay[]; meta?: Record<string, unknown>; }
+  overlays?: Overlay[]; meta?: Record<string, unknown>; focus?: string; paths?: FlowPaths; }   // focus, paths: 0.3
 
 export const MAP_TARGET = "__map";      // overlay target for map-level chips
 export function validateGraph(g: FlowGraph): GraphIssue[];
@@ -79,7 +81,7 @@ export interface Box { x: number; y: number; width: number; height: number }
 export interface EdgeRoute { points: { x: number; y: number }[]; labelX?: number; labelY?: number }
 export interface Positions {
   nodes: Record<string, Box>; groups: Record<string, Box>; edges: Record<string, EdgeRoute>;
-  bounds: Box; engine: "elk" | "dagre" | "di"; direction: "RIGHT" | "DOWN" | "LEFT" | "UP";
+  bounds: Box; engine: "elk" | "dagre" | "di" | "given"; direction: "RIGHT" | "DOWN" | "LEFT" | "UP";
 }
 export interface LayoutOptions {
   engine?: "elk" | "dagre" | "auto";   // auto (default): ELK, Dagre on failure or timeout
@@ -159,7 +161,7 @@ positions' bounds.
 ```ts
 export class HitIndex { static fromScene(p: Positions, g?: OverlayGeometry): HitIndex;
   at(x, y, tolerance?): HitItem[]; within(box: Box): HitItem[] }
-export interface Scene { graph; positions; overlays?; style?; title?; subtitle?; locale? }
+export interface Scene { graph; positions; overlays?; style?; title?; subtitle?; locale?; lanes?: LaneMode }
 export interface ExportOptions { preset?: "single-column" | "double-column" | "slide" | "none"; width?; legend?;
   background?; fontFamily?; padding?; lodZoom?; context? }
 export function toSVG(scene: Scene, o?: ExportOptions): string;   // deterministic, legend embedded
@@ -181,11 +183,17 @@ export function metricLabel(locale: Locale, metric: string): string;
 export function ProcessMap(props: {
   graph: FlowGraph; positions?: Positions; overlays?: Overlay[]; style?: StyleSpec;
   abstraction?: AbstractOptions; defaultAbstraction?: AbstractOptions; onAbstractionChange?: (o: AbstractOptions) => void;
-  controls?: boolean; legend?: boolean; minimap?: boolean; renderer?: "auto" | "svg" | "canvas";
+  controls?: boolean; legend?: boolean; minimap?: boolean; renderer?: "auto" | "svg" | "canvas"; canvasThreshold?: number;
   selection?: Selection; onSelect?: (s: Selection) => void; onHover?: (id: string | null) => void;
   lod?: Partial<LodRules>; locale?: Locale; layout?: LayoutOptions; selfLoops?: boolean;
   view?: "map" | "table"; onViewChange?: (v: "map" | "table") => void;
   ariaLabel?: string; className?: string; containerStyle?: CSSProperties; fitView?: boolean; children?: ReactNode;
+  // 0.3
+  focus?: Focus | null; defaultFocus?: Focus; onFocusChange?: (f: Focus | undefined) => void; pathList?: boolean; paths?: FlowPaths;
+  filters?: Filter | FilterClause[]; filterPreview?: FilterPreview | Record<string, unknown>; onFilterChange?: (f: Filter) => void;
+  lanes?: LaneMode; contextMenu?: boolean;
+  onContextMenu?: (target: MenuTarget, actions: MenuAction[]) => MenuAction[] | false | void;
+  onAction?: (action: MenuAction, target: MenuTarget) => void | string; announce?: string;
 }): JSX.Element;
 export interface Selection { nodes: string[]; edges: string[]; groups: string[] }
 
@@ -201,12 +209,15 @@ export { nodeTypes, edgeTypes, describeNode, describeEdge, describeGroup, descri
 and gets its own layout; thresholds filter positions, so sliding the
 controls never moves the surviving elements. Given `positions` are used
 as long as they cover the graph. Follows self-loops become self-loop
-overlays. Keyboard: arrow keys move focus between activities, Enter and
-Space select, Escape clears, Home and End jump. `aria-activedescendant`
+overlays. Keyboard: arrow keys move focus between activities, Alt with an
+arrow key along the paths, Space selects, Enter opens the actions menu
+(selects when `contextMenu` is false), Shift with an arrow key extends the
+selection, Escape clears, Home and End jump. `aria-activedescendant`
 points at the focused node; every node, edge and group carries an
-`aria-label`; the map has a visually hidden description. `renderer:
-"canvas"` is accepted and falls back to `svg` until the Canvas renderer
-ships (0.3).
+`aria-label`; the map has a visually hidden description and a polite live
+region. `renderer: "auto"` draws on the Canvas renderer above
+`canvasThreshold` (2,000 activities plus paths), `"canvas"` always,
+`"svg"` never (see "Interaction and Canvas (0.3)").
 
 Stylesheets: `@wise/flow/tokens.css` (design tokens, light and dark),
 `@wise/flow/style.css` (components) and `@xyflow/react/dist/style.css`.
@@ -385,3 +396,251 @@ Additions only; the 0.1 surface is unchanged.
 - New strings `bpmn.*` and `views.*` in English and German.
 - New entry point `@wise/flow/bpmn`; `<BpmnView/>` and `<ViewSwitcher/>`
   are also exported from `@wise/flow/react`.
+
+## Interaction (0.3)
+
+### Selection
+
+```ts
+export type ElementKind = "node" | "edge" | "group";
+export interface ElementRef { kind: ElementKind; id: string }
+export type SelectMode = "replace" | "toggle" | "add" | "remove";
+export type SelectionShape = "none" | "node" | "pair" | "set" | "edge" | "edges" | "group" | "mixed";
+export const emptySelection: Selection;
+export function selectElement(s: Selection, ref: ElementRef, mode?: SelectMode): Selection;
+export function selectMany(s: Selection, refs: ElementRef[], mode?: SelectMode): Selection;
+export function clearSelection(): Selection;
+export function isSelected(s, ref), selectionSize(s), selectionEquals(a, b), selectionElements(s): ElementRef[];
+export function selectionShape(s: Selection): SelectionShape;
+export function relatedToSelection(g: FlowGraph, s: Selection): { nodes: Set<string>; edges: Set<string> };
+export function describeSelection(g: FlowGraph, s: Selection, locale?: Locale): string;
+```
+
+`replace` selects the element alone (a click on the only selected element
+clears), `toggle` adds or removes it (Shift, Ctrl or Cmd click, Shift with
+an arrow key), `add` and `remove` are the explicit forms. Groups are
+selected alone and leave the selection when a node or path joins. Two
+activities form a `pair`, more a `set`. `relatedToSelection` names what
+stays bright: the selected nodes and the paths touching them, the selected
+paths with their endpoints, the members of a selected group.
+
+### Actions menu
+
+```ts
+export type MenuGroup = "filter" | "explore" | "compare" | "author" | "export";
+export const MENU_GROUP_ORDER: MenuGroup[];
+export interface MenuTarget { kind: "node" | "edge" | "group" | "pair" | "set"; id: string; ids: string[]; label: string;
+  nodeKind?: NodeKind; groupKind?: GroupKind; edgeKind?: EdgeKind }
+export interface MenuAction { id: string; label: string; group: MenuGroup; accelerator?: string; disabled?: boolean;
+  clause?: FilterClause | FilterClause[]; run?: (target: MenuTarget) => void | string; description?: string }
+export function menuTargetFor(g: FlowGraph, element: ElementRef, selection: Selection): MenuTarget;
+export function defaultActions(g: FlowGraph, target: MenuTarget, locale?: Locale, o?: { collapsed?: boolean; hasFocus?: boolean }): MenuAction[];
+export function sortActions(actions: MenuAction[]): MenuAction[];
+export function menuTitle(target: MenuTarget, g: FlowGraph, locale?: Locale): string;
+```
+
+Default action ids: `filter-to` (`f`), `exclude` (`x`), `paths` (`i`),
+`lens` (`d`), `worst-cases` (`w`), `pin` (`p`), `add-constraint` (`c`),
+`collapse` / `expand` (`z`), `clear-focus` (`h`). Activities get all of
+them; paths `filter-to`, `exclude`, `paths`, `worst-cases`, `pin`,
+`add-constraint`; stages `collapse` or `expand`, `filter-to` (any member),
+`exclude`, `paths`, `worst-cases`, `pin`; the end event `filter-to`
+(closed cases), `exclude` (open cases), `pin`; gateways, start events,
+notes and constraint edges only `lens` / `pin`. A pair offers `filter-to`
+(eventually follows), `exclude`, `paths`, `lens`, `pin`, `add-constraint`; a
+set `filter-to` (all), `exclude` (any), `pin`. Filter actions carry the
+clause they add. `<ProcessMap/>` handles `filter-to`, `exclude` (through
+`onFilterChange`), `paths`, `collapse`, `expand` and `clear-focus` itself
+and passes every choice to `onAction`; `onContextMenu(target, actions)`
+may return replacement actions (with `run` handlers or not) or `false`.
+
+### Paths
+
+```ts
+export interface FlowPath { from?; to?; count?; cases?; share?; medianLagHours?; p90LagHours?; violationShare?;
+  median_lag?; violation_share?; [k: string]: unknown }
+export interface FlowPaths { focus?: string; incoming: FlowPath[]; outgoing: FlowPath[] }
+export interface PathRow { edgeId?; from; to; count?; cases?; share?; medianLagHours?; p90LagHours?; violationShare?; reconnected? }
+export interface ActivityPaths { focus: string; incoming: PathRow[]; outgoing: PathRow[]; source: "payload" | "graph";
+  totals: { incoming: number; outgoing: number } }
+export type PathSortKey = "count" | "cases" | "share" | "medianLagHours" | "p90LagHours" | "violationShare" | "label";
+export type Focus = string | [string, string];
+export function pathsFor(g: FlowGraph, focus: string, o?: { paths?: FlowPaths; sort?: PathSortKey; ascending?: boolean; kinds?: EdgeKind[] }): ActivityPaths;
+export function neighbourhood(g: FlowGraph, id: string): { predecessors: string[]; successors: string[]; incoming: FlowEdge[]; outgoing: FlowEdge[] };
+export function focusMembers(g: FlowGraph, focus: string): Set<string>;
+export interface PathBetween { a; b; direct?: FlowEdge; nodes: string[]; edges: string[]; found: boolean; reverse?: { direct?; nodes; edges } }
+export function pathBetween(g: FlowGraph, a: string, b: string): PathBetween;
+export function pathRows(g: FlowGraph, between: PathBetween, direction?: "forward" | "reverse"): PathRow[];
+export function focusHighlight(g: FlowGraph, focus: Focus): { nodes: Set<string>; edges: Set<string> };
+export function normalizePath(p: FlowPath, focus: string, direction: "incoming" | "outgoing"): PathRow;
+```
+
+`pathsFor` reads the `paths` block of a focused flow response
+(`GET …/flow?focus=<activity>`: `graph.paths` or `options.paths`, the
+contract's `median_lag` / `violation_share` accepted) when it belongs to
+the focus and computes the rows from the map's follows edges otherwise
+(`source` says which); self-loops are left to the self-loop overlay,
+constraint edges are ignored; `totals` sum the transitions; `share` is
+cases relative to the activity's cases. A group focus stands for its
+members (paths crossing the boundary). `pathBetween` is the shortest, then
+strongest path (Dijkstra on hops with a small penalty for weak paths, so
+the result is deterministic) and the reverse path when one exists.
+
+### Filters
+
+```ts
+export type TimeMode = "case_start" | "case_end" | "active" | "events_inside";
+export interface TimeClause { kind: "time"; field?: TimeMode; mode?: TimeMode; from?: string; to?: string }
+export interface AttributeClause { kind: "attribute"; field: string; in?; not_in?; range?; missing?: boolean }
+export interface ActivityClause { kind: "activity"; op: "contains" | "not_contains" | "starts_with" | "ends_with" | "never"; activity: string }
+export interface FollowsClause { kind: "follows"; a: string; b: string; directly?: boolean; never?: boolean }
+export interface LagClause { kind: "lag"; a; b; unit?: "D" | "H" | "M" | "S"; min?; max?; directly? }
+export interface CountClause { kind: "count"; activity: string; min?; max? }
+export interface OpenClause { kind: "open"; value: boolean }
+export interface ConstraintClause { kind: "constraint"; constraint: string; state: "violating" | "satisfied" | "in_scope" | "out_of_scope"; label? }
+export interface SliceClause { kind: "slice"; slicing: string; key: unknown }
+export interface AnyClause { kind: "any"; clauses: FilterClause[] }
+export type FilterClause = TimeClause | AttributeClause | ActivityClause | FollowsClause | LagClause | CountClause | OpenClause | ConstraintClause | SliceClause | AnyClause;
+export interface Filter { and: FilterClause[] }
+export interface FilterPreview { casesIn?; casesOut?; casesTotal?; perClause?: { clause: number; removedMarginally: number }[]; inScopeByConstraint? }
+export const emptyFilter: Filter;
+export function asFilter(f: Filter | FilterClause[] | undefined | null): Filter;
+export function canonicalClause(c: FilterClause): FilterClause;
+export function clauseKey(c: FilterClause): string;
+export function canonicalFilter(f: Filter | FilterClause[] | undefined): Filter;
+export function filterEquals(a, b): boolean;
+export function addClause(f, clause: FilterClause): Filter;      // no duplicates
+export function removeClause(f, index: number): Filter;
+export function changesCases(c: FilterClause): boolean;          // events_inside and groups containing it
+export function describeClause(c: FilterClause, locale?: Locale, labelOf?: (id: string) => string): string;
+export function describePreview(p: FilterPreview | undefined, locale?: Locale): string | undefined;
+export function normalizeFilterPreview(raw: Record<string, unknown> | FilterPreview | undefined): FilterPreview | undefined;   // snake_case accepted
+export interface FilterTarget { kind: "node" | "edge" | "group" | "pair" | "set"; ids: string[] }
+export function clauseForTarget(target: FilterTarget, action: "keep" | "exclude", graph?: FlowGraph): FilterClause | FilterClause[] | undefined;
+```
+
+Clauses combine by AND, an `any` group by OR. The canonical form resolves
+aliases (`mode` → `field`, `not_contains` → `never`), sorts value lists and
+clauses and removes duplicates, so two orderings of the same clauses are
+byte-identical. `clauseForTarget` is what the map's filter actions add: an
+activity → `contains` / `never`; a path → `follows` directly / never
+directly; two activities → eventually follows; a stage → `any` of its
+members (exclude: one `never` per member); a set → one `contains` per
+activity; the end event → `open: false` (closed cases) or `open: true`.
+The map never filters data itself.
+
+### Lanes
+
+```ts
+export type LaneMode = "stages" | "roles" | "none";
+export interface LaneOptions { lanes: LaneMode; padding?: number; labelSpace?: number; gap?: number }
+export interface LaneBand { id: string; index: number; axis: "main" | "cross"; box: Box }
+export interface LaneResult { positions: Positions; bands: LaneBand[]; mode: LaneMode }
+export function laneBands(g: FlowGraph, p: Positions, o: LaneOptions): LaneResult;
+export function laneGroups(g: FlowGraph, mode: LaneMode): FlowGroup[];
+export function laneAssignment(g: FlowGraph, lanes: FlowGroup[]): Map<string, string>;
+```
+
+`stages`: top-level stage groups become consecutive bands along the flow,
+cut half-way between neighbouring stages (the order the ELK partitioning
+produced) and spanning the map across the flow; nodes and routes stay
+where they are. `roles`: top-level lane groups become bands stacked across
+the flow in their array order; every node moves into its lane (by group,
+by a `lane:` / `role:` tag, else along its paths), routes inside one lane
+move with it, routes across lanes are dropped so the renderer draws them
+directly. `none` returns the positions as they are. The renderers,
+`toSVG` and `toPNG` draw bands for `LaneBand`s.
+
+### React (`@wise/flow/react`, 0.3)
+
+```ts
+export function ContextMenu(props: { x; y; title; subtitle?; note?; actions: MenuAction[]; locale?; onAction: (a: MenuAction) => void;
+  onClose: () => void; returnFocusTo?: HTMLElement | null; boundsRef?; className? }): JSX.Element;
+export function PathList(props: { graph; focus: Focus; paths?: FlowPaths; locale?; selection?; onSelect?; onHover?; onClose?;
+  sort?: PathSortKey; ascending?; onSortChange?; className? }): JSX.Element;
+export function FilterChips(props: { filter?: Filter | FilterClause[]; preview?; locale?; labelOf?; onFilterChange?; onAnnounce?; clearable?; className? }): JSX.Element;
+export function CanvasMap(props: { scene: PreparedScene | undefined; state: DrawState; locale?; fitKey?; fitView?; describe?; onHover?; onClick?;
+  onContextMenu?; onViewportChange?; descendants?; className?; children? } & { ref?: Ref<CanvasMapHandle> }): JSX.Element;
+export interface CanvasMapHandle { centerOn(id, zoom?); fit(); zoomBy(factor); screenBox(id): Box | undefined; renderer(): CanvasRenderer | null }
+```
+
+`<ProcessMap/>` with the 0.3 props: a right click on a node, path or group
+(or Enter on the focused element) opens `<ContextMenu/>` with
+`defaultActions` for the element or the pair / set it belongs to, the
+element's kind and stage, and the worst expectation touching it; the
+opening, every choice and the selection are announced through a polite
+live region (`announce` injects a host text). `focus` (controlled, `null`
+for none) or `defaultFocus` highlights the paths of an activity or stage
+(`focusHighlight`) and shows `<PathList/>` at the side with `paths`
+(default `graph.paths`); two selected activities show the path between
+them; the map area shrinks and the view is fitted again while the list is
+shown. `filters` renders `<FilterChips/>` above the map; the filter
+actions add clauses through `onFilterChange`. `lanes` draws stage or role
+bands (`laneBands`). Renderer choice: `auto` (default) uses the Canvas
+renderer above `canvasThreshold` elements; the container carries
+`data-renderer="svg" | "canvas" | "table"`, `data-lanes`, `data-focus`.
+
+## Canvas (`@wise/flow/canvas`, 0.3)
+
+```ts
+export interface PreparedScene { graph; positions; scales; overlays; shapes: OverlayShape[]; nodes: SceneNode[]; edges: SceneEdge[];
+  groups: SceneGroup[]; bands: LaneBand[]; bounds: Box; hit: HitIndex; lod: LodRules; locale; size: number;
+  nodeById; edgeById; groupById; shapeById; labelCache }
+export function prepareScene(g: FlowGraph, p: Positions, o?: { style?; overlays?; lod?; locale?; lanes?: LaneMode; bands?: LaneBand[];
+  overlayGeometry?; selfLoops?: boolean }): PreparedScene;
+export interface DrawContext { /* the subset of CanvasRenderingContext2D the routines use */ }
+export interface View { x: number; y: number; zoom: number; width: number; height: number }
+export interface DrawState { selection: Selection; hovered?: string | null; focused?: string | null; bright?: { nodes: Set<string>; edges: Set<string> } }
+export interface DrawOptions { tokens?: CanvasTokens; cull?: boolean; background?: boolean | string; createCanvas? }
+export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, state?: DrawState, o?: DrawOptions): { nodes; edges; shapes; culled };
+export function drawLegend(ctx: DrawContext, scene: PreparedScene, x, y, width, tokens?): number;
+export function tracePath(ctx: DrawContext, d: string): { last?; beforeLast? };
+export class CanvasRenderer { constructor(canvas: HTMLCanvasElement, o?: { tokens?; devicePixelRatio?; minZoom?; maxZoom?; draw? });
+  resize(w, h); setScene(s); getScene(); setState(patch: Partial<DrawState>); getState(); setTokens(t);
+  getViewport(); setViewport(v, notify?); fit(padding?); panBy(dx, dy); zoomBy(factor, centre?); centerOn(point, zoom?);
+  toFlow(x, y); toScreen(x, y); screenBox(id); hitAt(x, y, tolerancePx?): HitItem | undefined; requestDraw(); draw(); dispose();
+  onViewportChange?: (v: Viewport) => void; lastDraw?: { nodes; edges; shapes; culled; ms } }
+export interface CanvasTokens { font; paper; surface; ink; inkMuted; line; lineStrong; focus; selection; neutral; outOfScope }
+export const defaultTokens: CanvasTokens;
+export function readTokens(element: Element | null | undefined, overrides?: Partial<CanvasTokens>): CanvasTokens;   // from the CSS variables
+export interface PngOptions { preset?: FigurePreset; width?; scale?; background?; legend?; padding?; lodZoom?; tokens?; createCanvas?; context? }
+export function toPNGCanvas(scene: Scene, o?: PngOptions): { canvas; width; height; cssWidth; cssHeight; scale };
+export function toPNG(scene: Scene, o?: PngOptions): Promise<Blob>;
+export function toPNGDataUrl(scene: Scene, o?: PngOptions): string;
+```
+
+`prepareScene` is pure and runs in Node: it resolves every element's box
+or route, colours, labels and overlay shapes once and builds the R-tree
+that serves hover, click and viewport culling. `drawScene` issues plain 2D
+context calls (a screen canvas, an offscreen canvas for PNG, or a
+recording stub in tests): groups and bands, edges with arrowheads, nodes
+with pattern twins and hatching, overlay shapes by kind, edge labels;
+level of detail follows `lodAt(view.zoom)`; above 1,500 elements only the
+elements inside the viewport are drawn. `CanvasRenderer` owns the
+viewport (zoom clamped to `minZoom` … `maxZoom`), draws on animation
+frames and follows the device pixel ratio. `toPNG` uses the same figure
+presets, title, context line and legend as `toSVG`; `scale` sets the
+bitmap density (default: the device pixel ratio, at least 2) and
+`createCanvas` supplies a canvas where there is no document.
+
+## Changes in 0.3 against 0.2
+
+Additions only, except the keyboard route for Enter.
+
+- Enter on the focused element opens the actions menu (Space selects);
+  with `contextMenu={false}` Enter selects as in 0.1. Alt with an arrow
+  key moves along the paths; Shift with an arrow key extends the
+  selection.
+- `FlowGraph` gained `focus` and `paths`; `Scene` gained `lanes`;
+  `LayoutEngine` accepts `"given"`.
+- `ProcessMap` gained `focus`, `defaultFocus`, `onFocusChange`,
+  `pathList`, `paths`, `filters`, `filterPreview`, `onFilterChange`,
+  `lanes`, `contextMenu`, `onContextMenu`, `onAction`, `announce`,
+  `canvasThreshold`; `renderer: "canvas"` now draws on the Canvas
+  renderer and `"auto"` chooses it above the threshold.
+- New entry point `@wise/flow/canvas`; `<ContextMenu/>`, `<PathList/>`,
+  `<FilterChips/>` and `<CanvasMap/>` exported from `@wise/flow/react`.
+- New strings `selection.*`, `menu.*`, `paths.*`, `filters.*`, `clause.*`,
+  `lanes.*`, `unit.*`, `map.focus`, `map.focusPair`, `map.focused`,
+  `map.renderer.canvas`, `map.zoomIn`, `map.zoomOut`, `map.fit` (en, de);
+  `map.instructions` names every keyboard route.
