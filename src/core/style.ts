@@ -272,7 +272,8 @@ function categoricalEntry(key: string): CategoricalEntry {
 /** Build the scales of a graph for a style specification; deterministic for the same input. */
 export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle): Scales {
   const domains: Scales["domains"] = {};
-  const follows = graph.edges.filter((e) => e.kind === "follows");
+  // Paths carry the metrics; sequence flows of a BPMN-lite graph carry the same metrics.
+  const follows = graph.edges.filter((e) => e.kind === "follows" || e.kind === "flow");
 
   // Edge width
   const widthSpec = spec.edgeWidth;

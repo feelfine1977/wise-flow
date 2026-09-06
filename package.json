@@ -1,7 +1,7 @@
 {
   "name": "@wise/flow",
-  "version": "0.1.0",
-  "description": "Process-flow visualisation: headless core (graph model, abstraction, stable layouts, scales, constraint overlays, hit-testing, SVG export) with a React renderer",
+  "version": "0.2.0",
+  "description": "Process-flow visualisation: headless core (graph model, abstraction, stable layouts, scales, constraint overlays, hit-testing, SVG export, named views) with a React renderer and a BPMN 2.0 bridge (BPMN-lite, export, import, bpmn-js view)",
   "type": "module",
   "exports": {
     ".": {
@@ -11,6 +11,10 @@
     "./react": {
       "types": "./dist/react/index.d.ts",
       "import": "./dist/react/index.js"
+    },
+    "./bpmn": {
+      "types": "./dist/bpmn/index.d.ts",
+      "import": "./dist/bpmn/index.js"
     },
     "./tokens.css": "./dist/tokens.css",
     "./style.css": "./dist/style.css",
@@ -47,6 +51,8 @@
   "dependencies": {
     "@dagrejs/dagre": "^3.1.1",
     "@xyflow/react": "^12.11.6",
+    "bpmn-js": "^17.11.1",
+    "bpmn-moddle": "^8.1.0",
     "d3-scale": "^4.0.2",
     "elkjs": "^0.9.3",
     "rbush": "^4.0.1"

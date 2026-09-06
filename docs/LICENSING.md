@@ -7,7 +7,7 @@
 | @dagrejs/dagre (+ @dagrejs/graphlib) | MIT | maintained fork of dagre with ESM and types |
 | d3-scale (+ d3-interpolate, d3-format, d3-time, d3-array, d3-color as transitive) | ISC | |
 | rbush (+ quickselect) | MIT | |
-| bpmn-js, diagram-js, bpmn-moddle (0.2) | bpmn.io licence | MIT-like; the bpmn.io watermark in rendered diagrams must stay |
+| bpmn-js, diagram-js, bpmn-moddle | bpmn.io licence | MIT-like; the bpmn.io watermark in rendered diagrams must stay (`<BpmnView/>` leaves it in place); bpmn-font is bundled with bpmn-js |
 | cytoscape (optional, later) | MIT | |
 
 Development only: TypeScript (Apache-2.0), Vite and Vitest (MIT), Storybook

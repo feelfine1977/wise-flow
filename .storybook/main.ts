@@ -9,7 +9,15 @@ const config: StorybookConfig = {
   viteFinal: async (config) => {
     config.optimizeDeps = {
       ...(config.optimizeDeps ?? {}),
-      include: [...(config.optimizeDeps?.include ?? []), "elkjs/lib/elk.bundled.js", "elkjs/lib/elk-api.js", "@dagrejs/dagre"],
+      include: [
+        ...(config.optimizeDeps?.include ?? []),
+        "elkjs/lib/elk.bundled.js",
+        "elkjs/lib/elk-api.js",
+        "@dagrejs/dagre",
+        "bpmn-moddle",
+        "bpmn-js/lib/NavigatedViewer",
+        "bpmn-js/lib/Modeler",
+      ],
     };
     return config;
   },

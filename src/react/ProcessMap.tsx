@@ -254,7 +254,7 @@ function ProcessMapInner(props: ProcessMapProps) {
     return shown.edges
       .filter((e) => e.source !== e.target && positions.nodes[e.source] && positions.nodes[e.target])
       .map((e) => {
-        const color = e.kind === "follows" ? scales.edgeColor(e) : "#0072B2";
+        const color = e.kind === "constraint" ? "#0072B2" : scales.edgeColor(e);
         const count = metric(e, "count", NaN);
         const related = selection.nodes.includes(e.source) || selection.nodes.includes(e.target) || selection.edges.includes(e.id);
         return {

@@ -1,20 +1,21 @@
-# Checkpoint CP-E1 — Flow library, milestone 0.1
+# Checkpoints
 
-How to try the milestone by hand. Requires Node 18.18 or later and npm 10.
-Commands run from this directory.
+How to try the milestones by hand. Requires Node 18.18 or later and npm 10.
+Commands run from this directory. CP-E1 covers milestone 0.1, CP-E2
+milestone 0.2 (section 6).
 
 ## 1. Install and verify
 
 ```sh
 npm install
-npm test                # Vitest: 8 files, 51 tests
+npm test                # Vitest: 13 files, 71 tests
 npm run build           # tsc → dist/ (ESM + types) and the stylesheets
 ```
 
 Expected: every test passes; `dist/index.js`, `dist/react/index.js`,
-`dist/tokens.css`, `dist/style.css` exist.
+`dist/bpmn/index.js`, `dist/tokens.css`, `dist/style.css` exist.
 
-## 2. Storybook
+## 2. Storybook (CP-E1)
 
 ```sh
 npm run storybook       # opens http://localhost:6006
@@ -105,9 +106,11 @@ npx playwright install chromium
 npm run test:visual
 ```
 
-Playwright starts Storybook on port 6007 and compares the P2P map and the
-stable-layout story with the baselines in `tests/visual/__screenshots__/`
-(recorded on macOS). On a platform without a baseline the first run records
+Playwright starts Storybook on port 6007 and compares the P2P map, the
+stable-layout story, the BPMN stage-model diagram and the view grid with
+the baselines in `tests/visual/__screenshots__/` (recorded on macOS), and
+checks that the viewport of the BPMN model does not move while overlay
+datasets switch. On a platform without a baseline the first run records
 one and reports it as a failure; the second run passes. Refresh baselines
 after an intended change with `npm run test:visual -- --update-snapshots`.
 
@@ -120,7 +123,7 @@ npm run fixture     # python3 fixtures/build_bpic2019_fixture.py [path/to/BPI_Ch
 Rebuilds `fixtures/bpic2019_p2p.json` from the CSV (about a minute with
 pandas). The output is deterministic for the same input.
 
-## 5. Results at hand-over
+## 5. Results at hand-over of 0.1 (CP-E1)
 
 - `npm test`: 8 files, 51 tests passed (core invariants, layout stability,
   overlay geometry, deterministic scales and SVG, component behaviour).
@@ -131,21 +134,177 @@ pandas). The output is deterministic for the same input.
   hatched activities, 4 chips.
 - `npm run test:visual`: 2 tests passed against the recorded baselines.
 
+## 6. CP-E2 — milestone 0.2: BPMN and views
+
+Open Storybook (`npm run storybook`) and walk through the *BPMN* and
+*Views* groups. The bpmn.io watermark at the bottom right of every BPMN
+diagram is part of the licence and stays.
+
+### 6.1 BPMN › from stage model (P2P)
+
+What appears: the purchase-to-pay stage model of `fixtures/p2p_stages.ts`
+(five stages, eleven known activities, no log) as a BPMN 2.0 diagram on
+bpmn-js: a pool "Purchase-to-pay" with the lanes Requisition, Purchase
+order, Goods receipt, Invoice and Payment stacked top to bottom, one start
+event, tasks in process order, XOR gateways around the optional
+requisition stage, the optional order changes and the optional payment
+block, an XOR split and merge around the goods-or-service choice, a loop
+marker on Record Goods Receipt, one end event. The header reads
+"11 tasks · 12 gateways · 2 events · 30 flows · 5 lanes".
+
+What to do:
+
+- Switch *Lanes* to *roles*: the same process with the lanes Requester,
+  Purchasing, Warehouse, Accounts payable; *none* drops the pool.
+- Tick *modeler*: the bpmn-js modeler with palette and context pad replaces
+  the viewer; click a task, a flow or a lane and read the selection in the
+  header ("selected tasks [clear_invoice] …"), which is what the constraint
+  authoring forms receive.
+- Tick *fixture overlays*: the constraint overlays of the BPIC 2019
+  fixture land on the tasks by activity id (badges on Clear Invoice and
+  Record Invoice Receipt, hatched tasks outside the consignment scope, lag
+  and precedence arcs between Record Goods Receipt and Record Invoice
+  Receipt, a chip with the manual-touches gauge on the Purchase order
+  lane, three map-level chips under the legend).
+- Tick *native process map*: the same BPMN-lite graph on `<ProcessMap/>`
+  (gateways as diamonds, lanes as groups).
+- Press *Table view*: tasks, flows and overlays as tables.
+
+Pass when: the diagram shows five stacked lanes with all eleven tasks and
+twelve gateways, no two shapes overlap, every flow is drawn orthogonally,
+the modeler reports selections, and the overlays appear on the right
+tasks.
+
+### 6.2 BPMN › from log (BPIC 2019, abstraction slider)
+
+What appears: the directly-follows graph of the whole log above the
+thresholds of the two sliders (defaults: activities ≥ 5 %, paths ≥ 12 %)
+turned into a BPMN-lite model: every node with several successors got a
+split gateway, every node with several predecessors a join gateway, the
+stage groups became lanes, self-loops became loop markers, and the fixture
+overlays sit on the tasks. With the defaults the header reads
+"9 tasks · 10 gateways · 2 events · 27 flows · 5 lanes".
+
+What to do: move the *Paths* slider down to 5 %: more paths survive, more
+gateways appear, the diagram is laid out again (this is a new model, not a
+new dataset). Untick *AND gateways where concurrent*: the parallel gateways
+(+) become exclusive ones (×). Move *Activities* up to 20 %: only the
+strongest tasks remain and the model stays a connected chain from start to
+end.
+
+Pass when: the counts in the header change with the sliders, the model
+always has exactly one start and one end event, and no task has more than
+one incoming or outgoing flow without a gateway in between.
+
+### 6.3 BPMN › overlays on a model
+
+What appears: the hand-written model `fixtures/p2p_small.bpmn` (pool with
+the lanes Purchasing, Warehouse, Accounts payable; seven tasks; two
+gateways; a rejection loop) with the fixture's constraint overlays for the
+dataset *All items*: 17 overlays, badges on Record Invoice Receipt (≤1 4 %)
+and Clear Invoice (≥1 23 %), lag and precedence arcs between Record Goods
+Receipt / Record Service Entry Sheet and Record Invoice Receipt with dashed
+reverse arcs, hatched tasks outside the 3-way-match scope, map-level chips
+under the legend. Below the diagram the mapping table lists every task
+with the activity it was matched to: `record_goods_receipt` by id, five
+tasks by label, and *Approve Invoice* unmapped.
+
+What to do:
+
+- Press *Vendor 0128*, then *All items*, then *None*: the overlays change
+  (the vendor has fewer evaluated constraints, so some readings say "not
+  applicable in this scene"), while the diagram does not move; the
+  *viewport* readout in the header (x, y, zoom) stays the same.
+- Pan and zoom the diagram, then switch datasets again: the viewport you
+  chose is kept.
+- Zoom out: badges, chips and arcs disappear below their level-of-detail
+  thresholds.
+- Tick *modeler*, select tasks, flows and lanes: the header lists them by
+  FlowGraph id (activity ids where the mapping applies).
+- Press *Table view*: the tasks appear under their activity ids where
+  mapped.
+
+Pass when: switching datasets changes the overlays and leaves the viewport
+readout unchanged; the mapping table shows the three cases (id, label,
+unmapped); arcs connect the mapped tasks.
+
+### 6.4 BPMN › export → import round trip
+
+What appears: the stage model exported to BPMN 2.0 XML with DI, parsed
+back, re-exported, and eight checks in the header: parser warnings, DI for
+every element, tasks, gateways and events, flows, lanes, positions,
+re-export identical — all green. The left half is bpmn-js reading the
+exported XML, the right half the re-imported graph on the native renderer.
+*show XML* prints the file (about 36 kB); it opens in Camunda Modeler.
+
+Pass when: all eight checks are green (`data-pass="true"` on the header
+element).
+
+### 6.5 Views › four views of one map
+
+What appears: the abstracted P2P map (activities ≥ 1 %, paths ≥ 3 %) under
+four tabs — Finance (expectation shortfall, presence and balance
+constraints), Logistics (median lag in blue, lag arcs), Compliance
+(shortfall with precedence, exclusion and applicability), Automation
+(events per case in orange, singularity constraints). The note in the bar
+says that colour and width scales are shared.
+
+What to do: switch tabs — every activity keeps its position and every
+path its width (the width legend reads 40 … 195k in every view); press
+*All views*: the four maps as a 2 × 2 grid of small multiples with one
+legend per distinct style; select an activity in one map and it is
+selected in all four. The sibling story *small multiples* opens in the
+grid.
+
+Pass when: positions and path widths are identical across the four views
+and the grid shows all four maps with their legends.
+
+### 6.6 Results at hand-over of 0.2
+
+- `npm test`: 13 files, 71 tests passed (the 51 of 0.1 plus BPMN-lite from
+  the stage model and the log, export → import round trip with positions
+  and an idempotent re-export, import of the hand-written file with the
+  mapping, views with shared domains, `<BpmnView/>` and `<ViewSwitcher/>`
+  in jsdom).
+- `npm run lint`, `npm run typecheck`, `npm run build`: clean; `dist/bpmn/`
+  is emitted for the `./bpmn` entry.
+- `npm run storybook`: 27 stories render without console errors; the BPMN
+  stories report `data-bpmn-status="ready"` and the counts named above.
+- `npm run test:visual`: 5 tests passed against the recorded baselines
+  (the first run on a fresh platform records the two new baselines and
+  reports them, the second run passes).
+
 ## Not done
 
-- `<BpmnView/>`, `importBpmn`, BPMN-lite, the Canvas renderer, `toPNG`,
-  `<VariantStrip/>`, `<PerformanceSpectrum/>`, `<DottedChart/>`: later
-  milestones (see `docs/ROADMAP.md`); `renderer: "canvas"` falls back to
-  the React Flow renderer.
-- Edge routing: ELK routes edges as polylines around the stage groups;
-  orthogonal routing and edge bundling on dense maps are left for 0.2.
+- Canvas renderer, `toPNG`, orthogonal edge routing and bundling on the
+  abstracted map, the position cache keyed by norm fingerprint and mapping
+  version: moved to 0.3 (see `docs/ROADMAP.md`); `renderer: "canvas"` still
+  falls back to the React Flow renderer.
+- BPMN authoring forms: `<BpmnView/>` reports selected tasks, flows and
+  lanes; the forms that turn a selection into a constraint belong to the
+  workbench (0.4 in the roadmap).
+- `liteFromGraph` decides AND gateways with the directly-follows heuristic
+  (successors that follow each other in both orders); it does not mine
+  concurrency from the log, and a model above a low threshold can carry
+  many gateways. BPMN-lite does not produce sub-processes, message flows
+  or boundary events; the importer reads them.
+- `layoutBpmn` places every lane as one band and routes flows with a
+  three-segment Manhattan rule; back edges run below the shapes and may
+  cross tasks in a dense lane. The ELK compound layout is available with
+  `lanes: "compound"` when a swimlane picture is not wanted.
+- `<BpmnView/>` in modeler mode offers bpmn-js's own editing; overlays are
+  re-projected after every change, but arcs are recomputed from the
+  element boxes, not from the modeller's connection routes.
+- bpmn-js needs SVG geometry that jsdom does not provide, so the component
+  tests cover the headless import, the table alternative and the controls;
+  rendering is checked in Storybook and Playwright.
 - The keep-connected reconnection is bounded but not a global optimum:
   between neighbouring thresholds the number of re-added paths may differ
   by one (documented in `docs/API.md`, tested on the fixture and 40 random
   graphs).
-- German strings exist for the core and the map, not yet for every story
-  text; the workbench's design-tokens package does not exist yet, so
-  `src/tokens.css` carries the variables under the intended names.
+- German strings exist for the core, the map and the BPMN view, not yet
+  for every story text; the workbench's design-tokens package does not
+  exist yet, so `src/tokens.css` carries the variables under the intended
+  names.
 - Playwright baselines exist for macOS only; Linux baselines have to be
   recorded once in CI.
-- Licence file: to be chosen by the owner (`docs/LICENSING.md`).

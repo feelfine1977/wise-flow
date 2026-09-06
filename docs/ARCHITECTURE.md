@@ -5,15 +5,16 @@
 ```
 ┌────────────────────────────────────────────────────────────┐
 │ react/   <ProcessMap/> <TableAlternative/> <TraceTimeline/> │
-│          <BpmnView/> <VariantStrip/> <PerformanceSpectrum/>  │
-│          <DottedChart/> (later milestones)                   │
+│          <BpmnView/> <ViewSwitcher/>                         │
+│          <VariantStrip/> <PerformanceSpectrum/> <DottedChart/>│
+│          (0.3)                                               │
 │          hooks: useFlowGraph, useStableLayout, useOverlays   │
 ├──────────────────────────┬─────────────────────────────────┤
-│ canvas/  renderer (0.2)  │ bpmn/  import · mapping · overlays│
-│          (large scenes)  │        · lite model (0.2)         │
+│ canvas/  renderer (0.3)  │ bpmn/  lite · layout · export ·   │
+│          (large scenes)  │        import · mapping · moddle  │
 ├──────────────────────────┴─────────────────────────────────┤
 │ core/    model · aggregate · layout · style · overlays ·    │
-│          hit · export · format · strings                    │
+│          views · hit · export · format · strings            │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -106,20 +107,58 @@ with `aria-activedescendant`; ARIA labels on every element and a hidden
 description of the map; `TableAlternative` lists the same activities, paths
 and overlays as rows. Reduced motion is respected.
 
-## 4. Canvas renderer (0.2)
+### 2.7 Views
+`buildViews(graph, views)` lays the base graph out once and resolves named
+views on it: every view carries its own metrics (merged over the base by
+id), overlays and style. The domain of a metric on a channel is computed
+over all views, so the same colour or width means the same number in
+Finance, Logistics, Compliance and Automation alike; the filled-in domains
+are returned with each view's style. `<ViewSwitcher/>` renders the views
+as tabs or as small multiples with a shared selection.
+
+## 4. Canvas renderer (0.3)
 Draws the same scene with retained geometry, dirty-rect redraw, pan and
 zoom at 60 fps for ≤ 5k nodes and 20k edges, and hover from the R-tree.
 Used automatically above an element threshold or on request.
 
 ## 5. BPMN bridge (0.2)
-`importBpmn(xml)` parses with bpmn-moddle into a `FlowGraph` (tasks as
-activities, gateways, events, lanes, sub-processes as stages) and returns a
-mapping table to fill (task ↔ activity ids). `<BpmnView/>` hosts bpmn-js
-(viewer or modeler) and projects overlays through bpmn-js's overlay
-module, keeping the diagram fixed while overlay datasets switch; a
-`selection` callback reports tasks, flows and lanes for authoring. `lite`
-renders a simplified BPMN in the core's own model when the full modeler
-is not wanted.
+BPMN-lite is BPMN in the core's own vocabulary: activity nodes tagged
+`task`, gateway nodes tagged `xor` / `and` and `split` / `join`, event
+nodes tagged `start` / `end`, `flow` edges, `lane` groups. Two builders
+produce it: `liteFromStages` from an ordered stage model with known
+activities (gateways only where the model needs them: XOR around optional
+activities and stages and `choice` stages, AND around `parallel` stages)
+and `liteFromGraph` from a directly-follows graph above an abstraction
+level (XOR split where a node has several successors, XOR join where it
+has several predecessors, AND on request where the successors follow each
+other in both orders, loop markers for self-loops, start and end events
+kept or added, groups as lanes). Ids are deterministic functions of the
+input ids, so a rebuilt model keeps its ids. `<ProcessMap/>` renders
+BPMN-lite natively when the full modeler is not wanted.
+
+`layoutBpmn` uses ELK for the layering along the flow and then stacks the
+lanes as full-width bands in one pool, assigns rows inside each lane so
+that shapes do not overlap and routes sequence flows orthogonally.
+`exportBpmn` writes BPMN 2.0 XML with the diagram interchange from these
+positions, a collaboration with one participant when lanes exist, and the
+`wise` extension (FlowGraph id, kind, tags, metrics) so that
+`importBpmn` restores the graph without loss; `validateBpmn` re-parses the
+output. `importBpmn` handles any BPMN 2.0 file (tasks of all types,
+gateways, events, lanes, pools, expanded sub-processes as stages, sequence
+and message flows, annotations), reads positions from the DI and returns
+a task ↔ activity mapping table that `matchActivities` fills by id, label
+and alias and `applyMapping` applies to the graph.
+
+`<BpmnView/>` hosts bpmn-js (navigated viewer, or the modeler) loaded on
+demand, and projects overlays through bpmn-js's overlays service (badges,
+tints, hatching and chips as HTML overlays that follow their shapes) and
+an SVG layer of the canvas (arcs and self-loops from the core's overlay
+geometry over the boxes of the element registry). Overlay datasets are
+replaced without re-importing, so the diagram and the viewport stay fixed;
+targets may be FlowGraph ids, BPMN ids or activity ids resolved through
+the mapping. Selection and hover callbacks report tasks, flows and lanes
+in FlowGraph ids for constraint authoring; the modeler's changes are saved
+and passed to `onChange`. The bpmn.io watermark stays.
 
 ## 6. Custom views
 Trace timeline (events on a time axis per case, violated constraints marked

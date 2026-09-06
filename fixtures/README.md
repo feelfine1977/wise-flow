@@ -21,3 +21,15 @@ stories and tests.
 `build_bpic2019_fixture.py` rebuilds the JSON from the CSV export of the
 log (`npm run fixture`, pandas required); the CSV itself is not part of the
 repository.
+
+`p2p_stages.ts` — a purchase-to-pay stage model with known activities and
+no log (five stages, optional steps, a goods-or-service choice, a loop),
+on the ids and labels of the BPIC fixture; `withSceneMetrics` copies a
+scene's metrics onto its activities.
+
+`p2p_small.bpmn` — a hand-written BPMN 2.0 model (pool "Purchase-to-pay",
+lanes Purchasing / Warehouse / Accounts payable, seven tasks of three
+types, an exclusive split and merge, a rejection loop, DI for every
+element) for the import tests and the "overlays on a model" story; one
+task id equals a fixture activity id, the labels match fixture labels, and
+"Approve Invoice" has no counterpart, so the mapping shows all three cases.

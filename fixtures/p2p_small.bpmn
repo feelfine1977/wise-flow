@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_p2p_small" targetNamespace="http://wise-workbench.org/bpmn" exporter="hand-written" exporterVersion="1">
+  <bpmn:collaboration id="Collaboration_p2p">
+    <bpmn:participant id="Participant_p2p" name="Purchase-to-pay" processRef="Process_p2p" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_p2p" name="Purchase-to-pay (small)" isExecutable="false">
+    <bpmn:laneSet id="LaneSet_p2p">
+      <bpmn:lane id="Lane_Purchasing" name="Purchasing">
+        <bpmn:flowNodeRef>StartEvent_Need</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateRequisition</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreatePO</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Warehouse" name="Warehouse">
+        <bpmn:flowNodeRef>Gateway_GoodsOrService</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>record_goods_receipt</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ServiceEntry</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Received</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_AccountsPayable" name="Accounts payable">
+        <bpmn:flowNodeRef>Task_InvoiceReceipt</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ApproveInvoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ClearInvoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Paid</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="StartEvent_Need" name="Purchase need">
+      <bpmn:outgoing>Flow_Need_Req</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:task id="Task_CreateRequisition" name="Create Purchase Requisition Item">
+      <bpmn:incoming>Flow_Need_Req</bpmn:incoming>
+      <bpmn:outgoing>Flow_Req_PO</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_CreatePO" name="Create Purchase Order Item">
+      <bpmn:incoming>Flow_Req_PO</bpmn:incoming>
+      <bpmn:outgoing>Flow_PO_Gateway</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="Gateway_GoodsOrService" name="Goods or service?">
+      <bpmn:incoming>Flow_PO_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Goods</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Service</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="record_goods_receipt" name="Record Goods Receipt">
+      <bpmn:incoming>Flow_Goods</bpmn:incoming>
+      <bpmn:outgoing>Flow_Goods_Received</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_ServiceEntry" name="Record Service Entry Sheet">
+      <bpmn:incoming>Flow_Service</bpmn:incoming>
+      <bpmn:outgoing>Flow_Service_Received</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="Gateway_Received">
+      <bpmn:incoming>Flow_Goods_Received</bpmn:incoming>
+      <bpmn:incoming>Flow_Service_Received</bpmn:incoming>
+      <bpmn:outgoing>Flow_Received_Invoice</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_InvoiceReceipt" name="Record Invoice Receipt">
+      <bpmn:incoming>Flow_Received_Invoice</bpmn:incoming>
+      <bpmn:incoming>Flow_Rejected</bpmn:incoming>
+      <bpmn:outgoing>Flow_Invoice_Approve</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_ApproveInvoice" name="Approve Invoice">
+      <bpmn:incoming>Flow_Invoice_Approve</bpmn:incoming>
+      <bpmn:outgoing>Flow_Approve_Clear</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Rejected</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="Task_ClearInvoice" name="Clear Invoice">
+      <bpmn:incoming>Flow_Approve_Clear</bpmn:incoming>
+      <bpmn:outgoing>Flow_Clear_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="EndEvent_Paid" name="Paid">
+      <bpmn:incoming>Flow_Clear_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Need_Req" sourceRef="StartEvent_Need" targetRef="Task_CreateRequisition" />
+    <bpmn:sequenceFlow id="Flow_Req_PO" sourceRef="Task_CreateRequisition" targetRef="Task_CreatePO" />
+    <bpmn:sequenceFlow id="Flow_PO_Gateway" sourceRef="Task_CreatePO" targetRef="Gateway_GoodsOrService" />
+    <bpmn:sequenceFlow id="Flow_Goods" name="goods" sourceRef="Gateway_GoodsOrService" targetRef="record_goods_receipt" />
+    <bpmn:sequenceFlow id="Flow_Service" name="service" sourceRef="Gateway_GoodsOrService" targetRef="Task_ServiceEntry" />
+    <bpmn:sequenceFlow id="Flow_Goods_Received" sourceRef="record_goods_receipt" targetRef="Gateway_Received" />
+    <bpmn:sequenceFlow id="Flow_Service_Received" sourceRef="Task_ServiceEntry" targetRef="Gateway_Received" />
+    <bpmn:sequenceFlow id="Flow_Received_Invoice" sourceRef="Gateway_Received" targetRef="Task_InvoiceReceipt" />
+    <bpmn:sequenceFlow id="Flow_Invoice_Approve" sourceRef="Task_InvoiceReceipt" targetRef="Task_ApproveInvoice" />
+    <bpmn:sequenceFlow id="Flow_Approve_Clear" sourceRef="Task_ApproveInvoice" targetRef="Task_ClearInvoice" />
+    <bpmn:sequenceFlow id="Flow_Rejected" name="rejected" sourceRef="Task_ApproveInvoice" targetRef="Task_InvoiceReceipt" />
+    <bpmn:sequenceFlow id="Flow_Clear_End" sourceRef="Task_ClearInvoice" targetRef="EndEvent_Paid" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_p2p_small">
+    <bpmndi:BPMNPlane id="Plane_p2p_small" bpmnElement="Collaboration_p2p">
+      <bpmndi:BPMNShape id="Participant_p2p_di" bpmnElement="Participant_p2p" isHorizontal="true">
+        <dc:Bounds x="160" y="80" width="1240" height="600" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Purchasing_di" bpmnElement="Lane_Purchasing" isHorizontal="true">
+        <dc:Bounds x="190" y="80" width="1210" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Warehouse_di" bpmnElement="Lane_Warehouse" isHorizontal="true">
+        <dc:Bounds x="190" y="280" width="1210" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_AccountsPayable_di" bpmnElement="Lane_AccountsPayable" isHorizontal="true">
+        <dc:Bounds x="190" y="480" width="1210" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_Need_di" bpmnElement="StartEvent_Need">
+        <dc:Bounds x="220" y="162" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="202" y="205" width="72" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_CreateRequisition_di" bpmnElement="Task_CreateRequisition">
+        <dc:Bounds x="300" y="140" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_CreatePO_di" bpmnElement="Task_CreatePO">
+        <dc:Bounds x="440" y="140" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_GoodsOrService_di" bpmnElement="Gateway_GoodsOrService" isMarkerVisible="true">
+        <dc:Bounds x="585" y="355" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="566" y="412" width="88" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="record_goods_receipt_di" bpmnElement="record_goods_receipt">
+        <dc:Bounds x="680" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ServiceEntry_di" bpmnElement="Task_ServiceEntry">
+        <dc:Bounds x="680" y="395" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Received_di" bpmnElement="Gateway_Received" isMarkerVisible="true">
+        <dc:Bounds x="825" y="355" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_InvoiceReceipt_di" bpmnElement="Task_InvoiceReceipt">
+        <dc:Bounds x="920" y="540" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ApproveInvoice_di" bpmnElement="Task_ApproveInvoice">
+        <dc:Bounds x="1060" y="540" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ClearInvoice_di" bpmnElement="Task_ClearInvoice">
+        <dc:Bounds x="1200" y="540" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Paid_di" bpmnElement="EndEvent_Paid">
+        <dc:Bounds x="1340" y="562" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1347" y="605" width="22" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Need_Req_di" bpmnElement="Flow_Need_Req">
+        <di:waypoint x="256" y="180" />
+        <di:waypoint x="300" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Req_PO_di" bpmnElement="Flow_Req_PO">
+        <di:waypoint x="400" y="180" />
+        <di:waypoint x="440" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_PO_Gateway_di" bpmnElement="Flow_PO_Gateway">
+        <di:waypoint x="540" y="180" />
+        <di:waypoint x="610" y="180" />
+        <di:waypoint x="610" y="355" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Goods_di" bpmnElement="Flow_Goods">
+        <di:waypoint x="635" y="380" />
+        <di:waypoint x="660" y="380" />
+        <di:waypoint x="660" y="340" />
+        <di:waypoint x="680" y="340" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="640" y="322" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Service_di" bpmnElement="Flow_Service">
+        <di:waypoint x="635" y="380" />
+        <di:waypoint x="660" y="380" />
+        <di:waypoint x="660" y="435" />
+        <di:waypoint x="680" y="435" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="636" y="440" width="36" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Goods_Received_di" bpmnElement="Flow_Goods_Received">
+        <di:waypoint x="780" y="340" />
+        <di:waypoint x="800" y="340" />
+        <di:waypoint x="800" y="380" />
+        <di:waypoint x="825" y="380" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Service_Received_di" bpmnElement="Flow_Service_Received">
+        <di:waypoint x="780" y="435" />
+        <di:waypoint x="800" y="435" />
+        <di:waypoint x="800" y="380" />
+        <di:waypoint x="825" y="380" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Received_Invoice_di" bpmnElement="Flow_Received_Invoice">
+        <di:waypoint x="850" y="405" />
+        <di:waypoint x="850" y="580" />
+        <di:waypoint x="920" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Invoice_Approve_di" bpmnElement="Flow_Invoice_Approve">
+        <di:waypoint x="1020" y="580" />
+        <di:waypoint x="1060" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Approve_Clear_di" bpmnElement="Flow_Approve_Clear">
+        <di:waypoint x="1160" y="580" />
+        <di:waypoint x="1200" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Rejected_di" bpmnElement="Flow_Rejected">
+        <di:waypoint x="1110" y="620" />
+        <di:waypoint x="1110" y="650" />
+        <di:waypoint x="970" y="650" />
+        <di:waypoint x="970" y="620" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1018" y="652" width="44" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Clear_End_di" bpmnElement="Flow_Clear_End">
+        <di:waypoint x="1300" y="580" />
+        <di:waypoint x="1340" y="580" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

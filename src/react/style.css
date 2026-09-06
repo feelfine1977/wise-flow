@@ -526,3 +526,171 @@
   max-width: 280px;
   white-space: pre-line;
 }
+
+/* BPMN view (bpmn-js host). Requires bpmn-js/dist/assets/diagram-js.css and bpmn-js.css. */
+.wf-bpmn {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+  font-family: var(--wf-font);
+  color: var(--wf-ink);
+  background: var(--wf-paper);
+}
+.wf-bpmn__canvas {
+  position: absolute;
+  inset: 0;
+}
+.wf-bpmn__canvas .djs-container {
+  font-family: var(--wf-font);
+}
+.wf-bpmn__table {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  padding: 56px 12px 12px;
+  background: var(--wf-paper);
+  z-index: 5;
+}
+.wf-bpmn__panel {
+  position: absolute;
+  z-index: 6;
+}
+.wf-bpmn__panel--top-left {
+  top: 10px;
+  left: 10px;
+}
+.wf-bpmn__panel--top-right {
+  top: 10px;
+  right: 10px;
+}
+.wf-bpmn__panel--bottom-right {
+  bottom: 10px;
+  right: 10px;
+}
+.wf-bpmn .djs-overlay .wf-badge {
+  pointer-events: auto;
+}
+.wf-bpmn .djs-overlay .wf-chip {
+  pointer-events: auto;
+}
+.wf-bpmn-tint {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+.wf-bpmn-hatch {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  background: repeating-linear-gradient(135deg, transparent 0 5px, var(--wf-out-of-scope) 5px 7px);
+  opacity: 0.55;
+  pointer-events: none;
+}
+.wf-bpmn .djs-element.wf-bpmn--hatched .djs-visual > :first-child {
+  stroke-dasharray: 4 3;
+}
+.wf-bpmn-overlays path {
+  pointer-events: stroke;
+  cursor: pointer;
+}
+.wf-bpmn-overlays text {
+  font-family: var(--wf-font);
+  font-size: 11px;
+  fill: var(--wf-ink);
+  paint-order: stroke;
+  stroke: var(--wf-paper);
+  stroke-width: 3px;
+  pointer-events: none;
+}
+.wf-bpmn .djs-context-pad,
+.wf-bpmn .djs-palette {
+  font-family: var(--wf-font);
+}
+
+/* View switcher */
+.wf-views {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+  font-family: var(--wf-font);
+  color: var(--wf-ink);
+  background: var(--wf-paper);
+}
+.wf-views__bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--wf-line);
+  font-size: 12px;
+}
+.wf-views__tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.wf-views__tabs .wf-button[aria-selected="true"] {
+  background: var(--wf-focus);
+  color: #fff;
+  border-color: var(--wf-focus);
+}
+.wf-views__mode {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.wf-views__note {
+  color: var(--wf-ink-muted);
+}
+.wf-views__single {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+}
+.wf-views__caption {
+  margin: 0;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: var(--wf-ink-muted);
+}
+.wf-views__grid {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  min-height: 0;
+  grid-auto-rows: minmax(0, 1fr);
+}
+.wf-views__cell {
+  margin: 0;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius-lg);
+  overflow: hidden;
+}
+.wf-views__cell figcaption {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--wf-line);
+  background: var(--wf-surface);
+}
+.wf-views__map {
+  min-height: 240px;
+}
+.wf-views__map .wf-process-map {
+  min-height: 240px;
+}
+.wf-views__legends {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}

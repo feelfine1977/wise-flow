@@ -7,3 +7,4 @@ export * from "./hit";
 export * from "./export";
 export * from "./format";
 export * from "./strings";
+export * from "./views";

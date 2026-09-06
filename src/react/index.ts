@@ -15,3 +15,5 @@ export { useFlowGraph, useStableLayout, useOverlays, usePrefersReducedMotion, ty
 export { describeNode, describeEdge, describeGroup, describeMap } from "./describe";
 export type { ProcessMapProps, Selection, ActivityNodeData, GroupNodeData, FollowsEdgeData, WfNode, WfGroupNode, WfEdge } from "./types";
 export { emptySelection } from "./types";
+export { BpmnView, emptyBpmnSelection, type BpmnViewProps, type BpmnSelection, type BpmnViewHandle } from "./BpmnView";
+export { ViewSwitcher, type ViewSwitcherProps } from "./ViewSwitcher";

@@ -1,6 +1,6 @@
-import { expect, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 
-async function openStory(page: import("@playwright/test").Page, id: string) {
+async function openStory(page: Page, id: string) {
   await page.goto(`/iframe.html?id=${id}&viewMode=story`);
   await page.waitForSelector(".react-flow__node", { timeout: 60_000 });
   await page.waitForSelector('[data-layout-status="ready"], [data-layout-status="given"]', { timeout: 60_000 });

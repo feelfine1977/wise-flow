@@ -107,6 +107,18 @@ const en = {
   "timeline.days": "days",
   "timeline.hours": "hours",
   "export.context": "{label} · {cases} cases · {events} events",
+  "bpmn.description": "BPMN diagram with {tasks} tasks, {gateways} gateways and {flows} sequence flows in {lanes} lanes.",
+  "bpmn.diagram": "Diagram view",
+  "bpmn.table": "Table view",
+  "bpmn.loading": "Loading the diagram…",
+  "bpmn.error": "The diagram could not be loaded.",
+  "bpmn.selected": "Selected: {tasks} tasks, {flows} flows, {lanes} lanes.",
+  "bpmn.mode.view": "View",
+  "bpmn.mode.model": "Model",
+  "views.title": "Views",
+  "views.single": "One view",
+  "views.grid": "All views",
+  "views.shared": "Colour and width scales are shared across the views.",
 } as const;
 
 export type StringKey = keyof typeof en;
@@ -213,6 +225,18 @@ const de: Record<StringKey, string> = {
   "timeline.days": "Tage",
   "timeline.hours": "Stunden",
   "export.context": "{label} · {cases} Fälle · {events} Ereignisse",
+  "bpmn.description": "BPMN-Diagramm mit {tasks} Aufgaben, {gateways} Gateways und {flows} Sequenzflüssen in {lanes} Bahnen.",
+  "bpmn.diagram": "Diagrammansicht",
+  "bpmn.table": "Tabellenansicht",
+  "bpmn.loading": "Diagramm wird geladen…",
+  "bpmn.error": "Das Diagramm konnte nicht geladen werden.",
+  "bpmn.selected": "Ausgewählt: {tasks} Aufgaben, {flows} Flüsse, {lanes} Bahnen.",
+  "bpmn.mode.view": "Ansehen",
+  "bpmn.mode.model": "Modellieren",
+  "views.title": "Ansichten",
+  "views.single": "Eine Ansicht",
+  "views.grid": "Alle Ansichten",
+  "views.shared": "Farb- und Breitenskalen gelten für alle Ansichten gemeinsam.",
 };
 
 export const strings: Record<Locale, Record<StringKey, string>> = { en, de };

@@ -101,7 +101,7 @@ function drawEdges(ctx: Ctx): string {
     const route = routeOf(ctx, e.id, e.source, e.target);
     if (!route) continue;
     const w = ctx.scales.edgeWidth(e);
-    const color = e.kind === "follows" ? ctx.scales.edgeColor(e) : fixedColors.mechanism;
+    const color = e.kind === "constraint" ? fixedColors.mechanism : ctx.scales.edgeColor(e);
     const dash = hasTag(e, RECONNECTED_TAG) ? ` stroke-dasharray="6 5"` : e.kind === "constraint" ? ` stroke-dasharray="2 4"` : "";
     const d = route.points.map((p, i) => `${i === 0 ? "M" : "L"}${num(p.x)} ${num(p.y)}`).join("");
     out.push(`<g class="wf-edge" data-id="${esc(e.id)}"><path d="${d}" fill="none" stroke="${color}" stroke-width="${num(w)}" stroke-linejoin="round"${dash} marker-end="url(#wf-arrow)"/>`);
