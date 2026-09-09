@@ -17,13 +17,19 @@ test("overlays on a model keep the viewport while the dataset switches", async (
   await page.waitForSelector('[data-bpmn-status="ready"]', { timeout: 60_000 });
   await expect(page.locator(".djs-overlay .wf-badge").first()).toBeVisible();
   await expect(page.locator(".wf-bpmn-overlays path").first()).toBeAttached();
-  const before = await page.getByTestId("viewbox").textContent();
+  await expect(page.locator('.djs-element[data-element-id="Task_CreatePO"]')).toBeVisible();
+  const viewbox = page.getByTestId("viewbox");
+  // Refresh the initial readout after the viewer is ready; onImport can run earlier.
+  await page.getByRole("button", { name: "All items", exact: true }).click();
+  await expect(viewbox).toHaveText(/^viewport x -?\d+ · y -?\d+ · zoom \d+\.\d{2}$/);
+  const before = await viewbox.textContent();
   await page.getByRole("button", { name: "Vendor 0128" }).click();
   await page.waitForTimeout(300);
-  expect(await page.getByTestId("viewbox").textContent()).toBe(before);
+  expect(await viewbox.textContent()).toBe(before);
   await expect(page.locator('.djs-element[data-element-id="Task_CreatePO"]')).toBeVisible();
   await page.getByRole("button", { name: "All items" }).click();
   await page.waitForTimeout(300);
+  expect(await viewbox.textContent()).toBe(before);
 });
 
 test("four views of one map share positions and width scales", async ({ page }) => {

@@ -80,6 +80,7 @@
     "@testing-library/dom": "^10.4.0",
     "@testing-library/react": "^16.3.0",
     "@types/d3-scale": "^4.0.9",
+    "@types/node": "^22.20.2",
     "@types/rbush": "^4.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
