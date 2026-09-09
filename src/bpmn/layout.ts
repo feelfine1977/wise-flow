@@ -15,7 +15,7 @@ import {
   layout,
   positionsBounds,
   straightRoute,
-} from "../core/index";
+} from "../core/index.js";
 
 /** BPMN shape sizes as drawn by bpmn-js and Camunda Modeler. */
 export const BPMN_SIZES: Record<FlowNode["kind"], NodeSize> = {

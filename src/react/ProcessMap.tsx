@@ -52,21 +52,21 @@ import {
   relatedToSelection,
   selectElement,
   t,
-} from "../core/index";
-import { type DrawState, type PreparedScene, prepareScene } from "../canvas/index";
-import { AbstractionControls } from "./AbstractionControls";
-import { CanvasMap, type CanvasMapHandle } from "./CanvasMap";
-import { ContextMenu } from "./ContextMenu";
-import { describeEdge, describeGroup, describeMap, describeNode } from "./describe";
-import { edgeTypes } from "./edges";
-import { FilterChips } from "./FilterChips";
-import { useFlowGraph, usePrefersReducedMotion, useStableLayout } from "./hooks";
-import { Legend } from "./Legend";
-import { Chip, nodeTypes, tintFor } from "./nodes";
-import { OverlayLayer } from "./OverlayLayer";
-import { PathList } from "./PathList";
-import { TableAlternative } from "./TableAlternative";
-import { type ProcessMapProps, type Selection, type WfEdge, type WfGroupNode, type WfNode, emptySelection } from "./types";
+} from "../core/index.js";
+import { type DrawState, type PreparedScene, prepareScene } from "../canvas/index.js";
+import { AbstractionControls } from "./AbstractionControls.js";
+import { CanvasMap, type CanvasMapHandle } from "./CanvasMap.js";
+import { ContextMenu } from "./ContextMenu.js";
+import { describeEdge, describeGroup, describeMap, describeNode } from "./describe.js";
+import { edgeTypes } from "./edges.js";
+import { FilterChips } from "./FilterChips.js";
+import { useFlowGraph, usePrefersReducedMotion, useStableLayout } from "./hooks.js";
+import { Legend } from "./Legend.js";
+import { Chip, nodeTypes, tintFor } from "./nodes.js";
+import { OverlayLayer } from "./OverlayLayer.js";
+import { PathList } from "./PathList.js";
+import { TableAlternative } from "./TableAlternative.js";
+import { type ProcessMapProps, type Selection, type WfEdge, type WfGroupNode, type WfNode, emptySelection } from "./types.js";
 
 const GROUP_PREFIX = "group:";
 const DEFAULT_CANVAS_THRESHOLD = 2000;

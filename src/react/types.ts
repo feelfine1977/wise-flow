@@ -24,8 +24,8 @@ import type {
   Positions,
   Selection,
   StyleSpec,
-} from "../core/index";
-import { emptySelection } from "../core/index";
+} from "../core/index.js";
+import { emptySelection } from "../core/index.js";
 
 export type { Selection };
 export { emptySelection };

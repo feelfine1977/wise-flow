@@ -4,12 +4,12 @@
  * ordered as the interaction model prescribes (filter, explore, compare,
  * author). The host fills or replaces them through `onContextMenu`.
  */
-import { COLLAPSED_TAG } from "./aggregate";
-import { type FilterClause, clauseForTarget } from "./filters";
-import { type Locale } from "./format";
-import { type FlowGraph, type GroupKind, type NodeKind, hasTag, indexGraph } from "./model";
-import { type ElementRef, type Selection } from "./selection";
-import { type StringKey, t } from "./strings";
+import { COLLAPSED_TAG } from "./aggregate.js";
+import { type FilterClause, clauseForTarget } from "./filters.js";
+import { type Locale } from "./format.js";
+import { type FlowGraph, type GroupKind, type NodeKind, hasTag, indexGraph } from "./model.js";
+import { type ElementRef, type Selection } from "./selection.js";
+import { type StringKey, t } from "./strings.js";
 
 export type MenuGroup = "filter" | "explore" | "compare" | "author" | "export";
 

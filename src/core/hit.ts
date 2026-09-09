@@ -3,8 +3,8 @@
  * in exports. Items are nodes, groups, edge segments and overlay shapes.
  */
 import RBush from "rbush";
-import type { Box, EdgeRoute, Positions, XY } from "./layout";
-import type { OverlayGeometry } from "./overlays";
+import type { Box, EdgeRoute, Positions, XY } from "./layout.js";
+import type { OverlayGeometry } from "./overlays.js";
 
 export type HitKind = "node" | "edge" | "group" | "overlay";
 

@@ -2,11 +2,11 @@
  * Constraint overlay grammar: presets that turn a constraint description and
  * its statistics into overlays, and the geometry renderers draw from.
  */
-import { type Locale, formatDays, formatNumber, formatShare } from "./format";
-import type { Box, Positions, XY } from "./layout";
-import { type FlowGraph, type Overlay, type OverlayKind, type OverlayPayload, MAP_TARGET } from "./model";
-import { type LodRules, defaultLod } from "./style";
-import { type StringKey, t } from "./strings";
+import { type Locale, formatDays, formatNumber, formatShare } from "./format.js";
+import type { Box, Positions, XY } from "./layout.js";
+import { type FlowGraph, type Overlay, type OverlayKind, type OverlayPayload, MAP_TARGET } from "./model.js";
+import { type LodRules, defaultLod } from "./style.js";
+import { type StringKey, t } from "./strings.js";
 
 export type ConstraintType =
   | "presence"

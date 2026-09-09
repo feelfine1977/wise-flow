@@ -1,5 +1,5 @@
-import { type Locale, type Overlay, type Scales, type StringKey, formatCompact, formatNumber, formatShare, t } from "../core/index";
-import { PatternSwatch } from "./patterns";
+import { type Locale, type Overlay, type Scales, type StringKey, formatCompact, formatNumber, formatShare, t } from "../core/index.js";
+import { PatternSwatch } from "./patterns.js";
 
 export interface LegendProps {
   scales: Scales;

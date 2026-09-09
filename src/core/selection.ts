@@ -4,9 +4,9 @@
  * a pair, a set, a path, a stage) and how it is announced. Framework-free so
  * that every renderer and the table alternative share one model.
  */
-import { type Locale } from "./format";
-import { type FlowGraph, indexGraph } from "./model";
-import { t } from "./strings";
+import { type Locale } from "./format.js";
+import { type FlowGraph, indexGraph } from "./model.js";
+import { t } from "./strings.js";
 
 /** Selected element ids of a map. */
 export interface Selection {

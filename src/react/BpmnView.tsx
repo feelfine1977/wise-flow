@@ -20,15 +20,15 @@ import {
   overlayGeometry,
   positionsBounds,
   t,
-} from "../core/index";
-import { type BpmnExport, exportBpmn } from "../bpmn/export";
-import { type BpmnImport, type MappingRow, applyMapping, importBpmn, mappingIndex } from "../bpmn/import";
-import type { BpmnLayoutOptions } from "../bpmn/layout";
-import { type ModdleElement, flowIdOf, isType, wiseModdleDescriptor } from "../bpmn/moddle";
-import { Legend } from "./Legend";
-import { Chip, tintFor } from "./nodes";
-import { TableAlternative } from "./TableAlternative";
-import type { Selection } from "./types";
+} from "../core/index.js";
+import { type BpmnExport, exportBpmn } from "../bpmn/export.js";
+import { type BpmnImport, type MappingRow, applyMapping, importBpmn, mappingIndex } from "../bpmn/import.js";
+import type { BpmnLayoutOptions } from "../bpmn/layout.js";
+import { type ModdleElement, flowIdOf, isType, wiseModdleDescriptor } from "../bpmn/moddle.js";
+import { Legend } from "./Legend.js";
+import { Chip, tintFor } from "./nodes.js";
+import { TableAlternative } from "./TableAlternative.js";
+import type { Selection } from "./types.js";
 
 /** Selected BPMN elements in FlowGraph ids (tasks, sequence flows, lanes or pools). */
 export interface BpmnSelection {
@@ -129,7 +129,7 @@ interface SelectionService {
 type ViewerCtor = new (options: Record<string, unknown>) => Viewer;
 
 async function loadViewer(mode: "view" | "model"): Promise<ViewerCtor> {
-  const mod = mode === "model" ? await import("bpmn-js/lib/Modeler") : await import("bpmn-js/lib/NavigatedViewer");
+  const mod = mode === "model" ? await import("bpmn-js/lib/Modeler.js") : await import("bpmn-js/lib/NavigatedViewer.js");
   return mod.default as unknown as ViewerCtor;
 }
 

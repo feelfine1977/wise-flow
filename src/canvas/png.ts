@@ -2,10 +2,10 @@
  * PNG export: the scene drawn with the canvas routines into an offscreen
  * canvas, with the same figure presets and embedded legend as `toSVG`.
  */
-import { type Box, type FigurePreset, type LodRules, type Scene, FIGURE_WIDTHS, MAP_TARGET, formatCount, t } from "../core/index";
-import { type DrawContext, drawLegend, drawScene } from "./draw";
-import { prepareScene } from "./scene";
-import { type CanvasTokens, defaultTokens } from "./tokens";
+import { type Box, type FigurePreset, type LodRules, type Scene, FIGURE_WIDTHS, MAP_TARGET, formatCount, t } from "../core/index.js";
+import { type DrawContext, drawLegend, drawScene } from "./draw.js";
+import { prepareScene } from "./scene.js";
+import { type CanvasTokens, defaultTokens } from "./tokens.js";
 
 /** What `toPNG` needs from a canvas; `HTMLCanvasElement` and `OffscreenCanvas` both fit. */
 export interface CanvasLike {

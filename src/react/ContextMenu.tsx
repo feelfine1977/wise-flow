@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { type Locale, type MenuAction, type MenuGroup, type StringKey, MENU_GROUP_ORDER, t } from "../core/index";
+import { type Locale, type MenuAction, type MenuGroup, type StringKey, MENU_GROUP_ORDER, t } from "../core/index.js";
 
 export interface ContextMenuProps {
   /** Position inside the positioned container (CSS pixels). */

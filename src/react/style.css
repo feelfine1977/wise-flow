@@ -527,7 +527,7 @@
   white-space: pre-line;
 }
 
-/* BPMN view (bpmn-js host). Requires bpmn-js/dist/assets/diagram-js.css and bpmn-js.css. */
+/* BPMN view (bpmn-js host). Import @wise/flow/bpmn.css for its base CSS/fonts. */
 .wf-bpmn {
   position: relative;
   width: 100%;
@@ -565,7 +565,8 @@
   right: 10px;
 }
 .wf-bpmn__panel--bottom-right {
-  bottom: 10px;
+  /* Keep the legend above the required bpmn.io watermark. */
+  bottom: 48px;
   right: 10px;
 }
 .wf-bpmn .djs-overlay .wf-badge {

@@ -1,14 +1,14 @@
 /**
  * Deterministic SVG export of a scene with an embedded legend and figure presets.
  */
-import { type Locale, formatCompact, formatCount, formatNumber, formatShare } from "./format";
-import { type Box, type Positions, straightRoute } from "./layout";
-import { type LaneBand, type LaneMode, laneBands } from "./lanes";
-import { type FlowGraph, type Overlay, MAP_TARGET, hasTag, metric } from "./model";
-import { type OverlayGeometryOptions, type OverlayShape, canonicalOverlays, overlayGeometry } from "./overlays";
-import { type LegendItem, type Scales, type StyleSpec, buildScales, contrastText, defaultStyle, fixedColors, lodAt, patternDefs } from "./style";
-import { RECONNECTED_TAG } from "./aggregate";
-import { type StringKey, t } from "./strings";
+import { type Locale, formatCompact, formatCount, formatNumber, formatShare } from "./format.js";
+import { type Box, type Positions, straightRoute } from "./layout.js";
+import { type LaneBand, type LaneMode, laneBands } from "./lanes.js";
+import { type FlowGraph, type Overlay, MAP_TARGET, hasTag, metric } from "./model.js";
+import { type OverlayGeometryOptions, type OverlayShape, canonicalOverlays, overlayGeometry } from "./overlays.js";
+import { type LegendItem, type Scales, type StyleSpec, buildScales, contrastText, defaultStyle, fixedColors, lodAt, patternDefs } from "./style.js";
+import { RECONNECTED_TAG } from "./aggregate.js";
+import { type StringKey, t } from "./strings.js";
 
 export interface Scene {
   graph: FlowGraph;

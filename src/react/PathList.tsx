@@ -17,7 +17,7 @@ import {
   pathRows,
   pathsFor,
   t,
-} from "../core/index";
+} from "../core/index.js";
 
 export interface PathListProps {
   graph: FlowGraph;

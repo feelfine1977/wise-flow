@@ -9,14 +9,31 @@
     "noFallthroughCasesInSwitch": true,
     "declaration": true,
     "jsx": "react-jsx",
-    "lib": ["ES2022", "DOM", "DOM.Iterable", "WebWorker"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable",
+      "WebWorker"
+    ],
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "isolatedModules": true,
     "noEmit": true,
-    "types": ["vite/client"]
+    "types": [
+      "vite/client"
+    ]
   },
-  "include": ["src", "stories", "tests", "fixtures/*.ts", ".storybook", "vitest.config.ts"]
+  "include": [
+    "src",
+    "stories",
+    "tests",
+    "fixtures/*.ts",
+    ".storybook",
+    "vitest.config.ts"
+  ],
+  "exclude": [
+    "tests/package"
+  ]
 }

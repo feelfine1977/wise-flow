@@ -4,9 +4,9 @@
  * ids, kinds, tags and metrics travel in the `wise` extension so that an
  * export → import round trip is lossless.
  */
-import { type Box, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Positions, hasTag, straightRoute } from "../core/index";
-import { type BpmnLayoutOptions, POOL_ID, layoutBpmn } from "./layout";
-import { type BpmnModdleInstance, type ModdleElement, createModdle, typeOfTag } from "./moddle";
+import { type Box, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Positions, hasTag, straightRoute } from "../core/index.js";
+import { type BpmnLayoutOptions, POOL_ID, layoutBpmn } from "./layout.js";
+import { type BpmnModdleInstance, type ModdleElement, createModdle, typeOfTag } from "./moddle.js";
 
 export const EXPORTER_NAME = "wise-flow";
 export const EXPORTER_VERSION = "0.2.0";

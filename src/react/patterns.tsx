@@ -1,4 +1,4 @@
-import type { PatternId } from "../core/index";
+import type { PatternId } from "../core/index.js";
 
 /** Small SVG that fills its parent with the pattern twin of a categorical colour. */
 export function PatternSwatch({ pattern, ink = "currentColor" }: { pattern: PatternId; ink?: string }) {

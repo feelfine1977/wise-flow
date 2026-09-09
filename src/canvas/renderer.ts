@@ -4,10 +4,10 @@
  * scene's R-tree. Pointer and keyboard handling belong to the host (the
  * React wrapper), which calls `panBy`, `zoomBy`, `hitAt` and `setState`.
  */
-import { type Box, type HitItem, type XY, emptySelection } from "../core/index";
-import { type DrawContext, type DrawOptions, type DrawState, type View, drawScene } from "./draw";
-import type { PreparedScene } from "./scene";
-import { type CanvasTokens, defaultTokens } from "./tokens";
+import { type Box, type HitItem, type XY, emptySelection } from "../core/index.js";
+import { type DrawContext, type DrawOptions, type DrawState, type View, drawScene } from "./draw.js";
+import type { PreparedScene } from "./scene.js";
+import { type CanvasTokens, defaultTokens } from "./tokens.js";
 
 export interface Viewport {
   x: number;

@@ -1,6 +1,6 @@
 {
   "name": "@wise/flow",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Process-flow visualisation: headless core (graph model, abstraction, stable layouts, scales, constraint overlays, selection and paths, filter clauses, lanes, hit-testing, SVG export, named views) with a React renderer (context menu, path list, filter chips), a Canvas renderer with PNG export and a BPMN 2.0 bridge (BPMN-lite, export, import, bpmn-js view)",
   "type": "module",
   "exports": {
@@ -22,23 +22,29 @@
     },
     "./tokens.css": "./dist/tokens.css",
     "./style.css": "./dist/style.css",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./bpmn.css": "./dist/bpmn.css",
+    "./react-flow.css": "./dist/react-flow.css",
+    "./bpmn/assets/*": "./dist/bpmn/assets/*",
+    "./elk-worker.min.js": "./dist/elk-worker.min.js"
   },
   "types": "./dist/index.d.ts",
   "files": [
     "dist",
     "docs",
     "README.md",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "sideEffects": [
-    "*.css"
+    "**/*.css"
   ],
   "engines": {
-    "node": ">=18.18"
+    "node": "^22.0.0 || ^24.0.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
+    "build": "node scripts/clean.mjs && tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src",
@@ -46,7 +52,10 @@
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook build",
     "test:visual": "playwright test -c tests/visual/playwright.config.ts",
-    "fixture": "python3 fixtures/build_bpic2019_fixture.py"
+    "fixture": "python3 fixtures/build_bpic2019_fixture.py",
+    "prepack": "npm run build",
+    "test:package": "node scripts/test-package.mjs",
+    "test:visual:approve": "playwright test -c tests/visual/playwright.approve.config.ts"
   },
   "peerDependencies": {
     "react": ">=18",
@@ -64,7 +73,7 @@
   "devDependencies": {
     "@changesets/cli": "^2.27.0",
     "@eslint/js": "^9.39.5",
-    "@playwright/test": "~1.61.0",
+    "@playwright/test": "1.61.1",
     "@storybook/addon-essentials": "8.6.18",
     "@storybook/react": "8.6.18",
     "@storybook/react-vite": "8.6.18",

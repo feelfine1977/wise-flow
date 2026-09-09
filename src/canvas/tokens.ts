@@ -3,7 +3,7 @@
  * tokens of `tokens.css`; `readTokens` picks the live values up from an
  * element so that the canvas follows the application's theme.
  */
-import { fixedColors } from "../core/index";
+import { fixedColors } from "../core/index.js";
 
 export interface CanvasTokens {
   font: string;

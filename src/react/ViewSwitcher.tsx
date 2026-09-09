@@ -1,8 +1,8 @@
 import { type CSSProperties, useId, useState } from "react";
-import { type Locale, type LodRules, type ViewSet, t } from "../core/index";
-import { Legend } from "./Legend";
-import { ProcessMap } from "./ProcessMap";
-import { type Selection, emptySelection } from "./types";
+import { type Locale, type LodRules, type ViewSet, t } from "../core/index.js";
+import { Legend } from "./Legend.js";
+import { ProcessMap } from "./ProcessMap.js";
+import { type Selection, emptySelection } from "./types.js";
 
 export interface ViewSwitcherProps {
   /** Views from `buildViews` or `resolveViews`: one graph, one set of positions, several metric and overlay sets. */

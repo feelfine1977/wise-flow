@@ -3,10 +3,10 @@
  * and overlay sets (for example Finance, Logistics, Compliance, Automation),
  * with colour and width scales shared across the views so that they compare.
  */
-import { type AbstractOptions, abstract } from "./aggregate";
-import { type LayoutOptions, type Positions, filterPositions, layout } from "./layout";
-import { type FlowGraph, type Metrics, type Overlay, metric } from "./model";
-import { type ChannelSpec, type ColorSpec, type Scales, type StyleSpec, buildScales, defaultStyle } from "./style";
+import { type AbstractOptions, abstract } from "./aggregate.js";
+import { type LayoutOptions, type Positions, filterPositions, layout } from "./layout.js";
+import { type FlowGraph, type Metrics, type Overlay, metric } from "./model.js";
+import { type ChannelSpec, type ColorSpec, type Scales, type StyleSpec, buildScales, defaultStyle } from "./style.js";
 
 /** What one view encodes. Metrics are merged over the base graph's metrics by id. */
 export interface ViewSpec {

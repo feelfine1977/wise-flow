@@ -14,7 +14,7 @@ import {
   indexGraph,
   isStructuralNode,
   metric,
-} from "./model";
+} from "./model.js";
 
 export interface AbstractOptions {
   /** Follows edges whose relative strength is below this share are removed. 0 keeps every edge. */

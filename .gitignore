@@ -3,3 +3,4 @@ dist/
 storybook-static/
 test-results/
 .DS_Store
+artifacts/

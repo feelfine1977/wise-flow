@@ -16,7 +16,7 @@ import {
   hasTag,
   indexGraph,
   metric,
-} from "../core/index";
+} from "../core/index.js";
 
 export const START_ID = "__start";
 export const END_ID = "__end";

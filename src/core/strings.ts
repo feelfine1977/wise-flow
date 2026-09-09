@@ -3,7 +3,7 @@
  * German covers the same keys. Vocabulary follows the workbench rules:
  * "priority", "expectation shortfall", never "root cause", "fault" or "effect".
  */
-import type { Locale } from "./format";
+import type { Locale } from "./format.js";
 
 const en = {
   "kind.activity": "activity",

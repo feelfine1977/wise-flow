@@ -1,6 +1,6 @@
-import { type FlowGraph, type Locale, type Overlay, type Scales, type StringKey, buildScales, defaultStyle, describeOverlay, formatShare, t } from "../core/index";
-import { formatMetric, metricColumns, metricLabel } from "./describe";
-import type { Selection } from "./types";
+import { type FlowGraph, type Locale, type Overlay, type Scales, type StringKey, buildScales, defaultStyle, describeOverlay, formatShare, t } from "../core/index.js";
+import { formatMetric, metricColumns, metricLabel } from "./describe.js";
+import type { Selection } from "./types.js";
 
 export interface TableAlternativeProps {
   graph: FlowGraph;

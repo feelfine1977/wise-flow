@@ -3,7 +3,7 @@
  * contrast helpers and level-of-detail rules.
  */
 import { scaleLinear, scaleLog, scaleSqrt } from "d3-scale";
-import { type FlowEdge, type FlowGraph, type FlowNode, metric } from "./model";
+import { type FlowEdge, type FlowGraph, type FlowNode, metric } from "./model.js";
 
 export type PatternId =
   | "solid"

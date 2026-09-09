@@ -1,5 +1,5 @@
 import { ViewportPortal } from "@xyflow/react";
-import { type Locale, type OverlayShape, colorOn, formatShare } from "../core/index";
+import { type Locale, type OverlayShape, colorOn, formatShare } from "../core/index.js";
 
 export interface OverlayLayerProps {
   shapes: OverlayShape[];

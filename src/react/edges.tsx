@@ -1,7 +1,7 @@
 import { BaseEdge, getBezierPath, type EdgeProps } from "@xyflow/react";
 import { memo } from "react";
-import type { XY } from "../core/index";
-import type { WfEdge } from "./types";
+import type { XY } from "../core/index.js";
+import type { WfEdge } from "./types.js";
 
 function polyline(points: XY[]): string {
   return points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x} ${p.y}`).join("");

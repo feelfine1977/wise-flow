@@ -6,7 +6,7 @@ test("BPMN from the stage model renders on bpmn-js with lanes and gateways", asy
   await expect(page.locator('.djs-element[data-element-id="clear_invoice"]')).toBeVisible();
   await expect(page.locator('.djs-element[data-element-id="Lane_order"]')).toBeAttached();
   await expect(page.locator('.djs-element[data-element-id="gw_receipt_split"]')).toBeAttached();
-  await expect(page.locator(".bjs-powered-by")).toBeAttached();
+  await expect(page.locator(".bjs-powered-by")).toBeVisible();
   await expect(page.getByTestId("lite-counts")).toContainText("11 tasks");
   await page.waitForTimeout(500);
   await expect(page).toHaveScreenshot("bpmn-from-stages.png", { fullPage: false });

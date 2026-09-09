@@ -36,7 +36,7 @@ import {
   metric,
   overlayGeometry,
   straightRoute,
-} from "../core/index";
+} from "../core/index.js";
 
 export interface SceneNode {
   node: FlowNode;

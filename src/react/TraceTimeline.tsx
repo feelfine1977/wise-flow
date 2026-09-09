@@ -1,6 +1,6 @@
 import { scaleLinear, scaleTime } from "d3-scale";
 import { useId, useMemo, useState } from "react";
-import { type Locale, contrastText, formatNumber, hashKey, palettes, t } from "../core/index";
+import { type Locale, contrastText, formatNumber, hashKey, palettes, t } from "../core/index.js";
 
 export interface TraceEvent {
   activity: string;

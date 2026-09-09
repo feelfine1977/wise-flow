@@ -1,0 +1,21 @@
+{
+  "run": "https://github.com/feelfine1977/wise-flow/actions/runs/34035991497",
+  "artifactId": 9990219174,
+  "artifactSha256": "911e1119f12955c931fb85d3970a1159022088c3b590d2b470c865a33d5b7a29",
+  "sourceCommit": "a561766aa158e9effeee132f6c1c045feb606b6a",
+  "runner": "ubuntu-24.04",
+  "runnerImage": "20260831.293",
+  "playwright": "1.61.1",
+  "screenshots": [
+    {
+      "path": "tests/visual/__screenshots__/interaction.spec.ts/paths-for-activity-linux.png",
+      "sha256": "7bf6281c164b8be154798762dba4961857e277bce508553f31f494cb061f023b",
+      "artifactPath": "tests/visual/__screenshots__/interaction.spec.ts/paths-for-activity-linux.png"
+    },
+    {
+      "path": "tests/visual/__screenshots__/interaction.spec.ts/stage-lanes-linux.png",
+      "sha256": "1caad80e84cc4011c23ebe5c035200e4702e3a5a141fd05abbe26b1b9f279f8e",
+      "artifactPath": "tests/visual/__screenshots__/interaction.spec.ts/stage-lanes-linux.png"
+    }
+  ]
+}

@@ -4,10 +4,10 @@
  * sequence flows → flow edges), positions from the diagram interchange, and a
  * task ↔ activity mapping table that the caller fills by id and by label.
  */
-import { type Box, type EdgeRoute, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Metrics, type Positions, positionsBounds } from "../core/index";
-import type { IdMap } from "./export";
-import { GENERATED_TAG, gatewayLabel } from "./lite";
-import { type ModdleElement, createModdle, flowIdOf, isType, tagOfType, wiseAttr } from "./moddle";
+import { type Box, type EdgeRoute, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Metrics, type Positions, positionsBounds } from "../core/index.js";
+import type { IdMap } from "./export.js";
+import { GENERATED_TAG, gatewayLabel } from "./lite.js";
+import { type ModdleElement, createModdle, flowIdOf, isType, tagOfType, wiseAttr } from "./moddle.js";
 
 /** An activity the mapping can point at (canonical activity of a norm or a log label). */
 export interface ActivityRef {

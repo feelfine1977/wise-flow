@@ -11,7 +11,7 @@ import {
   abstract,
   layoutUnion,
   overlaysFor,
-} from "../core/index";
+} from "../core/index.js";
 
 /** Abstracted graph, recomputed when the graph or the options change. */
 export function useFlowGraph(graph: FlowGraph, options?: AbstractOptions): FlowGraph {

@@ -5,8 +5,8 @@
  * their band. Positions of the nodes are otherwise untouched, so a map keeps
  * its layout when the lane mode changes.
  */
-import { type Box, type EdgeRoute, type Positions, positionsBounds } from "./layout";
-import { type FlowGraph, type FlowGroup, type FlowNode, indexGraph } from "./model";
+import { type Box, type EdgeRoute, type Positions, positionsBounds } from "./layout.js";
+import { type FlowGraph, type FlowGroup, type FlowNode, indexGraph } from "./model.js";
 
 export type LaneMode = "stages" | "roles" | "none";
 

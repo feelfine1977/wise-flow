@@ -4,9 +4,9 @@
  * clauses that map actions produce. The map never filters data itself: it
  * renders the chips and calls back with the changed filter.
  */
-import { type Locale, formatCount, formatNumber } from "./format";
-import { type FlowGraph } from "./model";
-import { type StringKey, t } from "./strings";
+import { type Locale, formatCount, formatNumber } from "./format.js";
+import { type FlowGraph } from "./model.js";
+import { type StringKey, t } from "./strings.js";
 
 export type TimeMode = "case_start" | "case_end" | "active" | "events_inside";
 

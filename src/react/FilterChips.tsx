@@ -1,4 +1,4 @@
-import { type Filter, type FilterClause, type FilterPreview, type Locale, asFilter, changesCases, describeClause, describePreview, formatCount, normalizeFilterPreview, removeClause, t } from "../core/index";
+import { type Filter, type FilterClause, type FilterPreview, type Locale, asFilter, changesCases, describeClause, describePreview, formatCount, normalizeFilterPreview, removeClause, t } from "../core/index.js";
 
 export interface FilterChipsProps {
   /** The filter of the contract (`{ and: [...] }`) or its clauses. */

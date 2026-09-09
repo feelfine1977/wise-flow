@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { type AbstractOptions, type Locale, formatShare, t } from "../core/index";
+import { type AbstractOptions, type Locale, formatShare, t } from "../core/index.js";
 
 export interface AbstractionControlsProps {
   value: AbstractOptions;

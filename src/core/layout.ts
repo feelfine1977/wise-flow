@@ -5,7 +5,7 @@
  */
 import type { ELK, ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api.js";
 import { Graph as DagreGraph, layout as dagreLayout } from "@dagrejs/dagre";
-import { type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, byId, indexGraph } from "./model";
+import { type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, byId, indexGraph } from "./model.js";
 
 export interface XY {
   x: number;

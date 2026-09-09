@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.1 — local packaging candidate (unreleased)
+
+- Emit Node-valid ESM and declarations with explicit relative `.js` imports.
+- Keep the BPMN legend above the required watermark, including small panels.
+- Export BPMN CSS/fonts, React Flow CSS and the ELK worker; include original asset licences.
+- Verify the npm tarball in an isolated Node/TypeScript/browser consumer.
+- Restore the two Linux screenshots from the original CI artifact and make screenshot approval separate from strict CI.
+- Support Node 22/24 LTS in CI; retain PolyForm Noncommercial and document installation and limits.
+
 ## 0.3.0 — milestone 0.3
 
 "Interaction: select, ask, follow the paths, filter, draw large maps."

@@ -21,9 +21,9 @@ export {
   type StageActivity,
   type LiteFromStagesOptions,
   type LiteFromGraphOptions,
-} from "./lite";
-export { layoutBpmn, manhattanRoute, bpmnNodeSize, BPMN_SIZES, POOL_ID, type BpmnLayoutOptions } from "./layout";
-export { exportBpmn, validateBpmn, roundPositions, xmlId, exportableEdges, EXPORTER_NAME, EXPORTER_VERSION, TARGET_NAMESPACE, type ExportBpmnOptions, type BpmnExport, type IdMap, type BpmnValidation } from "./export";
+} from "./lite.js";
+export { layoutBpmn, manhattanRoute, bpmnNodeSize, BPMN_SIZES, POOL_ID, type BpmnLayoutOptions } from "./layout.js";
+export { exportBpmn, validateBpmn, roundPositions, xmlId, exportableEdges, EXPORTER_NAME, EXPORTER_VERSION, TARGET_NAMESPACE, type ExportBpmnOptions, type BpmnExport, type IdMap, type BpmnValidation } from "./export.js";
 export {
   importBpmn,
   matchActivities,
@@ -35,6 +35,6 @@ export {
   type MappingRow,
   type ImportBpmnOptions,
   type BpmnImport,
-} from "./import";
-export { createModdle, wiseModdleDescriptor, WISE_NS, flowIdOf, wiseAttr, isType, isAnyType, tagOfType, typeOfTag, type ModdleElement, type BpmnModdleInstance } from "./moddle";
-export { BpmnView, type BpmnViewProps, type BpmnSelection, type BpmnViewHandle } from "../react/BpmnView";
+} from "./import.js";
+export { createModdle, wiseModdleDescriptor, WISE_NS, flowIdOf, wiseAttr, isType, isAnyType, tagOfType, typeOfTag, type ModdleElement, type BpmnModdleInstance } from "./moddle.js";
+export { BpmnView, type BpmnViewProps, type BpmnSelection, type BpmnViewHandle } from "../react/BpmnView.js";

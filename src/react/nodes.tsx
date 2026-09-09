@@ -1,8 +1,8 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { memo } from "react";
-import { type LayoutDirection, type Overlay, contrastText, colorOn, formatCompact, formatShare, hasTag, metric, RECONNECTED_TAG } from "../core/index";
-import { PatternSwatch } from "./patterns";
-import type { ActivityNodeData, WfGroupNode, WfNode } from "./types";
+import { type LayoutDirection, type Overlay, contrastText, colorOn, formatCompact, formatShare, hasTag, metric, RECONNECTED_TAG } from "../core/index.js";
+import { PatternSwatch } from "./patterns.js";
+import type { ActivityNodeData, WfGroupNode, WfNode } from "./types.js";
 
 function handles(direction: LayoutDirection) {
   const [target, source] =

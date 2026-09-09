@@ -1,11 +1,13 @@
 name: ci
 on: [push, pull_request]
+permissions:
+  contents: read
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
-        node: [18, 20]
+        node: [22, 24]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -15,31 +17,29 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:package
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: packed-flow-node-${{ matrix.node }}
+          path: artifacts/
+          if-no-files-found: error
   visual:
-    # Screenshot baselines are recorded per platform. Until Linux baselines
-    # are committed, this job records them and publishes them as an artifact
-    # instead of failing; commit the artifact's files to make the job assert.
-    runs-on: ubuntu-latest
+    # Match the baseline OS and lockfile's Playwright/Chromium. Never record here.
+    runs-on: ubuntu-24.04
     needs: test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
+        with: { node-version: 24, cache: npm }
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - name: Visual regression (assert when Linux baselines exist, else record)
-        run: |
-          if ls tests/visual/__screenshots__/*/*-linux.png >/dev/null 2>&1; then
-            npm run test:visual
-          else
-            echo "No Linux baselines committed yet: recording them."
-            npm run test:visual -- --update-snapshots
-          fi
+      - name: Strict visual regression (missing or changed snapshots fail)
+        run: npm run test:visual -- --update-snapshots=none
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: visual-baselines-linux
-          path: |
-            tests/visual/__screenshots__
-            test-results
+          name: visual-diagnostics-linux
+          path: test-results/
           if-no-files-found: ignore

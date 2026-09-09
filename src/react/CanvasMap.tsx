@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
-import { type Box, type HitItem, type Locale, type XY, t } from "../core/index";
-import { CanvasRenderer, type DrawState, type PreparedScene, readTokens } from "../canvas/index";
+import { type Box, type HitItem, type Locale, type XY, t } from "../core/index.js";
+import { CanvasRenderer, type DrawState, type PreparedScene, readTokens } from "../canvas/index.js";
 
 export interface CanvasMapProps {
   scene: PreparedScene | undefined;

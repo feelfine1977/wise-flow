@@ -16,7 +16,7 @@ import {
   metric,
   metricLabel,
   t,
-} from "../core/index";
+} from "../core/index.js";
 
 export function describeNode(node: FlowNode, overlays: Overlay[], locale: Locale, groupLabel?: string): string {
   const parts: string[] = [];

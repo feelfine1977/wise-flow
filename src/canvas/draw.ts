@@ -5,9 +5,9 @@
  * a recording stub in tests. Elements outside the viewport are skipped
  * through the scene's R-tree when the scene is large.
  */
-import { type Box, type LegendItem, type OverlayShape, type Selection, type StringKey, MAP_TARGET, contrastText, fixedColors, formatCompact, formatNumber, formatShare, lodAt, t } from "../core/index";
-import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene";
-import { type CanvasTokens, defaultTokens } from "./tokens";
+import { type Box, type LegendItem, type OverlayShape, type Selection, type StringKey, MAP_TARGET, contrastText, fixedColors, formatCompact, formatNumber, formatShare, lodAt, t } from "../core/index.js";
+import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene.js";
+import { type CanvasTokens, defaultTokens } from "./tokens.js";
 
 /** The subset of the 2D context the renderer uses (stubbed in Node tests). */
 export interface DrawContext {

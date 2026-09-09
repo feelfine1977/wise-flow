@@ -4,8 +4,8 @@
  * come from the response's `paths` block when the API was asked with
  * `focus`, and from the graph's own follows edges otherwise.
  */
-import { type FlowEdge, type FlowGraph, type FlowPath, type FlowPaths, type GraphIndex, hasTag, indexGraph, metric } from "./model";
-import { RECONNECTED_TAG } from "./aggregate";
+import { type FlowEdge, type FlowGraph, type FlowPath, type FlowPaths, type GraphIndex, hasTag, indexGraph, metric } from "./model.js";
+import { RECONNECTED_TAG } from "./aggregate.js";
 
 /** One row of the path list; every number is optional because payloads differ. */
 export interface PathRow {

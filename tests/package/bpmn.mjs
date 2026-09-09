@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import { liteFromStages, exportBpmn, importBpmn, BpmnView } from '@wise/flow/bpmn';
+import { ProcessMap } from '@wise/flow/react';
+assert.ok(BpmnView);
+assert.ok(ProcessMap);
+const graph = liteFromStages({ stages: [{ id: 'work', activities: ['receive', 'complete'] }] });
+const { xml } = await exportBpmn(graph);
+const imported = await importBpmn(xml);
+assert.ok(imported.graph.nodes.some(n => n.id === 'receive'));
+assert.match(xml, /BPMNDiagram/);
+console.log('Packed BPMN and React entry points: plain Node imports and XML round trip passed.');
