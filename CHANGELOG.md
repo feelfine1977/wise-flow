@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Export pure label-sizing helpers for hosts to reuse zoom counter-scaling without changing renderer defaults or layout behavior.
+
 ## 0.3.1 — local packaging candidate (unreleased)
 
 - Emit Node-valid ESM and declarations with explicit relative `.js` imports.

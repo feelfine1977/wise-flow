@@ -13,3 +13,4 @@ export * from "./paths.js";
 export * from "./filters.js";
 export * from "./lanes.js";
 export * from "./actions.js";
+export * from "./label-sizing.js";

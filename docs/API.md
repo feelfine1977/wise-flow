@@ -40,6 +40,42 @@ reads: `start`, `end` on events, `and`/`or` on gateways.
 `coverage`, `glyph`, `text` (formatted reading), `description`, `unit`,
 `threshold`, `width`, `source`/`target` (arc endpoints), `reverse`, `gauge`.
 
+## Label sizing (headless, opt-in)
+
+These helpers export the map text counter-scaling policy through `@wise/flow`.
+They read only numbers and do not enable styling or change any renderer defaults,
+layout coordinates, fit lifecycle, selection or controls.
+
+```ts
+export const LABEL_PX = 12;
+export const MIN_LABEL_PX = 11;
+export const MAX_LABEL_PX = 14;
+export const MAX_LABEL_UNITS = 64;
+export const MIN_READABLE_ZOOM: number; // 11 / 64
+export function labelUnitsAt(zoom: number, target?: number): number;
+export function smallLabelUnitsAt(zoom: number): number;
+export function mapScaleAt(zoom: number): number;
+export function labelScreenPx(units: number, zoom: number): number;
+```
+
+For example, at zoom `0.5`, `labelUnitsAt(0.5)` returns `24` layout units
+(12 screen pixels), `smallLabelUnitsAt(0.5)` returns `22` (11 screen pixels),
+and `mapScaleAt(0.5)` returns `2` for a shape holding secondary text.
+
+`labelUnitsAt` defaults to a base size of 12. Its inverse-zoom contribution
+uses a target clamped to 11–14, retains the requested base size as a floor,
+and caps the result at 64 layout units. `smallLabelUnitsAt` uses base size 11
+and the same cap. Zooming in never shrinks base text, so screen size can exceed
+14 pixels. Below `MIN_READABLE_ZOOM`, the cap prevents even secondary text
+from reaching 11 screen pixels. Nonpositive or nonfinite zooms return the
+base size (the supplied target for primary text, 11 for secondary text).
+`labelScreenPx` simply multiplies; it does not clamp or round.
+
+Hosts apply the returned sizes to their own text and containing shapes.
+Wrapping, collision limits, box growth, fitting, label wording, CSS and
+renderer-specific behavior remain separate responsibilities. These helpers
+alone do not guarantee that a label fits its box or that labels never overlap.
+
 ## Aggregation
 
 ```ts
