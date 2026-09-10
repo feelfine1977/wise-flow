@@ -313,6 +313,8 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
       }
     };
     const onSelectionChanged = (event: Record<string, unknown>) => {
+      // Import and destruction clear the diagram; those resets are not user selections.
+      if (!live || !importedRef.current) return;
       const elements = (event.newSelection as DjsElement[] | undefined) ?? [];
       const s: BpmnSelection = { tasks: [], flows: [], lanes: [] };
       for (const e of elements) {
@@ -399,6 +401,8 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
       .importXML(xml)
       .then(() => {
         if (!live) return;
+        // The new diagram has no selection, even when the controlled value is unchanged.
+        lastEmitted.current = "";
         importedRef.current = true;
         if (fitView) viewer.get<CanvasService>("canvas").zoom("fit-viewport");
         setStatus("ready");

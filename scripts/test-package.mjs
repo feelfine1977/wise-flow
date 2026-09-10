@@ -78,6 +78,23 @@ try {
     const panel = root.querySelector('.wf-bpmn__panel--bottom-right').getBoundingClientRect();
     return panel.left < watermark.right && panel.right > watermark.left && panel.top < watermark.bottom && panel.bottom > watermark.top;
   }), false, 'BPMN legend must not overlap the required watermark');
+  // Import/teardown must not masquerade as a user clearing the host selection.
+  const selectedTask = page.locator('.djs-element[data-element-id="receive"]');
+  const assertSelection = async (events) => {
+    await expect(page.locator('[data-bpmn-status="ready"]')).toBeVisible();
+    await expect(selectedTask).toHaveClass(/\bselected\b/);
+    await expect(page.getByTestId('bpmn-selection')).toHaveText('receive');
+    await expect(page.getByTestId('bpmn-selection-events')).toHaveText(String(events));
+  };
+  await assertSelection(0);
+  await page.getByRole('button', { name: 'Reload diagram' }).click();
+  await assertSelection(0);
+  await page.getByRole('button', { name: 'Hide diagram' }).click();
+  await expect(page.locator('.wf-bpmn')).toHaveCount(0);
+  await expect(page.getByTestId('bpmn-selection')).toHaveText('receive');
+  await expect(page.getByTestId('bpmn-selection-events')).toHaveText('0');
+  await page.getByRole('button', { name: 'Show diagram' }).click();
+  await assertSelection(0);
   await page.getByRole('button', { name: 'Open modeler' }).click();
   await expect(page.locator('.djs-palette')).toBeVisible();
   await expect(page.locator('.bjs-powered-by')).toBeVisible();
@@ -86,13 +103,20 @@ try {
     const panel = root.querySelector('.wf-bpmn__panel--bottom-right').getBoundingClientRect();
     return panel.left < watermark.right && panel.right > watermark.left && panel.top < watermark.bottom && panel.bottom > watermark.top;
   }), false, 'BPMN legend must not overlap the required watermark');
+  await assertSelection(0);
+  // A real click on the blank canvas must still clear selection, and a task click select it again.
+  await page.locator('.wf-bpmn .djs-container > svg').click({ position: { x: 5, y: 5 } });
+  await expect(page.getByTestId('bpmn-selection')).toHaveText('none');
+  await expect(page.getByTestId('bpmn-selection-events')).toHaveText('1');
+  await selectedTask.click();
+  await assertSelection(2);
   await page.evaluate(() => document.fonts.ready);
   assert.ok(await page.evaluate(() => document.fonts.check('16px bpmn')));
   assert.ok(requests.some(u => /elk-worker.*\.js/.test(u)), 'ELK worker must load as an asset');
   assert.ok(requests.some(u => /bpmn.*\.woff2/.test(u)), 'BPMN font must load as an asset');
   assert.deepEqual(errors, []);
   await page.screenshot({ path: join(artifactDir, 'packed-consumer.png'), fullPage: true });
-  metadata.checks = 'passed: isolated npm ci, Node ESM/headless, ELK/Dagre, BPMN round trip, NodeNext declarations, Vite production build, Chromium map/viewer/modeler/CSS/fonts/worker';
+  metadata.checks = 'passed: isolated npm ci, Node ESM/headless, ELK/Dagre, BPMN round trip, NodeNext declarations, Vite production build, Chromium map/viewer/modeler/selection lifecycle and user deselection/CSS/fonts/worker';
   writeFileSync(metadataPath, JSON.stringify(metadata, null, 2) + '\n');
   console.log(metadata.checks + `\nArtifact: ${tarball}\nSHA256: ${sha}\nConsumer: ${consumer}`);
 } catch (error) {
