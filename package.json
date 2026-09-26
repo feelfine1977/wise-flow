@@ -75,7 +75,7 @@
     "@dagrejs/dagre": "^3.1.1",
     "@xyflow/react": "^12.11.6",
     "bpmn-js": "^17.11.1",
-    "bpmn-moddle": "^8.1.0",
+    "bpmn-moddle": "^10.3.1",
     "d3-scale": "^4.0.2",
     "elkjs": "^0.9.3",
     "rbush": "^4.0.1"
