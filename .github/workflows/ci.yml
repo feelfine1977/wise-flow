@@ -47,7 +47,7 @@ jobs:
         with: {node-version: '${{ matrix.node }}', cache: npm}
       - run: npm ci
       - run: npm run test:coverage
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: unit-coverage-node-${{ matrix.node }}
@@ -82,7 +82,7 @@ jobs:
           FLOW_REACT_TYPES: '${{ matrix.types }}'
           FLOW_BROWSER: '${{ matrix.browser }}'
       - run: npm run check:budgets
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: packed-flow-node-${{ matrix.node }}-react-${{ matrix.types }}-${{ matrix.browser }}
@@ -103,7 +103,7 @@ jobs:
       - run: npx --no-install playwright install --with-deps chromium
       - run: npm run storybook:build
       - run: npm run test:browser
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: browser-accessibility
@@ -126,7 +126,7 @@ jobs:
       - run: npm ci
       - run: npx --no-install playwright install --with-deps chromium
       - run: npm run test:visual -- --update-snapshots=none
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: visual-diagnostics-linux
