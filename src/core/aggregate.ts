@@ -1,3 +1,4 @@
+import { collapsedActivityIds } from "./collapsed-members.js";
 /**
  * Aggregation: abstraction by frequency or performance with a keep-connected
  * guarantee, stage collapse (semantic zoom) and diff maps.
@@ -125,14 +126,18 @@ function descendants(groups: Map<string, FlowGroup>, roots: Set<string>): Set<st
  * The stage node takes the group's id and label. Internal edges are dropped and
  * counted in the stage node's `internalCount`; parallel edges are merged (counts
  * summed, cases and shares taken as the maximum, other metrics averaged by weight).
- * Overlays on members move to the stage node; arcs that fold onto one node are dropped.
+ * Overlays remain separate: member/internal-edge targets move to the stage and
+ * parallel-edge targets move to the merged edge, without averaging overlay values.
+ * Folded arcs become labeled chips. `meta.collapsedMembers` retains original
+ * activities; `meta.collapsedEdgeTargets` maps original edges to displayed targets
+ * (a stage id for internal edges). Response focus and paths retain their identity.
  */
 export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): FlowGraph {
   const idx = indexGraph(graph);
-  const requested =
+  const requested = [...new Set(
     groups === "all"
       ? [...idx.groups.values()].filter((g) => g.kind === "stage" && !g.parent).map((g) => g.id)
-      : groups.filter((id) => idx.groups.has(id));
+      : groups.filter((id) => idx.groups.has(id)))];
   if (requested.length === 0) return graph;
   const collapsedRoots = new Set(requested);
   const collapsedAll = descendants(idx.groups, collapsedRoots);
@@ -141,12 +146,16 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
   const rootOf = (groupId: string): string | undefined => {
     let cur: FlowGroup | undefined = idx.groups.get(groupId);
     let found: string | undefined;
-    while (cur) {
+    const seen = new Set<string>();
+    while (cur && !seen.has(cur.id)) {
+      seen.add(cur.id);
       if (collapsedRoots.has(cur.id)) found = cur.id;
       cur = cur.parent ? idx.groups.get(cur.parent) : undefined;
     }
     return found;
   };
+  const roots = requested.filter((id) => rootOf(id) === id);
+  const collapsedMembers = new Map(Object.entries((graph.meta?.collapsedMembers ?? {}) as Record<string, string[]>));
   const nodeTarget = new Map<string, string>();
   const membersOf = new Map<string, FlowNode[]>();
   for (const n of graph.nodes) {
@@ -170,6 +179,7 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
     emitted.add(root);
     const group = idx.groups.get(root)!;
     const members = membersOf.get(root)!;
+    collapsedMembers.set(root, [...new Set(members.flatMap((member) => collapsedActivityIds(graph, member.id) ?? (member.kind === "activity" ? [member.id] : [])))]);
     nodes.push({
       id: root,
       kind: "stage",
@@ -179,14 +189,16 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
       tags: [COLLAPSED_TAG],
     });
   }
-  for (const root of requested) {
+  for (const root of roots) {
     if (!emitted.has(root)) {
       const group = idx.groups.get(root)!;
+      collapsedMembers.set(root, []);
       nodes.push({ id: root, kind: "stage", label: group.label, group: group.parent, metrics: { members: 0 }, tags: [COLLAPSED_TAG] });
     }
   }
 
   const merged = new Map<string, FlowEdge[]>();
+  const edgeTarget = new Map<string, string>();
   const internal = new Map<string, number>();
   const order: string[] = [];
   for (const e of graph.edges) {
@@ -194,21 +206,32 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
     const t = nodeTarget.get(e.target) ?? e.target;
     if (s === t && nodeTarget.has(e.source) && nodeTarget.has(e.target)) {
       internal.set(s, (internal.get(s) ?? 0) + metric(e, "count", 1));
+      edgeTarget.set(e.id, s);
       continue;
     }
-    const key = `${e.kind}|${s}|${t}`;
+    const key = JSON.stringify([e.kind, s, t]);
     if (!merged.has(key)) {
       merged.set(key, []);
       order.push(key);
     }
     merged.get(key)!.push({ ...e, source: s, target: t });
   }
+  // Keep singleton ids unchanged and reserve node/group ids to avoid ambiguous targets.
+  const usedIds = new Set([...nodes.map((n) => n.id), ...(graph.groups ?? []).map((g) => g.id), ...[...merged.values()].filter((list) => list.length === 1).map((list) => list[0].id)]);
   const edges: FlowEdge[] = order.map((key) => {
     const list = merged.get(key)!;
-    if (list.length === 1) return list[0];
+    if (list.length === 1) {
+      edgeTarget.set(list[0].id, list[0].id);
+      return list[0];
+    }
     const first = list[0];
+    const baseId = `${first.source}->${first.target}`;
+    let id = baseId;
+    for (let suffix = 1; usedIds.has(id); suffix++) id = `${baseId}:${first.kind}:${suffix}`;
+    usedIds.add(id);
+    for (const edge of list) edgeTarget.set(edge.id, id);
     return {
-      id: `${first.source}->${first.target}`,
+      id,
       kind: first.kind,
       source: first.source,
       target: first.target,
@@ -221,25 +244,33 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
     if (c !== undefined) n.metrics = { ...(n.metrics ?? {}), internalCount: c };
   }
 
+  const targetOf = (id: string) => nodeTarget.get(id) ?? rootOf(id) ?? edgeTarget.get(id) ?? id;
+  const collapsedEdgeTargets = new Map(edgeTarget);
+  const previousTargets = graph.meta?.collapsedEdgeTargets;
+  if (previousTargets && typeof previousTargets === "object") {
+    for (const [id, target] of Object.entries(previousTargets)) {
+      if (typeof target === "string") collapsedEdgeTargets.set(id, targetOf(target));
+    }
+  }
   const overlays: Overlay[] | undefined = graph.overlays
     ?.map((o) => {
-      const target = nodeTarget.get(o.target) ?? o.target;
+      const target = targetOf(o.target);
       if (o.kind === "arc" && o.payload?.source && o.payload?.target) {
-        const s = nodeTarget.get(String(o.payload.source)) ?? String(o.payload.source);
-        const t = nodeTarget.get(String(o.payload.target)) ?? String(o.payload.target);
-        if (s === t) return null;
+        const s = targetOf(String(o.payload.source));
+        const t = targetOf(String(o.payload.target));
+        if (s === t) return { ...o, kind: "chip" as const, target: s, payload: { ...o.payload, source: s, target: t, text: `${o.payload.text ?? o.payload.label ?? "Arc"} (inside collapsed stage)` } };
         return { ...o, target, payload: { ...o.payload, source: s, target: t } };
       }
       return target === o.target ? o : { ...o, target };
-    })
-    .filter((o): o is Overlay => o !== null);
+    });
 
   return {
+    ...graph,
     nodes,
     edges,
     groups: (graph.groups ?? []).filter((g) => !collapsedAll.has(g.id)),
     overlays,
-    meta: { ...(graph.meta ?? {}), collapsed: requested },
+    meta: { ...(graph.meta ?? {}), collapsed: roots, collapsedMembers: Object.fromEntries(collapsedMembers), collapsedEdgeTargets: Object.fromEntries(collapsedEdgeTargets) },
   };
 }
 
@@ -565,6 +596,7 @@ export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowG
       : o.target === MAP_TARGET || nodeSet.has(o.target) || edgeSet.has(o.target) || usedGroups.has(o.target),
   );
   return {
+    ...base,
     nodes,
     edges,
     groups,

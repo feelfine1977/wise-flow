@@ -10,7 +10,7 @@ data, analysis, persistence and the meaning of actions.
 
 Supported development and CI runtimes: Node 22 or 24 LTS, npm. React components
 require React and React DOM 18 or later; the packed consumer is tested with the
-versions in this repository's lockfile. The package is ESM with TypeScript
+React 18.3.1 and 19.2.8. CI covers Node 22/React 18 with Chromium and Node 24/React 19 with Chromium, Firefox and WebKit. The package is ESM with TypeScript
 declarations; CommonJS `require()` is not a supported entry point.
 
 Version **0.3.1 is a local packaging candidate, not a published release**. Given
@@ -146,9 +146,7 @@ stories for overlays, shared layouts, actions, lanes, views and Canvas rendering
 
 ```sh
 npm ci
-npm run lint
-npm run typecheck
-npm test
+npm run check
 npm run build
 npm run test:package
 npm run storybook
@@ -160,6 +158,15 @@ BPIC fixture requires an external CSV; ordinary checks need no private dataset
 or model server. See [testing](tests/README.md) for separate screenshot approval,
 and [contributing](CONTRIBUTING.md). Roadmap and checkpoint documents describe
 historical milestones or proposals, not current release guarantees.
+
+## Quality and next steps
+
+See the [CI and release guide](docs/CI.md), [feature map](docs/FEATURE_MAP.md),
+[ordered roadmap](docs/ROADMAP.md) and [candidate verification](docs/VERIFICATION.md).
+CI enforces unit/component coverage, headless boundaries, installed-consumer
+compatibility, browser accessibility, strict Linux screenshots and artifact sizes.
+The next product work prioritizes context integrity and observed variants before
+adding more diagram types. A graph route is not proof of an observed trace.
 
 ## Licence
 

@@ -44,6 +44,53 @@ function randomGraph(seed: number, n: number): FlowGraph {
 const thresholds = [0, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.35, 0.5, 0.8];
 
 describe("abstract", () => {
+  const parallel: FlowGraph = {
+    nodes: [{ id: "a", kind: "activity", label: "A", group: "stage" }, { id: "b", kind: "activity", label: "B", group: "stage" }, { id: "c", kind: "activity", label: "C" }],
+    edges: [{ id: "ac", source: "a", target: "c", kind: "follows", metrics: { count: 1 } }, { id: "bc", source: "b", target: "c", kind: "follows", metrics: { count: 2 } }, { id: "ab", source: "a", target: "b", kind: "follows", metrics: { count: 3 } }],
+    groups: [{ id: "stage", kind: "stage", label: "Stage" }],
+    overlays: [{ kind: "badge", target: "ac", payload: { text: "A evidence", value: 0.2 } }, { kind: "badge", target: "bc", payload: { text: "B evidence", value: 0.8 } }, { kind: "badge", target: "ab", payload: { text: "Internal evidence" } }],
+  };
+
+  it("remaps every edge overlay without combining independent evidence values", () => {
+    const before = structuredClone(parallel);
+    for (const shown of [collapseGroups(parallel, ["stage"]), abstract(parallel, { collapse: ["stage"] })]) {
+      expect(validateGraph(shown)).toEqual([]);
+      expect(shown.overlays).toEqual([
+        { ...parallel.overlays![0], target: "stage->c" },
+        { ...parallel.overlays![1], target: "stage->c" },
+        { ...parallel.overlays![2], target: "stage" },
+      ]);
+      expect(shown.meta?.collapsedEdgeTargets).toMatchObject({ ac: "stage->c", bc: "stage->c", ab: "stage" });
+    }
+    expect(parallel).toEqual(before);
+  });
+
+  it("keeps merged IDs unique across edge kinds and existing opaque IDs", () => {
+    const graph: FlowGraph = { ...parallel, edges: [...parallel.edges, ...parallel.edges.slice(0, 2).map((e) => ({ ...e, id: `flow-${e.id}`, kind: "flow" as const })), { id: "stage->c", source: "c", target: "a", kind: "follows" }], overlays: [...parallel.overlays!, { kind: "badge", target: "flow-ac", payload: { text: "Flow evidence" } }] };
+    const shown = collapseGroups(graph, ["stage"]);
+    expect(validateGraph(shown)).toEqual([]);
+    expect(new Set(shown.edges.map((e) => e.id)).size).toBe(shown.edges.length);
+    const follows = shown.edges.find((e) => e.source === "stage" && e.kind === "follows")!;
+    const flow = shown.edges.find((e) => e.source === "stage" && e.kind === "flow")!;
+    expect(shown.overlays?.[0].target).toBe(follows.id);
+    expect(shown.overlays?.[3].target).toBe(flow.id);
+  });
+
+  it("discloses arcs folded inside a stage as a chip instead of losing the evidence", () => {
+    const graph: FlowGraph = { ...parallel, overlays: [{ kind: "arc", target: "ab", payload: { source: "a", target: "b", label: "Response", value: 0.4 } }] };
+    const shown = abstract(graph, { collapse: ["stage"] });
+    expect(validateGraph(shown)).toEqual([]);
+    expect(shown.overlays).toHaveLength(1);
+    expect(shown.overlays?.[0]).toMatchObject({ kind: "chip", target: "stage", payload: { value: 0.4, text: "Response (inside collapsed stage)" } });
+  });
+
+  it("composes original edge targets across nested collapse", () => {
+    const graph: FlowGraph = { ...parallel, nodes: parallel.nodes.map((n) => n.id === "b" ? { ...n, group: "child" } : n), groups: [...parallel.groups!, { id: "child", kind: "stage", label: "Child", parent: "stage" }] };
+    const shown = collapseGroups(collapseGroups(graph, ["child"]), ["stage"]);
+    expect(validateGraph(shown)).toEqual([]);
+    expect(shown.meta?.collapsedEdgeTargets).toMatchObject({ ac: "stage->c", bc: "stage->c", ab: "stage" });
+    expect(shown.overlays?.map((o) => o.target)).toEqual(["stage->c", "stage->c", "stage"]);
+  });
   it("keeps the fixture connected at every threshold and never adds dangling edges", () => {
     for (const tt of thresholds) {
       const g = abstract(globalScene, { minEdgeShare: tt, minNodeShare: tt / 2 });

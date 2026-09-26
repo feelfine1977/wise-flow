@@ -4,7 +4,7 @@
  * come from the response's `paths` block when the API was asked with
  * `focus`, and from the graph's own follows edges otherwise.
  */
-import { type FlowEdge, type FlowGraph, type FlowPath, type FlowPaths, type GraphIndex, hasTag, indexGraph, metric } from "./model.js";
+import { type FlowEdge, type FlowGraph, type FlowPath, type FlowPaths, type GraphIndex, byId, hasTag, indexGraph, metric } from "./model.js";
 import { RECONNECTED_TAG } from "./aggregate.js";
 
 /** One row of the path list; every number is optional because payloads differ. */
@@ -205,24 +205,31 @@ export interface PathBetween {
   reverse?: { direct?: FlowEdge; nodes: string[]; edges: string[] };
 }
 
+function pathStrength(edge: FlowEdge, maxCount: number): number {
+  return maxCount > 0 ? Math.max(0, Math.min(1, metric(edge, "count", maxCount) / maxCount)) : 1;
+}
+
 function shortest(idx: GraphIndex, a: string, b: string, maxCount: number): { nodes: string[]; edges: string[] } | undefined {
-  // Dijkstra on hops with a small penalty for weak paths, so that among equally
-  // short paths the strongest one wins and the result is deterministic.
-  const dist = new Map<string, number>([[a, 0]]);
+  // Lexicographic Dijkstra: no strength penalty can outweigh a single hop.
+  // Stable node/edge ids break remaining ties independently of input order.
+  type Cost = { hops: number; strength: number };
+  const compareCost = (x: Cost, y: Cost) => x.hops - y.hops || y.strength - x.strength;
+  const dist = new Map<string, Cost>([[a, { hops: 0, strength: 0 }]]);
   const prev = new Map<string, { node: string; edge: string }>();
   const done = new Set<string>();
   const queue: string[] = [a];
   while (queue.length) {
-    queue.sort((x, y) => (dist.get(x)! - dist.get(y)!) || (x < y ? -1 : 1));
+    queue.sort((x, y) => compareCost(dist.get(x)!, dist.get(y)!) || (x < y ? -1 : x > y ? 1 : 0));
     const u = queue.shift()!;
     if (done.has(u)) continue;
     done.add(u);
     if (u === b) break;
-    for (const e of idx.outgoing.get(u) ?? []) {
+    for (const e of [...(idx.outgoing.get(u) ?? [])].sort(byId)) {
       if (e.kind === "constraint" || e.source === e.target) continue;
-      const strength = maxCount > 0 ? metric(e, "count", maxCount) / maxCount : 1;
-      const cost = dist.get(u)! + 1 + (1 - Math.max(0, Math.min(1, strength))) * 0.5;
-      if (cost < (dist.get(e.target) ?? Infinity)) {
+      const current = dist.get(u)!;
+      const cost = { hops: current.hops + 1, strength: current.strength + pathStrength(e, maxCount) };
+      const previous = dist.get(e.target);
+      if (!previous || compareCost(cost, previous) < 0) {
         dist.set(e.target, cost);
         prev.set(e.target, { node: u, edge: e.id });
         queue.push(e.target);
@@ -243,13 +250,20 @@ function shortest(idx: GraphIndex, a: string, b: string, maxCount: number): { no
   return { nodes, edges };
 }
 
-/** The shortest (then strongest) path from `a` to `b`, plus the reverse one when it exists. */
+/**
+ * Fewest hops, then greatest summed normalized count strength, plus the reverse
+ * path when it exists. Missing/non-finite counts retain the full-strength fallback;
+ * remaining ties use stable node and edge ids. Constraints and self-loops are ignored.
+ */
 export function pathBetween(graph: FlowGraph, a: string, b: string): PathBetween {
   const idx = indexGraph(graph);
   const maxCount = Math.max(0, ...graph.edges.map((e) => metric(e, "count", 0)));
-  const direct = (idx.outgoing.get(a) ?? []).find((e) => e.target === b && e.kind !== "constraint");
+  const directFor = (from: string, to: string) => (idx.outgoing.get(from) ?? [])
+    .filter((e) => e.target === to && e.kind !== "constraint")
+    .sort((x, y) => pathStrength(y, maxCount) - pathStrength(x, maxCount) || byId(x, y))[0];
+  const direct = directFor(a, b);
   const forward = shortest(idx, a, b, maxCount);
-  const reverseDirect = (idx.outgoing.get(b) ?? []).find((e) => e.target === a && e.kind !== "constraint");
+  const reverseDirect = directFor(b, a);
   const backward = shortest(idx, b, a, maxCount);
   return {
     a,

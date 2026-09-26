@@ -7,6 +7,10 @@ import {
   changesCases,
   clauseForTarget,
   clauseKey,
+  abstract,
+  collapseGroups,
+  defaultActions,
+  menuTargetFor,
   describeClause,
   describePreview,
   emptyFilter,
@@ -35,6 +39,50 @@ const graph: FlowGraph = {
 };
 
 describe("filters", () => {
+  const nested: FlowGraph = {
+    nodes: [{ id: "a", kind: "activity", label: "A", group: "parent" }, { id: "b", kind: "activity", label: "B", group: "child" }, { id: "c", kind: "activity", label: "C" }],
+    edges: [{ id: "ac", source: "a", target: "c", kind: "follows" }],
+    groups: [{ id: "parent", label: "Parent", kind: "stage" }, { id: "child", label: "Child", kind: "stage", parent: "parent" }, { id: "empty", label: "Empty", kind: "stage" }],
+  };
+
+  it("emits equivalent original activity clauses for nested, partial and repeated collapse", () => {
+    const keep = { kind: "any", clauses: ["a", "b"].map((activity) => ({ kind: "activity", op: "contains", activity })) };
+    const exclude = ["a", "b"].map((activity) => ({ kind: "activity", op: "never", activity }));
+    const child = collapseGroups(nested, ["child"]);
+    for (const shown of [nested, child, collapseGroups(nested, ["parent"]), collapseGroups(child, ["parent"]), abstract(nested, { collapse: ["parent"] }), collapseGroups(nested, ["parent", "child"])]) {
+      const kind = shown.nodes.some((n) => n.id === "parent") ? "node" : "group";
+      const target = menuTargetFor(shown, { kind, id: "parent" }, { nodes: [], edges: [], groups: [] });
+      const actions = defaultActions(shown, target);
+      expect(actions.find((a) => a.id === "filter-to")?.clause).toEqual(keep);
+      expect(actions.find((a) => a.id === "exclude")?.clause).toEqual(exclude);
+      expect(clauseForTarget({ kind: "group", ids: ["parent"] }, "keep", shown)).toEqual(keep);
+    }
+  });
+
+  it("disables filters for an empty collapsed stage and unsupported collapsed routes", () => {
+    const shown = collapseGroups(nested, ["parent", "empty"]);
+    expect(clauseForTarget({ kind: "node", ids: ["empty"] }, "keep", shown)).toBeUndefined();
+    expect(clauseForTarget({ kind: "edge", ids: ["ac"] }, "keep", shown)).toBeUndefined();
+    expect(clauseForTarget({ kind: "pair", ids: ["parent", "c"] }, "exclude", shown)).toBeUndefined();
+  });
+
+  it("keeps each selected stage as an any-member condition in a set", () => {
+    const shown = collapseGroups(nested, ["parent"]);
+    expect(clauseForTarget({ kind: "set", ids: ["parent", "c"] }, "keep", shown)).toEqual([
+      { kind: "any", clauses: ["a", "b"].map((activity) => ({ kind: "activity", op: "contains", activity })) },
+      { kind: "activity", op: "contains", activity: "c" },
+    ]);
+    expect(clauseForTarget({ kind: "set", ids: ["parent", "c"] }, "exclude", shown)).toEqual(["a", "b", "c"].map((activity) => ({ kind: "activity", op: "never", activity })));
+  });
+
+  it("retains opaque stage IDs through serialization and excludes structural members", () => {
+    const graph: FlowGraph = { nodes: [{ id: "a", label: "A", kind: "activity", group: "__proto__" }, { id: "start", label: "Start", kind: "event", group: "__proto__" }], edges: [], groups: [{ id: "__proto__", kind: "stage", label: "Stage" }] };
+    const expected = { kind: "any", clauses: [{ kind: "activity", op: "contains", activity: "a" }] };
+    expect(clauseForTarget({ kind: "group", ids: ["__proto__"] }, "keep", graph)).toEqual(expected);
+    const shown = JSON.parse(JSON.stringify(abstract(graph, { collapse: "all" }))) as FlowGraph;
+    expect(clauseForTarget({ kind: "node", ids: ["__proto__"] }, "keep", shown)).toEqual(expected);
+    expect(clauseForTarget({ kind: "node", ids: ["__proto__"] }, "keep", { ...shown, meta: undefined })).toBeUndefined();
+  });
   it("has one canonical form for any spelling and order of the same clauses", () => {
     const a: FilterClause[] = [
       { kind: "activity", op: "not_contains", activity: "clear_invoice" },

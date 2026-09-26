@@ -189,7 +189,7 @@ that shapes do not overlap and routes sequence flows orthogonally.
 positions, a collaboration with one participant when lanes exist, and the
 `wise` extension (FlowGraph id, kind, tags, metrics) so that
 `importBpmn` restores the graph without loss; `validateBpmn` re-parses the
-output. `importBpmn` handles any BPMN 2.0 file (tasks of all types,
+output. `importBpmn` reads supported BPMN 2.0 elements (tasks of all types,
 gateways, events, lanes, pools, expanded sub-processes as stages, sequence
 and message flows, annotations), reads positions from the DI and returns
 a task ↔ activity mapping table that `matchActivities` fills by id, label
@@ -212,8 +212,8 @@ on the events, span annotations, alignment by an anchor activity, table
 alternative) ships in 0.1. Variant strip (chevrons with frequency and a
 metric), performance spectrum (segments between two activities over time,
 classified by duration band) and dotted chart (events by case over time,
-colour by a categorical) follow in 0.4. All draw with d3 scales on SVG for
-small data and Canvas for large samples.
+colour by a categorical) remain planned. See the ordered [roadmap](ROADMAP.md);
+their proposed rendering policy is SVG for small data and Canvas for larger samples.
 
 ## 7. Quality
 Vitest for the core (aggregation invariants on the fixture and on random
@@ -223,3 +223,43 @@ canonical filters, lane bands, the canvas routines on a recording
 context) and for the components (jsdom), Storybook for components with the
 design tokens, Playwright screenshots of the stories plus keyboard, filter
 and canvas checks, strict TypeScript, ESLint, Changesets for releases.
+
+
+## 8. Contracts and CI direction
+
+Keep the core, renderer adapters and host responsibilities separate. No service
+split or second graph engine is required. The following diagram shows ownership,
+not a claim that future context/variant contracts already exist.
+
+```mermaid
+flowchart LR
+  Engine["wise-pm: exact membership and statistics"] --> Host["Workbench: context, queries, persistence"]
+  Host --> Core["Flow core: graph, provenance, abstraction, layout"]
+  Core --> React["React / accessible tables"]
+  Core --> Canvas["Canvas / PNG"]
+  Core --> BPMN["BPMN bridge / viewer"]
+  React --> Intent["Typed selection and action intent"]
+  Canvas --> Intent
+  BPMN --> Intent
+  Intent --> Host
+```
+
+Current collapse metadata preserves original activities in `collapsedMembers` and
+original edge targets in `collapsedEdgeTargets`; keep/exclude uses those activity
+IDs. Collapsed edge and pair filters that cannot express exact original semantics
+are unavailable. Overlays remain separate observations after merging; their
+values are not averaged into a fabricated statistic. Internal edges target the
+containing stage and folded arcs become labeled chips. Existing metric aggregation
+approximations are unchanged. Response focus and paths survive abstraction.
+
+ProcessMap's automatic layout key includes layout options, resolved dimensions
+and relevant graph structure; each map clears its own automatic entries. Explicit
+caller cache keys remain caller-owned and must be invalidated by their owner.
+Timeline transient state is reconciled when cases/events change; unusable dates
+remain available in the table without being placed at an invented time.
+
+Next, add versioned context and metric provenance without breaking legacy inputs
+(WF-02), then exact observed-variant exploration (WF-03). Keep exact case queries
+and causal/action recommendations out of the renderers. Read the
+[feature map](FEATURE_MAP.md) for current/partial/planned distinctions and
+[CI contract](CI.md) for executable boundary and package checks.

@@ -15,13 +15,16 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: 0,
   workers: 1,
-  reporter: [["list"]],
+  reporter: [["list"], ["html", { open: "never" }], ["junit", { outputFile: "reports/visual.xml" }]],
   use: {
     ...devices["Desktop Chrome"],
     viewport: { width: 1400, height: 900 },
     deviceScaleFactor: 1,
     baseURL: "http://127.0.0.1:6007",
     contextOptions: { reducedMotion: "reduce" },
+    trace: "retain-on-failure",
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
   },
   webServer: {
     command: "npx storybook dev -p 6007 --ci --no-open",

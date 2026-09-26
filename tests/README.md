@@ -1,51 +1,41 @@
 # Tests
 
-- `core/`: Node unit tests for graph invariants, layout, overlays, filters, lanes,
-  Canvas scene preparation and BPMN XML import/export.
-- `react/`: jsdom tests for components, callbacks, selection and accessibility.
-- `package/`: a synthetic consumer copied to a temporary directory outside the
-  checkout by `npm run test:package`. It installs the tarball with `npm ci` and
-  uses package exports exclusively. Node ESM imports, both layout engines,
-  declaration checking without `skipLibCheck`, a Vite production build, real
-  browser Map/BPMN viewer/modeler, watermark, fonts and the ELK worker are checked.
-- `visual/`: ten Playwright Storybook checks, including six screenshots per OS.
-  All existing tolerances and behavioural assertions remain in force.
+The executable CI contract and release procedure are in [docs/CI.md](../docs/CI.md).
 
-```sh
-npm test
-npm run test:package
-npx playwright install chromium
-npm run test:visual
-```
+| Directory | Purpose | Command |
+| --- | --- | --- |
+| `core/` | Node algorithms, seeded graph invariants, deterministic layout, filters, overlays, Canvas geometry, SVG/BPMN | `npm run test:core` |
+| `react/` | jsdom callbacks, keyboard interaction, state replacement and renderer lifecycles | `npm run test:components` |
+| `tooling/` | Negative checks for architecture boundaries, workflow policies and artifact budgets | `npm run test:tooling` |
+| `package/` | Separate consumer of the actual npm tarball; NodeNext types and real browser assets/lifecycle | `npm run test:package` |
+| `browser/` | Production Storybook accessibility and keyboard tests | `npm run storybook:build` then `npm run test:browser` |
+| `visual/` | Ten behavior checks including six screenshots and the large Canvas scene | `npm run test:visual` |
+
+`npm run check` runs lint, typecheck, architecture/workflow guards, tooling tests
+and unit/component coverage. Vitest counts all implementation files and enforces
+reviewed initial floors. It refuses focused `.only` tests in CI. Reported coverage
+is not a claim of semantic completeness; graph routes still differ from observed
+variants and grouped metric approximations still require host evidence.
 
 ## Strict visual CI and deliberate approval
 
-`test:visual` uses `updateSnapshots: "none"`: a missing or changed baseline fails
-without writing baselines. CI also passes `--update-snapshots=none` explicitly.
-The runner is Ubuntu 24.04; `@playwright/test` is pinned to 1.61.1, which selects
-Chromium 149.0.7827.55 (build 1228). Use `npm ci` to retain that environment.
-The hosted runner's OS image updates separately; a future image change still
-has to pass these checks.
-
-For an intentional screenshot change, run outside CI on the matching OS:
+Strict visual tests use `updateSnapshots: "none"`; missing or changed baselines
+fail without recording. CI pins Playwright 1.61.1 and runs Ubuntu 24.04 Chromium.
+The hosted OS image can change independently and must still pass. For an intended
+visual change, outside CI on the corresponding OS:
 
 ```sh
 npm run test:visual:approve
-npm run test:visual
+npm run test:visual -- --update-snapshots=none
 ```
 
-The approval config refuses to run when `CI` is set. Review each image and the
-behaviour it represents before accepting the proposed baseline diff. Never
-rename or copy a `darwin` file into a `linux` baseline. To approve Linux changes,
-use an Ubuntu 24.04 environment with the locked Playwright and browser, then
-run the strict suite there. CI diagnostic artifacts contain actual/diff files;
-they do not approve a change automatically.
+Approval refuses to run in CI. Review every proposed image and its behavior.
+Never rename a `darwin` baseline to `linux`. Linux approval requires the matching
+Linux environment. Failure artifacts contain actual/diff images and traces,
+not automatically approved snapshots.
 
-The two missing interaction Linux images were recovered byte-for-byte from
+Historical provenance for recovered interaction Linux images is retained in
+[visual/baseline-provenance.json](visual/baseline-provenance.json). They came from
 [run 34035991497](https://github.com/feelfine1977/wise-flow/actions/runs/34035991497),
-artifact `visual-baselines-linux` (9990219174), for source commit
-`a561766aa158e9effeee132f6c1c045feb606b6a`. Their archive and image SHA256 values,
-original paths and runner image are in `visual/baseline-provenance.json`.
-They were visually inspected for the focused paths/list and ordered stage bands.
-Recovery is not a fresh Linux execution of the modified checkout: run the strict
-Linux CI suite before treating the candidate as Linux-validated.
+artifact 9990219174, source `a561766aa158e9effeee132f6c1c045feb606b6a`.
+Their recovery does not establish a new candidate's Linux visual result.

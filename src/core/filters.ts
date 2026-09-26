@@ -5,7 +5,10 @@
  * renders the chips and calls back with the changed filter.
  */
 import { type Locale, formatCount, formatNumber } from "./format.js";
+import { COLLAPSED_TAG } from "./aggregate.js";
+import { collapsedActivityIds } from "./collapsed-members.js";
 import { type FlowGraph } from "./model.js";
+import { focusMembers } from "./paths.js";
 import { type StringKey, t } from "./strings.js";
 
 export type TimeMode = "case_start" | "case_end" | "active" | "events_inside";
@@ -288,14 +291,28 @@ export interface FilterTarget {
  * activities → `contains` / `never`; a path → `follows` directly / never
  * directly; a stage → `any` of its members; two activities → eventually
  * follows; a set → one `contains` clause per activity (combined by the AND
- * of the filter) or `never` for each.
+ * of the filter) or `never` for each. Collapsed stages retain their original
+ * activity clauses. Routes touching collapsed stages have no clause because
+ * the displayed endpoints cannot express the original direct/eventual relation.
  */
 export function clauseForTarget(target: FilterTarget, action: "keep" | "exclude", graph?: FlowGraph): FilterClause | FilterClause[] | undefined {
   const [first, second] = target.ids;
+  const collapsed = (id: string) => graph && (collapsedActivityIds(graph, id) !== undefined || graph.nodes.some((n) => n.id === id && n.tags?.includes(COLLAPSED_TAG)));
+  const groupClause = (id: string): FilterClause | FilterClause[] | undefined => {
+    if (!graph) return undefined;
+    const original = collapsedActivityIds(graph, id);
+    const members = original ?? (graph.groups?.some((g) => g.id === id)
+      ? [...focusMembers(graph, id)].flatMap((member) => collapsedActivityIds(graph, member) ?? (graph.nodes.some((n) => n.id === member && n.kind === "activity") ? [member] : []))
+      : []);
+    if (members.length === 0) return undefined;
+    const clauses: ActivityClause[] = [...new Set(members)].map((activity) => ({ kind: "activity", op: action === "keep" ? "contains" : "never", activity }));
+    return action === "keep" ? { kind: "any", clauses } : clauses;
+  };
   switch (target.kind) {
     case "node": {
       if (!first) return undefined;
       const node = graph?.nodes.find((n) => n.id === first);
+      if (collapsed(first)) return groupClause(first);
       if (node?.kind === "event") {
         // Cases that reach the end event are closed; excluding them keeps the open ones.
         // A start event has no clause of its own (every case starts somewhere).
@@ -307,18 +324,26 @@ export function clauseForTarget(target: FilterTarget, action: "keep" | "exclude"
     case "edge": {
       const e = graph?.edges.find((x) => x.id === first);
       if (!e) return undefined;
+      if (collapsed(e.source) || collapsed(e.target)) return undefined;
       return { kind: "follows", a: e.source, b: e.target, directly: true, never: action === "exclude" || undefined };
     }
     case "pair":
       if (!first || !second) return undefined;
+      if (collapsed(first) || collapsed(second) || graph?.groups?.some((g) => g.id === first || g.id === second)) return undefined;
       return { kind: "follows", a: first, b: second, directly: false, never: action === "exclude" || undefined };
     case "group": {
-      const members = graph?.nodes.filter((n) => n.group === first).map((n) => n.id) ?? [];
-      if (members.length === 0) return undefined;
-      if (action === "keep") return { kind: "any", clauses: members.map((id) => ({ kind: "activity", op: "contains", activity: id })) };
-      return members.map((id) => ({ kind: "activity", op: "never", activity: id }) as ActivityClause);
+      return groupClause(first);
     }
-    case "set":
-      return target.ids.map((id) => ({ kind: "activity", op: action === "keep" ? "contains" : "never", activity: id }) as ActivityClause);
+    case "set": {
+      const clauses: FilterClause[] = [];
+      for (const id of target.ids) {
+        if (collapsed(id) || graph?.groups?.some((g) => g.id === id)) {
+          const clause = groupClause(id);
+          if (!clause) return undefined;
+          clauses.push(...(Array.isArray(clause) ? clause : [clause]));
+        } else clauses.push({ kind: "activity", op: action === "keep" ? "contains" : "never", activity: id });
+      }
+      return clauses;
+    }
   }
 }

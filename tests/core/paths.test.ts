@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { globalScene } from "../../fixtures/bpic2019";
-import { type FlowGraph, focusHighlight, focusMembers, indexGraph, neighbourhood, pathBetween, pathRows, pathsFor } from "../../src/index";
+import { type FlowGraph, abstract, collapseGroups, focusHighlight, focusMembers, indexGraph, neighbourhood, pathBetween, pathRows, pathsFor } from "../../src/index";
 
 const g: FlowGraph = {
   nodes: [
@@ -27,6 +27,29 @@ const g: FlowGraph = {
 };
 
 describe("pathsFor", () => {
+  it("retains response ownership through abstraction, collapse and repeated transforms", () => {
+    const response: FlowGraph = { ...g, focus: "c", paths: { incoming: [{ from: "a", count: 77 }], outgoing: [] } };
+    const before = structuredClone(response);
+    for (const shown of [abstract(response), collapseGroups(response, ["s2"]), abstract(response, { collapse: ["s2"] }), abstract(abstract(response))]) {
+      expect(shown.focus).toBe("c");
+      expect(shown.paths).toEqual(response.paths);
+      expect(pathsFor(shown, "c").source).toBe("payload");
+      expect(pathsFor(shown, "b", { paths: response.paths }).source).toBe("graph");
+      expect(pathsFor(shown, "s2", { paths: response.paths }).source).toBe("graph");
+    }
+    expect(response).toEqual(before);
+  });
+
+  it("keeps explicit and legacy payload focus behavior after abstraction", () => {
+    const paths = { focus: "c", incoming: [{ from: "a", count: 77 }], outgoing: [] };
+    const shown = abstract({ ...g, focus: "b", paths });
+    expect(pathsFor(shown, "c").source).toBe("payload");
+    expect(pathsFor(shown, "b").source).toBe("graph");
+    const legacy = abstract({ ...g, paths: { incoming: [], outgoing: [] } });
+    expect(pathsFor(legacy, "c").source).toBe("payload");
+    const metaFocus = abstract({ ...g, meta: { focus: "c" }, paths: legacy.paths });
+    expect(pathsFor(metaFocus, "b").source).toBe("graph");
+  });
   it("lists the follows paths at an activity from the map, sorted by count, with shares and totals", () => {
     const p = pathsFor(g, "c");
     expect(p.source).toBe("graph");
@@ -106,6 +129,42 @@ describe("neighbourhood and focus", () => {
 });
 
 describe("pathBetween", () => {
+  const edge = (source: string, target: string, count: number, id = `${source}->${target}`): FlowGraph["edges"][number] => ({ id, source, target, kind: "follows", metrics: { count } });
+  const graphOf = (edges: FlowGraph["edges"]): FlowGraph => ({ nodes: [...new Set(edges.flatMap((e) => [e.source, e.target]))].map((id) => ({ id, kind: "activity", label: id })), edges });
+
+  it("prioritizes three weak hops over four strong hops in both directions", () => {
+    const graph = graphOf([edge("a", "w1", 1), edge("w1", "w2", 1), edge("w2", "b", 1), edge("a", "s1", 100), edge("s1", "s2", 100), edge("s2", "s3", 100), edge("s3", "b", 100)]);
+    expect(pathBetween(graph, "a", "b").nodes).toEqual(["a", "w1", "w2", "b"]);
+    expect(pathBetween(graph, "b", "a").reverse?.nodes).toEqual(["a", "w1", "w2", "b"]);
+  });
+
+  it("maximizes total normalized strength only among equal-hop routes", () => {
+    const graph = graphOf([edge("a", "x", 100), edge("x", "b", 1), edge("a", "y", 60), edge("y", "b", 60), edge("a", "a", 1000), { ...edge("a", "b", 1000), kind: "constraint" }]);
+    expect(pathBetween(graph, "a", "b").nodes).toEqual(["a", "y", "b"]);
+    expect(pathBetween(graph, "a", "a").found).toBe(false);
+    expect(pathBetween(graph, "b", "missing").found).toBe(false);
+  });
+
+  it("breaks equal-strength parallel-edge ties independently of input order", () => {
+    const graph = graphOf([edge("a", "b", 10, "z"), edge("a", "b", 10, "a")]);
+    for (const edges of [graph.edges, [...graph.edges].reverse()]) {
+      const result = pathBetween({ ...graph, edges }, "a", "b");
+      expect(result.edges).toEqual(["a"]);
+      expect(result.direct?.id).toBe("a");
+    }
+  });
+
+  it("has deterministic node ties and finite costs for missing or invalid counts", () => {
+    const graph = graphOf([edge("a", "y", NaN), edge("y", "b", -1), { ...edge("a", "x", 0), metrics: undefined }, edge("x", "b", -1)]);
+    const expected = ["a", "x", "b"];
+    expect(pathBetween(graph, "a", "b").nodes).toEqual(expected);
+    expect(pathBetween({ nodes: [...graph.nodes].reverse(), edges: [...graph.edges].reverse() }, "a", "b").nodes).toEqual(expected);
+  });
+
+  it("distinguishes weak routes even when an unrelated count dwarfs them", () => {
+    const graph = graphOf([edge("a", "x", 1), edge("x", "b", 1), edge("a", "y", 2), edge("y", "b", 2), edge("other", "other", 1e100)]);
+    expect(pathBetween(graph, "a", "b").nodes).toEqual(["a", "y", "b"]);
+  });
   it("finds the shortest, then strongest path and the reverse path", () => {
     const ad = pathBetween(g, "a", "d");
     expect(ad.found).toBe(true);

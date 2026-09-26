@@ -2,8 +2,9 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { gzipSync } from 'node:zlib';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -11,6 +12,9 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const artifactDir = resolve(process.env.FLOW_ARTIFACT_DIR || join(root, 'artifacts'));
 const consumer = realpathSync(mkdtempSync(join(tmpdir(), 'wise-flow-consumer-')));
 assert.ok(!consumer.startsWith(realpathSync(root) + '/'));
+process.once('exit', () => rmSync(consumer, { recursive: true, force: true }));
+const browserName = process.env.FLOW_BROWSER || 'chromium';
+assert.ok(['chromium', 'firefox', 'webkit'].includes(browserName), 'Unknown FLOW_BROWSER');
 const env = { ...process.env, npm_config_cache: process.env.npm_config_cache || join(tmpdir(), 'wise-flow-npm-cache') };
 const run = (cmd, args, cwd = root) => execFileSync(cmd, args, { cwd, env, stdio: 'inherit' });
 const output = (cmd, args, cwd = root) => execFileSync(cmd, args, { cwd, env, encoding: 'utf8' });
@@ -38,9 +42,15 @@ writeFileSync(metadataPath, JSON.stringify(metadata, null, 2) + '\n');
 cpSync(join(root, 'tests/package'), consumer, { recursive: true });
 const require = createRequire(import.meta.url);
 const version = name => require(`${name}/package.json`).version;
-writeFileSync(join(consumer, 'package.json'), JSON.stringify({ private: true, type: 'module', dependencies: { '@wise/flow': `file:${tarball}`, react: version('react'), 'react-dom': version('react-dom') }, devDependencies: { typescript: version('typescript'), vite: version('vite'), '@types/react': version('@types/react'), '@types/react-dom': version('@types/react-dom') } }, null, 2));
+const reactVersion = process.env.FLOW_REACT_VERSION || version('react');
+const reactTypes = process.env.FLOW_REACT_TYPES || version('@types/react');
+const reactDomTypes = process.env.FLOW_REACT_TYPES || version('@types/react-dom');
+Object.assign(metadata, { browser: browserName, react: reactVersion, reactTypes });
+writeFileSync(metadataPath, JSON.stringify(metadata, null, 2) + '\n');
+writeFileSync(join(consumer, 'package.json'), JSON.stringify({ private: true, type: 'module', dependencies: { '@wise/flow': `file:${tarball}`, react: reactVersion, 'react-dom': reactVersion }, devDependencies: { typescript: version('typescript'), vite: version('vite'), '@types/react': reactTypes, '@types/react-dom': reactDomTypes } }, null, 2));
 run('npm', ['install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund'], consumer);
 run('npm', ['ci', '--ignore-scripts', '--no-audit', '--no-fund'], consumer);
+cpSync(join(consumer, 'package-lock.json'), join(artifactDir, 'consumer-package-lock.json'));
 assert.equal(lstatSync(join(consumer, 'node_modules/@wise/flow')).isSymbolicLink(), false);
 run(process.execPath, ['--experimental-loader', './deny-react.mjs', 'core.mjs'], consumer);
 run(process.execPath, ['bpmn.mjs'], consumer);
@@ -50,15 +60,20 @@ const installedRequire = createRequire(join(consumer, 'package.json'));
 for (const path of ['tokens.css', 'style.css', 'react-flow.css', 'bpmn.css', 'bpmn/assets/bpmn-font/css/bpmn.css', 'bpmn/assets/bpmn-font/font/bpmn.woff2', 'elk-worker.min.js']) {
   assert.ok(readFileSync(installedRequire.resolve(`@wise/flow/${path}`)).length > 0);
 }
-for (const path of ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'dist/licenses/bpmn-js.txt', 'dist/licenses/elkjs.txt', 'dist/licenses/@xyflow-react.txt']) assert.ok(existsSync(join(consumer, 'node_modules/@wise/flow', path)));
+for (const path of ['LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md', 'dist/licenses/bpmn-js.txt', 'dist/licenses/elkjs.txt', 'dist/licenses/@xyflow-react.txt']) assert.ok(existsSync(join(consumer, 'node_modules/@wise/flow', path)));
 // Load tooling from the consumer too, so its bundling cannot see checkout dependencies.
 const { build, preview } = await import(pathToFileURL(join(consumer, 'node_modules/vite/dist/node/index.js')).href);
 await build({ root: consumer, configFile: false, build: { target: 'es2022', assetsInlineLimit: 0 } });
+const assets = readdirSync(join(consumer, 'dist/assets')).map(name => {
+  const bytes = readFileSync(join(consumer, 'dist/assets', name));
+  return { name, bytes: bytes.length, gzipBytes: gzipSync(bytes).length };
+});
+writeFileSync(join(artifactDir, 'consumer-assets.json'), JSON.stringify({ assets, allJavaScriptGzipBytes: assets.filter(a => a.name.endsWith('.js')).reduce((sum, a) => sum + a.gzipBytes, 0) }, null, 2) + '\n');
 const server = await preview({ root: consumer, configFile: false, preview: { host: '127.0.0.1', port: 0, strictPort: false } });
-const { chromium } = await import('playwright');
+const { [browserName]: browserType } = await import('playwright');
 let browser;
 try {
-  browser = await chromium.launch({ headless: true });
+  browser = await browserType.launch({ headless: true });
   const page = await browser.newPage();
   const errors = [], requests = [];
   page.on('pageerror', e => errors.push(e.message));
@@ -116,7 +131,7 @@ try {
   assert.ok(requests.some(u => /bpmn.*\.woff2/.test(u)), 'BPMN font must load as an asset');
   assert.deepEqual(errors, []);
   await page.screenshot({ path: join(artifactDir, 'packed-consumer.png'), fullPage: true });
-  metadata.checks = 'passed: isolated npm ci, Node ESM/headless, ELK/Dagre, BPMN round trip, NodeNext declarations, Vite production build, Chromium map/viewer/modeler/selection lifecycle and user deselection/CSS/fonts/worker';
+  metadata.checks = `passed: isolated npm ci, Node ESM/headless, ELK/Dagre, BPMN round trip, NodeNext declarations, Vite production build, ${browserName} map/viewer/modeler/selection lifecycle and user deselection/CSS/fonts/worker`;
   writeFileSync(metadataPath, JSON.stringify(metadata, null, 2) + '\n');
   console.log(metadata.checks + `\nArtifact: ${tarball}\nSHA256: ${sha}\nConsumer: ${consumer}`);
 } catch (error) {

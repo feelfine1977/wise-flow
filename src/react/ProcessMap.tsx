@@ -19,6 +19,7 @@ import {
   type FlowGraph,
   type Focus,
   type HitItem,
+  type LayoutOptions,
   type MenuAction,
   type MenuTarget,
   type Overlay,
@@ -31,8 +32,10 @@ import {
   asFilter,
   buildScales,
   canonicalOverlays,
+  clearLayoutCache,
   coversGraph,
   defaultActions,
+  defaultNodeSize,
   defaultStyle,
   describeClause,
   describeOverlay,
@@ -41,7 +44,6 @@ import {
   focusHighlight,
   formatCompact,
   hasTag,
-  hashKey,
   laneBands,
   lodAt,
   lodForSize,
@@ -70,6 +72,28 @@ import { type ProcessMapProps, type Selection, type WfEdge, type WfGroupNode, ty
 
 const GROUP_PREFIX = "group:";
 const DEFAULT_CANVAS_THRESHOLD = 2000;
+
+const layoutInstances = new WeakMap<object, number>();
+let nextLayoutInstance = 0;
+
+function automaticLayoutOptions(graph: FlowGraph, options: LayoutOptions, scope: string): LayoutOptions {
+  const nodeSize = options.nodeSize;
+  const sizes = new Map(graph.nodes.map((node) => [node.id, typeof nodeSize === "function" ? nodeSize(node) : nodeSize ?? defaultNodeSize(node)]));
+  if (options.elk && !layoutInstances.has(options.elk)) layoutInstances.set(options.elk, ++nextLayoutInstance);
+  // Include resolved callback sizes, not the function's identity or source text.
+  const fingerprint = JSON.stringify({
+    nodes: graph.nodes.map((node) => [node.id, node.kind, node.label, node.group, sizes.get(node.id)]),
+    edges: graph.edges.map((edge) => [edge.id, edge.kind, edge.source, edge.target]),
+    groups: graph.groups,
+    options: {
+      ...options,
+      nodeSize: undefined,
+      elk: options.elk ? layoutInstances.get(options.elk) : undefined,
+      elkWorkerUrl: options.elkWorkerUrl ? String(options.elkWorkerUrl) : undefined,
+    },
+  });
+  return { ...options, nodeSize: (node) => sizes.get(node.id) ?? defaultNodeSize(node), cacheKey: `wf:${scope}:${fingerprint}` };
+}
 
 function selfLoopOverlays(graph: FlowGraph): Overlay[] {
   const out: Overlay[] = [];
@@ -160,14 +184,20 @@ function ProcessMapInner(props: ProcessMapProps) {
   const useCanvas = renderer === "canvas" || (renderer === "auto" && shown.nodes.length + shown.edges.length > canvasThreshold);
 
   // Positions: given (stable layout across scenes) when they cover the shown graph,
-  // otherwise computed for the shown graph and cached by its element ids. Lane
+  // otherwise computed for the shown graph and cached by its layout inputs. Lane
   // bands replace the group boxes (and move nodes into role lanes) afterwards.
   const needsOwnLayout = !givenPositions || !coversGraph(givenPositions, shown);
+  const layoutCacheScope = useId();
   const ownLayoutOptions = useMemo(
-    () => ({ ...(layoutOptions ?? {}), cacheKey: layoutOptions?.cacheKey ?? `wf:${hashKey(shown.nodes.map((n) => n.id).join("|") + "#" + shown.edges.map((e) => e.id).join("|"))}` }),
-    [layoutOptions, shown],
+    () => !needsOwnLayout || layoutOptions?.cacheKey !== undefined ? layoutOptions ?? {} : automaticLayoutOptions(shown, layoutOptions ?? {}, layoutCacheScope),
+    [needsOwnLayout, layoutOptions, shown, layoutCacheScope],
   );
   const own = useStableLayout(needsOwnLayout ? shown : undefined, ownLayoutOptions);
+  const automaticCacheKey = needsOwnLayout && layoutOptions?.cacheKey === undefined ? ownLayoutOptions.cacheKey : undefined;
+  useEffect(() => {
+    // Automatic entries belong to this map; caller-supplied keys remain caller-owned.
+    if (automaticCacheKey !== undefined) return () => clearLayoutCache(automaticCacheKey);
+  }, [automaticCacheKey]);
   const laid = useMemo(() => {
     const source = needsOwnLayout ? own.positions : givenPositions;
     if (!source) return undefined;

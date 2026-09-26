@@ -1,46 +1,150 @@
 name: ci
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  merge_group:
 permissions:
   contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+env:
+  CI: 'true'
+  STORYBOOK_DISABLE_TELEMETRY: '1'
 jobs:
-  test:
+  quality:
+    name: Static and architecture checks
     runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        node: [22, 24]
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "${{ matrix.node }}", cache: npm }
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: {node-version: 24, cache: npm}
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:package
-        id: package
-      - uses: actions/upload-artifact@v4
-        if: ${{ always() && (steps.package.outcome == 'success' || steps.package.outcome == 'failure') }}
-        with:
-          name: packed-flow-node-${{ matrix.node }}
-          path: artifacts/
-          if-no-files-found: error
-  visual:
-    # Match the baseline OS and lockfile's Playwright/Chromium. Never record here.
+      - run: npm run check:architecture
+      - run: npm run check:workflows
+      - run: npm run test:tooling
+      - name: Production dependency advisories
+        run: npm audit --omit=dev --audit-level=high
+      - name: Release tag matches package version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: node --input-type=module -e "import p from './package.json' with {type:'json'}; if (process.env.GITHUB_REF_NAME !== 'v' + p.version) throw Error('Tag and package version differ');"
+  unit:
+    name: Unit and component tests (Node ${{ matrix.node }})
     runs-on: ubuntu-24.04
-    needs: test
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix: {node: [22, 24]}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 24, cache: npm }
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: {node-version: '${{ matrix.node }}', cache: npm}
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - name: Strict visual regression (missing or changed snapshots fail)
-        run: npm run test:visual -- --update-snapshots=none
-      - uses: actions/upload-artifact@v4
+      - run: npm run test:coverage
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: unit-coverage-node-${{ matrix.node }}
+          path: |
+            reports/
+            coverage/
+          retention-days: 14
+          if-no-files-found: warn
+  package:
+    name: Installed package (${{ matrix.node }}, React ${{ matrix.react }}, ${{ matrix.browser }})
+    needs: [quality, unit]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {node: 22, react: 18.3.1, types: 18, browser: chromium}
+          - {node: 24, react: 19.2.8, types: 19, browser: chromium}
+          - {node: 24, react: 19.2.8, types: 19, browser: firefox}
+          - {node: 24, react: 19.2.8, types: 19, browser: webkit}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: {node-version: '${{ matrix.node }}', cache: npm}
+      - run: npm ci
+      - run: npx --no-install playwright install --with-deps ${{ matrix.browser }}
+      - run: npm run test:package
+        env:
+          FLOW_REACT_VERSION: '${{ matrix.react }}'
+          FLOW_REACT_TYPES: '${{ matrix.types }}'
+          FLOW_BROWSER: '${{ matrix.browser }}'
+      - run: npm run check:budgets
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: packed-flow-node-${{ matrix.node }}-react-${{ matrix.types }}-${{ matrix.browser }}
+          path: artifacts/
+          retention-days: 14
+          if-no-files-found: warn
+  browser:
+    name: Browser accessibility and keyboard
+    needs: quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: {node-version: 24, cache: npm}
+      - run: npm ci
+      - run: npx --no-install playwright install --with-deps chromium
+      - run: npm run storybook:build
+      - run: npm run test:browser
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: browser-accessibility
+          path: |
+            test-results/
+            playwright-report/
+            reports/
+          retention-days: 14
+          if-no-files-found: warn
+  visual:
+    name: Strict Linux visual regression
+    needs: quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: {node-version: 24, cache: npm}
+      - run: npm ci
+      - run: npx --no-install playwright install --with-deps chromium
+      - run: npm run test:visual -- --update-snapshots=none
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: visual-diagnostics-linux
-          path: test-results/
-          if-no-files-found: ignore
+          path: |
+            test-results/
+            playwright-report/
+            reports/
+          retention-days: 14
+          if-no-files-found: warn
+  gate:
+    name: CI passed
+    if: always()
+    needs: [quality, unit, package, browser, visual]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require every lane, including skipped and cancelled dependencies
+        env:
+          RESULTS: '${{ toJSON(needs) }}'
+        run: |
+          node -e 'const jobs=JSON.parse(process.env.RESULTS); for(const [name,job] of Object.entries(jobs)) { if(job.result!=="success") { console.error(name+": "+job.result); process.exitCode=1; } }'

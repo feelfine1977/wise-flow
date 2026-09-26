@@ -2,10 +2,25 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    include: ["tests/core/**/*.test.ts", "tests/react/**/*.test.tsx"],
-    environmentMatchGlobs: [["tests/react/**", "jsdom"]],
-    setupFiles: ["tests/react/setup.ts"],
+    projects: [
+      { extends: true, test: { name: "core", include: ["tests/core/**/*.test.ts"], environment: "node" } },
+      { extends: true, test: { name: "react", include: ["tests/react/**/*.test.tsx"], environment: "jsdom", setupFiles: ["tests/react/setup.ts"] } },
+    ],
     testTimeout: 30000,
     hookTimeout: 30000,
+    allowOnly: !process.env.CI,
+    reporters: process.env.CI ? ["default", "junit"] : ["default"],
+    outputFile: { junit: "reports/unit.xml" },
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: ["src/**/*.d.ts"],
+      reporter: ["text-summary", "json-summary", "lcov", "html"],
+      reportsDirectory: "coverage",
+      reportOnFailure: true,
+      // Whole-source Vitest 4 AST coverage; not comparable to Vitest 2's V8 counters.
+      // Ratchet these floors upward as the remaining branches gain meaningful tests.
+      thresholds: { statements: 82, lines: 84, branches: 69, functions: 81 },
+    },
   },
 });

@@ -680,3 +680,26 @@ Additions only, except the keyboard route for Enter.
   `lanes.*`, `unit.*`, `map.focus`, `map.focusPair`, `map.focused`,
   `map.renderer.canvas`, `map.zoomIn`, `map.zoomOut`, `map.fit` (en, de);
   `map.instructions` names every keyboard route.
+
+
+## Abstraction identity and interaction notes
+
+`abstract` and `collapseGroups` preserve response `focus` and `paths` so a focused
+payload cannot be relabeled as another activity's paths. Collapsed stages retain
+original activity IDs in `graph.meta.collapsedMembers`; original edge IDs map to
+displayed edges or containing stages in `graph.meta.collapsedEdgeTargets`. These
+are JSON-compatible metadata records, not exact case membership sets.
+
+Stage keep/exclude actions use original activities, including nested stages. A
+collapsed edge or activity pair has no default filter when the original relation
+cannot be represented exactly. Hosts should respect unavailable actions rather
+than inventing synthetic activity IDs.
+
+`pathBetween` minimizes hops before maximizing summed normalized count strength;
+stable IDs break remaining ties. A graph route is not proof that one observed
+case followed the complete sequence. Collapsing overlays preserves their separate
+values and remaps targets; folded arcs become labeled stage chips.
+
+ProcessMap invalidates its automatic layout cache when geometry/structure/options
+change, and releases automatic entries when replaced or unmounted. Supplying an
+explicit `layout.cacheKey` keeps caller-controlled reuse semantics.
