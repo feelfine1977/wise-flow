@@ -1,3 +1,5 @@
+import { withObservedSelfLoops } from "./observed-loops.js";
+import { type ActivityLabelOptions, activityDescription, activityKeyLines, activityLabelLines, activityReferences } from "./activity-labels.js";
 /**
  * Deterministic SVG export of a scene with an embedded legend and figure presets.
  */
@@ -11,6 +13,7 @@ import { RECONNECTED_TAG } from "./aggregate.js";
 import { type StringKey, t } from "./strings.js";
 
 export interface Scene {
+  activityLabels?: ActivityLabelOptions;
   graph: FlowGraph;
   positions: Positions;
   overlays?: Overlay[];
@@ -160,7 +163,13 @@ function drawNodes(ctx: Ctx): string {
       const band: Box = { x: b.x, y: b.y, width: 8, height: b.height };
       out.push(rect(band, `rx="3" fill="${color}"`));
       if (pattern !== "solid") out.push(rect(band, `rx="3" fill="url(#wf-pattern-${pattern})"`));
-      if (ctx.lod.labels) {
+      if (n.kind === "activity" && ctx.scene.activityLabels) {
+        const options = ctx.scene.activityLabels;
+        const lines = activityLabelLines(n, options, b.width, ctx.locale);
+        out.push(`<title>${esc(activityDescription(n, options, ctx.locale))}</title>`);
+        lines.name.forEach((line, i) => out.push(text(b.x + 16, b.y + 24 + i * 18, line, `font-size="14" fill="${fixedColors.ink}"`)));
+        if (options.showCounts !== false) lines.counts.forEach((line, i) => out.push(text(b.x + 16, b.y + 24 + lines.name.length * 18 + i * 16, line, `font-size="12" fill="${fixedColors.ink}"`)));
+      } else if (ctx.lod.labels) {
         const label = truncate(n.label, Math.max(4, Math.floor((b.width - 20) / 6.4)));
         out.push(text(b.x + 14, b.y + b.height / 2 + 4, label, `font-size="12" fill="${fixedColors.ink}"`));
         const cases = metric(n, "cases", NaN);
@@ -180,10 +189,10 @@ function drawOverlays(ctx: Ctx, shapes: OverlayShape[]): string {
   const sorted = [...shapes].sort((a, b) => order[a.kind] - order[b.kind] || (a.id < b.id ? -1 : 1));
   for (const s of sorted) {
     const key = lodKey(s.kind);
-    if (key && !ctx.lod[key]) continue;
+    if (key && !ctx.lod[key] && !s.overlay.payload?.observed) continue;
     const p = s.overlay.payload ?? {};
     const value = typeof p.value === "number" ? p.value : NaN;
-    const color = Number.isFinite(value) ? ctx.scales.color(value, "sequential", [0, 1]) : fixedColors.neutral;
+    const color = !p.observed && Number.isFinite(value) ? ctx.scales.color(value, "sequential", [0, 1]) : fixedColors.neutral;
     const title = `<title>${esc([p.label, p.text].filter(Boolean).join(" — "))}</title>`;
     switch (s.kind) {
       case "tint":
@@ -197,16 +206,16 @@ function drawOverlays(ctx: Ctx, shapes: OverlayShape[]): string {
         const dash = p.reverse ? ` stroke-dasharray="6 4"` : "";
         out.push(`<g class="wf-overlay wf-arc">${title}<path d="${s.path}" fill="none" stroke="${color}" stroke-width="${num(width)}" stroke-opacity="0.9"${dash} marker-end="url(#wf-arrow-arc)"/>`);
         if (s.labelX !== undefined && s.labelY !== undefined) {
-          const label = `${p.glyph ?? ""} ${Number.isFinite(value) ? formatShare(value, ctx.locale) : ""}`.trim();
+          const label = typeof p.displayLabel === "string" ? p.displayLabel : `${p.glyph ?? ""} ${Number.isFinite(value) ? formatShare(value, ctx.locale) : ""}`.trim();
           out.push(text(s.labelX, s.labelY, label, `font-size="11" text-anchor="middle" fill="${fixedColors.ink}" paint-order="stroke" stroke="${fixedColors.paper}" stroke-width="3"`));
         }
         out.push(`</g>`);
         break;
       }
       case "selfLoop": {
-        out.push(`<g class="wf-overlay wf-selfloop">${title}<path d="${s.path}" fill="none" stroke="${color}" stroke-width="2.5" marker-end="url(#wf-arrow)"/>`);
-        if (s.labelX !== undefined && s.labelY !== undefined && Number.isFinite(value)) {
-          out.push(text(s.labelX, s.labelY, `↻ ${formatShare(value, ctx.locale)}`, `font-size="10" fill="${fixedColors.ink}" paint-order="stroke" stroke="${fixedColors.paper}" stroke-width="3"`));
+        out.push(`<g class="wf-overlay wf-selfloop"${p.edgeId ? ` data-edge-id="${esc(p.edgeId)}"` : ""}>${title}<path d="${s.path}" fill="none" stroke="${color}" stroke-width="2.5" marker-end="url(#wf-arrow)"/>`);
+        if (s.labelX !== undefined && s.labelY !== undefined && (p.displayLabel || Number.isFinite(value))) {
+          out.push(text(s.labelX, s.labelY, typeof p.displayLabel === "string" ? p.displayLabel : `↻ ${formatShare(value, ctx.locale)}`, `font-size="10" fill="${fixedColors.ink}" paint-order="stroke" stroke="${fixedColors.paper}" stroke-width="3"`));
         }
         out.push(`</g>`);
         break;
@@ -324,13 +333,13 @@ function drawLegend(ctx: Ctx, x: number, y: number, width: number, mapChips: Ove
  */
 export function toSVG(givenScene: Scene, options: ExportOptions = {}): string {
   const laid = givenScene.lanes && givenScene.lanes !== "none" ? laneBands(givenScene.graph, givenScene.positions, { lanes: givenScene.lanes }) : undefined;
-  const scene: Scene = laid ? { ...givenScene, positions: laid.positions } : givenScene;
+  const scene: Scene = { ...givenScene, positions: laid?.positions ?? givenScene.positions, activityLabels: givenScene.activityLabels ? { ...givenScene.activityLabels, references: activityReferences(givenScene.graph, givenScene.activityLabels.references) } : undefined };
   const locale = scene.locale ?? "en";
   const scales = buildScales(scene.graph, scene.style ?? defaultStyle);
   const lod = lodAt(options.lodZoom ?? 1, scene.style?.lod);
   const font = options.fontFamily ?? "Inter, 'Segoe UI', Helvetica, Arial, sans-serif";
   const ctx: Ctx = { scene, scales, locale, lod, font, bands: new Map((laid?.bands ?? []).map((b) => [b.id, b])) };
-  const overlays = canonicalOverlays(scene.overlays ?? scene.graph.overlays ?? []);
+  const overlays = canonicalOverlays(scene.activityLabels ? withObservedSelfLoops(scene.graph, scene.overlays ?? scene.graph.overlays ?? [], locale, scene.activityLabels.caseLabel) : scene.overlays ?? scene.graph.overlays ?? []);
   const geometry = overlayGeometry(overlays, scene.positions, { ...(options.overlayGeometry ?? {}), lod: scene.style?.lod });
   const pad = options.padding ?? 24;
   const legend = options.legend ?? true;
@@ -344,7 +353,9 @@ export function toSVG(givenScene: Scene, options: ExportOptions = {}): string {
   const mapW = content.width + 2 * pad;
   const mapH = content.height + 2 * pad;
   const totalW = mapW + legendWidth;
-  const totalH = Math.max(mapH, legendDraw.height + 2 * pad) + headerHeight;
+  const keyY = Math.max(mapH, legendDraw.height + 2 * pad) + headerHeight;
+  const key = activityKeyLines(scene.graph, scene.activityLabels, totalW - 2 * pad, locale);
+  const totalH = keyY + (key.length ? key.length * 16 + 2 * pad : 0);
   const outW = options.width ?? (options.preset && options.preset !== "none" ? FIGURE_WIDTHS[options.preset] : totalW);
   const outH = (totalH / totalW) * outW;
 
@@ -378,6 +389,11 @@ export function toSVG(givenScene: Scene, options: ExportOptions = {}): string {
     parts.push(`<g class="wf-legend" transform="translate(${num(mapW)} ${num(headerHeight + pad)})">`);
     parts.push(`<path d="M0 0V${num(totalH - headerHeight - 2 * pad)}" stroke="${fixedColors.neutral}" stroke-opacity="0.4"/>`);
     parts.push(`<g transform="translate(16 0)">${legendDraw.svg}</g>`);
+    parts.push(`</g>`);
+  }
+  if (key.length) {
+    parts.push(`<g class="wf-activity-key" aria-label="Activity key">`);
+    key.forEach((line, i) => parts.push(text(pad, keyY + pad + i * 16, line, `font-size="11" fill="${fixedColors.ink}"`)));
     parts.push(`</g>`);
   }
   parts.push(`</svg>`);

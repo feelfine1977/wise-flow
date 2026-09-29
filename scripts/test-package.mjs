@@ -29,9 +29,10 @@ writeFileSync(tarball + '.sha256', `${sha}  wise-flow-${pkg.version}.tgz\n`);
 const baseCommit = output('git', ['rev-parse', 'HEAD']).trim();
 const files = output('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z']).split('\0').filter(Boolean).sort();
 const sourceFiles = files.filter(p => existsSync(join(root, p))).map(path => ({ path, sha256: sha256(readFileSync(join(root, path))) }));
-let patch = execFileSync('git', ['diff', '--binary', 'HEAD', '--'], { cwd: root });
+// Binary visual baselines can exceed Node's default 1 MiB output buffer.
+let patch = execFileSync('git', ['diff', '--binary', 'HEAD', '--'], { cwd: root, maxBuffer: 64 * 1024 * 1024 });
 for (const path of output('git', ['ls-files', '--others', '--exclude-standard', '-z']).split('\0').filter(Boolean)) {
-  try { execFileSync('git', ['diff', '--no-index', '--binary', '--', '/dev/null', path], { cwd: root }); }
+  try { execFileSync('git', ['diff', '--no-index', '--binary', '--', '/dev/null', path], { cwd: root, maxBuffer: 64 * 1024 * 1024 }); }
   catch (error) { if (error.status !== 1) throw error; patch = Buffer.concat([patch, error.stdout]); }
 }
 const patchName = `wise-flow-${pkg.version}.patch`;

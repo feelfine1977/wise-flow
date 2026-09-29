@@ -1,3 +1,4 @@
+import { DirectedRelations } from "./DirectedRelations.js";
 import { useMemo, useState } from "react";
 import {
   type ActivityPaths,
@@ -136,7 +137,7 @@ function PathTable({ caption, rows, otherHeader, other, total, sortKey, ascendin
               className={`${selected ? "wf-row--selected" : ""}${r.reconnected ? " wf-row--reconnected" : ""}`.trim() || undefined}
               tabIndex={onSelect ? 0 : undefined}
               onClick={() => select(r)}
-              onKeyDown={(e) => e.key === "Enter" && select(r)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (!e.repeat) select(r); } }}
               onMouseEnter={() => onHover?.(r.edgeId ?? null)}
               onMouseLeave={() => onHover?.(null)}
               data-edge={r.edgeId}
@@ -199,6 +200,7 @@ export function PathList({ graph, focus, paths, locale = "en", selection, onSele
           ) : null}
         </header>
         <p className="wf-paths__source">{t(locale, activity.source === "payload" ? "paths.source.payload" : "paths.source.graph")}</p>
+        <DirectedRelations focus={focus} labelOf={labelOf} incoming={activity.incoming} outgoing={activity.outgoing} locale={locale} onSelect={onSelect} />
         <PathTable caption={t(locale, "paths.incoming")} rows={activity.incoming} otherHeader={t(locale, "paths.from")} other={(r) => r.from} total={activity.totals.incoming} sortKey={sortKey} ascending={sortAsc} onSort={onSort} locale={locale} labelOf={labelOf} selection={selection} onSelect={onSelect} onHover={onHover} emptyText={t(locale, "paths.none")} />
         <PathTable caption={t(locale, "paths.outgoing")} rows={activity.outgoing} otherHeader={t(locale, "paths.to")} other={(r) => r.to} total={activity.totals.outgoing} sortKey={sortKey} ascending={sortAsc} onSort={onSort} locale={locale} labelOf={labelOf} selection={selection} onSelect={onSelect} onHover={onHover} emptyText={t(locale, "paths.none")} />
       </section>

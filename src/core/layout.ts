@@ -205,7 +205,7 @@ function elkGraph(p: Prepared, o: LayoutOptions, partition: boolean): ElkNode {
         "elk.padding": `[top=${GROUP_PADDING.top},left=${GROUP_PADDING.left},bottom=${GROUP_PADDING.bottom},right=${GROUP_PADDING.right}]`,
       };
       if (partition && stageOrder.has(g.id)) layoutOptions["elk.partitioning.partition"] = String(stageOrder.get(g.id));
-      out.push({ id: g.id, labels: [{ text: g.label }], layoutOptions, children: [...sub, ...members.map(nodeElk)] });
+      out.push({ id: g.id, labels: [{ text: g.label }], layoutOptions, children: sub });
     }
     for (const n of p.nodes) {
       const inGroup = p.useGroups && n.group && idx.groups.has(n.group);

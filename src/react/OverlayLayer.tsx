@@ -18,7 +18,7 @@ function colorOf(shape: OverlayShape): string {
 
 /** Arcs and self-loops drawn in flow coordinates above the nodes. */
 export function OverlayLayer({ shapes, locale, showArcs, showSelfLoops, hoveredId, onHover, onSelect }: OverlayLayerProps) {
-  const visible = shapes.filter((s) => (s.kind === "arc" && showArcs) || (s.kind === "selfLoop" && showSelfLoops));
+  const visible = shapes.filter((s) => (s.kind === "arc" && showArcs) || (s.kind === "selfLoop" && (showSelfLoops || s.overlay.payload?.observed)));
   if (!visible.length) return null;
   return (
     <ViewportPortal>
@@ -53,14 +53,14 @@ export function OverlayLayer({ shapes, locale, showArcs, showSelfLoops, hoveredI
                 />
                 {s.labelX !== undefined && s.labelY !== undefined ? (
                   <text x={s.labelX} y={s.labelY} textAnchor="middle">
-                    {`${p.glyph ?? ""} ${value}`.trim()}
+                    {typeof p.displayLabel === "string" ? p.displayLabel : `${p.glyph ?? ""} ${value}`.trim()}
                   </text>
                 ) : null}
               </g>
             );
           }
           return (
-            <g key={s.id} className="wf-selfloop" data-constraint={p.constraintId}>
+            <g key={s.id} className="wf-selfloop" data-constraint={p.constraintId} data-edge-id={typeof p.edgeId === "string" ? p.edgeId : undefined}>
               <title>{[p.label, p.text].filter(Boolean).join(" — ")}</title>
               <path
                 d={s.path}
@@ -72,8 +72,8 @@ export function OverlayLayer({ shapes, locale, showArcs, showSelfLoops, hoveredI
                 onMouseLeave={() => onHover?.(null)}
                 onClick={() => onSelect?.(s)}
               />
-              {s.labelX !== undefined && s.labelY !== undefined && value ? (
-                <text x={s.labelX} y={s.labelY}>{`↻ ${value}`}</text>
+              {s.labelX !== undefined && s.labelY !== undefined && (p.displayLabel || value) ? (
+                <text x={s.labelX} y={s.labelY}>{typeof p.displayLabel === "string" ? p.displayLabel : `↻ ${value}`}</text>
               ) : null}
             </g>
           );

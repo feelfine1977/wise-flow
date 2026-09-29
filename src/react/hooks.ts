@@ -9,6 +9,7 @@ import {
   type OverlayPresetOptions,
   type Positions,
   abstract,
+  defaultNodeSize,
   layoutUnion,
   overlaysFor,
 } from "../core/index.js";
@@ -34,7 +35,14 @@ export interface StableLayout {
  */
 export function useStableLayout(scenes: FlowGraph | FlowGraph[] | undefined, options?: LayoutOptions): StableLayout {
   const list = useMemo(() => (scenes === undefined ? [] : Array.isArray(scenes) ? scenes : [scenes]), [scenes]);
-  const optionsKey = JSON.stringify({ ...options, elk: undefined, elkWorkerUrl: options?.elkWorkerUrl ? String(options.elkWorkerUrl) : undefined });
+  const optionsKey = JSON.stringify({
+    ...options,
+    // Functions disappear from JSON. Compare their resolved dimensions instead of
+    // identities so equivalent callbacks do not restart layout on every render.
+    nodeSize: list.map((scene) => scene.nodes.map((node) => [node.id, typeof options?.nodeSize === "function" ? options.nodeSize(node) : options?.nodeSize ?? defaultNodeSize(node)])),
+    elk: undefined,
+    elkWorkerUrl: options?.elkWorkerUrl ? String(options.elkWorkerUrl) : undefined,
+  });
   const [state, setState] = useState<StableLayout>({ positions: undefined, status: "idle" });
   const token = useRef(0);
   useEffect(() => {

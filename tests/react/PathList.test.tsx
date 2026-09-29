@@ -85,3 +85,14 @@ describe("PathList", () => {
     expect(screen.getByText("No path from D to A in this map.")).toBeTruthy();
   });
 });
+
+it("relation bars retain edge direction and select the same edge as the exact table", () => {
+  const onSelect = vi.fn();
+  render(<PathList graph={g} focus="c" onSelect={onSelect} />);
+  const overview = screen.getByRole("region", { name: "Directed relations overview" });
+  fireEvent.click(within(overview).getByRole("button", { name: "Inspect B → C: 60 transitions" }));
+  expect(onSelect).toHaveBeenCalledWith({ nodes: [], edges: ["b->c"], groups: [] });
+  fireEvent.click(within(overview).getByRole("button", { name: "Inspect C → D: 40 transitions" }));
+  expect(onSelect).toHaveBeenLastCalledWith({ nodes: [], edges: ["c->d"], groups: [] });
+  expect(overview.textContent).toContain("not distinct cases");
+});

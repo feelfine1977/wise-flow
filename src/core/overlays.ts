@@ -408,12 +408,15 @@ export function overlayGeometry(
         const c2y = ty + dir * h;
         const path = `M${fmt(sx)} ${fmt(sy)} C${fmt(sx)} ${fmt(c1y)} ${fmt(tx)} ${fmt(c2y)} ${fmt(tx)} ${fmt(ty)}`;
         const apexY = 0.125 * sy + 0.375 * c1y + 0.375 * c2y + 0.125 * ty;
-        const x0 = Math.min(sx, tx);
-        const x1 = Math.max(sx, tx);
-        const y0 = Math.min(sy, ty, apexY);
-        const y1 = Math.max(sy, ty, apexY);
-        const b = clampBox({ x: x0, y: y0, width: Math.max(1, x1 - x0), height: Math.max(1, y1 - y0) });
-        shapes.push({ id, overlay: o, kind: o.kind, ...b, path, labelX: (sx + tx) / 2, labelY: apexY + (reverse ? 14 : -8), minZoom: lod.arcs });
+        const labelX = (sx + tx) / 2, labelY = apexY + (reverse ? 14 : -8);
+        const labelHalfWidth = typeof p.displayLabel === "string" ? p.displayLabel.length * 11 / 2 + 4 : 0;
+        const x0 = Math.min(sx, tx, labelX - labelHalfWidth);
+        const x1 = Math.max(sx, tx, labelX + labelHalfWidth);
+        const y0 = Math.min(sy, ty, apexY, labelY - 14);
+        const y1 = Math.max(sy, ty, apexY, labelY + 4);
+        const extent = { x: x0, y: y0, width: Math.max(1, x1 - x0), height: Math.max(1, y1 - y0) };
+        const b = typeof p.displayLabel === "string" ? extent : clampBox(extent);
+        shapes.push({ id, overlay: o, kind: o.kind, ...b, path, labelX, labelY, minZoom: lod.arcs });
         return;
       }
       case "selfLoop": {
@@ -424,6 +427,7 @@ export function overlayGeometry(
         const ay = box.y + 12;
         const path = `M${fmt(ax)} ${fmt(box.y)} C${fmt(ax)} ${fmt(box.y - 2 * r)} ${fmt(box.x + box.width + 2 * r)} ${fmt(ay)} ${fmt(box.x + box.width)} ${fmt(ay)}`;
         const b = clampBox({ x: ax - 2, y: box.y - 1.5 * r - 2, width: box.x + box.width + 1.5 * r + 4 - (ax - 2), height: ay - (box.y - 1.5 * r - 2) + 2 });
+        if (o.payload?.observed && typeof o.payload.displayLabel === "string") b.width = Math.max(b.width, box.x + box.width + 6 + o.payload.displayLabel.length * 7 - b.x);
         shapes.push({ id, overlay: o, kind: o.kind, ...b, path, labelX: box.x + box.width + 6, labelY: box.y - 6, minZoom: lod.selfLoops });
         return;
       }

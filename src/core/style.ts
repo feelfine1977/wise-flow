@@ -28,33 +28,33 @@ export const PATTERNS: PatternId[] = [
 
 /**
  * Palettes. Sequential scales are single-hue and lightness-driven (safe for every
- * common colour-vision deficiency); the diverging scale is purple–orange; the
+ * common colour-vision deficiency); the diverging scale is teal–copper; the
  * categorical palette is Okabe–Ito.
  */
 export const palettes = {
   /** Light to dark orange; used for expectation shortfall shares. */
-  sequential: ["#fff5eb", "#fdd0a2", "#fd8d3c", "#d94801", "#7f2704"],
+  sequential: ["#fff5ed", "#f5cca9", "#da955e", "#a85b20", "#6f3512"],
   /** Light to dark blue; used for performance metrics. */
   sequentialBlue: ["#f7fbff", "#c6dbef", "#6baed6", "#2171b5", "#08306b"],
-  /** Purple (negative) over neutral to orange (positive); used for deltas. */
-  diverging: ["#542788", "#998ec3", "#d8daeb", "#f7f7f7", "#fee0b6", "#f1a340", "#b35806"],
+  /** Teal (negative) over neutral to copper (positive); used for deltas. */
+  diverging: ["#147d71", "#68b4a8", "#c8e5df", "#f3f5f8", "#f5dec9", "#da955e", "#a85b20"],
   /** Okabe–Ito, stable by hashed key, with pattern twins. */
-  categorical: ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00", "#F0E442", "#999999"],
+  categorical: ["#0072b2", "#e69f00", "#009e73", "#cc79a7", "#56b4e9", "#d55e00", "#f0e442", "#999999"],
 } as const;
 
 export type PaletteName = keyof typeof palettes;
 
 /** Fixed colours for hotspot types and gate states (workbench tokens). */
 export const fixedColors = {
-  severity: "#D55E00",
-  mechanism: "#0072B2",
-  reservoir: "#009E73",
-  pass: "#009E73",
-  warn: "#E69F00",
-  fail: "#D55E00",
+  severity: "#d55e00",
+  mechanism: "#0072b2",
+  reservoir: "#009e73",
+  pass: "#009e73",
+  warn: "#e69f00",
+  fail: "#d55e00",
   neutral: "#8c8c8c",
   outOfScope: "#b0b0b0",
-  ink: "#1f1f1f",
+  ink: "#1e3355",
   /** Ink for text on coloured fills; pure black reaches 4.5 : 1 on every mid-tone of the palettes. */
   inkStrong: "#000000",
   paper: "#ffffff",

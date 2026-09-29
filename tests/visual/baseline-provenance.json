@@ -1,21 +1,90 @@
 {
-  "run": "https://github.com/feelfine1977/wise-flow/actions/runs/34035991497",
-  "artifactId": 9990219174,
-  "artifactSha256": "911e1119f12955c931fb85d3970a1159022088c3b590d2b470c865a33d5b7a29",
-  "sourceCommit": "a561766aa158e9effeee132f6c1c045feb606b6a",
-  "runner": "ubuntu-24.04",
-  "runnerImage": "20260831.293",
-  "playwright": "1.61.1",
-  "screenshots": [
-    {
-      "path": "tests/visual/__screenshots__/interaction.spec.ts/paths-for-activity-linux.png",
-      "sha256": "7bf6281c164b8be154798762dba4961857e277bce508553f31f494cb061f023b",
-      "artifactPath": "tests/visual/__screenshots__/interaction.spec.ts/paths-for-activity-linux.png"
+  "historical": {
+    "run": "https://github.com/feelfine1977/wise-flow/actions/runs/34035991497",
+    "artifactId": 9990219174,
+    "artifactSha256": "911e1119f12955c931fb85d3970a1159022088c3b590d2b470c865a33d5b7a29",
+    "sourceCommit": "a561766aa158e9effeee132f6c1c045feb606b6a",
+    "runner": "ubuntu-24.04",
+    "runnerImage": "20260831.293",
+    "playwright": "1.61.1",
+    "screenshots": [
+      {
+        "path": "tests/visual/__screenshots__/interaction.spec.ts/paths-for-activity-linux.png",
+        "sha256": "7bf6281c164b8be154798762dba4961857e277bce508553f31f494cb061f023b",
+        "artifactPath": "tests/visual/__screenshots__/interaction.spec.ts/paths-for-activity-linux.png"
+      },
+      {
+        "path": "tests/visual/__screenshots__/interaction.spec.ts/stage-lanes-linux.png",
+        "sha256": "1caad80e84cc4011c23ebe5c035200e4702e3a5a141fd05abbe26b1b9f279f8e",
+        "artifactPath": "tests/visual/__screenshots__/interaction.spec.ts/stage-lanes-linux.png"
+      }
+    ]
+  },
+  "current": {
+    "date": "2026-09-28",
+    "reason": "Accepted white/navy redesign; compact floating legend; directed relations; activity-label and BPMN improvements. Six screenshots inspected separately on each OS before approval.",
+    "sourceBase": "0751f51",
+    "sourceState": "design/flow-modern-2026-09-28 working tree; includes preserved pre-existing changes",
+    "playwright": "1.61.1",
+    "linux": {
+      "os": "Ubuntu 24.04.4",
+      "architecture": "amd64",
+      "node": "24.17.0",
+      "containerDigest": "mcr.microsoft.com/playwright@sha256:cf0daee9b994042e011bc29f20cdff1a9f682a039b43fcd738f7d8a9d3bcd9d6",
+      "strictVisualResult": "10 passed"
     },
-    {
-      "path": "tests/visual/__screenshots__/interaction.spec.ts/stage-lanes-linux.png",
-      "sha256": "1caad80e84cc4011c23ebe5c035200e4702e3a5a141fd05abbe26b1b9f279f8e",
-      "artifactPath": "tests/visual/__screenshots__/interaction.spec.ts/stage-lanes-linux.png"
-    }
-  ]
+    "darwin": {
+      "strictVisualResult": "10 passed"
+    },
+    "screenshots": [
+      {
+        "path": "tests/visual/__screenshots__/bpmn.spec.ts/bpmn-from-stages-darwin.png",
+        "sha256": "2da483e67b1bafe24cc6e886f853a8ecc0291e664c147e55373d0c638b30475e"
+      },
+      {
+        "path": "tests/visual/__screenshots__/bpmn.spec.ts/bpmn-from-stages-linux.png",
+        "sha256": "6167cf1182616c3f584a93160e0ecfd8b8cbf426e5e618de59bed223b53162bd"
+      },
+      {
+        "path": "tests/visual/__screenshots__/bpmn.spec.ts/views-grid-darwin.png",
+        "sha256": "9dc785b16de159500708bf39fb0ad138981f113eaa3cfebcaad33aba1d8cc241"
+      },
+      {
+        "path": "tests/visual/__screenshots__/bpmn.spec.ts/views-grid-linux.png",
+        "sha256": "bcfc5d222c1c638da93135349dc35059c7d208a0eba24b043f0d714d4cfb4027"
+      },
+      {
+        "path": "tests/visual/__screenshots__/interaction.spec.ts/paths-for-activity-darwin.png",
+        "sha256": "217d0589925f0a553297e6ee488e1d7f7a54133324bba8c31a42e973b1e710b1"
+      },
+      {
+        "path": "tests/visual/__screenshots__/interaction.spec.ts/paths-for-activity-linux.png",
+        "sha256": "8574c332106ab9951616d209bc71126944434402a544abf216a5dd65b6af6063"
+      },
+      {
+        "path": "tests/visual/__screenshots__/interaction.spec.ts/stage-lanes-darwin.png",
+        "sha256": "c7b5db8a0d8a2db352276bcee81b46d4e11e901f883d5418f60be28d85c1b062"
+      },
+      {
+        "path": "tests/visual/__screenshots__/interaction.spec.ts/stage-lanes-linux.png",
+        "sha256": "8544fc9f0daced5fb2c77be1684c673d7607de409cf1223940413cbcdd2d2109"
+      },
+      {
+        "path": "tests/visual/__screenshots__/p2p.spec.ts/p2p-map-darwin.png",
+        "sha256": "53093f9173824dd646fc10e903b1ff3d3b5d63a9db2bb93b0f37c5e6cc2383d6"
+      },
+      {
+        "path": "tests/visual/__screenshots__/p2p.spec.ts/p2p-map-linux.png",
+        "sha256": "8a326430904a47a64c88b7f4bb875a5cdb198675ab95fb24e152905cbc3d1cb1"
+      },
+      {
+        "path": "tests/visual/__screenshots__/p2p.spec.ts/stable-layout-darwin.png",
+        "sha256": "8a8e936ba0decae6ff93fa3a53525737538933fe44ec2662b8f8bc708b5993fe"
+      },
+      {
+        "path": "tests/visual/__screenshots__/p2p.spec.ts/stable-layout-linux.png",
+        "sha256": "94cb19880b21076b320db29829c1e652f1f16869c17e31726cc3670b5b56fc15"
+      }
+    ]
+  }
 }

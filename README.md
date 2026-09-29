@@ -176,3 +176,17 @@ for specified noncommercial organisations. Commercial uses outside those grants
 need separate permission from the copyright holder. No alternate commercial
 licence is bundled or promised. Dependency licences remain separate; see
 [licensing notes](docs/LICENSING.md).
+
+### Exact path overview
+
+`VariantMatrix` from `@wise/flow/react` shows aligned observed event sequences with
+D3 scales, repeated steps, missing-activity markers and shares of **all selected
+cases**. Pass `rows` (`id`, `activities`, `count`), `totalCases`, optional
+`zeroEventCases`, `selectedId`, and `onInspect(id)`. `maxSteps` controls the visible
+columns; the exact table retains complete sequences. Inspecting a path does not
+filter cases. The host owns any subsequent cohort selection. Inconsistent counts
+are shown as unavailable. Arrow keys move between rows; Enter/Space inspects.
+
+`PathList` includes a focused incoming/outgoing relation overview, using transition
+counts on a common scale. Its bars select the same directed edge as the full
+underlying tables. These counts must not be described as distinct cases.

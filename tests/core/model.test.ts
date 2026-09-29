@@ -74,7 +74,7 @@ describe("format", () => {
   });
 
   it("translates with placeholders and falls back to English", () => {
-    expect(t("en", "map.description", { nodes: 3, edges: 4, groups: 1 })).toBe("Process map with 3 activities and 4 paths in 1 groups.");
+    expect(t("en", "map.description", { nodes: 3, edges: 4, groups: 1 })).toBe("Process map with 3 nodes and 4 connections in 1 groups.");
     expect(t("de", "legend.title")).toBe("Legende");
   });
 });
