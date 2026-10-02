@@ -5,7 +5,7 @@
  * their band. Positions of the nodes are otherwise untouched, so a map keeps
  * its layout when the lane mode changes.
  */
-import { type Box, type EdgeRoute, type Positions, positionsBounds } from "./layout.js";
+import { type Box, type EdgeRoute, type Positions, createPositions, positionsBounds, unionBoxes } from "./layout.js";
 import { type FlowGraph, type FlowGroup, type FlowNode, indexGraph } from "./model.js";
 
 export type LaneMode = "stages" | "roles" | "none";
@@ -54,17 +54,9 @@ export function laneGroups(graph: FlowGraph, mode: LaneMode): FlowGroup[] {
 export function laneAssignment(graph: FlowGraph, lanes: FlowGroup[]): Map<string, string> {
   const laneIds = new Set(lanes.map((l) => l.id));
   const byLabel = new Map(lanes.map((l) => [l.label.toLowerCase(), l.id]));
-  const groups = new Map((graph.groups ?? []).map((g) => [g.id, g]));
-  const onChain = (groupId: string | undefined): string | undefined => {
-    let cur = groupId;
-    const seen = new Set<string>();
-    while (cur && !seen.has(cur)) {
-      if (laneIds.has(cur)) return cur;
-      seen.add(cur);
-      cur = groups.get(cur)?.parent;
-    }
-    return undefined;
-  };
+  const idx = indexGraph(graph);
+  const onChain = (n: FlowNode): string | undefined =>
+    n.group === undefined ? undefined : laneIds.has(n.group) ? n.group : idx.ancestors(n.group, "group").find((g) => laneIds.has(g.id))?.id;
   const fromTag = (n: FlowNode): string | undefined => {
     for (const tag of n.tags ?? []) {
       const m = /^(?:lane|role):(.+)$/.exec(tag);
@@ -77,7 +69,7 @@ export function laneAssignment(graph: FlowGraph, lanes: FlowGroup[]): Map<string
   };
   const laneOf = new Map<string, string>();
   for (const n of graph.nodes) {
-    const lane = onChain(n.group) ?? fromTag(n);
+    const lane = onChain(n) ?? fromTag(n);
     if (lane) laneOf.set(n.id, lane);
   }
   if (lanes.length === 0) return laneOf;
@@ -126,30 +118,15 @@ function contentBounds(positions: Positions): Box {
   return positionsBounds({ nodes: positions.nodes, groups: {}, edges: positions.edges });
 }
 
-function membersOf(graph: FlowGraph, groupId: string): FlowNode[] {
-  // Members of the group and of every group nested under it.
-  const groups = new Map((graph.groups ?? []).map((g) => [g.id, g]));
-  const under = (id: string | undefined): boolean => {
-    const seen = new Set<string>();
-    let cur = id;
-    while (cur && !seen.has(cur)) {
-      if (cur === groupId) return true;
-      seen.add(cur);
-      cur = groups.get(cur)?.parent;
-    }
-    return false;
-  };
-  return graph.nodes.filter((n) => under(n.group));
-}
-
 function stageBands(graph: FlowGraph, positions: Positions, options: LaneOptions): LaneResult {
   const pad = options.padding ?? 24;
   const label = options.labelSpace ?? 32;
   const ax = axes(positions);
   const content = contentBounds(positions);
+  const idx = indexGraph(graph);
   const items = laneGroups(graph, "stages")
     .map((g, order) => {
-      const boxes = membersOf(graph, g.id)
+      const boxes = idx.allMembers(g.id)
         .map((n) => positions.nodes[n.id])
         .filter((b): b is Box => !!b);
       const ext = extent(boxes, ax.main, ax.mainSize);
@@ -174,8 +151,7 @@ function stageBands(graph: FlowGraph, positions: Positions, options: LaneOptions
     groups[it.g.id] = box;
     bands.push({ id: it.g.id, index: i, axis: "main", box });
   });
-  const partial = { nodes: positions.nodes, groups, edges: positions.edges };
-  return { positions: { ...partial, bounds: positionsBounds(partial), engine: positions.engine, direction: positions.direction }, bands, mode: "stages" };
+  return { positions: createPositions({ nodes: positions.nodes, groups, edges: positions.edges }, positions.engine, positions.direction), bands, mode: "stages" };
 }
 
 function roleBands(graph: FlowGraph, positions: Positions, options: LaneOptions): LaneResult {
@@ -224,7 +200,7 @@ function roleBands(graph: FlowGraph, positions: Positions, options: LaneOptions)
     if (g.kind !== "pool") continue;
     const children = lanes.filter((l) => l.parent === g.id || (!l.parent && !byId.get(l.id)?.parent));
     const boxes = children.map((l) => groups[l.id]).filter(Boolean);
-    if (boxes.length) groups[g.id] = positionsBounds({ nodes: Object.fromEntries(boxes.map((b, i) => [String(i), b])), groups: {}, edges: {} });
+    if (boxes.length) groups[g.id] = unionBoxes(boxes);
   }
   const edges: Record<string, EdgeRoute> = {};
   const edgeIndex = indexGraph(graph).edges;
@@ -236,8 +212,7 @@ function roleBands(graph: FlowGraph, positions: Positions, options: LaneOptions)
     if (a !== b) continue;
     edges[id] = a === 0 ? route : { ...route, points: route.points.map((p) => ({ ...p, [ax.cross]: p[ax.cross] + a })) };
   }
-  const partial = { nodes, groups, edges };
-  return { positions: { ...partial, bounds: positionsBounds(partial), engine: positions.engine, direction: positions.direction }, bands, mode: "roles" };
+  return { positions: createPositions({ nodes, groups, edges }, positions.engine, positions.direction), bands, mode: "roles" };
 }
 
 /**

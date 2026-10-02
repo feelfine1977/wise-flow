@@ -106,21 +106,6 @@ function sumMetrics(items: { metrics?: Metrics }[], weightKey: string[]): Metric
   return out;
 }
 
-function descendants(groups: Map<string, FlowGroup>, roots: Set<string>): Set<string> {
-  const out = new Set(roots);
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const g of groups.values()) {
-      if (g.parent && out.has(g.parent) && !out.has(g.id)) {
-        out.add(g.id);
-        changed = true;
-      }
-    }
-  }
-  return out;
-}
-
 /**
  * Collapse the members of the given stage groups into one `stage` node per group.
  * The stage node takes the group's id and label. Internal edges are dropped and
@@ -140,20 +125,14 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
       : groups.filter((id) => idx.groups.has(id)))];
   if (requested.length === 0) return graph;
   const collapsedRoots = new Set(requested);
-  const collapsedAll = descendants(idx.groups, collapsedRoots);
-
-  // Map every group to the collapsed root that swallows it.
-  const rootOf = (groupId: string): string | undefined => {
-    let cur: FlowGroup | undefined = idx.groups.get(groupId);
-    let found: string | undefined;
-    const seen = new Set<string>();
-    while (cur && !seen.has(cur.id)) {
-      seen.add(cur.id);
-      if (collapsedRoots.has(cur.id)) found = cur.id;
-      cur = cur.parent ? idx.groups.get(cur.parent) : undefined;
-    }
-    return found;
+  const chainOf = (groupId: string): FlowGroup[] => {
+    const own = idx.groups.get(groupId);
+    return own ? [own, ...idx.ancestors(groupId, "group")] : [];
   };
+  const collapsedAll = new Set([...idx.groups.keys()].filter((id) => chainOf(id).some((g) => collapsedRoots.has(g.id))));
+
+  // Map every group to the outermost collapsed root that swallows it.
+  const rootOf = (groupId: string): string | undefined => chainOf(groupId).filter((g) => collapsedRoots.has(g.id)).pop()?.id;
   const roots = requested.filter((id) => rootOf(id) === id);
   const collapsedMembers = new Map(Object.entries((graph.meta?.collapsedMembers ?? {}) as Record<string, string[]>));
   const nodeTarget = new Map<string, string>();
@@ -580,13 +559,12 @@ export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowG
   const nodeSet = new Set(nodes.map((n) => n.id));
   const edgeSet = new Set(edges.map((e) => e.id));
   const usedGroups = new Set<string>();
-  const groupIdx = new Map((base.groups ?? []).map((g) => [g.id, g]));
+  const baseIdx = indexGraph({ nodes: [], edges: [], groups: base.groups });
   for (const n of nodes) {
-    let g = n.group ? groupIdx.get(n.group) : undefined;
-    while (g) {
-      usedGroups.add(g.id);
-      g = g.parent ? groupIdx.get(g.parent) : undefined;
-    }
+    const own = n.group ? baseIdx.groups.get(n.group) : undefined;
+    if (!own) continue;
+    usedGroups.add(own.id);
+    for (const g of baseIdx.ancestors(own.id, "group")) usedGroups.add(g.id);
   }
   const groups = (base.groups ?? []).filter((g) => usedGroups.has(g.id));
   const survives = (id: unknown) => typeof id === "string" && (nodeSet.has(id) || usedGroups.has(id));
