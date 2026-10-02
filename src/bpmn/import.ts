@@ -82,8 +82,7 @@ function tagsOf(el: ModdleElement, derived: string[]): string[] | undefined {
   return all.length ? all : undefined;
 }
 
-function nodeOf(el: ModdleElement, keepIds: boolean): FlowNode | undefined {
-  const id = keepIds ? flowIdOf(el) : String(el.id);
+function nodeOf(el: ModdleElement, id: string): FlowNode | undefined {
   const label = (el.get("name") as string | undefined) ?? (el.get("text") as string | undefined) ?? String(el.id ?? id);
   const storedKind = wiseAttr(el, "kind") as FlowNode["kind"] | undefined;
   const metrics = metricsOf(el);
@@ -134,14 +133,15 @@ export async function importBpmn(xml: string, options: ImportBpmnOptions = {}): 
   let processId: string | undefined;
 
   const register = (bpmnId: string, flowId: string) => registerId(ids, bpmnId, flowId);
-  const groupIdOf = (el: ModdleElement) => (keepIds ? flowIdOf(el) : String(el.id));
+  // The FlowGraph id an element gets: its own (`wise:flowId` or XML id), or the XML id without `keepIds`.
+  const idOf = (el: ModdleElement) => (keepIds ? flowIdOf(el) : String(el.id));
 
   // Pools: a participant with a process becomes a pool group.
   const poolOfProcess = new Map<string, string>();
   for (const root of (rootElement.get("rootElements") as ModdleElement[]) ?? []) {
     if (!isType(root, "bpmn:Collaboration")) continue;
     for (const p of (root.get("participants") as ModdleElement[]) ?? []) {
-      const gid = groupIdOf(p);
+      const gid = idOf(p);
       const g: FlowGroup = { id: gid, kind: "pool", label: (p.get("name") as string | undefined) ?? gid };
       groups.push(g);
       groupById.set(gid, g);
@@ -154,7 +154,7 @@ export async function importBpmn(xml: string, options: ImportBpmnOptions = {}): 
   const laneOfNode = new Map<string, string>();
   const readLanes = (laneSet: ModdleElement | undefined, parent: string | undefined) => {
     for (const lane of (laneSet?.get("lanes") as ModdleElement[] | undefined) ?? []) {
-      const gid = groupIdOf(lane);
+      const gid = idOf(lane);
       const kind = (wiseAttr(lane, "kind") as FlowGroup["kind"] | undefined) ?? "lane";
       const g: FlowGroup = { id: gid, kind, label: (lane.get("name") as string | undefined) ?? gid, parent };
       groups.push(g);
@@ -172,7 +172,7 @@ export async function importBpmn(xml: string, options: ImportBpmnOptions = {}): 
       if (isType(el, "bpmn:SequenceFlow")) continue;
       const expanded = isType(el, "bpmn:SubProcess") && ((el.get("flowElements") as ModdleElement[] | undefined)?.length ?? 0) > 0;
       if (expanded && (options.subProcesses ?? "stage") === "stage") {
-        const gid = groupIdOf(el);
+        const gid = idOf(el);
         const g: FlowGroup = { id: gid, kind: "stage", label: (el.get("name") as string | undefined) ?? gid, parent: laneOfNode.get(String(el.id)) ?? parentGroup };
         groups.push(g);
         groupById.set(gid, g);
@@ -180,7 +180,7 @@ export async function importBpmn(xml: string, options: ImportBpmnOptions = {}): 
         visit(el, gid);
         continue;
       }
-      const node = nodeOf(el, keepIds);
+      const node = nodeOf(el, idOf(el));
       if (!node) continue;
       node.group = laneOfNode.get(String(el.id)) ?? parentGroup;
       nodes.push(node);
@@ -192,7 +192,7 @@ export async function importBpmn(xml: string, options: ImportBpmnOptions = {}): 
     }
     for (const el of (container.get("artifacts") as ModdleElement[] | undefined) ?? []) {
       if (!isType(el, "bpmn:TextAnnotation")) continue;
-      const node = nodeOf(el, keepIds);
+      const node = nodeOf(el, idOf(el));
       if (!node) continue;
       node.group = parentGroup;
       nodes.push(node);
@@ -207,7 +207,7 @@ export async function importBpmn(xml: string, options: ImportBpmnOptions = {}): 
         warnings.push(`sequence flow ${el.id} has an endpoint that is not a flow node`);
         continue;
       }
-      const id = keepIds ? flowIdOf(el) : String(el.id);
+      const id = idOf(el);
       const derived: string[] = [];
       const sourceEl = el.get("sourceRef") as ModdleElement;
       if ((sourceEl.get("default") as ModdleElement | undefined)?.id === el.id) derived.push(V.defaultFlow);
@@ -227,7 +227,7 @@ export async function importBpmn(xml: string, options: ImportBpmnOptions = {}): 
       const source = elementNode.get(String((el.get("sourceRef") as ModdleElement | undefined)?.id));
       const target = elementNode.get(String((el.get("targetRef") as ModdleElement | undefined)?.id));
       if (!source || !target) continue;
-      const id = keepIds ? flowIdOf(el) : String(el.id);
+      const id = idOf(el);
       edges.push({ id, kind: "flow", source: source.id, target: target.id, tags: ["association"], payload: { bpmnId: el.id } });
       register(String(el.id), id);
     }
@@ -245,7 +245,7 @@ export async function importBpmn(xml: string, options: ImportBpmnOptions = {}): 
       const source = elementNode.get(String((mf.get("sourceRef") as ModdleElement | undefined)?.id));
       const target = elementNode.get(String((mf.get("targetRef") as ModdleElement | undefined)?.id));
       if (!source || !target) continue;
-      const id = keepIds ? flowIdOf(mf) : String(mf.id);
+      const id = idOf(mf);
       edges.push({ id, kind: "flow", source: source.id, target: target.id, tags: ["message"], payload: { bpmnId: mf.id, label: mf.get("name") } });
       register(String(mf.id), id);
     }
