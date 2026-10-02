@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { layout, repositionNodes, type Box, type FlowGraph, type Positions, type XY } from "../../src/index";
-import { crossesBox } from "../../src/core/routing";
 import raw from "../fixtures/o2c-observed.json";
 
 const graph = raw as unknown as FlowGraph;
+/** Whether an axis-aligned segment runs through the open interior of a box. */
+function crossesBox(a: XY, b: XY, r: Box) {
+  const [lo, hi] = a.x === b.x ? [Math.min(a.y, b.y), Math.max(a.y, b.y)] : [Math.min(a.x, b.x), Math.max(a.x, b.x)];
+  return a.x === b.x ? a.x > r.x && a.x < r.x + r.width && hi > r.y && lo < r.y + r.height : a.y > r.y && a.y < r.y + r.height && hi > r.x && lo < r.x + r.width;
+}
 function onBoundary(p: XY, b: Box) {
   const inside = p.x >= b.x - 0.01 && p.x <= b.x + b.width + 0.01 && p.y >= b.y - 0.01 && p.y <= b.y + b.height + 0.01;
   return inside && Math.min(Math.abs(p.x - b.x), Math.abs(p.x - b.x - b.width), Math.abs(p.y - b.y), Math.abs(p.y - b.y - b.height)) < 0.01;

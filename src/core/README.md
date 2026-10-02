@@ -15,7 +15,8 @@ Framework-free TypeScript; runs in Node and in the browser. No DOM, no React.
 | `actions.ts` | `menuTargetFor`, `defaultActions` (filter, explore, compare, author; accelerators; filter clauses), `menuTitle` |
 | `paths.ts` | `pathsFor` (from the response's `paths` block or the map), `neighbourhood`, `pathBetween`, `pathRows`, `focusHighlight` |
 | `filters.ts` | the contract's filter clauses, `canonicalFilter`, `addClause`, `removeClause`, `describeClause`, `clauseForTarget`, preview normalisation |
-| `lanes.ts` | `laneBands`: stage groups as ordered bands along the flow, lane groups as bands across it |
+| `lanes.ts` | `laneBands`: stage groups as ordered bands along the flow, lane groups as bands across it; the lane model shared with the BPMN layout (`laneModel`, `stackLanes`, `spanLanes`, `laneRoutes`) |
+| `routing.ts` | `routeSequenceFlows` (orthogonal obstacle router), `repositionNodes` |
 | `hit.ts` | `HitIndex` (rbush) over nodes, groups, edge segments and overlay shapes |
 | `export.ts` | `toSVG` with figure presets, lane bands and an embedded legend |
 | `format.ts` | deterministic number and duration formatting, `Locale` |

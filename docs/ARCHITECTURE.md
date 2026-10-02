@@ -138,7 +138,9 @@ never filters data, it calls back. `lanes.ts`: stage groups as ordered
 bands along the flow (the ELK partitioning already orders them; the bands
 are cut half-way between neighbouring stages and nodes do not move) or
 lane groups as bands stacked across the flow with the nodes moved into
-their lane.
+their lane. The lane model (which groups are lanes, the lane of every node,
+stacking, the boxes of pools and parent lanes, and whether edges across
+lanes are dropped or routed) is shared with `layoutBpmn`.
 
 ### 2.7 Views
 `buildViews(graph, views)` lays the base graph out once and resolves named
@@ -183,8 +185,9 @@ input ids, so a rebuilt model keeps its ids. `<ProcessMap/>` renders
 BPMN-lite natively when the full modeler is not wanted.
 
 `layoutBpmn` uses ELK for the layering along the flow and then stacks the
-lanes as full-width bands in one pool, assigns rows inside each lane so
-that shapes do not overlap and routes sequence flows orthogonally.
+lanes as full-width bands in one pool with the core's lane model, assigns
+rows inside each lane so that shapes do not overlap and routes sequence
+flows orthogonally with the core's `routeSequenceFlows`.
 `exportBpmn` writes BPMN 2.0 XML with the diagram interchange from these
 positions, a collaboration with one participant when lanes exist, and the
 `wise` extension (FlowGraph id, kind, tags, metrics) so that
