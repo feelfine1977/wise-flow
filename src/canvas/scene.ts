@@ -34,6 +34,7 @@ import {
   buildScales,
   canonicalOverlays,
   defaultStyle,
+  followsSelfLoops,
   fixedColors,
   formatCompact,
   hasTag,
@@ -130,18 +131,7 @@ function union(a: Box, b: Box): Box {
 
 /** Self-loop overlays for follows edges from a node to itself (as `<ProcessMap/>` does). */
 export function selfLoopOverlays(graph: FlowGraph, locale: Locale = "en"): Overlay[] {
-  const out: Overlay[] = [];
-  const maxCount = Math.max(1, ...graph.edges.filter((e) => e.kind === "follows").map((e) => metric(e, "count", 0)));
-  const nodeCases = new Map(graph.nodes.map((n) => [n.id, metric(n, "cases", NaN)]));
-  for (const e of graph.edges) {
-    if (e.kind !== "follows" || e.source !== e.target) continue;
-    const count = metric(e, "count", NaN);
-    const cases = metric(e, "cases", NaN);
-    const nc = nodeCases.get(e.source) ?? NaN;
-    const share = Number.isFinite(cases) && Number.isFinite(nc) && nc > 0 ? cases / nc : Number.isFinite(count) ? count / maxCount : undefined;
-    out.push({ kind: "selfLoop", target: e.source, payload: { label: e.id, value: share, text: Number.isFinite(count) ? `${formatCompact(count, locale)} ×` : undefined, edgeId: e.id } });
-  }
-  return out;
+  return followsSelfLoops(graph, { locale });
 }
 
 function tintFor(value: number | undefined, scales: Scales): string | undefined {

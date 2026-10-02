@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { boundaryViolations } from '../../scripts/check-architecture.mjs';
 
@@ -20,4 +21,10 @@ test('headless checks allow local algorithms, reviewed layout imports and import
     const elk = import('elkjs/lib/elk-api.js');
     // import React from 'react';
   `), []);
+});
+test('the scene module and the overlay placement it reads stay inside the core', () => {
+  for (const name of ['scene.ts', 'overlay-geometry.ts', 'observed-loops.ts']) {
+    const path = fileURLToPath(new URL(`../../src/core/${name}`, import.meta.url));
+    assert.deepEqual(boundaryViolations(path, readFileSync(path, 'utf8')), [], name);
+  }
 });

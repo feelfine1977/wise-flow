@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { constraintItems, globalScene } from "../../fixtures/bpic2019";
-import { FIGURE_WIDTHS, abstract, layout, overlaysFor, toSVG } from "../../src/index";
+import { type FlowGraph, type Overlay, type Positions, FIGURE_WIDTHS, abstract, layout, overlaysFor, toSVG } from "../../src/index";
 
 const scene = abstract(globalScene, { minEdgeShare: 0.03, minNodeShare: 0.01 });
 
@@ -53,5 +53,44 @@ describe("toSVG", () => {
     const de = toSVG({ graph: scene, positions, overlays, locale: "de", title: "Karte" });
     expect(de).toContain("Legende");
     expect(de).toContain("251.734 Fälle");
+  });
+});
+
+describe("toSVG overlays", () => {
+  const graph: FlowGraph = {
+    nodes: [
+      { id: "a", kind: "activity", label: "A", metrics: { cases: 4 } },
+      { id: "b", kind: "activity", label: "B" },
+    ],
+    edges: [
+      { id: "ab", kind: "follows", source: "a", target: "b", metrics: { count: 5 } },
+      { id: "aa", kind: "follows", source: "a", target: "a", metrics: { count: 3, cases: 1 } },
+    ],
+  };
+  const positions: Positions = {
+    nodes: { a: { x: 0, y: 0, width: 200, height: 40 }, b: { x: 300, y: 0, width: 100, height: 40 } },
+    groups: {},
+    edges: {},
+    bounds: { x: 0, y: 0, width: 400, height: 40 },
+    engine: "dagre",
+    direction: "RIGHT",
+  };
+
+  it("draws follows self-loops by default and hides them on request", () => {
+    const svg = toSVG({ graph, positions }, { legend: false });
+    // One case of four repeats a: 25 %.
+    expect(svg).toContain('class="wf-overlay wf-selfloop" data-edge-id="aa"');
+    expect(svg).toContain(">↻ 25 %</text>");
+    expect(toSVG({ graph, positions, selfLoops: false }, { legend: false })).not.toContain("wf-selfloop");
+  });
+
+  it("is not affected by overlays on unknown targets", () => {
+    // Ten badges on one node: an extra overlay ahead of them used to shift their ids to two digits and reorder them.
+    const badges: Overlay[] = Array.from({ length: 10 }, (_, i) => ({ kind: "badge", target: "a", payload: { constraintId: `c${i}`, glyph: String(i) } }));
+    const known = toSVG({ graph, positions, overlays: badges, selfLoops: false }, { legend: false });
+    const ghost: Overlay = { kind: "tint", target: "ghost", payload: { value: 0.5 } };
+    expect(toSVG({ graph, positions, overlays: [ghost, ...badges], selfLoops: false }, { legend: false })).toBe(known);
+    const edgeTarget: Overlay = { kind: "hatch", target: "ab" };
+    expect(toSVG({ graph, positions, overlays: [edgeTarget, ...badges], selfLoops: false }, { legend: false })).toBe(known);
   });
 });

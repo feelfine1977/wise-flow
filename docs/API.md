@@ -197,7 +197,8 @@ positions' bounds.
 ```ts
 export class HitIndex { static fromScene(p: Positions, g?: OverlayGeometry): HitIndex;
   at(x, y, tolerance?): HitItem[]; within(box: Box): HitItem[] }
-export interface Scene { graph; positions; overlays?; style?; title?; subtitle?; locale?; lanes?: LaneMode }
+export interface Scene { graph; positions; overlays?; style?; title?; subtitle?; locale?; lanes?: LaneMode;
+  activityLabels?: ActivityLabelOptions; selfLoops?: boolean }
 export interface ExportOptions { preset?: "single-column" | "double-column" | "slide" | "none"; width?; legend?;
   background?; fontFamily?; padding?; lodZoom?; context? }
 export function toSVG(scene: Scene, o?: ExportOptions): string;   // deterministic, legend embedded
@@ -735,6 +736,37 @@ Nodes show one secondary measure: distinct cases/items. Hover, focus and the exp
 
 SVG and Canvas PNG exports include the canonical activity key even when the colour legend or node counts are hidden. Recorded self-loop labels describe transition occurrences; a case repeat share is reported only when the required case counts exist. Explicit constraint evidence remains separate.
 
+
+## Scene
+
+```ts
+export interface FlowSceneOptions { overlays?: Overlay[]; style?: StyleSpec; locale?: Locale; lanes?: LaneMode;
+  activityLabels?: ActivityLabelOptions; selfLoops?: boolean; lod?: Partial<LodRules>; lodBySize?: boolean;
+  overlayGeometry?: OverlayGeometryOptions }
+export interface FlowScene { graph; positions; bands: LaneBand[]; activityLabels?; locale; style; scales: Scales;
+  overlays: Overlay[]; lod: LodRules; geometry: OverlayGeometry; bounds: Box }
+export function buildScene(g: FlowGraph, p: Positions, o?: FlowSceneOptions): FlowScene;
+export function followsSelfLoops(g: FlowGraph, o?: { locale?: Locale; observed?: { caseLabel?: string } }): Overlay[];
+export function withFollowsSelfLoops(g: FlowGraph, overlays: Overlay[], o?: { locale?; observed? }): Overlay[];
+```
+
+`buildScene` resolves a graph and its positions once into what a renderer
+draws: activity references for every activity, lane bands and the positions
+they produce, scales, the overlays to show, level-of-detail rules and the
+overlay geometry with the bounds of map and overlays. The overlays are
+`o.overlays` (default `graph.overlays`) whose target is a node, a group or
+the map, and arcs whose two endpoints are; then one self-loop per follows
+edge from a node to itself (`followsSelfLoops`), labelled as an observed
+repeat when `activityLabels` is set, replacing a self-loop overlay that
+already stands for that edge; then sorted once with `canonicalOverlays`.
+`selfLoops: false` leaves the follows self-loops out. The level-of-detail
+rules are `defaultLod` under `style.lod` under `o.lod`; `lodBySize` tightens
+them with the number of nodes as a live map does, exports leave it off.
+
+`toSVG` draws this scene. Since this change it draws follows self-loops by
+default (as the live map does), also without `activityLabels`;
+`Scene.selfLoops: false` hides them, also in `toPNG`. Overlays on unknown
+targets are dropped before their order is fixed.
 
 ## BPMN routing and navigation (0.3.4)
 
