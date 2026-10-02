@@ -1,7 +1,8 @@
 /**
  * Layout for BPMN diagrams: ELK layered decides the order along the flow, lanes
- * become horizontal bands stacked inside one pool, sequence flows are routed
- * orthogonally. Without lanes the ELK positions are used as they are.
+ * become horizontal bands stacked inside one pool (the core's lane model),
+ * sequence flows are routed orthogonally. Without lanes the ELK positions are
+ * used as they are.
  */
 import {
   type Box,
@@ -12,12 +13,18 @@ import {
   type NodeSize,
   type Positions,
   type XY,
+  type LaneModelOptions,
   layout,
+  laneModel,
+  laneRoutes,
   createPositions,
+  spanLanes,
+  stackLanes,
   straightRoute,
 } from "../core/index.js";
 
-import { routeSequenceFlows } from "./routing.js";
+/** BPMN lanes: nested lanes spanned by their parents; every sequence flow is routed around the shapes. */
+const BPMN_LANES: LaneModelOptions = { lanes: "nested", crossLaneEdges: "routed" };
 
 /** BPMN shape sizes as drawn by bpmn-js and Camunda Modeler. */
 export const BPMN_SIZES: Record<FlowNode["kind"], NodeSize> = {
@@ -50,51 +57,9 @@ export const POOL_ID = "__pool";
 
 const width = (b: Box) => b.x + b.width;
 
-function assignLanes(graph: FlowGraph): { lanes: string[]; laneOf: Map<string, string> } {
-  const groups = graph.groups ?? [];
-  const groupIds = new Set(groups.map((g) => g.id));
-  const hasChildren = new Set(groups.filter((g) => g.parent && groupIds.has(g.parent)).map((g) => g.parent!));
-  // Leaf lanes in a depth-first walk of the group array order (parents keep their children together).
-  const lanes: string[] = [];
-  const walk = (parent: string | undefined) => {
-    for (const g of groups) {
-      if ((g.parent && groupIds.has(g.parent) ? g.parent : undefined) !== parent) continue;
-      if (g.kind === "pool" && !hasChildren.has(g.id)) continue;
-      if (hasChildren.has(g.id)) walk(g.id);
-      else if (g.kind !== "pool") lanes.push(g.id);
-    }
-  };
-  walk(undefined);
-  const firstLeafUnder = (id: string): string | undefined => {
-    if (lanes.includes(id)) return id;
-    for (const g of groups) if (g.parent === id) return firstLeafUnder(g.id);
-    return undefined;
-  };
-  const laneOf = new Map<string, string>();
-  for (const n of graph.nodes) {
-    const lane = n.group ? firstLeafUnder(n.group) : undefined;
-    if (lane) laneOf.set(n.id, lane);
-  }
-  // Nodes without a lane follow their predecessor, then their successor, then the first lane.
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const n of graph.nodes) {
-      if (laneOf.has(n.id)) continue;
-      const pred = graph.edges.find((e) => e.target === n.id && laneOf.has(e.source));
-      const succ = graph.edges.find((e) => e.source === n.id && laneOf.has(e.target));
-      const lane = pred ? laneOf.get(pred.source) : succ ? laneOf.get(succ.target) : undefined;
-      if (lane) {
-        laneOf.set(n.id, lane);
-        changed = true;
-      }
-    }
-  }
-  for (const n of graph.nodes) if (!laneOf.has(n.id) && lanes.length) laneOf.set(n.id, lanes[0]);
-  return { lanes, laneOf };
-}
-
 /**
+ * @deprecated No layout uses it; route with `routeSequenceFlows` from the core.
+ *
  * Orthogonal route between two boxes: straight when aligned, one bend pair when
  * the target lies to the right, a loop below both when it lies to the left.
  * Gateways leave and enter through their tips.
@@ -144,21 +109,20 @@ export function manhattanRoute(s: Box, t: Box, kinds: { source: FlowNode["kind"]
 export async function layoutBpmn(graph: FlowGraph, options: BpmnLayoutOptions = {}): Promise<Positions> {
   const { lanes: laneMode, rowGap = 56, lanePadding = 48, labelWidth = 30, poolPadding = 40, ...rest } = options;
   const base: LayoutOptions = { ...rest, direction: "RIGHT", nodeSize: rest.nodeSize ?? bpmnNodeSize, spacing: { node: 56, layer: 80, ...(rest.spacing ?? {}) } };
-  const { lanes, laneOf } = assignLanes(graph);
-  const mode = laneMode ?? (lanes.length ? "bands" : "ignore");
+  const model = laneModel(graph, BPMN_LANES);
+  const mode = laneMode ?? (model.lanes.length ? "bands" : "ignore");
   if (mode === "compound") return layout(graph, { ...base, groups: "compound" });
   const elk = await layout(graph, { ...base, groups: "ignore" });
-  if (mode === "ignore" || lanes.length === 0) return elk;
+  if (mode === "ignore" || model.lanes.length === 0) return elk;
 
   const nodes: Record<string, Box> = {};
   const groups: Record<string, Box> = {};
   const rowHeight = Math.max(80, ...Object.values(elk.nodes).map((b) => b.height)) + rowGap;
   const minX = Math.min(...Object.values(elk.nodes).map((b) => b.x));
   const x0 = labelWidth * 2 + poolPadding;
-  let y = 0;
   let contentRight = 0;
-  for (const lane of lanes) {
-    const members = graph.nodes.filter((n) => laneOf.get(n.id) === lane && elk.nodes[n.id]).sort((a, b) => elk.nodes[a.id].x - elk.nodes[b.id].x || elk.nodes[a.id].y - elk.nodes[b.id].y || (a.id < b.id ? -1 : 1));
+  const { slots, end } = stackLanes(graph, model, 0, 0, (_lane, laneMembers, y) => {
+    const members = laneMembers.filter((n) => elk.nodes[n.id]).sort((a, b) => elk.nodes[a.id].x - elk.nodes[b.id].x || elk.nodes[a.id].y - elk.nodes[b.id].y || (a.id < b.id ? -1 : 1));
     // Interval scheduling: a node takes the first row whose last shape ends before it starts.
     const rowEnd: number[] = [];
     const rowOf = new Map<string, number>();
@@ -172,41 +136,19 @@ export async function layoutBpmn(graph: FlowGraph, options: BpmnLayoutOptions = 
       rowEnd[row] = b.x + b.width;
       rowOf.set(n.id, row);
     }
-    const rows = Math.max(1, rowEnd.length);
-    const height = rows * rowHeight - rowGap + 2 * lanePadding;
     for (const n of members) {
       const b = elk.nodes[n.id];
       const centre = y + lanePadding + rowOf.get(n.id)! * rowHeight + (rowHeight - rowGap) / 2;
       nodes[n.id] = { x: x0 + (b.x - minX), y: centre - b.height / 2, width: b.width, height: b.height };
       contentRight = Math.max(contentRight, nodes[n.id].x + b.width);
     }
-    groups[lane] = { x: labelWidth, y, width: 0, height };
-    y += height;
-  }
+    return Math.max(1, rowEnd.length) * rowHeight - rowGap + 2 * lanePadding;
+  });
   const poolWidth = contentRight + poolPadding;
-  for (const lane of lanes) groups[lane].width = poolWidth - labelWidth;
-  // Parent lanes span their children; a pool group takes the whole pool box.
-  const all = graph.groups ?? [];
-  const byId = new Map(all.map((g) => [g.id, g]));
-  const span = (id: string): Box | undefined => {
-    if (groups[id]) return groups[id];
-    const children = all.filter((g) => g.parent === id).map((g) => span(g.id)).filter((b): b is Box => !!b);
-    if (!children.length) return undefined;
-    const top = Math.min(...children.map((b) => b.y));
-    const bottom = Math.max(...children.map((b) => b.y + b.height));
-    const left = Math.min(...children.map((b) => b.x)) - labelWidth;
-    return { x: left, y: top, width: poolWidth - left, height: bottom - top };
-  };
-  for (const g of all) {
-    if (groups[g.id]) continue;
-    const b = span(g.id);
-    if (b) groups[g.id] = b;
-  }
-  for (const g of all) {
-    if (g.kind === "pool" && !g.parent && byId.has(g.id)) groups[g.id] = { x: 0, y: 0, width: poolWidth, height: y };
-  }
-  if (!all.some((g) => g.kind === "pool" && !g.parent)) groups[POOL_ID] = { x: 0, y: 0, width: poolWidth, height: y };
+  for (const { lane, start, size } of slots) groups[lane.id] = { x: labelWidth, y: start, width: poolWidth - labelWidth, height: size };
+  Object.assign(groups, spanLanes(graph, model, groups, { main: "x", labelSpace: labelWidth }));
+  if (!(graph.groups ?? []).some((g) => g.kind === "pool" && !g.parent)) groups[POOL_ID] = { x: 0, y: 0, width: poolWidth, height: end };
 
-  const edges = routeSequenceFlows(graph, nodes);
+  const edges = laneRoutes(graph, model, nodes);
   return createPositions({ nodes, groups, edges }, elk.engine, "RIGHT");
 }

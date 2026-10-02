@@ -6,7 +6,7 @@ BPMN bridge, exported as `@wise/flow/bpmn`. The functions run in Node
 | File | Content |
 |---|---|
 | `lite.ts` | `liteFromStages` (stage model with known activities → BPMN-lite), `liteFromGraph` (directly-follows graph → BPMN-lite with XOR/AND gateways), `stageModelFromGraph`, `liteCounts`, `gatewayLabel` |
-| `layout.ts` | `layoutBpmn` (ELK layering, lanes as stacked bands in one pool, orthogonal flows), `manhattanRoute`, BPMN shape sizes |
+| `layout.ts` | `layoutBpmn` (ELK layering, then the core's lane model: nested lanes stacked as bands in one pool, flows routed by `routeSequenceFlows`), `manhattanRoute` (deprecated), BPMN shape sizes |
 | `export.ts` | `exportBpmn` (BPMN 2.0 XML with DI and the `wise` extension), `validateBpmn`, `xmlId`, `roundPositions` |
 | `import.ts` | `importBpmn` (XML → FlowGraph, positions from DI, mapping table), `matchActivities`, `applyMapping`, `normalizeLabel`, `positionsFromDi` |
 | `ids.ts` | the id resolver: `createIdResolver` (FlowGraph id ↔ BPMN id ↔ activity id and the alias rule), `renameToActivities`, `mappingIndex`, `IdMap`, `registerId` |

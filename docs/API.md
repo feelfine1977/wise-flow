@@ -385,6 +385,7 @@ export function layoutBpmn(g: FlowGraph, o?: BpmnLayoutOptions): Promise<Positio
 export interface BpmnLayoutOptions extends Omit<LayoutOptions, "direction" | "groups"> {
   lanes?: "bands" | "compound" | "ignore"; rowGap?; lanePadding?; labelWidth?; poolPadding? }
 export const POOL_ID = "__pool";   // pool box in Positions.groups when the graph has lanes but no pool group
+/** @deprecated Not used by `layoutBpmn`; use `routeSequenceFlows` from `@wise/flow`. */
 export function manhattanRoute(s: Box, t: Box, kinds, gap?): EdgeRoute;
 
 // Export → BPMN 2.0 XML with BPMNDiagram / BPMNShape / BPMNEdge from the positions.
@@ -652,6 +653,18 @@ export interface LaneResult { positions: Positions; bands: LaneBand[]; mode: Lan
 export function laneBands(g: FlowGraph, p: Positions, o: LaneOptions): LaneResult;
 export function laneGroups(g: FlowGraph, mode: LaneMode): FlowGroup[];
 export function laneAssignment(g: FlowGraph, lanes: FlowGroup[]): Map<string, string>;
+
+// The lane model shared by role bands and `layoutBpmn`.
+export interface LaneModelOptions { lanes: "roles" | "nested"; crossLaneEdges: "direct" | "routed" }
+export interface LaneModel { options: LaneModelOptions; lanes: FlowGroup[]; laneOf: Map<string, string> }
+export interface LaneSlot { lane: FlowGroup; start: number; size: number }
+export function laneModel(g: FlowGraph, o: LaneModelOptions): LaneModel;
+export function stackLanes(g: FlowGraph, m: LaneModel, start: number, gap: number,
+  place: (lane: FlowGroup, members: FlowNode[], start: number) => number): { slots: LaneSlot[]; end: number };
+export function spanLanes(g: FlowGraph, m: LaneModel, laneBoxes: Record<string, Box>, o: { main: "x" | "y"; labelSpace?: number }): Record<string, Box>;
+export function laneRoutes(g: FlowGraph, m: LaneModel, nodes: Record<string, Box>,
+  before?: { routes: Record<string, EdgeRoute>; axis: "x" | "y"; offsets: ReadonlyMap<string, number> }): Record<string, EdgeRoute>;
+export function routeSequenceFlows(g: FlowGraph, nodes: Record<string, Box>, o?: { allowOverlap?: boolean }): Record<string, EdgeRoute>;
 ```
 
 `stages`: top-level stage groups become consecutive bands along the flow,
@@ -663,6 +676,23 @@ by a `lane:` / `role:` tag, else along its paths), routes inside one lane
 move with it, routes across lanes are dropped so the renderer draws them
 directly. `none` returns the positions as they are. The renderers,
 `toSVG` and `toPNG` draw bands for `LaneBand`s.
+
+Role bands and `layoutBpmn` share one lane model. `laneModel` picks the lanes
+and the lane of every node: `roles` takes the top-level lane groups and
+reads `lane:` / `role:` tags (role bands); `nested` takes the leaves of the
+group tree and puts a node of a parent group into its first leaf (BPMN). In
+both, a node without a lane follows its predecessor, then its successor,
+then the first lane. `stackLanes` stacks the lanes across the flow, a
+caller's `place` putting the members and returning each lane's size;
+`spanLanes` gives the groups above the lanes their boxes (`roles`: a pool
+spans its lanes and the lanes without a parent; `nested`: a group spans its
+children with a label strip, a top-level pool spans all lanes).
+`crossLaneEdges` states what happens to edges once the nodes moved:
+`direct` (role bands) moves a route with its ends and drops it across lanes
+so the renderer draws it directly; `routed` (BPMN) routes every edge around
+the shapes with `routeSequenceFlows`, the orthogonal obstacle router.
+`manhattanRoute` in `@wise/flow/bpmn` is deprecated: no layout uses it; use
+`routeSequenceFlows`.
 
 ### React (`@wise/flow/react`, 0.3)
 
