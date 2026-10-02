@@ -182,7 +182,8 @@ export function unionBoxes(boxes: readonly Box[]): Box;
 `createPositions` is the one place positions are built: it computes `bounds`
 from the node and group boxes and the edge route points, so bounds always
 match the contents. Layout, `filterPositions`, `laneBands`, `repositionNodes`,
-`layoutBpmn`, BPMN import and `BpmnView` build their results with it; hosts
+`layoutBpmn`, `roundPositions` (bounds from the rounded contents), BPMN import
+and `BpmnView` build their results with it; hosts
 that assemble positions themselves should too. `unionBoxes` is the smallest
 box around the given boxes; boxes without a non-negative width and height are
 ignored, and no boxes give the empty box at the origin.
@@ -291,6 +292,10 @@ export function AbstractionControls(props), Legend(props), OverlayLayer(props);
 export function useFlowGraph(g, o?), useStableLayout(scenes, o?), useOverlays(items, o?), usePrefersReducedMotion();
 export { nodeTypes, edgeTypes, describeNode, describeEdge, describeGroup, describeMap };
 ```
+
+`describeMap` names the activity and path thresholds when `meta.abstraction`
+is the object `abstract` records; a server's numeric threshold share is not
+described.
 
 `<ProcessMap/>` behaviour: collapse (stage view) runs before the thresholds
 and gets its own layout; thresholds filter positions, so sliding the

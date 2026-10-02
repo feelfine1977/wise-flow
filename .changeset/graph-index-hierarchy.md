@@ -12,3 +12,6 @@ the new `createPositions`, which computes bounds from the contents, and
 the recorded `AbstractionMeta`. `FlowComparison` treats a graph that `abstract`
 left unreduced (zero thresholds, no collapse) as complete instead of comparing
 the recorded object with `0`.
+`describeMap` no longer reads a numeric `meta.abstraction` as zero thresholds, and
+`roundPositions` (the positions `exportBpmn` returns) computes bounds from the
+rounded contents.
