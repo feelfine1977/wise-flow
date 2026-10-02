@@ -5,13 +5,14 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BpmnView, type BpmnSelection } from "../../src/react/BpmnView";
 
-// A viewer whose registry holds two tasks of the fixture under their BPMN ids.
+// A viewer whose registry holds three tasks of the fixture under their BPMN ids;
+// the last carries a FlowGraph id of its own in `wise:flowId`.
 const mock = vi.hoisted(() => {
-  const task = (id: string) => ({ id, x: 100, y: 100, width: 100, height: 80, businessObject: {
-    id, get: () => undefined,
+  const task = (id: string, flowId?: string) => ({ id, x: 100, y: 100, width: 100, height: 80, businessObject: {
+    id, get: (name: string) => (name === "wise:flowId" ? flowId : undefined),
     $instanceOf: (type: string) => type === "bpmn:Activity",
   } });
-  const tasks = [task("Task_CreatePO"), task("Task_ApproveInvoice")];
+  const tasks = [task("Task_CreatePO"), task("Task_ApproveInvoice"), task("Task_ClearInvoice", "clear invoice")];
   type Element = (typeof tasks)[number];
   class Viewer {
     static instances: Viewer[] = [];
@@ -48,6 +49,10 @@ vi.mock("bpmn-js/lib/Modeler.js", () => ({ default: mock.Viewer }));
 const xml = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../fixtures/p2p_small.bpmn"), "utf8");
 // The activity id differs from the task's BPMN and FlowGraph id `Task_CreatePO`.
 const mapping = { create_purchase_order_item: "Task_CreatePO" };
+// The fixture with `Task_ClearInvoice` carrying the FlowGraph id `clear invoice`.
+const flowIdXml = xml
+  .replace("<bpmn:definitions ", '<bpmn:definitions xmlns:wise="http://wise-workbench.org/schema/flow" ')
+  .replace('<bpmn:serviceTask id="Task_ClearInvoice"', '<bpmn:serviceTask id="Task_ClearInvoice" wise:flowId="clear invoice"');
 const reported: BpmnSelection = { tasks: ["Task_CreatePO"], flows: [], lanes: [] };
 
 beforeEach(() => { mock.Viewer.instances = []; });
@@ -100,5 +105,16 @@ describe("BpmnView with an activity mapping", () => {
     const viewer = await ready(container, false);
     await waitFor(() => expect(viewer.added.map((a) => a.element)).toEqual(["Task_CreatePO"]));
     expect(viewer.added[0].html.className).toBe("wf-badge");
+  });
+
+  it("honours an activity mapped by BPMN id when the FlowGraph id differs", async () => {
+    const byBpmnId = { clear_invoice: "Task_ClearInvoice" };
+    const onSelect = vi.fn();
+    const { container, rerender } = render(<BpmnView xml={flowIdXml} mapping={byBpmnId} view="table" onSelect={onSelect} />);
+    const viewer = await ready(container);
+    rerender(<BpmnView xml={flowIdXml} mapping={byBpmnId} view="table" onSelect={onSelect} selection={{ tasks: ["clear_invoice"], flows: [], lanes: [] }} />);
+    await waitFor(() => expect(viewer.selected.map((e) => e.id)).toEqual(["Task_ClearInvoice"]));
+    expect(onSelect).toHaveBeenLastCalledWith({ tasks: ["clear invoice"], flows: [], lanes: [] });
+    expect(row("Clear Invoice").className).toBe("wf-row--selected");
   });
 });
