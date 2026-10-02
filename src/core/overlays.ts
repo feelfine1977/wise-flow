@@ -3,7 +3,7 @@
  * its statistics into overlays, and the geometry renderers draw from.
  */
 import { type Locale, formatDays, formatNumber, formatShare } from "./format.js";
-import type { Box, Positions, XY } from "./layout.js";
+import { type Box, type Positions, type XY, unionBoxes } from "./layout.js";
 import { type FlowGraph, type Overlay, type OverlayKind, type OverlayPayload, MAP_TARGET } from "./model.js";
 import { type LodRules, defaultLod } from "./style.js";
 import { type StringKey, t } from "./strings.js";
@@ -326,15 +326,6 @@ export function overlayMargin(options: OverlayGeometryOptions = {}): number {
   return Math.max(arc[1] + 24, badge + 8, (options.chipHeight ?? 24) + 8);
 }
 
-function union(boxes: Box[]): Box {
-  if (!boxes.length) return { x: 0, y: 0, width: 0, height: 0 };
-  const x0 = Math.min(...boxes.map((b) => b.x));
-  const y0 = Math.min(...boxes.map((b) => b.y));
-  const x1 = Math.max(...boxes.map((b) => b.x + b.width));
-  const y1 = Math.max(...boxes.map((b) => b.y + b.height));
-  return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
-}
-
 function chipWidth(text: string | undefined, glyph: string | undefined): number {
   const len = (text?.length ?? 0) + (glyph ? 2 : 0);
   return Math.min(260, Math.max(60, 16 + len * 6.2));
@@ -457,7 +448,7 @@ export function overlayGeometry(
       }
     }
   });
-  return { shapes, bounds: union(shapes), margin };
+  return { shapes, bounds: unionBoxes(shapes), margin };
 }
 
 /** Anchor point of a shape for tooltips. */

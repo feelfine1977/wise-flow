@@ -93,18 +93,23 @@ function sizeOf(node: FlowNode, o: LayoutOptions): NodeSize {
   return typeof o.nodeSize === "function" ? o.nodeSize(node) : o.nodeSize;
 }
 
-function boundsOf(boxes: Box[]): Box {
-  if (boxes.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
+/**
+ * Smallest box around the given boxes. Boxes without a non-negative width and
+ * height are ignored; without boxes the result is the empty box at the origin.
+ */
+export function unionBoxes(boxes: readonly Box[]): Box {
   let x0 = Infinity;
   let y0 = Infinity;
   let x1 = -Infinity;
   let y1 = -Infinity;
   for (const b of boxes) {
+    if (!(b.width >= 0 && b.height >= 0)) continue;
     x0 = Math.min(x0, b.x);
     y0 = Math.min(y0, b.y);
     x1 = Math.max(x1, b.x + b.width);
     y1 = Math.max(y1, b.y + b.height);
   }
+  if (x0 === Infinity) return { x: 0, y: 0, width: 0, height: 0 };
   return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
 }
 
@@ -118,13 +123,26 @@ function pointsBounds(points: XY[]): Box | null {
 }
 
 /** Bounds of nodes, groups and edge routes together. */
-export function positionsBounds(p: Pick<Positions, "nodes" | "groups" | "edges">): Box {
+export function positionsBounds(p: PositionsContents): Box {
   const boxes = [...Object.values(p.nodes), ...Object.values(p.groups)];
   for (const r of Object.values(p.edges)) {
     const b = pointsBounds(r.points);
     if (b) boxes.push(b);
   }
-  return boundsOf(boxes);
+  return unionBoxes(boxes);
+}
+
+/** What positions hold besides their bounds. */
+export type PositionsContents = Pick<Positions, "nodes" | "groups" | "edges">;
+
+/**
+ * Positions from their contents: the bounds are computed from the nodes, groups
+ * and edge routes, so they always match. Every function that creates or changes
+ * positions builds its result here.
+ */
+export function createPositions(contents: PositionsContents, engine: LayoutEngine, direction: LayoutDirection): Positions {
+  const { nodes, groups, edges } = contents;
+  return { nodes, groups, edges, bounds: positionsBounds(contents), engine, direction };
 }
 
 // ---------------------------------------------------------------------------
@@ -270,8 +288,7 @@ function fromElk(result: ElkNode, p: Prepared): Positions {
     for (const child of node.children ?? []) collectEdges(child);
   };
   collectEdges(result);
-  const partial = { nodes, groups, edges };
-  return { ...partial, bounds: positionsBounds(partial), engine: "elk", direction: p.direction };
+  return createPositions({ nodes, groups, edges }, "elk", p.direction);
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -353,8 +370,7 @@ function layoutDagre(p: Prepared, o: LayoutOptions): Positions {
     const v = g.edge({ v: e.source, w: e.target, name: e.id }) as { points?: XY[] } | undefined;
     if (v?.points) edges[e.id] = { points: v.points.map((pt) => ({ x: pt.x, y: pt.y })) };
   }
-  const partial = { nodes, groups, edges };
-  return { ...partial, bounds: positionsBounds(partial), engine: "dagre", direction: p.direction };
+  return createPositions({ nodes, groups, edges }, "dagre", p.direction);
 }
 
 // ---------------------------------------------------------------------------
@@ -376,7 +392,7 @@ export function layout(graph: FlowGraph, options: LayoutOptions = {}): Promise<P
   const run = async (): Promise<Positions> => {
     const p = prepare(graph, options);
     if (p.nodes.length === 0) {
-      return { nodes: {}, groups: {}, edges: {}, bounds: { x: 0, y: 0, width: 0, height: 0 }, engine: options.engine === "dagre" ? "dagre" : "elk", direction: p.direction };
+      return createPositions({ nodes: {}, groups: {}, edges: {} }, options.engine === "dagre" ? "dagre" : "elk", p.direction);
     }
     const engine = options.engine ?? "auto";
     if (engine === "dagre") return layoutDagre(p, options);
@@ -433,8 +449,7 @@ export function filterPositions(positions: Positions, graph: FlowGraph): Positio
   for (const n of graph.nodes) if (positions.nodes[n.id]) nodes[n.id] = positions.nodes[n.id];
   for (const g of graph.groups ?? []) if (positions.groups[g.id]) groups[g.id] = positions.groups[g.id];
   for (const e of graph.edges) if (positions.edges[e.id]) edges[e.id] = positions.edges[e.id];
-  const partial = { nodes, groups, edges };
-  return { ...partial, bounds: positionsBounds(partial), engine: positions.engine, direction: positions.direction };
+  return createPositions({ nodes, groups, edges }, positions.engine, positions.direction);
 }
 
 /** True when every node of `graph` has a position. */

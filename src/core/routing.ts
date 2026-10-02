@@ -1,5 +1,5 @@
 /** Orthogonal visibility-grid routing after swimlane placement. */
-import { straightRoute, type Box, type EdgeRoute, type Positions, type XY, positionsBounds } from "./layout.js";
+import { straightRoute, type Box, type EdgeRoute, type Positions, type XY, createPositions } from "./layout.js";
 import type { FlowGraph } from "./model.js";
 
 type Port = { point: XY; outside: XY; direction: number };
@@ -191,6 +191,5 @@ export function repositionNodes(graph: FlowGraph, positions: Positions, override
   // A moved activity can obstruct a nonincident edge, so route all supplied edges.
   // Self loops remain overlays anchored to their activity.
   const edges = routeSequenceFlows({ ...graph, edges: graph.edges.filter((e) => e.source !== e.target) }, nodes, { allowOverlap: true });
-  const partial = { nodes, groups: positions.groups, edges };
-  return { ...positions, ...partial, bounds: positionsBounds(partial) };
+  return createPositions({ nodes, groups: positions.groups, edges }, positions.engine, positions.direction);
 }

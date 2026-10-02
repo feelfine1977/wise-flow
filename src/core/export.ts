@@ -4,7 +4,7 @@ import { type ActivityLabelOptions, activityDescription, activityKeyLines, activ
  * Deterministic SVG export of a scene with an embedded legend and figure presets.
  */
 import { type Locale, formatCompact, formatCount, formatNumber, formatShare } from "./format.js";
-import { type Box, type Positions, straightRoute } from "./layout.js";
+import { type Box, type Positions, straightRoute, unionBoxes } from "./layout.js";
 import { type LaneBand, type LaneMode, laneBands } from "./lanes.js";
 import { type FlowGraph, type Overlay, MAP_TARGET, hasTag, metric } from "./model.js";
 import { type OverlayGeometryOptions, type OverlayShape, canonicalOverlays, overlayGeometry } from "./overlays.js";
@@ -345,7 +345,7 @@ export function toSVG(givenScene: Scene, options: ExportOptions = {}): string {
   const legend = options.legend ?? true;
   const legendWidth = legend ? 220 : 0;
 
-  const content = unionBox([scene.positions.bounds, ...(geometry.shapes.length ? [geometry.bounds] : [])]);
+  const content = unionBoxes([scene.positions.bounds, ...(geometry.shapes.length ? [geometry.bounds] : [])]);
   const headerHeight = scene.title ? 40 + (options.context !== false ? 18 : 0) : 0;
   const mapChips = overlays.filter((o) => o.kind === "chip" && o.target === MAP_TARGET);
   const legendDraw = legend ? drawLegend(ctx, 0, 0, legendWidth - 16, mapChips) : { svg: "", height: 0 };
@@ -400,12 +400,3 @@ export function toSVG(givenScene: Scene, options: ExportOptions = {}): string {
   return parts.join("");
 }
 
-function unionBox(boxes: Box[]): Box {
-  const valid = boxes.filter((b) => b.width >= 0 && b.height >= 0);
-  if (!valid.length) return { x: 0, y: 0, width: 0, height: 0 };
-  const x0 = Math.min(...valid.map((b) => b.x));
-  const y0 = Math.min(...valid.map((b) => b.y));
-  const x1 = Math.max(...valid.map((b) => b.x + b.width));
-  const y1 = Math.max(...valid.map((b) => b.y + b.height));
-  return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
-}

@@ -13,7 +13,7 @@ import {
   type Positions,
   type XY,
   layout,
-  positionsBounds,
+  createPositions,
   straightRoute,
 } from "../core/index.js";
 
@@ -208,6 +208,5 @@ export async function layoutBpmn(graph: FlowGraph, options: BpmnLayoutOptions = 
   if (!all.some((g) => g.kind === "pool" && !g.parent)) groups[POOL_ID] = { x: 0, y: 0, width: poolWidth, height: y };
 
   const edges = routeSequenceFlows(graph, nodes);
-  const partial = { nodes, groups, edges };
-  return { ...partial, bounds: positionsBounds(partial), engine: elk.engine, direction: "RIGHT" };
+  return createPositions({ nodes, groups, edges }, elk.engine, "RIGHT");
 }
