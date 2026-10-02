@@ -407,6 +407,22 @@ export function mappingIndex(mapping): { toTasks: Record<string, string[]>; toAc
 export function normalizeLabel(s: string): string;
 export function positionsFromDi(definitions: ModdleElement, ids: IdMap): Positions | undefined;
 
+// Ids: FlowGraph id ↔ BPMN id ↔ activity id. An element is named by its BPMN id, its FlowGraph id
+// and every activity id the mapping points at either of them (the alias rule).
+export type ActivityMapping = MappingRow[] | Record<string, string>;   // activity id → task (FlowGraph or BPMN id)
+export function createIdResolver(o?: { ids?: IdMap; mapping?: ActivityMapping }): IdResolver;
+export interface IdResolver {
+  flowId(element: string | ModdleElement): string;        // BPMN id or moddle element → FlowGraph id
+  bpmnId(flowId: string): string | undefined;
+  activityId(flowId: string): string | undefined;
+  flowIdsOfActivity(activityId: string): string[];
+  names(element: string | ModdleElement): string[];       // BPMN id, FlowGraph id, mapped activity ids
+  matches(element: string | ModdleElement, id: string): boolean;
+}
+export function renameToActivities(nodeIds: string[], r: IdResolver): { renamed: Map<string, string>; toMapped(id): string; toFlow(id): string };
+export function createIdMap(): IdMap;
+export function registerId(ids: IdMap, bpmnId: string, flowId: string): void;
+
 // bpmn-moddle with the `wise` extension (ids, kinds, tags, metrics through the XML).
 export function createModdle(): BpmnModdleInstance;
 export const wiseModdleDescriptor, WISE_NS = "http://wise-workbench.org/schema/flow";
@@ -471,7 +487,11 @@ flows and lanes or pools in FlowGraph ids; a controlled `selection` is
 applied to the diagram. In modeler mode every change is saved (debounced)
 and passed to `onChange`; XML that the modeler itself produced is not
 re-imported. The table alternative lists the imported graph with the
-mapping applied. Stylesheets: `bpmn-js/dist/assets/diagram-js.css`,
+mapping applied; a row selected in the table is reported in FlowGraph ids,
+as a diagram click is, and a diagram selection highlights the mapped row.
+Every id the view matches (overlay targets, controlled selection, reported
+selection and hover) goes through `createIdResolver` with the import's id
+map and `mapping`. Stylesheets: `bpmn-js/dist/assets/diagram-js.css`,
 `bpmn-js/dist/assets/bpmn-js.css` and
 `bpmn-js/dist/assets/bpmn-font/css/bpmn.css` in addition to the package's.
 
