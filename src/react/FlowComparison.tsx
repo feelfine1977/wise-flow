@@ -1,5 +1,5 @@
 import { useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import type { FlowGraph } from "../core/index.js";
+import type { FlowGraph, FlowMeta } from "../core/index.js";
 
 export interface FlowComparisonCohort {
   id: string;
@@ -41,6 +41,16 @@ const modes: Mode[] = ["activities", "connections"];
 const modeLabels = { activities: "Activities", connections: "Direct connections" };
 const validCount = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 
+/**
+ * Nothing was removed by abstraction: the server reports the threshold `0`, or
+ * `abstract` recorded zero thresholds for activities and paths without collapsing
+ * stages. Anything else, including a partial record, may have removed elements.
+ */
+function unabstracted(abstraction: FlowMeta["abstraction"]): boolean {
+  if (typeof abstraction === "number") return abstraction === 0;
+  return !!abstraction && typeof abstraction === "object" && abstraction.minNodeShare === 0 && abstraction.minEdgeShare === 0 && !abstraction.collapse;
+}
+
 function addEntry(entries: Map<string, Entry>, key: string, entry: Entry) {
   // Distinct-case counts cannot be summed without knowing the overlap.
   entries.set(key, entries.has(key) ? { label: entry.label, count: undefined, ambiguous: true } : entry);
@@ -81,8 +91,8 @@ function indexCohort({ graph, cases }: FlowComparisonCohort): IndexedCohort {
   }
   const meta = graph.meta;
   // Boundary connectors and non-follows edges cannot prove all activity pairs
-  // were supplied. Missing totals or an abstraction object are not completeness.
-  const complete = resolved && meta?.abstraction === 0
+  // were supplied. Missing totals or an abstraction that removed elements are not completeness.
+  const complete = resolved && !!meta && unabstracted(meta.abstraction)
     && validCount(meta.nodesTotal) && meta.nodesTotal <= activityNodes.length
     && validCount(meta.edgesTotal) && meta.edgesTotal <= suppliedPairs;
   return { activities, connections, complete, cases };

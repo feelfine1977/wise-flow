@@ -42,6 +42,7 @@ import {
   metric,
   overlayGeometry,
   straightRoute,
+  unionBoxes,
 } from "../core/index.js";
 
 export interface SceneNode {
@@ -118,14 +119,10 @@ export interface PrepareOptions {
   selfLoops?: boolean;
 }
 
-function union(a: Box, b: Box): Box {
-  if (b.width <= 0 && b.height <= 0) return a;
-  if (a.width <= 0 && a.height <= 0) return b;
-  const x0 = Math.min(a.x, b.x);
-  const y0 = Math.min(a.y, b.y);
-  const x1 = Math.max(a.x + a.width, b.x + b.width);
-  const y1 = Math.max(a.y + a.height, b.y + b.height);
-  return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
+/** Positions and overlay extents together; an empty box adds nothing. */
+function sceneBounds(positions: Box, overlays: Box | undefined): Box {
+  const extents = [positions, ...(overlays ? [overlays] : [])].filter((b) => b.width > 0 || b.height > 0);
+  return extents.length ? unionBoxes(extents) : positions;
 }
 
 /** Self-loop overlays for follows edges from a node to itself (as `<ProcessMap/>` does). */
@@ -246,7 +243,7 @@ export function prepareScene(graph: FlowGraph, givenPositions: Positions, option
     edges,
     groups,
     bands: options.bands ?? laid.bands,
-    bounds: union(positions.bounds, geometry.shapes.length ? geometry.bounds : { x: 0, y: 0, width: 0, height: 0 }),
+    bounds: sceneBounds(positions.bounds, geometry.shapes.length ? geometry.bounds : undefined),
     hit,
     lod,
     locale,

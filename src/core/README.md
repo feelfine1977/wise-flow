@@ -4,9 +4,9 @@ Framework-free TypeScript; runs in Node and in the browser. No DOM, no React.
 
 | File | Content |
 |---|---|
-| `model.ts` | `FlowGraph` types (workbench schema, with `focus` and `paths`), `validateGraph`, `indexGraph`, `MAP_TARGET` |
+| `model.ts` | `FlowGraph` types (workbench schema, with `focus` and `paths`), `validateGraph`, `indexGraph` (lookups, adjacency, group ancestors, nested members, labels), `MAP_TARGET` |
 | `aggregate.ts` | `abstract` (thresholds, collapse, keep-connected), `collapseGroups`, `isConnected`, `diff` |
-| `layout.ts` | `layout` (ELK layered in a worker or in-process, Dagre fallback), `layoutUnion`, `filterPositions`, cache; `engine: "di"` marks positions read from BPMN DI, `"given"` positions supplied by the caller |
+| `layout.ts` | `layout` (ELK layered in a worker or in-process, Dagre fallback), `layoutUnion`, `filterPositions`, `createPositions` (the one constructor; bounds from contents), `unionBoxes`, cache; `engine: "di"` marks positions read from BPMN DI, `"given"` positions supplied by the caller |
 | `label-sizing.ts` | Pure zoom-to-label sizes, shape scale and screen-pixel conversion; opt-in host display policy |
 | `style.ts` | `buildScales`, palettes with pattern twins, contrast helpers, level-of-detail rules, `patternDefs` |
 | `overlays.ts` | constraint presets → overlays, `canonicalOverlays`, `overlayGeometry`, `describeOverlay` |

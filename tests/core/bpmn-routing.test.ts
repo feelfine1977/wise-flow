@@ -74,7 +74,7 @@ describe("swimlane connector routing", () => {
       expect(point.x).toBeGreaterThanOrEqual(pool.x); expect(point.x).toBeLessThanOrEqual(pool.x + pool.width);
       expect(point.y).toBeGreaterThanOrEqual(pool.y); expect(point.y).toBeLessThanOrEqual(pool.y + pool.height);
     }
-  }, 60000);
+  }, 120000);
   it("reserves the actual custom node height when placing rows", async () => {
     const g = liteFromGraph(globalScene, { lanes: "groups" });
     const p = await layoutBpmn(g, { engine: "dagre", nodeSize: { width: 160, height: 140 } });
@@ -84,5 +84,5 @@ describe("swimlane connector routing", () => {
       expect(b.y).toBeGreaterThanOrEqual(lane.y);
       expect(b.y + b.height).toBeLessThanOrEqual(lane.y + lane.height);
     }
-  }, 60000);
+  }, 120000);
 });

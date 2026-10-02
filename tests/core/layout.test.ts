@@ -58,8 +58,14 @@ describe("layout", () => {
 });
 
 describe("layoutUnion", () => {
+  // In-process ELK on the full union is the slowest layout in the suite. Compute it
+  // once, and without the default time limit, after which a slow host would lay out
+  // a second time without stage partitions.
+  let elkUnion: ReturnType<typeof layoutUnion> | undefined;
+  const unionWithElk = () => (elkUnion ??= layoutUnion([globalScene, vendorScene], { engine: "elk", timeoutMs: 120000 }));
+
   it("yields identical positions for shared nodes across filtered scenes", async () => {
-    const union = await layoutUnion([globalScene, vendorScene], { engine: "elk" });
+    const union = await unionWithElk();
     const a = filterPositions(union, globalScene);
     const b = filterPositions(union, vendorScene);
     expect(coversGraph(a, globalScene)).toBe(true);
@@ -69,7 +75,7 @@ describe("layoutUnion", () => {
     for (const id of shared) expect(b.nodes[id]).toEqual(a.nodes[id]);
     for (const e of vendorScene.edges) if (union.edges[e.id]) expect(b.edges[e.id]).toEqual(a.edges[e.id]);
     expect(b.bounds.width).toBeLessThanOrEqual(a.bounds.width + 1e-6);
-  });
+  }, 120000);
 
   it("also holds for abstracted scenes of the same union", async () => {
     const union = await layoutUnion([globalScene, vendorScene], { engine: "dagre" });
@@ -81,11 +87,11 @@ describe("layoutUnion", () => {
   });
 
   it("differs from independent layouts, which is why the union exists", async () => {
-    const union = await layoutUnion([globalScene, vendorScene], { engine: "elk" });
+    const union = await unionWithElk();
     const alone = await layout(vendorScene, { engine: "elk" });
     const moved = vendorScene.nodes.filter((n) => alone.nodes[n.id].x !== union.nodes[n.id].x || alone.nodes[n.id].y !== union.nodes[n.id].y);
     expect(moved.length).toBeGreaterThan(0);
-  });
+  }, 120000);
 
   it("builds the union by id with the first definition winning", () => {
     const u = unionGraph([vendorScene, globalScene]);

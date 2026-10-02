@@ -13,12 +13,12 @@ import {
   canonicalOverlays,
   colorOn,
   contrastText,
+  createPositions,
   defaultLod,
   defaultStyle,
   formatShare,
   lodForSize,
   overlayGeometry,
-  positionsBounds,
   t,
 } from "../core/index.js";
 import { type BpmnExport, exportBpmn } from "../bpmn/export.js";
@@ -172,8 +172,7 @@ function registryPositions(registry: RegistryService, aliases: Map<string, strin
     const target = isGroupShape(el) ? groups : nodes;
     for (const k of keys(el)) target[k] = box;
   }
-  const partial = { nodes, groups, edges };
-  return { ...partial, bounds: positionsBounds(partial), engine: "di", direction: "RIGHT" };
+  return createPositions({ nodes, groups, edges }, "di", "RIGHT");
 }
 
 function el(tag: string, className: string, text?: string): HTMLElement {

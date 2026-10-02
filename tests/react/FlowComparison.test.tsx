@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { FlowGraph } from "../../src/index.js";
+import { type FlowGraph, abstract } from "../../src/index.js";
 import { FlowComparison, type FlowComparisonCohort } from "../../src/react/index.js";
 
 afterEach(cleanup);
@@ -114,6 +114,31 @@ describe("FlowComparison", () => {
     expect(rowCells("A")[1].textContent).toBe("— not supplied");
     connections();
     expect(rowCells("A → B")[1].textContent).toBe("— not supplied");
+  });
+
+  it("reads the thresholds that abstract records: zero thresholds remove nothing", () => {
+    // `abstract` replaces a numeric `meta.abstraction` with its thresholds as an object.
+    const unchanged = abstract(graph([["A", 20]]), { minNodeShare: 0, minEdgeShare: 0 });
+    expect(unchanged.meta?.abstraction).toMatchObject({ minNodeShare: 0, minEdgeShare: 0 });
+    render(<FlowComparison cohorts={[
+      cohort("A", 10, graph([["A", 10], ["B", 5]], [["A", "B", 5]])),
+      cohort("B", 20, unchanged),
+    ]} />);
+    expect(cellValues("B")[1]).toBe("0% of Cohort B; 0 distinct cases");
+    connections();
+    expect(cellValues("A → B")[1]).toBe("0% of Cohort B; 0 distinct cases");
+  });
+
+  it.each([
+    { minNodeShare: 0.5, minEdgeShare: 0 },
+    { minNodeShare: 0, minEdgeShare: 0.5 },
+  ])("does not invent zero after an abstraction with thresholds (%j)", (thresholds) => {
+    const reduced = abstract(graph([["A", 20]]), thresholds);
+    render(<FlowComparison cohorts={[
+      cohort("A", 10, graph([["A", 10], ["B", 5]], [["A", "B", 5]])),
+      cohort("B", 20, reduced),
+    ]} />);
+    expect(rowCells("B")[1].textContent).toBe("— not supplied");
   });
 
   it("does not let boundary edges hide missing activity pairs in completeness totals", () => {

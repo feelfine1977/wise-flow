@@ -67,6 +67,15 @@ export interface OverlayPayload {
   reverse?: boolean;
   /** Gauge for balance and metric constraints. */
   gauge?: { value: number; threshold: number; width?: number; direction?: "high" | "low" };
+  /**
+   * Text drawn beside a self-loop or arc instead of the glyph and value; it also
+   * widens the overlay's reserved extent.
+   */
+  displayLabel?: string;
+  /** The overlay shows recorded data (an observed self-loop) and is drawn at every zoom. */
+  observed?: boolean;
+  /** Edge an overlay stands for, e.g. the follows self-edge behind a self-loop. */
+  edgeId?: string;
   [key: string]: unknown;
 }
 
@@ -104,12 +113,30 @@ export interface FlowPaths {
   outgoing: FlowPath[];
 }
 
+/** Thresholds `abstract` applied to a graph, recorded in `meta.abstraction`. */
+export interface AbstractionMeta {
+  minEdgeShare?: number;
+  minNodeShare?: number;
+  keepConnected?: boolean;
+  collapse?: string[] | "all";
+}
+
+/**
+ * Metadata of a graph. Keys other than the declared ones pass through untouched.
+ * `abstraction` is the server's threshold share (a number, `0` when nothing was
+ * removed) or, after `abstract`, the thresholds the library applied.
+ */
+export interface FlowMeta {
+  abstraction?: number | AbstractionMeta;
+  [key: string]: unknown;
+}
+
 export interface FlowGraph {
   nodes: FlowNode[];
   edges: FlowEdge[];
   groups?: FlowGroup[];
   overlays?: Overlay[];
-  meta?: Record<string, unknown>;
+  meta?: FlowMeta;
   /** Activity the response was focused on (`focus` query parameter). */
   focus?: string;
   /** Paths of the focused activity from the full directly-follows graph. */
@@ -135,15 +162,30 @@ export function hasTag(el: { tags?: string[] } | undefined, tag: string): boolea
   return !!el?.tags?.includes(tag);
 }
 
-/** Index over a graph: maps by id and adjacency lists, built once per graph. */
+/**
+ * Index over a graph: maps by id, adjacency lists and the group hierarchy.
+ * Build it once per graph and ask it instead of walking `parent` chains.
+ */
 export interface GraphIndex {
   nodes: Map<string, FlowNode>;
   edges: Map<string, FlowEdge>;
   groups: Map<string, FlowGroup>;
   outgoing: Map<string, FlowEdge[]>;
   incoming: Map<string, FlowEdge[]>;
-  /** Members per group id. */
+  /** Direct members per group id (nodes whose `group` is the id). */
   members: Map<string, FlowNode[]>;
+  /**
+   * Groups enclosing an element, innermost first: for a node its group and that
+   * group's ancestors, for a group its parent and upwards. A node id is read as
+   * a node unless `kind` says otherwise (a collapsed stage node shares its id
+   * with its group). Unknown ids and parents end the chain; a cycle ends it
+   * before a group repeats.
+   */
+  ancestors(id: string, kind?: "node" | "group"): FlowGroup[];
+  /** Nodes of a group and of every group nested in it, in graph order. */
+  allMembers(groupId: string): FlowNode[];
+  /** Label of a node, else of a group, else the id itself. */
+  label(id: string): string;
 }
 
 export function indexGraph(graph: FlowGraph): GraphIndex {
@@ -170,7 +212,33 @@ export function indexGraph(graph: FlowGraph): GraphIndex {
     outgoing.get(e.source)?.push(e);
     incoming.get(e.target)?.push(e);
   }
-  return { nodes, edges, groups, outgoing, incoming, members };
+  const chain = (start: string | undefined, exclude?: string): FlowGroup[] => {
+    const out: FlowGroup[] = [];
+    const seen = new Set<string>(exclude === undefined ? [] : [exclude]);
+    let cur = start === undefined ? undefined : groups.get(start);
+    while (cur && !seen.has(cur.id)) {
+      seen.add(cur.id);
+      out.push(cur);
+      cur = cur.parent === undefined ? undefined : groups.get(cur.parent);
+    }
+    return out;
+  };
+  const ancestors = (id: string, kind?: "node" | "group"): FlowGroup[] => {
+    const asNode = kind === "node" || (kind === undefined && nodes.has(id));
+    if (asNode) return chain(nodes.get(id)?.group);
+    return chain(groups.get(id)?.parent, id);
+  };
+  const nested = new Map<string, FlowNode[]>();
+  const allMembers = (groupId: string): FlowNode[] => {
+    let found = nested.get(groupId);
+    if (!found) {
+      found = groups.has(groupId) ? graph.nodes.filter((n) => chain(n.group).some((g) => g.id === groupId)) : [];
+      nested.set(groupId, found);
+    }
+    return found;
+  };
+  const label = (id: string): string => nodes.get(id)?.label ?? groups.get(id)?.label ?? id;
+  return { nodes, edges, groups, outgoing, incoming, members, ancestors, allMembers, label };
 }
 
 export interface GraphIssue {

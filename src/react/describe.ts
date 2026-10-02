@@ -65,7 +65,9 @@ export function describeGroup(group: FlowGroup, members: number, overlays: Overl
 }
 
 export function describeMap(graph: FlowGraph, overlays: Overlay[], locale: Locale): string {
-  const abstraction = graph.meta?.abstraction as { minNodeShare?: number; minEdgeShare?: number } | undefined;
+  // A server's threshold share (a number) names no node and path shares; only the recorded thresholds are described.
+  const recorded = graph.meta?.abstraction;
+  const abstraction = typeof recorded === "object" ? recorded : undefined;
   const parts = [
     t(locale, "map.description", { nodes: graph.nodes.length, edges: graph.edges.length, groups: graph.groups?.length ?? 0 }),
   ];
