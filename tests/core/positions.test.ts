@@ -115,6 +115,7 @@ describe("positions keep bounds that match their contents", () => {
     const bpmn = await layoutBpmn(g);
     expectBoundsMatch(bpmn, "BPMN layout");
     const exported = await exportBpmn(g, { positions: bpmn });
+    expectBoundsMatch(exported.positions, "BPMN export");
     const imported = await importBpmn(exported.xml);
     expect(imported.positions).toBeDefined();
     expect(Object.keys(imported.positions!.nodes).length).toBe(g.nodes.length);
@@ -136,6 +137,26 @@ describe("positions keep bounds that match their contents", () => {
     expect(p.engine).toBe("given");
     expect(p.direction).toBe("DOWN");
     expect(createPositions({ nodes: {}, groups: {}, edges: {} }, "elk", "RIGHT").bounds).toEqual({ x: 0, y: 0, width: 0, height: 0 });
+  });
+});
+
+describe("BPMN export", () => {
+  it("returns rounded positions whose bounds enclose the rounded contents", async () => {
+    const g: FlowGraph = {
+      nodes: [{ id: "a", kind: "activity", label: "A" }, { id: "b", kind: "activity", label: "B" }],
+      edges: [],
+    };
+    // Unrounded the bounds run from 0.004 to 10.008, width 10.004, which rounds to 10.
+    // Rounded, a starts at 0 and b ends at 5 + 5.01, so the rounded contents are 10.01 wide.
+    const given = createPositions(
+      { nodes: { a: { x: 0.004, y: 0, width: 1, height: 10 }, b: { x: 5, y: 0, width: 5.008, height: 10 } }, groups: {}, edges: {} },
+      "given",
+      "RIGHT",
+    );
+    const { positions } = await exportBpmn(g, { positions: given });
+    expect(positions.nodes.b).toEqual({ x: 5, y: 0, width: 5.01, height: 10 });
+    expect(positions.bounds).toEqual({ x: 0, y: 0, width: 10.01, height: 10 });
+    expect(positions.engine).toBe("given");
   });
 });
 

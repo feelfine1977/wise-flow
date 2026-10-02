@@ -4,7 +4,7 @@
  * ids, kinds, tags and metrics travel in the `wise` extension so that an
  * export → import round trip is lossless.
  */
-import { type Box, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Positions, hasTag, straightRoute } from "../core/index.js";
+import { type Box, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Positions, createPositions, hasTag, straightRoute } from "../core/index.js";
 import { type BpmnLayoutOptions, POOL_ID, layoutBpmn } from "./layout.js";
 import { type BpmnModdleInstance, type ModdleElement, createModdle, typeOfTag } from "./moddle.js";
 
@@ -343,7 +343,7 @@ export function roundPositions(p: Positions): Positions {
   for (const [id, b] of Object.entries(p.nodes)) nodes[id] = roundBox(b);
   for (const [id, b] of Object.entries(p.groups)) groups[id] = roundBox(b);
   for (const [id, r] of Object.entries(p.edges)) edges[id] = { ...r, points: r.points.map((pt) => ({ x: round(pt.x), y: round(pt.y) })) };
-  return { ...p, nodes, groups, edges, bounds: roundBox(p.bounds) };
+  return createPositions({ nodes, groups, edges }, p.engine, p.direction);
 }
 
 function enclosing(positions: Positions, margin: number): Box {
