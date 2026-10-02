@@ -1,6 +1,6 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { memo } from "react";
-import { type LayoutDirection, type Overlay, contrastText, colorOn, formatCompact, formatShare, hasTag, metric, RECONNECTED_TAG } from "../core/index.js";
+import { type LayoutDirection, type Overlay, activityLabelLines, contrastText, colorOn, formatCompact, formatShare, hasTag, metric, RECONNECTED_TAG } from "../core/index.js";
 import { PatternSwatch } from "./patterns.js";
 import type { ActivityNodeData, WfGroupNode, WfNode } from "./types.js";
 
@@ -64,22 +64,30 @@ function classes(kind: string, data: ActivityNodeData, selected: boolean | undef
 
 const Activity = memo(function Activity({ id, data, selected }: NodeProps<WfNode>) {
   const cases = metric(data.node, "cases", NaN);
+  const lines = data.activityLabels ? activityLabelLines(data.node, data.activityLabels, data.labelWidth ?? 280, data.locale) : undefined;
   return (
     <div
       id={`wf-node-${id}`}
-      className={classes(data.node.kind, data, selected)}
-      style={{ ["--wf-node-color" as string]: data.color }}
-      title={data.description}
+      className={`${classes(data.node.kind, data, selected)}${lines ? " wf-node--activity-labels" : ""}`}
+      style={{ ["--wf-node-color" as string]: data.color, ...(lines ? { width: data.labelWidth, height: data.labelHeight } : {}) }}
+      title={lines ? undefined : data.description}
       data-kind={data.node.kind}
     >
       {handles(data.direction)}
       <span className="wf-node__band" aria-hidden="true">
         <PatternSwatch pattern={data.pattern} ink="#1f1f1f" />
       </span>
-      <span className="wf-node__label wf-lod-labels">{data.node.label}</span>
-      {Number.isFinite(cases) ? (
-        <span className="wf-node__meta wf-lod-labels">{data.meta ?? formatCompact(cases, data.locale)}</span>
-      ) : null}
+      {lines ? (
+        <span className="wf-activity-copy">
+          <span className="wf-activity-name">{lines.name.map((line, i) => <span key={i}>{line}</span>)}</span>
+          {data.activityLabels?.showCounts !== false ? <span className="wf-activity-counts">{lines.counts.map((line, i) => <span key={i}>{line}</span>)}</span> : null}
+        </span>
+      ) : (
+        <>
+          <span className="wf-node__label wf-lod-labels">{data.node.label}</span>
+          {Number.isFinite(cases) ? <span className="wf-node__meta wf-lod-labels">{data.meta ?? formatCompact(cases, data.locale)}</span> : null}
+        </>
+      )}
       <Badges badges={data.badges} locale={data.locale} />
     </div>
   );

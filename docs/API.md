@@ -361,7 +361,7 @@ export function BpmnView(props: {
   xml?: string; graph?: FlowGraph; layout?: BpmnLayoutOptions; mode?: "view" | "model";
   overlays?: Overlay[]; mapping?: MappingRow[] | Record<string, string>;
   selection?: BpmnSelection; onSelect?: (s: BpmnSelection) => void; onHover?: (id: string | null) => void;
-  view?: "diagram" | "table"; onViewChange?; controls?: boolean; legend?: boolean; locale?; lod?; fitView?: boolean;
+  view?: "diagram" | "table"; onViewChange?; controls?: boolean; navigation?: boolean; legend?: boolean; locale?; lod?; fitView?: boolean;
   onImport?: (r: BpmnImport) => void; onChange?: (xml: string) => void; onError?: (e: Error) => void;
   viewerOptions?: Record<string, unknown>; ariaLabel?; className?; containerStyle?; children?;
 } & { ref?: Ref<BpmnViewHandle> }): JSX.Element;
@@ -403,7 +403,7 @@ accepts like any other positions.
 
 `<BpmnView/>` behaviour: bpmn-js is loaded on demand (NavigatedViewer, or
 Modeler with `mode="model"`); XML is imported once per `xml` value and the
-viewport fitted (and refitted when the container resizes); overlays are
+viewport fitted (and refitted when the container resizes until a navigation control is used); overlays are
 projected through bpmn-js's overlays service (badges, tints, hatching,
 chips as HTML overlays following the shapes; arcs and self-loops drawn
 from the core's `overlayGeometry` into an SVG layer of the canvas) and are
@@ -703,3 +703,64 @@ values and remaps targets; folded arcs become labeled stage chips.
 ProcessMap invalidates its automatic layout cache when geometry/structure/options
 change, and releases automatic entries when replaced or unmounted. Supplying an
 explicit `layout.cacheKey` keeps caller-controlled reuse semantics.
+
+## Cohort comparison (0.3.2 candidate)
+
+`FlowComparison` from `@wise/flow/react` accepts `cohorts: { id, label, cases, graph }[]`, optional plural `noun`, and optional `onSelect(cohortId)`. Import the package tokens and stylesheet.
+
+The two tabs align activity labels or ordered activity pairs across graphs. Cells show distinct `metrics.cases` divided by the supplied cohort case count, plus the count itself. Repeated occurrences and supplied shares never substitute for case counts. Reverse pairs and self-loops remain separate. The default eight rows have the largest percentage-point range across available cohorts; search and Show all reveal the rest. Arrow keys navigate the tabs. Cohort headings optionally invoke the host navigation callback.
+
+Only activity nodes and activity-to-activity `follows` edges enter the comparison. It does not reconstruct complete traces. Missing rows become zero only for a graph with `meta.abstraction === 0`, valid `nodesTotal` and `edgesTotal`, resolved endpoints and sufficient supplied activities and pairs. Otherwise they remain unavailable. Invalid counts, duplicate labels/pairs and zero cohort denominators are explicitly unavailable; overlapping rows are never summed. The host owns canonical naming, exact source counts, cohort membership and navigation.
+
+
+## Activity label presentation (0.3.3)
+
+`ProcessMapProps.activityLabels`, `Scene.activityLabels` and Canvas `PrepareOptions.activityLabels` opt into a shared presentation contract. Existing callers retain their current rendering.
+
+```ts
+const activityLabels = {
+  mode: "names" as const, // or "ids"
+  references: activityReferences(fullGraph, previousReferences),
+  showCounts: true,
+  caseLabel: "items",
+};
+const nodeSize = (node: FlowNode) => activityNodeSize(node, activityLabels);
+```
+
+Use `nodeSize` when providing precomputed positions. Names reserve 280px width and enough height for wrapped text; IDs reserve 140px. Hiding counts does not change dimensions. `useStableLayout` compares resolved dimensions, so equivalent callbacks do not trigger layout. Invalidate an explicit layout cache key when its inputs change.
+
+`references` maps canonical activity IDs to display references. Persist the dictionary across filters; absent entries are retained and new entries are added without renumbering. References indicate identity, not execution order. Optional `names` supplies display aliases; the original graph is unchanged.
+
+Nodes show one secondary measure: distinct cases/items. Hover, focus and the export key show the original name plus exact item and event counts. Missing values are marked unavailable. Tooltips are dismissible with Escape and remain visible while their trigger or tooltip is hovered. Selecting an activity returns its canonical ID.
+
+SVG and Canvas PNG exports include the canonical activity key even when the colour legend or node counts are hidden. Recorded self-loop labels describe transition occurrences; a case repeat share is reported only when the required case counts exist. Explicit constraint evidence remains separate.
+
+
+## BPMN routing and navigation (0.3.4)
+
+Band layouts route every sequence flow on an orthogonal visibility grid after
+placing the nodes. Shape interiors are obstacles; shared tracks and crossings
+carry a routing cost. Return connections remain present. This is a readable
+heuristic, not an optimal or crossing-free graph layout. Crossing lines do not
+create a junction. Row gaps default to 56 units and lane padding to 48 units.
+Overlapping or otherwise unroutable supplied geometry raises a descriptive
+error instead of silently drawing a connection through a task.
+
+`BpmnView.navigation` defaults to `controls`. Hosts with their own Map/Model/Table
+switch can pass `controls={false} navigation` to keep zoom, whole-model fit and
+readable-size buttons. Readable size centres the selected task, or the first
+task if none is selected. The bpmn.io attribution remains visible.
+
+Arc `payload.displayLabel` may supply a complete, unambiguous result label,
+e.g. “63% miss constraint”. It overrides the glyph/percentage label across
+React, BPMN, Canvas and SVG; it does not change the underlying result value.
+Hosts should provide the rule target, units and evaluated denominator alongside
+the drawing. A constraint arc is not an observed process route.
+
+### Manual activity placement
+
+`ProcessMap` accepts `nodesDraggable` (SVG activities only, opt-in), `onNodeMove(id, absolutePosition)` for a controlled host, and `layoutResetKey` to clear internally held manual positions. Group-relative React Flow positions are converted to absolute layout coordinates. Hover, selection and zoom do not alter them. Hosts applying `onNodeMove` can call `repositionNodes(graph, basePositions, overrides)` and clear the override record to restore the exact automatic layout.
+
+`repositionNodes` keeps supplied edge identities, directions and metrics unchanged. It routes around all visible boxes, including a moved box obstructing an unrelated edge; self loops remain node-anchored overlays. During an overlapping drag, an unroutable edge falls back to a clipped direct route rather than throwing. Positions and routes are immutable, and bounds include the rerouted edges. Manual placement is local to the mounted map unless the host persists it.
+
+Custom child controls should import `useReactFlow`, `useNodesInitialized` and `useStore` from `@wise/flow/react`, so they share the renderer's context even when a host resolves different Node/browser entry points of React Flow.

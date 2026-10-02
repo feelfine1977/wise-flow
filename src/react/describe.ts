@@ -1,5 +1,7 @@
 /** Text descriptions of map elements for ARIA labels and the table alternative. */
 import {
+  type ActivityLabelOptions,
+  activityCounts,
   type FlowEdge,
   type FlowGraph,
   type FlowGroup,
@@ -18,16 +20,21 @@ import {
   t,
 } from "../core/index.js";
 
-export function describeNode(node: FlowNode, overlays: Overlay[], locale: Locale, groupLabel?: string): string {
+export function describeNode(node: FlowNode, overlays: Overlay[], locale: Locale, groupLabel?: string, activityLabels?: ActivityLabelOptions): string {
   const parts: string[] = [];
   parts.push(`${node.label}, ${t(locale, `kind.${node.kind}` as StringKey)}${groupLabel ? ` (${groupLabel})` : ""}`);
   const cases = metric(node, "cases", NaN);
   const share = metric(node, "share", NaN);
-  if (Number.isFinite(cases)) {
+  if (activityLabels) {
+    const reference = Object.hasOwn(activityLabels.references, node.id) ? activityLabels.references[node.id] : undefined;
+    if (reference) parts[0] = `${reference} — ${parts[0]}`;
+    parts.push(activityCounts(node, activityLabels, locale, true));
+    if (Number.isFinite(share)) parts.push(formatShare(share, locale));
+  } else if (Number.isFinite(cases)) {
     parts.push(`${formatCount(cases, locale)} ${t(locale, "metric.cases")}${Number.isFinite(share) ? ` (${formatShare(share, locale)})` : ""}`);
   }
   const events = metric(node, "events", NaN);
-  if (Number.isFinite(events) && events !== cases) parts.push(`${formatCount(events, locale)} ${t(locale, "metric.events")}`);
+  if (!activityLabels && Number.isFinite(events) && events !== cases) parts.push(`${formatCount(events, locale)} ${t(locale, "metric.events")}`);
   const violation = metric(node, "violationShare", NaN);
   if (Number.isFinite(violation)) parts.push(`${formatShare(violation, locale)} ${t(locale, "metric.violationShare")}`);
   if (hasTag(node, RECONNECTED_TAG)) parts.push(t(locale, "map.reconnected"));

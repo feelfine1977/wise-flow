@@ -66,6 +66,8 @@ export interface BpmnViewProps {
   onViewChange?: (view: "diagram" | "table") => void;
   /** Show the view toggle. Default true. */
   controls?: boolean;
+  /** Show zoom, fit and readable-size controls. Defaults to `controls`. */
+  navigation?: boolean;
   /** Show the legend. Default true. */
   legend?: boolean;
   locale?: Locale;
@@ -114,6 +116,7 @@ interface CanvasService {
   getLayer(name: string, index?: number): SVGGElement;
   zoom(scale?: number | "fit-viewport"): number;
   resized(): void;
+  viewbox(box: { x: number; y: number; width: number; height: number }): void;
   addMarker(element: string, marker: string): void;
   removeMarker(element: string, marker: string): void;
 }
@@ -215,6 +218,7 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
     onSelect,
     onHover,
     controls = true,
+    navigation = controls,
     legend = true,
     locale = "en",
     fitView = true,
@@ -250,6 +254,7 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
   const fitRef = useRef(fitView);
   fitRef.current = fitView;
   const importedRef = useRef(false);
+  const manualNavigation = useRef(false);
 
   // 1. A graph is exported to XML; explicit XML wins.
   const layoutKey = JSON.stringify({ ...(layoutOptions ?? {}), elk: undefined, elkWorkerUrl: layoutOptions?.elkWorkerUrl ? String(layoutOptions.elkWorkerUrl) : undefined });
@@ -307,7 +312,7 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
       try {
         const canvas = viewer.get<CanvasService>("canvas");
         canvas.resized();
-        if (fitRef.current && importedRef.current) canvas.zoom("fit-viewport");
+        if (fitRef.current && importedRef.current && !manualNavigation.current) canvas.zoom("fit-viewport");
       } catch {
         // A canvas without SVG geometry (test environments) cannot be refitted.
       }
@@ -396,6 +401,7 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
     if (savedXml.current !== undefined && xml === savedXml.current) return;
     let live = true;
     setStatus("loading");
+    manualNavigation.current = false;
     importedRef.current = false;
     viewer
       .importXML(xml)
@@ -555,7 +561,7 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
           if (shape.labelX !== undefined && shape.labelY !== undefined) {
             const value = typeof p.value === "number" && Number.isFinite(p.value) ? formatShare(p.value, locale) : "";
             const text = svgEl("text", { x: shape.labelX, y: shape.labelY, "text-anchor": o.kind === "arc" ? "middle" : "start" });
-            text.textContent = o.kind === "arc" ? `${p.glyph ?? ""} ${value}`.trim() : `↻ ${value}`;
+            text.textContent = typeof p.displayLabel === "string" ? p.displayLabel : o.kind === "arc" ? `${p.glyph ?? ""} ${value}`.trim() : `↻ ${value}`;
             g.appendChild(text);
           }
           g.setAttribute("data-min-zoom", String(shape.minZoom));
@@ -641,6 +647,10 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
       data-bpmn-status={status}
       data-bpmn-mode={mode}
       data-bpmn-view={view}
+      onWheelCapture={() => { manualNavigation.current = true; }}
+      onPointerDownCapture={(event) => {
+        if ((event.target as Element).closest(".djs-container")) manualNavigation.current = true;
+      }}
     >
       <p id={descId} className="wf-sr-only">
         {description}
@@ -663,6 +673,31 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
               {view === "table" ? t(locale, "bpmn.diagram") : t(locale, "bpmn.table")}
             </button>
           </div>
+        </div>
+      ) : null}
+      {navigation && view !== "table" ? (
+        <div className="wf-panel wf-bpmn__navigation" role="group" aria-label={t(locale, "bpmn.navigation")}>
+          <button type="button" className="wf-button" aria-label={t(locale, "map.zoomIn")} disabled={status !== "ready"} onClick={() => {
+            const canvas = viewerRef.current?.get<CanvasService>("canvas");
+            if (canvas) { manualNavigation.current = true; canvas.zoom(Math.min(4, canvas.zoom() * 1.25)); }
+          }}>+</button>
+          <button type="button" className="wf-button" aria-label={t(locale, "map.zoomOut")} disabled={status !== "ready"} onClick={() => {
+            const canvas = viewerRef.current?.get<CanvasService>("canvas");
+            if (canvas) { manualNavigation.current = true; canvas.zoom(Math.max(0.05, canvas.zoom() / 1.25)); }
+          }}>−</button>
+          <button type="button" className="wf-button" title={t(locale, "bpmn.fit")} aria-label={t(locale, "bpmn.fit")} disabled={status !== "ready"} onClick={() => {
+            manualNavigation.current = true; viewerRef.current?.get<CanvasService>("canvas").zoom("fit-viewport");
+          }}>⛶</button>
+          <button type="button" className="wf-button" disabled={status !== "ready"} onClick={() => {
+            const viewer = viewerRef.current, container = containerRef.current;
+            if (!viewer || !container) return;
+            manualNavigation.current = true;
+            const selected = viewer.get<SelectionService>("selection").get().find((e) => isTask(e.businessObject));
+            const task = selected ?? viewer.get<RegistryService>("elementRegistry").getAll().find((e) => !e.labelTarget && isTask(e.businessObject));
+            const canvas = viewer.get<CanvasService>("canvas");
+            if (task && task.x !== undefined && task.y !== undefined) canvas.viewbox({ x: task.x + (task.width ?? 0) / 2 - container.clientWidth / 2, y: task.y + (task.height ?? 0) / 2 - container.clientHeight / 2, width: container.clientWidth, height: container.clientHeight });
+            else canvas.zoom(1);
+          }}>{t(locale, "bpmn.readable")}</button>
         </div>
       ) : null}
       {legend && view !== "table" ? (

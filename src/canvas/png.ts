@@ -2,7 +2,7 @@
  * PNG export: the scene drawn with the canvas routines into an offscreen
  * canvas, with the same figure presets and embedded legend as `toSVG`.
  */
-import { type Box, type FigurePreset, type LodRules, type Scene, FIGURE_WIDTHS, MAP_TARGET, formatCount, t } from "../core/index.js";
+import { type Box, type FigurePreset, type LodRules, type Scene, FIGURE_WIDTHS, MAP_TARGET, activityKeyLines, formatCount, t } from "../core/index.js";
 import { type DrawContext, drawLegend, drawScene } from "./draw.js";
 import { prepareScene } from "./scene.js";
 import { type CanvasTokens, defaultTokens } from "./tokens.js";
@@ -75,7 +75,7 @@ function defaultCreateCanvas(width: number, height: number): CanvasLike {
 export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
   const tokens: CanvasTokens = { ...defaultTokens, ...(options.tokens ?? {}) };
   const locale = scene.locale ?? "en";
-  const prepared = prepareScene(scene.graph, scene.positions, { style: scene.style, overlays: scene.overlays ?? scene.graph.overlays, locale, lanes: scene.lanes, selfLoops: false });
+  const prepared = prepareScene(scene.graph, scene.positions, { style: scene.style, overlays: scene.overlays ?? scene.graph.overlays, locale, lanes: scene.lanes, selfLoops: !!scene.activityLabels, activityLabels: scene.activityLabels });
   const pad = options.padding ?? 24;
   const legend = options.legend ?? true;
   const legendWidth = legend ? 220 : 0;
@@ -87,7 +87,9 @@ export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
   const mapChips = prepared.overlays.filter((o) => o.kind === "chip" && o.target === MAP_TARGET).length;
   const legendEstimate = legend ? 40 + prepared.scales.legend.reduce((s, it) => s + (it.kind === "categorical" ? 20 + it.entries.length * 16 : 46), 0) + 6 * 14 + mapChips * 28 : 0;
   const totalW = mapW + legendWidth;
-  const totalH = Math.max(mapH, legendEstimate + 2 * pad) + headerHeight;
+  const keyY = Math.max(mapH, legendEstimate + 2 * pad) + headerHeight;
+  const key = activityKeyLines(scene.graph, prepared.activityLabels, totalW - 2 * pad, locale);
+  const totalH = keyY + (key.length ? key.length * 16 + 2 * pad : 0);
   const cssWidth = options.width ?? (options.preset && options.preset !== "none" ? FIGURE_WIDTHS[options.preset] : totalW);
   const k = cssWidth / totalW;
   const cssHeight = totalH * k;
@@ -135,6 +137,13 @@ export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
     ctx.stroke();
     ctx.globalAlpha = 1;
     drawLegend(ctx, prepared, mapW + 16, headerHeight + pad, legendWidth - 32, tokens);
+  }
+  if (key.length) {
+    ctx.fillStyle = tokens.ink;
+    ctx.font = `11px ${tokens.font}`;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    key.forEach((line, i) => ctx.fillText(line, pad, keyY + pad + i * 16));
   }
   ctx.restore();
   ctx.restore();

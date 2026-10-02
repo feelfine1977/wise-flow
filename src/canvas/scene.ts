@@ -5,6 +5,12 @@
  * in Node; drawing happens in `draw.ts`.
  */
 import {
+  type ActivityLabelOptions,
+  activityLabel,
+  activityLabelLines,
+  activityNodeCounts,
+  activityReferences,
+  withObservedSelfLoops,
   type Box,
   type EdgeRoute,
   type FlowEdge,
@@ -44,6 +50,7 @@ export interface SceneNode {
   color: string;
   pattern: PatternId;
   label: string;
+  activityLines?: { name: string[]; counts: string[] };
   meta?: string;
   hatched: boolean;
   reconnected: boolean;
@@ -72,6 +79,7 @@ export interface SceneGroup {
 }
 
 export interface PreparedScene {
+  activityLabels?: ActivityLabelOptions;
   graph: FlowGraph;
   positions: Positions;
   scales: Scales;
@@ -97,6 +105,7 @@ export interface PreparedScene {
 }
 
 export interface PrepareOptions {
+  activityLabels?: ActivityLabelOptions;
   style?: StyleSpec;
   overlays?: Overlay[];
   lod?: Partial<LodRules>;
@@ -150,6 +159,7 @@ function tintFor(value: number | undefined, scales: Scales): string | undefined 
  * targets present in the graph; positions may be replaced by lane bands.
  */
 export function prepareScene(graph: FlowGraph, givenPositions: Positions, options: PrepareOptions = {}): PreparedScene {
+  options = options.activityLabels ? { ...options, activityLabels: { ...options.activityLabels, references: activityReferences(graph, options.activityLabels.references) } } : options;
   const locale = options.locale ?? "en";
   const style = options.style ?? defaultStyle;
   const lanes = options.bands ? "none" : (options.lanes ?? "none");
@@ -160,7 +170,7 @@ export function prepareScene(graph: FlowGraph, givenPositions: Positions, option
   const raw = [...(graph.overlays ?? []), ...(options.overlays ?? [])].filter(
     (o) => known.has(o.target) || (o.kind === "arc" && known.has(String(o.payload?.source)) && known.has(String(o.payload?.target))),
   );
-  const overlays = canonicalOverlays(options.selfLoops === false ? raw : [...raw, ...selfLoopOverlays(graph, locale)]);
+  const overlays = canonicalOverlays(options.selfLoops === false ? raw : options.activityLabels ? withObservedSelfLoops(graph, raw, locale, options.activityLabels.caseLabel) : [...raw, ...selfLoopOverlays(graph, locale)]);
   const lod = lodForSize(graph.nodes.length, { ...(style.lod ?? {}), ...(options.lod ?? {}) });
   const geometry = overlayGeometry(overlays, positions, { ...(options.overlayGeometry ?? {}), lod });
   const shapesByTarget = new Map<string, OverlayShape[]>();
@@ -192,8 +202,9 @@ export function prepareScene(graph: FlowGraph, givenPositions: Positions, option
       box,
       color: scales.nodeColor(n),
       pattern: scales.nodePattern(n),
-      label: n.label,
-      meta,
+      label: n.kind === "activity" && options.activityLabels ? activityLabel(n, options.activityLabels) : n.label,
+      activityLines: n.kind === "activity" && options.activityLabels ? activityLabelLines(n, options.activityLabels, box.width, locale) : undefined,
+      meta: n.kind === "activity" && options.activityLabels ? options.activityLabels.showCounts === false ? undefined : activityNodeCounts(n, options.activityLabels, locale) : meta,
       hatched: shapes.some((s) => s.kind === "hatch"),
       reconnected: hasTag(n, RECONNECTED_TAG),
       badges: shapes.filter((s) => s.kind === "badge"),
@@ -225,6 +236,7 @@ export function prepareScene(graph: FlowGraph, givenPositions: Positions, option
   const routed: Positions = { ...positions, edges: Object.fromEntries(edges.map((e) => [e.edge.id, { points: e.points }])) };
   const hit = HitIndex.fromScene(routed, geometry);
   return {
+    activityLabels: options.activityLabels,
     graph,
     positions,
     scales,
