@@ -193,7 +193,12 @@ output. `importBpmn` reads supported BPMN 2.0 elements (tasks of all types,
 gateways, events, lanes, pools, expanded sub-processes as stages, sequence
 and message flows, annotations), reads positions from the DI and returns
 a task ↔ activity mapping table that `matchActivities` fills by id, label
-and alias and `applyMapping` applies to the graph.
+and alias and `applyMapping` applies to the graph. One vocabulary table
+(`vocabulary.ts`: event definitions, gateway types, event roles, loop
+marker, default flow, generated gateways) is read by export and import.
+The id resolver (`ids.ts`) converts between FlowGraph ids, BPMN ids and
+activity ids from the id map that import and export build and the mapping;
+it alone decides which ids name an element.
 
 `<BpmnView/>` hosts bpmn-js (navigated viewer, or the modeler) loaded on
 demand, and projects overlays through bpmn-js's overlays service (badges,
@@ -202,7 +207,8 @@ an SVG layer of the canvas (arcs and self-loops from the core's overlay
 geometry over the boxes of the element registry). Overlay datasets are
 replaced without re-importing, so the diagram and the viewport stay fixed;
 targets may be FlowGraph ids, BPMN ids or activity ids resolved through
-the mapping. Selection and hover callbacks report tasks, flows and lanes
+the mapping by the id resolver. Selection and hover callbacks, from the
+diagram and from the table alternative alike, report tasks, flows and lanes
 in FlowGraph ids for constraint authoring; the modeler's changes are saved
 and passed to `onChange`. The bpmn.io watermark stays.
 

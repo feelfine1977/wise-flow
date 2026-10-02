@@ -5,9 +5,11 @@
  * task ↔ activity mapping table that the caller fills by id and by label.
  */
 import { type Box, type EdgeRoute, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Metrics, type Positions, createPositions } from "../core/index.js";
-import type { IdMap } from "./export.js";
-import { GENERATED_TAG, gatewayLabel } from "./lite.js";
+import { type ActivityMapping, type ActivityRenaming, type IdMap, createIdMap, createIdResolver, registerId, renameToActivities } from "./ids.js";
 import { type ModdleElement, createModdle, flowIdOf, isType, tagOfType, wiseAttr } from "./moddle.js";
+import { BPMN_VOCABULARY as V, eventDefinitionTag, eventTags, gatewayTag, importedGatewayLabel } from "./vocabulary.js";
+
+export { mappingIndex } from "./ids.js";
 
 /** An activity the mapping can point at (canonical activity of a norm or a log label). */
 export interface ActivityRef {
@@ -54,16 +56,6 @@ export interface BpmnImport {
   processId?: string;
 }
 
-const EVENT_TAGS: [string, string][] = [
-  ["bpmn:TimerEventDefinition", "timer"],
-  ["bpmn:MessageEventDefinition", "message"],
-  ["bpmn:ErrorEventDefinition", "error"],
-  ["bpmn:SignalEventDefinition", "signal"],
-  ["bpmn:EscalationEventDefinition", "escalation"],
-  ["bpmn:TerminateEventDefinition", "terminate"],
-  ["bpmn:ConditionalEventDefinition", "conditional"],
-];
-
 function metricsOf(el: ModdleElement): Metrics | undefined {
   const ext = el.get("extensionElements") as ModdleElement | undefined;
   const values = (ext?.get("values") as ModdleElement[] | undefined) ?? [];
@@ -90,24 +82,18 @@ function tagsOf(el: ModdleElement, derived: string[]): string[] | undefined {
   return all.length ? all : undefined;
 }
 
-function nodeOf(el: ModdleElement, keepIds: boolean): FlowNode | undefined {
-  const id = keepIds ? flowIdOf(el) : String(el.id);
+function nodeOf(el: ModdleElement, id: string): FlowNode | undefined {
   const label = (el.get("name") as string | undefined) ?? (el.get("text") as string | undefined) ?? String(el.id ?? id);
   const storedKind = wiseAttr(el, "kind") as FlowNode["kind"] | undefined;
   const metrics = metricsOf(el);
   if (isType(el, "bpmn:Gateway")) {
-    const kind = isType(el, "bpmn:ParallelGateway") ? "and" : isType(el, "bpmn:InclusiveGateway") ? "or" : isType(el, "bpmn:EventBasedGateway") ? "eventBased" : isType(el, "bpmn:ComplexGateway") ? "complex" : "xor";
-    const tags = tagsOf(el, [kind]);
-    // Generated gateways are exported without a name; their label follows from the tags.
-    const generated = !el.get("name") && tags?.includes(GENERATED_TAG);
-    return { id, kind: storedKind ?? "gateway", label: generated ? gatewayLabel(tags) : label, metrics, tags };
+    const tags = tagsOf(el, [gatewayTag(el)]);
+    return { id, kind: storedKind ?? "gateway", label: importedGatewayLabel(el.get("name") as string | undefined, tags, label), metrics, tags };
   }
   if (isType(el, "bpmn:Event")) {
-    const role = isType(el, "bpmn:StartEvent") ? "start" : isType(el, "bpmn:EndEvent") ? "end" : isType(el, "bpmn:BoundaryEvent") ? "boundary" : "intermediate";
-    const derived = [role];
-    if (isType(el, "bpmn:IntermediateCatchEvent")) derived.push("catch");
+    const derived = eventTags(el);
     for (const d of (el.get("eventDefinitions") as ModdleElement[] | undefined) ?? []) {
-      const tag = EVENT_TAGS.find(([type]) => isType(d, type))?.[1];
+      const tag = eventDefinitionTag(d);
       if (tag) derived.push(tag);
     }
     return { id, kind: storedKind ?? "event", label, metrics, tags: tagsOf(el, derived) };
@@ -119,7 +105,7 @@ function nodeOf(el: ModdleElement, keepIds: boolean): FlowNode | undefined {
     const derived = ["task"];
     const tag = tagOfType(el.$type);
     if (tag !== "task") derived.push(tag);
-    if (el.get("loopCharacteristics")) derived.push("loop");
+    if (el.get("loopCharacteristics")) derived.push(V.loop[0]);
     return { id, kind: storedKind ?? "activity", label, metrics, tags: tagsOf(el, derived) };
   }
   return undefined;
@@ -140,25 +126,22 @@ export async function importBpmn(xml: string, options: ImportBpmnOptions = {}): 
   const nodes: FlowNode[] = [];
   const edges: FlowEdge[] = [];
   const groups: FlowGroup[] = [];
-  const ids: IdMap = { toBpmn: {}, toFlow: {} };
+  const ids = createIdMap();
   const elementNode = new Map<string, FlowNode>();
   const groupById = new Map<string, FlowGroup>();
   const mapping: MappingRow[] = [];
-  const bpmnIdOfNode = new Map<string, string>();
   let processId: string | undefined;
 
-  const register = (bpmnId: string, flowId: string) => {
-    ids.toBpmn[flowId] = bpmnId;
-    ids.toFlow[bpmnId] = flowId;
-  };
-  const groupIdOf = (el: ModdleElement) => (keepIds ? flowIdOf(el) : String(el.id));
+  const register = (bpmnId: string, flowId: string) => registerId(ids, bpmnId, flowId);
+  // The FlowGraph id an element gets: its own (`wise:flowId` or XML id), or the XML id without `keepIds`.
+  const idOf = (el: ModdleElement) => (keepIds ? flowIdOf(el) : String(el.id));
 
   // Pools: a participant with a process becomes a pool group.
   const poolOfProcess = new Map<string, string>();
   for (const root of (rootElement.get("rootElements") as ModdleElement[]) ?? []) {
     if (!isType(root, "bpmn:Collaboration")) continue;
     for (const p of (root.get("participants") as ModdleElement[]) ?? []) {
-      const gid = groupIdOf(p);
+      const gid = idOf(p);
       const g: FlowGroup = { id: gid, kind: "pool", label: (p.get("name") as string | undefined) ?? gid };
       groups.push(g);
       groupById.set(gid, g);
@@ -171,7 +154,7 @@ export async function importBpmn(xml: string, options: ImportBpmnOptions = {}): 
   const laneOfNode = new Map<string, string>();
   const readLanes = (laneSet: ModdleElement | undefined, parent: string | undefined) => {
     for (const lane of (laneSet?.get("lanes") as ModdleElement[] | undefined) ?? []) {
-      const gid = groupIdOf(lane);
+      const gid = idOf(lane);
       const kind = (wiseAttr(lane, "kind") as FlowGroup["kind"] | undefined) ?? "lane";
       const g: FlowGroup = { id: gid, kind, label: (lane.get("name") as string | undefined) ?? gid, parent };
       groups.push(g);
@@ -189,7 +172,7 @@ export async function importBpmn(xml: string, options: ImportBpmnOptions = {}): 
       if (isType(el, "bpmn:SequenceFlow")) continue;
       const expanded = isType(el, "bpmn:SubProcess") && ((el.get("flowElements") as ModdleElement[] | undefined)?.length ?? 0) > 0;
       if (expanded && (options.subProcesses ?? "stage") === "stage") {
-        const gid = groupIdOf(el);
+        const gid = idOf(el);
         const g: FlowGroup = { id: gid, kind: "stage", label: (el.get("name") as string | undefined) ?? gid, parent: laneOfNode.get(String(el.id)) ?? parentGroup };
         groups.push(g);
         groupById.set(gid, g);
@@ -197,12 +180,11 @@ export async function importBpmn(xml: string, options: ImportBpmnOptions = {}): 
         visit(el, gid);
         continue;
       }
-      const node = nodeOf(el, keepIds);
+      const node = nodeOf(el, idOf(el));
       if (!node) continue;
       node.group = laneOfNode.get(String(el.id)) ?? parentGroup;
       nodes.push(node);
       elementNode.set(String(el.id), node);
-      bpmnIdOfNode.set(node.id, String(el.id));
       register(String(el.id), node.id);
       if (isType(el, "bpmn:Activity")) {
         mapping.push({ taskId: String(el.id), nodeId: node.id, label: node.label, type: el.$type, lane: node.group });
@@ -210,7 +192,7 @@ export async function importBpmn(xml: string, options: ImportBpmnOptions = {}): 
     }
     for (const el of (container.get("artifacts") as ModdleElement[] | undefined) ?? []) {
       if (!isType(el, "bpmn:TextAnnotation")) continue;
-      const node = nodeOf(el, keepIds);
+      const node = nodeOf(el, idOf(el));
       if (!node) continue;
       node.group = parentGroup;
       nodes.push(node);
@@ -225,12 +207,12 @@ export async function importBpmn(xml: string, options: ImportBpmnOptions = {}): 
         warnings.push(`sequence flow ${el.id} has an endpoint that is not a flow node`);
         continue;
       }
-      const id = keepIds ? flowIdOf(el) : String(el.id);
+      const id = idOf(el);
       const derived: string[] = [];
       const sourceEl = el.get("sourceRef") as ModdleElement;
-      if ((sourceEl.get("default") as ModdleElement | undefined)?.id === el.id) derived.push("default");
+      if ((sourceEl.get("default") as ModdleElement | undefined)?.id === el.id) derived.push(V.defaultFlow);
       const condition = el.get("conditionExpression") as ModdleElement | undefined;
-      if (condition) derived.push("conditional");
+      if (condition) derived.push(V.conditionalFlow);
       const payload: Record<string, unknown> = { bpmnId: el.id };
       const name = el.get("name") as string | undefined;
       if (name) payload.label = name;
@@ -245,7 +227,7 @@ export async function importBpmn(xml: string, options: ImportBpmnOptions = {}): 
       const source = elementNode.get(String((el.get("sourceRef") as ModdleElement | undefined)?.id));
       const target = elementNode.get(String((el.get("targetRef") as ModdleElement | undefined)?.id));
       if (!source || !target) continue;
-      const id = keepIds ? flowIdOf(el) : String(el.id);
+      const id = idOf(el);
       edges.push({ id, kind: "flow", source: source.id, target: target.id, tags: ["association"], payload: { bpmnId: el.id } });
       register(String(el.id), id);
     }
@@ -263,7 +245,7 @@ export async function importBpmn(xml: string, options: ImportBpmnOptions = {}): 
       const source = elementNode.get(String((mf.get("sourceRef") as ModdleElement | undefined)?.id));
       const target = elementNode.get(String((mf.get("targetRef") as ModdleElement | undefined)?.id));
       if (!source || !target) continue;
-      const id = keepIds ? flowIdOf(mf) : String(mf.id);
+      const id = idOf(mf);
       edges.push({ id, kind: "flow", source: source.id, target: target.id, tags: ["message"], payload: { bpmnId: mf.id, label: mf.get("name") } });
       register(String(mf.id), id);
     }
@@ -308,13 +290,14 @@ export function positionsFromDi(definitions: ModdleElement, ids: IdMap): Positio
   const diagrams = (definitions.get("diagrams") as ModdleElement[] | undefined) ?? [];
   const plane = diagrams[0]?.get("plane") as ModdleElement | undefined;
   if (!plane) return undefined;
+  const resolver = createIdResolver({ ids });
   const nodes: Record<string, Box> = {};
   const groups: Record<string, Box> = {};
   const edges: Record<string, EdgeRoute> = {};
   for (const p of (plane.get("planeElement") as ModdleElement[] | undefined) ?? []) {
     const target = p.get("bpmnElement") as ModdleElement | undefined;
     if (!target?.id) continue;
-    const flowId = ids.toFlow[String(target.id)] ?? String(target.id);
+    const flowId = resolver.flowId(String(target.id));
     if (p.$type === "bpmndi:BPMNShape") {
       const b = p.get("bounds") as ModdleElement | undefined;
       if (!b) continue;
@@ -372,45 +355,21 @@ export function matchActivities(mapping: MappingRow[], activities: ActivityRef[]
   });
 }
 
-/** Mapping as a plain object: activity id → task node ids and the inverse. */
-export function mappingIndex(mapping: MappingRow[] | Record<string, string>): { toTasks: Record<string, string[]>; toActivity: Record<string, string> } {
-  const toTasks: Record<string, string[]> = {};
-  const toActivity: Record<string, string> = {};
-  const add = (task: string, activity: string) => {
-    (toTasks[activity] ??= []).push(task);
-    toActivity[task] = activity;
-  };
-  if (Array.isArray(mapping)) {
-    for (const row of mapping) if (row.activityId) add(row.nodeId, row.activityId);
-  } else {
-    for (const [activity, task] of Object.entries(mapping)) add(task, activity);
-  }
-  return { toTasks, toActivity };
-}
-
 /**
  * Rename the mapped tasks of an imported graph to their activity ids (the ids
  * overlays and statistics use), keeping the BPMN id in `meta.bpmnIds`. Unmapped
  * tasks keep their ids. When two tasks map to one activity the first keeps the
  * activity id and the others get `<activity>#2`, `#3`, so ids stay unique.
  */
-export function applyMapping(graph: FlowGraph, mapping: MappingRow[] | Record<string, string>): FlowGraph {
-  const { toActivity } = mappingIndex(mapping);
-  const rename = new Map<string, string>();
-  const used = new Set(graph.nodes.map((n) => n.id));
-  const taken = new Map<string, number>();
-  for (const n of graph.nodes) {
-    const activity = toActivity[n.id];
-    if (!activity || activity === n.id) continue;
-    const count = (taken.get(activity) ?? 0) + 1;
-    taken.set(activity, count);
-    let target = count === 1 ? activity : `${activity}#${count}`;
-    while (used.has(target) && target !== n.id) target = `${target}_`;
-    used.add(target);
-    rename.set(n.id, target);
-  }
+export function applyMapping(graph: FlowGraph, mapping: ActivityMapping): FlowGraph {
+  return applyRenaming(graph, renameToActivities(graph.nodes.map((n) => n.id), createIdResolver({ mapping })));
+}
+
+/** Apply a renaming of node ids to a graph, as `applyMapping` does. */
+export function applyRenaming(graph: FlowGraph, renaming: ActivityRenaming): FlowGraph {
+  const rename = renaming.renamed;
   if (!rename.size) return graph;
-  const r = (id: string) => rename.get(id) ?? id;
+  const r = renaming.toMapped;
   return {
     ...graph,
     nodes: graph.nodes.map((n) => (rename.has(n.id) ? { ...n, id: r(n.id) } : n)),
