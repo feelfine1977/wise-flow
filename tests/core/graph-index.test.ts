@@ -148,4 +148,14 @@ describe("members of a nested group", () => {
     expect(ids(lanes)).toEqual(["front", "back"]);
     expect(Object.fromEntries(laneAssignment(g, lanes))).toEqual({ x: "front", y: "back" });
   });
+
+  it("put nodes into a given lane that their group names as parent but the graph does not hold", () => {
+    const g: FlowGraph = {
+      nodes: [{ id: "x", kind: "activity", label: "X", group: "team" }],
+      edges: [],
+      groups: [{ id: "team", kind: "lane", label: "Team", parent: "back" }],
+    };
+    const lanes = [{ id: "front", kind: "lane", label: "Front" }, { id: "back", kind: "lane", label: "Back" }] as const;
+    expect(Object.fromEntries(laneAssignment(g, [...lanes]))).toEqual({ x: "back" });
+  });
 });

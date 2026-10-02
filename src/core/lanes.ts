@@ -55,8 +55,13 @@ export function laneAssignment(graph: FlowGraph, lanes: FlowGroup[]): Map<string
   const laneIds = new Set(lanes.map((l) => l.id));
   const byLabel = new Map(lanes.map((l) => [l.label.toLowerCase(), l.id]));
   const idx = indexGraph(graph);
-  const onChain = (n: FlowNode): string | undefined =>
-    n.group === undefined ? undefined : laneIds.has(n.group) ? n.group : idx.ancestors(n.group, "group").find((g) => laneIds.has(g.id))?.id;
+  // The group, its ancestors and the parent the chain ends at: a given lane need not be one of the graph's groups.
+  const onChain = (n: FlowNode): string | undefined => {
+    if (!n.group) return undefined;
+    const own = idx.groups.get(n.group);
+    const chain = own ? [own, ...idx.ancestors(own.id, "group")] : [];
+    return [n.group, ...chain.map((g) => g.parent)].find((id) => id !== undefined && laneIds.has(id));
+  };
   const fromTag = (n: FlowNode): string | undefined => {
     for (const tag of n.tags ?? []) {
       const m = /^(?:lane|role):(.+)$/.exec(tag);
