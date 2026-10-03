@@ -158,6 +158,9 @@ describe("ProcessMap announcements", () => {
     expect(live()).toBe("Selected: Receive and Pay.");
     again({ selection: { nodes: ["a", "c"], edges: [], groups: [] }, focus: "a" });
     expect(live()).toBe("Paths of Receive are shown; unrelated activities are dimmed.");
+    // Clearing the focus says nothing, and the selection it was announced with is not announced again.
+    again({ selection: { nodes: ["a", "c"], edges: [], groups: [] }, focus: null });
+    expect(live()).toBe("Paths of Receive are shown; unrelated activities are dimmed.");
   });
 
   it("announces the host's text over a focus that arrives with it", async () => {
