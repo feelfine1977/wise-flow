@@ -91,8 +91,9 @@ layout, and their visibility by zoom level. Overlays are drawn in a
 canonical order so that exports do not depend on input order. The scene
 carries one resolved mark per placed overlay (box or path, fill, stroke,
 dash, arrowhead, texts, layer, zoom threshold, whether it is drawn on the
-map); the SVG export and the Canvas drawing map those primitives to their
-output.
+map); one mapping turns a mark into SVG elements, which the SVG export
+writes and the React map and the BPMN view create in the DOM, and the Canvas
+drawing maps the same primitives to 2D calls.
 
 ### 2.6 Hit-testing and export
 An R-tree (rbush) over nodes, groups, edge segments and overlay shapes for
@@ -111,9 +112,11 @@ restricted to the shown graph, lanes, manual moves, overlays, scales,
 level-of-detail rules and geometry; in Canvas mode the same scene becomes the
 Canvas map's retained geometry. Thin mapping to React Flow nodes and edges
 with custom components per node and edge kind; groups as parent nodes;
-badges, hatching, chips and tints inside the node components, arcs and
-self-loops in an SVG layer in the viewport; edge labels and node details
-toggled through level-of-detail classes on the container. Abstraction controls (activities, paths, stage
+the scene's overlay marks drawn by the node and group components that carry
+them (badges, hatching, chips at their boxes, each from its zoom; tints as
+background layers) and by an SVG layer in the viewport (arcs, self-loops);
+edge labels and node details toggled through level-of-detail classes on the
+container. Abstraction controls (activities, paths, stage
 view, keep connected, table view) in a panel; the legend always visible.
 Keyboard navigation over activities (arrow keys; Alt with an arrow key
 along the paths; Space selects; Enter opens the actions menu; Shift with
@@ -215,9 +218,10 @@ activity ids from the id map that import and export build and the mapping;
 it alone decides which ids name an element.
 
 `<BpmnView/>` hosts bpmn-js (navigated viewer, or the modeler) loaded on
-demand, and projects overlays through bpmn-js's overlays service (badges,
-tints, hatching and chips as HTML overlays that follow their shapes) and
-an SVG layer of the canvas (arcs and self-loops). The core scene
+demand, and projects the scene's overlay marks through bpmn-js's overlays
+service (boxes such as badges, tints, hatching and chips, as overlays that
+follow their shapes) and an SVG layer of the canvas (paths: arcs and
+self-loops), with the same SVG elements as the map. The core scene
 (`buildScene`) over the imported graph and the boxes of the element registry
 orders the overlays, sets the level of detail and places them. Overlay
 datasets are replaced without re-importing, so the diagram and the viewport

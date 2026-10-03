@@ -315,6 +315,39 @@ region. `renderer: "auto"` draws on the Canvas renderer above
 Stylesheets: `@wise/flow/tokens.css` (design tokens, light and dark),
 `@wise/flow/style.css` (components) and `@xyflow/react/dist/style.css`.
 
+Overlays on the map are drawn from the scene's marks (see "Scene"). A node or
+group draws the marks it carries (badges, chips, hatching) inside itself, at
+the boxes the core gives them, each from its `minZoom`, and the marks that
+cover it (tints) as background layers; `<OverlayLayer/>` draws the marks that
+run between elements (arcs, self-loops) in flow coordinates; the legend lists
+map-level chips. The stylesheet holds only the layout of these drawings; it no
+longer positions or colours badges and chips itself.
+
+```ts
+export interface OverlayLayerProps { marks?: OverlayMark[]; shapes?: OverlayShape[]; locale: Locale; zoom?: number;
+  /** @deprecated */ showArcs?: boolean; /** @deprecated */ showSelfLoops?: boolean;
+  hoveredId: string | null; onHover?: (id: string | null) => void; onSelect?: (shape: OverlayShape) => void }
+// ActivityNodeData and GroupNodeData also carry:
+//   tint?: string        CSS background layers of the marks that cover the element
+//   marks?: OverlayMark[] the marks the element carries, in scene coordinates
+//   origin?: XY          the top-left corner of the element's box in scene coordinates
+// ActivityNodeData.badges and GroupNodeData.chips are deprecated: the map no longer draws from them.
+export function Badges(props: { badges: Overlay[]; locale: Locale }): JSX.Element | null; // SVG, from the top-right corner
+export function Chip(props: { chip: Overlay; locale: Locale }): JSX.Element | null;       // SVG, at the size of its mark
+```
+
+`<OverlayLayer/>` draws the given `marks` (or the marks of `shapes`) that are
+on the map and above the nodes, each from its `minZoom` when `zoom` is given;
+`onSelect` receives the shape of a clicked mark. `showArcs` and
+`showSelfLoops` are deprecated: without `zoom` the layer keeps its former
+behaviour and draws only arcs (with `showArcs`) and self-loops (with
+`showSelfLoops`, observed ones always). `ActivityNodeData.badges` and
+`GroupNodeData.chips` are still filled but deprecated; custom node types
+should draw `marks` instead. `<Badges/>` and `<Chip/>` now draw SVG from the
+marks the core resolves for the overlays: badges extend left from the
+top-right corner of the element they are placed in, a chip has the size of
+its mark.
+
 ## Contract rules
 
 Ids are opaque and stable; all numbers arrive pre-aggregated; every
@@ -478,9 +511,14 @@ accepts like any other positions.
 `<BpmnView/>` behaviour: bpmn-js is loaded on demand (NavigatedViewer, or
 Modeler with `mode="model"`); XML is imported once per `xml` value and the
 viewport fitted (and refitted when the container resizes until a navigation control is used); overlays are
-projected through bpmn-js's overlays service (badges, tints, hatching,
-chips as HTML overlays following the shapes; arcs and self-loops drawn
-into an SVG layer of the canvas) and are replaced without touching the
+projected from the scene's marks: a mark with a path (arcs, self-loops) goes
+into an SVG layer of the canvas; a box (badges, tints, hatching, chips) becomes
+a bpmn-js overlay on the element it names, at the offset of its box, holding
+the mark's SVG elements in an element classed `wf-<kind>` (marks below the
+edges also `wf-mark--below`, multiplied onto the shape; the element gets the
+marker `wf-bpmn--<kind>`, and hatched ones a dashed outline). Marks with text
+scale between 0.8 and 1.2, covers with the diagram; each is shown from its
+`minZoom`. Chips show what the map's chips show. Overlays are replaced without touching the
 diagram or the viewport when `overlays` change; overlay targets may be
 FlowGraph ids, BPMN ids or activity ids translated through `mapping`.
 Order, level of detail and geometry come from `buildScene` over the imported
@@ -875,20 +913,30 @@ export function buildScene(g: FlowGraph, p: Positions, o?: FlowSceneOptions): Fl
 export function followsSelfLoops(g: FlowGraph, o?: { locale?: Locale; observed?: { caseLabel?: string } }): Overlay[];
 export function withFollowsSelfLoops(g: FlowGraph, overlays: Overlay[], o?: { locale?; observed? }): Overlay[];
 
-export type MarkPaint = "ink" | "paper" | "outOfScope" | "value" | "onValue";
+export type MarkPaint = "ink" | "paper" | "line" | "outOfScope" | "value" | "onValue";
 export interface MarkFill { paint: MarkPaint; pattern?: "outOfScope"; opacity?: number }
 export interface MarkStroke { paint: MarkPaint; width: number; opacity?: number; dash?: number[] }
 export interface MarkText { text: string; x: number; y: number; size: number; weight?: number; anchor: "start" | "middle";
-  baseline: "middle" | "alphabetic"; paint: MarkPaint; halo: boolean; maxWidth?: number }
+  baseline: "middle" | "alphabetic"; paint: MarkPaint; halo: boolean; maxWidth?: number; lead?: string }
+export interface MarkGauge { x: number; y: number; width: number; height: number; value: number; threshold: number } // shares 0–1
 export interface OverlayMark { id: string; kind: OverlayKind; overlay: Overlay; box: Box; layer: "below" | "above"; inMap: boolean;
   minZoom: number; color: string; onColor: string; title: string; radius: number; path?: string; fill?: MarkFill;
-  stroke?: MarkStroke; arrow?: { size: number; overhang: number }; texts: MarkText[]; edgeId?: string }
+  stroke?: MarkStroke; arrow?: { size: number; overhang: number }; texts: MarkText[]; gauge?: MarkGauge; edgeId?: string }
 export function overlayMarks(shapes: OverlayShape[], locale?: Locale): OverlayMark[];
 export function overlayColor(o: Overlay): string;           // value on the sequential palette, neutral without one
 export function tintColor(o: Overlay): string | undefined;  // the same colour at TINT_OPACITY, as CSS rgba()
 export function arcWidth(o: Overlay): number;               // 2 + 8 × coverage (default 1)
 export const TINT_OPACITY: number;                          // 0.18
 export const overlayArrow: { size: number; overhang: number }; // 12, tip 0.1 × size beyond the path
+export const chipLayout: { padding: 8; glyph: 12.4; gauge: 46; gaugeWidth: 40; gaugeHeight: 6; char: 6.2 };
+export function chipText(o: Overlay, locale?: Locale): { lead?: string; text: string }; // "label: " and text or share
+
+export interface SvgElement { tag: string; attrs: [string, string][]; children: (SvgElement | string)[] }
+export interface MarkSvgOptions { paint(mark: OverlayMark, paint: MarkPaint): string; arrowId: string; patternId: string }
+export function markSvg(m: OverlayMark, o: MarkSvgOptions): SvgElement;  // the <g> that draws one mark
+export function svgMarkup(e: SvgElement | string): string;
+export function fitText(text: string, maxWidth?: number): string;         // about 6.2 px per character, with an ellipsis
+export function fitLead(t: MarkText, fit: (text: string) => string): { lead: string; text: string };
 ```
 
 `buildScene` resolves a graph and its positions once into what a renderer
@@ -923,6 +971,25 @@ and decide nothing by overlay kind. The rules behind the marks exist once:
 long and 12 wide whose tip reaches 1.2 beyond the end of the path, the live
 map's arrowhead), and the kind order in `canonicalOverlays`. `bounds` covers
 the positions and the marks drawn on the map; map-level chips do not count.
+
+A chip's mark shows what the live map's chip shows: its glyph, a gauge when
+the overlay has one (`gauge`: a track in the `line` colour, the mean's share
+of threshold + width filled in the value colour, an ink tick at the
+threshold), and its text after its label as a bold `lead` (`chipText`: the
+overlay's `text`, or its share without one). `chipLayout` holds the widths
+the chip's box is sized and laid out with; `fixedColors.line` is the line
+colour of exports.
+
+`markSvg` turns a mark into SVG elements: a group with a title, the path or
+the rounded box, the gauge and the texts (a lead as a bold `tspan`; text cut
+to `maxWidth` with `fitText`, about 6.2 px per character). The paint roles
+are resolved by `o.paint` and the arrowhead and hatching refer to
+`o.arrowId` and `o.patternId`. `toSVG` writes these elements with
+`svgMarkup`; `<ProcessMap/>`, `<OverlayLayer/>` and `<BpmnView/>` create the
+same elements in the DOM with the theme's CSS variables as paints (in the
+`style` attribute, since presentation attributes cannot hold variables), and
+the Canvas drawing maps the same primitives to 2D calls. None of them decides
+anything by overlay kind.
 
 `<ProcessMap/>` reads the same scene: one scene per graph, positions and
 options gives its bands, scales, overlays, level-of-detail rules and overlay
