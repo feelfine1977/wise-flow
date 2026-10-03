@@ -14,7 +14,7 @@ skipped. Branch protection is a repository setting, not something YAML enables.
 
 | Lane | Executable checks | What it establishes |
 | --- | --- | --- |
-| Static and architecture | `lint`, `typecheck`, `check:architecture`, `check:workflows`, `test:tooling`, production `npm audit` | Strict source types; headless imports cannot reach React/renderers; YAML/policy validation; regression checks for the checkers; no known high/critical production advisory. |
+| Static and architecture | `lint`, `typecheck`, `check:architecture`, `check:workflows`, `test:tooling`, production `npm audit` | Strict source types; headless imports cannot reach React/renderers; the BPMN bridge's modules other than its entry point load neither React nor bpmn-js eagerly, and Node tests do not import the entry point or React; YAML/policy validation; regression checks for the checkers; no known high/critical production advisory. |
 | Unit/component, Node 22 and 24 | `test:coverage` | Synthetic graph invariants, deterministic behavior, interaction callbacks and lifecycle. Both lanes enforce whole-source coverage. |
 | Installed package | Node 22 + React 18.3.1 + Chromium; Node 24 + React 19.2.8 + Chromium/Firefox/WebKit | A fresh consumer installs the actual tarball. Tests Node ESM/headless imports, both layout engines, BPMN round trip, strict NodeNext declarations, production bundling, worker/fonts/CSS, viewer/modeler and selection lifecycle. |
 | Browser accessibility | Production Storybook build, `test:browser` | Axe WCAG A/AA checks on graph and timeline tables, plus keyboard selection of a graph-table row. |

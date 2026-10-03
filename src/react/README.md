@@ -12,7 +12,7 @@ and `bpmn-js/dist/assets/bpmn-font/css/bpmn.css`.
 | `PathList.tsx` | `<PathList/>`: incoming and outgoing paths of an activity or the path between two activities, sortable, totals, row selection |
 | `FilterChips.tsx` | `<FilterChips/>`: one chip per filter clause with cases in and out, marginal removal, "changes cases", removal and clear |
 | `CanvasMap.tsx` | `<CanvasMap/>`: host of the Canvas renderer (pan, zoom, hover tooltip, click, right click, hidden element list, zoom buttons) |
-| `BpmnView.tsx` | `<BpmnView/>`: bpmn-js viewer or modeler host, overlays through the overlays service and an SVG layer, dataset switching on a fixed diagram, selection and hover callbacks, controlled selection, `onChange` after edits, table alternative, legend, ARIA, refit on resize |
+| `BpmnView.tsx` | `<BpmnView/>` (and `createBpmnView`, the same view on another adapter of the viewer seam, for tests): bpmn-js viewer or modeler host, overlays through the overlays service and an SVG layer, dataset switching on a fixed diagram, selection and hover callbacks, controlled selection, `onChange` after edits, table alternative, legend, ARIA, refit on resize |
 | `ViewSwitcher.tsx` | `<ViewSwitcher/>`: named views of one map as tabs or as a grid of small multiples with shared scales |
 | `nodes.tsx` | activity, stage, gateway, event, note and group node components (groups also as lane bands); badges and chips |
 | `edges.tsx` | follows / constraint / flow edge component on the layout routes |
