@@ -103,9 +103,9 @@ export function createBpmnView(connect: ConnectViewer) {
     } = props;
 
     const containerRef = useRef<HTMLDivElement>(null);
+    // The viewer as state re-runs the effects that use it; the ref is cleared as soon as it is destroyed.
     const [viewer, setViewer] = useState<BpmnViewer | null>(null);
-    const viewerRef = useRef(viewer);
-    viewerRef.current = viewer;
+    const viewerRef = useRef<BpmnViewer | null>(null);
     // The element registry, read again after every import, change and save.
     const [elements, setElements] = useState<RegistryElement[]>([]);
     // Markers the overlays put on elements, removed before the next projection.
@@ -249,6 +249,7 @@ export function createBpmnView(connect: ConnectViewer) {
             observer = new ResizeObserver(onResize);
             observer.observe(container);
           }
+          viewerRef.current = v;
           setViewer(v);
         })
         .catch((e: Error) => {
@@ -262,6 +263,7 @@ export function createBpmnView(connect: ConnectViewer) {
         if (changeFrame !== undefined) window.cancelAnimationFrame(changeFrame);
         observer?.disconnect();
         importedRef.current = false;
+        viewerRef.current = null;
         setViewer(null);
         for (const off of offs) off();
         current?.destroy();
@@ -270,7 +272,7 @@ export function createBpmnView(connect: ConnectViewer) {
 
     // 4. Import the XML into the viewer; an XML that the modeler itself produced is not re-imported.
     useEffect(() => {
-      if (!viewer || !xml) return;
+      if (!viewer || viewer !== viewerRef.current || !xml) return;
       if (savedXml.current !== undefined && xml === savedXml.current) return;
       let live = true;
       setStatus("loading");
@@ -314,7 +316,7 @@ export function createBpmnView(connect: ConnectViewer) {
 
     // 5. Project the overlays onto the diagram. The diagram is not touched; only overlays change.
     useEffect(() => {
-      if (!viewer || status !== "ready") return;
+      if (!viewer || viewer !== viewerRef.current || status !== "ready") return;
       viewer.clearOverlays();
       const layer = viewer.layer();
       layer.replaceChildren();
@@ -361,7 +363,7 @@ export function createBpmnView(connect: ConnectViewer) {
 
     // 6. Controlled selection: applied to the diagram when it differs from what the diagram reported.
     useEffect(() => {
-      if (!viewer || status !== "ready" || props.selection === undefined) return;
+      if (!viewer || viewer !== viewerRef.current || status !== "ready" || props.selection === undefined) return;
       const key = JSON.stringify(props.selection);
       if (key === lastEmitted.current) return;
       const { tasks, flows, lanes } = props.selection;

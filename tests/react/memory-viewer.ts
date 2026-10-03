@@ -136,10 +136,18 @@ export function memoryViewers(settings: MemoryViewerOptions = {}) {
         return found;
       },
       destroy() {
-        viewer.destroyed = true;
         viewer.select([]);
+        viewer.destroyed = true;
       },
     };
+    // Like bpmn-js, a destroyed viewer has no services left; only unsubscribing still works.
+    for (const name of ["importXML", "saveXML", "saveSVG", "elements", "selected", "select", "addOverlay", "clearOverlays", "layer", "addMarker", "removeMarker", "zoom", "viewbox", "resized", "on"] as const) {
+      const method = viewer[name] as (...args: unknown[]) => unknown;
+      (viewer as unknown as Record<string, unknown>)[name] = (...args: unknown[]) => {
+        if (viewer.destroyed) throw new Error(`${name} on a destroyed viewer`);
+        return method(...args);
+      };
+    }
     instances.push(viewer);
     return viewer;
   };
