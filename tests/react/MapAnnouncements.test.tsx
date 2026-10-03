@@ -95,6 +95,27 @@ describe("ProcessMap announcements", () => {
     expect(live()).toBe("Selected: Pay. Actions menu for Pay opened; 7 actions.");
   });
 
+  it("announces a selection only once a controlling host takes it", async () => {
+    const onSelect = vi.fn();
+    const { container, rerender } = await renderMap(<ProcessMap graph={graph} positions={positions} fitView={false} selection={emptySelection} onSelect={onSelect} />);
+    fireEvent.click(container.querySelector('[data-id="b"]')!);
+    expect(onSelect).toHaveBeenLastCalledWith({ nodes: ["b"], edges: [], groups: [] });
+    expect(live()).toBe("");
+    const map = screen.getByRole("group", { name: /Process map with/ });
+    fireEvent.keyDown(map, { key: "ArrowLeft", shiftKey: true });
+    expect(onSelect).toHaveBeenLastCalledWith({ nodes: ["a"], edges: [], groups: [] });
+    fireEvent.keyDown(map, { key: " " });
+    expect(onSelect).toHaveBeenLastCalledWith({ nodes: ["a"], edges: [], groups: [] });
+    expect(live()).toBe("");
+
+    rerender(
+      <div style={{ width: 900, height: 500 }}>
+        <ProcessMap graph={graph} positions={positions} fitView={false} selection={{ nodes: ["a"], edges: [], groups: [] }} onSelect={onSelect} />
+      </div>,
+    );
+    expect(live()).toBe("Selected: Receive.");
+  });
+
   it("announces a selection and a focus the host sets", async () => {
     const { rerender } = await renderMap(<ProcessMap graph={graph} positions={positions} fitView={false} selection={emptySelection} />);
     expect(live()).toBe("");

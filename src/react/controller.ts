@@ -25,7 +25,8 @@ export interface MapController {
  * `selection`, `focus`, `abstraction` and `view` are controlled when their
  * prop is given and internal otherwise; either way the callbacks report every
  * change. Selection and focus changes the controller did not make (the host's)
- * are announced like its own.
+ * are announced like its own; a change the controller asks a controlling host
+ * for is announced when the host takes it.
  */
 export function useMapController(props: ControlledProps): MapController {
   const [inner, setInner] = useState<MapState>(() => initialMapState({ focus: props.defaultFocus, abstraction: props.defaultAbstraction ?? {} }));
@@ -54,8 +55,14 @@ export function useMapController(props: ControlledProps): MapController {
     const result = mapStep(previous, event, context.current);
     const next = result.state;
     latest.current = next;
-    known.current = { selection: next.selection, focus: next.focus };
     const p = propsRef.current;
+    // A sentence the step derived from a selection or focus change waits for a controlling host to
+    // take that change (the effect below announces it then); the step's own sentences do not.
+    const taken = { selection: p.selection === undefined ? next.selection : previous.selection, focus: p.focus === undefined ? next.focus : previous.focus };
+    const { graph, locale } = context.current;
+    const derived = result.announcement !== undefined && result.announcement === announceChange(previous, next, graph, locale);
+    const announcement = derived ? announceChange(previous, { ...taken, menu: next.menu }, graph, locale) : result.announcement;
+    known.current = derived ? taken : { selection: next.selection, focus: next.focus };
     const changed = (Object.keys(next) as (keyof MapState)[]).some((key) => next[key] !== previous[key]);
     if (changed) setInner((current) => ({
       ...next,
@@ -64,7 +71,7 @@ export function useMapController(props: ControlledProps): MapController {
       abstraction: p.abstraction === undefined ? next.abstraction : current.abstraction,
       view: p.view === undefined ? next.view : current.view,
     }));
-    if (result.announcement !== undefined) setLive(result.announcement);
+    if (announcement !== undefined) setLive(announcement);
     for (const intent of result.intents) {
       if (intent.kind === "select") p.onSelect?.(intent.selection);
       else if (intent.kind === "focus") p.onFocusChange?.(intent.focus);
