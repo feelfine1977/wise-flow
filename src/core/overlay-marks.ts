@@ -6,11 +6,11 @@ import type { OverlayShape } from "./overlay-geometry.js";
 import { colorOn, contrastText, fixedColors, hexToRgb } from "./style.js";
 
 /**
- * A colour by role. `ink`, `paper` and `outOfScope` are tokens the renderer
- * resolves (and may theme); `value` is the mark's `color` and `onValue` the
- * text colour on it.
+ * A colour by role. `ink`, `inkMuted`, `paper`, `surface` and `outOfScope`
+ * are tokens the renderer resolves (and may theme); `value` is the mark's
+ * `color` and `onValue` the text colour on it.
  */
-export type MarkPaint = "ink" | "paper" | "outOfScope" | "value" | "onValue";
+export type MarkPaint = "ink" | "inkMuted" | "paper" | "surface" | "outOfScope" | "value" | "onValue";
 
 export interface MarkFill {
   paint: MarkPaint;
@@ -32,7 +32,7 @@ export interface MarkText {
   y: number;
   size: number;
   weight?: number;
-  anchor: "start" | "middle";
+  anchor: "start" | "middle" | "end";
   /** `middle`: `y` is the middle of the text; `alphabetic`: `y` is its baseline. */
   baseline: "middle" | "alphabetic";
   paint: MarkPaint;

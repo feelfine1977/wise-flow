@@ -35,16 +35,22 @@ const observed: Variant = {
  * by element, that step changed only: the overlay arrowhead marker (12 px, as on
  * the map), the hatch fill (opacity 0.55, no outline), chip text 0.5 px higher,
  * and the figure size, map offset and activity key position, because map-level
- * chips no longer count towards the bounds.
+ * chips no longer count towards the bounds. Recorded once more when `toSVG`
+ * began to draw the scene's node and edge marks; compared element by element,
+ * only text elements changed: node labels 2 px further in and on the Canvas
+ * baseline (0.4 px higher), stage labels semibold, counts in the muted ink and
+ * a stage's members before its cases, event labels inside the circle at 9 px,
+ * edge counts at half the route's length, and labels, legend rows and chips
+ * shortened by the core rule (0.55 em per character).
  */
 const before: Record<string, string> = {
-  overlays: "9e31133ffdd4e83783a7535895730d600c676c9b72f75167ed6bb63619ac8457",
-  stagesGerman: "2f298599d6acbdfe2f858942933947804d8d2b5d383227cfc44c91b36975984f",
-  vendor: "b8f55bd86d60ee5b17b55fad058382403444d4807c852c4debc2463d8a52b197",
-  unfiltered: "43ad5e8e19c7cb3ef5589df193cb68b1de99ab71324c585b9935590a4b2ff354",
-  plain: "d1137235b74f70c6149763eea0c6897255e1a3414c00f5246cbee1763c2ff1fa",
+  overlays: "a2d8221136d7642a8a8c5245cfdc64f23156f2b3a4f8f7ddffc4bcaefde6573f",
+  stagesGerman: "3766ab9e462bfca76616d110d8a82ecf5d3b6aca11ff26a550fd63338657a62e",
+  vendor: "86e93dcb673692e4c2b90216063cf528475ab4cef0a90ee699ef0ea16cc36d9e",
+  unfiltered: "abe3788279b5ee3dcfea87e9bea4129060bcafca0b02574e4b4058b53c4029ed",
+  plain: "088f5e3a5efd5a4b956dff4e6fc7e913d6a2f868362b34a0ca8537aae455c7d8",
 };
-const beforeObserved = "99d2b38af6014a43290ec55cb40f8444dc3b698d28b25bdf8ccbfbb749dda602";
+const beforeObserved = "ba5d956e3eab38fa9aee73054bc3ad18400f0412a8a5376eed3800aa16b3a199";
 
 describe("toSVG on the committed fixtures", () => {
   it("matches the recorded output once follows self-loops are hidden", () => {

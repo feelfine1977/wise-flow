@@ -1,9 +1,11 @@
 /**
  * The scene every renderer reads: a graph with its positions resolved once
  * into activity references, lane bands, scales, the overlays to show in their
- * canonical order, level-of-detail rules and overlay geometry.
+ * canonical order, level-of-detail rules, overlay geometry and the marks
+ * that say what every node, edge and overlay looks like.
  */
 import { type ActivityLabelOptions, activityReferences } from "./activity-labels.js";
+import { type EdgeMark, type NodeMark, edgeMarks, nodeMarks } from "./element-marks.js";
 import type { Locale } from "./format.js";
 import { type Box, type Positions, type XY, unionBoxes } from "./layout.js";
 import { type LaneBand, type LaneMode, laneBands } from "./lanes.js";
@@ -60,6 +62,10 @@ export interface FlowScene {
   geometry: OverlayGeometry;
   /** What each shape of the geometry looks like, one mark per shape in the same order. */
   marks: OverlayMark[];
+  /** What each placed node looks like, in the graph's order. */
+  nodeMarks: NodeMark[];
+  /** What each edge between two placed nodes looks like, in the graph's order; not the edges from a node to itself. */
+  edgeMarks: EdgeMark[];
   /** Union of the positions' bounds and the marks drawn on the map. */
   bounds: Box;
 }
@@ -83,6 +89,7 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
   const lod = options.lodBySize ? lodForSize(graph.nodes.length, rules) : { ...defaultLod, ...rules };
   const geometry = placeOverlays(overlays, positions, { ...(options.overlayGeometry ?? {}), lod });
   const marks = overlayMarks(geometry.shapes, locale);
+  const scales = buildScales(graph, style);
   return {
     graph,
     positions,
@@ -90,11 +97,13 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
     activityLabels,
     locale,
     style,
-    scales: buildScales(graph, style),
+    scales,
     overlays,
     lod,
     geometry,
     marks,
+    nodeMarks: nodeMarks(graph, positions, scales, { locale, activityLabels }),
+    edgeMarks: edgeMarks(graph, positions, scales, locale),
     bounds: unionBoxes([positions.bounds, ...marks.filter((m) => m.inMap).map((m) => m.box)]),
   };
 }
