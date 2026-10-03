@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type FlowGraph, type MenuAction, type Positions } from "../../src/index";
-import { type MapContext, type MapEvent, type MapState, announceChange, initialMapState, mapStep } from "../../src/core/map-controller";
+import { type MapContext, type MapEvent, type MapState, announceChange, initialMapState, mapEmphasis, mapStep, menuHeading, menuKey } from "../../src/core/map-controller";
 
 // A ─→ B ─→ D, A ─→ C ─→ D; B loops on itself; a constraint arc A → D.
 //
@@ -35,7 +35,7 @@ const positions: Positions = {
 const context: MapContext = { graph, positions, locale: "en", stages: ["s1", "s2"] };
 const sel = (nodes: string[] = [], edges: string[] = [], groups: string[] = []) => ({ nodes, edges, groups });
 const state = (change: Partial<MapState> = {}) => initialMapState(change);
-const key = (k: string, mod: { shiftKey?: boolean; altKey?: boolean } = {}): MapEvent => ({ type: "key", key: k, ...mod });
+const key = (k: string, mod: { shiftKey?: boolean; altKey?: boolean; ctrlKey?: boolean; metaKey?: boolean } = {}): MapEvent => ({ type: "key", key: k, ...mod });
 const step = (s: MapState, event: MapEvent, ctx: Partial<MapContext> = {}) => mapStep(s, event, { ...context, ...ctx });
 const at = { x: 10, y: 20 };
 
@@ -283,5 +283,144 @@ describe("map controller: menu and announcements", () => {
     expect(step(state({ abstraction: { collapse: ["s1"] } }), { type: "collapse", group: "s1", collapsed: true }).state.abstraction.collapse).toEqual(["s1"]);
     expect(step(state(), { type: "setAbstraction", abstraction: { minEdgeShare: 0.2 } })).toMatchObject({ state: { abstraction: { minEdgeShare: 0.2 } }, intents: [{ kind: "abstraction" }] });
     expect(step(state(), { type: "setView", view: "table" })).toMatchObject({ state: { view: "table" }, intents: [{ kind: "view", view: "table" }] });
+  });
+});
+
+describe("map controller: the actions menu", () => {
+  // Entries 0 and 3 are disabled: the keyboard moves over 1, 2 and 4.
+  const actions: MenuAction[] = [
+    { id: "filter-to", label: "Filter", group: "filter", accelerator: "f", disabled: true },
+    { id: "paths", label: "Paths", group: "explore", accelerator: "i" },
+    { id: "lens", label: "Lens", group: "explore", accelerator: "l" },
+    { id: "exclude", label: "Exclude", group: "filter", accelerator: "x", disabled: true },
+    { id: "pin", label: "Pin", group: "compare", accelerator: "P" },
+  ];
+  const open = (s: MapState = state({ active: "b" })) => step(s, { type: "openMenu", element: { kind: "node", id: "b" }, at }, { actions: () => actions }).state;
+  const target = { kind: "node", id: "b", ids: ["b"], label: "B", nodeKind: "activity" };
+
+  it("opens with the keyboard on the first enabled entry", () => {
+    expect(open().menu?.active).toBe(1);
+    expect(step(state(), { type: "openMenu", element: { kind: "node", id: "b" }, at }, { actions: () => [actions[0]] }).state.menu?.active).toBe(0);
+  });
+
+  it("moves over the enabled entries with the arrow keys, Home, End and the pointer, while the map's keyboard stays", () => {
+    let s = open();
+    const path: [string, number][] = [
+      ["ArrowDown", 2],
+      ["ArrowDown", 4], // over the disabled 3
+      ["ArrowDown", 1], // wraps past the disabled 0
+      ["ArrowUp", 4],
+      ["Home", 1],
+      ["End", 4],
+    ];
+    for (const [k, to] of path) {
+      const r = step(s, key(k));
+      expect(r, k).toMatchObject({ handled: true, intents: [] });
+      expect(r.announcement).toBeUndefined();
+      expect(r.state.menu?.active, k).toBe(to);
+      expect(r.state.active).toBe("b");
+      s = r.state;
+    }
+    expect(step(s, { type: "pointMenu", index: 2 }).state.menu?.active).toBe(2);
+    expect(step(s, { type: "pointMenu", index: 3 }).state).toBe(s);
+    expect(step(s, { type: "pointMenu", index: 9 }).state).toBe(s);
+    // Keys the menu does not know are left to the host.
+    for (const k of [key("ArrowRight"), key("q"), key("i", { ctrlKey: true }), key("l", { altKey: true }), key("p", { metaKey: true })]) {
+      const r = step(s, k);
+      expect(r.handled).toBe(false);
+      expect(r.state).toBe(s);
+    }
+  });
+
+  it("asks the host to run the entry chosen with Enter, Space, an accelerator or a click, and keeps the menu until it ran", () => {
+    const s = step(open(), key("ArrowDown")).state; // on Lens
+    for (const event of [key("Enter"), key(" "), key("l"), key("L"), { type: "chooseMenu", index: 2 } as MapEvent]) {
+      const r = step(s, event);
+      expect(r, JSON.stringify(event)).toMatchObject({ handled: true, intents: [{ kind: "run", action: actions[2], target }] });
+      expect(r.state.menu).not.toBeNull();
+      expect(r.announcement).toBeUndefined();
+    }
+    expect(step(s, key("p")).intents).toEqual([{ kind: "run", action: actions[4], target }]);
+    // Disabled entries are not chosen; their letter means nothing to the menu.
+    expect(step(s, { type: "chooseMenu", index: 0 })).toMatchObject({ handled: true, intents: [] });
+    expect(step(s, key("x")).handled).toBe(false);
+    expect(step(state(), { type: "chooseMenu", index: 1 }).handled).toBe(false);
+    expect(step(state(), { type: "pointMenu", index: 1 }).handled).toBe(false);
+  });
+
+  it("closes with Escape and Tab, and returns the input focus to the map after closing and after an action", () => {
+    const s = open();
+    const escape = step(s, key("Escape"));
+    expect(escape).toMatchObject({ handled: true, state: { menu: null, active: "b" }, intents: [{ kind: "returnFocus" }], announcement: "Actions menu closed." });
+    // Tab closes too but lets the input focus move on from the map.
+    expect(step(s, key("Tab"))).toMatchObject({ handled: false, state: { menu: null }, intents: [{ kind: "returnFocus" }], announcement: "Actions menu closed." });
+    expect(step(s, { type: "closeMenu" }).intents).toEqual([{ kind: "returnFocus" }]);
+    expect(step(s, { type: "actionDone", action: actions[1] })).toMatchObject({ state: { menu: null }, intents: [{ kind: "returnFocus" }], announcement: "Paths: B." });
+    // A menu that goes away because of something else leaves the focus where it is.
+    expect(step(s, { type: "dismissMenu" }).intents).toEqual([]);
+    expect(step(s, { type: "click", element: { kind: "node", id: "c" } }).intents).toEqual([{ kind: "select", selection: sel(["c"]) }]);
+    // Once closed, the map's keys are the map's again.
+    expect(step(escape.state, key("ArrowRight")).state.active).toBe("d");
+  });
+
+  it("selects the pair an arc joins or the target of another overlay, closing the menu silently", () => {
+    const arc = step(open(), { type: "clickOverlay", overlay: { kind: "arc", target: "a", payload: { source: "a", target: "d" } } });
+    expect(arc).toMatchObject({ state: { selection: sel(["a", "d"]), menu: null }, intents: [{ kind: "select", selection: sel(["a", "d"]) }], announcement: "Selected: A and D." });
+    expect(step(state(), { type: "clickOverlay", overlay: { kind: "badge", target: "c" } })).toMatchObject({ state: { selection: sel(["c"]) }, announcement: "Selected: C." });
+  });
+
+  it("heads the menu with the target's title, its kind and group and the worst expectation touching it", () => {
+    const overlays = [
+      { kind: "badge" as const, target: "b", payload: { constraintId: "c1", constraintType: "existence", value: 0.2 } },
+      { kind: "arc" as const, target: "a", payload: { constraintId: "c2", constraintType: "precedence", source: "a", target: "b", value: 0.4, label: "late", text: "40 % late" } },
+      // Without a constraint, or with no number, an overlay is not an expectation.
+      { kind: "badge" as const, target: "b", payload: { value: 0.9 } },
+      { kind: "badge" as const, target: "b", payload: { constraintId: "c3" } },
+      { kind: "badge" as const, target: "c", payload: { constraintId: "c4", value: 0.8 } },
+    ];
+    const heading = menuHeading({ kind: "node", id: "b", ids: ["b"], label: "B", nodeKind: "activity" }, graph, overlays);
+    expect(heading.title).toBe("Actions for B");
+    expect(heading.subtitle).toBe("activity (Intake)");
+    // The arc ends at B and is worse than B's own badge; C's badge does not touch B.
+    expect(heading.note).toBe("Worst expectation: arc: late — 40 % late");
+    expect(menuHeading({ kind: "edge", id: "cd", ids: ["c", "d"], label: "C → D", edgeKind: "follows" }, graph, [], "de")).toEqual({ title: "Aktionen für C → D", subtitle: "Pfad", note: undefined });
+    expect(menuHeading({ kind: "group", id: "s1", ids: ["s1"], label: "Intake", groupKind: "stage" }, graph, []).subtitle).toBe("stage");
+    expect(menuHeading({ kind: "pair", id: "a", ids: ["a", "d"], label: "A, D" }, graph, []).title).toBe("Actions for A and D");
+  });
+
+  it("is the same keyboard for a menu without a map", () => {
+    expect(menuKey(actions, 1, { key: "ArrowUp" })).toEqual({ active: 4, handled: true });
+    expect(menuKey([], 0, { key: "ArrowDown" })).toEqual({ active: 0, handled: true });
+    expect(menuKey([], 0, { key: "End" })).toEqual({ active: 0, handled: true });
+  });
+});
+
+describe("map controller: what the map emphasises", () => {
+  const set = (e: { nodes: Set<string>; edges: Set<string> } | undefined) => e && { nodes: [...e.nodes].sort(), edges: [...e.edges].sort() };
+
+  it("shows the paths of the focus, or of the pair of activities a selection of two names", () => {
+    // C's paths: A → C in, C → D out.
+    const own = mapEmphasis(state({ focus: "c", selection: sel(["a", "b"]) }), graph);
+    expect(own).toMatchObject({ focus: "c", focusShown: true });
+    expect(set(own.bright)).toEqual({ nodes: ["a", "c", "d"], edges: ["ac", "cd"] });
+    // A and C are joined by A → C alone.
+    const pair = mapEmphasis(state({ selection: sel(["a", "c"]) }), graph);
+    expect(pair).toMatchObject({ focus: ["a", "c"], focusShown: true });
+    expect(set(pair.bright)).toEqual({ nodes: ["a", "c"], edges: ["ac"] });
+  });
+
+  it("brightens what relates to the selection when no focus is shown, and nothing without a selection", () => {
+    const withEvent: FlowGraph = { ...graph, nodes: [...graph.nodes, { id: "e", kind: "event", label: "End" }] };
+    for (const [s, g] of [
+      [state({ selection: sel(["a", "e"]) }), withEvent], // an event does not make a pair
+      [state({ selection: sel(["a", "c"], ["ab"]) }), graph], // nor does a pair with a path
+      [state({ selection: sel(["b"]), focus: "gone" }), graph], // a focus on an element not shown
+    ] as [MapState, FlowGraph][]) {
+      const r = mapEmphasis(s, g);
+      expect(r.focusShown).toBe(false);
+      expect(r.bright?.nodes.has(s.selection.nodes[0])).toBe(true);
+    }
+    expect(mapEmphasis(state({ selection: sel(["b"]), focus: "gone" }), graph).focus).toBe("gone");
+    expect(mapEmphasis(state(), graph)).toEqual({ focus: undefined, focusShown: false, bright: undefined });
   });
 });

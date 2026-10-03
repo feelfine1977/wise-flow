@@ -1,12 +1,23 @@
-/** The map controller in React: controlled or internal state, the live region and the host callbacks. */
+/** The map controller in React: controlled or internal state, the live region, the host callbacks and the intents. */
 import { type MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ElementRef } from "../core/index.js";
 import { type MapContext, type MapEvent, type MapState, type MapStep, announceChange, initialMapState, mapStep } from "../core/map-controller.js";
 import type { ProcessMapProps } from "./types.js";
 
 type ControlledProps = Pick<
   ProcessMapProps,
-  "selection" | "onSelect" | "onHover" | "focus" | "defaultFocus" | "onFocusChange" | "abstraction" | "defaultAbstraction" | "onAbstractionChange" | "view" | "onViewChange" | "announce"
+  "selection" | "onSelect" | "onHover" | "focus" | "defaultFocus" | "onFocusChange" | "abstraction" | "defaultAbstraction" | "onAbstractionChange" | "view" | "onViewChange" | "announce" | "onAction"
 >;
+
+/** What the controller's intents need from the screen; the map sets it on every render. */
+export interface MapScreen {
+  /** Bring a node into view. */
+  reveal?: (id: string) => void;
+  /** Where the menu of an element opens, relative to the map body. */
+  place?: (element: ElementRef) => { x: number; y: number };
+  /** Give the input focus back to the map. */
+  focus?: () => void;
+}
 
 export interface DispatchedStep extends MapStep {
   /**
@@ -28,6 +39,8 @@ export interface MapController {
   dispatch: (event: MapEvent) => DispatchedStep;
   /** What the controller reads about the map; the map sets it on every render. */
   context: MutableRefObject<MapContext>;
+  /** What the intents do on screen. */
+  screen: MutableRefObject<MapScreen>;
 }
 
 /**
@@ -35,7 +48,9 @@ export interface MapController {
  * prop is given and internal otherwise; either way the callbacks report every
  * change. Selection and focus changes the controller did not make (the host's)
  * are announced like its own; a change the controller asks a controlling host
- * for is announced when the host takes it.
+ * for is announced when the host takes it. Every intent is carried out here:
+ * the callbacks, running a chosen action (its `run`, then `onAction`) and
+ * what `screen` does.
  */
 export function useMapController(props: ControlledProps): MapController {
   const [inner, setInner] = useState<MapState>(() => initialMapState({ focus: props.defaultFocus, abstraction: props.defaultAbstraction ?? {} }));
@@ -51,6 +66,7 @@ export function useMapController(props: ControlledProps): MapController {
   );
   const [live, setLive] = useState("");
   const context = useRef<MapContext>({ graph: { nodes: [], edges: [] } });
+  const screen = useRef<MapScreen>({});
   const propsRef = useRef(props);
   propsRef.current = props;
   // The state the next event starts from: this render's, or the last step's within one handler.
@@ -59,7 +75,7 @@ export function useMapController(props: ControlledProps): MapController {
   // The selection and focus the live region has spoken about.
   const known = useRef<Pick<MapState, "selection" | "focus">>({ selection: state.selection, focus: undefined });
 
-  const dispatch = useCallback((event: MapEvent): DispatchedStep => {
+  const dispatch = useCallback(function dispatch(event: MapEvent): DispatchedStep {
     const previous = latest.current;
     const result = mapStep(previous, event, context.current);
     const next = result.state;
@@ -94,6 +110,15 @@ export function useMapController(props: ControlledProps): MapController {
       else if (intent.kind === "hover") p.onHover?.(intent.id);
       else if (intent.kind === "abstraction") p.onAbstractionChange?.(intent.abstraction);
       else if (intent.kind === "view") p.onViewChange?.(intent.view);
+      else if (intent.kind === "reveal") screen.current.reveal?.(intent.id);
+      else if (intent.kind === "menu") dispatch({ type: "openMenu", element: intent.element, at: screen.current.place?.(intent.element) ?? { x: 0, y: 0 } });
+      else if (intent.kind === "returnFocus") screen.current.focus?.();
+      else if (intent.kind === "run") {
+        // The host's text wins over the action's own.
+        const fromRun = intent.action.run?.(intent.target);
+        const fromHost = p.onAction?.(intent.action, intent.target);
+        dispatch({ type: "actionDone", action: intent.action, text: typeof fromHost === "string" ? fromHost : typeof fromRun === "string" ? fromRun : undefined });
+      }
     }
     return { ...result, waiting: announcement !== result.announcement };
   }, []);
@@ -110,5 +135,5 @@ export function useMapController(props: ControlledProps): MapController {
     if (props.announce) setLive(props.announce);
   }, [props.announce]);
 
-  return { state, live, announce: setLive, dispatch, context };
+  return { state, live, announce: setLive, dispatch, context, screen };
 }
