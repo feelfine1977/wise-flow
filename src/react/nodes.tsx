@@ -1,11 +1,9 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { memo } from "react";
 import { type LayoutDirection, type Overlay, activityLabelLines, formatCompact, hasTag, metric, RECONNECTED_TAG } from "../core/index.js";
-import { type MarkIds, ElementMarks, MarkFigure, domMark, marksAtOrigin, svgReact } from "./marks.js";
+import { ElementMarks, MARK_IDS, MarkFigure, domMark, marksAtOrigin, svgReact } from "./marks.js";
 import { PatternSwatch } from "./patterns.js";
 import type { ActivityNodeData, WfGroupNode, WfNode } from "./types.js";
-
-const IDS: MarkIds = { arrow: "wf-mark-arrow", pattern: "wf-mark-outofscope" };
 
 /** The marks the element carries, from the scene. */
 function carried(data: { marks?: ActivityNodeData["marks"]; origin?: ActivityNodeData["origin"] }) {
@@ -34,7 +32,7 @@ export function Badges({ badges, locale }: { badges: Overlay[]; locale: Activity
   if (!badges.length) return null;
   return (
     <svg className="wf-badges" width={0} height={0} overflow="visible" style={{ position: "absolute", right: 0, top: 0 }} aria-hidden="true">
-      {marksAtOrigin(badges, locale).map((m) => svgReact(domMark(m, IDS), m.id))}
+      {marksAtOrigin(badges, locale).map((m) => svgReact(domMark(m, MARK_IDS), m.id))}
     </svg>
   );
 }

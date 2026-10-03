@@ -21,6 +21,9 @@ export interface MarkIds {
   pattern: string;
 }
 
+/** The ids of `MarkDefs`, which the map renders once for the marks its elements and legend draw. */
+export const MARK_IDS: MarkIds = { arrow: "wf-mark-arrow", pattern: "wf-mark-outofscope" };
+
 /** Paints as CSS: tokens as variables; a hovered mark shows its value in the focus colour. */
 export function domMarkOptions(ids: MarkIds, hovered = false): MarkSvgOptions {
   return {
@@ -48,11 +51,6 @@ export function markDefs(ids: MarkIds): SvgElement {
       },
     ],
   };
-}
-
-/** Whether the pointer reaches a mark: along its path, or over a mark that carries text. Covers let it through. */
-export function pointerOf(m: OverlayMark): "stroke" | "visiblePainted" | "none" {
-  return m.path !== undefined ? "stroke" : m.texts.length ? "visiblePainted" : "none";
 }
 
 // CSS variables are not valid in presentation attributes; they go into the style.
@@ -84,16 +82,16 @@ export function svgDom(e: SvgElement | string, doc: Document): Node {
   return node;
 }
 
-/** The attributes the DOM renderers add to a mark's group: its shape id, constraint and pointer behaviour. */
-export function markAttrs(m: OverlayMark): [string, string][] {
-  const constraint = m.overlay.payload?.constraintId;
-  return [["data-overlay-id", m.id], ...(constraint ? [["data-constraint", String(constraint)] as [string, string]] : []), ["pointer-events", pointerOf(m)]];
-}
-
-/** A mark's group with the DOM attributes added. */
+/**
+ * A mark's group with its shape id and constraint. The pointer reaches a mark
+ * along its path or over a mark with text; covers let it through.
+ */
 export function domMark(m: OverlayMark, ids: MarkIds, hovered = false): SvgElement {
   const g = markSvg(m, domMarkOptions(ids, hovered));
-  return { ...g, attrs: [...g.attrs, ...markAttrs(m)] };
+  const constraint = m.overlay.payload?.constraintId;
+  g.attrs.push(["data-overlay-id", m.id], ["pointer-events", m.path !== undefined ? "stroke" : m.texts.length ? "visiblePainted" : "none"]);
+  if (constraint) g.attrs.push(["data-constraint", String(constraint)]);
+  return g;
 }
 
 /** CSS background layers that draw the fills of marks covering an element (`layer: "below"`). */
@@ -107,14 +105,12 @@ export function coverBackground(marks: OverlayMark[]): string | undefined {
   return layers.length ? layers.join(", ") : undefined;
 }
 
-const LEGEND_IDS: MarkIds = { arrow: "wf-mark-arrow", pattern: "wf-mark-outofscope" };
-
 /** A mark drawn on its own, at the size of its box (map-level chips in the legend). */
 export function MarkFigure({ mark }: { mark: OverlayMark }) {
   const { x, y, width, height } = mark.box;
   return (
     <svg className="wf-mark" width={width} height={height} viewBox={`${x} ${y} ${width} ${height}`} overflow="visible" aria-hidden="true">
-      {svgReact(domMark(mark, LEGEND_IDS))}
+      {svgReact(domMark(mark, MARK_IDS))}
     </svg>
   );
 }
@@ -137,18 +133,17 @@ export function ElementMarks({ marks, origin }: { marks: OverlayMark[]; origin: 
   if (!marks.length) return null;
   return (
     <svg className="wf-marks" overflow="visible" aria-hidden="true">
-      <g transform={`translate(${-origin.x} ${-origin.y})`}>{marks.map((m, i) => (shown[i] === "1" ? svgReact(domMark(m, ELEMENT_IDS), m.id) : null))}</g>
+      <g transform={`translate(${-origin.x} ${-origin.y})`}>{marks.map((m, i) => (shown[i] === "1" ? svgReact(domMark(m, MARK_IDS), m.id) : null))}</g>
     </svg>
   );
 }
 
-const ELEMENT_IDS: MarkIds = { arrow: "wf-mark-arrow", pattern: "wf-mark-outofscope" };
 
 /** The marker and pattern that `ElementMarks` refer to; rendered once by the map. */
 export function MarkDefs() {
   return (
     <svg className="wf-mark-defs" width={0} height={0} style={{ position: "absolute" }} aria-hidden="true">
-      {svgReact(markDefs(ELEMENT_IDS))}
+      {svgReact(markDefs(MARK_IDS))}
     </svg>
   );
 }
