@@ -30,7 +30,7 @@ export function OverlayLayer({ marks, shapes = [], locale, zoom, showArcs = fals
   const all = marks ?? overlayMarks(shapes, locale);
   // Without a zoom the layer keeps its former contract: arcs and self-loops by flag.
   const shown = (m: OverlayMark) =>
-    zoom !== undefined ? zoom >= m.minZoom : m.path !== undefined && (m.kind === "arc" ? showArcs : showSelfLoops || m.minZoom === 0);
+    zoom !== undefined ? zoom >= m.minZoom : m.path !== undefined && (m.kind === "arc" ? showArcs : showSelfLoops || !!m.overlay.payload?.observed);
   const visible = all.filter((m) => m.inMap && m.layer === "above" && shown(m));
   if (!visible.length) return null;
   const shapeOf = (m: OverlayMark): OverlayShape => shapes.find((s) => s.id === m.id) ?? { id: m.id, overlay: m.overlay, kind: m.kind, ...m.box, path: m.path, minZoom: m.minZoom };
