@@ -146,8 +146,8 @@ const Note = memo(function Note({ id, data, selected }: NodeProps<WfNode>) {
 
 /** A chip drawn from its mark, at the size the core gives it. */
 export function Chip({ chip, locale }: { chip: Overlay; locale: ActivityNodeData["locale"] }) {
-  const [mark] = marksAtOrigin([chip], locale);
-  return mark ? <MarkFigure mark={mark} /> : null;
+  // Placed as a map-level chip, every chip has a mark.
+  return <MarkFigure mark={marksAtOrigin([chip], locale)[0]} />;
 }
 
 const Group = memo(function Group({ id, data, selected }: NodeProps<WfGroupNode>) {
