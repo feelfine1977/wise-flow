@@ -326,6 +326,7 @@
     "PaletteName",
     "PathsOptions",
     "PatternShape",
+    "byId",
     "colorOn",
     "isEdge",
     "isStructuralNode",

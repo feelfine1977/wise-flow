@@ -11,6 +11,7 @@ export {
   normalizeGraph,
   /** @deprecated Leaves the entry point in the next major version. */
   isStructuralNode,
+  /** @deprecated Leaves the entry point in the next major version; compare `a.id` and `b.id`. */
   byId,
   MAP_TARGET,
 } from "./model.js";

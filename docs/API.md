@@ -1248,6 +1248,7 @@ use it instead:
 | `FlowElement` | `FlowNode \| FlowEdge` |
 | `isEdge` | `"source" in element` |
 | `isStructuralNode` | none |
+| `byId` | compare `a.id` and `b.id` |
 | `DiffOptions` | `NonNullable<Parameters<typeof diff>[2]>` |
 | `colorOn` | `buildScales(graph, spec).color` |
 | `rgbToHex` | none |
