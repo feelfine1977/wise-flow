@@ -35,16 +35,18 @@ const observed: Variant = {
  * by element, that step changed only: the overlay arrowhead marker (12 px, as on
  * the map), the hatch fill (opacity 0.55, no outline), chip text 0.5 px higher,
  * and the figure size, map offset and activity key position, because map-level
- * chips no longer count towards the bounds.
+ * chips no longer count towards the bounds. Recorded once more when chips began
+ * to show what the live map shows; compared element by element, only the chip
+ * groups changed: the glyph, the gauge and the label in bold before the text.
  */
 const before: Record<string, string> = {
-  overlays: "9e31133ffdd4e83783a7535895730d600c676c9b72f75167ed6bb63619ac8457",
-  stagesGerman: "2f298599d6acbdfe2f858942933947804d8d2b5d383227cfc44c91b36975984f",
-  vendor: "b8f55bd86d60ee5b17b55fad058382403444d4807c852c4debc2463d8a52b197",
-  unfiltered: "43ad5e8e19c7cb3ef5589df193cb68b1de99ab71324c585b9935590a4b2ff354",
+  overlays: "ab155737ecc8d8f83c6a552e5665c00fb44f55fe2372f09ff582b3f03336d425",
+  stagesGerman: "5da60b5405d432bf9df7b27d6025a29ddb230c0e27a4758a28c765c271e403ed",
+  vendor: "5e7c161d8d979d09758c482b7aa63258341679430f4bbce5bb53f45671f97e1b",
+  unfiltered: "7fdea43d68f40046bccc4dcd9f94d5725b113f0beeceb914bcbeb9235f882fda",
   plain: "d1137235b74f70c6149763eea0c6897255e1a3414c00f5246cbee1763c2ff1fa",
 };
-const beforeObserved = "99d2b38af6014a43290ec55cb40f8444dc3b698d28b25bdf8ccbfbb749dda602";
+const beforeObserved = "05c164d62ef937e4f59acb9231cff057c9e16dd43c46ca89e36b3b6963fd3197";
 
 describe("toSVG on the committed fixtures", () => {
   it("matches the recorded output once follows self-loops are hidden", () => {

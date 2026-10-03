@@ -21,6 +21,7 @@ import type {
   MenuAction,
   MenuTarget,
   Overlay,
+  OverlayMark,
   PatternId,
   Positions,
   XY,
@@ -39,8 +40,15 @@ export type ActivityNodeData = {
   node: FlowNode;
   color: string;
   pattern: PatternId;
+  /** @deprecated The map draws badges from `marks`; still filled for custom node types. */
   badges: Overlay[];
   hatched: boolean;
+  /** CSS background layers of the marks that cover the node (tints), from the scene's marks. */
+  tint?: string;
+  /** Marks the node carries (badges, chips, hatching), in scene coordinates. */
+  marks?: OverlayMark[];
+  /** Top-left corner of the node's box in scene coordinates, where its marks are drawn from. */
+  origin?: XY;
   direction: LayoutDirection;
   focused: boolean;
   hovered: boolean;
@@ -53,7 +61,13 @@ export type ActivityNodeData = {
 export type GroupNodeData = {
   group: FlowGroup;
   color: string;
+  /** CSS background layers of the marks that cover the group (tints), from the scene's marks; a colour before marks. */
   tint?: string;
+  /** Marks the group carries (chips, hatching), in scene coordinates. */
+  marks?: OverlayMark[];
+  /** Top-left corner of the group's box in scene coordinates, where its marks are drawn from. */
+  origin?: XY;
+  /** @deprecated The map draws chips from `marks`; still filled for custom node types. */
   chips: Overlay[];
   description: string;
   /** The group is drawn as a lane band (see `lanes`). */

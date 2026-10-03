@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Overlay } from "../../src/index";
 import { BpmnView } from "../../src/react/BpmnView";
+import { Chip } from "../../src/react/nodes";
 
 // A viewer whose registry holds two tasks of the fixture; arcs and self-loops land in `layer`.
 const mock = vi.hoisted(() => {
@@ -16,7 +17,7 @@ const mock = vi.hoisted(() => {
   class Viewer {
     static instances: Viewer[] = [];
     layer = document.createElementNS("http://www.w3.org/2000/svg", "g");
-    added: { id: string; position: { top: number; left: number } }[] = [];
+    added: { id: string; position: { top: number; left: number }; html: HTMLElement; show?: { minZoom?: number }; scale?: unknown }[] = [];
     constructor() { Viewer.instances.push(this); }
     on() {}
     off() {}
@@ -24,7 +25,7 @@ const mock = vi.hoisted(() => {
     get(name: string) {
       if (name === "selection") return { get: () => [], select() {} };
       if (name === "elementRegistry") return { get: (id: string) => tasks.find((t) => t.id === id), getAll: () => tasks };
-      if (name === "overlays") return { remove: () => { this.added = []; }, add: (id: string, _type: string, o: { position: { top: number; left: number } }) => { this.added.push({ id, position: o.position }); return "1"; } };
+      if (name === "overlays") return { remove: () => { this.added = []; }, add: (id: string, _type: string, o: { position: { top: number; left: number }; html: HTMLElement; show?: { minZoom?: number }; scale?: unknown }) => { this.added.push({ id, ...o }); return "1"; } };
       if (name === "canvas") return { getLayer: () => this.layer, zoom: () => 1, resized() {}, removeMarker() {}, addMarker() {} };
       throw new Error(`Unexpected service ${name}`);
     }
@@ -98,5 +99,45 @@ describe("BpmnView overlays from the scene", () => {
       ["Task_CreatePO", 50, -11],
       ["Task_CreatePO", 76, -11],
     ]);
+  });
+
+  it("maps each mark to an overlay at its box or to the SVG layer, as drawn on the map", async () => {
+    const chip: Overlay = { kind: "chip", target: "Task_ApproveInvoice", payload: { glyph: "◔", label: "Touches", text: "2.1 ⌀", value: 0.5, gauge: { value: 2.1, threshold: 2, width: 1 } } };
+    const { container } = render(
+      <BpmnView
+        xml={xml}
+        overlays={[
+          chip,
+          { kind: "badge", target: "Task_CreatePO", payload: { glyph: "≥1", value: 0.25 } },
+          { kind: "tint", target: "Task_CreatePO", payload: { value: 0.5 } },
+          { kind: "arc", target: "a", payload: { source: "Task_CreatePO", target: "Task_ApproveInvoice", value: 1, reverse: true } },
+        ]}
+      />,
+    );
+    await waitFor(() => expect(container.querySelector(".wf-bpmn")?.getAttribute("data-bpmn-status")).toBe("ready"));
+    const viewer = mock.Viewer.instances[0];
+    await waitFor(() => expect(viewer.added.length).toBe(3));
+    const added = (className: string) => viewer.added.find((a) => a.html.className === className)!;
+    // The badge's box: 24 wide for its glyph, at the first slot of the task (100 + 100 - 28 + 2, 100 - 11), shown
+    // from the default badge zoom 0.22 (eleven nodes leave it unchanged).
+    const badge = added("wf-badge");
+    expect([badge.id, badge.position, badge.show, badge.scale]).toEqual(["Task_CreatePO", { top: -11, left: 74 }, { minZoom: 0.22 }, { min: 0.8, max: 1.2 }]);
+    expect(badge.html.querySelector("svg")?.getAttribute("viewBox")).toBe("174 89 24 22");
+    expect(badge.html.querySelector("rect")?.getAttribute("fill")).toBe("#fdd0a2");
+    // The tint covers the task from every zoom, scales with the diagram and is multiplied onto it.
+    const tint = added("wf-tint wf-mark--below");
+    expect([tint.id, tint.position, tint.show, tint.scale]).toEqual(["Task_CreatePO", { top: 0, left: 0 }, undefined, true]);
+    expect(tint.html.querySelector("rect")?.getAttribute("fill-opacity")).toBe("0.18");
+    // The chip shows what the map's chip shows: glyph, gauge (track, fill and tick) and the label in bold.
+    const drawn = added("wf-chip").html;
+    expect(drawn.querySelectorAll("rect")).toHaveLength(4);
+    expect(drawn.querySelector("tspan")?.getAttribute("font-weight")).toBe("700");
+    const { container: map } = render(<Chip chip={chip} locale="en" />);
+    expect(drawn.textContent).toBe(map.textContent);
+    expect(drawn.textContent).toBe("Touches — 2.1 ⌀◔Touches: 2.1 ⌀");
+    // The arc runs between the tasks in the SVG layer, dashed as a reverse arc.
+    const arc = viewer.layer.querySelector(".wf-arc path");
+    expect(arc?.getAttribute("stroke-dasharray")).toBe("6 4");
+    expect(arc?.getAttribute("marker-end")).toBe("url(#wf-bpmn-arrow)");
   });
 });

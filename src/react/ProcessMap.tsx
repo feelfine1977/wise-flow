@@ -24,10 +24,10 @@ import {
   type MenuAction,
   type MenuTarget,
   type Overlay,
+  type OverlayMark,
   type OverlayShape,
   type XY,
   type StringKey,
-  MAP_TARGET,
   RECONNECTED_TAG,
   activityNodeSize,
   activityReferences,
@@ -51,7 +51,6 @@ import {
   relatedToSelection,
   selectElement,
   t,
-  tintColor,
 } from "../core/index.js";
 import type { DrawState, PreparedScene } from "../canvas/index.js";
 import { retainScene } from "../canvas/scene.js";
@@ -64,7 +63,8 @@ import { edgeTypes } from "./edges.js";
 import { FilterChips } from "./FilterChips.js";
 import { useFlowGraph, useMapScene, usePrefersReducedMotion, useStableLayout } from "./hooks.js";
 import { Legend } from "./Legend.js";
-import { Chip, nodeTypes } from "./nodes.js";
+import { coverBackground, MarkDefs, MarkFigure } from "./marks.js";
+import { nodeTypes } from "./nodes.js";
 import { OverlayLayer } from "./OverlayLayer.js";
 import { PathList } from "./PathList.js";
 import { TableAlternative } from "./TableAlternative.js";
@@ -214,6 +214,21 @@ function ProcessMapInner(props: ProcessMapProps) {
   }, [nodesDraggable, onNodeMove, layoutResetKey, positions, shown]);
   const bands = useMemo(() => new Map(scene.bands.map((b) => [b.id, b])), [scene.bands]);
   const { scales, overlays, geometry } = scene;
+  // Marks below the edges are drawn by the element they cover, as its background; boxes above it by the
+  // element too, so that they follow it; marks with a path run between elements in the overlay layer.
+  const { covers, carried, between } = useMemo(() => {
+    const covers = new Map<string, OverlayMark[]>();
+    const carried = new Map<string, OverlayMark[]>();
+    const between: OverlayMark[] = [];
+    const add = (to: Map<string, OverlayMark[]>, m: OverlayMark) => to.set(m.overlay.target, [...(to.get(m.overlay.target) ?? []), m]);
+    const known = (id: string) => !!(scene.positions.nodes[id] ?? scene.positions.groups[id]);
+    for (const m of scene.marks) {
+      if (!m.inMap) continue;
+      if (m.path === undefined && known(m.overlay.target)) add(m.layer === "below" ? covers : carried, m);
+      else between.push(m);
+    }
+    return { covers, carried, between };
+  }, [scene]);
 
   // Selection, hover, keyboard focus, paths focus
   const [innerSelection, setInnerSelection] = useState<Selection>(emptySelection);
@@ -474,7 +489,6 @@ function ProcessMapInner(props: ProcessMapProps) {
       if (!box) continue;
       const parentBox = g.parent ? groupBox(g.parent) : undefined;
       const gOverlays = overlaysByTarget.get(g.id) ?? [];
-      const tint = gOverlays.find((o) => o.kind === "tint");
       const description = describeGroup(g, memberCount.get(g.id) ?? 0, gOverlays, locale);
       out.push({
         id: GROUP_PREFIX + g.id,
@@ -492,7 +506,9 @@ function ProcessMapInner(props: ProcessMapProps) {
         data: {
           group: g,
           color: scales.categorical(g.id).color,
-          tint: tint && tintColor(tint),
+          tint: coverBackground(covers.get(g.id) ?? []),
+          marks: carried.get(g.id),
+          origin: { x: box.x, y: box.y },
           chips: gOverlays.filter((o) => o.kind === "chip"),
           description,
           band: bands.get(g.id),
@@ -527,6 +543,9 @@ function ProcessMapInner(props: ProcessMapProps) {
           pattern: scales.nodePattern(n),
           badges: nOverlays.filter((o) => o.kind === "badge"),
           hatched: nOverlays.some((o) => o.kind === "hatch"),
+          tint: coverBackground(covers.get(n.id) ?? []),
+          marks: carried.get(n.id),
+          origin: { x: box.x, y: box.y },
           direction: positions.direction,
           focused: focused === n.id,
           hovered: hovered === n.id,
@@ -537,7 +556,7 @@ function ProcessMapInner(props: ProcessMapProps) {
       });
     }
     return out;
-  }, [positions, useCanvas, shown, overlaysByTarget, scales, selection, hovered, focused, locale, bright, bands, groupIndex, memberCount, activityLabels, describeElement, nodesDraggable]);
+  }, [positions, useCanvas, shown, overlaysByTarget, covers, carried, scales, selection, hovered, focused, locale, bright, bands, groupIndex, memberCount, activityLabels, describeElement, nodesDraggable]);
 
   const rfEdges = useMemo<WfEdge[]>(() => {
     if (!positions || useCanvas) return [];
@@ -832,7 +851,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   const descId = useId();
   const liveId = useId();
   const description = useMemo(() => describeMap(shown, overlays, locale), [shown, overlays, locale]);
-  const mapChips = overlays.filter((o) => o.kind === "chip" && o.target === MAP_TARGET);
+  const legendMarks = scene.marks.filter((m) => !m.inMap);
   const lodClasses = [
     lod.labels ? "wf-lod--labels" : "",
     lod.edgeLabels ? "wf-lod--edge-labels" : "",
@@ -856,7 +875,7 @@ function ProcessMapInner(props: ProcessMapProps) {
     <ContextMenu x={menu.x} y={menu.y} title={menu.title} subtitle={menu.subtitle} note={menu.note} actions={menu.actions} locale={locale} onAction={runAction} onClose={closeMenu} returnFocusTo={containerRef.current} boundsRef={bodyRef} />
   ) : null;
   const legendElement = legend ? (
-    <Legend scales={scales} overlays={overlays} locale={locale} chips={mapChips.length ? mapChips.map((c, i) => <Chip key={`${c.payload?.constraintId ?? "chip"}-${i}`} chip={c} locale={locale} />) : undefined} />
+    <Legend scales={scales} overlays={overlays} locale={locale} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} />) : undefined} />
   ) : null;
   const controlsElement = controls ? <AbstractionControls value={abstraction} onChange={setAbstraction} locale={locale} hasStages={hasStages} view={view} onViewChange={setView} /> : null;
   const statusElement = layoutPending ? (
@@ -969,14 +988,15 @@ function ProcessMapInner(props: ProcessMapProps) {
                 defaultEdgeOptions={{ type: "follows" }}
               >
                 <Background gap={24} size={1} />
+                <MarkDefs />
                 <Controls showInteractive={false} />
                 {minimap ? <MiniMap pannable zoomable nodeStrokeWidth={2} /> : null}
                 {positions ? (
                   <OverlayLayer
+                    marks={between}
                     shapes={geometry.shapes}
                     locale={locale}
-                    showArcs={lod.arcs}
-                    showSelfLoops={lod.selfLoops}
+                    zoom={zoom}
                     hoveredId={hovered}
                     onHover={hover}
                     onSelect={(s: OverlayShape) => {

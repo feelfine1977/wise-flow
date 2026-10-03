@@ -114,7 +114,18 @@ describe("toSVG overlay marks", () => {
       `<g class="wf-overlay wf-badge"><title></title><rect x="76" y="-11" width="22" height="22" rx="11" fill="#7f2704" stroke="#ffffff" stroke-width="1.5"/><text x="87" y="3.5" font-size="10" font-weight="700" text-anchor="middle" fill="#ffffff">●</text><text x="102" y="3.5" font-size="10" ${halo}>100 %</text></g>`,
       `<g class="wf-overlay wf-badge"><title></title><rect x="274" y="-11" width="24" height="22" rx="11" fill="#fdd0a2" stroke="#ffffff" stroke-width="1.5"/><text x="286" y="3.5" font-size="10" font-weight="700" text-anchor="middle" fill="#000000">≥1</text><text x="302" y="3.5" font-size="10" ${halo}>25 %</text></g>`,
       // The map-level chip is listed with the legend only.
-      '<g class="wf-overlay wf-chip"><title>Late</title><rect x="442" y="-4" width="60" height="24" rx="12" fill="#ffffff" stroke="#8c8c8c" stroke-width="2"/><text x="450" y="11.5" font-size="10" fill="#1f1f1f">◔ Late</text></g>',
+      '<g class="wf-overlay wf-chip"><title>Late</title><rect x="442" y="-4" width="60" height="24" rx="12" fill="#ffffff" stroke="#8c8c8c" stroke-width="2"/><text x="450" y="11.5" font-size="10" fill="#1f1f1f">◔</text><text x="462.4" y="11.5" font-size="10" fill="#1f1f1f">Late</text></g>',
+    ]);
+  });
+
+  it("draws a chip's gauge and its label in bold", () => {
+    const chip: Overlay = { kind: "chip", target: "s2", payload: { glyph: "◔", label: "Touches", text: "2.1 ⌀", value: 0.5, gauge: { value: 2.1, threshold: 2, width: 1 } } };
+    const drawn = toSVG({ graph: kinds.graph, positions: kinds.positions, overlays: [chip], selfLoops: false }, { legend: false }).match(/<g class="wf-overlay[^]*?<\/g>/g);
+    // Track 40 × 6 at (361.2, 5) in the line colour, 0.7 of it filled, the tick 2 px wide at 2 / 3 (387.87 − 1).
+    expect(drawn).toEqual([
+      '<g class="wf-overlay wf-chip"><title>Touches — 2.1 ⌀</title><rect x="340.8" y="-4" width="161.2" height="24" rx="12" fill="#ffffff" stroke="#fd8d3c" stroke-width="2"/>' +
+        '<rect x="361.2" y="5" width="40" height="6" rx="3" fill="#cfd4dc"/><rect x="361.2" y="5" width="28" height="6" fill="#fd8d3c"/><rect x="386.87" y="4" width="2" height="8" fill="#1f1f1f"/>' +
+        '<text x="348.8" y="11.5" font-size="10" fill="#1f1f1f">◔</text><text x="407.2" y="11.5" font-size="10" fill="#1f1f1f"><tspan font-weight="700">Touches: </tspan>2.1 ⌀</text></g>',
     ]);
   });
 

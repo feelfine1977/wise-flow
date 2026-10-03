@@ -58,6 +58,8 @@ export const fixedColors = {
   /** Ink for text on coloured fills; pure black reaches 4.5 : 1 on every mid-tone of the palettes. */
   inkStrong: "#000000",
   paper: "#ffffff",
+  /** Hairlines and tracks (`--wf-line`). */
+  line: "#cfd4dc",
 } as const;
 
 // ---------------------------------------------------------------------------

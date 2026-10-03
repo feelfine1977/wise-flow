@@ -20,3 +20,4 @@ export * from "./activity-labels.js";
 export * from "./observed-loops.js";
 export * from "./scene.js";
 export * from "./overlay-marks.js";
+export * from "./mark-svg.js";

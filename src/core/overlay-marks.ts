@@ -6,11 +6,11 @@ import type { OverlayShape } from "./overlay-geometry.js";
 import { colorOn, contrastText, fixedColors, hexToRgb } from "./style.js";
 
 /**
- * A colour by role. `ink`, `paper` and `outOfScope` are tokens the renderer
- * resolves (and may theme); `value` is the mark's `color` and `onValue` the
- * text colour on it.
+ * A colour by role. `ink`, `paper`, `line` and `outOfScope` are tokens the
+ * renderer resolves (and may theme); `value` is the mark's `color` and
+ * `onValue` the text colour on it.
  */
-export type MarkPaint = "ink" | "paper" | "outOfScope" | "value" | "onValue";
+export type MarkPaint = "ink" | "paper" | "line" | "outOfScope" | "value" | "onValue";
 
 export interface MarkFill {
   paint: MarkPaint;
@@ -40,6 +40,18 @@ export interface MarkText {
   halo: boolean;
   /** Width the text is truncated to, when it is limited. */
   maxWidth?: number;
+  /** Bold run printed before `text` in start-anchored text (a chip's label); `maxWidth` limits both together. */
+  lead?: string;
+}
+
+/** A track `width` long with its first `value` share filled and a tick at the `threshold` share (both 0–1). */
+export interface MarkGauge {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  value: number;
+  threshold: number;
 }
 
 export interface OverlayMark {
@@ -70,6 +82,8 @@ export interface OverlayMark {
   /** Arrowhead at the end of the path (`overlayArrow`). */
   arrow?: { size: number; overhang: number };
   texts: MarkText[];
+  /** Gauge drawn in the line colour, filled in the value colour, with an ink tick. */
+  gauge?: MarkGauge;
   /** The follows edge the overlay stands for. */
   edgeId?: string;
 }
@@ -99,6 +113,16 @@ export function arcWidth(overlay: Overlay): number {
 
 /** Arrowhead of arcs and self-loops: a triangle `size` long and wide, its tip `overhang` × `size` beyond the path. */
 export const overlayArrow = { size: 12, overhang: 0.1 } as const;
+
+/** A chip's padding, the advance of its glyph and of its gauge with the gap after it, and characters at 6.2 px. */
+export const chipLayout = { padding: 8, glyph: 12.4, gauge: 46, gaugeWidth: 40, gaugeHeight: 6, char: 6.2 } as const;
+
+/** What a chip prints after its glyph: its label as a bold lead and its text, or its share without one. */
+export function chipText(overlay: Overlay, locale: Locale = "en"): { lead?: string; text: string } {
+  const p = overlay.payload ?? {};
+  const text = p.text ?? (typeof p.value === "number" && Number.isFinite(p.value) ? formatShare(p.value, locale) : "");
+  return p.label ? { lead: `${p.label}: `, text } : { text };
+}
 
 /** One mark per shape, in the shapes' order. */
 export function overlayMarks(shapes: OverlayShape[], locale: Locale = "en"): OverlayMark[] {
@@ -163,13 +187,23 @@ function overlayMark(s: OverlayShape, locale: Locale): OverlayMark {
           ...(share ? [{ ...halo(share, s.x + s.width + 4, middle, 10, "start"), baseline: "middle" as const }] : []),
         ],
       };
-    case "chip":
+    case "chip": {
+      // Glyph, gauge and text in a row, as the live map lays them out.
+      const { padding, glyph, gauge, gaugeWidth, gaugeHeight } = chipLayout;
+      const plain = (text: string, x: number): MarkText => ({ text, x, y: middle, size: 10, anchor: "start", baseline: "middle", paint: "ink", halo: false });
+      const gaugeX = s.x + padding + (p.glyph ? glyph : 0);
+      const textX = gaugeX + (p.gauge ? gauge : 0);
+      const g = p.gauge;
+      const span = g ? Math.max(g.threshold + (g.width ?? g.threshold), 1e-9) : 1;
+      const share = (v: number) => Math.max(0, Math.min(1, v / span));
       return {
         ...mark,
         radius: 12,
         fill: { paint: "paper" },
         stroke: { paint: "value", width: 2 },
-        texts: [{ text: `${p.glyph ?? ""} ${p.text ?? p.label ?? ""}`.trim(), x: s.x + 8, y: middle, size: 10, anchor: "start", baseline: "middle", paint: "ink", halo: false, maxWidth: s.width - 16 }],
+        texts: [...(p.glyph ? [plain(p.glyph, s.x + padding)] : []), { ...plain("", textX), ...chipText(o, locale), maxWidth: s.width - 2 * padding - (p.glyph ? glyph : 0) - (g ? gauge : 0) }],
+        ...(g ? { gauge: { x: gaugeX, y: s.y + (s.height - gaugeHeight) / 2, width: gaugeWidth, height: gaugeHeight, value: share(g.value), threshold: share(g.threshold) } } : {}),
       };
+    }
   }
 }

@@ -11,3 +11,15 @@ it("keeps the explicit constraint meaning on an arc without changing its numeric
   expect(container.querySelector("title")?.textContent).toContain("173,183");
   expect(shape.overlay.payload?.value).toBe(0.63);
 });
+it("draws self-loops by flag without a zoom, observed ones always", () => {
+  const loop = (id: string, observed: boolean): OverlayShape => ({ id, minZoom: 0, kind: "selfLoop", x: 0, y: 0, width: 20, height: 20, path: "M0 0L20 20", overlay: { kind: "selfLoop", target: id, payload: { value: 0.5, ...(observed ? { observed: true } : {}) } } });
+  const shapes = [loop("plain", false), loop("observed", true)];
+  const drawn = (showSelfLoops: boolean) => {
+    const { container, unmount } = render(<OverlayLayer shapes={shapes} locale="en" hoveredId={null} showArcs={false} showSelfLoops={showSelfLoops} />);
+    const ids = [...container.querySelectorAll("[data-overlay-id]")].map((g) => g.getAttribute("data-overlay-id"));
+    unmount();
+    return ids;
+  };
+  expect(drawn(false)).toEqual(["observed"]);
+  expect(drawn(true)).toEqual(["plain", "observed"]);
+});

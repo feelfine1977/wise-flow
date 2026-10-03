@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type FlowGraph, type OverlayMark, MAP_TARGET, arcWidth, buildScene, defaultLod, overlayArrow, overlayColor, tintColor } from "../../src/index";
+import { type FlowGraph, type Overlay, type OverlayMark, MAP_TARGET, arcWidth, buildScene, defaultLod, fitLead, fitText, overlayArrow, overlayColor, tintColor } from "../../src/index";
 import { graph, overlays, positions } from "./overlay-kinds";
 
 const ink = { paint: "ink", halo: true } as const;
@@ -62,9 +62,49 @@ describe("overlay marks", () => {
       {
         ...base, id: "chip:s2:8", kind: "chip", box: { x: 442, y: -4, width: 60, height: 24 }, minZoom: defaultLod.chips, color: "#8c8c8c", onColor: "#000000", title: "Late",
         radius: 12, fill: { paint: "paper" }, stroke: { paint: "value", width: 2 },
-        texts: [{ text: "◔ Late", x: 450, y: 8.5, size: 10, anchor: "start", baseline: "middle", paint: "ink", halo: false, maxWidth: 44 }],
+        // The glyph, then the text 2 characters (12.4 px) further.
+        texts: [
+          { text: "◔", x: 450, y: 8.5, size: 10, anchor: "start", baseline: "middle", paint: "ink", halo: false },
+          { text: "Late", x: 462.4, y: 8.5, size: 10, anchor: "start", baseline: "middle", paint: "ink", halo: false, maxWidth: 31.6 },
+        ],
       },
     ]);
+  });
+
+  it("lays a chip out as the map does: glyph, gauge, the label in bold and the text", () => {
+    const chips: Overlay[] = [
+      { kind: "chip", target: "s2", payload: { glyph: "◔", label: "Touches", text: "2.1 ⌀", value: 0.5, gauge: { value: 2.1, threshold: 2, width: 1 } } },
+      { kind: "chip", target: "s1", payload: { label: "Late", value: 0.25 } },
+    ];
+    const marks = ["s2", "s1"].map((target) => buildScene(graph, positions, { overlays: chips, selfLoops: false, locale: "de" }).marks.find((m) => m.overlay.target === target)!);
+    const r = (n: number) => Math.round(n * 100) / 100;
+    const rounded = <T,>(o: T): T => JSON.parse(JSON.stringify(o), (_, v) => (typeof v === "number" ? r(v) : v));
+    // 16 px padding, 12.4 px glyph, 46 px gauge and 6.2 px per character of "Touches: 2.1 ⌀" (14): 161.2 wide,
+    // right-aligned 8 px inside s2 (190 + 320 − 8 − 161.2) and 6 px below its top.
+    expect(rounded(marks[0])).toMatchObject({
+      box: { x: 340.8, y: -4, width: 161.2, height: 24 },
+      color: "#fd8d3c",
+      title: "Touches — 2.1 ⌀",
+      texts: [
+        { text: "◔", x: 348.8, y: 8.5 },
+        { lead: "Touches: ", text: "2.1 ⌀", x: 407.2, y: 8.5, maxWidth: 86.8 },
+      ],
+      // The scale runs to threshold + width (3): the mean fills 2.1 / 3, the tick sits at 2 / 3.
+      gauge: { x: 361.2, y: 5, width: 40, height: 6, value: 0.7, threshold: 0.67 },
+    });
+    // Without a text the chip shows its share after the label, in the scene's locale: 16 + 10 × 6.2 = 78 wide,
+    // right-aligned in s1 (−10 + 120 − 8 − 78).
+    expect(rounded(marks[1])).toMatchObject({ box: { x: 24, y: -4, width: 78, height: 24 }, texts: [{ lead: "Late: ", text: "25 %", x: 32 }] });
+    expect(marks[1].gauge).toBeUndefined();
+  });
+
+  it("fits a lead and its text into their width together", () => {
+    const text = (maxWidth: number) => fitLead({ lead: "Manual touches: ", text: "2.1", x: 0, y: 0, size: 10, anchor: "start", baseline: "middle", paint: "ink", halo: false, maxWidth }, (s) => fitText(s, maxWidth));
+    // floor((w + 4) / 6.2) characters, the last one an ellipsis.
+    expect(text(120)).toEqual({ lead: "Manual touches: ", text: "2.1" });
+    expect(text(110)).toEqual({ lead: "Manual touches: ", text: "2…" });
+    expect(text(100)).toEqual({ lead: "Manual touches:…", text: "" });
+    expect(text(40)).toEqual({ lead: "Manual…", text: "" });
   });
 
   it("follows the scene's level of detail and draws observed self-loops at every zoom", () => {

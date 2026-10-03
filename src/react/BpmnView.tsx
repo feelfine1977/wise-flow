@@ -1,5 +1,5 @@
 import { type CSSProperties, type ReactNode, forwardRef, useCallback, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { type FlowGraph, type Locale, type LodRules, type Overlay, type OverlayShape, MAP_TARGET, arcWidth, contrastText, createPositions, formatShare, overlayArrow, overlayColor, t, tintColor } from "../core/index.js";
+import { type FlowGraph, type Locale, type LodRules, type Overlay, type OverlayMark, createPositions, t } from "../core/index.js";
 import { type BpmnExport, exportBpmn } from "../bpmn/export.js";
 import { type IdResolver, createIdResolver, renameToActivities } from "../bpmn/ids.js";
 import { type BpmnImport, type MappingRow, applyRenaming, importBpmn } from "../bpmn/import.js";
@@ -7,7 +7,7 @@ import type { BpmnLayoutOptions } from "../bpmn/layout.js";
 import { type ModdleElement, isType, wiseModdleDescriptor } from "../bpmn/moddle.js";
 import { type DiagramPositions, diagramScene, registryPositions } from "../bpmn/scene.js";
 import { Legend } from "./Legend.js";
-import { Chip } from "./nodes.js";
+import { type MarkIds, MarkFigure, domMark, markDefs, svgDom } from "./marks.js";
 import { TableAlternative } from "./TableAlternative.js";
 import type { Selection } from "./types.js";
 
@@ -120,6 +120,7 @@ async function loadViewer(mode: "view" | "model"): Promise<ViewerCtor> {
 const SVG_NS = "http://www.w3.org/2000/svg";
 const OVERLAY_TYPE = "wise";
 const LAYER = "wise-overlays";
+const MARK_IDS: MarkIds = { arrow: "wf-bpmn-arrow", pattern: "wf-bpmn-outofscope" };
 
 function isTask(bo: ModdleElement | undefined): boolean {
   return isType(bo, "bpmn:Activity");
@@ -147,10 +148,6 @@ function svgEl<K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<strin
   const node = document.createElementNS(SVG_NS, tag);
   for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
   return node;
-}
-
-function tooltip(o: Overlay): string {
-  return [o.payload?.label, o.payload?.text].filter(Boolean).join(" — ");
 }
 
 /**
@@ -189,6 +186,8 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
 
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Viewer | null>(null);
+  // Markers the overlays put on elements, removed before the next projection.
+  const markersRef = useRef(new Set<string>());
   const [viewerVersion, setViewerVersion] = useState(0);
   const [exported, setExported] = useState<BpmnExport | undefined>();
   const [imported, setImported] = useState<BpmnImport | undefined>();
@@ -400,8 +399,8 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
     () => diagramScene(tableGraph, placed.positions, overlays, { resolver, renaming: renaming ?? renameToActivities([], resolver) }, { locale, lod: props.lod }),
     [tableGraph, placed, overlays, resolver, renaming, locale, props.lod],
   );
-  const { scales, lod: lodRules } = scene;
-  const mapChips = listed.filter((o) => o.kind === "chip" && o.target === MAP_TARGET);
+  const { scales } = scene;
+  const legendMarks = scene.marks.filter((m) => !m.inMap);
 
   // 5. Project the overlays onto the diagram. The diagram is not touched; only overlays change.
   useEffect(() => {
@@ -413,115 +412,53 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
     overlaysService.remove({ type: OVERLAY_TYPE });
     const layer = canvas.getLayer(LAYER, 10);
     while (layer.firstChild) layer.removeChild(layer.firstChild);
-    for (const e of registry.getAll()) {
-      canvas.removeMarker(e.id, "wf-bpmn--tinted");
-      canvas.removeMarker(e.id, "wf-bpmn--hatched");
-    }
-    if (!scene.geometry.shapes.length) return;
+    for (const e of registry.getAll()) for (const marker of markersRef.current) canvas.removeMarker(e.id, marker);
+    markersRef.current.clear();
+    const marks = scene.marks.filter((m) => m.inMap);
+    if (!marks.length) return;
 
     const elementOf = (id: string): DjsElement | undefined => placed.elements.get(id);
-    const arrow = svgEl("marker", { id: "wf-bpmn-arrow", viewBox: "0 0 10 10", refX: 10 * (1 - overlayArrow.overhang), refY: 5, markerWidth: overlayArrow.size, markerHeight: overlayArrow.size, markerUnits: "userSpaceOnUse", orient: "auto-start-reverse" });
-    arrow.appendChild(svgEl("path", { d: "M0 0L10 5L0 10z", fill: "context-stroke" }));
-    const defs = svgEl("defs", {});
-    defs.appendChild(arrow);
-    layer.appendChild(defs);
+    layer.appendChild(svgDom(markDefs(MARK_IDS), document));
     layer.setAttribute("class", "wf-bpmn-overlays");
 
-    const selectPair = (shape: OverlayShape) => {
-      const s = shape.overlay.payload?.source;
-      const tg = shape.overlay.payload?.target;
-      const elements = [s, tg, shape.overlay.target].filter((x): x is string => typeof x === "string").map(elementOf).filter((x): x is DjsElement => !!x);
+    const selectPair = (m: OverlayMark) => {
+      const s = m.overlay.payload?.source;
+      const tg = m.overlay.payload?.target;
+      const elements = [s, tg, m.overlay.target].filter((x): x is string => typeof x === "string").map(elementOf).filter((x): x is DjsElement => !!x);
       if (elements.length) viewer.get<SelectionService>("selection").select(elements);
     };
 
-    for (const shape of scene.geometry.shapes) {
-      const o = shape.overlay;
-      const p = o.payload ?? {};
-      switch (o.kind) {
-        case "badge": {
-          const target = elementOf(o.target);
-          if (!target || typeof target.x !== "number") break;
-          const bg = overlayColor(o);
-          const badge = el("span", "wf-badge");
-          badge.style.background = bg;
-          badge.style.color = contrastText(bg);
-          badge.title = tooltip(o);
-          if (p.constraintId) badge.dataset.constraint = String(p.constraintId);
-          badge.appendChild(el("span", "wf-badge__glyph", p.glyph ?? "●"));
-          if (typeof p.value === "number" && Number.isFinite(p.value)) badge.appendChild(el("span", "wf-badge__share", formatShare(p.value, locale)));
-          overlaysService.add(target.id, OVERLAY_TYPE, {
-            html: badge,
-            position: { top: shape.y - target.y!, left: shape.x - target.x },
-            show: { minZoom: lodRules.badges },
-            scale: { min: 0.8, max: 1.2 },
-          });
-          break;
-        }
-        case "tint":
-        case "hatch": {
-          const target = elementOf(o.target);
-          if (!target || typeof target.x !== "number") break;
-          const cover = el("div", o.kind === "tint" ? "wf-bpmn-tint" : "wf-bpmn-hatch");
-          cover.style.width = `${target.width ?? 0}px`;
-          cover.style.height = `${target.height ?? 0}px`;
-          if (o.kind === "tint") cover.style.background = tintColor(o) ?? "transparent";
-          cover.title = tooltip(o);
-          overlaysService.add(target.id, OVERLAY_TYPE, { html: cover, position: { top: 0, left: 0 }, show: o.kind === "hatch" ? { minZoom: lodRules.hatch } : undefined, scale: true });
-          canvas.addMarker(target.id, o.kind === "tint" ? "wf-bpmn--tinted" : "wf-bpmn--hatched");
-          break;
-        }
-        case "chip": {
-          if (o.target === MAP_TARGET) break;
-          const target = elementOf(o.target);
-          if (!target || typeof target.x !== "number") break;
-          const chip = el("span", "wf-chip");
-          chip.style.setProperty("--wf-chip-color", overlayColor(o));
-          chip.title = tooltip(o);
-          if (p.glyph) chip.appendChild(el("span", "", p.glyph));
-          const label = el("span", "");
-          if (p.label) {
-            const strong = document.createElement("strong");
-            strong.textContent = `${p.label}: `;
-            label.appendChild(strong);
-          }
-          label.appendChild(document.createTextNode(p.text ?? (typeof p.value === "number" ? formatShare(p.value, locale) : "")));
-          chip.appendChild(label);
-          overlaysService.add(target.id, OVERLAY_TYPE, { html: chip, position: { top: shape.y - target.y!, left: shape.x - target.x }, show: { minZoom: lodRules.chips }, scale: { min: 0.8, max: 1.2 } });
-          break;
-        }
-        case "arc":
-        case "selfLoop": {
-          if (!shape.path) break;
-          const color = overlayColor(o);
-          const g = svgEl("g", { class: o.kind === "arc" ? `wf-arc${p.reverse ? " wf-arc--reverse" : ""}` : "wf-selfloop", "data-kind": o.kind });
-          if (p.constraintId) g.setAttribute("data-constraint", String(p.constraintId));
-          const title = svgEl("title", {});
-          title.textContent = tooltip(o);
-          g.appendChild(title);
-          const path = svgEl("path", {
-            d: shape.path,
-            fill: "none",
-            stroke: color,
-            "stroke-width": o.kind === "arc" ? arcWidth(o) : 2.5,
-            "stroke-opacity": 0.9,
-            "marker-end": "url(#wf-bpmn-arrow)",
-          });
-          if (p.reverse) path.setAttribute("stroke-dasharray", "6 4");
-          path.addEventListener("click", () => selectPair(shape));
-          g.appendChild(path);
-          const value = typeof p.value === "number" && Number.isFinite(p.value) ? formatShare(p.value, locale) : "";
-          // A self-loop without a label or a value draws no text.
-          if (shape.labelX !== undefined && shape.labelY !== undefined && (o.kind === "arc" || p.displayLabel || value)) {
-            const text = svgEl("text", { x: shape.labelX, y: shape.labelY, "text-anchor": o.kind === "arc" ? "middle" : "start" });
-            text.textContent = typeof p.displayLabel === "string" ? p.displayLabel : o.kind === "arc" ? `${p.glyph ?? ""} ${value}`.trim() : `↻ ${value}`;
-            g.appendChild(text);
-          }
-          // Observed repeats are recorded data and stay at every zoom.
-          g.setAttribute("data-min-zoom", String(o.kind === "selfLoop" && p.observed ? 0 : shape.minZoom));
-          layer.appendChild(g);
-          break;
-        }
+    for (const m of marks) {
+      // Marks with a path run between elements and go into the SVG layer.
+      if (m.path !== undefined) {
+        const g = svgDom(domMark(m, MARK_IDS), document) as SVGGElement;
+        g.setAttribute("data-kind", m.kind);
+        g.setAttribute("data-min-zoom", String(m.minZoom));
+        g.addEventListener("click", () => selectPair(m));
+        layer.appendChild(g);
+        continue;
       }
+      // Boxes are bpmn-js overlays on the element they name, at the offset of their box.
+      const target = elementOf(m.overlay.target);
+      if (!target || typeof target.x !== "number" || typeof target.y !== "number") continue;
+      const html = el("span", `wf-${m.kind.toLowerCase()}${m.layer === "below" ? " wf-mark--below" : ""}`);
+      html.title = m.title;
+      const constraint = m.overlay.payload?.constraintId;
+      if (constraint) html.dataset.constraint = String(constraint);
+      const { x, y, width, height } = m.box;
+      const svg = svgEl("svg", { width, height, viewBox: `${x} ${y} ${width} ${height}`, overflow: "visible" });
+      svg.appendChild(svgDom(domMark(m, MARK_IDS), document));
+      html.appendChild(svg);
+      overlaysService.add(target.id, OVERLAY_TYPE, {
+        html,
+        position: { top: y - target.y, left: x - target.x },
+        show: m.minZoom > 0 ? { minZoom: m.minZoom } : undefined,
+        // Covers scale with the diagram; marks with text stay legible.
+        scale: m.texts.length ? { min: 0.8, max: 1.2 } : true,
+      });
+      const marker = `wf-bpmn--${m.kind.toLowerCase()}`;
+      canvas.addMarker(target.id, marker);
+      markersRef.current.add(marker);
     }
     // Arcs follow the level of detail: hidden below their minimum zoom.
     const applyZoom = () => {
@@ -536,7 +473,7 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
     return () => {
       viewer.off("canvas.viewbox.changed", applyZoom);
     };
-  }, [status, scene, placed, lodRules, locale]);
+  }, [status, scene, placed]);
 
   // 6. Controlled selection: applied to the diagram when it differs from what the diagram reported.
   useEffect(() => {
@@ -650,7 +587,7 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
       ) : null}
       {legend && view !== "table" ? (
         <div className="wf-bpmn__panel wf-bpmn__panel--bottom-right">
-          <Legend scales={scales} overlays={listed} locale={locale} chips={mapChips.length ? mapChips.map((c, i) => <Chip key={`${c.payload?.constraintId ?? "chip"}-${i}`} chip={c} locale={locale} />) : undefined} />
+          <Legend scales={scales} overlays={listed} locale={locale} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} />) : undefined} />
         </div>
       ) : null}
       {status === "loading" || (status === "idle" && (xml || graph)) ? (

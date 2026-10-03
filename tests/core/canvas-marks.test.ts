@@ -109,11 +109,33 @@ describe("Canvas overlay marks", () => {
       { text: "≥1", at: [286, 0.5], color: "#000000", font: font("700 10px"), align: "center", baseline: "middle" },
       { text: "25 %", at: [302, 0.5], color: "#1f1f1f", font: font("10px"), align: "left", baseline: "middle" },
       // The map-level chip ("Scope") is not drawn on the map.
-      { text: "◔ Late", at: [450, 8.5], color: "#1f1f1f", font: font("10px"), align: "left", baseline: "middle" },
+      { text: "◔", at: [450, 8.5], color: "#1f1f1f", font: font("10px"), align: "left", baseline: "middle" },
+      { text: "Late", at: [462.4, 8.5], color: "#1f1f1f", font: font("10px"), align: "left", baseline: "middle" },
     ]);
     // Labels beside lines and badges carry a paper halo.
     expect(ops.filter((o) => o.op === "strokeText").map((o) => [o.text, o.color, o.width])).toEqual([
       ["⏱ 25 %", "#ffffff", 3], ["⇐ 100 %", "#ffffff", 3], ["↻ 75 %", "#ffffff", 3], ["100 %", "#ffffff", 3], ["25 %", "#ffffff", 3],
+    ]);
+  });
+
+  it("draws a chip's gauge and its label in bold before the text", () => {
+    const chip: Overlay = { kind: "chip", target: "s2", payload: { glyph: "◔", label: "Touches", text: "2.1 ⌀", value: 0.5, gauge: { value: 2.1, threshold: 2, width: 1 } } };
+    const scene = prepareScene(graph, positions, { overlays: [chip], selfLoops: false, lodBySize: false });
+    const { ctx, ops } = drawingContext();
+    drawScene(ctx, scene, { x: 0, y: 0, zoom: 1, width: 1000, height: 600 }, undefined, { cull: false });
+    // Track 40 × 6 at (361.2, 5) with radius 3 in the line colour, 0.7 of it filled, the tick at 2 / 3.
+    expect(startingAt(ops, "M364.2,5")).toEqual([{ op: "fill", path: expect.stringContaining("A398.2,8,3"), color: defaultTokens.line, alpha: 1 }]);
+    const track = ops.findIndex((o) => o.path?.startsWith("M364.2,5"));
+    expect(ops.slice(track + 1).filter((o) => o.op === "fillRect")).toEqual([
+      { op: "fillRect", path: "R361.2,5,28,6", color: "#fd8d3c", alpha: 1 },
+      { op: "fillRect", path: "R386.87,4,2,8", color: "#1f1f1f", alpha: 1 },
+    ]);
+    // The lead in bold, the text after its measured width (9 characters × 6 in this context).
+    const texts = ops.filter((o) => o.op === "fillText" && !["A", "B", "C"].includes(o.text ?? "") && !o.text?.startsWith("Stage"));
+    expect(texts.map(({ text, at, font: f }) => ({ text, at, font: f }))).toEqual([
+      { text: "◔", at: [348.8, 8.5], font: font("10px") },
+      { text: "Touches: ", at: [407.2, 8.5], font: font("700 10px") },
+      { text: "2.1 ⌀", at: [461.2, 8.5], font: font("10px") },
     ]);
   });
 

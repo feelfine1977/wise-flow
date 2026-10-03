@@ -7,7 +7,8 @@ import { type Box, type Positions, straightRoute } from "./layout.js";
 import { type LaneBand, type LaneMode } from "./lanes.js";
 import { type FlowGraph, type Overlay, MAP_TARGET, hasTag, metric } from "./model.js";
 import type { OverlayGeometryOptions } from "./overlays.js";
-import { type MarkPaint, type MarkText, type OverlayMark, overlayArrow } from "./overlay-marks.js";
+import { type MarkSvgOptions, markSvg, svgMarkup } from "./mark-svg.js";
+import { type OverlayMark, overlayArrow } from "./overlay-marks.js";
 import { type FlowScene, buildScene } from "./scene.js";
 import { type LegendItem, type StyleSpec, fixedColors, lodAt, patternDefs } from "./style.js";
 import { RECONNECTED_TAG } from "./aggregate.js";
@@ -186,35 +187,17 @@ function drawNodes(ctx: Ctx): string {
   return out.join("");
 }
 
-function paintOf(mark: OverlayMark, paint: MarkPaint): string {
-  return paint === "value" ? mark.color : paint === "onValue" ? mark.onColor : fixedColors[paint];
-}
-
-function markText(mark: OverlayMark, m: MarkText): string {
-  // Without text measurement, about 6.2 px per character at 10 px.
-  const value = m.maxWidth === undefined ? m.text : truncate(m.text, Math.floor((m.maxWidth + 4) / 6.2));
-  const y = m.baseline === "middle" ? m.y + 0.3 * m.size : m.y;
-  const halo = m.halo ? ` paint-order="stroke" stroke="${fixedColors.paper}" stroke-width="3"` : "";
-  return text(m.x, y, value, `font-size="${m.size}"${m.weight ? ` font-weight="${m.weight}"` : ""}${m.anchor === "start" ? "" : ` text-anchor="${m.anchor}"`} fill="${paintOf(mark, m.paint)}"${halo}`);
-}
+const markOptions: MarkSvgOptions = {
+  paint: (mark, paint) => (paint === "value" ? mark.color : paint === "onValue" ? mark.onColor : fixedColors[paint]),
+  arrowId: "wf-overlay-arrow",
+  patternId: "wf-pattern-outofscope",
+};
 
 function drawMarks(ctx: Ctx, layer: OverlayMark["layer"]): string {
-  const out: string[] = [];
-  for (const m of ctx.scene.marks) {
-    if (m.layer !== layer || !m.inMap || ctx.lodZoom < m.minZoom) continue;
-    out.push(`<g class="wf-overlay wf-${m.kind.toLowerCase()}"${m.edgeId ? ` data-edge-id="${esc(m.edgeId)}"` : ""}><title>${esc(m.title)}</title>`);
-    const stroke = m.stroke ? ` stroke="${paintOf(m, m.stroke.paint)}" stroke-width="${num(m.stroke.width)}"` : "";
-    const strokeStyle = m.stroke ? `${m.stroke.opacity !== undefined ? ` stroke-opacity="${m.stroke.opacity}"` : ""}${m.stroke.dash ? ` stroke-dasharray="${m.stroke.dash.join(" ")}"` : ""}` : "";
-    if (m.path !== undefined) {
-      out.push(`<path d="${m.path}" fill="none"${stroke}${strokeStyle}${m.arrow ? ` marker-end="url(#wf-overlay-arrow)"` : ""}/>`);
-    } else {
-      const fill = m.fill ? (m.fill.pattern ? "url(#wf-pattern-outofscope)" : paintOf(m, m.fill.paint)) : "none";
-      out.push(rect(m.box, `rx="${num(m.radius)}" fill="${fill}"${m.fill?.opacity !== undefined ? ` fill-opacity="${m.fill.opacity}"` : ""}${stroke || ` stroke="none"`}${strokeStyle}`));
-    }
-    for (const tx of m.texts) out.push(markText(m, tx));
-    out.push(`</g>`);
-  }
-  return out.join("");
+  return ctx.scene.marks
+    .filter((m) => m.layer === layer && m.inMap && ctx.lodZoom >= m.minZoom)
+    .map((m) => svgMarkup(markSvg(m, markOptions)))
+    .join("");
 }
 
 function drawLegend(ctx: Ctx, x: number, y: number, width: number, mapChips: Overlay[]): { svg: string; height: number } {
