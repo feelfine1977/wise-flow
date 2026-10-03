@@ -1,4 +1,5 @@
-import { type FlowGraph, type Locale, type Overlay, type Scales, type StringKey, buildScales, defaultStyle, describeOverlay, formatShare, t } from "../core/index.js";
+import { type ElementRef, type FlowGraph, type Locale, type Overlay, type Scales, type StringKey, buildScales, defaultStyle, describeOverlay, emptySelection, formatShare, t } from "../core/index.js";
+import { clickSelection } from "../core/map-controller.js";
 import { formatMetric, metricColumns, metricLabel } from "./describe.js";
 import type { Selection } from "./types.js";
 
@@ -19,7 +20,8 @@ const EDGE_METRICS = ["count", "cases", "share", "violationShare", "medianLagHou
 
 /**
  * The same graph and overlays as accessible tables: activities, paths and
- * constraint overlays with the numbers they encode.
+ * constraint overlays with the numbers they encode. A click or Enter on a row
+ * selects as a click on the map does (the map controller's `clickSelection`).
  */
 export function TableAlternative({ graph, overlays, scales, locale = "en", selection, onSelect, tables = ["nodes", "edges", "overlays"], className }: TableAlternativeProps) {
   const sc = scales ?? buildScales(graph, defaultStyle);
@@ -28,8 +30,9 @@ export function TableAlternative({ graph, overlays, scales, locale = "en", selec
   const allOverlays = overlays ?? graph.overlays ?? [];
   const nodeCols = metricColumns(graph.nodes, NODE_METRICS);
   const edgeCols = metricColumns(graph.edges, EDGE_METRICS);
-  const selectNode = (id: string) => onSelect?.({ nodes: [id], edges: [], groups: [] });
-  const selectEdge = (id: string) => onSelect?.({ nodes: [], edges: [id], groups: [] });
+  // A row is chosen as the map's click chooses an element: Shift, Ctrl or Cmd add it to the selection or remove it.
+  const choose = (element: ElementRef, e: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) =>
+    onSelect?.(clickSelection(selection ?? emptySelection, element, e.shiftKey || e.ctrlKey || e.metaKey));
   const targetLabel = (id: string) => labelOf.get(id) ?? groupLabel.get(id) ?? id;
 
   return (
@@ -57,7 +60,7 @@ export function TableAlternative({ graph, overlays, scales, locale = "en", selec
               </tr>
             ) : null}
             {graph.nodes.map((n) => (
-              <tr key={n.id} className={selection?.nodes.includes(n.id) ? "wf-row--selected" : undefined} onClick={() => selectNode(n.id)} tabIndex={onSelect ? 0 : undefined} onKeyDown={(e) => e.key === "Enter" && selectNode(n.id)}>
+              <tr key={n.id} className={selection?.nodes.includes(n.id) ? "wf-row--selected" : undefined} onClick={(e) => choose({ kind: "node", id: n.id }, e)} tabIndex={onSelect ? 0 : undefined} onKeyDown={(e) => e.key === "Enter" && choose({ kind: "node", id: n.id }, e)}>
                 <th scope="row">
                   <span className="wf-swatch" style={{ background: sc.nodeColor(n) }} aria-hidden="true" />
                   {n.label}
@@ -98,7 +101,7 @@ export function TableAlternative({ graph, overlays, scales, locale = "en", selec
               </tr>
             ) : null}
             {graph.edges.map((e) => (
-              <tr key={e.id} className={selection?.edges.includes(e.id) ? "wf-row--selected" : undefined} onClick={() => selectEdge(e.id)} tabIndex={onSelect ? 0 : undefined} onKeyDown={(ev) => ev.key === "Enter" && selectEdge(e.id)}>
+              <tr key={e.id} className={selection?.edges.includes(e.id) ? "wf-row--selected" : undefined} onClick={(ev) => choose({ kind: "edge", id: e.id }, ev)} tabIndex={onSelect ? 0 : undefined} onKeyDown={(ev) => ev.key === "Enter" && choose({ kind: "edge", id: e.id }, ev)}>
                 <th scope="row">{labelOf.get(e.source) ?? e.source}</th>
                 <td>{labelOf.get(e.target) ?? e.target}</td>
                 <td>{t(locale, `kind.${e.kind}` as StringKey)}</td>

@@ -47,12 +47,13 @@ describe("BpmnView through the viewer seam", () => {
     // Gateways and events are not reported; tasks by FlowGraph id, in the order of the selection.
     const expected = { tasks: ["clear invoice", "Task_CreatePO"], flows: ["Flow_Req_PO"], lanes: ["Lane_Purchasing", "Participant_p2p"] };
     expect(onSelect.mock.calls).toEqual([[expected]]);
-    expect(container.querySelector("[aria-live=polite]")?.textContent).toBe("Selected: 2 tasks, 1 flows, 2 lanes.");
+    // Announced as the map announces a selection of tasks, a flow and lanes together.
+    expect(container.querySelector("[aria-live=polite]")?.textContent).toBe("Selected: 5 elements.");
     act(() => viewer.select(pick.map(viewer.element)));
     expect(onSelect).toHaveBeenCalledTimes(1);
     act(() => viewer.select([viewer.element("Gateway_Received")]));
     expect(onSelect).toHaveBeenLastCalledWith({ tasks: [], flows: [], lanes: [] });
-    expect(container.querySelector("[aria-live=polite]")?.textContent).toBe("");
+    expect(container.querySelector("[aria-live=polite]")?.textContent).toBe("Selection cleared.");
   });
 
   it("reports hovered tasks, flows and lanes in FlowGraph ids and null when the pointer leaves", async () => {
