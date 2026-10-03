@@ -49,7 +49,7 @@ test('a deprecation on the re-export or on the declaration counts', () => {
 
 test('docs/API.md lists every deprecated name of the entry point', () => {
   const api = readFileSync(fileURLToPath(new URL('../../docs/API.md', import.meta.url)), 'utf8');
-  const section = api.slice(api.indexOf('## Deprecated names of `@wise/flow`'));
+  const section = api.slice(api.indexOf('## Deprecated names'));
   assert.ok(section.length < api.length, 'deprecation section');
   for (const name of list.deprecated) assert.match(section, new RegExp('`' + name + '`'), name);
 });

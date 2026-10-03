@@ -9,7 +9,7 @@ export {
   indexGraph,
   validateGraph,
   normalizeGraph,
-  /** @deprecated Leaves the entry point in the next major version. */
+  /** @deprecated Leaves the entry point in the next major version; test `node.kind === "event" || node.kind === "gateway"`. */
   isStructuralNode,
   /** @deprecated Leaves the entry point in the next major version; compare `a.id` and `b.id`. */
   byId,
@@ -90,7 +90,7 @@ export {
 
 export {
   hexToRgb,
-  /** @deprecated Leaves the entry point in the next major version. */
+  /** @deprecated Leaves the entry point in the next major version; format the rounded channels as `#rrggbb`. */
   rgbToHex,
   interpolatePalette,
   /** @deprecated Leaves the entry point in the next major version; use `contrastRatio`. */
@@ -156,7 +156,7 @@ export {
   describeOverlay,
   overlayGeometry,
   overlayMargin,
-  /** @deprecated Leaves the entry point in the next major version. */
+  /** @deprecated Leaves the entry point in the next major version; use `{ x: s.labelX ?? s.x + s.width / 2, y: s.labelY ?? s.y }`. */
   shapeAnchor,
 } from "./overlays.js";
 export type {

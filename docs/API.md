@@ -1235,27 +1235,32 @@ the drawing. A constraint arc is not an observed process route.
 
 Custom child controls should import `useReactFlow`, `useNodesInitialized` and `useStore` from `@wise/flow/react`, so they share the renderer's context even when a host resolves different Node/browser entry points of React Flow.
 
-## Deprecated names of `@wise/flow`
+## Deprecated names
 
-`src/core/index.ts` lists every name of the `.` entry point; none is removed
-and no import path changes. The names below are used by no renderer, no test
-and no document. They stay exported and marked `@deprecated`, and leave the
-entry point in the next major version. Where the table names a replacement,
-use it instead:
+No name is removed from any entry point. A deprecated name keeps working, is
+marked `@deprecated` in the declarations, and leaves its entry point in the next
+major version. Each table names what to use instead. A tooling test
+(`tests/tooling/deprecations.test.mjs`) checks that every `@deprecated` name
+in the source is listed here with a replacement.
+
+### `@wise/flow`
+
+`src/core/index.ts` lists every name of the `.` entry point; no import path
+changes. The names below are used by no renderer, no test and no document:
 
 | Name | Replacement |
 | --- | --- |
 | `FlowElement` | `FlowNode \| FlowEdge` |
 | `isEdge` | `"source" in element` |
-| `isStructuralNode` | none |
+| `isStructuralNode` | `node.kind === "event" \|\| node.kind === "gateway"` |
 | `byId` | compare `a.id` and `b.id` |
 | `DiffOptions` | `NonNullable<Parameters<typeof diff>[2]>` |
 | `colorOn` | `buildScales(graph, spec).color` |
-| `rgbToHex` | none |
+| `rgbToHex` | format the rounded channels as `#rrggbb` |
 | `relativeLuminance` | `contrastRatio` |
 | `PaletteName` | `NonNullable<ColorSpec["palette"]>` |
 | `PatternShape` | `ReturnType<typeof patternTwin>` |
-| `shapeAnchor` | none |
+| `shapeAnchor` | `{ x: s.labelX ?? s.x + s.width / 2, y: s.labelY ?? s.y }` |
 | `HitKind` | `HitItem["kind"]` |
 | `BuildViewsOptions` | `NonNullable<Parameters<typeof buildViews>[2]>` |
 | `PathsOptions` | `NonNullable<Parameters<typeof pathsFor>[2]>` |
@@ -1267,3 +1272,18 @@ use it instead:
 `scripts/core-exports.json` holds the entry point's names and the deprecated
 ones; a tooling test compares the built `index.d.ts` with it. Outside the core,
 the package imports a name the entry point provides from the entry point.
+
+### `@wise/flow/react`
+
+| Name | Replacement |
+| --- | --- |
+| `OverlayLayerProps.showArcs` | pass `zoom`: the layer then draws every mark on the map from its `minZoom` |
+| `OverlayLayerProps.showSelfLoops` | pass `zoom`, as for `showArcs` |
+| `ActivityNodeData.badges` | `ActivityNodeData.marks`, drawn at `origin` (for example with `markSvg` from `@wise/flow`) |
+| `GroupNodeData.chips` | `GroupNodeData.marks`, drawn at `origin` |
+
+### `@wise/flow/bpmn`
+
+| Name | Replacement |
+| --- | --- |
+| `manhattanRoute` | `routeSequenceFlows` from `@wise/flow` |
