@@ -265,6 +265,8 @@ export function createBpmnView(connect: ConnectViewer) {
         importedRef.current = false;
         viewerRef.current = null;
         setViewer(null);
+        // The next viewer starts empty; overlays wait for its own registry.
+        setElements([]);
         for (const off of offs) off();
         current?.destroy();
       };

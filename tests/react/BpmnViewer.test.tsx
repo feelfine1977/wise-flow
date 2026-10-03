@@ -162,6 +162,24 @@ describe("BpmnView through the viewer seam", () => {
     expect(viewer.imported).toHaveLength(1);
   });
 
+  it("projects the overlays onto the modeler only once it has imported the diagram", async () => {
+    const deferred = memoryViewers({ deferImports: true });
+    const Deferred = createBpmnView(deferred.connect);
+    const overlays: Overlay[] = [{ kind: "badge", target: "Task_CreatePO", payload: { glyph: "≥1", value: 0.25 } }];
+    const { container, rerender } = render(<Deferred xml={xml} overlays={overlays} />);
+    await waitFor(() => expect(deferred.instances[0]?.pending).toHaveLength(1));
+    act(() => deferred.instances[0].pending[0]());
+    await waitFor(() => expect(deferred.instances[0].overlays).toHaveLength(1));
+    rerender(<Deferred xml={xml} overlays={overlays} mode="model" />);
+    // The modeler's registry is empty until its import finishes; the viewer's elements are not its own.
+    await waitFor(() => expect(deferred.instances[1]?.pending).toHaveLength(1));
+    const modeler = deferred.instances[1];
+    expect([modeler.overlays, modeler.markers.size]).toEqual([[], 0]);
+    act(() => modeler.pending[0]());
+    await waitFor(() => expect(modeler.overlays.map((o) => o.element)).toEqual(["Task_CreatePO"]));
+    expect(container.querySelector(".wf-bpmn")?.getAttribute("data-bpmn-mode")).toBe("model");
+  });
+
   it("shows paths from their zoom and selects an arc's ends on a click", async () => {
     const onSelect = vi.fn();
     const arc: Overlay = { kind: "arc", target: "lag", payload: { source: "Task_CreatePO", target: "Task_ClearInvoice", value: 1 } };

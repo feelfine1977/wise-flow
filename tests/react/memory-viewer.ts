@@ -29,7 +29,7 @@ export interface MemoryViewer extends BpmnViewer {
   emit<K extends keyof ViewerEvents>(event: K, value: ViewerEvents[K]): void;
   /** A modeler command that leaves the diagram as `xml`. */
   edit(xml: string): void;
-  /** The element with this BPMN id. */
+  /** The element with this BPMN id; like bpmn-js, overlays and markers need one. */
   element(id: string): RegistryElement;
 }
 
@@ -102,11 +102,11 @@ export function memoryViewers(settings: MemoryViewerOptions = {}) {
         selected = [...elements];
         viewer.emit("selection", viewer.selected());
       },
-      addOverlay: (element, overlay) => void viewer.overlays.push({ element, overlay }),
+      addOverlay: (element, overlay) => void viewer.overlays.push({ element: viewer.element(element).id, overlay }),
       clearOverlays: () => void (viewer.overlays = []),
       layer: () => layer,
-      addMarker: (element, marker) => void viewer.markers.set(element, new Set([...(viewer.markers.get(element) ?? []), marker])),
-      removeMarker: (element, marker) => void viewer.markers.get(element)?.delete(marker),
+      addMarker: (element, marker) => void viewer.markers.set(viewer.element(element).id, new Set([...(viewer.markers.get(element) ?? []), marker])),
+      removeMarker: (element, marker) => void viewer.markers.get(viewer.element(element).id)?.delete(marker),
       zoom(scale) {
         if (scale !== undefined) {
           viewer.zooms.push(scale);
