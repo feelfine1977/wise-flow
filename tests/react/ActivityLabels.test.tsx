@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { type ActivityLabelOptions, type FlowGraph, activityNodeSize, activityReferences, clearLayoutCache, layout } from "../../src/index";
+import { type ActivityLabelOptions, type FlowGraph, activityNodeSize, activityReferences, layout } from "../../src/index";
 import { ActivityTooltip } from "../../src/react/ActivityTooltip";
 import { ProcessMap, useStableLayout } from "../../src/react/index";
 
@@ -14,7 +14,7 @@ const graph: FlowGraph = {
 const names: ActivityLabelOptions = { mode: "names", references: activityReferences(graph), caseLabel: "items" };
 const ids: ActivityLabelOptions = { ...names, mode: "ids" };
 
-afterEach(() => { cleanup(); clearLayoutCache(); });
+afterEach(cleanup);
 
 function dimensions(container: HTMLElement) {
   return Array.from(container.querySelectorAll<HTMLElement>(".react-flow__node")).map((element) => ({

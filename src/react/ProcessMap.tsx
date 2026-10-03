@@ -20,7 +20,6 @@ import {
   type FlowGraph,
   type Focus,
   type HitItem,
-  type LayoutOptions,
   type MenuAction,
   type MenuTarget,
   type Overlay,
@@ -33,10 +32,8 @@ import {
   addClause,
   arrowheadTokens,
   asFilter,
-  clearLayoutCache,
   coversGraph,
   defaultActions,
-  defaultNodeSize,
   defaultStyle,
   describeClause,
   describeOverlay,
@@ -71,28 +68,6 @@ const GROUP_PREFIX = "group:";
 const DEFAULT_CANVAS_THRESHOLD = 2000;
 
 const NO_MOVES: Readonly<Record<string, XY>> = {};
-
-const layoutInstances = new WeakMap<object, number>();
-let nextLayoutInstance = 0;
-
-function automaticLayoutOptions(graph: FlowGraph, options: LayoutOptions, scope: string): LayoutOptions {
-  const nodeSize = options.nodeSize;
-  const sizes = new Map(graph.nodes.map((node) => [node.id, typeof nodeSize === "function" ? nodeSize(node) : nodeSize ?? defaultNodeSize(node)]));
-  if (options.elk && !layoutInstances.has(options.elk)) layoutInstances.set(options.elk, ++nextLayoutInstance);
-  // Include resolved callback sizes, not the function's identity or source text.
-  const fingerprint = JSON.stringify({
-    nodes: graph.nodes.map((node) => [node.id, node.kind, node.label, node.group, sizes.get(node.id)]),
-    edges: graph.edges.map((edge) => [edge.id, edge.kind, edge.source, edge.target]),
-    groups: graph.groups,
-    options: {
-      ...options,
-      nodeSize: undefined,
-      elk: options.elk ? layoutInstances.get(options.elk) : undefined,
-      elkWorkerUrl: options.elkWorkerUrl ? String(options.elkWorkerUrl) : undefined,
-    },
-  });
-  return { ...options, nodeSize: (node) => sizes.get(node.id) ?? defaultNodeSize(node), cacheKey: `wf:${scope}:${fingerprint}` };
-}
 
 interface MenuState {
   target: MenuTarget;
@@ -175,20 +150,11 @@ function ProcessMapInner(props: ProcessMapProps) {
   const useCanvas = renderer === "canvas" || (renderer === "auto" && shown.nodes.length + shown.edges.length > canvasThreshold);
 
   // Positions: given (stable layout across scenes) when they cover the shown graph,
-  // otherwise computed for the shown graph and cached by its layout inputs. Lane
-  // bands replace the group boxes (and move nodes into role lanes) afterwards.
+  // otherwise computed for the shown graph; the layout module keeps them by their
+  // inputs for as long as the map is mounted. Lane bands replace the group boxes
+  // (and move nodes into role lanes) afterwards.
   const needsOwnLayout = !givenPositions || !coversGraph(givenPositions, shown);
-  const layoutCacheScope = useId();
-  const ownLayoutOptions = useMemo(
-    () => !needsOwnLayout || sizedLayoutOptions?.cacheKey !== undefined ? sizedLayoutOptions ?? {} : automaticLayoutOptions(shown, sizedLayoutOptions ?? {}, layoutCacheScope),
-    [needsOwnLayout, sizedLayoutOptions, shown, layoutCacheScope],
-  );
-  const own = useStableLayout(needsOwnLayout ? shown : undefined, ownLayoutOptions);
-  const automaticCacheKey = needsOwnLayout && layoutOptions?.cacheKey === undefined ? ownLayoutOptions.cacheKey : undefined;
-  useEffect(() => {
-    // Automatic entries belong to this map; caller-supplied keys remain caller-owned.
-    if (automaticCacheKey !== undefined) return () => clearLayoutCache(automaticCacheKey);
-  }, [automaticCacheKey]);
+  const own = useStableLayout(needsOwnLayout ? shown : undefined, sizedLayoutOptions);
   const [manual, setManual] = useState<{ key: ProcessMapProps["layoutResetKey"]; points: Record<string, XY> }>({ key: layoutResetKey, points: {} });
   // Graph overlays and the given ones; the scene keeps those it can place and adds the follows self-loops.
   const sceneOverlays = useMemo(() => (extraOverlays ? [...(shown.overlays ?? []), ...extraOverlays] : undefined), [shown, extraOverlays]);

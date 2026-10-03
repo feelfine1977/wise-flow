@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { globalScene, vendorScene } from "../../fixtures/bpic2019";
-import { type Box, abstract, clearLayoutCache, coversGraph, filterPositions, layout, layoutUnion, unionGraph } from "../../src/index";
+import { type Box, abstract, coversGraph, filterPositions, layout, layoutUnion, unionGraph } from "../../src/index";
 
 function contains(outer: Box, inner: Box, slack = 0.5): boolean {
   return (
@@ -44,16 +44,6 @@ describe("layout", () => {
     }
     const timedOut = await layout(small, { timeoutMs: 0 });
     expect(timedOut.engine).toBe("dagre");
-  });
-
-  it("caches by key", async () => {
-    clearLayoutCache();
-    const a = await layout(small, { engine: "dagre", cacheKey: "k" });
-    const b = await layout({ nodes: [], edges: [] }, { engine: "dagre", cacheKey: "k" });
-    expect(b).toBe(a);
-    clearLayoutCache("k");
-    const c = await layout({ nodes: [], edges: [] }, { engine: "dagre", cacheKey: "k" });
-    expect(Object.keys(c.nodes)).toEqual([]);
   });
 });
 

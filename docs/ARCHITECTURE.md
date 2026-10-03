@@ -63,10 +63,16 @@ Elements are sorted by id before the engine runs, so positions are
 deterministic. `Positions` holds absolute boxes for nodes and groups, edge
 routes, bounds, engine and direction. **Stable layout**: `layoutUnion(scenes)`
 lays out the union graph once and returns positions that every scene
-filters (`filterPositions`), so compared maps do not jump; results are cached
-by a caller key. The map lays out the *abstracted* graph (not the full
+filters (`filterPositions`), so compared maps do not jump. **Cache**: the
+layout module owns it. A caller key (`cacheKey`) keeps positions in a shared
+cache until its owner forgets the key. Without one, a layout scope
+(`createLayoutScope`) keys each layout by its inputs (nodes with resolved
+sizes, edges, groups, options), keeps a bounded number and releases them on
+`dispose`, so a changed graph is always laid out anew. The module starts ELK
+workers on demand and terminates each once no scope and no running layout
+uses it. The map lays out the *abstracted* graph (not the full
 directly-follows graph), because hundreds of weak edges degrade layered
-layouts; the cache makes returning to a previous abstraction level free.
+layouts; each map's scope makes returning to a previous abstraction level free.
 
 ### 2.4 Style
 `buildScales` builds d3 scales from metric ranges: edge width ← count
@@ -308,9 +314,10 @@ values are not averaged into a fabricated statistic. Internal edges target the
 containing stage and folded arcs become labeled chips. Existing metric aggregation
 approximations are unchanged. Response focus and paths survive abstraction.
 
-ProcessMap's automatic layout key includes layout options, resolved dimensions
-and relevant graph structure; each map clears its own automatic entries. Explicit
-caller cache keys remain caller-owned and must be invalidated by their owner.
+Each map lays out in its own layout scope, keyed by the layout module from layout
+options, resolved dimensions and relevant graph structure, and released on
+unmount. Explicit caller cache keys remain caller-owned and must be invalidated by
+their owner.
 Timeline transient state is reconciled when cases/events change; unusable dates
 remain available in the table without being placed at an invented time.
 

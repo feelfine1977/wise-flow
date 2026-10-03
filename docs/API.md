@@ -172,7 +172,14 @@ export function layoutUnion(scenes: FlowGraph[], o?: LayoutOptions): Promise<Pos
 export function unionGraph(scenes: FlowGraph[]): FlowGraph;
 export function filterPositions(p: Positions, g: FlowGraph): Positions;
 export function coversGraph(p: Positions, g: FlowGraph): boolean;
-export function clearLayoutCache(key?: string): void;
+export function clearLayoutCache(key?: string): void;   // one caller key, or every cached layout
+export interface LayoutScopeOptions { maxEntries?: number }   // default 8, least recently used goes first
+export interface LayoutScope {
+  layout(g: FlowGraph, o?: LayoutOptions): Promise<Positions>;
+  layoutUnion(scenes: FlowGraph[], o?: LayoutOptions): Promise<Positions>;
+  readonly size: number; dispose(): void;
+}
+export function createLayoutScope(o?: LayoutScopeOptions): LayoutScope;
 export type PositionsContents = Pick<Positions, "nodes" | "groups" | "edges">;
 export function createPositions(c: PositionsContents, engine: LayoutEngine, direction: LayoutDirection): Positions;
 export function positionsBounds(c: PositionsContents): Box;
@@ -194,6 +201,21 @@ compound nodes; top-level stage groups keep their array order along the
 flow direction. `layoutUnion` lays out the union of the scenes once; every
 scene reads its own ids from the result, so shared elements keep identical
 positions.
+
+Caching. With `cacheKey` the same key returns the cached positions, whatever
+the graph and the other options; the caller owns the key and forgets it with
+`clearLayoutCache(key)`. Without a key `layout` keeps nothing. A layout scope
+from `createLayoutScope` keys each layout by its inputs: node ids, labels,
+groups and resolved sizes (a size callback counts by what it returns), edge
+ids and endpoints, the groups' ids, kinds, labels and parents, and every other
+option (an `elk` instance by identity). A changed graph or changed options are
+laid out anew; the last `maxEntries` layouts are kept. `dispose()` forgets the
+scope's layouts; the scope stays usable. Caller keys inside a scope go to the
+shared cache as above. `clearLayoutCache()` without a key forgets every cached
+layout, every scope's included. ELK workers (`elkWorkerUrl`) start on demand,
+one per URL, and are terminated once no scope and no running layout uses them:
+after each `layout` call outside a scope, and when the last scope that used
+one is disposed. An `elk` instance the caller supplies is never terminated.
 
 ## Style
 
@@ -980,9 +1002,11 @@ stable IDs break remaining ties. A graph route is not proof that one observed
 case followed the complete sequence. Collapsing overlays preserves their separate
 values and remaps targets; folded arcs become labeled stage chips.
 
-ProcessMap invalidates its automatic layout cache when geometry/structure/options
-change, and releases automatic entries when replaced or unmounted. Supplying an
-explicit `layout.cacheKey` keeps caller-controlled reuse semantics.
+ProcessMap and `useStableLayout` lay out in a layout scope of their own: the
+layout module keys each layout by the graph structure, the resolved node sizes
+and the options, so changed inputs are laid out anew and earlier ones are reused;
+the scope is released when the component unmounts. Supplying an explicit
+`layout.cacheKey` keeps caller-controlled reuse semantics.
 
 ## Cohort comparison (0.3.2 candidate)
 

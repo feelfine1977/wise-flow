@@ -6,6 +6,7 @@
 import type { ELK, ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api.js";
 import { Graph as DagreGraph, layout as dagreLayout } from "@dagrejs/dagre";
 import { type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, byId, indexGraph } from "./model.js";
+import { layoutInputKey, resolvedSizes } from "./layout-key.js";
 import { nodeSizeTokens } from "./tokens.js";
 
 export interface XY {
@@ -71,7 +72,11 @@ export interface LayoutOptions {
   elkOptions?: Record<string, string>;
   /** Milliseconds before the layout falls back to Dagre. Default 20000. */
   timeoutMs?: number;
-  /** Cache key; the same key returns the cached positions without recomputing. */
+  /**
+   * Cache key; the same key returns the cached positions without recomputing,
+   * whatever the graph and the other options. The caller owns the key and forgets
+   * it with `clearLayoutCache(key)` when its inputs change.
+   */
   cacheKey?: string;
 }
 
@@ -147,7 +152,9 @@ export function createPositions(contents: PositionsContents, engine: LayoutEngin
 type ElkCtor = new (args?: { workerUrl?: string; workerFactory?: (url?: string) => Worker }) => ELK;
 
 let inProcessElk: Promise<ELK> | undefined;
-const workerElks = new Map<string, Promise<ELK>>();
+
+/** ELK instances that run in a Web Worker, by worker URL, with the number of their users. */
+const workerElks = new Map<string, { elk: Promise<ELK>; users: number }>();
 
 function unwrap(mod: unknown): ElkCtor {
   const m = mod as { default?: ElkCtor & { default?: ElkCtor } };
@@ -160,17 +167,28 @@ function unwrap(mod: unknown): ElkCtor {
 const loadApiCtor = () => import("elkjs/lib/elk-api.js").then(unwrap);
 const loadBundledCtor = () => import("elkjs/lib/elk.bundled.js").then(unwrap);
 
-async function getElk(o: LayoutOptions): Promise<ELK> {
-  if (o.elk) return o.elk;
-  if (o.elkWorkerUrl && typeof Worker !== "undefined") {
-    const url = String(o.elkWorkerUrl);
-    if (!workerElks.has(url)) {
-      workerElks.set(url, loadApiCtor().then((Ctor) => new Ctor({ workerUrl: url, workerFactory: (u) => new Worker(u!) })));
-    }
-    return workerElks.get(url)!;
+/** The worker URL a layout with these options runs ELK in, if any. */
+function workerUrlOf(o: LayoutOptions): string | undefined {
+  return !o.elk && o.elkWorkerUrl && typeof Worker !== "undefined" ? String(o.elkWorkerUrl) : undefined;
+}
+
+/** Use the worker for a URL, starting it when nobody uses it yet. */
+function acquireWorker(url: string): Promise<ELK> {
+  let entry = workerElks.get(url);
+  if (!entry) {
+    entry = { elk: loadApiCtor().then((Ctor) => new Ctor({ workerUrl: url, workerFactory: (u) => new Worker(u!) })), users: 0 };
+    workerElks.set(url, entry);
   }
-  if (!inProcessElk) inProcessElk = loadBundledCtor().then((Ctor) => new Ctor());
-  return inProcessElk;
+  entry.users++;
+  return entry.elk;
+}
+
+/** Stop using the worker for a URL; the last user terminates it. */
+function releaseWorker(url: string): void {
+  const entry = workerElks.get(url);
+  if (!entry || --entry.users > 0) return;
+  workerElks.delete(url);
+  entry.elk.then((elk) => elk.terminateWorker(), () => undefined);
 }
 
 interface Prepared {
@@ -299,8 +317,19 @@ async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   }
 }
 
-async function layoutElk(p: Prepared, o: LayoutOptions): Promise<Positions> {
-  const elk = await getElk(o);
+async function layoutElk(p: Prepared, o: LayoutOptions, holder?: EngineHolder): Promise<Positions> {
+  const url = workerUrlOf(o);
+  if (url === undefined) return runElk(o.elk ?? (await (inProcessElk ??= loadBundledCtor().then((Ctor) => new Ctor()))), p, o);
+  holder?.hold(url);
+  const elk = acquireWorker(url);
+  try {
+    return await runElk(await elk, p, o);
+  } finally {
+    releaseWorker(url);
+  }
+}
+
+async function runElk(elk: ELK, p: Prepared, o: LayoutOptions): Promise<Positions> {
   const ms = o.timeoutMs ?? 20000;
   const partition = (o.orderStages ?? true) && p.useGroups;
   try {
@@ -372,44 +401,139 @@ function layoutDagre(p: Prepared, o: LayoutOptions): Positions {
 // ---------------------------------------------------------------------------
 // Public API
 
-const cache = new Map<string, Promise<Positions>>();
+/** Keeps a worker running for a scope until the scope is disposed. */
+interface EngineHolder {
+  hold(url: string): void;
+}
 
-/** Forget cached layouts (all, or one key). */
+/** Layouts by caller key; the caller owns them. */
+const cache = new Map<string, Promise<Positions>>();
+/** Counts global clears; a scope from an earlier generation forgets its layouts. */
+let generation = 0;
+
+/** Forget cached layouts: all of them (caller keys and every scope's), or one caller key. */
 export function clearLayoutCache(key?: string): void {
-  if (key === undefined) cache.clear();
-  else cache.delete(key);
+  if (key !== undefined) {
+    cache.delete(key);
+    return;
+  }
+  cache.clear();
+  generation++;
+}
+
+/** The layout kept under `key`, or a new one that is kept unless it fails. Hits move to the end. */
+function remember(entries: Map<string, Promise<Positions>>, key: string, make: () => Promise<Positions>): Promise<Positions> {
+  let pending = entries.get(key);
+  entries.delete(key);
+  pending ??= make().catch((err) => {
+    if (entries.get(key) === pending) entries.delete(key);
+    throw err;
+  });
+  entries.set(key, pending);
+  return pending;
+}
+
+function run(graph: FlowGraph, options: LayoutOptions, holder?: EngineHolder): Promise<Positions> {
+  const key = options.cacheKey;
+  return key ? remember(cache, key, () => compute(graph, options, holder)) : compute(graph, options, holder);
+}
+
+async function compute(graph: FlowGraph, options: LayoutOptions, holder?: EngineHolder): Promise<Positions> {
+  const p = prepare(graph, options);
+  if (p.nodes.length === 0) {
+    return createPositions({ nodes: {}, groups: {}, edges: {} }, options.engine === "dagre" ? "dagre" : "elk", p.direction);
+  }
+  const engine = options.engine ?? "auto";
+  if (engine === "dagre") return layoutDagre(p, options);
+  try {
+    return await layoutElk(p, options, holder);
+  } catch (err) {
+    if (engine === "elk") throw err;
+    return layoutDagre(p, options);
+  }
 }
 
 /**
  * Lay out a graph. Positions are absolute and deterministic for the same input
  * (elements are sorted by id before the engine runs). Groups become compound nodes.
+ * Without `cacheKey` nothing is kept; a worker started for this layout alone is
+ * terminated when it is done.
  */
 export function layout(graph: FlowGraph, options: LayoutOptions = {}): Promise<Positions> {
-  const run = async (): Promise<Positions> => {
-    const p = prepare(graph, options);
-    if (p.nodes.length === 0) {
-      return createPositions({ nodes: {}, groups: {}, edges: {} }, options.engine === "dagre" ? "dagre" : "elk", p.direction);
-    }
-    const engine = options.engine ?? "auto";
-    if (engine === "dagre") return layoutDagre(p, options);
-    try {
-      return await layoutElk(p, options);
-    } catch (err) {
-      if (engine === "elk") throw err;
-      return layoutDagre(p, options);
-    }
+  return run(graph, options);
+}
+
+export interface LayoutScopeOptions {
+  /** Layouts kept at most; the least recently used one goes first. Default 8. */
+  maxEntries?: number;
+}
+
+/**
+ * Layouts that belong to one owner, e.g. one map. Without a caller key the scope
+ * keys each layout by its inputs: the nodes' ids, labels, groups and resolved
+ * sizes (size callbacks count by what they return), the edges' ids and endpoints,
+ * the groups' ids, kinds, labels and parents, and every other option (an `elk`
+ * instance by identity). A changed graph or changed options are laid out anew;
+ * returning to earlier inputs is free. Caller keys go to the shared,
+ * caller-owned cache as with `layout`. ELK workers the scope starts keep running
+ * until it is disposed.
+ */
+export interface LayoutScope {
+  layout(graph: FlowGraph, options?: LayoutOptions): Promise<Positions>;
+  layoutUnion(scenes: FlowGraph[], options?: LayoutOptions): Promise<Positions>;
+  /** Number of layouts the scope keeps. */
+  readonly size: number;
+  /**
+   * Forget the scope's layouts and stop its ELK workers once no other scope or
+   * running layout uses them. The scope stays usable and starts empty.
+   */
+  dispose(): void;
+}
+
+/** Layouts keyed by the graph's nodes with resolved sizes, edges, groups and options; see `LayoutScope`. */
+export function createLayoutScope(scopeOptions: LayoutScopeOptions = {}): LayoutScope {
+  const maxEntries = Math.max(1, scopeOptions.maxEntries ?? 8);
+  const entries = new Map<string, Promise<Positions>>();
+  const held = new Set<string>();
+  const holder: EngineHolder = {
+    hold(url) {
+      if (held.has(url)) return;
+      held.add(url);
+      acquireWorker(url);
+    },
   };
-  if (options.cacheKey) {
-    const hit = cache.get(options.cacheKey);
-    if (hit) return hit;
-    const pending = run().catch((err) => {
-      cache.delete(options.cacheKey!);
-      throw err;
-    });
-    cache.set(options.cacheKey, pending);
-    return pending;
-  }
-  return run();
+  let seen = generation;
+  const forgetIfCleared = () => {
+    if (seen !== generation) entries.clear();
+    seen = generation;
+  };
+  const scope: LayoutScope = {
+    layout(graph, options = {}) {
+      if (options.cacheKey) return run(graph, options, holder);
+      forgetIfCleared();
+      const sizes = resolvedSizes(graph, options);
+      const key = layoutInputKey(graph, options, sizes);
+      const pending = remember(entries, key, () => compute(graph, { ...options, nodeSize: (node) => sizes.get(node.id)! }, holder));
+      for (const oldest of entries.keys()) {
+        if (entries.size <= maxEntries) break;
+        entries.delete(oldest);
+      }
+      return pending;
+    },
+    layoutUnion(scenes, options) {
+      return scope.layout(unionGraph(scenes), options);
+    },
+    get size() {
+      forgetIfCleared();
+      return entries.size;
+    },
+    dispose() {
+      entries.clear();
+      for (const url of held) releaseWorker(url);
+      held.clear();
+    },
+  };
+  return scope;
 }
 
 /**

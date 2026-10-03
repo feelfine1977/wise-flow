@@ -13,12 +13,13 @@ import {
   type XY,
   abstract,
   buildScene,
+  createLayoutScope,
   createPositions,
-  defaultNodeSize,
   filterPositions,
-  layoutUnion,
   overlaysFor,
+  unionGraph,
 } from "../core/index.js";
+import { layoutInputKey } from "../core/layout-key.js";
 
 /** Abstracted graph, recomputed when the graph or the options change. */
 export function useFlowGraph(graph: FlowGraph, options?: AbstractOptions): FlowGraph {
@@ -37,29 +38,28 @@ export interface StableLayout {
 /**
  * Lay out the union of one or more scenes once; the result serves every scene so
  * that compared maps keep identical positions. Recomputes when the scenes or the
- * options change; stale results are discarded.
+ * options change; stale results are discarded. Layouts are kept per component
+ * by their inputs and released on unmount.
  */
 export function useStableLayout(scenes: FlowGraph | FlowGraph[] | undefined, options?: LayoutOptions): StableLayout {
   const list = useMemo(() => (scenes === undefined ? [] : Array.isArray(scenes) ? scenes : [scenes]), [scenes]);
-  const optionsKey = JSON.stringify({
-    ...options,
-    // Functions disappear from JSON. Compare their resolved dimensions instead of
-    // identities so equivalent callbacks do not restart layout on every render.
-    nodeSize: list.map((scene) => scene.nodes.map((node) => [node.id, typeof options?.nodeSize === "function" ? options.nodeSize(node) : options?.nodeSize ?? defaultNodeSize(node)])),
-    elk: undefined,
-    elkWorkerUrl: options?.elkWorkerUrl ? String(options.elkWorkerUrl) : undefined,
-  });
+  const union = useMemo(() => (list.length === 0 ? undefined : unionGraph(list)), [list]);
+  // Size callbacks count by the dimensions they return, so equivalent callbacks do not restart layout.
+  const inputs = union ? layoutInputKey(union, options ?? {}) : undefined;
+  const [scope] = useState(createLayoutScope);
+  useEffect(() => () => scope.dispose(), [scope]);
   const [state, setState] = useState<StableLayout>({ positions: undefined, status: "idle" });
   const token = useRef(0);
   useEffect(() => {
-    if (list.length === 0) {
+    if (!union) {
       setState({ positions: undefined, status: "idle" });
       return;
     }
     const counter = token;
     const id = ++counter.current;
     setState((s) => ({ ...s, status: "pending" }));
-    layoutUnion(list, options)
+    scope
+      .layout(union, options)
       .then((positions) => {
         if (counter.current === id) setState({ positions, status: "ready" });
       })
@@ -69,7 +69,7 @@ export function useStableLayout(scenes: FlowGraph | FlowGraph[] | undefined, opt
     return () => {
       counter.current++;
     };
-  }, [list, optionsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [union, inputs, options?.cacheKey, scope]); // eslint-disable-line react-hooks/exhaustive-deps
   return state;
 }
 

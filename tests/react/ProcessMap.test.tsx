@@ -6,7 +6,7 @@ import { ProcessMap } from "../../src/react/index";
 
 afterEach(() => {
   cleanup();
-  clearLayoutCache();
+  vi.unstubAllGlobals();
 });
 
 const graph = abstract(vendorScene, { minEdgeShare: 0.02 });
@@ -223,5 +223,46 @@ describe("ProcessMap", () => {
     expect(nodeBox(container, "b")).toEqual(cached.nodes.b);
     unmount();
     expect(await layout({ nodes: [], edges: [] }, { cacheKey })).toBe(cached);
+    clearLayoutCache(cacheKey);
+  });
+
+  it("lays out again only for new inputs and stops its ELK worker on unmount", async () => {
+    // Answers ELK's worker protocol by placing the nodes side by side, 100 px apart.
+    const workers: { layouts: number; terminated: boolean }[] = [];
+    class FakeWorker {
+      onmessage: ((answer: { data: unknown }) => void) | null = null;
+      record = { layouts: 0, terminated: false };
+      constructor() {
+        workers.push(this.record);
+      }
+      postMessage(message: { id: number; cmd: string; graph?: { children?: object[] } }) {
+        let data: unknown = true;
+        if (message.cmd === "layout") {
+          this.record.layouts++;
+          data = { ...message.graph, children: (message.graph?.children ?? []).map((child, i) => ({ ...child, x: 100 * i, y: 0 })) };
+        }
+        queueMicrotask(() => this.onmessage?.({ data: { id: message.id, data } }));
+      }
+      terminate() {
+        this.record.terminated = true;
+      }
+    }
+    vi.stubGlobal("Worker", FakeWorker);
+    const viaWorker = (direction: LayoutOptions["direction"]): LayoutOptions => ({ engine: "elk", elkWorkerUrl: "https://example.test/elk-worker.js", direction });
+
+    const { container, rerender, unmount } = render(automaticMap(viaWorker("RIGHT")));
+    await ready(container);
+    expect(nodeBox(container, "b").x).toBe(100);
+    rerender(automaticMap(viaWorker("DOWN")));
+    await waitFor(() => expect(workers[0]?.layouts).toBe(2));
+    await ready(container);
+    // Back to the first inputs: the map's own cache answers.
+    rerender(automaticMap(viaWorker("RIGHT")));
+    await ready(container);
+    expect(nodeBox(container, "b").x).toBe(100);
+    expect(workers).toEqual([{ layouts: 2, terminated: false }]);
+
+    unmount();
+    await waitFor(() => expect(workers).toEqual([{ layouts: 2, terminated: true }]));
   });
 });
