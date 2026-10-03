@@ -239,7 +239,19 @@ it alone decides which ids name an element.
 demand, and projects the scene's overlay marks through bpmn-js's overlays
 service (boxes such as badges, tints, hatching and chips, as overlays that
 follow their shapes) and an SVG layer of the canvas (paths: arcs and
-self-loops), with the same SVG elements as the map. The core scene
+self-loops), with the same SVG elements as the map. The view reaches bpmn-js
+only through a viewer interface (`viewer.ts`: import and save, the element
+registry's boxes, overlays, markers, the SVG layer, selection, hover, change,
+command and viewport events, zoom, viewbox and resize). Its adapters are
+bpmn-js (`bpmn-js.ts`) and, in the component tests, an in-memory viewer that
+builds its registry from the diagram interchange of the XML. Where each mark
+goes is a function of the marks and the registry's boxes (`projectMarks` in
+`projection.ts`: an overlay on an element at an offset, shown from a zoom,
+with a class and a marker, or a path in the layer with the elements a click
+selects), tested in Node; which ids a selection or a hover reports is
+`selectionOf` and `hoverOf` of the viewer module. The bridge's modules other
+than the entry point load neither React nor bpmn-js eagerly, and Node tests
+import them through `headless.ts`; the architecture check enforces both. The core scene
 (`buildScene`) over the imported graph and the boxes of the element registry
 orders the overlays, sets the level of detail and places them. Overlay
 datasets are replaced without re-importing, so the diagram and the viewport
@@ -263,7 +275,8 @@ Vitest for the core (aggregation invariants on the fixture and on random
 graphs, layout stability, overlay geometry, deterministic scales and
 export, selection transitions, default actions, path computation,
 canonical filters, lane bands, the canvas routines on a recording
-context) and for the components (jsdom), Storybook for components with the
+context, the BPMN overlay projection) and for the components (jsdom; the BPMN
+view on the in-memory viewer), Storybook for components with the
 design tokens, Playwright screenshots of the stories plus keyboard, filter
 and canvas checks, strict TypeScript, ESLint, Changesets for releases.
 

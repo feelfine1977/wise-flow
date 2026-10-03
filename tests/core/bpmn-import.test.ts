@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { globalScene } from "../../fixtures/bpic2019";
-import { applyMapping, importBpmn, matchActivities, normalizeLabel } from "../../src/bpmn/index";
+import { applyMapping, importBpmn, matchActivities, normalizeLabel } from "../../src/bpmn/headless";
 import { validateGraph } from "../../src/index";
 
 const xml = readFileSync(fileURLToPath(new URL("../../fixtures/p2p_small.bpmn", import.meta.url)), "utf8");

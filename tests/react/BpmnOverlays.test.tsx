@@ -2,49 +2,26 @@ import { cleanup, render, waitFor } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Overlay } from "../../src/index";
-import { BpmnView } from "../../src/react/BpmnView";
+import { createBpmnView } from "../../src/react/BpmnView";
 import { Chip } from "../../src/react/nodes";
+import { memoryViewers } from "./memory-viewer";
 
-// A viewer whose registry holds two tasks of the fixture; arcs and self-loops land in `layer`.
-const mock = vi.hoisted(() => {
-  const task = (id: string, x: number) => ({ id, x, y: 100, width: 100, height: 80, businessObject: {
-    id, get: () => undefined,
-    $instanceOf: (type: string) => type === "bpmn:Activity",
-  } });
-  const tasks = [task("Task_CreatePO", 100), task("Task_ApproveInvoice", 300)];
-  class Viewer {
-    static instances: Viewer[] = [];
-    layer = document.createElementNS("http://www.w3.org/2000/svg", "g");
-    added: { id: string; position: { top: number; left: number }; html: HTMLElement; show?: { minZoom?: number }; scale?: unknown }[] = [];
-    constructor() { Viewer.instances.push(this); }
-    on() {}
-    off() {}
-    async importXML() { return { warnings: [] }; }
-    get(name: string) {
-      if (name === "selection") return { get: () => [], select() {} };
-      if (name === "elementRegistry") return { get: (id: string) => tasks.find((t) => t.id === id), getAll: () => tasks };
-      if (name === "overlays") return { remove: () => { this.added = []; }, add: (id: string, _type: string, o: { position: { top: number; left: number }; html: HTMLElement; show?: { minZoom?: number }; scale?: unknown }) => { this.added.push({ id, ...o }); return "1"; } };
-      if (name === "canvas") return { getLayer: () => this.layer, zoom: () => 1, resized() {}, removeMarker() {}, addMarker() {} };
-      throw new Error(`Unexpected service ${name}`);
-    }
-    destroy() {}
-  }
-  return { Viewer };
-});
-vi.mock("bpmn-js/lib/NavigatedViewer.js", () => ({ default: mock.Viewer }));
-vi.mock("bpmn-js/lib/Modeler.js", () => ({ default: mock.Viewer }));
+// The viewer's registry is the fixture's diagram interchange: Task_CreatePO at (440, 140) and
+// Task_ApproveInvoice at (1060, 540), both 100 × 80; arcs and self-loops land in its SVG layer.
+const viewers = memoryViewers();
+const BpmnView = createBpmnView(viewers.connect);
 
 const xml = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../fixtures/p2p_small.bpmn"), "utf8");
 
-beforeEach(() => { mock.Viewer.instances = []; });
+beforeEach(() => { viewers.instances.length = 0; });
 afterEach(cleanup);
 
 async function loops(overlays: Overlay[]) {
   const { container } = render(<BpmnView xml={xml} overlays={overlays} />);
   await waitFor(() => expect(container.querySelector(".wf-bpmn")?.getAttribute("data-bpmn-status")).toBe("ready"));
-  const layer = mock.Viewer.instances[0].layer;
+  const layer = viewers.instances[0].layer();
   await waitFor(() => expect(layer.querySelectorAll(".wf-selfloop").length).toBeGreaterThan(0));
   return { container, groups: Array.from(layer.querySelectorAll(".wf-selfloop")) };
 }
@@ -91,10 +68,10 @@ describe("BpmnView overlays from the scene", () => {
       />,
     );
     await waitFor(() => expect(container.querySelector(".wf-bpmn")?.getAttribute("data-bpmn-status")).toBe("ready"));
-    const viewer = mock.Viewer.instances[0];
-    await waitFor(() => expect(viewer.added.length).toBe(3));
+    const viewer = viewers.instances[0];
+    await waitFor(() => expect(viewer.overlays.length).toBe(3));
     // Slots run leftwards from the right edge of the 100 px task: 100 - 26 + 2 and 100 - 52 + 2, half a badge above.
-    expect(viewer.added.map((a) => [a.id, a.position.left, a.position.top]).sort()).toEqual([
+    expect(viewer.overlays.map((a) => [a.element, a.overlay.position.left, a.overlay.position.top]).sort()).toEqual([
       ["Task_ApproveInvoice", 76, -11],
       ["Task_CreatePO", 50, -11],
       ["Task_CreatePO", 76, -11],
@@ -115,14 +92,17 @@ describe("BpmnView overlays from the scene", () => {
       />,
     );
     await waitFor(() => expect(container.querySelector(".wf-bpmn")?.getAttribute("data-bpmn-status")).toBe("ready"));
-    const viewer = mock.Viewer.instances[0];
-    await waitFor(() => expect(viewer.added.length).toBe(3));
-    const added = (className: string) => viewer.added.find((a) => a.html.className === className)!;
-    // The badge's box: 24 wide for its glyph, at the first slot of the task (100 + 100 - 28 + 2, 100 - 11), shown
+    const viewer = viewers.instances[0];
+    await waitFor(() => expect(viewer.overlays.length).toBe(3));
+    const added = (className: string) => {
+      const { element, overlay } = viewer.overlays.find((a) => a.overlay.html.className === className)!;
+      return { id: element, ...overlay };
+    };
+    // The badge's box: 24 wide for its glyph, at the first slot of the task (440 + 100 - 28 + 2, 140 - 11), shown
     // from the default badge zoom 0.22 (eleven nodes leave it unchanged).
     const badge = added("wf-badge");
     expect([badge.id, badge.position, badge.show, badge.scale]).toEqual(["Task_CreatePO", { top: -11, left: 74 }, { minZoom: 0.22 }, { min: 0.8, max: 1.2 }]);
-    expect(badge.html.querySelector("svg")?.getAttribute("viewBox")).toBe("174 89 24 22");
+    expect(badge.html.querySelector("svg")?.getAttribute("viewBox")).toBe("514 129 24 22");
     expect(badge.html.querySelector("rect")?.getAttribute("fill")).toBe("#fdd0a2");
     // The tint covers the task from every zoom, scales with the diagram and is multiplied onto it.
     const tint = added("wf-tint wf-mark--below");
@@ -136,7 +116,7 @@ describe("BpmnView overlays from the scene", () => {
     expect(drawn.textContent).toBe(map.textContent);
     expect(drawn.textContent).toBe("Touches — 2.1 ⌀◔Touches: 2.1 ⌀");
     // The arc runs between the tasks in the SVG layer, dashed as a reverse arc.
-    const arc = viewer.layer.querySelector(".wf-arc path");
+    const arc = viewer.layer().querySelector(".wf-arc path");
     expect(arc?.getAttribute("stroke-dasharray")).toBe("6 4");
     expect(arc?.getAttribute("marker-end")).toBe("url(#wf-bpmn-arrow)");
   });

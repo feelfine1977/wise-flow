@@ -1,6 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { layout, toSVG, type FlowGraph } from '@wise/flow';
+import { layout, toSVG, type FlowGraph, type Overlay } from '@wise/flow';
 import { ProcessMap } from '@wise/flow/react';
 import { BpmnView, exportBpmn, liteFromStages, type BpmnSelection } from '@wise/flow/bpmn';
 import { prepareScene } from '@wise/flow/canvas';
@@ -15,6 +15,8 @@ const graph: FlowGraph = { nodes: [{ id: 'receive', kind: 'activity', label: 'Re
 const positions = await layout(graph, { engine: 'elk', elkWorkerUrl });
 if (positions.engine !== 'elk') throw new Error('Worker layout failed');
 if (prepareScene(graph, positions).nodes.length !== 2 || !toSVG({ graph, positions }).includes('Receive')) throw new Error('Scene export failed');
+// A badge on a task, projected onto the viewer and again onto the modeler.
+const overlays: Overlay[] = [{ kind: 'badge', target: 'receive', payload: { glyph: '≥1', value: 0.5 } }];
 const { xml } = await exportBpmn(liteFromStages({ stages: [{ id: 'work', activities: ['receive', 'complete'] }] }));
 function App() {
   const [mode, setMode] = React.useState<'view' | 'model'>('view');
@@ -29,7 +31,7 @@ function App() {
     <output data-testid="bpmn-selection">{selection.tasks.join(',') || 'none'}</output>
     <output data-testid="bpmn-selection-events">{selectionEvents}</output>
     <div style={{height: 300}}><ProcessMap graph={graph} positions={positions} /></div>
-    <div style={{height: 400}}>{visible && <BpmnView xml={xml + '\n'.repeat(revision)} mode={mode} selection={selection} onSelect={next => { setSelection(next); setSelectionEvents(n => n + 1); }} />}</div>
+    <div style={{height: 400}}>{visible && <BpmnView xml={xml + '\n'.repeat(revision)} mode={mode} overlays={overlays} selection={selection} onSelect={next => { setSelection(next); setSelectionEvents(n => n + 1); }} />}</div>
     <i className="bpmn-icon-task" aria-label="BPMN font check" />
   </>;
 }

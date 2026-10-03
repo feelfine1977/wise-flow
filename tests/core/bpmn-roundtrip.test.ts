@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { globalScene } from "../../fixtures/bpic2019";
 import { p2pStages, withSceneMetrics } from "../../fixtures/p2p_stages";
-import { POOL_ID, exportBpmn, gatewayLabel, importBpmn, layoutBpmn, liteFromGraph, liteFromStages, validateBpmn } from "../../src/bpmn/index";
+import { POOL_ID, exportBpmn, gatewayLabel, importBpmn, layoutBpmn, liteFromGraph, liteFromStages, validateBpmn } from "../../src/bpmn/headless";
 import { type FlowGraph, abstract } from "../../src/index";
 
 const lite = liteFromStages(withSceneMetrics(p2pStages, globalScene));

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createIdResolver, createModdle, mappingIndex, renameToActivities, type IdMap } from "../../src/bpmn/index";
+import { createIdResolver, createModdle, mappingIndex, renameToActivities, type IdMap } from "../../src/bpmn/headless";
 
 // Two FlowGraph ids that are not XML ids and one that is, as the exporter writes them.
 const ids: IdMap = {

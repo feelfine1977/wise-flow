@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { globalScene } from "../../fixtures/bpic2019";
 import { p2pStages } from "../../fixtures/p2p_stages";
-import { type StageModel, END_ID, START_ID, liteCounts, liteFromGraph, liteFromStages, stageModelFromGraph } from "../../src/bpmn/index";
+import { type StageModel, END_ID, START_ID, liteCounts, liteFromGraph, liteFromStages, stageModelFromGraph } from "../../src/bpmn/headless";
 import { type FlowGraph, abstract, hasTag, indexGraph, validateGraph } from "../../src/index";
 
 const idsOf = (g: FlowGraph) => [...g.nodes.map((n) => n.id), ...g.edges.map((e) => e.id)].sort();

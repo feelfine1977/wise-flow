@@ -88,6 +88,7 @@ try {
   await expect(page.locator('[data-bpmn-status="ready"]')).toBeVisible();
   await expect(page.locator('.djs-element[data-element-id="receive"]')).toBeVisible();
   await expect(page.locator('.bjs-powered-by')).toBeVisible();
+  await expect(page.locator('.djs-overlay > .wf-badge')).toHaveCount(1);
   assert.equal(await page.locator('.wf-bpmn').evaluate(root => {
     const watermark = root.querySelector('.bjs-powered-by').getBoundingClientRect();
     const panel = root.querySelector('.wf-bpmn__panel--bottom-right').getBoundingClientRect();
@@ -112,6 +113,7 @@ try {
   await assertSelection(0);
   await page.getByRole('button', { name: 'Open modeler' }).click();
   await expect(page.locator('.djs-palette')).toBeVisible();
+  await expect(page.locator('.djs-overlay > .wf-badge')).toHaveCount(1);
   await expect(page.locator('.bjs-powered-by')).toBeVisible();
   assert.equal(await page.locator('.wf-bpmn').evaluate(root => {
     const watermark = root.querySelector('.bjs-powered-by').getBoundingClientRect();

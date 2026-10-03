@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { boundaryViolations } from '../../scripts/check-architecture.mjs';
+import { boundaryViolations, bridgeViolations, nodeTestViolations } from '../../scripts/check-architecture.mjs';
 
 const file = fileURLToPath(new URL('../../src/core/example.ts', import.meta.url));
 test('headless boundaries reject transitive entry points, types and dynamic renderer imports', () => {
@@ -27,4 +27,44 @@ test('the scene module, the overlay placement, the overlay, node and edge marks 
     const path = fileURLToPath(new URL(`../../src/core/${name}`, import.meta.url));
     assert.deepEqual(boundaryViolations(path, readFileSync(path, 'utf8')), [], name);
   }
+});
+
+const bridgeFile = fileURLToPath(new URL('../../src/bpmn/example.ts', import.meta.url));
+test('the BPMN bridge keeps React, the renderers, its entry point and eager bpmn-js out of its modules', () => {
+  for (const source of [
+    'import { useState } from "react";',
+    'import { Legend } from "../react/Legend.js";',
+    'export { BpmnView } from "./index.js";',
+    'import Viewer from "bpmn-js/lib/NavigatedViewer.js";',
+    'import { ReactFlow } from "@xyflow/react";',
+    'const mod = import(name);',
+  ]) assert.ok(bridgeViolations(bridgeFile, source).length > 0, source);
+});
+test('the BPMN bridge may use the core, itself, bpmn-moddle and bpmn-js on demand', () => {
+  assert.deepEqual(bridgeViolations(bridgeFile, `
+    import { buildScene } from '../core/index.js';
+    import type { IdResolver } from './ids.js';
+    import BpmnModdle from 'bpmn-moddle';
+    const viewer = await import('bpmn-js/lib/Modeler.js');
+  `), []);
+});
+test('the bridge modules as they are pass, and the entry point alone loads the view', () => {
+  const dir = fileURLToPath(new URL('../../src/bpmn/', import.meta.url));
+  for (const name of ['headless.ts', 'viewer.ts', 'bpmn-js.ts', 'projection.ts', 'scene.ts', 'ids.ts', 'import.ts', 'export.ts']) {
+    assert.deepEqual(bridgeViolations(dir + name, readFileSync(dir + name, 'utf8')), [], name);
+  }
+  assert.ok(bridgeViolations(dir + 'index.ts', readFileSync(dir + 'index.ts', 'utf8')).length > 0);
+});
+test('Node tests reach the BPMN bridge without its entry point and without React', () => {
+  const testFile = fileURLToPath(new URL('../../tests/core/example.test.ts', import.meta.url));
+  for (const source of [
+    'import { liteFromStages } from "../../src/bpmn/index";',
+    'import { liteFromStages } from "../../src/bpmn/index.js";',
+    'import { liteFromStages } from "../../src/bpmn";',
+    'import { liteFromStages } from "../../src/bpmn/";',
+    'import { BpmnView } from "../../src/react/BpmnView";',
+    'import { render } from "@testing-library/react";',
+    'import React from "react";',
+  ]) assert.ok(nodeTestViolations(testFile, source).length > 0, source);
+  assert.deepEqual(nodeTestViolations(testFile, 'import { liteFromStages } from "../../src/bpmn/headless";\nimport { describe } from "vitest";'), []);
 });
