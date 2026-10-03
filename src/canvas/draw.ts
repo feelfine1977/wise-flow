@@ -5,7 +5,7 @@
  * a recording stub in tests. Elements outside the viewport are skipped
  * through the scene's R-tree when the scene is large.
  */
-import { type Box, type LegendItem, type MarkPaint, type OverlayMark, type Selection, type StringKey, MAP_TARGET, fixedColors, formatCompact, formatNumber, formatShare, lodAt, t } from "../core/index.js";
+import { type Box, type LegendItem, type MarkPaint, type OverlayMark, type Selection, type StringKey, MAP_TARGET, fitLead, fixedColors, formatCompact, formatNumber, formatShare, lodAt, t } from "../core/index.js";
 import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene.js";
 import { type CanvasTokens, defaultTokens } from "./tokens.js";
 
@@ -520,16 +520,37 @@ function drawMark(ctx: DrawContext, scene: PreparedScene, m: OverlayMark, tokens
     if (m.arrow && end?.last && end.beforeLast) arrowhead(ctx, end.beforeLast, end.last, m.arrow.size, color, m.arrow.overhang);
   }
   ctx.globalAlpha = 1;
+  if (m.gauge) {
+    const g = m.gauge;
+    roundedRect(ctx, g, g.height / 2);
+    ctx.fillStyle = paintOf(m, "line", tokens, hovered);
+    ctx.fill();
+    ctx.fillStyle = paintOf(m, "value", tokens, hovered);
+    if (g.value > 0) ctx.fillRect(g.x, g.y, g.value * g.width, g.height);
+    ctx.fillStyle = paintOf(m, "ink", tokens, hovered);
+    ctx.fillRect(g.x + g.threshold * g.width - 1, g.y - 1, 2, g.height + 2);
+  }
   for (const tx of m.texts) {
     ctx.fillStyle = paintOf(m, tx.paint, tokens, hovered);
-    ctx.font = `${tx.weight ? `${tx.weight} ` : ""}${tx.size}px ${tokens.font}`;
+    const font = (weight?: number) => `${weight ? `${weight} ` : ""}${tx.size}px ${tokens.font}`;
+    ctx.font = font(tx.weight);
     ctx.textAlign = tx.anchor === "start" ? "left" : "center";
     ctx.textBaseline = tx.baseline;
-    const value = tx.maxWidth === undefined ? tx.text : truncate(ctx, scene, tx.text, tx.maxWidth);
-    if (tx.halo) haloText(ctx, value, tx.x, tx.y, tokens);
-    else ctx.fillText(value, tx.x, tx.y);
+    const { lead, text } = fitLead(tx, (s) => (tx.maxWidth === undefined ? s : truncate(ctx, scene, s, tx.maxWidth)));
+    let x = tx.x;
+    if (lead) {
+      ctx.font = font(700);
+      if (tx.halo) haloText(ctx, lead, x, tx.y, tokens);
+      else ctx.fillText(lead, x, tx.y);
+      x += ctx.measureText(lead).width;
+      if (!text) continue;
+      ctx.font = font(tx.weight);
+    }
+    if (tx.halo) haloText(ctx, text, x, tx.y, tokens);
+    else ctx.fillText(text, x, tx.y);
   }
 }
+
 
 /**
  * Draw the scene into a context for a viewport. Returns what was drawn so

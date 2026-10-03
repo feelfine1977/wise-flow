@@ -4,6 +4,7 @@
  */
 import { type Box, type Positions, type XY, unionBoxes } from "./layout.js";
 import { type Overlay, type OverlayKind, MAP_TARGET } from "./model.js";
+import { chipLayout, chipText } from "./overlay-marks.js";
 import { type LodRules, defaultLod } from "./style.js";
 
 export interface OverlayShape {
@@ -45,9 +46,10 @@ export function overlayMargin(options: OverlayGeometryOptions = {}): number {
   return Math.max(arc[1] + 24, badge + 8, (options.chipHeight ?? 24) + 8);
 }
 
-function chipWidth(text: string | undefined, glyph: string | undefined): number {
-  const len = (text?.length ?? 0) + (glyph ? 2 : 0);
-  return Math.min(260, Math.max(60, 16 + len * 6.2));
+function chipWidth(o: Overlay): number {
+  const { lead = "", text } = chipText(o);
+  const { padding, glyph, gauge, char } = chipLayout;
+  return Math.min(260, Math.max(60, 2 * padding + (o.payload?.glyph ? glyph : 0) + (o.payload?.gauge ? gauge : 0) + (lead.length + text.length) * char));
 }
 
 const fmt = (n: number) => Number(n.toFixed(2)).toString();
@@ -150,7 +152,7 @@ export function placeOverlays(
         return;
       }
       case "chip": {
-        const width = chipWidth(p.text, p.glyph);
+        const width = chipWidth(o);
         if (o.target === MAP_TARGET) {
           const slot = chipCount.get(MAP_TARGET) ?? 0;
           chipCount.set(MAP_TARGET, slot + 1);

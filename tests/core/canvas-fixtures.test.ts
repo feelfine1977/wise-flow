@@ -67,15 +67,17 @@ function exported(fixture: Fixture, scene: Partial<Scene>, options: PngOptions):
  * the tip 1.2 px beyond the path's end), the group tint filled once, hatching
  * drawn per hatch overlay after the nodes, and in `toPNG` the figure size, map
  * offset and activity key position, because map-level chips no longer count
- * towards the bounds.
+ * towards the bounds. Recorded once more when chips began to show what the live
+ * map shows; only the chips' calls changed: the glyph written apart, the gauge
+ * (track, fill and tick) and the label in bold before the text.
  */
 const before = {
-  mapGlobalStages: "a0d273db4b92ba1347f0c2260038ed8f3fe26d5f44ea64513bcb764aec06352a",
-  mapVendorIds: "4316e2caa82dcf1b7e321825375a7284873cbd0205303a99e2fcba96400d8e57",
-  mapUnfiltered: "c7db4faa7a0e174aff48d56383e3c6b49771c0a91634faa44ff18b15a5881b92",
-  pngGlobalTitle: "5afe60014db5f8ee99f4db2f7ee66a6b721f3a2f0a651af230c68d161975025a",
-  pngVendorIds: "078115757bcd6af525c381868523c241e44cab69a59b18e4e4d9f4af5142715b",
-  pngUnfilteredGerman: "374257637c1f1257ec116e31c55cfd0a08ca570af3a133667bee809db90f0771",
+  mapGlobalStages: "0cf42f5f17e1375c5bdf8a5322ce149f1a653883a31c3a8d960ab561fb8adf4c",
+  mapVendorIds: "4c742f7991441d6da66be1dde5ca12df27ac4b0ebfcf1491ab0d4d06f779e9fc",
+  mapUnfiltered: "b742e77d7d418dde3824e927a6fba5bc2d2e94f1ddf832a28b35eed0fb8a5dbb",
+  pngGlobalTitle: "e033f0a3abf981503952113d72fdd3738e465b89cfcb62fafa460b75d0abcbc7",
+  pngVendorIds: "c6230127fc255c3abc10b20c4f6e08be2ebe584684f4232651388021fc8e9bc1",
+  pngUnfilteredGerman: "34a875f66b1200cd5660f468f427c4e5f9cc6011bc69dd913c51ae7ccfd58ad6",
 };
 
 describe("Canvas drawing on the committed fixtures", () => {

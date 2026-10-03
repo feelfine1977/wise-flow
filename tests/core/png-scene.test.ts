@@ -5,7 +5,7 @@ import { type DrawContext, prepareScene, toPNGCanvas } from "../../src/canvas/in
 
 /** A 2D context that records every text with the font it was drawn in. */
 function textRecorder() {
-  const texts: { text: string; font: string }[] = [];
+  const texts: { text: string; font: string; align: CanvasTextAlign }[] = [];
   const noop = () => {};
   const ctx = {
     fillStyle: "" as string, strokeStyle: "" as string, lineWidth: 1, font: "", globalAlpha: 1,
@@ -14,15 +14,15 @@ function textRecorder() {
     save: noop, restore: noop, translate: noop, scale: noop, beginPath: noop, closePath: noop, moveTo: noop, lineTo: noop,
     bezierCurveTo: noop, arc: noop, rect: noop, fill: noop, stroke: noop, fillRect: noop, clearRect: noop, strokeText: noop, setLineDash: noop,
     fillText(text: string) {
-      texts.push({ text, font: ctx.font });
+      texts.push({ text, font: ctx.font, align: ctx.textAlign });
     },
     measureText: (text: string) => ({ width: text.length * 6 }),
   } satisfies DrawContext;
   return { ctx, texts, createCanvas: (width: number, height: number) => ({ width, height, getContext: () => ctx }) };
 }
 
-/** The bold 10 px centre text is what the drawing routines write into a badge. */
-const badgeTexts = (texts: { text: string; font: string }[]) => texts.filter((t) => t.font.startsWith("700 10px")).map((t) => t.text);
+/** The bold 10 px centred text is what the drawing routines write into a badge (a chip's bold label starts left). */
+const badgeTexts = (texts: { text: string; font: string; align: CanvasTextAlign }[]) => texts.filter((t) => t.font.startsWith("700 10px") && t.align === "center").map((t) => t.text);
 
 const vendor = abstract(vendorScene, { minEdgeShare: 0.02 });
 const constraints = overlaysFor(constraintItems(vendorSceneKey), { graph: vendor });
