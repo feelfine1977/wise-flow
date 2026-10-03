@@ -5,7 +5,7 @@
  * a recording stub in tests. Elements outside the viewport are skipped
  * through the scene's R-tree when the scene is large.
  */
-import { type Box, type LegendItem, type MarkPaint, type MarkText, type OverlayMark, type Selection, type StringKey, MAP_TARGET, fitChars, fitLead, fixedColors, formatCompact, formatNumber, formatShare, lodAt, t, truncateText } from "../core/index.js";
+import { type Arrowhead, type Box, type LegendItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type Selection, type StringKey, MAP_TARGET, arrowheadExtent, arrowheadTokens, fitChars, fitLead, fixedColors, formatCompact, formatNumber, formatShare, hatchTokens, lodAt, markArrowhead, patternTokens, patternTwin, t, truncateText } from "../core/index.js";
 import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene.js";
 import { type CanvasTokens, defaultTokens } from "./tokens.js";
 
@@ -138,22 +138,29 @@ export function tracePath(ctx: DrawContext, d: string): { last?: [number, number
   return { last, beforeLast };
 }
 
-/** Filled triangle `size` long and wide; its tip lies `overhang` × `size` beyond `to`. */
-function arrowhead(ctx: DrawContext, from: [number, number], end: [number, number], size: number, color: string, overhang = 0) {
+/** The arrowhead rule (`Arrowhead`) at the end of the segment `from` → `end`, filled and outlined in `color`. */
+function arrowhead(ctx: DrawContext, from: [number, number], end: [number, number], a: Arrowhead, color: string) {
   const dx = end[0] - from[0];
   const dy = end[1] - from[1];
   const len = Math.hypot(dx, dy);
   if (len === 0) return;
   const ux = dx / len;
   const uy = dy / len;
-  const to = overhang ? [end[0] + ux * size * overhang, end[1] + uy * size * overhang] : end;
+  const { length, half, tip, outline } = arrowheadExtent(a);
+  const to = tip ? [end[0] + ux * tip, end[1] + uy * tip] : end;
   ctx.beginPath();
   ctx.moveTo(to[0], to[1]);
-  ctx.lineTo(to[0] - ux * size - uy * size * 0.5, to[1] - uy * size + ux * size * 0.5);
-  ctx.lineTo(to[0] - ux * size + uy * size * 0.5, to[1] - uy * size - ux * size * 0.5);
+  ctx.lineTo(to[0] - ux * length - uy * half, to[1] - uy * length + ux * half);
+  ctx.lineTo(to[0] - ux * length + uy * half, to[1] - uy * length - ux * half);
   ctx.closePath();
   ctx.fillStyle = color;
   ctx.fill();
+  if (outline) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = outline;
+    ctx.lineJoin = "round";
+    ctx.stroke();
+  }
 }
 
 function haloText(ctx: DrawContext, text: string, x: number, y: number, tokens: CanvasTokens) {
@@ -179,14 +186,14 @@ function cacheOf(ctx: DrawContext): Map<string, CanvasPattern | null> {
   return cache;
 }
 
-function patternFor(ctx: DrawContext, pattern: string, ink: string, options: DrawOptions): CanvasPattern | null {
+/** Tile of a pattern twin (`patternTwin`) in the ink colour. */
+function patternFor(ctx: DrawContext, pattern: PatternId, ink: string, options: DrawOptions): CanvasPattern | null {
   if (pattern === "solid" || !ctx.createPattern) return null;
   const cache = cacheOf(ctx);
   const key = `${pattern}:${ink}`;
   if (cache.has(key)) return cache.get(key)!;
-  const create = tileFactory(options);
-  const size = 6;
-  const tile = create?.(size, size);
+  const shape = patternTwin(pattern);
+  const tile = tileFactory(options)?.(shape.size, shape.size);
   const tc = tile?.getContext("2d") as DrawContext | null | undefined;
   if (!tc) {
     cache.set(key, null);
@@ -194,65 +201,48 @@ function patternFor(ctx: DrawContext, pattern: string, ink: string, options: Dra
   }
   tc.strokeStyle = ink;
   tc.fillStyle = ink;
-  tc.lineWidth = 1;
-  tc.globalAlpha = 0.6;
-  tc.beginPath();
-  switch (pattern) {
-    case "diagonal":
-      tc.moveTo(0, size);
-      tc.lineTo(size, 0);
-      break;
-    case "diagonal-reverse":
-      tc.moveTo(0, 0);
-      tc.lineTo(size, size);
-      break;
-    case "crosshatch":
-      tc.moveTo(0, size);
-      tc.lineTo(size, 0);
-      tc.moveTo(0, 0);
-      tc.lineTo(size, size);
-      break;
-    case "horizontal":
-      tc.moveTo(0, size / 2);
-      tc.lineTo(size, size / 2);
-      break;
-    case "vertical":
-      tc.moveTo(size / 2, 0);
-      tc.lineTo(size / 2, size);
-      break;
-    case "grid":
-      tc.moveTo(0, size / 2);
-      tc.lineTo(size, size / 2);
-      tc.moveTo(size / 2, 0);
-      tc.lineTo(size / 2, size);
-      break;
-    case "dots":
-      tc.arc(size / 2, size / 2, 1, 0, 2 * Math.PI);
-      tc.fill();
-      break;
+  tc.lineWidth = patternTokens.strokeWidth;
+  if (shape.lines.length) {
+    tc.globalAlpha = patternTokens.strokeOpacity;
+    tc.beginPath();
+    for (const [x1, y1, x2, y2] of shape.lines) {
+      tc.moveTo(x1, y1);
+      tc.lineTo(x2, y2);
+    }
+    tc.stroke();
   }
-  tc.stroke();
+  if (shape.dots.length) {
+    tc.globalAlpha = patternTokens.dotOpacity;
+    tc.beginPath();
+    for (const [cx, cy] of shape.dots) {
+      tc.moveTo(cx + patternTokens.dotRadius, cy);
+      tc.arc(cx, cy, patternTokens.dotRadius, 0, 2 * Math.PI);
+    }
+    tc.fill();
+  }
   const out = ctx.createPattern(tile as unknown as CanvasImageSource, "repeat");
   cache.set(key, out);
   return out;
 }
 
+/** Tile of the out-of-scope hatching (`hatchTokens`). */
 function hatchPattern(ctx: DrawContext, tokens: CanvasTokens, options: DrawOptions): CanvasPattern | null {
   if (!ctx.createPattern) return null;
   const cache = cacheOf(ctx);
   const key = `hatch:${tokens.outOfScope}`;
   if (cache.has(key)) return cache.get(key)!;
-  const tile = tileFactory(options)?.(8, 8);
+  const s = hatchTokens.size;
+  const tile = tileFactory(options)?.(s, s);
   const tc = tile?.getContext("2d") as DrawContext | null | undefined;
   if (!tc) {
     cache.set(key, null);
     return null;
   }
   tc.strokeStyle = tokens.outOfScope;
-  tc.lineWidth = 2;
+  tc.lineWidth = hatchTokens.width;
   tc.beginPath();
-  tc.moveTo(0, 8);
-  tc.lineTo(8, 0);
+  tc.moveTo(0, s);
+  tc.lineTo(s, 0);
   tc.stroke();
   const out = ctx.createPattern(tile as unknown as CanvasImageSource, "repeat");
   cache.set(key, out);
@@ -371,7 +361,7 @@ function drawEdge(ctx: DrawContext, e: SceneEdge, tokens: CanvasTokens, highligh
   ctx.setLineDash([]);
   const a = pts[pts.length - 2];
   const b = pts[pts.length - 1];
-  arrowhead(ctx, [a.x, a.y], [b.x, b.y], Math.min(16, 8 + m.width), color);
+  arrowhead(ctx, [a.x, a.y], [b.x, b.y], arrowheadTokens.edge, color);
   ctx.globalAlpha = 1;
 }
 
@@ -465,7 +455,7 @@ function drawMark(ctx: DrawContext, scene: PreparedScene, m: OverlayMark, tokens
     ctx.setLineDash(m.stroke.dash ?? []);
     ctx.stroke();
     ctx.setLineDash([]);
-    if (m.arrow && end?.last && end.beforeLast) arrowhead(ctx, end.beforeLast, end.last, m.arrow.size, color, m.arrow.overhang);
+    if (m.arrow && end?.last && end.beforeLast) arrowhead(ctx, end.beforeLast, end.last, markArrowhead(m.arrow), color);
   }
   ctx.globalAlpha = 1;
   if (m.gauge) {

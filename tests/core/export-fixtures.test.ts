@@ -45,15 +45,22 @@ const observed: Variant = {
  * event labels inside the circle at 9 px, edge counts at half the route's
  * length, and labels, legend rows and chips shortened by the core rule (0.55 em
  * per character).
+ * Recorded once more when `toSVG` began to read the token table; compared
+ * element by element, only the definitions changed and everything after
+ * `</defs>` is the same: pattern twins in 6-unit tiles (stroke 1 at 0.6, a dot
+ * of radius 1 at 0.7) where they were 8 units (stroke 1.2 at 0.55, a dot of
+ * 1.3 at 0.6), the edge marker the live map's arrow (3 long, 4.8 wide, outlined
+ * by 0.6, in user units) where it was 7 stroke widths, and the overlay marker
+ * written in user units with the same triangle.
  */
 const before: Record<string, string> = {
-  overlays: "ef189cebd320be1ef682ca8db3b1277abe10e99e222661efc61ec2b1e2d35f06",
-  stagesGerman: "c15c1cfe04351d5d50ea135e2acafa2272bc156b35afc1a68a6eed9e90fd2ad8",
-  vendor: "416f4e149b2bb6291c6d63e69d20d97b563686fc07b1cfe6621d2168aefefd59",
-  unfiltered: "01dd2254b001152a9cd9d71e45fc7b687c888a2f20a8e1eceed1eadb5265d264",
-  plain: "088f5e3a5efd5a4b956dff4e6fc7e913d6a2f868362b34a0ca8537aae455c7d8",
+  overlays: "5f280e376cdc8fcda6db023f0e51d7fce7d75fb0f2aa9be73e167c60755f648e",
+  stagesGerman: "1c44a32224377e2aa3430005c56c24c78032eba90f3e6d3c4b0577906ae43fba",
+  vendor: "f0384d4f3635183cbc26e32c8db90c46525f21da0eb6e415d6a2c4d88fe5e438",
+  unfiltered: "af026f85339d48c8577217ff5e8391bac400d4466f5744e4f23d2e059c0a7859",
+  plain: "c2b00ae1b0194163b8af4359c6e382a98e462d477c582f76afe80f20fedceed9",
 };
-const beforeObserved = "f20436c688f66a9a6edebae917d8a94834cb325cbb7c30c97176bfcc0d73cd6f";
+const beforeObserved = "de4e777ec2d5aaabedc3e220fb57bf8b7e5273da58b9e30ebf19a50a976d5225";
 
 describe("toSVG on the committed fixtures", () => {
   it("matches the recorded output once follows self-loops are hidden", () => {

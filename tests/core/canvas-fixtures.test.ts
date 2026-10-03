@@ -74,14 +74,19 @@ function exported(fixture: Fixture, scene: Partial<Scene>, options: PngOptions):
  * and edge marks; compared the same way, only the text of activity labels
  * changed: they are cut to the node's width less its padding and no longer
  * leave room for the case count, which sits below them.
+ * Recorded once more when the drawing began to read the token table; compared
+ * the same way, only the edge arrowheads changed: the live map's arrow, 3 long
+ * and 4.8 wide with the tip on the route's end, filled and outlined by 0.6 in
+ * the edge's colour, where it was a triangle of 8 plus the edge width (at most
+ * 16). Overlay arrowheads and the line pattern tiles drew the same calls.
  */
 const before = {
-  mapGlobalStages: "9a9cbfcba366c653647aaad61744a4f9c2350db928afb510dfc899cbecb7c152",
-  mapVendorIds: "6d9b374c7ec86de176161d0570da339e2e4628a5a93cca6d2123cbcaccd1c131",
-  mapUnfiltered: "441ff84947d2e280549a9ffec3617732c959110236add9e4b955df7616192003",
-  pngGlobalTitle: "d9e2051e015006b5773fd80a16d69630d307e0b693da0fe00e8f7b4559764504",
-  pngVendorIds: "259a910692e3752787e9422fd996cac7d07df68e8903ed6efb5caf4c6231e117",
-  pngUnfilteredGerman: "ff3b09e2e4eae2fc832deac5915d8755886e08b8f16dae3593a895f04772de29",
+  mapGlobalStages: "289e040ab8d80b68f04a386f3379fac23abc233dc68c7b68e45e25ca7a13dfd4",
+  mapVendorIds: "4457b26e673fbcbfe6b7db6febfbb12c2fe5e744e2b7caf7222635f93b6389d2",
+  mapUnfiltered: "18b7d1c99b4ae46a1cf4da33485579f087194eba1a3bc0876c6e665e693716b1",
+  pngGlobalTitle: "5632b925998708cb3b82c87b0bd96e77175310f00e6876f61ce4bff4838fce03",
+  pngVendorIds: "12e3741749edf5c1525023b6e3336bf81cfba61e48a7d5ff67bc73b39f66a068",
+  pngUnfilteredGerman: "a128bd5ac5e03630189b933c3b6fa84630e28f7d4b6ba8e61324def43c445918",
 };
 
 describe("Canvas drawing on the committed fixtures", () => {

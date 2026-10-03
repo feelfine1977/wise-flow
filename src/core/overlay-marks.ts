@@ -4,6 +4,7 @@ import type { Box } from "./layout.js";
 import { type Overlay, type OverlayKind, MAP_TARGET } from "./model.js";
 import type { OverlayShape } from "./overlay-geometry.js";
 import { colorOn, contrastText, fixedColors, hexToRgb } from "./style.js";
+import { type Arrowhead, arrowheadTokens } from "./tokens.js";
 
 /**
  * A colour by role. `ink`, `inkMuted`, `paper`, `surface`, `line` and
@@ -111,8 +112,17 @@ export function arcWidth(overlay: Overlay): number {
   return 2 + 8 * (typeof c === "number" ? Math.max(0, Math.min(1, c)) : 1);
 }
 
-/** Arrowhead of arcs and self-loops: a triangle `size` long and wide, its tip `overhang` × `size` beyond the path. */
-export const overlayArrow = { size: 12, overhang: 0.1 } as const;
+/** Arrowhead of arcs and self-loops: a triangle `size` long and wide, its tip `overhang` × `size` beyond the path (`arrowheadTokens.overlay`). */
+export const overlayArrow: { readonly size: number; readonly overhang: number } = {
+  size: arrowheadTokens.overlay.size,
+  overhang: arrowheadTokens.overlay.overhang / arrowheadTokens.overlay.box,
+};
+
+/** The arrowhead rule (`Arrowhead`) of a mark's arrow. */
+export function markArrowhead(arrow: { size: number; overhang: number }): Arrowhead {
+  const box = arrowheadTokens.overlay.box;
+  return { ...arrowheadTokens.overlay, size: arrow.size, overhang: arrow.overhang * box };
+}
 
 /** A chip's padding, the advance of its glyph and of its gauge with the gap after it, and characters at 6.2 px. */
 export const chipLayout = { padding: 8, glyph: 12.4, gauge: 46, gaugeWidth: 40, gaugeHeight: 6, char: 6.2 } as const;

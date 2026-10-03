@@ -277,3 +277,36 @@ describe("Canvas node and edge marks", () => {
     expect(startingAt(ops, "M106,0").find((o) => o.op === "fill")).toMatchObject({ color: "#f6f7f9" });
   });
 });
+
+describe("Canvas arrowheads and pattern twins from the token table", () => {
+  it("ends every edge in the map's arrowhead: 3 long, 4.8 wide, outlined by 0.6, its tip on the route's end", () => {
+    const scene = prepareScene(elements.graph, elements.positions, { style: elements.style, selfLoops: false, lodBySize: false });
+    const { ctx, ops } = drawingContext();
+    drawScene(ctx, scene, { x: 0, y: 0, zoom: 1, width: 1000, height: 600 }, undefined, { cull: false });
+    // start → a ends at (100, 20) heading right; s → r ends at (500, 100) heading down.
+    const right = "M100,20 L97,22.4 L97,17.6 Z";
+    const down = "M500,100 L497.6,97 L502.4,97 Z";
+    expect(ops.filter((o) => o.path === right)).toEqual([
+      { op: "fill", path: right, color: "#8c8c8c", alpha: 1 },
+      { op: "stroke", path: right, color: "#8c8c8c", alpha: 1, width: 0.6, dash: [] },
+    ]);
+    expect(ops.filter((o) => o.path === down).map((o) => o.op)).toEqual(["fill", "stroke"]);
+  });
+
+  it("draws the 6-unit tiles of the pattern twins: lines at 0.6, a dot of radius 1 at 0.7, in the ink", () => {
+    const tiles: { size: [number, number]; ops: Op[] }[] = [];
+    const scene = prepareScene(elements.graph, elements.positions, { style: elements.style, selfLoops: false, lodBySize: false });
+    const nodes = scene.nodes.map((n) => (n.node.id === "a" ? { ...n, mark: { ...n.mark, pattern: "dots" as const } } : n.node.id === "s" ? { ...n, mark: { ...n.mark, pattern: "diagonal" as const } } : n));
+    const { ctx } = drawingContext();
+    const createCanvas = (width: number, height: number) => {
+      const tile = drawingContext();
+      tiles.push({ size: [width, height], ops: tile.ops });
+      return { width, height, getContext: () => tile.ctx };
+    };
+    drawScene(Object.assign(ctx, { createPattern: () => ({}) as CanvasPattern }), { ...scene, nodes }, { x: 0, y: 0, zoom: 1, width: 1000, height: 600 }, undefined, { cull: false, createCanvas: createCanvas as never });
+    expect(tiles).toEqual([
+      { size: [6, 6], ops: [{ op: "fill", path: "M4,3 A3,3,1", color: "#1f1f1f", alpha: 0.7 }] },
+      { size: [6, 6], ops: [{ op: "stroke", path: "M0,6 L6,0", color: "#1f1f1f", alpha: 0.6, width: 1, dash: [] }] },
+    ]);
+  });
+});

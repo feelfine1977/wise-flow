@@ -1,8 +1,10 @@
 /**
- * Overlay marks as SVG elements. The SVG export writes them as a string; the
- * React map and the BPMN view create the same elements in the DOM.
+ * Overlay marks, arrowhead markers and pattern tiles as SVG elements. The SVG
+ * export writes them as a string; the React map and the BPMN view create the
+ * same elements in the DOM.
  */
 import type { MarkPaint, MarkText, OverlayMark } from "./overlay-marks.js";
+import { type Arrowhead, type PatternId, arrowheadExtent, hatchTokens, patternTokens, patternTwin } from "./tokens.js";
 
 /** An SVG element: tag, attributes in order, and child elements or text. */
 export interface SvgElement {
@@ -73,6 +75,49 @@ export function markSvg(m: OverlayMark, o: MarkSvgOptions): SvgElement {
   }
   for (const tx of m.texts) children.push(textElement(m, tx, o));
   return { tag: "g", attrs, children };
+}
+
+/**
+ * Marker of an arrowhead (`Arrowhead`) in user units: its view box is the
+ * triangle's extent around the end of the path, so one view box unit is one
+ * unit of the drawing.
+ */
+export function arrowMarker(id: string, a: Arrowhead): SvgElement {
+  const { length, half, tip, outline } = arrowheadExtent(a);
+  const pad = outline / 2;
+  const w = length + outline;
+  const h = 2 * half + outline;
+  const path: [string, string][] = [["d", `M${num(tip)} 0L${num(tip - length)} ${num(half)}L${num(tip - length)} ${num(-half)}Z`], ["fill", "context-stroke"]];
+  if (outline) path.push(["stroke", "context-stroke"], ["stroke-width", num(outline)], ["stroke-linejoin", "round"]);
+  return {
+    tag: "marker",
+    attrs: [["id", id], ["viewBox", `${num(tip - length - pad)} ${num(-half - pad)} ${num(w)} ${num(h)}`], ["refX", "0"], ["refY", "0"], ["markerWidth", num(w)], ["markerHeight", num(h)], ["markerUnits", "userSpaceOnUse"], ["orient", "auto-start-reverse"]],
+    children: [{ tag: "path", attrs: path, children: [] }],
+  };
+}
+
+/** Tile of a pattern twin (`patternTwin`) in the ink colour. */
+export function patternTwinSvg(id: string, pattern: PatternId, ink: string): SvgElement {
+  const shape = patternTwin(pattern);
+  const children: SvgElement[] = [];
+  if (shape.lines.length) {
+    const d = shape.lines.map(([x1, y1, x2, y2]) => `M${num(x1)} ${num(y1)}L${num(x2)} ${num(y2)}`).join("");
+    children.push({ tag: "path", attrs: [["d", d], ["stroke", ink], ["stroke-width", String(patternTokens.strokeWidth)], ["stroke-opacity", String(patternTokens.strokeOpacity)]], children: [] });
+  }
+  for (const [cx, cy] of shape.dots) {
+    children.push({ tag: "circle", attrs: [["cx", num(cx)], ["cy", num(cy)], ["r", String(patternTokens.dotRadius)], ["fill", ink], ["fill-opacity", String(patternTokens.dotOpacity)]], children: [] });
+  }
+  return { tag: "pattern", attrs: [["id", id], ["width", String(shape.size)], ["height", String(shape.size)], ["patternUnits", "userSpaceOnUse"]], children };
+}
+
+/** Tile of the out-of-scope hatching (`hatchTokens`) in its colour. */
+export function hatchSvg(id: string, color: string): SvgElement {
+  const s = hatchTokens.size;
+  return {
+    tag: "pattern",
+    attrs: [["id", id], ["width", String(s)], ["height", String(s)], ["patternUnits", "userSpaceOnUse"]],
+    children: [{ tag: "path", attrs: [["d", `M0 ${s}L${s} 0`], ["stroke", color], ["stroke-width", String(hatchTokens.width)]], children: [] }],
+  };
 }
 
 const esc = (s: string): string => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
