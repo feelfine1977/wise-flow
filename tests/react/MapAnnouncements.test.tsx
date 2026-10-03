@@ -1,0 +1,112 @@
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { type FlowGraph, type Positions, type Selection, emptySelection } from "../../src/index";
+import { ProcessMap } from "../../src/react/index";
+
+afterEach(cleanup);
+
+const graph: FlowGraph = {
+  nodes: [
+    { id: "a", kind: "activity", label: "Receive" },
+    { id: "b", kind: "activity", label: "Check" },
+    { id: "c", kind: "activity", label: "Pay" },
+  ],
+  edges: [
+    { id: "ab", kind: "follows", source: "a", target: "b", metrics: { count: 5 } },
+    { id: "bc", kind: "follows", source: "b", target: "c", metrics: { count: 4 } },
+  ],
+};
+const box = (x: number) => ({ x, y: 0, width: 120, height: 40 });
+const positions: Positions = {
+  nodes: { a: box(0), b: box(200), c: box(400) },
+  groups: {},
+  edges: {},
+  bounds: { x: 0, y: 0, width: 520, height: 40 },
+  engine: "dagre",
+  direction: "RIGHT",
+};
+
+const live = () => screen.getByTestId("wf-live").textContent;
+
+async function renderMap(element: React.ReactElement) {
+  const utils = render(<div style={{ width: 900, height: 500 }}>{element}</div>);
+  await waitFor(() => expect(utils.container.querySelector('[data-id="b"]')).toBeTruthy());
+  return utils;
+}
+
+/** A host that controls the selection and reports it back on the next render. */
+function Echo({ onSelect }: { onSelect?: (s: Selection) => void }) {
+  const [selection, setSelection] = useState<Selection>(emptySelection);
+  return (
+    <ProcessMap
+      graph={graph}
+      positions={positions}
+      fitView={false}
+      selection={selection}
+      onSelect={(s) => {
+        onSelect?.(s);
+        setSelection(s);
+      }}
+    />
+  );
+}
+
+describe("ProcessMap announcements", () => {
+  it("announces the focus a menu action sets, or the host's text for it, in the step that runs it", async () => {
+    const { container, rerender } = await renderMap(<ProcessMap graph={graph} positions={positions} fitView={false} />);
+    fireEvent.contextMenu(container.querySelector('[data-id="b"]')!);
+    fireEvent.click(await screen.findByRole("menuitem", { name: /^Paths in and out/ }));
+    expect(live()).toBe("Paths of Check are shown; unrelated activities are dimmed.");
+
+    const onAction = vi.fn(() => "Paths opened.");
+    rerender(
+      <div style={{ width: 900, height: 500 }}>
+        <ProcessMap graph={graph} positions={positions} fitView={false} onAction={onAction} />
+      </div>,
+    );
+    fireEvent.contextMenu(container.querySelector('[data-id="c"]')!);
+    fireEvent.click(await screen.findByRole("menuitem", { name: /^Paths in and out/ }));
+    expect(onAction).toHaveBeenCalledTimes(1);
+    expect(container.querySelector(".wf-process-map")?.getAttribute("data-focus")).toBe("c");
+    expect(live()).toBe("Paths opened.");
+  });
+
+  it("keeps the menu's sentence when a controlling host reports the new selection back", async () => {
+    const onSelect = vi.fn();
+    const { container } = await renderMap(<Echo onSelect={onSelect} />);
+    fireEvent.contextMenu(container.querySelector('[data-id="b"]')!);
+    await screen.findByRole("menu");
+    expect(onSelect).toHaveBeenLastCalledWith({ nodes: ["b"], edges: [], groups: [] });
+    expect(live()).toBe("Selected: Check. Actions menu for Check opened; 7 actions.");
+
+    const map = screen.getByRole("group", { name: /Process map with/ });
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+    expect(live()).toBe("Actions menu closed.");
+    await act(async () => {
+      fireEvent.keyDown(map, { key: "ArrowRight" });
+    });
+    expect(map.getAttribute("aria-activedescendant")).toBe("wf-node-c");
+    await act(async () => {
+      fireEvent.keyDown(map, { key: "Enter" });
+    });
+    await screen.findByRole("menu");
+    expect(onSelect).toHaveBeenLastCalledWith({ nodes: ["c"], edges: [], groups: [] });
+    expect(live()).toBe("Selected: Pay. Actions menu for Pay opened; 7 actions.");
+  });
+
+  it("announces a selection and a focus the host sets", async () => {
+    const { rerender } = await renderMap(<ProcessMap graph={graph} positions={positions} fitView={false} selection={emptySelection} />);
+    expect(live()).toBe("");
+    const again = (props: Partial<React.ComponentProps<typeof ProcessMap>>) =>
+      rerender(
+        <div style={{ width: 900, height: 500 }}>
+          <ProcessMap graph={graph} positions={positions} fitView={false} {...props} />
+        </div>,
+      );
+    again({ selection: { nodes: ["a", "c"], edges: [], groups: [] } });
+    expect(live()).toBe("Selected: Receive and Pay.");
+    again({ selection: { nodes: ["a", "c"], edges: [], groups: [] }, focus: "a" });
+    expect(live()).toBe("Paths of Receive are shown; unrelated activities are dimmed.");
+  });
+});

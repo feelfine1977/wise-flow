@@ -33,25 +33,23 @@ import {
   arrowheadTokens,
   asFilter,
   coversGraph,
-  defaultActions,
   defaultStyle,
   describeClause,
   describeOverlay,
-  describeSelection,
   focusHighlight,
   lodAt,
-  menuTargetFor,
   menuTitle,
   relatedToSelection,
-  selectElement,
   t,
 } from "../core/index.js";
+import type { MapContext } from "../core/map-controller.js";
 import type { DrawState, PreparedScene } from "../canvas/index.js";
 import { retainScene } from "../canvas/scene.js";
 import { ActivityTooltip } from "./ActivityTooltip.js";
 import { AbstractionControls } from "./AbstractionControls.js";
 import { CanvasMap, type CanvasMapHandle } from "./CanvasMap.js";
 import { ContextMenu } from "./ContextMenu.js";
+import { useMapController } from "./controller.js";
 import { describeEdge, describeGroup, describeMap, describeNode } from "./describe.js";
 import { edgeTypes } from "./edges.js";
 import { FilterChips } from "./FilterChips.js";
@@ -62,28 +60,12 @@ import { nodeTypes } from "./nodes.js";
 import { OverlayLayer } from "./OverlayLayer.js";
 import { PathList } from "./PathList.js";
 import { TableAlternative } from "./TableAlternative.js";
-import { type ProcessMapProps, type Selection, type WfEdge, type WfGroupNode, type WfNode, emptySelection } from "./types.js";
+import { type ProcessMapProps, type Selection, type WfEdge, type WfGroupNode, type WfNode } from "./types.js";
 
 const GROUP_PREFIX = "group:";
 const DEFAULT_CANVAS_THRESHOLD = 2000;
 
 const NO_MOVES: Readonly<Record<string, XY>> = {};
-
-interface MenuState {
-  target: MenuTarget;
-  actions: MenuAction[];
-  x: number;
-  y: number;
-  title: string;
-  subtitle?: string;
-  note?: string;
-}
-
-function toggleCollapse(current: AbstractOptions["collapse"], groupId: string, allStages: string[], collapse: boolean): AbstractOptions["collapse"] {
-  const list = current === "all" ? allStages : Array.isArray(current) ? current : [];
-  const next = collapse ? (list.includes(groupId) ? list : [...list, groupId]) : list.filter((id) => id !== groupId);
-  return next.length === 0 ? false : next;
-}
 
 /** Inner component; needs the React Flow provider for viewport hooks. */
 function ProcessMapInner(props: ProcessMapProps) {
@@ -95,8 +77,6 @@ function ProcessMapInner(props: ProcessMapProps) {
     controls = true,
     legend = true,
     minimap = false,
-    onSelect,
-    onHover,
     locale = "en",
     layout: layoutOptions,
     selfLoops = true,
@@ -123,22 +103,13 @@ function ProcessMapInner(props: ProcessMapProps) {
     ...layoutOptions, nodeSize: (node: FlowGraph["nodes"][number]) => activityNodeSize(node, activityLabels),
   } : layoutOptions, [layoutOptions, activityLabels]);
 
-  // Abstraction (controlled or internal)
-  const [innerAbstraction, setInnerAbstraction] = useState<AbstractOptions>(props.defaultAbstraction ?? {});
-  const abstraction = props.abstraction ?? innerAbstraction;
-  const setAbstraction = useCallback(
-    (a: AbstractOptions) => {
-      if (props.abstraction === undefined) setInnerAbstraction(a);
-      props.onAbstractionChange?.(a);
-    },
-    [props.abstraction, props.onAbstractionChange], // eslint-disable-line react-hooks/exhaustive-deps
-  );
-  const [innerView, setInnerView] = useState<"map" | "table">("map");
-  const view = props.view ?? innerView;
-  const setView = (v: "map" | "table") => {
-    if (props.view === undefined) setInnerView(v);
-    props.onViewChange?.(v);
-  };
+  // Selection, focus of paths, abstraction and view (each controlled or internal), keyboard position,
+  // hover, the actions menu and the live region: the core's map controller.
+  const controller = useMapController(props);
+  const { dispatch } = controller;
+  const { abstraction, view, selection, hovered, active: focused, focusWithin: hasFocus, menu, focus: explicitFocus } = controller.state;
+  const setAbstraction = useCallback((a: AbstractOptions) => void dispatch({ type: "setAbstraction", abstraction: a }), [dispatch]);
+  const setView = (v: "map" | "table") => void dispatch({ type: "setView", view: v });
 
   // Graph pipeline: collapse first (own layout), then thresholds (filter positions).
   const collapseOnly = useMemo<AbstractOptions | undefined>(
@@ -193,36 +164,18 @@ function ProcessMapInner(props: ProcessMapProps) {
     return { covers, carried, between };
   }, [scene]);
 
-  // Selection, hover, keyboard focus, paths focus
-  const [innerSelection, setInnerSelection] = useState<Selection>(emptySelection);
-  const selection = props.selection ?? innerSelection;
-  const select = useCallback(
-    (s: Selection) => {
-      if (props.selection === undefined) setInnerSelection(s);
-      onSelect?.(s);
+  const select = useCallback((s: Selection) => void dispatch({ type: "select", selection: s }), [dispatch]);
+  const hover = useCallback((id: string | null) => void dispatch({ type: "hover", id }), [dispatch]);
+  const setFocus = useCallback((f: Focus | undefined) => dispatch({ type: "setFocus", focus: f }), [dispatch]);
+  // An arc selects the pair it joins, any other overlay its target.
+  const selectShape = useCallback(
+    (shape: OverlayShape) => {
+      const { source, target } = shape.overlay.payload ?? {};
+      select({ nodes: typeof source === "string" && typeof target === "string" ? [source, target] : [shape.overlay.target], edges: [], groups: [] });
     },
-    [props.selection, onSelect],
+    [select],
   );
-  const [hovered, setHovered] = useState<string | null>(null);
-  const hover = useCallback(
-    (id: string | null) => {
-      setHovered(id);
-      onHover?.(id);
-    },
-    [onHover],
-  );
-  const [focused, setFocused] = useState<string | null>(null);
-  const [hasFocus, setHasFocus] = useState(false);
   const tooltipId = useId();
-  const [innerFocus, setInnerFocus] = useState<Focus | undefined>(props.defaultFocus);
-  const explicitFocus: Focus | undefined = props.focus === undefined ? innerFocus : (props.focus ?? undefined);
-  const setFocus = useCallback(
-    (f: Focus | undefined) => {
-      if (props.focus === undefined) setInnerFocus(f);
-      props.onFocusChange?.(f);
-    },
-    [props.focus, props.onFocusChange], // eslint-disable-line react-hooks/exhaustive-deps
-  );
   const nodeKinds = useMemo(() => new Map(shown.nodes.map((n) => [n.id, n.kind])), [shown]);
   const pairFromSelection = useMemo<Focus | undefined>(() => {
     if (selection.nodes.length !== 2 || selection.edges.length || selection.groups.length) return undefined;
@@ -252,32 +205,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<CanvasMapHandle>(null);
 
-  // Live region
-  const [live, setLive] = useState("");
-  const announce = useCallback((text: string) => setLive(text), []);
-  const selectionKey = JSON.stringify(selection);
-  const firstSelection = useRef(true);
-  const menuRef = useRef<MenuState | null>(null);
-  useEffect(() => {
-    if (firstSelection.current) {
-      firstSelection.current = false;
-      return;
-    }
-    // A menu that opened in the same step has announced the selection already.
-    if (menuRef.current) return;
-    setLive(describeSelection(shown, selection, locale));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectionKey]);
-  useEffect(() => {
-    if (props.announce) setLive(props.announce);
-  }, [props.announce]);
   const labelOf = useCallback((id: string) => shown.nodes.find((n) => n.id === id)?.label ?? (shown.groups ?? []).find((g) => g.id === id)?.label ?? id, [shown]);
-  const explicitFocusKey = JSON.stringify(explicitFocus ?? null);
-  useEffect(() => {
-    if (!explicitFocus) return;
-    setLive(typeof explicitFocus === "string" ? t(locale, "map.focus", { label: labelOf(explicitFocus) }) : t(locale, "map.focusPair", { a: labelOf(explicitFocus[0]), b: labelOf(explicitFocus[1]) }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [explicitFocusKey]);
 
   // Descriptions
   const overlaysByTarget = useMemo(() => {
@@ -325,8 +253,6 @@ function ProcessMapInner(props: ProcessMapProps) {
   );
 
   // Actions menu
-  const [menu, setMenu] = useState<MenuState | null>(null);
-  menuRef.current = menu;
   const allStages = useMemo(() => (graph.groups ?? []).filter((g) => g.kind === "stage" && !g.parent).map((g) => g.id), [graph]);
   const attachRuns = useCallback(
     (actions: MenuAction[], target: MenuTarget): MenuAction[] =>
@@ -348,72 +274,62 @@ function ProcessMapInner(props: ProcessMapProps) {
             };
           }
           case "paths":
+            // The focus is announced with the action.
             return {
               ...a,
               run: () => {
-                if (target.kind === "pair") setFocus([target.ids[0], target.ids[1]]);
-                else if (target.kind === "edge") {
-                  const e = shown.edges.find((x) => x.id === target.id);
-                  if (e) setFocus([e.source, e.target]);
-                } else setFocus(target.id);
-                return undefined;
+                if (target.kind === "pair") return setFocus([target.ids[0], target.ids[1]]).announcement;
+                if (target.kind !== "edge") return setFocus(target.id).announcement;
+                const e = shown.edges.find((x) => x.id === target.id);
+                return e ? setFocus([e.source, e.target]).announcement : undefined;
               },
             };
           case "collapse":
-            return { ...a, run: () => void setAbstraction({ ...abstraction, collapse: toggleCollapse(abstraction.collapse, target.id, allStages, true) }) };
           case "expand":
-            return { ...a, run: () => void setAbstraction({ ...abstraction, collapse: toggleCollapse(abstraction.collapse, target.id, allStages, false) }) };
+            return { ...a, run: () => void dispatch({ type: "collapse", group: target.id, collapsed: a.id === "collapse" }) };
           case "clear-focus":
             return { ...a, run: () => void setFocus(undefined) };
           default:
             return a;
         }
       }),
-    [props.onFilterChange, props.filters, locale, labelOf, setFocus, shown, setAbstraction, abstraction, allStages],
+    [props.onFilterChange, props.filters, locale, labelOf, setFocus, shown, dispatch],
   );
-  const openMenu = useCallback(
-    (ref: ElementRef, at: { x: number; y: number }) => {
-      if (!contextMenu) return;
-      // The element joins the selection unless it is part of the multi-selection already.
-      const inSelection = ref.kind === "node" ? selection.nodes.includes(ref.id) : ref.kind === "edge" ? selection.edges.includes(ref.id) : selection.groups.includes(ref.id);
-      const effective = inSelection ? selection : selectElement(emptySelection, ref, "add");
-      if (!inSelection) select(effective);
-      const target = menuTargetFor(shown, ref, effective);
-      const collapsed = ref.kind === "group" && (abstraction.collapse === "all" || (Array.isArray(abstraction.collapse) && abstraction.collapse.includes(ref.id)));
-      let actions = attachRuns(defaultActions(shown, target, locale, { collapsed, hasFocus: explicitFocus !== undefined }), target);
+  // The host may replace the actions with runs attached, or suppress the menu.
+  const menuActions = useCallback(
+    (target: MenuTarget, defaults: MenuAction[]): MenuAction[] | false => {
+      const actions = attachRuns(defaults, target);
       const custom = onContextMenuProp?.(target, actions);
-      if (custom === false) return;
-      if (Array.isArray(custom)) actions = custom;
-      if (actions.length === 0) return;
-      const kindText =
-        target.kind === "node"
-          ? t(locale, `kind.${target.nodeKind ?? "activity"}` as StringKey)
-          : target.kind === "edge"
-            ? t(locale, `kind.${target.edgeKind ?? "follows"}` as StringKey)
-            : target.kind === "group"
-              ? t(locale, `group.${target.groupKind ?? "stage"}` as StringKey)
-              : t(locale, "kind.activity");
-      const groupId = target.kind === "node" ? shown.nodes.find((n) => n.id === target.id)?.group : undefined;
-      const subtitle = `${kindText}${groupId ? ` (${groupIndex.get(groupId)?.label ?? groupId})` : ""}`;
-      setMenu({ target, actions, x: at.x, y: at.y, title: menuTitle(target, shown, locale), subtitle, note: worstOverlay(target.ids) });
-      const opened = t(locale, "menu.opened", { label: target.label, count: actions.length });
-      setLive(inSelection ? opened : `${describeSelection(shown, effective, locale)} ${opened}`);
+      return custom === false ? false : Array.isArray(custom) ? custom : actions;
     },
-    [contextMenu, selection, select, shown, abstraction.collapse, attachRuns, locale, explicitFocus, onContextMenuProp, groupIndex, worstOverlay],
+    [attachRuns, onContextMenuProp],
   );
-  const closeMenu = useCallback(() => {
-    setMenu(null);
-    setLive(t(locale, "menu.closed"));
-  }, [locale]);
+  controller.context.current = { graph: shown, positions, locale, contextMenu, stages: allStages, actions: menuActions } satisfies MapContext;
+  const openMenu = useCallback((ref: ElementRef, at: { x: number; y: number }) => void dispatch({ type: "openMenu", element: ref, at }), [dispatch]);
+  const menuText = useMemo(() => {
+    if (!menu) return undefined;
+    const { target } = menu;
+    const kindText =
+      target.kind === "node"
+        ? t(locale, `kind.${target.nodeKind ?? "activity"}` as StringKey)
+        : target.kind === "edge"
+          ? t(locale, `kind.${target.edgeKind ?? "follows"}` as StringKey)
+          : target.kind === "group"
+            ? t(locale, `group.${target.groupKind ?? "stage"}` as StringKey)
+            : t(locale, "kind.activity");
+    const groupId = target.kind === "node" ? shown.nodes.find((n) => n.id === target.id)?.group : undefined;
+    const subtitle = `${kindText}${groupId ? ` (${groupIndex.get(groupId)?.label ?? groupId})` : ""}`;
+    return { title: menuTitle(target, shown, locale), subtitle, note: worstOverlay(target.ids) };
+  }, [menu, shown, locale, groupIndex, worstOverlay]);
+  const closeMenu = useCallback(() => void dispatch({ type: "closeMenu" }), [dispatch]);
   const runAction = useCallback(
     (action: MenuAction) => {
       if (!menu) return;
       const fromRun = action.run?.(menu.target);
       const fromHost = props.onAction?.(action, menu.target);
-      setMenu(null);
-      setLive(typeof fromHost === "string" ? fromHost : typeof fromRun === "string" ? fromRun : t(locale, "menu.announce", { action: action.label, target: menu.target.label }));
+      dispatch({ type: "actionDone", action, text: typeof fromHost === "string" ? fromHost : typeof fromRun === "string" ? fromRun : undefined });
     },
-    [menu, props.onAction, locale], // eslint-disable-line react-hooks/exhaustive-deps
+    [menu, props.onAction, dispatch], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // Screen position of an element relative to the map body (for the keyboard-opened menu).
@@ -591,36 +507,23 @@ function ProcessMapInner(props: ProcessMapProps) {
   const onCanvasHover = useCallback((hit: HitItem | null) => hover(hit ? (hit.kind === "overlay" ? (hit.shapeId ?? hit.id) : hit.id) : null), [hover]);
   const onCanvasClick = useCallback(
     (hit: HitItem | undefined, mod: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }) => {
-      if (menu) setMenu(null);
       const shape = hit?.kind === "overlay" ? canvasScene?.shapeById.get(hit.shapeId ?? "") : undefined;
       if (shape) {
-        const src = shape.overlay.payload?.source;
-        const tgt = shape.overlay.payload?.target;
-        if (typeof src === "string" && typeof tgt === "string") select({ nodes: [src, tgt], edges: [], groups: [] });
-        else select({ nodes: [shape.overlay.target], edges: [], groups: [] });
+        dispatch({ type: "dismissMenu" });
+        selectShape(shape);
         return;
       }
-      const ref = hitToRef(hit);
-      if (!ref) {
-        select(emptySelection);
-        return;
-      }
-      const multi = mod.shiftKey || mod.metaKey || mod.ctrlKey;
-      select(selectElement(selection, ref, multi ? "toggle" : "replace"));
-      if (ref.kind === "node") setFocused(ref.id);
+      dispatch({ type: "click", element: hitToRef(hit) ?? null, multi: mod.shiftKey || mod.metaKey || mod.ctrlKey });
     },
-    [menu, canvasScene, select, hitToRef, selection],
+    [canvasScene, dispatch, selectShape, hitToRef],
   );
   const onCanvasContextMenu = useCallback(
     (hit: HitItem | undefined, at: { x: number; y: number }) => {
       const ref = hitToRef(hit);
-      if (!ref) {
-        setMenu(null);
-        return;
-      }
-      openMenu(ref, at);
+      if (ref) openMenu(ref, at);
+      else dispatch({ type: "dismissMenu" });
     },
-    [hitToRef, openMenu],
+    [hitToRef, openMenu, dispatch],
   );
 
   // Fit the view when a new layout arrives: once right after the nodes render and
@@ -643,29 +546,16 @@ function ProcessMapInner(props: ProcessMapProps) {
   };
   const onNodeClick = useCallback<NodeMouseHandler<WfNode | WfGroupNode>>(
     (event, node) => {
-      if (menu) setMenu(null);
-      if (node.id.startsWith(GROUP_PREFIX)) {
-        select(selectElement(selection, { kind: "group", id: node.id.slice(GROUP_PREFIX.length) }, "replace"));
-        return;
-      }
-      const multi = event.shiftKey || event.metaKey || event.ctrlKey;
-      select(selectElement(selection, { kind: "node", id: node.id }, multi ? "toggle" : "replace"));
-      setFocused(node.id);
+      const element: ElementRef = node.id.startsWith(GROUP_PREFIX) ? { kind: "group", id: node.id.slice(GROUP_PREFIX.length) } : { kind: "node", id: node.id };
+      dispatch({ type: "click", element, multi: event.shiftKey || event.metaKey || event.ctrlKey });
     },
-    [select, selection, menu],
+    [dispatch],
   );
   const onEdgeClick = useCallback<EdgeMouseHandler<WfEdge>>(
-    (event, edge) => {
-      if (menu) setMenu(null);
-      const multi = event.shiftKey || event.metaKey || event.ctrlKey;
-      select(selectElement(selection, { kind: "edge", id: edge.id }, multi ? "toggle" : "replace"));
-    },
-    [select, selection, menu],
+    (event, edge) => void dispatch({ type: "click", element: { kind: "edge", id: edge.id }, multi: event.shiftKey || event.metaKey || event.ctrlKey }),
+    [dispatch],
   );
-  const onPaneClick = useCallback(() => {
-    setMenu(null);
-    select(emptySelection);
-  }, [select]);
+  const onPaneClick = useCallback(() => void dispatch({ type: "click", element: null }), [dispatch]);
   const onNodeContextMenu = useCallback<NodeMouseHandler<WfNode | WfGroupNode>>(
     (event, node) => {
       event.preventDefault();
@@ -683,21 +573,14 @@ function ProcessMapInner(props: ProcessMapProps) {
   );
   const onPaneContextMenu = useCallback((event: React.MouseEvent | MouseEvent) => {
     event.preventDefault();
-    setMenu(null);
-  }, []);
+    dispatch({ type: "dismissMenu" });
+  }, [dispatch]);
 
-  const orderedNodeIds = useMemo(() => {
-    if (!positions) return [] as string[];
-    return shown.nodes
-      .filter((n) => positions.nodes[n.id])
-      .sort((a, b) => positions.nodes[a.id].x - positions.nodes[b.id].x || positions.nodes[a.id].y - positions.nodes[b.id].y)
-      .map((n) => n.id);
-  }, [positions, shown]);
   const edgeIndex = useMemo(() => new Map(shown.edges.map((e) => [e.id, e])), [shown]);
 
-  const focusNode = useCallback(
+  // Bring a node the keyboard moved to into view.
+  const reveal = useCallback(
     (id: string) => {
-      setFocused(id);
       const box = positions?.nodes[id];
       if (!box) return;
       if (useCanvas) {
@@ -709,94 +592,17 @@ function ProcessMapInner(props: ProcessMapProps) {
     },
     [positions, rf, reducedMotion, useCanvas],
   );
-  const edgeCycle = useRef(new Map<string, number>());
-
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
-      if (menu) return;
-      if (!positions || orderedNodeIds.length === 0) return;
-      const focusedEdge = focused && edgeIndex.has(focused) ? edgeIndex.get(focused) : undefined;
-      const current = focusedEdge ? null : (focused ?? selection.nodes[0] ?? null);
-      const dir = { ArrowRight: [1, 0], ArrowLeft: [-1, 0], ArrowDown: [0, 1], ArrowUp: [0, -1] }[e.key];
-      if (dir && e.altKey) {
-        // Along the paths: from a node to one of its paths, from a path to its other end.
-        e.preventDefault();
-        const forward = dir[0] > 0 || dir[1] > 0;
-        if (focusedEdge) {
-          focusNode(forward ? focusedEdge.target : focusedEdge.source);
-          return;
-        }
-        if (!current) {
-          focusNode(orderedNodeIds[0]);
-          return;
-        }
-        const list = shown.edges.filter((x) => x.kind !== "constraint" && x.source !== x.target && positions.nodes[x.source] && positions.nodes[x.target] && (forward ? x.source === current : x.target === current));
-        if (!list.length) return;
-        const key = `${current}:${forward ? "out" : "in"}`;
-        const index = ((edgeCycle.current.get(key) ?? -1) + 1) % list.length;
-        edgeCycle.current.set(key, index);
-        setFocused(list[index].id);
-        setLive(t(locale, "map.focused", { label: describeEdge(list[index], shown, locale) }));
-        return;
-      }
-      if (dir) {
-        e.preventDefault();
-        const start = current ?? focusedEdge?.target ?? null;
-        const from = start ? positions.nodes[start] : undefined;
-        if (!start || !from) {
-          focusNode(orderedNodeIds[0]);
-          return;
-        }
-        const cx = from.x + from.width / 2;
-        const cy = from.y + from.height / 2;
-        let best: string | null = null;
-        let bestScore = Infinity;
-        for (const id of orderedNodeIds) {
-          if (id === start) continue;
-          const b = positions.nodes[id];
-          const dx = b.x + b.width / 2 - cx;
-          const dy = b.y + b.height / 2 - cy;
-          const along = dx * dir[0] + dy * dir[1];
-          if (along <= 0) continue;
-          const across = Math.abs(dx * dir[1]) + Math.abs(dy * dir[0]);
-          const score = along + 2 * across;
-          if (score < bestScore) {
-            bestScore = score;
-            best = id;
-          }
-        }
-        if (best) {
-          focusNode(best);
-          if (e.shiftKey) select(selectElement(selection, { kind: "node", id: best }, "add"));
-        }
-        return;
-      }
-      if (e.key === "Home") {
-        e.preventDefault();
-        focusNode(orderedNodeIds[0]);
-      } else if (e.key === "End") {
-        e.preventDefault();
-        focusNode(orderedNodeIds[orderedNodeIds.length - 1]);
-      } else if (e.key === " " && (current || focusedEdge)) {
-        e.preventDefault();
-        const ref: ElementRef = focusedEdge ? { kind: "edge", id: focusedEdge.id } : { kind: "node", id: current! };
-        select(selectElement(selection, ref, "toggle"));
-      } else if (e.key === "Enter" && (current || focusedEdge)) {
-        e.preventDefault();
-        const ref: ElementRef = focusedEdge ? { kind: "edge", id: focusedEdge.id } : { kind: "node", id: current! };
-        if (!contextMenu) {
-          select(selectElement(selection, ref, "toggle"));
-          return;
-        }
-        openMenu(ref, elementScreenPoint(ref));
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        select(emptySelection);
-        setFocused(null);
-        if (explicitFocus !== undefined) setFocus(undefined);
+      const step = dispatch({ type: "key", key: e.key, shiftKey: e.shiftKey, altKey: e.altKey });
+      if (!step.handled) return;
+      e.preventDefault();
+      for (const intent of step.intents) {
+        if (intent.kind === "reveal") reveal(intent.id);
+        else if (intent.kind === "menu") openMenu(intent.element, elementScreenPoint(intent.element));
       }
     },
-    [menu, positions, orderedNodeIds, focused, edgeIndex, selection, focusNode, select, shown, locale, contextMenu, openMenu, elementScreenPoint, explicitFocus, setFocus],
+    [dispatch, reveal, openMenu, elementScreenPoint],
   );
 
   const tooltipNode = activityLabels && view === "map" ? shown.nodes.find((n) => n.kind === "activity" && n.id === (hovered ?? (hasFocus ? focused : null))) : undefined;
@@ -834,7 +640,7 @@ function ProcessMapInner(props: ProcessMapProps) {
     </div>
   ) : null;
   const menuElement = menu ? (
-    <ContextMenu x={menu.x} y={menu.y} title={menu.title} subtitle={menu.subtitle} note={menu.note} actions={menu.actions} locale={locale} onAction={runAction} onClose={closeMenu} returnFocusTo={containerRef.current} boundsRef={bodyRef} />
+    <ContextMenu x={menu.at.x} y={menu.at.y} title={menuText?.title ?? ""} subtitle={menuText?.subtitle} note={menuText?.note} actions={menu.actions} locale={locale} onAction={runAction} onClose={closeMenu} returnFocusTo={containerRef.current} boundsRef={bodyRef} />
   ) : null;
   const legendElement = legend ? (
     <Legend scales={scales} legend={scene.legend} locale={locale} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} />) : undefined} />
@@ -861,12 +667,8 @@ function ProcessMapInner(props: ProcessMapProps) {
       aria-activedescendant={activeDescendant}
       tabIndex={0}
       onKeyDown={onKeyDown}
-      onFocusCapture={(event) => {
-        setHasFocus(true);
-        const id = (event.target as HTMLElement).closest?.(".react-flow__node")?.getAttribute("data-id");
-        if (id && nodeKinds.get(id) === "activity") setFocused(id);
-      }}
-      onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setHasFocus(false); }}
+      onFocusCapture={(event) => void dispatch({ type: "focusIn", id: (event.target as HTMLElement).closest?.(".react-flow__node")?.getAttribute("data-id") ?? undefined })}
+      onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) dispatch({ type: "focusOut" }); }}
       data-activity-labels={activityLabels?.mode}
       data-layout-status={needsOwnLayout ? own.status : "given"}
       data-engine={positions?.engine}
@@ -879,9 +681,9 @@ function ProcessMapInner(props: ProcessMapProps) {
         {useCanvas ? ` ${t(locale, "map.renderer.canvas", { nodes: shown.nodes.length, edges: shown.edges.length })}` : ""}
       </p>
       <p id={liveId} className="wf-sr-only" aria-live="polite" data-testid="wf-live">
-        {live}
+        {controller.live}
       </p>
-      {showFilters ? <FilterChips filter={props.filters} preview={props.filterPreview} locale={locale} labelOf={labelOf} onFilterChange={props.onFilterChange} onAnnounce={announce} /> : null}
+      {showFilters ? <FilterChips filter={props.filters} preview={props.filterPreview} locale={locale} labelOf={labelOf} onFilterChange={props.onFilterChange} onAnnounce={controller.announce} /> : null}
       <div ref={bodyRef} className="wf-process-map__body">
         {view === "table" ? (
           <div style={{ position: "absolute", inset: 0, overflow: "auto", padding: 12 }}>
@@ -961,12 +763,7 @@ function ProcessMapInner(props: ProcessMapProps) {
                     zoom={zoom}
                     hoveredId={hovered}
                     onHover={hover}
-                    onSelect={(s: OverlayShape) => {
-                      const src = s.overlay.payload?.source;
-                      const tgt = s.overlay.payload?.target;
-                      if (typeof src === "string" && typeof tgt === "string") select({ nodes: [src, tgt], edges: [], groups: [] });
-                      else select({ nodes: [s.overlay.target], edges: [], groups: [] });
-                    }}
+                    onSelect={selectShape}
                   />
                 ) : null}
                 {controlsElement ? <Panel position="top-left">{controlsElement}</Panel> : null}

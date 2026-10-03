@@ -145,7 +145,8 @@ view, keep connected, table view) in a panel; the legend always visible.
 Keyboard navigation over activities (arrow keys; Alt with an arrow key
 along the paths; Space selects; Enter opens the actions menu; Shift with
 an arrow key extends the selection; Escape; Home, End) with
-`aria-activedescendant`; ARIA labels on every element, a hidden
+`aria-activedescendant`, all transitions of the core's map controller
+(§2.8); ARIA labels on every element, a hidden
 description of the map and a polite live region that announces the
 selection, the menu and the result of every action; `TableAlternative`
 lists the same activities, paths and overlays as rows. Reduced motion is
@@ -179,6 +180,18 @@ lane groups as bands stacked across the flow with the nodes moved into
 their lane. The lane model (which groups are lanes, the lane of every node,
 stacking, the boxes of pools and parent lanes, and whether edges across
 lanes are dropped or routed) is shared with `layoutBpmn`.
+`map-controller.ts`: the transitions themselves. `mapStep(state, event,
+context)` takes the interaction state (selection, focus of paths,
+abstraction, view, the element the keyboard is on, hover, the open actions
+menu) and a click, key, hover, focus or menu event, and returns the next
+state, the sentence for the live region and the intents for the host
+(callbacks, bringing a node into view, finding an element on screen for the
+menu). The keyboard routes of §3 are its key transitions. Because the step
+that opens a menu, runs an action or changes the selection also produces
+its sentence, the live region does not depend on the order in which a
+renderer applies state. `ProcessMap` feeds its events to it and draws its
+state; each of `selection`, `focus`, `abstraction` and `view` is taken from
+the prop when given and kept by the map otherwise.
 
 ### 2.7 Views
 `buildViews(graph, views)` lays the base graph out once and resolves named
