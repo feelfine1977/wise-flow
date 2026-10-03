@@ -1,6 +1,6 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { memo } from "react";
-import { type LayoutDirection, type Overlay, activityLabelLines, contrastText, colorOn, formatCompact, formatShare, hasTag, metric, RECONNECTED_TAG } from "../core/index.js";
+import { type LayoutDirection, type Overlay, activityLabelLines, contrastText, formatCompact, formatShare, hasTag, metric, overlayColor, RECONNECTED_TAG } from "../core/index.js";
 import { PatternSwatch } from "./patterns.js";
 import type { ActivityNodeData, WfGroupNode, WfNode } from "./types.js";
 
@@ -21,17 +21,12 @@ function handles(direction: LayoutDirection) {
   );
 }
 
-function badgeColor(o: Overlay): string {
-  const v = o.payload?.value;
-  return typeof v === "number" && Number.isFinite(v) ? colorOn(v, "sequential", [0, 1]) : "#8c8c8c";
-}
-
 export function Badges({ badges, locale }: { badges: Overlay[]; locale: ActivityNodeData["locale"] }) {
   if (!badges.length) return null;
   return (
     <div className="wf-badges wf-lod-badges" aria-hidden="true">
       {badges.map((b, i) => {
-        const bg = badgeColor(b);
+        const bg = overlayColor(b);
         const v = b.payload?.value;
         return (
           <span
@@ -152,7 +147,7 @@ const Note = memo(function Note({ id, data, selected }: NodeProps<WfNode>) {
 
 export function Chip({ chip, locale }: { chip: Overlay; locale: ActivityNodeData["locale"] }) {
   const p = chip.payload ?? {};
-  const color = badgeColor(chip);
+  const color = overlayColor(chip);
   const gauge = p.gauge;
   const span = gauge ? Math.max(gauge.threshold + (gauge.width ?? gauge.threshold), 1e-9) : 0;
   const fill = gauge ? Math.min(1, gauge.value / span) : 0;
@@ -207,13 +202,3 @@ export const nodeTypes = {
   note: Note,
   wfGroup: Group,
 };
-
-/** Tint colour for a group overlay value. */
-export function tintFor(value: number | undefined): string | undefined {
-  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
-  const hex = colorOn(value, "sequential", [0, 1]);
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r}, ${g}, ${b}, 0.18)`;
-}

@@ -25,7 +25,6 @@ import {
   type OverlayShape,
   type PatternId,
   type Positions,
-  type Scales,
   type StyleSpec,
   HitIndex,
   RECONNECTED_TAG,
@@ -36,6 +35,7 @@ import {
   hasTag,
   metric,
   straightRoute,
+  tintColor,
   unionBoxes,
 } from "../core/index.js";
 
@@ -126,15 +126,6 @@ export function selfLoopOverlays(graph: FlowGraph, locale: Locale = "en"): Overl
   return followsSelfLoops(graph, { locale });
 }
 
-function tintFor(value: number | undefined, scales: Scales): string | undefined {
-  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
-  const hex = scales.color(value, "sequential", [0, 1]);
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r}, ${g}, ${b}, 0.18)`;
-}
-
 /**
  * Resolve a graph with positions into retained geometry on top of the core
  * scene (`buildScene`): overlays are `options.overlays` (default
@@ -157,7 +148,7 @@ export function prepareScene(graph: FlowGraph, givenPositions: Positions, option
 
 /** Retained geometry for a scene the core has built (`buildScene`). */
 export function retainScene(scene: FlowScene): PreparedScene {
-  const { graph, positions, bands, scales, locale, geometry, activityLabels } = scene;
+  const { graph, positions, bands, scales, locale, geometry, marks, activityLabels } = scene;
   const shapesByTarget = new Map<string, OverlayShape[]>();
   for (const s of geometry.shapes) {
     if (!shapesByTarget.has(s.overlay.target)) shapesByTarget.set(s.overlay.target, []);
@@ -171,7 +162,7 @@ export function retainScene(scene: FlowScene): PreparedScene {
     if (!box) continue;
     const shapes = shapesByTarget.get(g.id) ?? [];
     const tint = shapes.find((s) => s.kind === "tint");
-    groups.push({ group: g, box, color: scales.categorical(g.id).color, tint: tintFor(tint?.overlay.payload?.value, scales), band: bandIndex.get(g.id), chips: shapes.filter((s) => s.kind === "chip") });
+    groups.push({ group: g, box, color: scales.categorical(g.id).color, tint: tint && tintColor(tint.overlay), band: bandIndex.get(g.id), chips: shapes.filter((s) => s.kind === "chip") });
   }
 
   const nodes: SceneNode[] = [];
@@ -219,14 +210,17 @@ export function retainScene(scene: FlowScene): PreparedScene {
   }
 
   const routed: Positions = { ...positions, edges: Object.fromEntries(edges.map((e) => [e.edge.id, { points: e.points }])) };
-  const hit = HitIndex.fromScene(routed, geometry);
+  // Marks that are not drawn on the map (map-level chips) take no room and answer no hit.
+  const drawn = new Set(marks.filter((m) => m.inMap).map((m) => m.id));
+  const shown = geometry.shapes.filter((s) => drawn.has(s.id));
+  const hit = HitIndex.fromScene(routed, { ...geometry, shapes: shown });
   return {
     ...scene,
     shapes: geometry.shapes,
     nodes,
     edges,
     groups,
-    bounds: sceneBounds(positions.bounds, geometry.shapes.length ? geometry.bounds : undefined),
+    bounds: sceneBounds(positions.bounds, shown.length ? unionBoxes(shown) : undefined),
     hit,
     size: nodes.length + edges.length,
     nodeById: new Map(nodes.map((n) => [n.node.id, n])),

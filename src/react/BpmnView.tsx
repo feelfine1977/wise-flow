@@ -9,17 +9,20 @@ import {
   type OverlayShape,
   type Positions,
   MAP_TARGET,
+  arcWidth,
   buildScales,
   canonicalOverlays,
-  colorOn,
   contrastText,
   createPositions,
   defaultLod,
   defaultStyle,
   formatShare,
   lodForSize,
+  overlayArrow,
+  overlayColor,
   overlayGeometry,
   t,
+  tintColor,
 } from "../core/index.js";
 import { type BpmnExport, exportBpmn } from "../bpmn/export.js";
 import { type IdResolver, createIdResolver, renameToActivities } from "../bpmn/ids.js";
@@ -27,7 +30,7 @@ import { type BpmnImport, type MappingRow, applyRenaming, importBpmn } from "../
 import type { BpmnLayoutOptions } from "../bpmn/layout.js";
 import { type ModdleElement, isType, wiseModdleDescriptor } from "../bpmn/moddle.js";
 import { Legend } from "./Legend.js";
-import { Chip, tintFor } from "./nodes.js";
+import { Chip } from "./nodes.js";
 import { TableAlternative } from "./TableAlternative.js";
 import type { Selection } from "./types.js";
 
@@ -189,11 +192,6 @@ function svgEl<K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<strin
   const node = document.createElementNS(SVG_NS, tag);
   for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
   return node;
-}
-
-function overlayColor(o: Overlay): string {
-  const v = o.payload?.value;
-  return typeof v === "number" && Number.isFinite(v) ? colorOn(v, "sequential", [0, 1]) : "#8c8c8c";
 }
 
 function tooltip(o: Overlay): string {
@@ -464,7 +462,7 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
     const positions = registryPositions(registry, resolver);
     const geometry = overlayGeometry(orderedOverlays, positions, { lod: lodRules });
     const elementOf = (id: string): DjsElement | undefined => elementsNamed(registry, resolver, [id])[0];
-    const arrow = svgEl("marker", { id: "wf-bpmn-arrow", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 12, markerHeight: 12, markerUnits: "userSpaceOnUse", orient: "auto-start-reverse" });
+    const arrow = svgEl("marker", { id: "wf-bpmn-arrow", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: overlayArrow.size, markerHeight: overlayArrow.size, markerUnits: "userSpaceOnUse", orient: "auto-start-reverse" });
     arrow.appendChild(svgEl("path", { d: "M0 0L10 5L0 10z", fill: "context-stroke" }));
     const defs = svgEl("defs", {});
     defs.appendChild(arrow);
@@ -508,7 +506,7 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
           const cover = el("div", o.kind === "tint" ? "wf-bpmn-tint" : "wf-bpmn-hatch");
           cover.style.width = `${target.width ?? 0}px`;
           cover.style.height = `${target.height ?? 0}px`;
-          if (o.kind === "tint") cover.style.background = tintFor(typeof p.value === "number" ? p.value : undefined) ?? "transparent";
+          if (o.kind === "tint") cover.style.background = tintColor(o) ?? "transparent";
           cover.title = tooltip(o);
           overlaysService.add(target.id, OVERLAY_TYPE, { html: cover, position: { top: 0, left: 0 }, show: o.kind === "hatch" ? { minZoom: lodRules.hatch } : undefined, scale: true });
           canvas.addMarker(target.id, o.kind === "tint" ? "wf-bpmn--tinted" : "wf-bpmn--hatched");
@@ -542,12 +540,11 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
           const title = svgEl("title", {});
           title.textContent = tooltip(o);
           g.appendChild(title);
-          const coverage = typeof p.coverage === "number" ? Math.max(0, Math.min(1, p.coverage)) : 1;
           const path = svgEl("path", {
             d: shape.path,
             fill: "none",
             stroke: color,
-            "stroke-width": o.kind === "arc" ? 2 + 8 * coverage : 2.5,
+            "stroke-width": o.kind === "arc" ? arcWidth(o) : 2.5,
             "stroke-opacity": 0.9,
             "marker-end": "url(#wf-bpmn-arrow)",
           });

@@ -22,8 +22,8 @@ test('headless checks allow local algorithms, reviewed layout imports and import
     // import React from 'react';
   `), []);
 });
-test('the scene module and the overlay placement it reads stay inside the core', () => {
-  for (const name of ['scene.ts', 'overlay-geometry.ts', 'observed-loops.ts']) {
+test('the scene module and the overlay placement and marks it reads stay inside the core', () => {
+  for (const name of ['scene.ts', 'overlay-geometry.ts', 'overlay-marks.ts', 'observed-loops.ts']) {
     const path = fileURLToPath(new URL(`../../src/core/${name}`, import.meta.url));
     assert.deepEqual(boundaryViolations(path, readFileSync(path, 'utf8')), [], name);
   }

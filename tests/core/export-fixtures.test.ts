@@ -29,21 +29,26 @@ const observed: Variant = {
 };
 
 /**
- * SHA-256 of `toSVG` for each variant, recorded from the implementation that
- * assembled bands, scales, overlays and geometry inside `toSVG`.
+ * SHA-256 of `toSVG` for each variant. Recorded from the implementation that
+ * assembled bands, scales, overlays and geometry inside `toSVG`, and recorded
+ * again when `toSVG` began to draw the scene's overlay marks. Compared element
+ * by element, that step changed only: the overlay arrowhead marker (12 px, as on
+ * the map), the hatch fill (opacity 0.55, no outline), chip text 0.5 px higher,
+ * and the figure size, map offset and activity key position, because map-level
+ * chips no longer count towards the bounds.
  */
 const before: Record<string, string> = {
-  overlays: "bb2acd37c69e53a41e520be7a9c9e701fa1aaa870ee4e585594ccc3e70e03610",
-  stagesGerman: "9af1b735af156a864b01cf1c96d6dbea1b6b8f4f1fd74f20501174e2ae1a7912",
-  vendor: "e1f8058fdbd4fac360d03f57979d31b04bb9957e354b0518ede65cc3eac0f6b0",
-  unfiltered: "4dd54675243731f2639c43fa1eaf5c71a2cc2da1a9395d765a9882c2f527d91b",
-  plain: "8bced1efd5897457744909465e3698a6d6df2b2d87495e0e917b3e2c62b19641",
+  overlays: "9e31133ffdd4e83783a7535895730d600c676c9b72f75167ed6bb63619ac8457",
+  stagesGerman: "2f298599d6acbdfe2f858942933947804d8d2b5d383227cfc44c91b36975984f",
+  vendor: "b8f55bd86d60ee5b17b55fad058382403444d4807c852c4debc2463d8a52b197",
+  unfiltered: "43ad5e8e19c7cb3ef5589df193cb68b1de99ab71324c585b9935590a4b2ff354",
+  plain: "d1137235b74f70c6149763eea0c6897255e1a3414c00f5246cbee1763c2ff1fa",
 };
-const beforeObserved = "4591e5d793209b3a8dd29fa11f1ca9e3e7d82add4b68c1bd57ccf014c3617239";
+const beforeObserved = "99d2b38af6014a43290ec55cb40f8444dc3b698d28b25bdf8ccbfbb749dda602";
 
 describe("toSVG on the committed fixtures", () => {
-  it("is byte-identical to the previous output once follows self-loops are hidden", () => {
-    for (const [name, v] of Object.entries(variants)) expect(sha(toSVG({ ...v.scene(), selfLoops: false }, v.options)), name).toBe(before[name]);
+  it("matches the recorded output once follows self-loops are hidden", () => {
+    expect(Object.fromEntries(Object.entries(variants).map(([name, v]) => [name, sha(toSVG({ ...v.scene(), selfLoops: false }, v.options))]))).toEqual(before);
   });
 
   it("shows every follows self-loop by default (declared change)", () => {
@@ -59,7 +64,7 @@ describe("toSVG on the committed fixtures", () => {
     }
   });
 
-  it("keeps the previous output where self-loops were already decided", () => {
+  it("keeps the recorded output where self-loops were already decided", () => {
     // Below their level of detail, plain self-loops stay hidden.
     expect(sha(toSVG(variants.plain.scene(), variants.plain.options))).toBe(before.plain);
     // With activity labels the observed self-loops were already drawn.

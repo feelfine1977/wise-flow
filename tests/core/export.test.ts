@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { constraintItems, globalScene } from "../../fixtures/bpic2019";
 import { type FlowGraph, type Overlay, type Positions, FIGURE_WIDTHS, abstract, layout, overlaysFor, toSVG } from "../../src/index";
+import * as kinds from "./overlay-kinds";
 
 const scene = abstract(globalScene, { minEdgeShare: 0.03, minNodeShare: 0.01 });
 
@@ -92,5 +93,36 @@ describe("toSVG overlays", () => {
     expect(toSVG({ graph, positions, overlays: [ghost, ...badges], selfLoops: false }, { legend: false })).toBe(known);
     const edgeTarget: Overlay = { kind: "hatch", target: "ab" };
     expect(toSVG({ graph, positions, overlays: [edgeTarget, ...badges], selfLoops: false }, { legend: false })).toBe(known);
+  });
+});
+
+describe("toSVG overlay marks", () => {
+  const svg = toSVG({ graph: kinds.graph, positions: kinds.positions, overlays: kinds.overlays, selfLoops: false }, { legend: false });
+  const marks = svg.match(/<g class="wf-overlay[^]*?<\/g>/g) ?? [];
+  const halo = 'fill="#1f1f1f" paint-order="stroke" stroke="#ffffff" stroke-width="3"';
+  const arrow = 'marker-end="url(#wf-overlay-arrow)"';
+
+  it("maps every mark to SVG primitives", () => {
+    expect(svg).toContain('<marker id="wf-overlay-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="12" markerHeight="12" orient="auto-start-reverse" markerUnits="userSpaceOnUse">');
+    expect(marks).toEqual([
+      '<g class="wf-overlay wf-tint"><title>Balance — 50 % above</title><rect x="190" y="-10" width="320" height="60" rx="10" fill="#fd8d3c" fill-opacity="0.18" stroke="none"/></g>',
+      '<g class="wf-overlay wf-hatch"><title>Scope — Out of scope</title><rect x="0" y="0" width="100" height="40" rx="6" fill="url(#wf-pattern-outofscope)" fill-opacity="0.55" stroke="none"/></g>',
+      `<g class="wf-overlay wf-arc"><title></title><path d="M50 0 C50 -88 450 -88 450 0" fill="none" stroke="#fdd0a2" stroke-width="6" stroke-opacity="0.9" ${arrow}/><text x="250" y="-74" font-size="11" text-anchor="middle" ${halo}>⏱ 25 %</text></g>`,
+      `<g class="wf-overlay wf-arc"><title></title><path d="M450 40 C450 142 50 142 50 40" fill="none" stroke="#7f2704" stroke-width="2" stroke-opacity="0.9" stroke-dasharray="6 4" ${arrow}/><text x="250" y="130.5" font-size="11" text-anchor="middle" ${halo}>⇐ 100 %</text></g>`,
+      `<g class="wf-overlay wf-selfloop"><title></title><path d="M482 0 C482 -28 528 12 500 12" fill="none" stroke="#d94801" stroke-width="2.5" ${arrow}/><text x="506" y="-6" font-size="10" ${halo}>↻ 75 %</text></g>`,
+      // Text whose middle is given sits on a baseline 0.3 × its size lower: 0.5 + 3.
+      `<g class="wf-overlay wf-badge"><title></title><rect x="76" y="-11" width="22" height="22" rx="11" fill="#7f2704" stroke="#ffffff" stroke-width="1.5"/><text x="87" y="3.5" font-size="10" font-weight="700" text-anchor="middle" fill="#ffffff">●</text><text x="102" y="3.5" font-size="10" ${halo}>100 %</text></g>`,
+      `<g class="wf-overlay wf-badge"><title></title><rect x="274" y="-11" width="24" height="22" rx="11" fill="#fdd0a2" stroke="#ffffff" stroke-width="1.5"/><text x="286" y="3.5" font-size="10" font-weight="700" text-anchor="middle" fill="#000000">≥1</text><text x="302" y="3.5" font-size="10" ${halo}>25 %</text></g>`,
+      // The map-level chip is listed with the legend only.
+      '<g class="wf-overlay wf-chip"><title>Late</title><rect x="442" y="-4" width="60" height="24" rx="12" fill="#ffffff" stroke="#8c8c8c" stroke-width="2"/><text x="450" y="11.5" font-size="10" fill="#1f1f1f">◔ Late</text></g>',
+    ]);
+  });
+
+  it("shows the share of a badge without a glyph once", () => {
+    expect(svg.match(/>100 %</g)).toHaveLength(1);
+  });
+
+  it("hatches at opacity 0.55, as the map does", () => {
+    expect(marks.filter((m) => m.includes("wf-hatch")).map((m) => /fill-opacity="([^"]+)"/.exec(m)?.[1])).toEqual(["0.55"]);
   });
 });

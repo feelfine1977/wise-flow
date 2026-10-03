@@ -6,9 +6,10 @@ import { type Locale, formatCompact, formatCount, formatNumber, formatShare } fr
 import { type Box, type Positions, straightRoute } from "./layout.js";
 import { type LaneBand, type LaneMode } from "./lanes.js";
 import { type FlowGraph, type Overlay, MAP_TARGET, hasTag, metric } from "./model.js";
-import type { OverlayGeometryOptions, OverlayShape } from "./overlays.js";
+import type { OverlayGeometryOptions } from "./overlays.js";
+import { type MarkPaint, type MarkText, type OverlayMark, overlayArrow } from "./overlay-marks.js";
 import { type FlowScene, buildScene } from "./scene.js";
-import { type LegendItem, type StyleSpec, contrastText, fixedColors, lodAt, patternDefs } from "./style.js";
+import { type LegendItem, type StyleSpec, fixedColors, lodAt, patternDefs } from "./style.js";
 import { RECONNECTED_TAG } from "./aggregate.js";
 import { type StringKey, t } from "./strings.js";
 
@@ -59,6 +60,8 @@ interface Ctx {
   scene: FlowScene;
   locale: Locale;
   lod: ReturnType<typeof lodAt>;
+  /** Zoom at which the level of detail is decided. */
+  lodZoom: number;
   bands: Map<string, LaneBand>;
 }
 
@@ -183,81 +186,35 @@ function drawNodes(ctx: Ctx): string {
   return out.join("");
 }
 
-function drawOverlays(ctx: Ctx, shapes: OverlayShape[]): string {
-  const out: string[] = [];
-  const order: Record<string, number> = { tint: 0, hatch: 1, arc: 2, selfLoop: 3, badge: 4, chip: 5 };
-  const sorted = [...shapes].sort((a, b) => order[a.kind] - order[b.kind] || (a.id < b.id ? -1 : 1));
-  for (const s of sorted) {
-    const key = lodKey(s.kind);
-    if (key && !ctx.lod[key] && !s.overlay.payload?.observed) continue;
-    const p = s.overlay.payload ?? {};
-    const value = typeof p.value === "number" ? p.value : NaN;
-    const color = !p.observed && Number.isFinite(value) ? ctx.scene.scales.color(value, "sequential", [0, 1]) : fixedColors.neutral;
-    const title = `<title>${esc([p.label, p.text].filter(Boolean).join(" — "))}</title>`;
-    switch (s.kind) {
-      case "tint":
-        out.push(`<g class="wf-overlay wf-tint">${title}${rect(s, `rx="10" fill="${color}" fill-opacity="0.18" stroke="none"`)}</g>`);
-        break;
-      case "hatch":
-        out.push(`<g class="wf-overlay wf-hatch">${title}${rect(s, `rx="6" fill="url(#wf-pattern-outofscope)" fill-opacity="0.9" stroke="${fixedColors.outOfScope}" stroke-width="1"`)}</g>`);
-        break;
-      case "arc": {
-        const width = 2 + 8 * Math.max(0, Math.min(1, typeof p.coverage === "number" ? p.coverage : 1));
-        const dash = p.reverse ? ` stroke-dasharray="6 4"` : "";
-        out.push(`<g class="wf-overlay wf-arc">${title}<path d="${s.path}" fill="none" stroke="${color}" stroke-width="${num(width)}" stroke-opacity="0.9"${dash} marker-end="url(#wf-arrow-arc)"/>`);
-        if (s.labelX !== undefined && s.labelY !== undefined) {
-          const label = typeof p.displayLabel === "string" ? p.displayLabel : `${p.glyph ?? ""} ${Number.isFinite(value) ? formatShare(value, ctx.locale) : ""}`.trim();
-          out.push(text(s.labelX, s.labelY, label, `font-size="11" text-anchor="middle" fill="${fixedColors.ink}" paint-order="stroke" stroke="${fixedColors.paper}" stroke-width="3"`));
-        }
-        out.push(`</g>`);
-        break;
-      }
-      case "selfLoop": {
-        out.push(`<g class="wf-overlay wf-selfloop"${p.edgeId ? ` data-edge-id="${esc(p.edgeId)}"` : ""}>${title}<path d="${s.path}" fill="none" stroke="${color}" stroke-width="2.5" marker-end="url(#wf-arrow)"/>`);
-        if (s.labelX !== undefined && s.labelY !== undefined && (p.displayLabel || Number.isFinite(value))) {
-          out.push(text(s.labelX, s.labelY, typeof p.displayLabel === "string" ? p.displayLabel : `↻ ${formatShare(value, ctx.locale)}`, `font-size="10" fill="${fixedColors.ink}" paint-order="stroke" stroke="${fixedColors.paper}" stroke-width="3"`));
-        }
-        out.push(`</g>`);
-        break;
-      }
-      case "badge": {
-        const ink = contrastText(color);
-        out.push(`<g class="wf-overlay wf-badge">${title}${rect(s, `rx="${num(s.height / 2)}" fill="${color}" stroke="${fixedColors.paper}" stroke-width="1.5"`)}`);
-        const label = Number.isFinite(value) ? formatShare(value, ctx.locale) : (p.glyph ?? "");
-        out.push(text(s.x + s.width / 2, s.y + s.height / 2 + 3.5, p.glyph && Number.isFinite(value) ? `${p.glyph}` : label, `font-size="10" font-weight="700" text-anchor="middle" fill="${ink}"`));
-        if (Number.isFinite(value)) {
-          out.push(text(s.x + s.width + 4, s.y + s.height / 2 + 3.5, formatShare(value, ctx.locale), `font-size="10" fill="${fixedColors.ink}" paint-order="stroke" stroke="${fixedColors.paper}" stroke-width="3"`));
-        }
-        out.push(`</g>`);
-        break;
-      }
-      case "chip": {
-        if (s.overlay.target === MAP_TARGET) break; // drawn in the legend
-        out.push(`<g class="wf-overlay wf-chip">${title}${rect(s, `rx="12" fill="${fixedColors.paper}" stroke="${color}" stroke-width="2"`)}`);
-        out.push(text(s.x + 8, s.y + s.height / 2 + 4, truncate(`${p.glyph ?? ""} ${p.text ?? p.label ?? ""}`.trim(), Math.floor((s.width - 12) / 6.2)), `font-size="10" fill="${fixedColors.ink}"`));
-        out.push(`</g>`);
-        break;
-      }
-    }
-  }
-  return out.join("");
+function paintOf(mark: OverlayMark, paint: MarkPaint): string {
+  return paint === "value" ? mark.color : paint === "onValue" ? mark.onColor : fixedColors[paint];
 }
 
-function lodKey(kind: OverlayShape["kind"]): keyof ReturnType<typeof lodAt> | null {
-  switch (kind) {
-    case "badge":
-      return "badges";
-    case "arc":
-      return "arcs";
-    case "chip":
-      return "chips";
-    case "hatch":
-      return "hatch";
-    case "selfLoop":
-      return "selfLoops";
-    default:
-      return null;
+function markText(mark: OverlayMark, m: MarkText): string {
+  // Without text measurement, about 6.2 px per character at 10 px.
+  const value = m.maxWidth === undefined ? m.text : truncate(m.text, Math.floor((m.maxWidth + 4) / 6.2));
+  const y = m.baseline === "middle" ? m.y + 0.3 * m.size : m.y;
+  const halo = m.halo ? ` paint-order="stroke" stroke="${fixedColors.paper}" stroke-width="3"` : "";
+  return text(m.x, y, value, `font-size="${m.size}"${m.weight ? ` font-weight="${m.weight}"` : ""}${m.anchor === "start" ? "" : ` text-anchor="${m.anchor}"`} fill="${paintOf(mark, m.paint)}"${halo}`);
+}
+
+function drawMarks(ctx: Ctx, layer: OverlayMark["layer"]): string {
+  const out: string[] = [];
+  for (const m of ctx.scene.marks) {
+    if (m.layer !== layer || !m.inMap || ctx.lodZoom < m.minZoom) continue;
+    out.push(`<g class="wf-overlay wf-${m.kind.toLowerCase()}"${m.edgeId ? ` data-edge-id="${esc(m.edgeId)}"` : ""}><title>${esc(m.title)}</title>`);
+    const stroke = m.stroke ? ` stroke="${paintOf(m, m.stroke.paint)}" stroke-width="${num(m.stroke.width)}"` : "";
+    const strokeStyle = m.stroke ? `${m.stroke.opacity !== undefined ? ` stroke-opacity="${m.stroke.opacity}"` : ""}${m.stroke.dash ? ` stroke-dasharray="${m.stroke.dash.join(" ")}"` : ""}` : "";
+    if (m.path !== undefined) {
+      out.push(`<path d="${m.path}" fill="none"${stroke}${strokeStyle}${m.arrow ? ` marker-end="url(#wf-overlay-arrow)"` : ""}/>`);
+    } else {
+      const fill = m.fill ? (m.fill.pattern ? "url(#wf-pattern-outofscope)" : paintOf(m, m.fill.paint)) : "none";
+      out.push(rect(m.box, `rx="${num(m.radius)}" fill="${fill}"${m.fill?.opacity !== undefined ? ` fill-opacity="${m.fill.opacity}"` : ""}${stroke || ` stroke="none"`}${strokeStyle}`));
+    }
+    for (const tx of m.texts) out.push(markText(m, tx));
+    out.push(`</g>`);
   }
+  return out.join("");
 }
 
 function drawLegend(ctx: Ctx, x: number, y: number, width: number, mapChips: Overlay[]): { svg: string; height: number } {
@@ -341,9 +298,10 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
     selfLoops: given.selfLoops,
     overlayGeometry: options.overlayGeometry,
   });
-  const { locale, geometry } = scene;
+  const { locale } = scene;
   const font = options.fontFamily ?? "Inter, 'Segoe UI', Helvetica, Arial, sans-serif";
-  const ctx: Ctx = { scene, locale, lod: lodAt(options.lodZoom ?? 1, scene.lod), bands: new Map(scene.bands.map((b) => [b.id, b])) };
+  const lodZoom = options.lodZoom ?? 1;
+  const ctx: Ctx = { scene, locale, lod: lodAt(lodZoom, scene.lod), lodZoom, bands: new Map(scene.bands.map((b) => [b.id, b])) };
   const pad = options.padding ?? 24;
   const legend = options.legend ?? true;
   const legendWidth = legend ? 220 : 0;
@@ -368,7 +326,7 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
   );
   parts.push(`<defs>${patternDefs()}`);
   parts.push(`<marker id="wf-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="strokeWidth"><path d="M0 0L10 5L0 10z" fill="context-stroke"/></marker>`);
-  parts.push(`<marker id="wf-arrow-arc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse" markerUnits="strokeWidth"><path d="M0 0L10 5L0 10z" fill="context-stroke"/></marker>`);
+  parts.push(`<marker id="wf-overlay-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="${overlayArrow.size}" markerHeight="${overlayArrow.size}" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0L10 5L0 10z" fill="context-stroke"/></marker>`);
   parts.push(`</defs>`);
   parts.push(rect({ x: 0, y: 0, width: totalW, height: totalH }, `fill="${options.background ?? fixedColors.paper}"`));
   if (given.title) {
@@ -383,10 +341,10 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
   }
   parts.push(`<g class="wf-map" transform="translate(${num(pad - content.x)} ${num(headerHeight + pad - content.y)})">`);
   parts.push(drawGroups(ctx));
-  parts.push(drawOverlays(ctx, geometry.shapes.filter((s) => s.kind === "tint")));
+  parts.push(drawMarks(ctx, "below"));
   parts.push(drawEdges(ctx));
   parts.push(drawNodes(ctx));
-  parts.push(drawOverlays(ctx, geometry.shapes.filter((s) => s.kind !== "tint")));
+  parts.push(drawMarks(ctx, "above"));
   parts.push(`</g>`);
   if (legend) {
     parts.push(`<g class="wf-legend" transform="translate(${num(mapW)} ${num(headerHeight + pad)})">`);

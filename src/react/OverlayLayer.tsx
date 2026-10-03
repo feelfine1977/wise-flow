@@ -1,5 +1,5 @@
 import { ViewportPortal } from "@xyflow/react";
-import { type Locale, type OverlayShape, colorOn, formatShare } from "../core/index.js";
+import { type Locale, type OverlayShape, arcWidth, formatShare, overlayArrow, overlayColor } from "../core/index.js";
 
 export interface OverlayLayerProps {
   shapes: OverlayShape[];
@@ -11,11 +11,6 @@ export interface OverlayLayerProps {
   onSelect?: (shape: OverlayShape) => void;
 }
 
-function colorOf(shape: OverlayShape): string {
-  const v = shape.overlay.payload?.value;
-  return typeof v === "number" && Number.isFinite(v) ? colorOn(v, "sequential", [0, 1]) : "#8c8c8c";
-}
-
 /** Arcs and self-loops drawn in flow coordinates above the nodes. */
 export function OverlayLayer({ shapes, locale, showArcs, showSelfLoops, hoveredId, onHover, onSelect }: OverlayLayerProps) {
   const visible = shapes.filter((s) => (s.kind === "arc" && showArcs) || (s.kind === "selfLoop" && (showSelfLoops || s.overlay.payload?.observed)));
@@ -24,18 +19,17 @@ export function OverlayLayer({ shapes, locale, showArcs, showSelfLoops, hoveredI
     <ViewportPortal>
       <svg className="wf-overlay-layer" style={{ position: "absolute", left: 0, top: 0, width: 1, height: 1, overflow: "visible", zIndex: 1001 }} aria-hidden="true">
         <defs>
-          <marker id="wf-arc-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+          <marker id="wf-arc-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth={overlayArrow.size} markerHeight={overlayArrow.size} markerUnits="userSpaceOnUse" orient="auto-start-reverse">
             <path d="M0 0L10 5L0 10z" fill="context-stroke" />
           </marker>
         </defs>
         {visible.map((s) => {
           const p = s.overlay.payload ?? {};
-          const color = colorOf(s);
+          const color = overlayColor(s.overlay);
           const hovered = hoveredId === s.id;
           const value = typeof p.value === "number" && Number.isFinite(p.value) ? formatShare(p.value, locale) : "";
           if (s.kind === "arc") {
-            const coverage = typeof p.coverage === "number" ? Math.max(0, Math.min(1, p.coverage)) : 1;
-            const width = 2 + 8 * coverage;
+            const width = arcWidth(s.overlay);
             return (
               <g key={s.id} className={`wf-arc${p.reverse ? " wf-arc--reverse" : ""}`} data-overlay-id={s.id} data-constraint={p.constraintId}>
                 <title>{[p.label, p.text].filter(Boolean).join(" — ")}</title>

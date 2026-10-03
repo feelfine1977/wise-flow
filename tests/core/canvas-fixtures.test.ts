@@ -59,20 +59,27 @@ function exported(fixture: Fixture, scene: Partial<Scene>, options: PngOptions):
 }
 
 /**
- * SHA-256 of the recorded Canvas calls, recorded from the implementation that
- * assembled its own scales, overlays and geometry in `prepareScene`.
+ * SHA-256 of the recorded Canvas calls. Recorded from the implementation that
+ * assembled its own scales, overlays and geometry in `prepareScene`, and
+ * recorded again when the Canvas drawing began to draw the scene's overlay marks.
+ * Compared as filled, stroked and written operations with their colour, alpha,
+ * width, dash and transform, that step changed only: overlay arrowheads (12 px,
+ * the tip 1.2 px beyond the path's end), the group tint filled once, hatching
+ * drawn per hatch overlay after the nodes, and in `toPNG` the figure size, map
+ * offset and activity key position, because map-level chips no longer count
+ * towards the bounds.
  */
 const before = {
-  mapGlobalStages: "befa8c7a8a54623aba7f2a319e07498b41d3cd86d4f2835cd8e09163d600bd52",
-  mapVendorIds: "d6dd1b2a4099ab304b5bc4c3d29b0806effcc00f96d96ba0bbe46a6c23732e77",
-  mapUnfiltered: "10199828bd59575962adb1ab769178b8f94f8f08cb1792b018f212283e3bc135",
-  pngGlobalTitle: "197b026c7ec6d5d31a6640236408a7f08bdbbc4d014e642c6065c72e9b1cb8f9",
-  pngVendorIds: "56bd6cda6d5ebea93a334ded6c6c839656b657469d80f6d60ca2aa87868f73e0",
-  pngUnfilteredGerman: "679342791f34eb4e46762ec6537a01f440e06cb40f1573366553782e5ac15c70",
+  mapGlobalStages: "a0d273db4b92ba1347f0c2260038ed8f3fe26d5f44ea64513bcb764aec06352a",
+  mapVendorIds: "4316e2caa82dcf1b7e321825375a7284873cbd0205303a99e2fcba96400d8e57",
+  mapUnfiltered: "c7db4faa7a0e174aff48d56383e3c6b49771c0a91634faa44ff18b15a5881b92",
+  pngGlobalTitle: "5afe60014db5f8ee99f4db2f7ee66a6b721f3a2f0a651af230c68d161975025a",
+  pngVendorIds: "078115757bcd6af525c381868523c241e44cab69a59b18e4e4d9f4af5142715b",
+  pngUnfilteredGerman: "374257637c1f1257ec116e31c55cfd0a08ca570af3a133667bee809db90f0771",
 };
 
 describe("Canvas drawing on the committed fixtures", () => {
-  it("records the same calls as before for the Canvas map and for toPNG outside the declared changes", () => {
+  it("records the pinned calls for the Canvas map and for toPNG", () => {
     expect({
       mapGlobalStages: drawn(fixtures.global, { lanes: "stages" }),
       mapVendorIds: drawn(fixtures.vendor, { activityLabels: ids }),
