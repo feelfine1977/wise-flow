@@ -13,9 +13,10 @@ The executable CI contract and release procedure are in [docs/CI.md](../docs/CI.
 
 `npm run check` runs lint, typecheck, architecture/workflow guards, tooling tests
 and unit/component coverage. Vitest counts all implementation files and enforces
-reviewed initial floors. It refuses focused `.only` tests in CI. Reported coverage
-is not a claim of semantic completeness; graph routes still differ from observed
-variants and grouped metric approximations still require host evidence.
+reviewed floors (the measured values rounded down). It refuses focused `.only`
+tests in CI. Reported coverage is not a claim of semantic completeness; graph
+routes still differ from observed variants and grouped metric approximations
+still require host evidence.
 
 ## Strict visual CI and deliberate approval
 
