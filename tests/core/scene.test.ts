@@ -157,6 +157,21 @@ describe("buildScene", () => {
     expect(buildScene(graph, positions).positions).toBe(positions);
   });
 
+  it("moves nodes by hand after the lane bands and places the overlays on the moved box", () => {
+    const scene = buildScene(graph, positions, { lanes: "stages", moved: { c: { x: 400, y: 200 } } });
+    // The bands are cut from the laid-out positions, as without the move.
+    expect(scene.bands).toEqual(buildScene(graph, positions, { lanes: "stages" }).bands);
+    expect(scene.positions.groups).toEqual({ s1: scene.bands[0].box, s2: scene.bands[1].box });
+    expect(scene.positions.nodes).toEqual({ ...positions.nodes, c: { x: 400, y: 200, width: 100, height: 40 } });
+    // Both edges between distinct nodes are routed again; the self-loop sits on c's new top-right corner (500, 200).
+    expect(Object.keys(scene.positions.edges).sort()).toEqual(["ab", "bc"]);
+    const end = scene.positions.edges.bc.points.at(-1)!;
+    expect(end.x >= 400 && end.x <= 500 && end.y >= 200 && end.y <= 240).toBe(true);
+    expect(scene.geometry.shapes.find((s) => s.kind === "selfLoop")?.path).toBe("M482 200 C482 172 528 212 500 212");
+    expect(scene.positions.bounds.y + scene.positions.bounds.height).toBeGreaterThanOrEqual(240);
+    expect(buildScene(graph, positions, { moved: {} }).positions).toBe(positions);
+  });
+
   it("builds the scales over the follows edges", () => {
     const scene = buildScene(graph, positions);
     // Counts 9, 4 and 6; colour by a share metric reads [0, 1].
