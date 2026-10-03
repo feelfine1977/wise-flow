@@ -7,7 +7,7 @@ and `bpmn-js/dist/assets/bpmn-font/css/bpmn.css`.
 
 | File | Content |
 |---|---|
-| `ProcessMap.tsx` | `<ProcessMap/>`: abstraction pipeline, stable or own layout, lane bands, React Flow or Canvas renderer, overlay layers, controls, legend, selection (single, multi), actions menu, focus with the path list, filter chips, hover, keyboard navigation, live region, ARIA, table view |
+| `ProcessMap.tsx` | `<ProcessMap/>`: abstraction pipeline, stable or own layout, lane bands, React Flow or Canvas renderer, overlay layers, controls, legend, actions menu and focus with the path list drawn from the map controller's state, filter chips, ARIA, table view |
 | `ContextMenu.tsx` | `<ContextMenu/>`: accessible actions menu (`role="menu"`, groups, accelerators, arrow keys, Escape, focus return) |
 | `PathList.tsx` | `<PathList/>`: incoming and outgoing paths of an activity or the path between two activities, sortable, totals, row selection |
 | `FilterChips.tsx` | `<FilterChips/>`: one chip per filter clause with cases in and out, marginal removal, "changes cases", removal and clear |
@@ -21,8 +21,9 @@ and `bpmn-js/dist/assets/bpmn-font/css/bpmn.css`.
 | `Legend.tsx` | scales, overlay glyphs and map-level chips |
 | `TableAlternative.tsx` | activities, paths and overlays as tables |
 | `TraceTimeline.tsx` | events per case on a time axis, anchor alignment, annotations, table alternative |
+| `controller.ts` | Internal: `useMapController`, the core's map controller with controlled or internal `selection`, `focus`, `abstraction` and `view`, the host callbacks and the live region |
 | `hooks.ts` | `useFlowGraph`, `useStableLayout`, `useOverlays`, `usePrefersReducedMotion` |
-| `describe.ts` | ARIA and table texts for nodes, edges, groups and the map |
+| `describe.ts` | ARIA and table texts for nodes, edges (from the core), groups and the map |
 | `style.css` | component styles (level-of-detail classes, nodes, badges, chips, lane bands, menu, path list, filter chips, canvas host, panels, tables, timeline, BPMN host, view switcher) |
 
 `<VariantStrip/>`, `<PerformanceSpectrum/>`, `<DottedChart/>` follow in 0.4.

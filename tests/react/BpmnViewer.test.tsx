@@ -185,7 +185,11 @@ describe("BpmnView through the viewer seam", () => {
     const arc: Overlay = { kind: "arc", target: "lag", payload: { source: "Task_CreatePO", target: "Task_ClearInvoice", value: 1 } };
     const { container } = render(<BpmnView xml={xml} overlays={[arc]} lod={{ arcs: 0.5 }} onSelect={onSelect} />);
     const viewer = await ready(container);
-    const path = await waitFor(() => viewer.layer().querySelector<SVGGElement>(".wf-arc")!);
+    const path = await waitFor(() => {
+      const found = viewer.layer().querySelector<SVGGElement>(".wf-arc");
+      expect(found).toBeTruthy();
+      return found!;
+    });
     expect(path.getAttribute("data-min-zoom")).toBe("0.5");
     expect(path.style.visibility).toBe("visible");
     act(() => { viewer.zoom(0.4); });

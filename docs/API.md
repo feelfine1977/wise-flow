@@ -893,7 +893,9 @@ colour scheme (`prefers-color-scheme`) switches.
 `defaultActions` for the element or the pair / set it belongs to, the
 element's kind and stage, and the worst expectation touching it; the
 opening, every choice and the selection are announced through a polite
-live region (`announce` injects a host text). `focus` (controlled, `null`
+live region (`announce` injects a host text, which is announced also when
+a new `focus` arrives with it; a string returned by `onAction` is what is
+announced for that choice). `focus` (controlled, `null`
 for none) or `defaultFocus` highlights the paths of an activity or stage
 (`focusHighlight`) and shows `<PathList/>` at the side with `paths`
 (default `graph.paths`); two selected activities show the path between
