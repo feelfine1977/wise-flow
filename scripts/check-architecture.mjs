@@ -74,6 +74,34 @@ export function nodeTestViolations(file, source) {
   });
 }
 
+/** Names the core entry point exports; it lists each of them. */
+export function entryNames(source = readFileSync(resolve(root, 'src/core/index.ts'), 'utf8')) {
+  const tree = ts.createSourceFile('index.ts', source, ts.ScriptTarget.Latest, true);
+  return new Set(tree.statements.flatMap((node) => (ts.isExportDeclaration(node) && node.exportClause && ts.isNamedExports(node.exportClause) ? node.exportClause.elements.map((e) => e.name.text) : [])));
+}
+
+/** Outside the core, a name the core entry point provides is imported from the entry point, not from the file that declares it. */
+export function deepImportViolations(file, source, names = entryNames()) {
+  const core = resolve(root, 'src/core') + '/';
+  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  return tree.statements.flatMap((node) => {
+    if (!(ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) || !node.moduleSpecifier || !ts.isStringLiteral(node.moduleSpecifier)) return [];
+    const name = node.moduleSpecifier.text;
+    const target = resolve(dirname(file), name).replace(/\.(js|ts)$/, '');
+    if (!name.startsWith('.') || !target.startsWith(core) || target === core + 'index') return [];
+    let imported = [];
+    if (ts.isImportDeclaration(node)) {
+      const bindings = node.importClause?.namedBindings;
+      if (!bindings || ts.isNamespaceImport(bindings) || node.importClause.name) return [`Imports ${name} as a whole instead of from the core entry point`];
+      imported = bindings.elements.map((e) => (e.propertyName ?? e.name).text);
+    } else {
+      if (!node.exportClause || !ts.isNamedExports(node.exportClause)) return [`Re-exports all of ${name} instead of from the core entry point`];
+      imported = node.exportClause.elements.map((e) => (e.propertyName ?? e.name).text);
+    }
+    return imported.filter((n) => names.has(n)).map((n) => `Imports ${n} from ${name}; the core entry point provides it`);
+  });
+}
+
 function filesAt(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
     const path = resolve(dir, entry.name);
@@ -82,10 +110,12 @@ function filesAt(dir) {
 }
 
 export function checkArchitecture() {
+  const names = entryNames();
   const rules = [
     [boundaryViolations, [resolve(root, 'src/index.ts'), ...filesAt(resolve(root, 'src/core'))]],
     [bridgeViolations, filesAt(resolve(root, 'src/bpmn')).filter((file) => file !== resolve(root, 'src/bpmn/index.ts') && !file.endsWith('.d.ts'))],
     [nodeTestViolations, filesAt(resolve(root, 'tests/core'))],
+    [(file, source) => deepImportViolations(file, source, names), [resolve(root, 'src/index.ts'), ...['src/react', 'src/canvas', 'src/bpmn'].flatMap((dir) => filesAt(resolve(root, dir)))].filter((file) => !file.endsWith('.d.ts'))],
   ];
   const errors = rules.flatMap(([rule, files]) => files.flatMap(file => rule(file, readFileSync(file, 'utf8')).map(message => `${relative(root, file)}: ${message}`)));
   if (errors.length) throw new Error(errors.join('\n'));

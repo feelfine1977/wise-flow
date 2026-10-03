@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { boundaryViolations, bridgeViolations, nodeTestViolations } from '../../scripts/check-architecture.mjs';
+import { boundaryViolations, bridgeViolations, deepImportViolations, entryNames, nodeTestViolations } from '../../scripts/check-architecture.mjs';
 
 const file = fileURLToPath(new URL('../../src/core/example.ts', import.meta.url));
 test('headless boundaries reject transitive entry points, types and dynamic renderer imports', () => {
@@ -67,4 +67,26 @@ test('Node tests reach the BPMN bridge without its entry point and without React
     'import React from "react";',
   ]) assert.ok(nodeTestViolations(testFile, source).length > 0, source);
   assert.deepEqual(nodeTestViolations(testFile, 'import { liteFromStages } from "../../src/bpmn/headless";\nimport { describe } from "vitest";'), []);
+});
+
+const reactFile = fileURLToPath(new URL('../../src/react/example.ts', import.meta.url));
+test('outside the core, names the core entry point provides come from the entry point', () => {
+  const names = new Set(['FlowScene', 'buildScene']);
+  for (const source of [
+    'import type { FlowScene } from "../core/scene.js";',
+    'import { buildScene as build } from "../core/scene.js";',
+    'export { buildScene } from "../core/scene.js";',
+    'export * from "../core/scene.js";',
+    'import * as scene from "../core/scene.js";',
+  ]) assert.ok(deepImportViolations(reactFile, source, names).length > 0, source);
+  assert.deepEqual(deepImportViolations(reactFile, `
+    import { type FlowScene, buildScene } from '../core/index.js';
+    import { mapStep } from '../core/map-controller.js';
+    import { retainScene } from '../canvas/scene.js';
+  `, names), []);
+});
+test('the entry point names are read from its explicit lists', () => {
+  const names = entryNames('export { a, /** @deprecated */ b } from "./x.js";\nexport type { C } from "./y.js";');
+  assert.deepEqual([...names], ['a', 'b', 'C']);
+  assert.ok(entryNames().has('buildScene'));
 });
