@@ -727,11 +727,10 @@ renderer above `canvasThreshold` elements; the container carries
 ## Canvas (`@wise/flow/canvas`, 0.3)
 
 ```ts
-export interface PreparedScene { graph; positions; scales; overlays; shapes: OverlayShape[]; nodes: SceneNode[]; edges: SceneEdge[];
-  groups: SceneGroup[]; bands: LaneBand[]; bounds: Box; hit: HitIndex; lod: LodRules; locale; size: number;
-  nodeById; edgeById; groupById; shapeById; labelCache }
-export function prepareScene(g: FlowGraph, p: Positions, o?: { style?; overlays?; lod?; locale?; lanes?: LaneMode; bands?: LaneBand[];
-  overlayGeometry?; selfLoops?: boolean }): PreparedScene;
+export interface PreparedScene extends FlowScene { shapes: OverlayShape[]; nodes: SceneNode[]; edges: SceneEdge[];
+  groups: SceneGroup[]; bounds: Box; hit: HitIndex; size: number; nodeById; edgeById; groupById; shapeById; labelCache }
+export function prepareScene(g: FlowGraph, p: Positions, o?: { activityLabels?; style?; overlays?; lod?; lodBySize?: boolean; locale?;
+  lanes?: LaneMode; bands?: LaneBand[]; overlayGeometry?; selfLoops?: boolean }): PreparedScene;
 export interface DrawContext { /* the subset of CanvasRenderingContext2D the routines use */ }
 export interface View { x: number; y: number; zoom: number; width: number; height: number }
 export interface DrawState { selection: Selection; hovered?: string | null; focused?: string | null; bright?: { nodes: Set<string>; edges: Set<string> } }
@@ -753,9 +752,13 @@ export function toPNG(scene: Scene, o?: PngOptions): Promise<Blob>;
 export function toPNGDataUrl(scene: Scene, o?: PngOptions): string;
 ```
 
-`prepareScene` is pure and runs in Node: it resolves every element's box
-or route, colours, labels and overlay shapes once and builds the R-tree
-that serves hover, click and viewport culling. `drawScene` issues plain 2D
+`prepareScene` is pure and runs in Node: it builds the core scene
+(`buildScene`) and adds what the Canvas renderer needs, every element's box
+or route, colours and labels resolved once and the R-tree that serves
+hover, click and viewport culling. The overlays are `o.overlays`, or
+`graph.overlays` without it, each drawn once. `lodBySize` (default true)
+tightens the level of detail with the number of nodes for a fitted live
+map; `bands` keeps caller-computed bands and the positions as given. `drawScene` issues plain 2D
 context calls (a screen canvas, an offscreen canvas for PNG, or a
 recording stub in tests): groups and bands, edges with arrowheads, nodes
 with pattern twins and hatching, overlay shapes by kind, edge labels;
@@ -763,7 +766,10 @@ level of detail follows `lodAt(view.zoom)`; above 1,500 elements only the
 elements inside the viewport are drawn. `CanvasRenderer` owns the
 viewport (zoom clamped to `minZoom` … `maxZoom`), draws on animation
 frames and follows the device pixel ratio. `toPNG` uses the same figure
-presets, title, context line and legend as `toSVG`; `scale` sets the
+presets, title, context line and legend as `toSVG` and reads the same
+scene: overlays, follows self-loops (`Scene.selfLoops`, default shown) and
+level of detail at `lodZoom` (default 1, without tightening by size)
+agree with the SVG export; `scale` sets the
 bitmap density (default: the device pixel ratio, at least 2) and
 `createCanvas` supplies a canvas where there is no document.
 

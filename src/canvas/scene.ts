@@ -9,14 +9,13 @@ import {
   activityLabel,
   activityLabelLines,
   activityNodeCounts,
-  activityReferences,
-  withObservedSelfLoops,
   type Box,
   type EdgeRoute,
   type FlowEdge,
   type FlowGraph,
   type FlowGroup,
   type FlowNode,
+  type FlowScene,
   type LaneBand,
   type LaneMode,
   type Locale,
@@ -29,19 +28,13 @@ import {
   type Scales,
   type StyleSpec,
   HitIndex,
-  MAP_TARGET,
   RECONNECTED_TAG,
-  buildScales,
-  canonicalOverlays,
-  defaultStyle,
+  buildScene,
   followsSelfLoops,
   fixedColors,
   formatCompact,
   hasTag,
-  laneBands,
-  lodForSize,
   metric,
-  overlayGeometry,
   straightRoute,
   unionBoxes,
 } from "../core/index.js";
@@ -80,22 +73,18 @@ export interface SceneGroup {
   chips: OverlayShape[];
 }
 
-export interface PreparedScene {
-  activityLabels?: ActivityLabelOptions;
-  graph: FlowGraph;
-  positions: Positions;
-  scales: Scales;
-  overlays: Overlay[];
+/**
+ * The core scene with what the Canvas renderer adds: elements with their
+ * resolved geometry and texts, the hit index and lookups by id.
+ */
+export interface PreparedScene extends FlowScene {
   shapes: OverlayShape[];
   nodes: SceneNode[];
   edges: SceneEdge[];
   groups: SceneGroup[];
-  bands: LaneBand[];
-  /** Union of positions and overlay geometry. */
+  /** Union of positions and overlay geometry; boxes without area add nothing. */
   bounds: Box;
   hit: HitIndex;
-  lod: LodRules;
-  locale: Locale;
   /** Nodes plus edges; decides whether the renderer culls by viewport. */
   size: number;
   nodeById: Map<string, SceneNode>;
@@ -109,8 +98,14 @@ export interface PreparedScene {
 export interface PrepareOptions {
   activityLabels?: ActivityLabelOptions;
   style?: StyleSpec;
+  /** Overlays to show. Default `graph.overlays`. */
   overlays?: Overlay[];
   lod?: Partial<LodRules>;
+  /**
+   * Tighten the level-of-detail rules with the number of nodes, so that a
+   * fitted live map stays readable. Default true; exports pass false.
+   */
+  lodBySize?: boolean;
   locale?: Locale;
   lanes?: LaneMode;
   /** Bands already computed by the caller (the positions are then used as given). */
@@ -141,31 +136,30 @@ function tintFor(value: number | undefined, scales: Scales): string | undefined 
 }
 
 /**
- * Resolve a graph with positions into retained geometry. Overlays are
- * `graph.overlays` plus `options.overlays` plus self-loops, restricted to
- * targets present in the graph; positions may be replaced by lane bands.
+ * Resolve a graph with positions into retained geometry on top of the core
+ * scene (`buildScene`): overlays are `options.overlays` (default
+ * `graph.overlays`) plus self-loops; positions may be replaced by lane bands.
  */
 export function prepareScene(graph: FlowGraph, givenPositions: Positions, options: PrepareOptions = {}): PreparedScene {
-  options = options.activityLabels ? { ...options, activityLabels: { ...options.activityLabels, references: activityReferences(graph, options.activityLabels.references) } } : options;
-  const locale = options.locale ?? "en";
-  const style = options.style ?? defaultStyle;
-  const lanes = options.bands ? "none" : (options.lanes ?? "none");
-  const laid = laneBands(graph, givenPositions, { lanes });
-  const positions = laid.positions;
-  const scales = buildScales(graph, style);
-  const known = new Set([...graph.nodes.map((n) => n.id), ...(graph.groups ?? []).map((g) => g.id), MAP_TARGET]);
-  const raw = [...(graph.overlays ?? []), ...(options.overlays ?? [])].filter(
-    (o) => known.has(o.target) || (o.kind === "arc" && known.has(String(o.payload?.source)) && known.has(String(o.payload?.target))),
-  );
-  const overlays = canonicalOverlays(options.selfLoops === false ? raw : options.activityLabels ? withObservedSelfLoops(graph, raw, locale, options.activityLabels.caseLabel) : [...raw, ...selfLoopOverlays(graph, locale)]);
-  const lod = lodForSize(graph.nodes.length, { ...(style.lod ?? {}), ...(options.lod ?? {}) });
-  const geometry = overlayGeometry(overlays, positions, { ...(options.overlayGeometry ?? {}), lod });
+  const scene = buildScene(graph, givenPositions, {
+    overlays: options.overlays,
+    style: options.style,
+    locale: options.locale,
+    lanes: options.bands ? "none" : options.lanes,
+    activityLabels: options.activityLabels,
+    selfLoops: options.selfLoops,
+    lod: options.lod,
+    lodBySize: options.lodBySize !== false,
+    overlayGeometry: options.overlayGeometry,
+  });
+  const { positions, scales, locale, geometry, activityLabels } = scene;
+  const bands = options.bands ?? scene.bands;
   const shapesByTarget = new Map<string, OverlayShape[]>();
   for (const s of geometry.shapes) {
     if (!shapesByTarget.has(s.overlay.target)) shapesByTarget.set(s.overlay.target, []);
     shapesByTarget.get(s.overlay.target)!.push(s);
   }
-  const bandIndex = new Map((options.bands ?? laid.bands).map((b) => [b.id, b]));
+  const bandIndex = new Map(bands.map((b) => [b.id, b]));
 
   const groups: SceneGroup[] = [];
   for (const g of graph.groups ?? []) {
@@ -189,9 +183,9 @@ export function prepareScene(graph: FlowGraph, givenPositions: Positions, option
       box,
       color: scales.nodeColor(n),
       pattern: scales.nodePattern(n),
-      label: n.kind === "activity" && options.activityLabels ? activityLabel(n, options.activityLabels) : n.label,
-      activityLines: n.kind === "activity" && options.activityLabels ? activityLabelLines(n, options.activityLabels, box.width, locale) : undefined,
-      meta: n.kind === "activity" && options.activityLabels ? options.activityLabels.showCounts === false ? undefined : activityNodeCounts(n, options.activityLabels, locale) : meta,
+      label: n.kind === "activity" && activityLabels ? activityLabel(n, activityLabels) : n.label,
+      activityLines: n.kind === "activity" && activityLabels ? activityLabelLines(n, activityLabels, box.width, locale) : undefined,
+      meta: n.kind === "activity" && activityLabels ? activityLabels.showCounts === false ? undefined : activityNodeCounts(n, activityLabels, locale) : meta,
       hatched: shapes.some((s) => s.kind === "hatch"),
       reconnected: hasTag(n, RECONNECTED_TAG),
       badges: shapes.filter((s) => s.kind === "badge"),
@@ -223,20 +217,14 @@ export function prepareScene(graph: FlowGraph, givenPositions: Positions, option
   const routed: Positions = { ...positions, edges: Object.fromEntries(edges.map((e) => [e.edge.id, { points: e.points }])) };
   const hit = HitIndex.fromScene(routed, geometry);
   return {
-    activityLabels: options.activityLabels,
-    graph,
-    positions,
-    scales,
-    overlays,
+    ...scene,
+    bands,
     shapes: geometry.shapes,
     nodes,
     edges,
     groups,
-    bands: options.bands ?? laid.bands,
     bounds: sceneBounds(positions.bounds, geometry.shapes.length ? geometry.bounds : undefined),
     hit,
-    lod,
-    locale,
     size: nodes.length + edges.length,
     nodeById: new Map(nodes.map((n) => [n.node.id, n])),
     edgeById: new Map(edges.map((e) => [e.edge.id, e])),

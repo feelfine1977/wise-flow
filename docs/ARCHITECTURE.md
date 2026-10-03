@@ -156,8 +156,9 @@ are returned with each view's style. `<ViewSwitcher/>` renders the views
 as tabs or as small multiples with a shared selection.
 
 ## 4. Canvas renderer (0.3)
-`prepareScene` resolves the graph, positions, scales, overlays and lane
-bands into retained geometry with the R-tree of the core; `drawScene`
+`prepareScene` builds on the core scene (graph, positions, scales,
+overlays, lane bands, level of detail, overlay geometry) and adds retained
+geometry with the R-tree of the core; `drawScene`
 issues plain 2D context calls for a viewport (groups and bands, edges with
 arrowheads, nodes with pattern twins, hatching and badges, arcs,
 self-loops, chips, edge labels), decides the level of detail from the

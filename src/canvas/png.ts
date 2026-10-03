@@ -75,7 +75,7 @@ function defaultCreateCanvas(width: number, height: number): CanvasLike {
 export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
   const tokens: CanvasTokens = { ...defaultTokens, ...(options.tokens ?? {}) };
   const locale = scene.locale ?? "en";
-  const prepared = prepareScene(scene.graph, scene.positions, { style: scene.style, overlays: scene.overlays ?? scene.graph.overlays, locale, lanes: scene.lanes, selfLoops: scene.selfLoops !== false && !!scene.activityLabels, activityLabels: scene.activityLabels });
+  const prepared = prepareScene(scene.graph, scene.positions, { style: scene.style, overlays: scene.overlays, locale, lanes: scene.lanes, selfLoops: scene.selfLoops, activityLabels: scene.activityLabels, lodBySize: false });
   const pad = options.padding ?? 24;
   const legend = options.legend ?? true;
   const legendWidth = legend ? 220 : 0;
@@ -101,7 +101,8 @@ export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
   ctx.save();
   ctx.scale(scale, scale);
   // Level of detail is decided at `lodZoom`, independent of the figure scale.
-  const lodScene = options.lodZoom !== undefined && options.lodZoom !== k ? { ...prepared, lod: scaleLod(prepared.lod, k / options.lodZoom) } : prepared;
+  const lodZoom = options.lodZoom ?? 1;
+  const lodScene = lodZoom !== k ? { ...prepared, lod: scaleLod(prepared.lod, k / lodZoom) } : prepared;
   drawScene(ctx, lodScene, { x: (pad - content.x) * k, y: (headerHeight + pad - content.y) * k, zoom: k, width: cssWidth, height: cssHeight }, undefined, {
     tokens,
     cull: false,
