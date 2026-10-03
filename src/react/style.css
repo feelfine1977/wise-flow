@@ -33,15 +33,10 @@
   pointer-events: none;
 }
 
-/* Level of detail: the map sets wf-lod--* classes from the zoom level. */
+/* Level of detail: the map sets wf-lod--* classes from the zoom level; overlay marks carry their own. */
 .wf-process-map:not(.wf-lod--labels) .wf-lod-labels,
-.wf-process-map:not(.wf-lod--badges) .wf-lod-badges,
-.wf-process-map:not(.wf-lod--chips) .wf-lod-chips,
 .wf-process-map:not(.wf-lod--edge-labels) .wf-lod-edge-labels {
   visibility: hidden;
-}
-.wf-process-map:not(.wf-lod--hatch) .wf-node--hatched::after {
-  display: none;
 }
 
 .wf-sr-only {
@@ -121,14 +116,9 @@
   margin-left: 6px;
   font-variant-numeric: tabular-nums;
 }
-.wf-node--hatched::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: repeating-linear-gradient(135deg, transparent 0 5px, var(--wf-out-of-scope) 5px 7px);
-  opacity: 0.55;
-  pointer-events: none;
+/* Marks that cover a node (tints) as background layers over its paper. */
+.wf-node--tinted {
+  background-image: var(--wf-tint);
 }
 .wf-node--event {
   width: 36px;
@@ -164,34 +154,6 @@
   white-space: normal;
 }
 
-/* Badges */
-.wf-badges {
-  position: absolute;
-  right: 4px;
-  top: -12px;
-  display: flex;
-  flex-direction: row-reverse;
-  gap: 4px;
-  pointer-events: none;
-}
-.wf-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 22px;
-  padding: 0 7px;
-  border-radius: 11px;
-  border: 1.5px solid var(--wf-paper);
-  font-size: 10px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  pointer-events: auto;
-}
-.wf-badge__share {
-  font-weight: 500;
-}
-
 /* Group nodes */
 .wf-group {
   box-sizing: border-box;
@@ -213,55 +175,7 @@
   font-weight: 600;
   color: var(--wf-ink);
 }
-.wf-group__chips {
-  position: absolute;
-  right: 8px;
-  top: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: flex-end;
-}
-.wf-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 24px;
-  padding: 0 8px;
-  border-radius: 12px;
-  border: 2px solid var(--wf-chip-color, var(--wf-neutral));
-  background: var(--wf-paper);
-  color: var(--wf-ink);
-  font-size: 10px;
-  white-space: nowrap;
-  max-width: 260px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.wf-chip__gauge {
-  width: 40px;
-  height: 6px;
-  border-radius: 3px;
-  background: var(--wf-line);
-  position: relative;
-  overflow: hidden;
-}
-.wf-chip__gauge-fill {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  background: var(--wf-chip-color, var(--wf-neutral));
-}
-.wf-chip__gauge-mark {
-  position: absolute;
-  top: -1px;
-  bottom: -1px;
-  width: 2px;
-  background: var(--wf-ink);
-}
-
-/* Overlay SVG layer (arcs, self-loops) */
+/* Overlay marks (arcs, self-loops, badges, chips, hatching): drawn as the scene's marks say. */
 .wf-overlay-layer {
   position: absolute;
   left: 0;
@@ -269,18 +183,62 @@
   overflow: visible;
   pointer-events: none;
 }
-.wf-overlay-layer path {
-  pointer-events: stroke;
+.wf-overlay-layer,
+.wf-mark,
+.wf-marks,
+.wf-badges,
+.wf-bpmn-overlays,
+.wf-bpmn .djs-overlay svg {
+  font-family: var(--wf-font);
+  font-variant-numeric: tabular-nums;
+}
+.wf-overlay-layer .wf-overlay,
+.wf-bpmn-overlays .wf-overlay {
   cursor: pointer;
 }
-.wf-overlay-layer text {
-  font-family: var(--wf-font);
-  font-size: 11px;
-  fill: var(--wf-ink);
-  paint-order: stroke;
-  stroke: var(--wf-paper);
-  stroke-width: 3px;
+.wf-mark {
+  display: block;
+}
+/* Marks an element carries are drawn from its border-box corner: the surface spans the border. */
+.wf-marks {
+  position: absolute;
+  left: -2px;
+  top: -2px;
+  width: calc(100% + 4px);
+  height: calc(100% + 4px);
+  overflow: visible;
   pointer-events: none;
+}
+.wf-node--stage > .wf-marks,
+.wf-node--event-end > .wf-marks {
+  left: -3px;
+  top: -3px;
+  width: calc(100% + 6px);
+  height: calc(100% + 6px);
+}
+/* The gateway's diamond is a rotated square; its marks are not. */
+.wf-node--gateway > .wf-marks {
+  transform: rotate(-45deg);
+}
+.wf-group > .wf-marks {
+  left: -1.5px;
+  top: -1.5px;
+  width: calc(100% + 3px);
+  height: calc(100% + 3px);
+}
+.wf-group--band > .wf-marks {
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+}
+.wf-group--band-main > .wf-marks {
+  left: -1px;
+  width: calc(100% + 2px);
+}
+.wf-group--band-cross > .wf-marks {
+  top: -1px;
+  height: calc(100% + 2px);
 }
 
 /* Edge labels */
@@ -569,42 +527,19 @@
   bottom: 48px;
   right: 10px;
 }
-.wf-bpmn .djs-overlay .wf-badge {
-  pointer-events: auto;
+.wf-bpmn .djs-overlay > span {
+  display: block;
 }
-.wf-bpmn .djs-overlay .wf-chip {
-  pointer-events: auto;
+.wf-bpmn .djs-overlay svg {
+  display: block;
 }
-.wf-bpmn-tint {
-  position: absolute;
-  inset: 0;
-  border-radius: 10px;
+/* Marks below the edges cannot go under a bpmn-js element; multiplied, they tint it without hiding it. */
+.wf-bpmn .djs-overlay .wf-mark--below {
   mix-blend-mode: multiply;
-  pointer-events: none;
 }
-.wf-bpmn-hatch {
-  position: absolute;
-  inset: 0;
-  border-radius: 10px;
-  background: repeating-linear-gradient(135deg, transparent 0 5px, var(--wf-out-of-scope) 5px 7px);
-  opacity: 0.55;
-  pointer-events: none;
-}
-.wf-bpmn .djs-element.wf-bpmn--hatched .djs-visual > :first-child {
+/* Hatched elements also get a dashed outline, so the scope does not rest on the pattern alone. */
+.wf-bpmn .djs-element.wf-bpmn--hatch .djs-visual > :first-child {
   stroke-dasharray: 4 3;
-}
-.wf-bpmn-overlays path {
-  pointer-events: stroke;
-  cursor: pointer;
-}
-.wf-bpmn-overlays text {
-  font-family: var(--wf-font);
-  font-size: 11px;
-  fill: var(--wf-ink);
-  paint-order: stroke;
-  stroke: var(--wf-paper);
-  stroke-width: 3px;
-  pointer-events: none;
 }
 .wf-bpmn .djs-context-pad,
 .wf-bpmn .djs-palette {
@@ -933,13 +868,19 @@
   padding: 0;
 }
 .wf-filter-chip {
-  height: auto;
-  min-height: 24px;
-  max-width: none;
-  border-color: var(--wf-focus);
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
+  min-height: 24px;
   padding: 0 4px 0 10px;
+  border-radius: 12px;
+  border: 2px solid var(--wf-focus);
+  background: var(--wf-paper);
+  color: var(--wf-ink);
   font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .wf-filter-chip:focus-visible {
   outline: 2px solid var(--wf-focus);
