@@ -74,12 +74,15 @@ function exported(fixture: Fixture, scene: Partial<Scene>, options: PngOptions):
  * and edge marks; compared the same way, only the text of activity labels
  * changed: they are cut to the node's width less its padding and no longer
  * leave room for the case count, which sits below them.
+ * Recorded once more when the Canvas legend began to draw the scene's legend;
+ * compared the same way, only the glyph of reverse-order arcs changed, to "⌒┄"
+ * as on the map (it was "⌒ ┄").
  */
 const before = {
-  mapGlobalStages: "9a9cbfcba366c653647aaad61744a4f9c2350db928afb510dfc899cbecb7c152",
+  mapGlobalStages: "fbf803aaab1c0c73812429823590f90f29658ee0f5032ebd6681e3cd18eb83c9",
   mapVendorIds: "6d9b374c7ec86de176161d0570da339e2e4628a5a93cca6d2123cbcaccd1c131",
-  mapUnfiltered: "441ff84947d2e280549a9ffec3617732c959110236add9e4b955df7616192003",
-  pngGlobalTitle: "d9e2051e015006b5773fd80a16d69630d307e0b693da0fe00e8f7b4559764504",
+  mapUnfiltered: "7cc3012b981f8ff556693c675b9396ba3dcaae3b22b9004c89cb48814f88744a",
+  pngGlobalTitle: "b8bb9c05e3a328549e198cf9fbd726b2c8fcb105247e5fe0edc31976c7350d43",
   pngVendorIds: "259a910692e3752787e9422fd996cac7d07df68e8903ed6efb5caf4c6231e117",
   pngUnfilteredGerman: "ff3b09e2e4eae2fc832deac5915d8755886e08b8f16dae3593a895f04772de29",
 };

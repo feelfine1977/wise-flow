@@ -1,18 +1,19 @@
 /**
  * Deterministic SVG export of a scene with an embedded legend and figure presets.
  */
-import { type ActivityLabelOptions, activityKeyLines } from "./activity-labels.js";
+import type { ActivityLabelOptions } from "./activity-labels.js";
 import { type ElementText, fitText, truncateText } from "./element-marks.js";
+import { type FigurePreset, type LegendLayout, figureFrame, figureMetrics, legendMetrics } from "./figure.js";
 import { type Locale, formatCompact, formatCount, formatNumber, formatShare } from "./format.js";
 import { type Box, type Positions } from "./layout.js";
 import { type LaneBand, type LaneMode } from "./lanes.js";
-import { type FlowGraph, type Overlay, MAP_TARGET } from "./model.js";
+import type { FlowGraph, Overlay } from "./model.js";
 import type { OverlayGeometryOptions } from "./overlays.js";
 import { type MarkSvgOptions, markSvg, svgMarkup } from "./mark-svg.js";
 import { type MarkPaint, type MarkText, type OverlayMark, overlayArrow } from "./overlay-marks.js";
 import { type FlowScene, buildScene } from "./scene.js";
-import { type LegendItem, type StyleSpec, fixedColors, lodAt, patternDefs } from "./style.js";
-import { type StringKey, t } from "./strings.js";
+import { type StyleSpec, fixedColors, lodAt, patternDefs } from "./style.js";
+import { t } from "./strings.js";
 
 export interface Scene {
   activityLabels?: ActivityLabelOptions;
@@ -29,8 +30,6 @@ export interface Scene {
   selfLoops?: boolean;
 }
 
-export type FigurePreset = "single-column" | "double-column" | "slide" | "none";
-
 export interface ExportOptions {
   /** Figure preset setting the output width in pixels (the drawing scales to fit). */
   preset?: FigurePreset;
@@ -46,12 +45,6 @@ export interface ExportOptions {
   /** Show the scene context line (label, cases, events) under the title. */
   context?: boolean;
 }
-
-export const FIGURE_WIDTHS: Record<Exclude<FigurePreset, "none">, number> = {
-  "single-column": 1000,
-  "double-column": 2000,
-  slide: 1600,
-};
 
 const esc = (s: unknown): string =>
   String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -167,70 +160,49 @@ function drawMarks(ctx: Ctx, layer: OverlayMark["layer"]): string {
     .join("");
 }
 
-function drawLegend(ctx: Ctx, x: number, y: number, width: number, mapChips: Overlay[]): { svg: string; height: number } {
+function drawLegend(ctx: Ctx, width: number, layout: LegendLayout): string {
   const out: string[] = [];
   const L = ctx.locale;
-  let cy = y;
-  out.push(text(x, cy + 14, t(L, "legend.title"), `font-size="13" font-weight="700" fill="${fixedColors.ink}"`));
-  cy += 26;
-  const item = (item: LegendItem) => {
-    out.push(text(x, cy + 11, t(L, item.title as StringKey), `font-size="11" font-weight="600" fill="${fixedColors.ink}"`));
-    cy += 16;
+  out.push(text(0, 14, t(L, "legend.title"), `font-size="13" font-weight="700" fill="${fixedColors.ink}"`));
+  for (const { item, y } of layout.items) {
+    out.push(text(0, y + 11, t(L, item.title), `font-size="11" font-weight="600" fill="${fixedColors.ink}"`));
+    const cy = y + legendMetrics.itemTitle;
     if (item.kind === "width") {
       const [lo, hi] = item.range;
-      out.push(`<path d="M${num(x)} ${num(cy + 6)}H${num(x + 40)}" stroke="${fixedColors.neutral}" stroke-width="${num(lo)}"/>`);
-      out.push(text(x + 46, cy + 10, formatCompact(item.domain[0], L), `font-size="10" fill="${fixedColors.ink}"`));
-      out.push(`<path d="M${num(x + width / 2)} ${num(cy + 6)}H${num(x + width / 2 + 40)}" stroke="${fixedColors.neutral}" stroke-width="${num(hi)}"/>`);
-      out.push(text(x + width / 2 + 46, cy + 10, formatCompact(item.domain[1], L), `font-size="10" fill="${fixedColors.ink}"`));
-      cy += 20;
+      out.push(`<path d="M0 ${num(cy + 6)}H40" stroke="${fixedColors.neutral}" stroke-width="${num(lo)}"/>`);
+      out.push(text(46, cy + 10, formatCompact(item.domain[0], L), `font-size="10" fill="${fixedColors.ink}"`));
+      out.push(`<path d="M${num(width / 2)} ${num(cy + 6)}H${num(width / 2 + 40)}" stroke="${fixedColors.neutral}" stroke-width="${num(hi)}"/>`);
+      out.push(text(width / 2 + 46, cy + 10, formatCompact(item.domain[1], L), `font-size="10" fill="${fixedColors.ink}"`));
     } else if (item.kind === "sequential" || item.kind === "diverging") {
       const gid = `wf-grad-${item.title.replace(/\W/g, "")}-${item.metric.replace(/\W/g, "")}`;
       const stops = item.stops.map((c, i) => `<stop offset="${num((i / (item.stops.length - 1)) * 100)}%" stop-color="${c}"/>`).join("");
       out.push(`<defs><linearGradient id="${gid}">${stops}</linearGradient></defs>`);
-      out.push(rect({ x, y: cy, width: width - 10, height: 10 }, `fill="url(#${gid})" stroke="${fixedColors.neutral}" stroke-width="0.5"`));
+      out.push(rect({ x: 0, y: cy, width: width - 10, height: 10 }, `fill="url(#${gid})" stroke="${fixedColors.neutral}" stroke-width="0.5"`));
       const share = /share/i.test(item.metric);
       const f = (v: number) => (share ? formatShare(v, L) : formatNumber(v, 1, L));
-      out.push(text(x, cy + 22, f(item.domain[0]), `font-size="10" fill="${fixedColors.ink}"`));
-      if (item.domain.length === 3) out.push(text(x + (width - 10) / 2, cy + 22, f(item.domain[1]), `font-size="10" text-anchor="middle" fill="${fixedColors.ink}"`));
-      out.push(text(x + width - 10, cy + 22, f(item.domain[item.domain.length - 1]), `font-size="10" text-anchor="end" fill="${fixedColors.ink}"`));
-      cy += 30;
+      out.push(text(0, cy + 22, f(item.domain[0]), `font-size="10" fill="${fixedColors.ink}"`));
+      if (item.domain.length === 3) out.push(text((width - 10) / 2, cy + 22, f(item.domain[1]), `font-size="10" text-anchor="middle" fill="${fixedColors.ink}"`));
+      out.push(text(width - 10, cy + 22, f(item.domain[item.domain.length - 1]), `font-size="10" text-anchor="end" fill="${fixedColors.ink}"`));
     } else if (item.kind === "categorical") {
-      for (const e of item.entries) {
-        const sw: Box = { x, y: cy, width: 14, height: 12 };
+      item.entries.forEach((e, i) => {
+        const sw: Box = { x: 0, y: cy + i * legendMetrics.entry, width: 14, height: 12 };
         out.push(rect(sw, `rx="2" fill="${e.color}"`));
         if (e.pattern !== "solid") out.push(rect(sw, `rx="2" fill="url(#wf-pattern-${e.pattern})"`));
-        out.push(text(x + 20, cy + 10, truncateText(e.key, width - 24, { size: 10 }), `font-size="10" fill="${fixedColors.ink}"`));
-        cy += 16;
-      }
-      cy += 4;
-    }
-  };
-  for (const it of ctx.scene.scales.legend) item(it);
-  const keys: [string, StringKey][] = [
-    ["●", "legend.badge"],
-    ["⌒", "legend.arc"],
-    ["⌒ ┄", "legend.reverse"],
-    ["↻", "legend.selfLoop"],
-    ["▨", "legend.outOfScope"],
-    ["┄", "legend.reconnected"],
-  ];
-  for (const [glyph, key] of keys) {
-    out.push(text(x, cy + 10, glyph, `font-size="10" fill="${fixedColors.ink}"`));
-    out.push(text(x + 22, cy + 10, truncateText(t(L, key), width - 24, { size: 9.5 }), `font-size="9.5" fill="${fixedColors.ink}"`));
-    cy += 14;
-  }
-  if (mapChips.length) {
-    cy += 6;
-    for (const c of mapChips) {
-      const p = c.payload ?? {};
-      const label = truncateText(`${p.glyph ?? ""} ${p.label ?? ""}`.trim(), width - 4, { size: 10, weight: 600 });
-      out.push(text(x, cy + 10, label, `font-size="10" font-weight="600" fill="${fixedColors.ink}"`));
-      cy += 13;
-      out.push(text(x, cy + 10, truncateText(String(p.text ?? ""), width - 4, { size: 9.5 }), `font-size="9.5" fill="${fixedColors.ink}"`));
-      cy += 15;
+        out.push(text(20, sw.y + 10, truncateText(e.key, width - 24, { size: 10 }), `font-size="10" fill="${fixedColors.ink}"`));
+      });
     }
   }
-  return { svg: out.join(""), height: cy - y };
+  for (const { key, y } of layout.keys) {
+    out.push(text(0, y + 10, key.glyph, `font-size="10" fill="${fixedColors.ink}"`));
+    out.push(text(22, y + 10, truncateText(t(L, key.title), width - 24, { size: 9.5 }), `font-size="9.5" fill="${fixedColors.ink}"`));
+  }
+  for (const { chip, y } of layout.chips) {
+    const p = chip.payload ?? {};
+    const label = truncateText(`${p.glyph ?? ""} ${p.label ?? ""}`.trim(), width - 4, { size: 10, weight: 600 });
+    out.push(text(0, y + 10, label, `font-size="10" font-weight="600" fill="${fixedColors.ink}"`));
+    out.push(text(0, y + legendMetrics.chipLabel + 10, truncateText(String(p.text ?? ""), width - 4, { size: 9.5 }), `font-size="9.5" fill="${fixedColors.ink}"`));
+  }
+  return out.join("");
 }
 
 /**
@@ -252,23 +224,8 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
   const font = options.fontFamily ?? "Inter, 'Segoe UI', Helvetica, Arial, sans-serif";
   const lodZoom = options.lodZoom ?? 1;
   const ctx: Ctx = { scene, locale, lod: lodAt(lodZoom, scene.lod), lodZoom, bands: new Map(scene.bands.map((b) => [b.id, b])) };
-  const pad = options.padding ?? 24;
-  const legend = options.legend ?? true;
-  const legendWidth = legend ? 220 : 0;
-
-  const content = scene.bounds;
-  const headerHeight = given.title ? 40 + (options.context !== false ? 18 : 0) : 0;
-  const mapChips = scene.overlays.filter((o) => o.kind === "chip" && o.target === MAP_TARGET);
-  const legendDraw = legend ? drawLegend(ctx, 0, 0, legendWidth - 16, mapChips) : { svg: "", height: 0 };
-
-  const mapW = content.width + 2 * pad;
-  const mapH = content.height + 2 * pad;
-  const totalW = mapW + legendWidth;
-  const keyY = Math.max(mapH, legendDraw.height + 2 * pad) + headerHeight;
-  const key = activityKeyLines(scene.graph, scene.activityLabels, totalW - 2 * pad, locale);
-  const totalH = keyY + (key.length ? key.length * 16 + 2 * pad : 0);
-  const outW = options.width ?? (options.preset && options.preset !== "none" ? FIGURE_WIDTHS[options.preset] : totalW);
-  const outH = (totalH / totalW) * outW;
+  const frame = figureFrame(scene, { title: !!given.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: options.width });
+  const { padding: pad, width: totalW, height: totalH, outWidth: outW, outHeight: outH } = frame;
 
   const parts: string[] = [];
   parts.push(
@@ -280,31 +237,32 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
   parts.push(`</defs>`);
   parts.push(rect({ x: 0, y: 0, width: totalW, height: totalH }, `fill="${options.background ?? fixedColors.paper}"`));
   if (given.title) {
-    parts.push(text(pad, 26, given.title, `font-size="18" font-weight="700" fill="${fixedColors.ink}"`));
+    parts.push(text(pad, figureMetrics.titleBaseline, given.title, `font-size="18" font-weight="700" fill="${fixedColors.ink}"`));
     if (options.context !== false) {
       const meta = scene.graph.meta ?? {};
       const label = given.subtitle ?? String(meta.label ?? meta.scene ?? "");
       const cases = typeof meta.cases === "number" ? formatCount(meta.cases, locale) : "–";
       const events = typeof meta.events === "number" ? formatCount(meta.events, locale) : "–";
-      parts.push(text(pad, 44, t(locale, "export.context", { label, cases, events }), `font-size="11" fill="${fixedColors.neutral}"`));
+      parts.push(text(pad, figureMetrics.contextBaseline, t(locale, "export.context", { label, cases, events }), `font-size="11" fill="${fixedColors.neutral}"`));
     }
   }
-  parts.push(`<g class="wf-map" transform="translate(${num(pad - content.x)} ${num(headerHeight + pad - content.y)})">`);
+  parts.push(`<g class="wf-map" transform="translate(${num(frame.map.offset.x)} ${num(frame.map.offset.y)})">`);
   parts.push(drawGroups(ctx));
   parts.push(drawMarks(ctx, "below"));
   parts.push(drawEdges(ctx));
   parts.push(drawNodes(ctx));
   parts.push(drawMarks(ctx, "above"));
   parts.push(`</g>`);
-  if (legend) {
-    parts.push(`<g class="wf-legend" transform="translate(${num(mapW)} ${num(headerHeight + pad)})">`);
-    parts.push(`<path d="M0 0V${num(totalH - headerHeight - 2 * pad)}" stroke="${fixedColors.neutral}" stroke-opacity="0.4"/>`);
-    parts.push(`<g transform="translate(16 0)">${legendDraw.svg}</g>`);
+  if (frame.legend) {
+    const { rule, x, y, width, layout } = frame.legend;
+    parts.push(`<g class="wf-legend" transform="translate(${num(rule.x)} ${num(rule.top)})">`);
+    parts.push(`<path d="M0 0V${num(rule.bottom - rule.top)}" stroke="${fixedColors.neutral}" stroke-opacity="0.4"/>`);
+    parts.push(`<g transform="translate(${num(x - rule.x)} ${num(y - rule.top)})">${drawLegend(ctx, width, layout)}</g>`);
     parts.push(`</g>`);
   }
-  if (key.length) {
+  if (frame.key.lines.length) {
     parts.push(`<g class="wf-activity-key" aria-label="Activity key">`);
-    key.forEach((line, i) => parts.push(text(pad, keyY + pad + i * 16, line, `font-size="11" fill="${fixedColors.ink}"`)));
+    frame.key.lines.forEach((line, i) => parts.push(text(pad, frame.key.y + i * figureMetrics.keyLine, line, `font-size="11" fill="${fixedColors.ink}"`)));
     parts.push(`</g>`);
   }
   parts.push(`</svg>`);

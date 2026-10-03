@@ -4,6 +4,7 @@
  */
 import { scaleLinear, scaleLog, scaleSqrt } from "d3-scale";
 import { type FlowEdge, type FlowGraph, type FlowNode, metric } from "./model.js";
+import type { StringKey } from "./strings.js";
 
 export type PatternId =
   | "solid"
@@ -224,9 +225,9 @@ export interface CategoricalEntry {
 }
 
 export type LegendItem =
-  | { kind: "width"; title: string; metric: string; domain: [number, number]; range: [number, number] }
-  | { kind: "sequential" | "diverging"; title: string; metric: string; domain: number[]; stops: readonly string[] }
-  | { kind: "categorical"; title: string; entries: CategoricalEntry[] };
+  | { kind: "width"; title: StringKey; metric: string; domain: [number, number]; range: [number, number] }
+  | { kind: "sequential" | "diverging"; title: StringKey; metric: string; domain: number[]; stops: readonly string[] }
+  | { kind: "categorical"; title: StringKey; entries: CategoricalEntry[] };
 
 export interface Scales {
   spec: StyleSpec;

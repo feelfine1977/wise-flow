@@ -587,7 +587,7 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
       ) : null}
       {legend && view !== "table" ? (
         <div className="wf-bpmn__panel wf-bpmn__panel--bottom-right">
-          <Legend scales={scales} overlays={listed} locale={locale} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} />) : undefined} />
+          <Legend scales={scales} legend={scene.legend} locale={locale} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} />) : undefined} />
         </div>
       ) : null}
       {status === "loading" || (status === "idle" && (xml || graph)) ? (

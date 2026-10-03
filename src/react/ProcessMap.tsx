@@ -870,7 +870,7 @@ function ProcessMapInner(props: ProcessMapProps) {
     <ContextMenu x={menu.x} y={menu.y} title={menu.title} subtitle={menu.subtitle} note={menu.note} actions={menu.actions} locale={locale} onAction={runAction} onClose={closeMenu} returnFocusTo={containerRef.current} boundsRef={bodyRef} />
   ) : null;
   const legendElement = legend ? (
-    <Legend scales={scales} overlays={overlays} locale={locale} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} />) : undefined} />
+    <Legend scales={scales} legend={scene.legend} locale={locale} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} />) : undefined} />
   ) : null;
   const controlsElement = controls ? <AbstractionControls value={abstraction} onChange={setAbstraction} locale={locale} hasStages={hasStages} view={view} onViewChange={setView} /> : null;
   const statusElement = layoutPending ? (
