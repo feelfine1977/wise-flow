@@ -65,7 +65,7 @@ export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
   const prepared = prepareScene(scene.graph, scene.positions, { style: scene.style, overlays: scene.overlays, locale, lanes: scene.lanes, selfLoops: scene.selfLoops, activityLabels: scene.activityLabels, lodBySize: false });
   const frame = figureFrame(prepared, { title: !!scene.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: options.width });
   const { padding: pad, width: totalW, outWidth: cssWidth, outHeight: cssHeight } = frame;
-  const k = cssWidth / totalW;
+  const k = totalW > 0 ? cssWidth / totalW : 1;
   const scale = options.scale ?? Math.max(2, typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1);
   const create = options.createCanvas ?? defaultCreateCanvas;
   const canvas = create(Math.max(1, Math.round(cssWidth * scale)), Math.max(1, Math.round(cssHeight * scale)));

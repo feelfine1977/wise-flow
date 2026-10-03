@@ -35,3 +35,6 @@ Visible changes:
   on the map.
 - PNG: a figure of an empty graph is no longer one unit wider and taller
   than its padding.
+- SVG and PNG: an empty graph exported without padding and legend
+  measures 0 × 0 (the SVG's height was `NaN`); the PNG's canvas stays
+  1 × 1 pixel.

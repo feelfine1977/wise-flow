@@ -207,6 +207,7 @@ export function figureFrame(scene: FramedScene, options: FigureFrameOptions = {}
     width,
     height,
     outWidth,
-    outHeight: (height / width) * outWidth,
+    // Exactly `height` when the figure is not scaled; an empty figure stays empty.
+    outHeight: width > 0 ? height * (outWidth / width) : height,
   };
 }

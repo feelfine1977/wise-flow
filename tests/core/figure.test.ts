@@ -82,6 +82,17 @@ describe("figureFrame", () => {
     expect([frame.width, frame.height, frame.header, frame.outWidth]).toEqual([120, 70, 0, 120]);
   });
 
+  it("keeps the figure's height when it is not scaled", () => {
+    // 2864 + 2 × 24 + 220 by 856 + 2 × 24; 904 / 3132 × 3132 is not exactly 904 in floating point.
+    const frame = figureFrame({ ...framed, bounds: { x: 0, y: 0, width: 2864, height: 856 } });
+    expect([frame.width, frame.height, frame.outWidth, frame.outHeight]).toEqual([3132, 904, 3132, 904]);
+  });
+
+  it("measures an empty figure without padding or legend as empty", () => {
+    const frame = figureFrame({ ...framed, bounds: { x: 0, y: 0, width: 0, height: 0 } }, { legend: false, padding: 0 });
+    expect([frame.width, frame.height, frame.outWidth, frame.outHeight]).toEqual([0, 0, 0, 0]);
+  });
+
   it("adds the activity key under the map and the legend", () => {
     const g: FlowGraph = { nodes: [{ id: "a", kind: "activity", label: "A" }], edges: [] };
     const frame = figureFrame({ ...framed, graph: g, activityLabels: { mode: "ids", references: {} } }, { legend: false });
@@ -116,6 +127,13 @@ describe("the legend in the scene and the exports", () => {
     expect(/viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(svg)!.slice(1).map(Number)).toEqual([58 + 220, 88]);
     const png = toPNGCanvas({ graph: tiny, positions: tinyAt, style: {} }, { scale: 1, createCanvas: (w, h) => ({ width: w, height: h, getContext: () => new Proxy({}, { get: (_t, key) => (key === "measureText" ? () => ({ width: 0 }) : () => undefined), set: () => true }) }) });
     expect([png.cssWidth, png.cssHeight]).toEqual([278, 88]);
+  });
+
+  it("gives PNG and SVG of an empty graph without padding or legend a size", () => {
+    const empty = { graph: { nodes: [], edges: [] }, positions: { ...tinyAt, nodes: {}, bounds: { x: 0, y: 0, width: 0, height: 0 } } };
+    expect(/<svg [^>]*>/.exec(toSVG(empty, { padding: 0, legend: false }))![0]).toContain('width="0" height="0" viewBox="0 0 0 0"');
+    const png = toPNGCanvas(empty, { padding: 0, legend: false, scale: 1, createCanvas: (w, h) => ({ width: w, height: h, getContext: () => new Proxy({}, { get: () => () => undefined, set: () => true }) }) });
+    expect([png.cssWidth, png.cssHeight, png.width, png.height]).toEqual([0, 0, 1, 1]);
   });
 
   it("draws the pattern twins of the categories in the Canvas legend", () => {
