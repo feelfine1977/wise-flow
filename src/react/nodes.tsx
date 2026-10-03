@@ -1,6 +1,6 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { memo } from "react";
-import { type LayoutDirection, type Overlay, activityLabelLines, contrastText, formatCompact, formatShare, hasTag, metric, overlayColor, RECONNECTED_TAG } from "../core/index.js";
+import { type ElementText, type LayoutDirection, type NodeMark, type Overlay, contrastText, defaultNodeSize, fitText, formatShare, hasTag, nodeMark, overlayColor } from "../core/index.js";
 import { PatternSwatch } from "./patterns.js";
 import type { ActivityNodeData, WfGroupNode, WfNode } from "./types.js";
 
@@ -45,42 +45,65 @@ export function Badges({ badges, locale }: { badges: Overlay[]; locale: Activity
   );
 }
 
-function classes(kind: string, data: ActivityNodeData, selected: boolean | undefined): string {
-  const c = ["wf-node", `wf-node--${kind}`];
+/** The node's mark; resolved from the node data when the map did not pass one. */
+function markOf(data: ActivityNodeData): NodeMark {
+  if (data.mark) return data.mark;
+  const size = defaultNodeSize(data.node);
+  const box = { x: 0, y: 0, width: data.labelWidth ?? size.width, height: data.labelHeight ?? size.height };
+  return nodeMark(data.node, box, { color: data.color, pattern: data.pattern, locale: data.locale, activityLabels: data.activityLabels });
+}
+
+function classes(mark: NodeMark, data: ActivityNodeData, selected: boolean | undefined): string {
+  const c = ["wf-node", `wf-node--${mark.kind}`];
   if (selected) c.push("wf-node--selected");
   if (data.focused) c.push("wf-node--focused");
   if (data.hovered) c.push("wf-node--hovered");
   if (data.dimmed) c.push("wf-node--dimmed");
   if (data.hatched) c.push("wf-node--hatched");
-  if (hasTag(data.node, RECONNECTED_TAG)) c.push("wf-node--reconnected");
-  if (data.node.kind === "event" && hasTag(data.node, "end")) c.push("wf-node--event-end");
+  if (mark.reconnected) c.push("wf-node--reconnected");
+  if (mark.kind === "event" && hasTag(mark.node, "end")) c.push("wf-node--event-end");
   return c.join(" ");
 }
 
+const lodClass = (t: ElementText) => (t.lod === "labels" ? " wf-lod-labels" : t.lod === "edgeLabels" ? " wf-lod-edge-labels" : "");
+
+/** The mark's text of one role, shortened by the core rule, with its level-of-detail class. */
+function Text({ mark, role, className, hidden }: { mark: NodeMark; role: ElementText["role"]; className: string; hidden?: boolean }) {
+  const t = mark.texts.find((x) => x.role === role);
+  return t ? <span className={`${className}${lodClass(t)}`} aria-hidden={hidden || undefined}>{fitText(t)}</span> : null;
+}
+
+function Band({ mark }: { mark: NodeMark }) {
+  return mark.band ? (
+    <span className="wf-node__band" aria-hidden="true">
+      <PatternSwatch pattern={mark.pattern} ink="#1f1f1f" />
+    </span>
+  ) : null;
+}
+
 const Activity = memo(function Activity({ id, data, selected }: NodeProps<WfNode>) {
-  const cases = metric(data.node, "cases", NaN);
-  const lines = data.activityLabels ? activityLabelLines(data.node, data.activityLabels, data.labelWidth ?? 280, data.locale) : undefined;
+  const mark = markOf(data);
+  const lines = mark.texts.some((t) => t.role === "nameLine");
+  const count = mark.texts.find((t) => t.role === "count");
   return (
     <div
       id={`wf-node-${id}`}
-      className={`${classes(data.node.kind, data, selected)}${lines ? " wf-node--activity-labels" : ""}`}
-      style={{ ["--wf-node-color" as string]: data.color, ...(lines ? { width: data.labelWidth, height: data.labelHeight } : {}) }}
+      className={`${classes(mark, data, selected)}${lines ? " wf-node--activity-labels" : ""}`}
+      style={{ ["--wf-node-color" as string]: mark.color, ...(lines ? { width: data.labelWidth, height: data.labelHeight } : {}) }}
       title={lines ? undefined : data.description}
-      data-kind={data.node.kind}
+      data-kind={mark.kind}
     >
       {handles(data.direction)}
-      <span className="wf-node__band" aria-hidden="true">
-        <PatternSwatch pattern={data.pattern} ink="#1f1f1f" />
-      </span>
+      <Band mark={mark} />
       {lines ? (
         <span className="wf-activity-copy">
-          <span className="wf-activity-name">{lines.name.map((line, i) => <span key={i}>{line}</span>)}</span>
-          {data.activityLabels?.showCounts !== false ? <span className="wf-activity-counts">{lines.counts.map((line, i) => <span key={i}>{line}</span>)}</span> : null}
+          <span className="wf-activity-name">{mark.texts.filter((t) => t.role === "nameLine").map((t, i) => <span key={i}>{t.text}</span>)}</span>
+          {mark.texts.some((t) => t.role === "countLine") ? <span className="wf-activity-counts">{mark.texts.filter((t) => t.role === "countLine").map((t, i) => <span key={i}>{t.text}</span>)}</span> : null}
         </span>
       ) : (
         <>
-          <span className="wf-node__label wf-lod-labels">{data.node.label}</span>
-          {Number.isFinite(cases) ? <span className="wf-node__meta wf-lod-labels">{data.meta ?? formatCompact(cases, data.locale)}</span> : null}
+          <Text mark={mark} role="label" className="wf-node__label" />
+          {count ? <span className={`wf-node__meta${lodClass(count)}`}>{data.meta ?? count.text}</span> : null}
         </>
       )}
       <Badges badges={data.badges} locale={data.locale} />
@@ -89,58 +112,52 @@ const Activity = memo(function Activity({ id, data, selected }: NodeProps<WfNode
 });
 
 const Stage = memo(function Stage({ id, data, selected }: NodeProps<WfNode>) {
-  const members = metric(data.node, "members", NaN);
-  const cases = metric(data.node, "cases", NaN);
+  const mark = markOf(data);
   return (
     <div
       id={`wf-node-${id}`}
-      className={classes("stage", data, selected)}
-      style={{ ["--wf-node-color" as string]: data.color, width: 200, height: 56 }}
+      className={classes(mark, data, selected)}
+      style={{ ["--wf-node-color" as string]: mark.color, width: 200, height: 56 }}
       title={data.description}
       data-kind="stage"
     >
       {handles(data.direction)}
-      <span className="wf-node__band" aria-hidden="true">
-        <PatternSwatch pattern={data.pattern} ink="#1f1f1f" />
-      </span>
-      <span className="wf-node__label wf-lod-labels">{data.node.label}</span>
-      <span className="wf-node__meta wf-lod-labels">
-        {Number.isFinite(members) ? `${members} · ` : ""}
-        {Number.isFinite(cases) ? formatCompact(cases, data.locale) : ""}
-      </span>
+      <Band mark={mark} />
+      <Text mark={mark} role="label" className="wf-node__label" />
+      <Text mark={mark} role="count" className="wf-node__meta" />
       <Badges badges={data.badges} locale={data.locale} />
     </div>
   );
 });
 
 const Gateway = memo(function Gateway({ id, data, selected }: NodeProps<WfNode>) {
-  const glyph = hasTag(data.node, "and") ? "+" : hasTag(data.node, "or") ? "○" : "×";
+  const mark = markOf(data);
   return (
-    <div id={`wf-node-${id}`} className={classes("gateway", data, selected)} title={data.description} data-kind="gateway">
+    <div id={`wf-node-${id}`} className={classes(mark, data, selected)} title={data.description} data-kind="gateway">
       {handles(data.direction)}
-      <span className="wf-node__label" aria-hidden="true">
-        {glyph}
-      </span>
+      <Text mark={mark} role="glyph" className="wf-node__label" hidden />
       <Badges badges={data.badges} locale={data.locale} />
     </div>
   );
 });
 
 const EventNode = memo(function EventNode({ id, data, selected }: NodeProps<WfNode>) {
+  const mark = markOf(data);
   return (
-    <div id={`wf-node-${id}`} className={classes("event", data, selected)} title={data.description} data-kind="event">
+    <div id={`wf-node-${id}`} className={classes(mark, data, selected)} title={data.description} data-kind="event">
       {handles(data.direction)}
-      <span className="wf-node__label wf-lod-labels">{data.node.label}</span>
+      <Text mark={mark} role="label" className="wf-node__label" />
       <Badges badges={data.badges} locale={data.locale} />
     </div>
   );
 });
 
 const Note = memo(function Note({ id, data, selected }: NodeProps<WfNode>) {
+  const mark = markOf(data);
   return (
-    <div id={`wf-node-${id}`} className={classes("note", data, selected)} title={data.description} data-kind="note">
+    <div id={`wf-node-${id}`} className={classes(mark, data, selected)} title={data.description} data-kind="note">
       {handles(data.direction)}
-      <span className="wf-node__label">{data.node.label}</span>
+      <Text mark={mark} role="label" className="wf-node__label" />
     </div>
   );
 });

@@ -28,7 +28,6 @@ import {
   type XY,
   type StringKey,
   MAP_TARGET,
-  RECONNECTED_TAG,
   activityNodeSize,
   activityReferences,
   addClause,
@@ -42,12 +41,9 @@ import {
   describeOverlay,
   describeSelection,
   focusHighlight,
-  formatCompact,
-  hasTag,
   lodAt,
   menuTargetFor,
   menuTitle,
-  metric,
   relatedToSelection,
   selectElement,
   t,
@@ -499,9 +495,9 @@ function ProcessMapInner(props: ProcessMapProps) {
         },
       });
     }
-    for (const n of shown.nodes) {
-      const box = positions.nodes[n.id];
-      if (!box) continue;
+    for (const mark of scene.nodeMarks) {
+      const n = mark.node;
+      const box = mark.box;
       const parentGroup = n.group && groupIndex.has(n.group) && groupBox(n.group) ? n.group : undefined;
       const off = absOffset(parentGroup);
       const nOverlays = overlaysByTarget.get(n.id) ?? [];
@@ -523,8 +519,8 @@ function ProcessMapInner(props: ProcessMapProps) {
           activityLabels: n.kind === "activity" ? activityLabels : undefined,
           labelWidth: box.width,
           labelHeight: box.height,
-          color: scales.nodeColor(n),
-          pattern: scales.nodePattern(n),
+          color: mark.color,
+          pattern: mark.pattern,
           badges: nOverlays.filter((o) => o.kind === "badge"),
           hatched: nOverlays.some((o) => o.kind === "hatch"),
           direction: positions.direction,
@@ -533,44 +529,43 @@ function ProcessMapInner(props: ProcessMapProps) {
           dimmed: !(activityLabels && n.kind === "activity") && !!bright && !bright.nodes.has(n.id),
           locale,
           description,
+          mark,
         },
       });
     }
     return out;
-  }, [positions, useCanvas, shown, overlaysByTarget, scales, selection, hovered, focused, locale, bright, bands, groupIndex, memberCount, activityLabels, describeElement, nodesDraggable]);
+  }, [positions, useCanvas, shown, scene, overlaysByTarget, scales, selection, hovered, focused, locale, bright, bands, groupIndex, memberCount, activityLabels, describeElement, nodesDraggable]);
 
   const rfEdges = useMemo<WfEdge[]>(() => {
     if (!positions || useCanvas) return [];
-    return shown.edges
-      .filter((e) => e.source !== e.target && positions.nodes[e.source] && positions.nodes[e.target])
-      .map((e) => {
-        const color = e.kind === "constraint" ? "#0072B2" : scales.edgeColor(e);
-        const count = metric(e, "count", NaN);
-        const description = describeEdge(e, shown, locale);
-        return {
-          id: e.id,
-          type: e.kind,
-          source: e.source,
-          target: e.target,
-          selected: selection.edges.includes(e.id),
-          ariaLabel: description,
-          markerEnd: { type: MarkerType.ArrowClosed, color, width: 12, height: 12, markerUnits: "userSpaceOnUse" },
-          zIndex: hovered === e.id || focused === e.id ? 5 : 0,
-          data: {
-            edge: e,
-            route: positions.edges[e.id],
-            width: scales.edgeWidth(e),
-            color,
-            label: Number.isFinite(count) ? formatCompact(count, locale) : undefined,
-            reconnected: hasTag(e, RECONNECTED_TAG),
-            hovered: hovered === e.id,
-            dimmed: !!bright && !bright.edges.has(e.id),
-            focused: focused === e.id,
-            description,
-          },
-        };
-      });
-  }, [positions, useCanvas, shown, scales, selection, hovered, focused, locale, bright]);
+    return scene.edgeMarks.map((mark) => {
+      const e = mark.edge;
+      const description = describeEdge(e, shown, locale);
+      return {
+        id: e.id,
+        type: e.kind,
+        source: e.source,
+        target: e.target,
+        selected: selection.edges.includes(e.id),
+        ariaLabel: description,
+        markerEnd: { type: MarkerType.ArrowClosed, color: mark.color, width: 12, height: 12, markerUnits: "userSpaceOnUse" },
+        zIndex: hovered === e.id || focused === e.id ? 5 : 0,
+        data: {
+          edge: e,
+          route: positions.edges[e.id],
+          width: mark.width,
+          color: mark.color,
+          label: mark.texts[0]?.text,
+          reconnected: mark.reconnected,
+          hovered: hovered === e.id,
+          dimmed: !!bright && !bright.edges.has(e.id),
+          focused: focused === e.id,
+          description,
+          mark,
+        },
+      };
+    });
+  }, [positions, useCanvas, shown, scene, selection, hovered, focused, locale, bright]);
 
   // Canvas scene and its callbacks
   const canvasScene = useMemo<PreparedScene | undefined>(() => (useCanvas && positions ? retainScene(scene) : undefined), [useCanvas, positions, scene]);
