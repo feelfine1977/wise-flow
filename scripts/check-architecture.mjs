@@ -102,6 +102,73 @@ export function deepImportViolations(file, source, names = entryNames()) {
   });
 }
 
+/** The core modules that build the scene and run the map's transitions. */
+export const coreSeams = ['src/core/scene.ts', 'src/core/map-controller.ts'];
+
+/** Top-level declarations of a module, exported or not, with whether they are exported. */
+function declarations(file, source) {
+  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  return tree.statements.flatMap((node) => {
+    const exported = !!node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
+    if (ts.isVariableStatement(node)) return node.declarationList.declarations.flatMap((d) => (ts.isIdentifier(d.name) ? [{ name: d.name.text, exported }] : []));
+    const declares = ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node) || ts.isEnumDeclaration(node);
+    return declares && node.name ? [{ name: node.name.text, exported }] : [];
+  });
+}
+
+/** The names the scene and the map controller export; a seam that left the core is reported. */
+export function seamNames(files = coreSeams) {
+  const names = new Map();
+  for (const path of files) {
+    let source;
+    try {
+      source = readFileSync(resolve(root, path), 'utf8');
+    } catch {
+      throw new Error(`${path}: the core module is missing; the scene and the map controller stay inside the core`);
+    }
+    for (const { name, exported } of declarations(path, source)) if (exported) names.set(name, path);
+  }
+  return names;
+}
+
+/** Outside the core, no module declares a name of the scene or the map controller: renderers read them, they do not rebuild them. */
+export function seamViolations(file, source, names = seamNames()) {
+  return declarations(file, source).map(({ name }) => name).filter((n) => names.has(n)).map((n) => `Declares ${n}, which ${names.get(n)} owns`);
+}
+
+/**
+ * Renderer adapters reach one another only through these hosts: the React
+ * Canvas map and its element builder host the Canvas renderer, `BpmnView` hosts
+ * the BPMN bridge, and the bridge's entry point re-exports `BpmnView`.
+ */
+export const adapterHosts = [
+  ['src/react/CanvasMap.tsx', 'src/canvas'],
+  ['src/react/map-elements.ts', 'src/canvas'],
+  ['src/react/BpmnView.tsx', 'src/bpmn'],
+  ['src/bpmn/index.ts', 'src/react/BpmnView'],
+];
+const adapters = ['src/react', 'src/canvas', 'src/bpmn'];
+const adapterPackages = { react: 'src/react', '@xyflow/react': 'src/react', 'react-dom': 'src/react', 'bpmn-js': 'src/bpmn', 'bpmn-moddle': 'src/bpmn' };
+const within = (path, dir) => path === resolve(root, dir) || path.startsWith(resolve(root, dir) + '/');
+
+/** The React map, the Canvas renderer and the BPMN bridge import each other only through the hosts above, and only the adapter that owns a renderer package loads it. */
+export function adapterViolations(file, source) {
+  const own = adapters.find((dir) => within(file, dir));
+  if (!own) return [];
+  const self = relative(root, file);
+  return importsOf(file, source).flatMap(({ name }) => {
+    if (name === undefined) return [];
+    if (!name.startsWith('.')) {
+      const owner = adapterPackages[packageOf(name)];
+      return owner && owner !== own ? [`${own} loads ${name}, which belongs to ${owner}`] : [];
+    }
+    const target = resolve(dirname(file), name).replace(/\.(js|ts|tsx)$/, '');
+    const other = adapters.find((dir) => within(target, dir));
+    if (!other || other === own) return [];
+    return adapterHosts.some(([host, reached]) => host === self && within(target, reached)) ? [] : [`${own} imports the ${other} adapter: ${name}`];
+  });
+}
+
 function filesAt(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
     const path = resolve(dir, entry.name);
@@ -111,11 +178,15 @@ function filesAt(dir) {
 
 export function checkArchitecture() {
   const names = entryNames();
+  const seams = seamNames();
+  const adapterFiles = adapters.flatMap((dir) => filesAt(resolve(root, dir))).filter((file) => !file.endsWith('.d.ts'));
   const rules = [
     [boundaryViolations, [resolve(root, 'src/index.ts'), ...filesAt(resolve(root, 'src/core'))]],
     [bridgeViolations, filesAt(resolve(root, 'src/bpmn')).filter((file) => file !== resolve(root, 'src/bpmn/index.ts') && !file.endsWith('.d.ts'))],
     [nodeTestViolations, filesAt(resolve(root, 'tests/core'))],
     [(file, source) => deepImportViolations(file, source, names), [resolve(root, 'src/index.ts'), ...['src/react', 'src/canvas', 'src/bpmn'].flatMap((dir) => filesAt(resolve(root, dir)))].filter((file) => !file.endsWith('.d.ts'))],
+    [(file, source) => seamViolations(file, source, seams), [resolve(root, 'src/index.ts'), ...adapterFiles]],
+    [adapterViolations, adapterFiles],
   ];
   const errors = rules.flatMap(([rule, files]) => files.flatMap(file => rule(file, readFileSync(file, 'utf8')).map(message => `${relative(root, file)}: ${message}`)));
   if (errors.length) throw new Error(errors.join('\n'));

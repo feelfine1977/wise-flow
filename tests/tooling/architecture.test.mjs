@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { boundaryViolations, bridgeViolations, deepImportViolations, entryNames, nodeTestViolations } from '../../scripts/check-architecture.mjs';
+import { adapterViolations, boundaryViolations, bridgeViolations, deepImportViolations, entryNames, nodeTestViolations, seamNames, seamViolations } from '../../scripts/check-architecture.mjs';
 
 const file = fileURLToPath(new URL('../../src/core/example.ts', import.meta.url));
 test('headless boundaries reject transitive entry points, types and dynamic renderer imports', () => {
@@ -23,7 +23,7 @@ test('headless checks allow local algorithms, reviewed layout imports and import
   `), []);
 });
 test('the scene module, the overlay placement, the overlay, node and edge marks they read, their SVG elements and the legend and figure frame stay inside the core', () => {
-  for (const name of ['scene.ts', 'overlay-geometry.ts', 'overlay-marks.ts', 'element-marks.ts', 'mark-svg.ts', 'observed-loops.ts', 'figure.ts']) {
+  for (const name of ['scene.ts', 'overlay-geometry.ts', 'overlay-marks.ts', 'element-marks.ts', 'mark-svg.ts', 'observed-loops.ts', 'figure.ts', 'map-controller.ts', 'selection.ts', 'lanes.ts', 'layout.ts', 'layout-key.ts', 'tokens.ts']) {
     const path = fileURLToPath(new URL(`../../src/core/${name}`, import.meta.url));
     assert.deepEqual(boundaryViolations(path, readFileSync(path, 'utf8')), [], name);
   }
@@ -89,4 +89,47 @@ test('the entry point names are read from its explicit lists', () => {
   const names = entryNames('export { a, /** @deprecated */ b } from "./x.js";\nexport type { C } from "./y.js";');
   assert.deepEqual([...names], ['a', 'b', 'C']);
   assert.ok(entryNames().has('buildScene'));
+});
+
+const src = (path) => fileURLToPath(new URL(`../../src/${path}`, import.meta.url));
+test('the scene and the map controller are owned by the core: their names are declared nowhere else', () => {
+  const names = seamNames();
+  for (const name of ['buildScene', 'FlowScene', 'mapStep', 'MapState', 'menuKey', 'clickSelection']) assert.ok(names.has(name), name);
+  assert.equal(names.get('buildScene'), 'src/core/scene.ts');
+  assert.equal(names.get('mapStep'), 'src/core/map-controller.ts');
+  for (const source of [
+    'export function buildScene() {}',
+    'function mapStep(state, event) { return state; }',
+    'const menuKey = () => null;',
+    'export interface MapState { focus: string }',
+    'type FlowScene = {};',
+  ]) assert.ok(seamViolations(src('react/example.ts'), source, names).length > 0, source);
+  assert.deepEqual(seamViolations(src('canvas/example.ts'), `
+    import { buildScene, mapStep } from '../core/index.js';
+    export function prepareScene() { return buildScene; }
+    const step = mapStep;
+  `, names), []);
+  assert.throws(() => seamNames(['src/react/map-controller.ts']), /stay inside the core/);
+});
+test('renderer adapters do not import each other outside their hosts', () => {
+  for (const [file, source] of [
+    ['canvas/draw.ts', 'import { Legend } from "../react/Legend.js";'],
+    ['canvas/png.ts', 'import { projectMarks } from "../bpmn/projection.js";'],
+    ['canvas/renderer.ts', 'import { useState } from "react";'],
+    ['bpmn/projection.ts', 'import { drawScene } from "../canvas/draw.js";'],
+    ['bpmn/index.ts', 'export { ProcessMap } from "../react/ProcessMap.js";'],
+    ['react/ProcessMap.tsx', 'import { drawScene } from "../canvas/draw.js";'],
+    ['react/nodes.tsx', 'import { projectMarks } from "../bpmn/projection.js";'],
+    ['react/CanvasMap.tsx', 'import { selectionOf } from "../bpmn/viewer.js";'],
+    ['react/BpmnView.tsx', 'const canvas = import("../canvas/index.js");'],
+    ['react/OverlayLayer.tsx', 'const viewer = import("bpmn-js/lib/NavigatedViewer.js");'],
+  ]) assert.ok(adapterViolations(src(file), source).length > 0, `${file}: ${source}`);
+  for (const [file, source] of [
+    ['react/CanvasMap.tsx', 'import { CanvasRenderer } from "../canvas/index.js";\nimport { useRef } from "react";'],
+    ['react/map-elements.ts', 'import { retainScene } from "../canvas/scene.js";'],
+    ['react/BpmnView.tsx', 'import { projectMarks } from "../bpmn/projection.js";'],
+    ['bpmn/index.ts', 'export { BpmnView } from "../react/BpmnView.js";'],
+    ['bpmn/bpmn-js.ts', 'const mod = await import("bpmn-js/lib/Modeler.js");'],
+    ['canvas/draw.ts', 'import { buildScene } from "../core/index.js";\nimport { readTokens } from "./tokens.js";'],
+  ]) assert.deepEqual(adapterViolations(src(file), source), [], `${file}: ${source}`);
 });
