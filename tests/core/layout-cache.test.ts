@@ -61,6 +61,33 @@ describe("layout scope", () => {
     expect(other.calls()).toBe(1);
   });
 
+  it("never returns the layout of a changed grouping", async () => {
+    const { elk, calls } = countingElk();
+    const scope = createLayoutScope();
+    const rootIds = (call: number) => ((elk.layout as ReturnType<typeof vi.fn>).mock.calls[call][0] as ElkNode).children!.map((c) => c.id);
+    const grouped = (aIn: string | undefined, bIn: string | undefined, parentOfG?: string): FlowGraph => ({
+      ...pair,
+      nodes: [{ ...pair.nodes[0], group: aIn }, { ...pair.nodes[1], group: bIn }],
+      groups: [{ id: "g", kind: "stage", label: "G", parent: parentOfG }, { id: "h", kind: "stage", label: "H" }],
+    });
+    // a in g, b ungrouped: the root holds g, then b; g's box at 0, b at 100.
+    const first = await scope.layout(grouped("g", undefined), { elk, engine: "elk" });
+    expect(Object.keys(first.groups)).toEqual(["g"]);
+    expect(first.nodes.b.x).toBe(100);
+    // a leaves g: g is empty and dropped, a and b sit side by side.
+    const ungrouped = await scope.layout(grouped(undefined, undefined), { elk, engine: "elk" });
+    expect(Object.keys(ungrouped.groups)).toEqual([]);
+    expect(ungrouped.nodes.b.x).toBe(100);
+    // b joins g instead of a: g first, then a.
+    const swapped = await scope.layout(grouped(undefined, "g"), { elk, engine: "elk" });
+    expect(swapped.nodes.a.x).toBe(100);
+    // a in g, b in h, then g nested in h: the root holds g and h, then h alone.
+    await scope.layout(grouped("g", "h"), { elk, engine: "elk" });
+    await scope.layout(grouped("g", "h", "h"), { elk, engine: "elk" });
+    expect(calls()).toBe(5);
+    expect([rootIds(3), rootIds(4)]).toEqual([["g", "h"], ["h"]]);
+  });
+
   it("keeps a bounded number of layouts and recomputes the least recently used one", async () => {
     const { elk, calls } = countingElk();
     const scope = createLayoutScope({ maxEntries: 2 });
