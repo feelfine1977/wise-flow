@@ -252,6 +252,19 @@ describe("map controller: menu and announcements", () => {
     expect(step(state(), { type: "actionDone", action: pin }).handled).toBe(false);
   });
 
+  it("marks which sentences describe a change of selection or focus and which belong to the event", () => {
+    expect(step(state(), { type: "click", element: { kind: "node", id: "a" } }).describesChange).toBe(true);
+    expect(step(state(), { type: "setFocus", focus: "b" }).describesChange).toBe(true);
+    expect(step(state({ selection: sel(["b"]) }), key("Escape")).describesChange).toBe(true);
+    expect(step(state(), { type: "hover", id: "a" }).describesChange).toBe(false);
+    expect(step(state({ active: "a" }), key("ArrowRight", { altKey: true })).describesChange).toBe(false);
+    // Selecting and opening in one step speaks the menu's own sentence.
+    expect(step(state(), { type: "openMenu", element: { kind: "node", id: "b" }, at }, { actions: () => [pin] }).describesChange).toBe(false);
+    // A host's text is the event's own even when it reads like a selection sentence.
+    const open = step(state(), { type: "openMenu", element: { kind: "node", id: "b" }, at }, { actions: () => [pin] }).state;
+    expect(step(open, { type: "actionDone", action: pin, text: "Selected: B." })).toMatchObject({ announcement: "Selected: B.", describesChange: false });
+  });
+
   it("announces a new focus of paths but not its removal or a repeat", () => {
     const one = step(state(), { type: "setFocus", focus: "b" });
     expect(one).toMatchObject({ intents: [{ kind: "focus", focus: "b" }], announcement: "Paths of B are shown; unrelated activities are dimmed." });

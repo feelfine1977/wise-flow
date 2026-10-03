@@ -81,6 +81,8 @@ export interface MapStep {
   state: MapState;
   /** Sentence for the live region, if the step has one. */
   announcement?: string;
+  /** The sentence is the one `announceChange` gives for the step's change of selection or focus, not one of the event's own. */
+  describesChange: boolean;
   intents: MapIntent[];
   /** The event meant something to the map (a key the host should not pass on). */
   handled: boolean;
@@ -144,15 +146,16 @@ export function mapStep(state: MapState, event: MapEvent, context: MapContext): 
   const locale = context.locale ?? "en";
   const step = (change: Partial<MapState>, intents: MapIntent[] = [], announcement?: string): MapStep => {
     const next = { ...state, ...change };
-    return { state: next, intents, announcement: announcement ?? announceChange(state, next, graph, locale), handled: true };
+    if (announcement !== undefined) return { state: next, intents, announcement, describesChange: false, handled: true };
+    const derived = announceChange(state, next, graph, locale);
+    return { state: next, intents, announcement: derived, describesChange: derived !== undefined, handled: true };
   };
   const select = (selection: Selection, change: Partial<MapState> = {}, intents: MapIntent[] = []) => step({ selection, ...change }, [{ kind: "select", selection }, ...intents]);
   switch (event.type) {
     case "click": {
       const ref = event.element;
       if (!ref) return select(emptySelection, { menu: null });
-      const mode = ref.kind !== "group" && event.multi ? "toggle" : "replace";
-      return select(selectElement(state.selection, ref, mode), ref.kind === "node" ? { menu: null, active: ref.id } : { menu: null });
+      return select(selectElement(state.selection, ref, event.multi ? "toggle" : "replace"), ref.kind === "node" ? { menu: null, active: ref.id } : { menu: null });
     }
     case "select":
       return select(event.selection);
@@ -167,7 +170,7 @@ export function mapStep(state: MapState, event: MapEvent, context: MapContext): 
     case "key":
       return keyStep(state, event, context, step, select);
     case "openMenu": {
-      if (context.contextMenu === false) return { state, intents: [], handled: false };
+      if (context.contextMenu === false) return { state, intents: [], describesChange: false, handled: false };
       const ref = event.element;
       // The element joins the selection unless it is part of the multi-selection already.
       const inSelection = isSelected(state.selection, ref);
@@ -187,7 +190,7 @@ export function mapStep(state: MapState, event: MapEvent, context: MapContext): 
     case "dismissMenu":
       return step({ menu: null });
     case "actionDone": {
-      if (!state.menu) return { state, intents: [], handled: false };
+      if (!state.menu) return { state, intents: [], describesChange: false, handled: false };
       return step({ menu: null }, [], event.text ?? t(locale, "menu.announce", { action: event.action.label, target: state.menu.target.label }));
     }
     case "setFocus":
@@ -219,7 +222,7 @@ function keyStep(
   select: (selection: Selection, change?: Partial<MapState>, intents?: MapIntent[]) => MapStep,
 ): MapStep {
   const { graph, positions } = context;
-  const ignored: MapStep = { state, intents: [], handled: false };
+  const ignored: MapStep = { state, intents: [], describesChange: false, handled: false };
   if (state.menu || !positions) return ignored;
   const order = nodeOrder(graph, positions);
   if (order.length === 0) return ignored;
