@@ -734,7 +734,7 @@ export function prepareScene(g: FlowGraph, p: Positions, o?: { activityLabels?; 
 export interface DrawContext { /* the subset of CanvasRenderingContext2D the routines use */ }
 export interface View { x: number; y: number; zoom: number; width: number; height: number }
 export interface DrawState { selection: Selection; hovered?: string | null; focused?: string | null; bright?: { nodes: Set<string>; edges: Set<string> } }
-export interface DrawOptions { tokens?: CanvasTokens; cull?: boolean; background?: boolean | string; createCanvas? }
+export interface DrawOptions { tokens?: CanvasTokens; cull?: boolean; background?: boolean | string; lodZoom?: number; createCanvas? }
 export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, state?: DrawState, o?: DrawOptions): { nodes; edges; shapes; culled };
 export function drawLegend(ctx: DrawContext, scene: PreparedScene, x, y, width, tokens?): number;
 export function tracePath(ctx: DrawContext, d: string): { last?; beforeLast? };
@@ -760,10 +760,16 @@ hover, click and viewport culling. The overlays are `o.overlays`, or
 tightens the level of detail with the number of nodes for a fitted live
 map; `bands` keeps caller-computed bands and the positions as given. `drawScene` issues plain 2D
 context calls (a screen canvas, an offscreen canvas for PNG, or a
-recording stub in tests): groups and bands, edges with arrowheads, nodes
-with pattern twins and hatching, overlay shapes by kind, edge labels;
-level of detail follows `lodAt(view.zoom)`; above 1,500 elements only the
-elements inside the viewport are drawn. `CanvasRenderer` owns the
+recording stub in tests): groups and bands, the scene's overlay marks below
+the edges (tints), edges with arrowheads, nodes with pattern twins, the
+marks above the nodes, edge labels; level of detail follows
+`lodAt(o.lodZoom ?? view.zoom)` and each mark is drawn from its `minZoom`;
+a hovered mark shows its value colour in the focus colour; above 1,500
+elements only the elements inside the viewport are drawn. Marks that are
+not drawn on the map (map-level chips) are neither in `bounds` nor in the
+hit index. `SceneGroup.tint` and `SceneNode.hatched` still describe the
+group's tint and the node's hatching, but the group and node routines no
+longer paint them: the tint and hatch marks do, once each. `CanvasRenderer` owns the
 viewport (zoom clamped to `minZoom` … `maxZoom`), draws on animation
 frames and follows the device pixel ratio. `toPNG` uses the same figure
 presets, title, context line and legend as `toSVG` and reads the same
@@ -857,10 +863,25 @@ export interface FlowSceneOptions { overlays?: Overlay[]; style?: StyleSpec; loc
   moved?: Readonly<Record<string, XY>>; activityLabels?: ActivityLabelOptions; selfLoops?: boolean; lod?: Partial<LodRules>; lodBySize?: boolean;
   overlayGeometry?: OverlayGeometryOptions }
 export interface FlowScene { graph; positions; bands: LaneBand[]; activityLabels?; locale; style; scales: Scales;
-  overlays: Overlay[]; lod: LodRules; geometry: OverlayGeometry; bounds: Box }
+  overlays: Overlay[]; lod: LodRules; geometry: OverlayGeometry; marks: OverlayMark[]; bounds: Box }
 export function buildScene(g: FlowGraph, p: Positions, o?: FlowSceneOptions): FlowScene;
 export function followsSelfLoops(g: FlowGraph, o?: { locale?: Locale; observed?: { caseLabel?: string } }): Overlay[];
 export function withFollowsSelfLoops(g: FlowGraph, overlays: Overlay[], o?: { locale?; observed? }): Overlay[];
+
+export type MarkPaint = "ink" | "paper" | "outOfScope" | "value" | "onValue";
+export interface MarkFill { paint: MarkPaint; pattern?: "outOfScope"; opacity?: number }
+export interface MarkStroke { paint: MarkPaint; width: number; opacity?: number; dash?: number[] }
+export interface MarkText { text: string; x: number; y: number; size: number; weight?: number; anchor: "start" | "middle";
+  baseline: "middle" | "alphabetic"; paint: MarkPaint; halo: boolean; maxWidth?: number }
+export interface OverlayMark { id: string; kind: OverlayKind; overlay: Overlay; box: Box; layer: "below" | "above"; inMap: boolean;
+  minZoom: number; color: string; onColor: string; title: string; radius: number; path?: string; fill?: MarkFill;
+  stroke?: MarkStroke; arrow?: { size: number }; texts: MarkText[]; edgeId?: string }
+export function overlayMarks(shapes: OverlayShape[], locale?: Locale): OverlayMark[];
+export function overlayColor(o: Overlay): string;           // value on the sequential palette, neutral without one
+export function tintColor(o: Overlay): string | undefined;  // the same colour at TINT_OPACITY, as CSS rgba()
+export function arcWidth(o: Overlay): number;               // 2 + 8 × coverage (default 1)
+export const TINT_OPACITY: number;                          // 0.18
+export const overlayArrow: { size: number };                // 12
 ```
 
 `buildScene` resolves a graph and its positions once into what a renderer
@@ -878,6 +899,23 @@ them with the number of nodes as a live map does, exports leave it off.
 `moved` places nodes at absolute points after the lane bands are cut (the
 bands stay where the lanes put them) and routes the edges again with
 `repositionNodes`; the overlay geometry follows the moved boxes.
+
+`marks` holds one `OverlayMark` per shape of the geometry, in the same
+order, with everything needed to draw it: a rounded box (`box`, `radius`)
+or a `path`, fill, stroke with width, opacity and dash, an arrowhead, the
+texts with position, size, weight, anchor, baseline and halo, the layer
+(tints below the edges, everything else above the nodes), the zoom from
+which the mark is drawn (`minZoom`; observed self-loops at every zoom) and
+whether it is drawn on the map at all (`inMap`: map-level chips are listed
+with the legend instead). Colours are roles: `value` is the mark's `color`
+(`overlayColor`), `onValue` the text colour on it, and `ink`, `paper` and
+`outOfScope` are tokens the renderer resolves, so a themed Canvas keeps its
+colours. `toSVG` and the Canvas drawing map these primitives to their output
+and decide nothing by overlay kind. The rules behind the marks exist once:
+`overlayColor`, `tintColor`, `arcWidth` and `overlayArrow` (a triangle 12
+long and 12 wide whose tip reaches 1.2 beyond the end of the path, the live
+map's arrowhead), and the kind order in `canonicalOverlays`. `bounds` covers
+the positions and the marks drawn on the map; map-level chips do not count.
 
 `<ProcessMap/>` reads the same scene: one scene per graph, positions and
 options gives its bands, scales, overlays, level-of-detail rules and overlay
