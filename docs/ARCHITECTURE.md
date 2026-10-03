@@ -102,8 +102,11 @@ and overlay glyphs, deterministic output. `toPNG` (in `canvas/`) draws the
 same scene, presets and legend into a bitmap.
 
 ## 3. React renderer
-Thin mapping to React Flow nodes and edges with custom components per node
-and edge kind; groups as parent nodes; badges, hatching, chips and tints
+`ProcessMap` reads the core scene (`buildScene`) through one hook: positions
+restricted to the shown graph, lanes, manual moves, overlays, scales,
+level-of-detail rules and geometry; in Canvas mode the same scene becomes the
+Canvas map's retained geometry. Thin mapping to React Flow nodes and edges
+with custom components per node and edge kind; groups as parent nodes; badges, hatching, chips and tints
 inside the node components, arcs and self-loops in an SVG layer in the
 viewport; edge labels and node details toggled through level-of-detail
 classes on the container. Abstraction controls (activities, paths, stage

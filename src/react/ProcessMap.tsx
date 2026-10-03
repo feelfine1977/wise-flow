@@ -31,12 +31,8 @@ import {
   RECONNECTED_TAG,
   activityNodeSize,
   activityReferences,
-  withObservedSelfLoops,
-  followsSelfLoops,
   addClause,
   asFilter,
-  buildScales,
-  canonicalOverlays,
   clearLayoutCache,
   coversGraph,
   defaultActions,
@@ -45,23 +41,19 @@ import {
   describeClause,
   describeOverlay,
   describeSelection,
-  filterPositions,
   focusHighlight,
   formatCompact,
   hasTag,
-  laneBands,
   lodAt,
-  lodForSize,
   menuTargetFor,
   menuTitle,
   metric,
-  overlayGeometry,
   relatedToSelection,
-  repositionNodes,
   selectElement,
   t,
 } from "../core/index.js";
-import { type DrawState, type PreparedScene, prepareScene } from "../canvas/index.js";
+import type { DrawState, PreparedScene } from "../canvas/index.js";
+import { retainScene } from "../canvas/scene.js";
 import { ActivityTooltip } from "./ActivityTooltip.js";
 import { AbstractionControls } from "./AbstractionControls.js";
 import { CanvasMap, type CanvasMapHandle } from "./CanvasMap.js";
@@ -69,7 +61,7 @@ import { ContextMenu } from "./ContextMenu.js";
 import { describeEdge, describeGroup, describeMap, describeNode } from "./describe.js";
 import { edgeTypes } from "./edges.js";
 import { FilterChips } from "./FilterChips.js";
-import { useFlowGraph, usePrefersReducedMotion, useStableLayout } from "./hooks.js";
+import { useFlowGraph, useMapScene, usePrefersReducedMotion, useStableLayout } from "./hooks.js";
 import { Legend } from "./Legend.js";
 import { Chip, nodeTypes, tintFor } from "./nodes.js";
 import { OverlayLayer } from "./OverlayLayer.js";
@@ -79,6 +71,8 @@ import { type ProcessMapProps, type Selection, type WfEdge, type WfGroupNode, ty
 
 const GROUP_PREFIX = "group:";
 const DEFAULT_CANVAS_THRESHOLD = 2000;
+
+const NO_MOVES: Readonly<Record<string, XY>> = {};
 
 const layoutInstances = new WeakMap<object, number>();
 let nextLayoutInstance = 0;
@@ -197,14 +191,12 @@ function ProcessMapInner(props: ProcessMapProps) {
     // Automatic entries belong to this map; caller-supplied keys remain caller-owned.
     if (automaticCacheKey !== undefined) return () => clearLayoutCache(automaticCacheKey);
   }, [automaticCacheKey]);
-  const laid = useMemo(() => {
-    const source = needsOwnLayout ? own.positions : givenPositions;
-    if (!source) return undefined;
-    return laneBands(shown, filterPositions(source, shown), { lanes });
-  }, [needsOwnLayout, own.positions, givenPositions, shown, lanes]);
   const [manual, setManual] = useState<{ key: ProcessMapProps["layoutResetKey"]; points: Record<string, XY> }>({ key: layoutResetKey, points: {} });
-  const positions = useMemo(() => laid?.positions && repositionNodes(shown, laid.positions,
-    manual.key === layoutResetKey ? manual.points : {}), [shown, laid, manual, layoutResetKey]);
+  // Graph overlays and the given ones; the scene keeps those it can place and adds the follows self-loops.
+  const sceneOverlays = useMemo(() => (extraOverlays ? [...(shown.overlays ?? []), ...extraOverlays] : undefined), [shown, extraOverlays]);
+  const { scene, positions, laidPositions } = useMapScene(shown, needsOwnLayout ? own.positions : givenPositions, manual.key === layoutResetKey ? manual.points : NO_MOVES, {
+    overlays: sceneOverlays, style, locale, lanes, activityLabels, selfLoops, lod: props.lod,
+  });
   const onNodesChange = useCallback<OnNodesChange<WfNode | WfGroupNode>>((changes) => {
     if (!nodesDraggable || !positions) return;
     const points: Record<string, XY> = {};
@@ -219,19 +211,8 @@ function ProcessMapInner(props: ProcessMapProps) {
     if (onNodeMove) for (const [id, point] of Object.entries(points)) onNodeMove(id, point);
     else setManual((previous) => ({ key: layoutResetKey, points: { ...(previous.key === layoutResetKey ? previous.points : {}), ...points } }));
   }, [nodesDraggable, onNodeMove, layoutResetKey, positions, shown]);
-  const bands = useMemo(() => new Map((laid?.bands ?? []).map((b) => [b.id, b])), [laid]);
-
-  const scales = useMemo(() => buildScales(shown, style), [shown, style]);
-  const overlays = useMemo(() => {
-    const known = new Set([...shown.nodes.map((n) => n.id), ...(shown.groups ?? []).map((g) => g.id), MAP_TARGET]);
-    const list = [...(shown.overlays ?? []), ...(extraOverlays ?? [])].filter(
-      (o) => known.has(o.target) || (o.kind === "arc" && known.has(String(o.payload?.source)) && known.has(String(o.payload?.target))),
-    );
-    return canonicalOverlays(selfLoops ? activityLabels ? withObservedSelfLoops(shown, list, locale, activityLabels.caseLabel) : [...list, ...followsSelfLoops(shown)] : list);
-  }, [shown, extraOverlays, selfLoops, activityLabels, locale]);
-
-  const lodRules = useMemo(() => lodForSize(shown.nodes.length, { ...(style.lod ?? {}), ...(props.lod ?? {}) }), [shown.nodes.length, style.lod, props.lod]);
-  const geometry = useMemo(() => (positions ? overlayGeometry(overlays, positions, { lod: lodRules }) : undefined), [overlays, positions, lodRules]);
+  const bands = useMemo(() => new Map(scene.bands.map((b) => [b.id, b])), [scene.bands]);
+  const { scales, overlays, geometry } = scene;
 
   // Selection, hover, keyboard focus, paths focus
   const [innerSelection, setInnerSelection] = useState<Selection>(emptySelection);
@@ -287,7 +268,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   const { zoom: rfZoom, x: rfX, y: rfY } = useViewport();
   const [canvasViewport, setCanvasViewport] = useState({ x: 0, y: 0, zoom: 1 });
   const zoom = useCanvas ? canvasViewport.zoom : rfZoom;
-  const lod = lodAt(zoom, lodRules);
+  const lod = lodAt(zoom, scene.lod);
   const bodyRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<CanvasMapHandle>(null);
@@ -591,10 +572,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   }, [positions, useCanvas, shown, scales, selection, hovered, focused, locale, bright]);
 
   // Canvas scene and its callbacks
-  const canvasScene = useMemo<PreparedScene | undefined>(() => {
-    if (!useCanvas || !positions) return undefined;
-    return prepareScene(shown, positions, { style, overlays, selfLoops: false, lod: props.lod, locale, bands: laid?.bands ?? [], activityLabels });
-  }, [useCanvas, positions, shown, style, overlays, props.lod, locale, laid, activityLabels]);
+  const canvasScene = useMemo<PreparedScene | undefined>(() => (useCanvas && positions ? retainScene(scene) : undefined), [useCanvas, positions, scene]);
   const canvasState = useMemo<DrawState>(() => ({ selection, hovered, focused, bright }), [selection, hovered, focused, bright]);
   const canvasDescendants = useMemo(() => {
     if (!useCanvas) return undefined;
@@ -667,7 +645,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   // once more after React Flow has measured them (a fit before measurement is a no-op).
   const nodesInitialized = useNodesInitialized();
   const showPaths = pathList && !!focus && focusValid && view === "map";
-  const fitPositions = laid?.positions;
+  const fitPositions = laidPositions;
   const fitKey = fitPositions ? `${fitPositions.engine}:${Object.keys(fitPositions.nodes).length}:${Math.round(fitPositions.bounds.width)}:${Math.round(fitPositions.bounds.height)}:${lanes}:${showPaths ? "side" : "full"}` : "";
   useEffect(() => {
     if (!fitView || !positions || useCanvas) return;
@@ -992,7 +970,7 @@ function ProcessMapInner(props: ProcessMapProps) {
                 <Background gap={24} size={1} />
                 <Controls showInteractive={false} />
                 {minimap ? <MiniMap pannable zoomable nodeStrokeWidth={2} /> : null}
-                {geometry ? (
+                {positions ? (
                   <OverlayLayer
                     shapes={geometry.shapes}
                     locale={locale}

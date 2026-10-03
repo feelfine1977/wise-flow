@@ -17,11 +17,13 @@ import {
   type FlowGraph,
   type FlowGroup,
   type FlowNode,
+  type FlowScene,
   type LaneBand,
   type LaneMode,
   type Locale,
   type LodRules,
   type Overlay,
+  type OverlayGeometry,
   type OverlayGeometryOptions,
   type OverlayShape,
   type PatternId,
@@ -160,12 +162,19 @@ export function prepareScene(graph: FlowGraph, givenPositions: Positions, option
   const overlays = canonicalOverlays(options.selfLoops === false ? raw : options.activityLabels ? withObservedSelfLoops(graph, raw, locale, options.activityLabels.caseLabel) : [...raw, ...selfLoopOverlays(graph, locale)]);
   const lod = lodForSize(graph.nodes.length, { ...(style.lod ?? {}), ...(options.lod ?? {}) });
   const geometry = overlayGeometry(overlays, positions, { ...(options.overlayGeometry ?? {}), lod });
+  return retainScene({ graph, positions, bands: options.bands ?? laid.bands, activityLabels: options.activityLabels, locale, scales, overlays, lod, geometry });
+}
+
+type SceneParts = Pick<FlowScene, "graph" | "positions" | "bands" | "activityLabels" | "locale" | "scales" | "overlays" | "lod"> & { geometry: OverlayGeometry };
+
+/** Retained geometry for a scene the core has built (`buildScene`) or its parts. */
+export function retainScene({ graph, positions, bands, activityLabels, locale, scales, overlays, lod, geometry }: SceneParts): PreparedScene {
   const shapesByTarget = new Map<string, OverlayShape[]>();
   for (const s of geometry.shapes) {
     if (!shapesByTarget.has(s.overlay.target)) shapesByTarget.set(s.overlay.target, []);
     shapesByTarget.get(s.overlay.target)!.push(s);
   }
-  const bandIndex = new Map((options.bands ?? laid.bands).map((b) => [b.id, b]));
+  const bandIndex = new Map(bands.map((b) => [b.id, b]));
 
   const groups: SceneGroup[] = [];
   for (const g of graph.groups ?? []) {
@@ -189,9 +198,9 @@ export function prepareScene(graph: FlowGraph, givenPositions: Positions, option
       box,
       color: scales.nodeColor(n),
       pattern: scales.nodePattern(n),
-      label: n.kind === "activity" && options.activityLabels ? activityLabel(n, options.activityLabels) : n.label,
-      activityLines: n.kind === "activity" && options.activityLabels ? activityLabelLines(n, options.activityLabels, box.width, locale) : undefined,
-      meta: n.kind === "activity" && options.activityLabels ? options.activityLabels.showCounts === false ? undefined : activityNodeCounts(n, options.activityLabels, locale) : meta,
+      label: n.kind === "activity" && activityLabels ? activityLabel(n, activityLabels) : n.label,
+      activityLines: n.kind === "activity" && activityLabels ? activityLabelLines(n, activityLabels, box.width, locale) : undefined,
+      meta: n.kind === "activity" && activityLabels ? activityLabels.showCounts === false ? undefined : activityNodeCounts(n, activityLabels, locale) : meta,
       hatched: shapes.some((s) => s.kind === "hatch"),
       reconnected: hasTag(n, RECONNECTED_TAG),
       badges: shapes.filter((s) => s.kind === "badge"),
@@ -223,7 +232,7 @@ export function prepareScene(graph: FlowGraph, givenPositions: Positions, option
   const routed: Positions = { ...positions, edges: Object.fromEntries(edges.map((e) => [e.edge.id, { points: e.points }])) };
   const hit = HitIndex.fromScene(routed, geometry);
   return {
-    activityLabels: options.activityLabels,
+    activityLabels,
     graph,
     positions,
     scales,
@@ -232,7 +241,7 @@ export function prepareScene(graph: FlowGraph, givenPositions: Positions, option
     nodes,
     edges,
     groups,
-    bands: options.bands ?? laid.bands,
+    bands,
     bounds: sceneBounds(positions.bounds, geometry.shapes.length ? geometry.bounds : undefined),
     hit,
     lod,
