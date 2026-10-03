@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import { type Box, type HitItem, type Locale, type XY, t } from "../core/index.js";
-import { CanvasRenderer, type DrawState, type PreparedScene, readTokens } from "../canvas/index.js";
+import { type CanvasTokens, CanvasRenderer, type DrawState, type PreparedScene, readTokens } from "../canvas/index.js";
 
 export interface CanvasMapProps {
   scene: PreparedScene | undefined;
@@ -69,7 +69,19 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
     resize();
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(resize) : undefined;
     ro?.observe(host);
+    // Follow the theme: its CSS variables change with the attributes of the host or an
+    // ancestor (a theme class or `data-theme`) or with the system's colour scheme.
+    const retheme = () => {
+      const next = readTokens(host);
+      if ((Object.keys(next) as (keyof CanvasTokens)[]).some((k) => next[k] !== renderer.tokens[k])) renderer.setTokens(next);
+    };
+    const mo = typeof MutationObserver !== "undefined" ? new MutationObserver(retheme) : undefined;
+    for (let el: Element | null = host; el; el = el.parentElement) mo?.observe(el, { attributes: true, attributeFilter: ["class", "style", "data-theme"] });
+    const scheme = typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia("(prefers-color-scheme: dark)") : undefined;
+    scheme?.addEventListener?.("change", retheme);
     return () => {
+      mo?.disconnect();
+      scheme?.removeEventListener?.("change", retheme);
       ro?.disconnect();
       renderer.dispose();
       rendererRef.current = null;
