@@ -1,7 +1,9 @@
 /*
- * Design tokens of @wise/flow. The workbench ships its own tokens package;
- * until then this file carries the same variable names so that the renderers
- * pick up the application theme when it is present. Light and dark schemes.
+ * Design tokens of @wise/flow as CSS variables. The values come from the
+ * token table of the core (`src/core/tokens.ts`, `tokenVariables`); a tooling
+ * test fails when this file and the table differ. The workbench ships its own
+ * tokens package; an application theme that sets these variables is picked up
+ * by the stylesheet and by the Canvas map. Light and dark schemes.
  */
 :root {
   --wf-font: Inter, "Segoe UI", Helvetica, Arial, sans-serif;
@@ -13,44 +15,31 @@
   --wf-line: #cfd4dc;
   --wf-line-strong: #8c94a1;
   --wf-focus: #0072b2;
+  --wf-on-focus: #ffffff;
   --wf-selection: rgba(0, 114, 178, 0.14);
   --wf-hover: rgba(0, 0, 0, 0.05);
   --wf-neutral: #8c8c8c;
   --wf-out-of-scope: #b0b0b0;
 
-  /* Fixed colours: hotspot types and gate states (Okabe–Ito). */
-  --wf-severity: #d55e00;
-  --wf-mechanism: #0072b2;
-  --wf-reservoir: #009e73;
-  --wf-pass: #009e73;
+  /* Gate states (Okabe–Ito). */
   --wf-warn: #e69f00;
   --wf-fail: #d55e00;
-
-  /* Categorical palette (Okabe–Ito), used with pattern twins. */
-  --wf-cat-0: #0072b2;
-  --wf-cat-1: #e69f00;
-  --wf-cat-2: #009e73;
-  --wf-cat-3: #cc79a7;
-  --wf-cat-4: #56b4e9;
-  --wf-cat-5: #d55e00;
-  --wf-cat-6: #f0e442;
-  --wf-cat-7: #999999;
-
-  /* Sequential (single-hue orange) and diverging (purple–orange) stops. */
-  --wf-seq-0: #fff5eb;
-  --wf-seq-1: #fdd0a2;
-  --wf-seq-2: #fd8d3c;
-  --wf-seq-3: #d94801;
-  --wf-seq-4: #7f2704;
-  --wf-div-neg: #542788;
-  --wf-div-mid: #f7f7f7;
-  --wf-div-pos: #b35806;
 
   --wf-radius: 6px;
   --wf-radius-lg: 10px;
   --wf-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+
+  /* Default node boxes, in layout units; the layout reserves the same sizes. */
   --wf-node-width: 180px;
   --wf-node-height: 48px;
+  --wf-stage-width: 200px;
+  --wf-stage-height: 56px;
+  --wf-gateway-width: 44px;
+  --wf-gateway-height: 44px;
+  --wf-event-width: 36px;
+  --wf-event-height: 36px;
+  --wf-note-width: 160px;
+  --wf-note-height: 60px;
 }
 
 @media (prefers-color-scheme: dark) {
