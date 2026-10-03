@@ -104,7 +104,8 @@ describe("toSVG overlay marks", () => {
   const arrow = 'marker-end="url(#wf-overlay-arrow)"';
 
   it("maps every mark to SVG primitives", () => {
-    expect(svg).toContain('<marker id="wf-overlay-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="12" markerHeight="12" orient="auto-start-reverse" markerUnits="userSpaceOnUse">');
+    // The overlay arrowhead in user units: 12 long and wide, its tip 1.2 beyond the path's end.
+    expect(svg).toContain('<marker id="wf-overlay-arrow" viewBox="-10.8 -6 12 12" refX="0" refY="0" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M1.2 0L-10.8 6L-10.8 -6Z" fill="context-stroke"/></marker>');
     expect(marks).toEqual([
       '<g class="wf-overlay wf-tint"><title>Balance — 50 % above</title><rect x="190" y="-10" width="320" height="60" rx="10" fill="#fd8d3c" fill-opacity="0.18" stroke="none"/></g>',
       '<g class="wf-overlay wf-hatch"><title>Scope — Out of scope</title><rect x="0" y="0" width="100" height="40" rx="6" fill="url(#wf-pattern-outofscope)" fill-opacity="0.55" stroke="none"/></g>',

@@ -50,15 +50,22 @@ const observed: Variant = {
  * sample, the gradient and its right label moved 16 left and long key and chip
  * rows keep fewer characters; only the overlay kinds present are listed; and
  * reverse-order arcs show "⌒┄" as on the map (it was "⌒ ┄").
+ * Recorded once more when `toSVG` began to read the token table; compared
+ * element by element, only the definitions changed and everything after
+ * `</defs>` is the same: pattern twins in 6-unit tiles (stroke 1 at 0.6, a dot
+ * of radius 1 at 0.7) where they were 8 units (stroke 1.2 at 0.55, a dot of
+ * 1.3 at 0.6), the edge marker the live map's arrow (3 long, 4.8 wide, outlined
+ * by 0.6, in user units) where it was 7 stroke widths, and the overlay marker
+ * written in user units with the same triangle.
  */
 const before: Record<string, string> = {
-  overlays: "f41d8fb26faa9c6e8424c80cb8aacbf50474fd856185abbb5fd8855d6740886a",
-  stagesGerman: "d562ac25563ef8f35493e3222044a66087dfe599d7733fa619ff63042ac7ccfb",
-  vendor: "416f4e149b2bb6291c6d63e69d20d97b563686fc07b1cfe6621d2168aefefd59",
-  unfiltered: "88afc85971bb84e2531384a5a58422c0d5ee3feba4e31772d1065200a4e9825e",
-  plain: "52b8c3ebc251bee91a98203dd9e61df954d6de63b07e080a8e1ab86cae62e4ef",
+  overlays: "c46fef64e826278b6ea176b79666380fdf472e921eb9d5bec835682919afbfa6",
+  stagesGerman: "c6712a3e23ef00b92abe11fd40417f4e081951293e884b8db931c1a25792fda9",
+  vendor: "f0384d4f3635183cbc26e32c8db90c46525f21da0eb6e415d6a2c4d88fe5e438",
+  unfiltered: "216380aa82161026a9da4f44ebea07c58394d620a5a17297005d67fa2c38986e",
+  plain: "db64726176b89df026082bcc92fdeff7598af00d8b0effd952344530a25931b0",
 };
-const beforeObserved = "f68cab0c7e2337104e7ba9a1ea4d5deac718a4a02e9dcc18ded12c4318df051d";
+const beforeObserved = "cdf9a074e4d65b386638ef09ea904f33695a361b6463cd8e9f64c92f0cf1e054";
 
 describe("toSVG on the committed fixtures", () => {
   it("matches the recorded output once follows self-loops are hidden", () => {

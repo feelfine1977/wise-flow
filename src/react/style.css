@@ -69,6 +69,8 @@
   box-shadow: var(--wf-shadow);
 }
 .wf-node--stage {
+  width: var(--wf-stage-width);
+  height: var(--wf-stage-height);
   border-width: 3px;
   font-weight: 600;
 }
@@ -121,8 +123,8 @@
   background-image: var(--wf-tint);
 }
 .wf-node--event {
-  width: 36px;
-  height: 36px;
+  width: var(--wf-event-width);
+  height: var(--wf-event-height);
   border-radius: 50%;
   padding: 0;
   justify-content: center;
@@ -133,8 +135,8 @@
   border-width: 3px;
 }
 .wf-node--gateway {
-  width: 44px;
-  height: 44px;
+  width: var(--wf-gateway-width);
+  height: var(--wf-gateway-height);
   padding: 0;
   justify-content: center;
   border-color: var(--wf-ink);
@@ -146,8 +148,8 @@
   font-weight: 700;
 }
 .wf-node--note {
-  width: 160px;
-  height: 60px;
+  width: var(--wf-note-width);
+  height: var(--wf-note-height);
   background: var(--wf-surface);
   border-style: dotted;
   font-size: 11px;
@@ -309,7 +311,7 @@
 }
 .wf-button[aria-pressed="true"] {
   background: var(--wf-focus);
-  color: #fff;
+  color: var(--wf-on-focus);
   border-color: var(--wf-focus);
 }
 .wf-button:focus-visible {
@@ -574,7 +576,7 @@
 }
 .wf-views__tabs .wf-button[aria-selected="true"] {
   background: var(--wf-focus);
-  color: #fff;
+  color: var(--wf-on-focus);
   border-color: var(--wf-focus);
 }
 .wf-views__mode {

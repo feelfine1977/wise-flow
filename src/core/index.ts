@@ -3,6 +3,7 @@ export * from "./aggregate.js";
 export * from "./layout.js";
 export { repositionNodes, routeSequenceFlows } from "./routing.js";
 export * from "./style.js";
+export * from "./tokens.js";
 export * from "./overlays.js";
 export * from "./hit.js";
 export * from "./export.js";

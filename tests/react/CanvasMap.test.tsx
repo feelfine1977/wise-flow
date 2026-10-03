@@ -11,7 +11,7 @@ afterEach(() => {
 
 /** A 2D context that records the texts of the last frame with the font they were drawn in. */
 function textRecorder() {
-  let texts: { text: string; font: string; align: string }[] = [];
+  let texts: { text: string; font: string; align: string; fill: string }[] = [];
   const noop = () => {};
   const ctx = {
     fillStyle: "", strokeStyle: "", lineWidth: 1, font: "", globalAlpha: 1, textAlign: "left", textBaseline: "alphabetic", lineJoin: "miter", lineCap: "butt",
@@ -23,7 +23,7 @@ function textRecorder() {
       texts = [];
     },
     fillText(text: string) {
-      texts.push({ text, font: ctx.font, align: ctx.textAlign });
+      texts.push({ text, font: ctx.font, align: ctx.textAlign, fill: ctx.fillStyle });
     },
     measureText: (text: string) => ({ width: text.length * 6 }),
   };
@@ -51,5 +51,65 @@ describe("ProcessMap with the Canvas renderer", () => {
     const badges = () => recorder.frame().filter((t) => t.font.startsWith("700 10px") && t.align === "center").map((t) => t.text).sort();
     await waitFor(() => expect(badges().length).toBeGreaterThan(0));
     expect(badges()).toEqual(expected);
+  });
+});
+
+describe("the live Canvas map and the theme", () => {
+  // jsdom resolves custom properties only on the element a rule matches, so the theme rules name the map's host.
+  const theme = document.createElement("style");
+  theme.textContent = [
+    '.wf-canvas-map { --wf-ink: #1f1f1f; --wf-paper: #ffffff; }',
+    ':root[data-theme="dark"] .wf-canvas-map { --wf-ink: #ececec; --wf-paper: #16181d; }',
+  ].join("\n");
+
+  afterEach(() => {
+    theme.remove();
+    delete document.documentElement.dataset.theme;
+  });
+
+  async function mount() {
+    document.head.appendChild(theme);
+    const positions = await layout(vendor, { engine: "dagre" });
+    const recorder = textRecorder();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => recorder.ctx as unknown as CanvasRenderingContext2D);
+    const view = render(
+      <div style={{ width: 1200, height: 800 }}>
+        <ProcessMap graph={vendor} positions={positions} renderer="canvas" controls={false} legend={false} />
+      </div>,
+    );
+    const host = () => view.container.querySelector(".wf-canvas-map") as HTMLElement;
+    // Node labels are drawn in the ink paint.
+    const labels = () => recorder.frame().filter((t) => t.text === "Record Goods Receipt").map((t) => t.fill);
+    await waitFor(() => expect(labels()).toEqual(["#1f1f1f"]));
+    return { host, labels, view };
+  }
+
+  it("redraws in the new ink when the document switches its theme attribute", async () => {
+    const { labels } = await mount();
+    document.documentElement.dataset.theme = "dark";
+    await waitFor(() => expect(labels()).toEqual(["#ececec"]));
+    delete document.documentElement.dataset.theme;
+    await waitFor(() => expect(labels()).toEqual(["#1f1f1f"]));
+  });
+
+  it("redraws when the colour scheme of the system changes", async () => {
+    const listeners: (() => void)[] = [];
+    vi.spyOn(window, "matchMedia").mockImplementation((query: string) => ({
+      matches: false, media: query, onchange: null,
+      addEventListener: (_: string, l: () => void) => query.includes("color-scheme") && listeners.push(l),
+      removeEventListener: (_: string, l: () => void) => listeners.includes(l) && listeners.splice(listeners.indexOf(l), 1),
+      addListener: () => {}, removeListener: () => {}, dispatchEvent: () => true,
+    }) as unknown as MediaQueryList);
+    const { labels, view } = await mount();
+    expect(listeners.length).toBe(1);
+    // A scheme change shows in the computed variables only; jsdom does not evaluate the media query, so a rule
+    // added to the theme stands in for it. No attribute changes, so only the media query's listener can redraw.
+    theme.textContent += "\n.wf-canvas-map { --wf-ink: #dddddd; }";
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(labels()).toEqual(["#1f1f1f"]);
+    listeners.forEach((l) => l());
+    await waitFor(() => expect(labels()).toEqual(["#dddddd"]));
+    view.unmount();
+    expect(listeners.length).toBe(0);
   });
 });

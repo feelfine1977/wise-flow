@@ -1,6 +1,6 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { memo } from "react";
-import { type ElementText, type LayoutDirection, type NodeMark, type Overlay, defaultNodeSize, fitText, hasTag, nodeMark } from "../core/index.js";
+import { type ElementText, type LayoutDirection, type NodeMark, type Overlay, colorTokens, defaultNodeSize, fitText, hasTag, nodeMark } from "../core/index.js";
 import { ElementMarks, MARK_IDS, MarkFigure, domMark, marksAtOrigin, svgReact } from "./marks.js";
 import { PatternSwatch } from "./patterns.js";
 import type { ActivityNodeData, WfGroupNode, WfNode } from "./types.js";
@@ -74,7 +74,7 @@ function Text({ mark, role, className, hidden }: { mark: NodeMark; role: Element
 function Band({ mark }: { mark: NodeMark }) {
   return mark.band ? (
     <span className="wf-node__band" aria-hidden="true">
-      <PatternSwatch pattern={mark.pattern} ink="#1f1f1f" />
+      <PatternSwatch pattern={mark.pattern} ink={colorTokens.ink} />
     </span>
   ) : null;
 }
@@ -115,7 +115,7 @@ const Stage = memo(function Stage({ id, data, selected }: NodeProps<WfNode>) {
     <div
       id={`wf-node-${id}`}
       className={classes(mark, data, selected)}
-      style={{ ["--wf-node-color" as string]: mark.color, ...covered(data), width: 200, height: 56 }}
+      style={{ ["--wf-node-color" as string]: mark.color, ...covered(data) }}
       title={data.description}
       data-kind="stage"
     >

@@ -5,7 +5,7 @@
  */
 import { useStore } from "@xyflow/react";
 import { createElement, type ReactNode } from "react";
-import { type MarkPaint, type MarkSvgOptions, type OverlayMark, type SvgElement, MAP_TARGET, createPositions, hexToRgb, markSvg, overlayArrow, overlayGeometry, overlayMarks } from "../core/index.js";
+import { type MarkPaint, type MarkSvgOptions, type OverlayMark, type SvgElement, MAP_TARGET, arrowMarker, createPositions, hatchSvg, hexToRgb, markArrowhead, markSvg, overlayArrow, overlayGeometry, overlayMarks } from "../core/index.js";
 import type { Overlay } from "../core/index.js";
 
 const TOKENS: Record<Exclude<MarkPaint, "value" | "onValue">, string> = {
@@ -37,22 +37,7 @@ export function domMarkOptions(ids: MarkIds, hovered = false): MarkSvgOptions {
 
 /** The marker and the pattern the marks refer to, as `toSVG` defines them. */
 export function markDefs(ids: MarkIds): SvgElement {
-  return {
-    tag: "defs",
-    attrs: [],
-    children: [
-      {
-        tag: "marker",
-        attrs: [["id", ids.arrow], ["viewBox", "0 0 10 10"], ["refX", String(10 * (1 - overlayArrow.overhang))], ["refY", "5"], ["markerWidth", String(overlayArrow.size)], ["markerHeight", String(overlayArrow.size)], ["markerUnits", "userSpaceOnUse"], ["orient", "auto-start-reverse"]],
-        children: [{ tag: "path", attrs: [["d", "M0 0L10 5L0 10z"], ["fill", "context-stroke"]], children: [] }],
-      },
-      {
-        tag: "pattern",
-        attrs: [["id", ids.pattern], ["width", "8"], ["height", "8"], ["patternUnits", "userSpaceOnUse"]],
-        children: [{ tag: "path", attrs: [["d", "M0 8L8 0"], ["stroke", TOKENS.outOfScope], ["stroke-width", "2"]], children: [] }],
-      },
-    ],
-  };
+  return { tag: "defs", attrs: [], children: [arrowMarker(ids.arrow, markArrowhead(overlayArrow)), hatchSvg(ids.pattern, TOKENS.outOfScope)] };
 }
 
 // CSS variables are not valid in presentation attributes; they go into the style.

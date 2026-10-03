@@ -3,68 +3,38 @@
  * contrast helpers and level-of-detail rules.
  */
 import { scaleLinear, scaleLog, scaleSqrt } from "d3-scale";
+import { hatchSvg, patternTwinSvg, svgMarkup } from "./mark-svg.js";
 import { type FlowEdge, type FlowGraph, type FlowNode, metric } from "./model.js";
 import type { StringKey } from "./strings.js";
+import { type PatternId, PATTERNS, colorTokens, paletteTokens } from "./tokens.js";
 
-export type PatternId =
-  | "solid"
-  | "diagonal"
-  | "dots"
-  | "crosshatch"
-  | "horizontal"
-  | "vertical"
-  | "diagonal-reverse"
-  | "grid";
+export { type PatternId, PATTERNS } from "./tokens.js";
 
-export const PATTERNS: PatternId[] = [
-  "solid",
-  "diagonal",
-  "dots",
-  "crosshatch",
-  "horizontal",
-  "vertical",
-  "diagonal-reverse",
-  "grid",
-];
-
-/**
- * Palettes. Sequential scales are single-hue and lightness-driven (safe for every
- * common colour-vision deficiency); the diverging scale is purple–orange; the
- * categorical palette is Okabe–Ito.
- */
-export const palettes = {
-  /** Light to dark orange; used for expectation shortfall shares. */
-  sequential: ["#fff5eb", "#fdd0a2", "#fd8d3c", "#d94801", "#7f2704"],
-  /** Light to dark blue; used for performance metrics. */
-  sequentialBlue: ["#f7fbff", "#c6dbef", "#6baed6", "#2171b5", "#08306b"],
-  /** Purple (negative) over neutral to orange (positive); used for deltas. */
-  diverging: ["#542788", "#998ec3", "#d8daeb", "#f7f7f7", "#fee0b6", "#f1a340", "#b35806"],
-  /** Okabe–Ito, stable by hashed key, with pattern twins. */
-  categorical: ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00", "#F0E442", "#999999"],
-} as const;
+/** The palettes of the token table (`paletteTokens`). */
+export const palettes = paletteTokens;
 
 export type PaletteName = keyof typeof palettes;
 
-/** Fixed colours for hotspot types and gate states (workbench tokens). */
+/** Fixed colours for hotspot types, gate states and the light scheme, from the token table (`colorTokens`). */
 export const fixedColors = {
-  severity: "#D55E00",
-  mechanism: "#0072B2",
-  reservoir: "#009E73",
-  pass: "#009E73",
-  warn: "#E69F00",
-  fail: "#D55E00",
-  neutral: "#8c8c8c",
-  outOfScope: "#b0b0b0",
-  ink: "#1f1f1f",
+  severity: colorTokens.severity,
+  mechanism: colorTokens.mechanism,
+  reservoir: colorTokens.reservoir,
+  pass: colorTokens.pass,
+  warn: colorTokens.warn,
+  fail: colorTokens.fail,
+  neutral: colorTokens.neutral,
+  outOfScope: colorTokens.outOfScope,
+  ink: colorTokens.ink,
   /** Secondary text such as counts. */
-  inkMuted: "#5b6270",
+  inkMuted: colorTokens.inkMuted,
   /** Ink for text on coloured fills; pure black reaches 4.5 : 1 on every mid-tone of the palettes. */
-  inkStrong: "#000000",
-  paper: "#ffffff",
+  inkStrong: colorTokens.inkStrong,
+  paper: colorTokens.paper,
   /** Hairlines and tracks (`--wf-line`). */
-  line: "#cfd4dc",
+  line: colorTokens.line,
   /** Background of notes and hovered elements. */
-  surface: "#f6f7f9",
+  surface: colorTokens.surface,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -406,43 +376,7 @@ function symmetricDomain(values: number[]): number[] {
   return [-m, 0, m];
 }
 
-/** SVG pattern definitions for the pattern twins, usable in exports and in the DOM. */
-export function patternDefs(prefix = "wf-pattern", ink = fixedColors.ink): string {
-  const size = 8;
-  const defs: string[] = [];
-  const stroke = `stroke="${ink}" stroke-width="1.2" stroke-opacity="0.55"`;
-  for (const p of PATTERNS) {
-    let body = "";
-    switch (p) {
-      case "solid":
-        body = "";
-        break;
-      case "diagonal":
-        body = `<path d="M0 ${size}L${size} 0" ${stroke}/>`;
-        break;
-      case "diagonal-reverse":
-        body = `<path d="M0 0L${size} ${size}" ${stroke}/>`;
-        break;
-      case "dots":
-        body = `<circle cx="${size / 2}" cy="${size / 2}" r="1.3" fill="${ink}" fill-opacity="0.6"/>`;
-        break;
-      case "crosshatch":
-        body = `<path d="M0 ${size}L${size} 0M0 0L${size} ${size}" ${stroke}/>`;
-        break;
-      case "horizontal":
-        body = `<path d="M0 ${size / 2}H${size}" ${stroke}/>`;
-        break;
-      case "vertical":
-        body = `<path d="M${size / 2} 0V${size}" ${stroke}/>`;
-        break;
-      case "grid":
-        body = `<path d="M0 ${size / 2}H${size}M${size / 2} 0V${size}" ${stroke}/>`;
-        break;
-    }
-    defs.push(`<pattern id="${prefix}-${p}" width="${size}" height="${size}" patternUnits="userSpaceOnUse">${body}</pattern>`);
-  }
-  defs.push(
-    `<pattern id="${prefix}-outofscope" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M0 8L8 0" stroke="${fixedColors.outOfScope}" stroke-width="2"/></pattern>`,
-  );
-  return defs.join("");
+/** SVG pattern definitions for the pattern twins and the out-of-scope hatching, usable in exports and in the DOM. */
+export function patternDefs(prefix = "wf-pattern", ink: string = fixedColors.ink): string {
+  return [...PATTERNS.map((p) => patternTwinSvg(`${prefix}-${p}`, p, ink)), hatchSvg(`${prefix}-outofscope`, fixedColors.outOfScope)].map(svgMarkup).join("");
 }

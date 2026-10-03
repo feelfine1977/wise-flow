@@ -6,6 +6,7 @@
 import type { ELK, ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api.js";
 import { Graph as DagreGraph, layout as dagreLayout } from "@dagrejs/dagre";
 import { type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, byId, indexGraph } from "./model.js";
+import { nodeSizeTokens } from "./tokens.js";
 
 export interface XY {
   x: number;
@@ -74,13 +75,8 @@ export interface LayoutOptions {
   cacheKey?: string;
 }
 
-export const DEFAULT_SIZES: Record<FlowNode["kind"], NodeSize> = {
-  activity: { width: 180, height: 48 },
-  stage: { width: 200, height: 56 },
-  gateway: { width: 44, height: 44 },
-  event: { width: 36, height: 36 },
-  note: { width: 160, height: 60 },
-};
+/** Default box of each node kind (`nodeSizeTokens`). */
+export const DEFAULT_SIZES: Record<FlowNode["kind"], NodeSize> = nodeSizeTokens;
 
 export function defaultNodeSize(node: FlowNode): NodeSize {
   return DEFAULT_SIZES[node.kind] ?? DEFAULT_SIZES.activity;

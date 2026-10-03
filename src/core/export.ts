@@ -9,11 +9,12 @@ import { type Box, type Positions } from "./layout.js";
 import { type LaneBand, type LaneMode } from "./lanes.js";
 import type { FlowGraph, Overlay } from "./model.js";
 import type { OverlayGeometryOptions } from "./overlays.js";
-import { type MarkSvgOptions, markSvg, svgMarkup } from "./mark-svg.js";
-import { type MarkPaint, type MarkText, type OverlayMark, overlayArrow } from "./overlay-marks.js";
+import { type MarkSvgOptions, arrowMarker, markSvg, svgMarkup } from "./mark-svg.js";
+import { type MarkPaint, type MarkText, type OverlayMark, markArrowhead, overlayArrow } from "./overlay-marks.js";
 import { type FlowScene, buildScene } from "./scene.js";
 import { type StyleSpec, fixedColors, lodAt, patternDefs } from "./style.js";
 import { t } from "./strings.js";
+import { arrowheadTokens, fontTokens, sizeTokens } from "./tokens.js";
 
 export interface Scene {
   activityLabels?: ActivityLabelOptions;
@@ -81,7 +82,7 @@ function drawGroups(ctx: Ctx): string {
       const edge = band.axis === "main" ? `M${num(b.x)} ${num(b.y)}H${num(b.x + b.width)}` : `M${num(b.x)} ${num(b.y)}V${num(b.y + b.height)}`;
       out.push(`<path d="${edge}" stroke="${c.color}" stroke-width="3" fill="none"/>`);
     } else {
-      out.push(rect(b, `rx="10" fill="${c.color}" fill-opacity="0.06" stroke="${c.color}" stroke-opacity="0.5" stroke-width="1.5" stroke-dasharray="6 4"`));
+      out.push(rect(b, `rx="${sizeTokens.radiusLarge}" fill="${c.color}" fill-opacity="0.06" stroke="${c.color}" stroke-opacity="0.5" stroke-width="1.5" stroke-dasharray="6 4"`));
     }
     out.push(text(b.x + 12, b.y + 22, g.label, `font-size="14" font-weight="600" fill="${fixedColors.ink}"`));
     out.push(`</g>`);
@@ -221,7 +222,7 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
     overlayGeometry: options.overlayGeometry,
   });
   const { locale } = scene;
-  const font = options.fontFamily ?? "Inter, 'Segoe UI', Helvetica, Arial, sans-serif";
+  const font = options.fontFamily ?? fontTokens.family;
   const lodZoom = options.lodZoom ?? 1;
   const ctx: Ctx = { scene, locale, lod: lodAt(lodZoom, scene.lod), lodZoom, bands: new Map(scene.bands.map((b) => [b.id, b])) };
   const frame = figureFrame(scene, { title: !!given.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: options.width });
@@ -232,8 +233,8 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
     `<svg xmlns="http://www.w3.org/2000/svg" width="${num(outW)}" height="${num(outH)}" viewBox="0 0 ${num(totalW)} ${num(totalH)}" font-family="${esc(font)}" role="img" aria-label="${esc(given.title ?? t(locale, "map.description", { nodes: scene.graph.nodes.length, edges: scene.graph.edges.length, groups: scene.graph.groups?.length ?? 0 }))}">`,
   );
   parts.push(`<defs>${patternDefs()}`);
-  parts.push(`<marker id="wf-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="strokeWidth"><path d="M0 0L10 5L0 10z" fill="context-stroke"/></marker>`);
-  parts.push(`<marker id="wf-overlay-arrow" viewBox="0 0 10 10" refX="${10 * (1 - overlayArrow.overhang)}" refY="5" markerWidth="${overlayArrow.size}" markerHeight="${overlayArrow.size}" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0L10 5L0 10z" fill="context-stroke"/></marker>`);
+  parts.push(svgMarkup(arrowMarker("wf-arrow", arrowheadTokens.edge)));
+  parts.push(svgMarkup(arrowMarker("wf-overlay-arrow", markArrowhead(overlayArrow))));
   parts.push(`</defs>`);
   parts.push(rect({ x: 0, y: 0, width: totalW, height: totalH }, `fill="${options.background ?? fixedColors.paper}"`));
   if (given.title) {

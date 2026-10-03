@@ -77,14 +77,19 @@ function exported(fixture: Fixture, scene: Partial<Scene>, options: PngOptions):
  * Recorded once more when the Canvas legend began to draw the scene's legend;
  * compared the same way, only the glyph of reverse-order arcs changed, to "⌒┄"
  * as on the map (it was "⌒ ┄").
+ * Recorded once more when the drawing began to read the token table; compared
+ * the same way, only the edge arrowheads changed: the live map's arrow, 3 long
+ * and 4.8 wide with the tip on the route's end, filled and outlined by 0.6 in
+ * the edge's colour, where it was a triangle of 8 plus the edge width (at most
+ * 16). Overlay arrowheads and the line pattern tiles drew the same calls.
  */
 const before = {
-  mapGlobalStages: "fbf803aaab1c0c73812429823590f90f29658ee0f5032ebd6681e3cd18eb83c9",
-  mapVendorIds: "6d9b374c7ec86de176161d0570da339e2e4628a5a93cca6d2123cbcaccd1c131",
-  mapUnfiltered: "7cc3012b981f8ff556693c675b9396ba3dcaae3b22b9004c89cb48814f88744a",
-  pngGlobalTitle: "b8bb9c05e3a328549e198cf9fbd726b2c8fcb105247e5fe0edc31976c7350d43",
-  pngVendorIds: "259a910692e3752787e9422fd996cac7d07df68e8903ed6efb5caf4c6231e117",
-  pngUnfilteredGerman: "ff3b09e2e4eae2fc832deac5915d8755886e08b8f16dae3593a895f04772de29",
+  mapGlobalStages: "f953fc4eeff602da978642d01289b97e1c7596aad8db987bd5e83b6c8ed8962e",
+  mapVendorIds: "4457b26e673fbcbfe6b7db6febfbb12c2fe5e744e2b7caf7222635f93b6389d2",
+  mapUnfiltered: "e6fd89e29a997013e2b62d46d41e4d73b9c01b22e357b9fa5a49196d5af41c19",
+  pngGlobalTitle: "a804ab69ebae791d19aef56a8f8888b046447af403b874b96324bc39aee6df67",
+  pngVendorIds: "12e3741749edf5c1525023b6e3336bf81cfba61e48a7d5ff67bc73b39f66a068",
+  pngUnfilteredGerman: "a128bd5ac5e03630189b933c3b6fa84630e28f7d4b6ba8e61324def43c445918",
 };
 
 describe("Canvas drawing on the committed fixtures", () => {

@@ -10,6 +10,7 @@ import { type EdgeKind, type FlowEdge, type FlowGraph, type FlowNode, type NodeK
 import { RECONNECTED_TAG } from "./aggregate.js";
 import type { MarkPaint, MarkText } from "./overlay-marks.js";
 import { type PatternId, type Scales, fixedColors } from "./style.js";
+import { sizeTokens, textSizeTokens } from "./tokens.js";
 
 /** Width of a text in a font, in the units it is drawn in. */
 export type TextMeasure = (text: string, font: { size: number; weight?: number }) => number;
@@ -173,7 +174,7 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
     node,
     box,
     shape: "box",
-    radius: 6,
+    radius: sizeTokens.radius,
     color: options.color,
     pattern: options.pattern,
     fill: "paper",
@@ -188,16 +189,16 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
         shape: "circle",
         radius: Math.min(box.width, box.height) / 2,
         stroke: { ...mark.stroke, width: hasTag(node, "end") ? 3 : 1.5 },
-        texts: [ink(node.label, cx, cy, 9, { role: "label", anchor: "middle", maxWidth: box.width - 4, lod: "labels" })],
+        texts: [ink(node.label, cx, cy, textSizeTokens.small, { role: "label", anchor: "middle", maxWidth: box.width - 4, lod: "labels" })],
       };
     case "gateway":
-      return { ...mark, shape: "diamond", radius: 0, texts: [ink(gatewayGlyph(node), cx, cy + 1, 14, { role: "glyph", weight: 700, anchor: "middle" })] };
+      return { ...mark, shape: "diamond", radius: 0, texts: [ink(gatewayGlyph(node), cx, cy + 1, textSizeTokens.glyph, { role: "glyph", weight: 700, anchor: "middle" })] };
     case "note":
       return {
         ...mark,
         fill: "surface",
         stroke: { paint: "value", width: 2, dash: [2, 3] },
-        texts: [ink(node.label, box.x + 16, cy, 11, { role: "label", maxWidth: box.width - 24 })],
+        texts: [ink(node.label, box.x + 16, cy, textSizeTokens.note, { role: "label", maxWidth: box.width - 24 })],
       };
     default: {
       const stroke = { paint: "value" as const, width: node.kind === "stage" ? 3 : 2, ...(reconnected ? { dash: [4, 3] } : {}) };
@@ -209,11 +210,11 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
         return {
           ...mark,
           stroke,
-          band: 8,
+          band: sizeTokens.band,
           title: activityDescription(node, labels, locale),
           texts: [
-            ...lines.name.map((line, i) => left(line, 14, box.y + 24 + i * 18, "nameLine")),
-            ...counts.map((line, i) => left(line, 12, box.y + 24 + lines.name.length * 18 + i * 16, "countLine")),
+            ...lines.name.map((line, i) => left(line, textSizeTokens.nameLine, box.y + 24 + i * 18, "nameLine")),
+            ...counts.map((line, i) => left(line, textSizeTokens.countLine, box.y + 24 + lines.name.length * 18 + i * 16, "countLine")),
           ],
         };
       }
@@ -221,10 +222,10 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
       return {
         ...mark,
         stroke,
-        band: 8,
+        band: sizeTokens.band,
         texts: [
-          ink(node.label, box.x + 16, cy, 12, { role: "label", maxWidth: box.width - 24, lod: "labels", ...(node.kind === "stage" ? { weight: 600 } : {}) }),
-          ...(count ? [ink(count, box.x + box.width - 6, box.y + box.height - 5, 9, { role: "count", anchor: "end", baseline: "alphabetic", paint: "inkMuted", lod: "labels" })] : []),
+          ink(node.label, box.x + 16, cy, textSizeTokens.label, { role: "label", maxWidth: box.width - 24, lod: "labels", ...(node.kind === "stage" ? { weight: 600 } : {}) }),
+          ...(count ? [ink(count, box.x + box.width - 6, box.y + box.height - 5, textSizeTokens.small, { role: "count", anchor: "end", baseline: "alphabetic", paint: "inkMuted", lod: "labels" })] : []),
         ],
       };
     }
@@ -245,7 +246,7 @@ export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string;
     width: options.width,
     ...(reconnected ? { dash: [6, 5] } : edge.kind === "constraint" ? { dash: [2, 4] } : {}),
     texts: Number.isFinite(count)
-      ? [{ text: formatCompact(count, options.locale ?? "en"), x: at.x, y: at.y, size: 10, anchor: "middle", baseline: "alphabetic", paint: "ink", halo: true, role: "count", lod: "edgeLabels" }]
+      ? [{ text: formatCompact(count, options.locale ?? "en"), x: at.x, y: at.y, size: textSizeTokens.edgeCount, anchor: "middle", baseline: "alphabetic", paint: "ink", halo: true, role: "count", lod: "edgeLabels" }]
       : [],
     reconnected,
   };

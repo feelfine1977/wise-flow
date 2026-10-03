@@ -31,6 +31,7 @@ import {
   activityNodeSize,
   activityReferences,
   addClause,
+  arrowheadTokens,
   asFilter,
   clearLayoutCache,
   coversGraph,
@@ -567,7 +568,7 @@ function ProcessMapInner(props: ProcessMapProps) {
         target: e.target,
         selected: selection.edges.includes(e.id),
         ariaLabel: description,
-        markerEnd: { type: MarkerType.ArrowClosed, color: mark.color, width: 12, height: 12, markerUnits: "userSpaceOnUse" },
+        markerEnd: { type: MarkerType.ArrowClosed, color: mark.color, width: arrowheadTokens.edge.size, height: arrowheadTokens.edge.size, markerUnits: "userSpaceOnUse" },
         zIndex: hovered === e.id || focused === e.id ? 5 : 0,
         data: {
           edge: e,

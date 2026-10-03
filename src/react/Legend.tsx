@@ -1,4 +1,4 @@
-import { type Locale, type Overlay, type Scales, type SceneLegend, formatCompact, formatNumber, formatShare, sceneLegend, t } from "../core/index.js";
+import { type Locale, type Overlay, type Scales, type SceneLegend, colorTokens, formatCompact, formatNumber, formatShare, sceneLegend, t } from "../core/index.js";
 import { PatternSwatch } from "./patterns.js";
 
 export interface LegendProps {
@@ -37,7 +37,7 @@ export function Legend({ scales, overlays = [], locale = "en", chips, legend }: 
                 {item.entries.map((e) => (
                   <dd key={e.key} className="wf-legend__cat">
                     <span className="wf-legend__swatch" style={{ background: e.color }}>
-                      <PatternSwatch pattern={e.pattern} ink="#1f1f1f" />
+                      <PatternSwatch pattern={e.pattern} ink={colorTokens.ink} />
                     </span>
                     {e.key}
                   </dd>
