@@ -485,8 +485,10 @@ diagram or the viewport when `overlays` change; overlay targets may be
 FlowGraph ids, BPMN ids or activity ids translated through `mapping`.
 Order, level of detail and geometry come from `buildScene` over the imported
 graph and the boxes of the element registry: overlays whose target (or, for
-an arc, an endpoint) names no element of the diagram are neither drawn nor
-listed in the table, the legend or the description; the level-of-detail
+an arc, an endpoint) names no task, event, gateway, lane, pool or subprocess
+of the diagram (a sequence flow included) are neither drawn nor listed in the
+table, the legend or the description; badges of one task given under
+different ids take one slot each; the level-of-detail
 rules hide badges, chips, arcs and self-loops below their zoom thresholds,
 except observed repeats (`observed`); a self-loop without `displayLabel` or
 value draws no text. Selection reports tasks, sequence
