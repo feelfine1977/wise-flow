@@ -114,12 +114,15 @@ export function legendLayout(legend: SceneLegend): LegendLayout {
   return { items, keys, chips, height: y };
 }
 
+/** Space between the legend's rule and its rows, and after the rows. */
+const legendInset = 16;
+
 /** Fixed measurements of an exported figure. */
 export const figureMetrics = {
   padding: 24,
   /** The legend's column: a rule, the inset, the rows and the inset again. */
-  legendColumn: legendMetrics.width + 2 * 16,
-  legendInset: 16,
+  legendColumn: legendMetrics.width + 2 * legendInset,
+  legendInset,
   titleHeight: 40,
   titleBaseline: 26,
   contextHeight: 18,
