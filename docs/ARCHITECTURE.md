@@ -92,14 +92,21 @@ canonical order so that exports do not depend on input order. The scene
 carries one resolved mark per placed overlay (box or path, fill, stroke,
 dash, arrowhead, texts, layer, zoom threshold, whether it is drawn on the
 map); the SVG export and the Canvas drawing map those primitives to their
-output.
+output. Nodes and edges have marks too: a node's outline, fill,
+border, colour band and texts (label or glyph, count, activity lines) with
+the level of detail each text is drawn from, an edge's route (straight
+between the boxes where none is given), colour, dash and count label at one
+label point. Texts are shortened by one rule (`truncateText`) with a text
+measure the renderer injects; SVG, Canvas and the React Flow map draw these
+marks.
 
 ### 2.6 Hit-testing and export
 An R-tree (rbush) over nodes, groups, edge segments and overlay shapes for
 hover and click on Canvas and in exports. `buildScene` resolves graph,
 positions and options once into the scene renderers read (activity
 references, lane bands, scales, the overlays to show with the follows
-self-loops in canonical order, level-of-detail rules, overlay geometry);
+self-loops in canonical order, level-of-detail rules, overlay geometry,
+overlay, node and edge marks);
 `toSVG(scene)` draws it with figure presets
 (single column, double column, slide), an embedded legend with the scales
 and overlay glyphs, deterministic output. `toPNG` (in `canvas/`) draws the
@@ -110,7 +117,8 @@ same scene, presets and legend into a bitmap.
 restricted to the shown graph, lanes, manual moves, overlays, scales,
 level-of-detail rules and geometry; in Canvas mode the same scene becomes the
 Canvas map's retained geometry. Thin mapping to React Flow nodes and edges
-with custom components per node and edge kind; groups as parent nodes;
+with custom components per node and edge kind that draw the scene's node
+and edge marks; groups as parent nodes;
 badges, hatching, chips and tints inside the node components, arcs and
 self-loops in an SVG layer in the viewport; edge labels and node details
 toggled through level-of-detail classes on the container. Abstraction controls (activities, paths, stage
