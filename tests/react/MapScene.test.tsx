@@ -101,10 +101,11 @@ describe("React Flow and SVG", () => {
     const ids = exported.geometry.shapes.map((s) => s.id);
     expect(ids.length).toBeGreaterThan(5);
     expect(map.geometry.shapes.map((s) => s.id)).toEqual(ids);
-    // The map draws arcs and self-loops in that order; the SVG draws as many.
-    const drawn = [...container.querySelectorAll<SVGElement>(".wf-overlay-layer [data-overlay-id]")].map((g) => g.dataset.overlayId);
-    expect(drawn).toEqual(ids.filter((id) => id.startsWith("arc:") || id.startsWith("selfLoop:")));
+    // The map draws arcs and self-loops in that order, and the SVG draws the same paths in the same order.
+    const drawn = [...container.querySelectorAll<SVGElement>(".wf-overlay-layer [data-overlay-id]")];
+    expect(drawn.map((g) => g.dataset.overlayId)).toEqual(ids.filter((id) => id.startsWith("arc:") || id.startsWith("selfLoop:")));
     expect(drawn.length).toBeGreaterThan(0);
-    expect((svg.match(/class="wf-overlay wf-(arc|selfloop)"/g) ?? []).length).toBe(drawn.length);
+    const exportedPaths = [...svg.matchAll(/<g class="wf-overlay wf-(?:arc|selfloop)"[^>]*>(?:<title>.*?<\/title>)?<path d="([^"]+)"/g)].map((m) => m[1]);
+    expect(drawn.map((g) => g.querySelector("path")?.getAttribute("d"))).toEqual(exportedPaths);
   });
 });
