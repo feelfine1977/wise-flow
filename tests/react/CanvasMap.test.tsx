@@ -60,7 +60,6 @@ describe("the live Canvas map and the theme", () => {
   theme.textContent = [
     '.wf-canvas-map { --wf-ink: #1f1f1f; --wf-paper: #ffffff; }',
     ':root[data-theme="dark"] .wf-canvas-map { --wf-ink: #ececec; --wf-paper: #16181d; }',
-    '.wf-canvas-map.night { --wf-ink: #dddddd; }',
   ].join("\n");
 
   afterEach(() => {
@@ -101,10 +100,13 @@ describe("the live Canvas map and the theme", () => {
       removeEventListener: (_: string, l: () => void) => listeners.includes(l) && listeners.splice(listeners.indexOf(l), 1),
       addListener: () => {}, removeListener: () => {}, dispatchEvent: () => true,
     }) as unknown as MediaQueryList);
-    const { host, labels, view } = await mount();
+    const { labels, view } = await mount();
     expect(listeners.length).toBe(1);
-    // A scheme change shows in the computed variables only; jsdom does not evaluate the media query, so a class stands in for it.
-    host().classList.add("night");
+    // A scheme change shows in the computed variables only; jsdom does not evaluate the media query, so a rule
+    // added to the theme stands in for it. No attribute changes, so only the media query's listener can redraw.
+    theme.textContent += "\n.wf-canvas-map { --wf-ink: #dddddd; }";
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(labels()).toEqual(["#1f1f1f"]);
     listeners.forEach((l) => l());
     await waitFor(() => expect(labels()).toEqual(["#dddddd"]));
     view.unmount();
