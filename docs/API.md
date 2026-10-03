@@ -848,7 +848,7 @@ SVG and Canvas PNG exports include the canonical activity key even when the colo
 
 ```ts
 export interface FlowSceneOptions { overlays?: Overlay[]; style?: StyleSpec; locale?: Locale; lanes?: LaneMode;
-  moved?: Record<string, XY>; activityLabels?: ActivityLabelOptions; selfLoops?: boolean; lod?: Partial<LodRules>; lodBySize?: boolean;
+  moved?: Readonly<Record<string, XY>>; activityLabels?: ActivityLabelOptions; selfLoops?: boolean; lod?: Partial<LodRules>; lodBySize?: boolean;
   overlayGeometry?: OverlayGeometryOptions }
 export interface FlowScene { graph; positions; bands: LaneBand[]; activityLabels?; locale; style; scales: Scales;
   overlays: Overlay[]; lod: LodRules; geometry: OverlayGeometry; bounds: Box }
