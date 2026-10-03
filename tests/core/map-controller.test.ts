@@ -72,6 +72,8 @@ describe("map controller: keyboard routes", () => {
 
   it("moves from a path's end with an arrow key", () => {
     expect(step(state({ active: "ab" }), key("ArrowDown")).state.active).toBe("c");
+    // From B, the end of A → B, A is to the left; from A nothing is.
+    expect(step(state({ active: "ab" }), key("ArrowLeft")).state.active).toBe("a");
   });
 
   it("goes to the first and the last activity with Home and End", () => {
@@ -112,6 +114,9 @@ describe("map controller: keyboard routes", () => {
     expect(r.state).toMatchObject({ active: "b", selection: sel(["a", "b"]) });
     expect(r.intents).toEqual([{ kind: "select", selection: sel(["a", "b"]) }, { kind: "reveal", id: "b" }]);
     expect(r.announcement).toBe("Selected: A and B.");
+    // An activity that is selected already stays selected.
+    const again = step(state({ active: "a", selection: sel(["a", "b"]) }), key("ArrowRight", { shiftKey: true }));
+    expect(again.state).toMatchObject({ active: "b", selection: sel(["a", "b"]) });
   });
 
   it("toggles the activity or the path the keyboard is on with Space", () => {
@@ -192,7 +197,10 @@ describe("map controller: pointer, hover and focus", () => {
   it("puts the keyboard on an activity that receives the input focus", () => {
     expect(step(state(), { type: "focusIn", id: "c" }).state).toMatchObject({ focusWithin: true, active: "c" });
     expect(step(state({ active: "a" }), { type: "focusIn", id: "s1" }).state).toMatchObject({ focusWithin: true, active: "a" });
-    expect(step(state({ focusWithin: true }), { type: "focusOut" }).state.focusWithin).toBe(false);
+    const withEvent = { ...graph, nodes: [...graph.nodes, { id: "e", kind: "event" as const, label: "Start" }] };
+    expect(step(state({ active: "a" }), { type: "focusIn", id: "e" }, { graph: withEvent }).state.active).toBe("a");
+    // Leaving the map keeps the keyboard's element for its return.
+    expect(step(state({ focusWithin: true, active: "b" }), { type: "focusOut" }).state).toMatchObject({ focusWithin: false, active: "b" });
   });
 });
 
