@@ -76,7 +76,13 @@ diverging (purple–orange) and categorical (Okabe–Ito) palettes; categorical
 keys hash to a stable colour with a pattern twin; text on coloured fills
 uses an ink with contrast ≥ 4.5 : 1. Level-of-detail rules say from which
 zoom labels, edge labels, badges, arcs, chips, hatching and self-loops
-appear; thresholds tighten with the number of nodes.
+appear; thresholds tighten with the number of nodes. Colours, palettes, the
+font stack, default node sizes, mark sizes, the arrowhead rule and the
+pattern twins live in one token table (`tokens.ts`). The SVG export and the
+marks read it, the Canvas renderer starts from it and follows the live CSS
+variables, and `tokens.css` writes its themeable part as CSS variables,
+checked against the table by a tooling test; the stylesheet reads the node
+sizes through those variables.
 
 ### 2.5 Overlays
 An overlay is data, not drawing: `{ kind, target, payload }` where kind is

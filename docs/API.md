@@ -214,6 +214,51 @@ export function lodForSize(nodeCount: number, base?: Partial<LodRules>): LodRule
 Categorical colours are stable by hashed key and come with a pattern twin
 (`solid | diagonal | dots | crosshatch | horizontal | vertical | diagonal-reverse | grid`).
 
+## Design tokens
+
+```ts
+export const colorTokens: { paper; surface; ink; inkMuted; inkStrong; line; lineStrong; focus; onFocus; selection; hover; neutral; outOfScope;
+  severity; mechanism; reservoir; pass; warn; fail };              // the light scheme
+export const darkColorTokens: Partial<Record<ColorToken, string>>; // what the dark scheme changes
+export const paletteTokens: { sequential; sequentialBlue; diverging; categorical };  // `palettes` is this object
+export const fontTokens: { family; mono };                         // "Inter, 'Segoe UI', Helvetica, Arial, sans-serif"
+export const nodeSizeTokens: Record<NodeKind, { width; height }>;  // `DEFAULT_SIZES` is this object
+export const sizeTokens: { radius: 6; radiusLarge: 10; band: 8; shadow };
+export const textSizeTokens: { label: 12; glyph: 14; small: 9; note: 11; edgeCount: 10; nameLine: 14; countLine: 12 };
+export interface Arrowhead { size; box; length; width; overhang; outline }
+export const arrowheadTokens: { edge: Arrowhead; overlay: Arrowhead };
+export function arrowheadExtent(a: Arrowhead): { length; half; tip; outline };  // in user units
+export type PatternId; export const PATTERNS: PatternId[];          // also exported from the style module, as before
+export const patternTokens: { size: 6; strokeWidth: 1; strokeOpacity: 0.6; dotRadius: 1; dotOpacity: 0.7 };
+export function patternTwin(p: PatternId): { size; lines: [x1, y1, x2, y2][]; dots: [cx, cy][] };
+export const hatchTokens: { size: 8; width: 2 };
+export const designTokens: { color; darkColor; palette; font; nodeSize; size; textSize; arrowhead; pattern; hatch };
+export const themedColors: readonly ColorToken[];                  // the colours with a CSS variable
+export function cssVariable(name: string): string;                 // "inkMuted" → "--wf-ink-muted"
+export function tokenVariables(): { light: Record<string, string>; dark: Record<string, string> };
+export function arrowMarker(id: string, a: Arrowhead): SvgElement; // the <marker> of an arrowhead, in user units
+export function patternTwinSvg(id: string, p: PatternId, ink: string): SvgElement;
+export function hatchSvg(id: string, color: string): SvgElement;
+export function markArrowhead(arrow: { size; overhang }): Arrowhead;  // the rule for an overlay mark's arrow
+```
+
+One table in the core holds the colours, the palettes, the font stack, the
+default node sizes, the sizes of the node and edge marks, the arrowhead rule
+and the pattern twins. `fixedColors`, `palettes`, `DEFAULT_SIZES` and
+`overlayArrow` are read from it and keep their names and values. The SVG
+export and the marks use it directly; the Canvas renderer's `defaultTokens`
+come from it and `readTokens` reads `cssVariable(key)` for each of them.
+`tokens.css` writes `tokenVariables()` (light in `:root`, dark in both dark
+blocks); a tooling test fails when the file and the table differ.
+
+The arrowhead rule is the live map's: an edge ends in a closed triangle 3
+long and 4.8 wide, outlined by 0.6 in its colour, its tip on the route's
+end, in user units (`MarkerType.ArrowClosed` at 12 in React Flow, the
+`wf-arrow` marker in SVG, the same triangle in Canvas); arcs and self-loops
+end in a triangle 12 long and wide whose tip lies 1.2 beyond the path. A
+pattern twin is a 6-unit tile drawn by `patternDefs` (SVG), the Canvas band
+and `<PatternSwatch/>` (React) from `patternTwin`.
+
 ## Overlays
 
 ```ts
@@ -325,6 +370,18 @@ region. `renderer: "auto"` draws on the Canvas renderer above
 
 Stylesheets: `@wise/flow/tokens.css` (design tokens, light and dark),
 `@wise/flow/style.css` (components) and `@xyflow/react/dist/style.css`.
+`tokens.css` defines `--wf-font`, `--wf-font-mono`, the themed colours
+(`--wf-paper`, `--wf-surface`, `--wf-ink`, `--wf-ink-muted`, `--wf-line`,
+`--wf-line-strong`, `--wf-focus`, `--wf-on-focus`, `--wf-selection`,
+`--wf-hover`, `--wf-neutral`, `--wf-out-of-scope`, `--wf-warn`, `--wf-fail`),
+`--wf-radius`, `--wf-radius-lg`, `--wf-shadow` and the default node boxes
+(`--wf-node-width` and `--wf-node-height` for activities, `--wf-stage-*`,
+`--wf-gateway-*`, `--wf-event-*` and `--wf-note-*` with `-width` and
+`-height`), which the stylesheet reads. The variables nothing read
+(`--wf-severity`, `--wf-mechanism`, `--wf-reservoir`, `--wf-pass`,
+`--wf-cat-0`…`7`, `--wf-seq-0`…`4`, `--wf-div-neg`, `--wf-div-mid`,
+`--wf-div-pos`) are no longer defined; their values remain in `colorTokens`
+and `paletteTokens`.
 
 Overlays on the map are drawn from the scene's marks (see "Scene"). A node or
 group draws the marks it carries (badges, chips, hatching) inside itself, at
@@ -765,6 +822,12 @@ export function CanvasMap(props: { scene: PreparedScene | undefined; state: Draw
 export interface CanvasMapHandle { centerOn(id, zoom?); fit(); zoomBy(factor); screenBox(id): Box | undefined; renderer(): CanvasRenderer | null }
 ```
 
+`<CanvasMap/>` (and `<ProcessMap renderer="canvas"/>`) follows the theme:
+it reads the CSS variables of its host with `readTokens` when it mounts and
+again, redrawing when a value changed, whenever the `class`, `style` or
+`data-theme` attribute of the host or an ancestor changes or the system's
+colour scheme (`prefers-color-scheme`) switches.
+
 `<ProcessMap/>` with the 0.3 props: a right click on a node, path or group
 (or Enter on the focused element) opens `<ContextMenu/>` with
 `defaultActions` for the element or the pair / set it belongs to, the
@@ -801,8 +864,8 @@ export class CanvasRenderer { constructor(canvas: HTMLCanvasElement, o?: { token
   toFlow(x, y); toScreen(x, y); screenBox(id); hitAt(x, y, tolerancePx?): HitItem | undefined; requestDraw(); draw(); dispose();
   onViewportChange?: (v: Viewport) => void; lastDraw?: { nodes; edges; shapes; culled; ms } }
 export interface CanvasTokens { font; paper; surface; ink; inkMuted; line; lineStrong; focus; selection; neutral; outOfScope }
-export const defaultTokens: CanvasTokens;
-export function readTokens(element: Element | null | undefined, overrides?: Partial<CanvasTokens>): CanvasTokens;   // from the CSS variables
+export const defaultTokens: CanvasTokens;   // from the token table (`colorTokens`, `fontTokens`)
+export function readTokens(element: Element | null | undefined, overrides?: Partial<CanvasTokens>): CanvasTokens;   // from the CSS variables (`cssVariable(key)`)
 export interface PngOptions { preset?: FigurePreset; width?; scale?; background?; legend?; padding?; lodZoom?; tokens?; createCanvas?; context? }
 export function toPNGCanvas(scene: Scene, o?: PngOptions): { canvas; width; height; cssWidth; cssHeight; scale };
 export function toPNG(scene: Scene, o?: PngOptions): Promise<Blob>;
@@ -941,7 +1004,7 @@ export function overlayColor(o: Overlay): string;           // value on the sequ
 export function tintColor(o: Overlay): string | undefined;  // the same colour at TINT_OPACITY, as CSS rgba()
 export function arcWidth(o: Overlay): number;               // 2 + 8 × coverage (default 1)
 export const TINT_OPACITY: number;                          // 0.18
-export const overlayArrow: { size: number; overhang: number }; // 12, tip 0.1 × size beyond the path
+export const overlayArrow: { size: number; overhang: number }; // 12, tip 0.1 × size beyond the path (`arrowheadTokens.overlay`)
 export const chipLayout: { padding: 8; glyph: 12.4; gauge: 46; gaugeWidth: 40; gaugeHeight: 6; char: 6.2 };
 export function chipText(o: Overlay, locale?: Locale): { lead?: string; text: string }; // "label: " and text or share
 
