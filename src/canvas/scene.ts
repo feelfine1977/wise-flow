@@ -10,7 +10,7 @@ import {
   activityLabelLines,
   activityNodeCounts,
   type Box,
-  type EdgeRoute,
+  type EdgeMark,
   type FlowEdge,
   type FlowGraph,
   type FlowGroup,
@@ -20,6 +20,7 @@ import {
   type LaneMode,
   type Locale,
   type LodRules,
+  type NodeMark,
   type Overlay,
   type OverlayGeometryOptions,
   type OverlayShape,
@@ -27,14 +28,11 @@ import {
   type Positions,
   type StyleSpec,
   HitIndex,
-  RECONNECTED_TAG,
   buildScene,
   followsSelfLoops,
-  fixedColors,
-  formatCompact,
+  gatewayGlyph,
   hasTag,
-  metric,
-  straightRoute,
+  nodeCount,
   tintColor,
   unionBoxes,
 } from "../core/index.js";
@@ -52,6 +50,8 @@ export interface SceneNode {
   badges: OverlayShape[];
   end: boolean;
   glyph?: string;
+  /** What the node looks like; the drawing reads it. */
+  mark: NodeMark;
 }
 
 export interface SceneEdge {
@@ -62,6 +62,8 @@ export interface SceneEdge {
   dash?: number[];
   label?: string;
   reconnected: boolean;
+  /** What the edge looks like; the drawing reads it. */
+  mark: EdgeMark;
 }
 
 export interface SceneGroup {
@@ -165,49 +167,38 @@ export function retainScene(scene: FlowScene): PreparedScene {
     groups.push({ group: g, box, color: scales.categorical(g.id).color, tint: tint && tintColor(tint.overlay), band: bandIndex.get(g.id), chips: shapes.filter((s) => s.kind === "chip") });
   }
 
-  const nodes: SceneNode[] = [];
-  for (const n of graph.nodes) {
-    const box = positions.nodes[n.id];
-    if (!box) continue;
-    const shapes = shapesByTarget.get(n.id) ?? [];
-    const cases = metric(n, "cases", NaN);
-    const members = metric(n, "members", NaN);
-    const meta = n.kind === "stage" ? `${Number.isFinite(members) ? `${members} · ` : ""}${Number.isFinite(cases) ? formatCompact(cases, locale) : ""}`.trim() || undefined : Number.isFinite(cases) ? formatCompact(cases, locale) : undefined;
-    nodes.push({
+  const shapesOf = (id: string) => shapesByTarget.get(id) ?? [];
+  const nodes: SceneNode[] = scene.nodeMarks.map((mark) => {
+    const n = mark.node;
+    const labels = n.kind === "activity" ? activityLabels : undefined;
+    const shapes = shapesOf(n.id);
+    return {
       node: n,
-      box,
-      color: scales.nodeColor(n),
-      pattern: scales.nodePattern(n),
-      label: n.kind === "activity" && activityLabels ? activityLabel(n, activityLabels) : n.label,
-      activityLines: n.kind === "activity" && activityLabels ? activityLabelLines(n, activityLabels, box.width, locale) : undefined,
-      meta: n.kind === "activity" && activityLabels ? activityLabels.showCounts === false ? undefined : activityNodeCounts(n, activityLabels, locale) : meta,
+      box: mark.box,
+      color: mark.color,
+      pattern: mark.pattern,
+      label: labels ? activityLabel(n, labels) : n.label,
+      activityLines: labels ? activityLabelLines(n, labels, mark.box.width, locale) : undefined,
+      meta: labels ? (labels.showCounts === false ? undefined : activityNodeCounts(n, labels, locale)) : nodeCount(n, locale),
       hatched: shapes.some((s) => s.kind === "hatch"),
-      reconnected: hasTag(n, RECONNECTED_TAG),
+      reconnected: mark.reconnected,
       badges: shapes.filter((s) => s.kind === "badge"),
       end: n.kind === "event" && hasTag(n, "end"),
-      glyph: n.kind === "gateway" ? (hasTag(n, "and") ? "+" : hasTag(n, "or") ? "○" : "×") : undefined,
-    });
-  }
+      glyph: n.kind === "gateway" ? gatewayGlyph(n) : undefined,
+      mark,
+    };
+  });
 
-  const edges: SceneEdge[] = [];
-  for (const e of graph.edges) {
-    if (e.source === e.target) continue;
-    const a = positions.nodes[e.source];
-    const b = positions.nodes[e.target];
-    if (!a || !b) continue;
-    const route: EdgeRoute = positions.edges[e.id]?.points?.length >= 2 ? positions.edges[e.id] : straightRoute(a, b);
-    const reconnected = hasTag(e, RECONNECTED_TAG);
-    const count = metric(e, "count", NaN);
-    edges.push({
-      edge: e,
-      points: route.points,
-      width: scales.edgeWidth(e),
-      color: e.kind === "constraint" ? fixedColors.mechanism : scales.edgeColor(e),
-      dash: reconnected ? [6, 5] : e.kind === "constraint" ? [2, 4] : undefined,
-      label: e.kind === "follows" && Number.isFinite(count) ? formatCompact(count, locale) : undefined,
-      reconnected,
-    });
-  }
+  const edges: SceneEdge[] = scene.edgeMarks.map((mark) => ({
+    edge: mark.edge,
+    points: mark.points,
+    width: mark.width,
+    color: mark.color,
+    dash: mark.dash,
+    label: mark.texts[0]?.text,
+    reconnected: mark.reconnected,
+    mark,
+  }));
 
   const routed: Positions = { ...positions, edges: Object.fromEntries(edges.map((e) => [e.edge.id, { points: e.points }])) };
   // Marks that are not drawn on the map (map-level chips) take no room and answer no hit.

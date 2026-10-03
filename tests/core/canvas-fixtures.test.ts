@@ -67,15 +67,18 @@ function exported(fixture: Fixture, scene: Partial<Scene>, options: PngOptions):
  * the tip 1.2 px beyond the path's end), the group tint filled once, hatching
  * drawn per hatch overlay after the nodes, and in `toPNG` the figure size, map
  * offset and activity key position, because map-level chips no longer count
- * towards the bounds.
+ * towards the bounds. Recorded once more when the Canvas drawing began to draw
+ * the scene's node and edge marks; compared the same way, only the text of
+ * activity labels changed: they are cut to the node's width less its padding
+ * and no longer leave room for the case count, which sits below them.
  */
 const before = {
-  mapGlobalStages: "a0d273db4b92ba1347f0c2260038ed8f3fe26d5f44ea64513bcb764aec06352a",
-  mapVendorIds: "4316e2caa82dcf1b7e321825375a7284873cbd0205303a99e2fcba96400d8e57",
-  mapUnfiltered: "c7db4faa7a0e174aff48d56383e3c6b49771c0a91634faa44ff18b15a5881b92",
-  pngGlobalTitle: "5afe60014db5f8ee99f4db2f7ee66a6b721f3a2f0a651af230c68d161975025a",
-  pngVendorIds: "078115757bcd6af525c381868523c241e44cab69a59b18e4e4d9f4af5142715b",
-  pngUnfilteredGerman: "374257637c1f1257ec116e31c55cfd0a08ca570af3a133667bee809db90f0771",
+  mapGlobalStages: "09753a05d1069c92e18f8bf691448a46c68dd44ceee016691b3dade366249842",
+  mapVendorIds: "425957501e4265369b5c8af89ad05335a0a4e5b0a9c1729582afc60b12177d62",
+  mapUnfiltered: "687614ad0dcac6ff60e5a72f5bf31ba4968c4f8e4bf564a82cc578d1c513e597",
+  pngGlobalTitle: "3227e4ec46b6072ac4c89c421bdcf32085f8e43522ad4811ec683d383f6f3932",
+  pngVendorIds: "cb554a6335f2f16ceb27c41832cba7a36b816942165d9978396bcb178aa26e42",
+  pngUnfilteredGerman: "c77c39cdc7efdd78731f143de7a1e005c3cbcd5f23af9cb3469a52bc6bd0d3a1",
 };
 
 describe("Canvas drawing on the committed fixtures", () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { type Overlay, buildScene, toSVG } from "../../src/index";
 import { type DrawContext, type DrawState, defaultTokens, drawScene, prepareScene, toPNGCanvas } from "../../src/canvas/index";
+import * as elements from "./element-kinds";
 import { graph, overlays, positions } from "./overlay-kinds";
 
 interface Op {
@@ -166,5 +167,78 @@ describe("Canvas overlay marks", () => {
     };
     expect(size(chip)).toEqual(size([]));
     expect(size([]).svg).toBe("0 0 568 108");
+  });
+});
+
+describe("Canvas node and edge marks", () => {
+  const drawElements = (state?: DrawState, zoom = 1, given = elements.graph) => {
+    const scene = prepareScene(given, elements.positions, { style: elements.style, selfLoops: false, lodBySize: false });
+    const { ctx, ops } = drawingContext();
+    drawScene(ctx, scene, { x: 0, y: 0, zoom, width: 1000, height: 600 }, state, { cull: false });
+    return ops;
+  };
+  const written = (ops: Op[]) => ops.filter((o) => o.op === "fillText").map(({ text, at, color, font: f, align, baseline }) => ({ text, at, color, font: f, align, baseline }));
+
+  it("draws every node kind's outline, band and border from its mark", () => {
+    const ops = drawElements();
+    // The start event: a circle of radius 18 on paper in ink; the end event's border is 3 wide.
+    expect(ops.filter((o) => o.path === "A18,20,18")).toEqual([
+      { op: "fill", path: "A18,20,18", color: "#ffffff", alpha: 1 },
+      { op: "stroke", path: "A18,20,18", color: "#1f1f1f", alpha: 1, width: 1.5, dash: [] },
+    ]);
+    expect(ops.find((o) => o.op === "stroke" && o.path === "A858,20,18")).toMatchObject({ width: 3 });
+    // The gateway: a diamond in its box.
+    expect(startingAt(ops, "M342,-2")).toEqual([
+      { op: "fill", path: "M342,-2 L364,20 L342,42 L320,20 Z", color: "#ffffff", alpha: 1 },
+      { op: "stroke", path: "M342,-2 L364,20 L342,42 L320,20 Z", color: "#1f1f1f", alpha: 1, width: 1.5, dash: [] },
+    ]);
+    // The note: on the surface colour, a dotted border in its colour, no band.
+    expect(startingAt(ops, "M646,0")).toEqual([
+      { op: "fill", path: expect.stringContaining("A794,6,6"), color: "#f6f7f9", alpha: 1 },
+      { op: "stroke", path: expect.stringContaining("A794,6,6"), color: "#8c8c8c", alpha: 1, width: 2, dash: [2, 3] },
+    ]);
+    // Activities and stages: a band 8 wide in their colour; the stage's border is 3 wide; the re-added activity is dashed.
+    expect(ops.filter((o) => o.op === "fillRect" && o.color === "#8c8c8c").map((o) => o.path)).toEqual(["R100,0,8,40", "R400,0,8,56", "R400,100,8,40"]);
+    expect(startingAt(ops, "M406,0").find((o) => o.op === "stroke")).toMatchObject({ width: 3, dash: [] });
+    expect(startingAt(ops, "M406,100").find((o) => o.op === "stroke")).toMatchObject({ width: 2, dash: [4, 3] });
+  });
+
+  it("writes every node's and edge's texts where its mark puts them", () => {
+    const text = (t: string, at: [number, number], f: string, align = "left", baseline = "middle", color = "#1f1f1f") => ({ text: t, at, color, font: font(f), align, baseline });
+    expect(written(drawElements())).toEqual([
+      // The event's label inside its circle.
+      text("Start", [18, 20], "9px", "center"),
+      text("Check invoice", [116, 20], "12px"),
+      text("1.2k", [274, 35], "9px", "right", "alphabetic", "#5b6270"),
+      text("+", [342, 21], "700 14px", "center"),
+      // The stage's members line.
+      text("Payment", [416, 28], "600 12px"),
+      text("4 · 1.5k", [594, 51], "9px", "right", "alphabetic", "#5b6270"),
+      // The note's label at 11 px, as on the map.
+      text("Ask the vendor twice", [656, 30], "11px"),
+      text("End", [858, 20], "9px", "center"),
+      text("Re-added", [416, 120], "12px"),
+      // Edge counts with a halo, 4 above the middle of the route; the flow edge carries its count too.
+      text("1.2k", [68, 16], "10px", "center", "alphabetic"),
+      text("12", [300, 16], "10px", "center", "alphabetic"),
+      text("3", [500, 74], "10px", "center", "alphabetic"),
+    ]);
+    // The constraint edge in mechanism blue, dotted.
+    expect(startingAt(drawElements(), "M364,20")).toEqual([{ op: "stroke", path: "M364,20 L382,20 L382,28 L400,28", color: "#0072B2", alpha: 1, width: 1.5, dash: [2, 4] }]);
+  });
+
+  it("keeps the gateway's glyph and the note's label when zoomed out", () => {
+    expect(written(drawElements(undefined, 0.1)).map((t) => t.text)).toEqual(["+", "Ask the vendor twice"]);
+  });
+
+  it("cuts labels by the core rule with the context's measure, without room for the count below them", () => {
+    const long = { ...elements.graph, nodes: elements.graph.nodes.map((n) => (n.id === "a" ? { ...n, label: "Change Approval for Purchase Order" } : n)) };
+    // 6 per character: 25 and the ellipsis fit the 156 of a 180 wide node.
+    expect(written(drawElements(undefined, 1, long)).find((t) => t.at?.[0] === 116)?.text).toBe("Change Approval for Purch…");
+  });
+
+  it("fills a hovered node with the surface colour", () => {
+    const ops = drawElements({ selection: { nodes: [], edges: [], groups: [] }, hovered: "a" });
+    expect(startingAt(ops, "M106,0").find((o) => o.op === "fill")).toMatchObject({ color: "#f6f7f9" });
   });
 });
