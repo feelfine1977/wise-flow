@@ -23,7 +23,7 @@ export interface MarkSvgOptions {
 const num = (n: number): string => Number(n.toFixed(2)).toString();
 
 /** `text` cut to the characters that fit `maxWidth` at about 6.2 px each, with an ellipsis. */
-export function fitText(text: string, maxWidth: number | undefined): string {
+export function fitChars(text: string, maxWidth: number | undefined): string {
   if (maxWidth === undefined) return text;
   const max = Math.floor((maxWidth + 4) / 6.2);
   return text.length > max ? `${text.slice(0, Math.max(1, max - 1))}…` : text;
@@ -38,7 +38,7 @@ export function fitLead(m: MarkText, fit: (text: string) => string): { lead: str
 }
 
 function textElement(mark: OverlayMark, m: MarkText, o: MarkSvgOptions): SvgElement {
-  const { lead, text } = fitLead(m, (s) => fitText(s, m.maxWidth));
+  const { lead, text } = fitLead(m, (s) => fitChars(s, m.maxWidth));
   // Without a middle baseline in every SVG consumer, about 0.3 em below the middle.
   const y = m.baseline === "middle" ? m.y + 0.3 * m.size : m.y;
   const attrs: [string, string][] = [["x", num(m.x)], ["y", num(y)], ["font-size", String(m.size)]];

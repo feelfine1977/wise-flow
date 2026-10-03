@@ -292,7 +292,18 @@ export function TraceTimeline(props: { traces: Trace[]; anchor?: string; annotat
 export function AbstractionControls(props), Legend(props), OverlayLayer(props);
 export function useFlowGraph(g, o?), useStableLayout(scenes, o?), useOverlays(items, o?), usePrefersReducedMotion();
 export { nodeTypes, edgeTypes, describeNode, describeEdge, describeGroup, describeMap };
+export function midpoint(points: XY[]): XY;   // routeMidpoint
+// Node and edge data carry the scene's marks; without one the components resolve it from the other fields.
+export type ActivityNodeData = { node; color; pattern; badges; hatched; direction; focused; hovered; dimmed; locale; description;
+  activityLabels?; labelWidth?; labelHeight?; meta?; mark?: NodeMark };
+export type FollowsEdgeData = { edge; route?; width; color; label?; reconnected; hovered; dimmed; focused; description; mark?: EdgeMark };
 ```
+
+The node and edge components draw what the scene's marks say: texts,
+glyph, band and dashing of nodes, route, dash and count label of edges.
+Labels are shortened by `truncateText` with `estimateTextWidth`; the
+stylesheet's ellipsis still applies where the text is narrower in the
+browser than estimated, and the full name stays in the node's description.
 
 `describeMap` names the activity and path thresholds when `meta.abstraction`
 is the object `abstract` records; a server's numeric threshold share is not
@@ -813,7 +824,9 @@ marks above the nodes, edge labels; level of detail follows
 a hovered mark shows its value colour in the focus colour; above 1,500
 elements only the elements inside the viewport are drawn. Marks that are
 not drawn on the map (map-level chips) are neither in `bounds` nor in the
-hit index. `SceneGroup.tint` and `SceneNode.hatched` still describe the
+hit index. Nodes and edges are drawn from their marks (`SceneNode.mark`,
+`SceneEdge.mark`, the scene's `nodeMarks` and `edgeMarks`); the other
+fields of `SceneNode` and `SceneEdge` stay as data. `SceneGroup.tint` and `SceneNode.hatched` still describe the
 group's tint and the node's hatching, but the group and node routines no
 longer paint them: the tint and hatch marks do, once each. `CanvasRenderer` owns the
 viewport (zoom clamped to `minZoom` … `maxZoom`), draws on animation
@@ -909,15 +922,15 @@ export interface FlowSceneOptions { overlays?: Overlay[]; style?: StyleSpec; loc
   moved?: Readonly<Record<string, XY>>; activityLabels?: ActivityLabelOptions; selfLoops?: boolean; lod?: Partial<LodRules>; lodBySize?: boolean;
   overlayGeometry?: OverlayGeometryOptions }
 export interface FlowScene { graph; positions; bands: LaneBand[]; activityLabels?; locale; style; scales: Scales;
-  overlays: Overlay[]; lod: LodRules; geometry: OverlayGeometry; marks: OverlayMark[]; bounds: Box }
+  overlays: Overlay[]; lod: LodRules; geometry: OverlayGeometry; marks: OverlayMark[]; nodeMarks: NodeMark[]; edgeMarks: EdgeMark[]; bounds: Box }
 export function buildScene(g: FlowGraph, p: Positions, o?: FlowSceneOptions): FlowScene;
 export function followsSelfLoops(g: FlowGraph, o?: { locale?: Locale; observed?: { caseLabel?: string } }): Overlay[];
 export function withFollowsSelfLoops(g: FlowGraph, overlays: Overlay[], o?: { locale?; observed? }): Overlay[];
 
-export type MarkPaint = "ink" | "paper" | "line" | "outOfScope" | "value" | "onValue";
+export type MarkPaint = "ink" | "inkMuted" | "paper" | "surface" | "line" | "outOfScope" | "value" | "onValue";
 export interface MarkFill { paint: MarkPaint; pattern?: "outOfScope"; opacity?: number }
 export interface MarkStroke { paint: MarkPaint; width: number; opacity?: number; dash?: number[] }
-export interface MarkText { text: string; x: number; y: number; size: number; weight?: number; anchor: "start" | "middle";
+export interface MarkText { text: string; x: number; y: number; size: number; weight?: number; anchor: "start" | "middle" | "end";
   baseline: "middle" | "alphabetic"; paint: MarkPaint; halo: boolean; maxWidth?: number; lead?: string }
 export interface MarkGauge { x: number; y: number; width: number; height: number; value: number; threshold: number } // shares 0–1
 export interface OverlayMark { id: string; kind: OverlayKind; overlay: Overlay; box: Box; layer: "below" | "above"; inMap: boolean;
@@ -936,8 +949,29 @@ export interface SvgElement { tag: string; attrs: [string, string][]; children: 
 export interface MarkSvgOptions { paint(mark: OverlayMark, paint: MarkPaint): string; arrowId: string; patternId: string }
 export function markSvg(m: OverlayMark, o: MarkSvgOptions): SvgElement;  // the <g> that draws one mark
 export function svgMarkup(e: SvgElement | string): string;
-export function fitText(text: string, maxWidth?: number): string;         // about 6.2 px per character, with an ellipsis
+export function fitChars(text: string, maxWidth?: number): string;        // about 6.2 px per character, with an ellipsis
 export function fitLead(t: MarkText, fit: (text: string) => string): { lead: string; text: string };
+
+export interface ElementText extends MarkText { role: "label" | "glyph" | "count" | "nameLine" | "countLine"; lod?: "labels" | "edgeLabels" }
+export interface NodeMark { id: string; kind: NodeKind; node: FlowNode; box: Box; shape: "box" | "circle" | "diamond"; radius: number;
+  color: string; pattern: PatternId; fill: MarkPaint; stroke: { paint: MarkPaint; width: number; dash?: number[] }; band?: number;
+  texts: ElementText[]; reconnected: boolean; title?: string }
+export interface EdgeMark { id: string; kind: EdgeKind; edge: FlowEdge; points: XY[]; color: string; width: number; dash?: number[];
+  texts: ElementText[]; reconnected: boolean }
+export function nodeMark(n: FlowNode, box: Box, o: { color: string; pattern: PatternId; locale?: Locale; activityLabels?: ActivityLabelOptions }): NodeMark;
+export function edgeMark(e: FlowEdge, points: XY[], o: { color: string; width: number; locale?: Locale }): EdgeMark;
+export function nodeMarks(g: FlowGraph, p: Positions, scales: Scales, o?: { locale?; activityLabels? }): NodeMark[];
+export function edgeMarks(g: FlowGraph, p: Positions, scales: Scales, locale?: Locale): EdgeMark[];
+export function edgeColor(e: FlowEdge, scales: Scales): string;      // constraint edges in the mechanism colour
+export function gatewayGlyph(n: FlowNode): string;                  // + (and), ○ (or), × otherwise
+export function nodeCount(n: FlowNode, locale?: Locale): string | undefined;  // cases; a stage's members before them
+export function edgePoints(p: Positions, e: FlowEdge): XY[] | undefined;      // the route, or straight between the boxes
+export function routeMidpoint(points: readonly XY[]): XY;           // half of the polyline's length
+export function edgeLabelPoint(points: readonly XY[]): XY;          // 4 above the route's midpoint
+export type TextMeasure = (text: string, font: { size: number; weight?: number }) => number;
+export const estimateTextWidth: TextMeasure;                        // 0.55 em per character
+export function truncateText(text: string, maxWidth: number, font: { size: number; weight?: number }, measure?: TextMeasure): string;
+export function fitText(t: MarkText, measure?: TextMeasure): string;
 ```
 
 `buildScene` resolves a graph and its positions once into what a renderer
@@ -991,6 +1025,32 @@ same elements in the DOM with the theme's CSS variables as paints (in the
 `style` attribute, since presentation attributes cannot hold variables), and
 the Canvas drawing maps the same primitives to 2D calls. None of them decides
 anything by overlay kind.
+
+`nodeMarks` holds one `NodeMark` per node with a box and `edgeMarks` one
+`EdgeMark` per edge between two placed nodes (edges from a node to itself
+are self-loop overlays), both in the graph's order. A node mark says what
+the live map shows for its kind: the outline (`box` with a corner radius,
+the `circle` of an event, the `diamond` of a gateway), the fill and border
+with width and dash (notes dotted on the surface colour, re-added elements
+dashed, stages 3 wide, end events 3 wide), the colour band with its
+pattern twin (`band`, 8 wide; not on notes, events and gateways) and the
+texts: a gateway's glyph (×, + or ○) instead of its label, an event's label
+inside its circle at 9 px, a note's label at 11 px at every zoom, the
+label of activities and stages 16 in from the left (stages semibold) and
+their count in the lower right corner in the muted ink (`nodeCount`: the
+cases, for a stage its members before them), or with `activityLabels` the
+wrapped name and count lines and the exact description as `title`. An edge
+mark carries the route (`edgePoints`: the routed points, or a straight line
+between the two boxes where the positions have none), colour (`edgeColor`),
+width, dash (re-added `6 5`, constraint `2 4`) and, where the edge has a
+`count`, of any kind, the count at `edgeLabelPoint`. Every text names its
+`role` and the level-of-detail rule it is drawn from (`lod`; drawn at
+every zoom without one). Texts with a `maxWidth` are shortened by one rule,
+`truncateText`: the longest start that fits with an ellipsis, by an
+injectable `TextMeasure` (`estimateTextWidth` without font metrics). `toSVG`
+and the React Flow map use the estimate, the Canvas drawing the context's
+`measureText`; `fitText` applies the rule to a mark text. Overlay marks'
+texts (`markSvg`) are cut by `fitChars`, about 6.2 px per character.
 
 `<ProcessMap/>` reads the same scene: one scene per graph, positions and
 options gives its bands, scales, overlays, level-of-detail rules and overlay

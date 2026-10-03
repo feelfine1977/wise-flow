@@ -38,15 +38,22 @@ const observed: Variant = {
  * chips no longer count towards the bounds. Recorded once more when chips began
  * to show what the live map shows; compared element by element, only the chip
  * groups changed: the glyph, the gauge and the label in bold before the text.
+ * Recorded once more when `toSVG` began to draw the scene's node and edge
+ * marks; compared element by element, only text elements changed: node labels
+ * 2 px further in and on the Canvas baseline (0.4 px higher), stage labels
+ * semibold, counts in the muted ink and a stage's members before its cases,
+ * event labels inside the circle at 9 px, edge counts at half the route's
+ * length, and labels, legend rows and chips shortened by the core rule (0.55 em
+ * per character).
  */
 const before: Record<string, string> = {
-  overlays: "ab155737ecc8d8f83c6a552e5665c00fb44f55fe2372f09ff582b3f03336d425",
-  stagesGerman: "5da60b5405d432bf9df7b27d6025a29ddb230c0e27a4758a28c765c271e403ed",
-  vendor: "5e7c161d8d979d09758c482b7aa63258341679430f4bbce5bb53f45671f97e1b",
-  unfiltered: "7fdea43d68f40046bccc4dcd9f94d5725b113f0beeceb914bcbeb9235f882fda",
-  plain: "d1137235b74f70c6149763eea0c6897255e1a3414c00f5246cbee1763c2ff1fa",
+  overlays: "ef189cebd320be1ef682ca8db3b1277abe10e99e222661efc61ec2b1e2d35f06",
+  stagesGerman: "c15c1cfe04351d5d50ea135e2acafa2272bc156b35afc1a68a6eed9e90fd2ad8",
+  vendor: "416f4e149b2bb6291c6d63e69d20d97b563686fc07b1cfe6621d2168aefefd59",
+  unfiltered: "01dd2254b001152a9cd9d71e45fc7b687c888a2f20a8e1eceed1eadb5265d264",
+  plain: "088f5e3a5efd5a4b956dff4e6fc7e913d6a2f868362b34a0ca8537aae455c7d8",
 };
-const beforeObserved = "05c164d62ef937e4f59acb9231cff057c9e16dd43c46ca89e36b3b6963fd3197";
+const beforeObserved = "f20436c688f66a9a6edebae917d8a94834cb325cbb7c30c97176bfcc0d73cd6f";
 
 describe("toSVG on the committed fixtures", () => {
   it("matches the recorded output once follows self-loops are hidden", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type FlowGraph, type Overlay, type OverlayMark, MAP_TARGET, arcWidth, buildScene, defaultLod, fitLead, fitText, overlayArrow, overlayColor, tintColor } from "../../src/index";
+import { type FlowGraph, type Overlay, type OverlayMark, MAP_TARGET, arcWidth, buildScene, defaultLod, fitChars, fitLead, overlayArrow, overlayColor, tintColor } from "../../src/index";
 import { graph, overlays, positions } from "./overlay-kinds";
 
 const ink = { paint: "ink", halo: true } as const;
@@ -99,7 +99,7 @@ describe("overlay marks", () => {
   });
 
   it("fits a lead and its text into their width together", () => {
-    const text = (maxWidth: number) => fitLead({ lead: "Manual touches: ", text: "2.1", x: 0, y: 0, size: 10, anchor: "start", baseline: "middle", paint: "ink", halo: false, maxWidth }, (s) => fitText(s, maxWidth));
+    const text = (maxWidth: number) => fitLead({ lead: "Manual touches: ", text: "2.1", x: 0, y: 0, size: 10, anchor: "start", baseline: "middle", paint: "ink", halo: false, maxWidth }, (s) => fitChars(s, maxWidth));
     // floor((w + 4) / 6.2) characters, the last one an ellipsis.
     expect(text(120)).toEqual({ lead: "Manual touches: ", text: "2.1" });
     expect(text(110)).toEqual({ lead: "Manual touches: ", text: "2…" });

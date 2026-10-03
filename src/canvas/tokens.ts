@@ -22,9 +22,9 @@ export interface CanvasTokens {
 export const defaultTokens: CanvasTokens = {
   font: "Inter, 'Segoe UI', Helvetica, Arial, sans-serif",
   paper: fixedColors.paper,
-  surface: "#f6f7f9",
+  surface: fixedColors.surface,
   ink: fixedColors.ink,
-  inkMuted: "#5b6270",
+  inkMuted: fixedColors.inkMuted,
   line: "#cfd4dc",
   lineStrong: "#8c94a1",
   focus: "#0072b2",

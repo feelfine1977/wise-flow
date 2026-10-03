@@ -1,17 +1,17 @@
 /**
  * Deterministic SVG export of a scene with an embedded legend and figure presets.
  */
-import { type ActivityLabelOptions, activityDescription, activityKeyLines, activityLabelLines } from "./activity-labels.js";
+import { type ActivityLabelOptions, activityKeyLines } from "./activity-labels.js";
+import { type ElementText, fitText, truncateText } from "./element-marks.js";
 import { type Locale, formatCompact, formatCount, formatNumber, formatShare } from "./format.js";
-import { type Box, type Positions, straightRoute } from "./layout.js";
+import { type Box, type Positions } from "./layout.js";
 import { type LaneBand, type LaneMode } from "./lanes.js";
-import { type FlowGraph, type Overlay, MAP_TARGET, hasTag, metric } from "./model.js";
+import { type FlowGraph, type Overlay, MAP_TARGET } from "./model.js";
 import type { OverlayGeometryOptions } from "./overlays.js";
 import { type MarkSvgOptions, markSvg, svgMarkup } from "./mark-svg.js";
-import { type OverlayMark, overlayArrow } from "./overlay-marks.js";
+import { type MarkPaint, type MarkText, type OverlayMark, overlayArrow } from "./overlay-marks.js";
 import { type FlowScene, buildScene } from "./scene.js";
 import { type LegendItem, type StyleSpec, fixedColors, lodAt, patternDefs } from "./style.js";
-import { RECONNECTED_TAG } from "./aggregate.js";
 import { type StringKey, t } from "./strings.js";
 
 export interface Scene {
@@ -74,10 +74,6 @@ function text(x: number, y: number, s: string, attrs = ""): string {
   return `<text x="${num(x)}" y="${num(y)}" ${attrs}>${esc(s)}</text>`;
 }
 
-function truncate(s: string, max: number): string {
-  return s.length > max ? `${s.slice(0, Math.max(1, max - 1))}…` : s;
-}
-
 function drawGroups(ctx: Ctx): string {
   const { graph, positions } = ctx.scene;
   const out: string[] = [];
@@ -100,88 +96,49 @@ function drawGroups(ctx: Ctx): string {
   return out.join("");
 }
 
-function routeOf(ctx: Ctx, edgeId: string, source: string, target: string) {
-  const { positions } = ctx.scene;
-  const r = positions.edges[edgeId];
-  if (r && r.points.length >= 2) return r;
-  const a = positions.nodes[source];
-  const b = positions.nodes[target];
-  if (!a || !b) return undefined;
-  return straightRoute(a, b);
+const byId = <T extends { id: string }>(a: T, b: T) => (a.id < b.id ? -1 : 1);
+
+/** Texts of a node or edge mark that its level of detail shows at the export's zoom. */
+function shownTexts(ctx: Ctx, texts: ElementText[]): ElementText[] {
+  return texts.filter((t) => !t.lod || ctx.lod[t.lod]);
 }
 
 function drawEdges(ctx: Ctx): string {
-  const { graph } = ctx.scene;
   const out: string[] = [];
-  const edges = [...graph.edges].sort((a, b) => (a.id < b.id ? -1 : 1));
-  for (const e of edges) {
-    if (e.source === e.target) continue;
-    const route = routeOf(ctx, e.id, e.source, e.target);
-    if (!route) continue;
-    const w = ctx.scene.scales.edgeWidth(e);
-    const color = e.kind === "constraint" ? fixedColors.mechanism : ctx.scene.scales.edgeColor(e);
-    const dash = hasTag(e, RECONNECTED_TAG) ? ` stroke-dasharray="6 5"` : e.kind === "constraint" ? ` stroke-dasharray="2 4"` : "";
-    const d = route.points.map((p, i) => `${i === 0 ? "M" : "L"}${num(p.x)} ${num(p.y)}`).join("");
-    out.push(`<g class="wf-edge" data-id="${esc(e.id)}"><path d="${d}" fill="none" stroke="${color}" stroke-width="${num(w)}" stroke-linejoin="round"${dash} marker-end="url(#wf-arrow)"/>`);
-    if (ctx.lod.edgeLabels && e.kind === "follows") {
-      const count = metric(e, "count", NaN);
-      if (Number.isFinite(count)) {
-        const mid = route.points[Math.floor((route.points.length - 1) / 2)];
-        const next = route.points[Math.min(route.points.length - 1, Math.floor((route.points.length - 1) / 2) + 1)];
-        const lx = route.labelX ?? (mid.x + next.x) / 2;
-        const ly = route.labelY ?? (mid.y + next.y) / 2 - 4;
-        out.push(text(lx, ly, formatCompact(count, ctx.locale), `font-size="10" text-anchor="middle" fill="${fixedColors.ink}" paint-order="stroke" stroke="${fixedColors.paper}" stroke-width="3"`));
-      }
-    }
+  for (const m of [...ctx.scene.edgeMarks].sort(byId)) {
+    const dash = m.dash ? ` stroke-dasharray="${m.dash.join(" ")}"` : "";
+    const d = m.points.map((p, i) => `${i === 0 ? "M" : "L"}${num(p.x)} ${num(p.y)}`).join("");
+    out.push(`<g class="wf-edge" data-id="${esc(m.id)}"><path d="${d}" fill="none" stroke="${m.color}" stroke-width="${num(m.width)}" stroke-linejoin="round"${dash} marker-end="url(#wf-arrow)"/>`);
+    for (const tx of shownTexts(ctx, m.texts)) out.push(markText(m.color, m.color, tx));
     out.push(`</g>`);
   }
   return out.join("");
 }
 
 function drawNodes(ctx: Ctx): string {
-  const { graph, positions } = ctx.scene;
   const out: string[] = [];
-  const nodes = [...graph.nodes].sort((a, b) => (a.id < b.id ? -1 : 1));
-  for (const n of nodes) {
-    const b = positions.nodes[n.id];
-    if (!b) continue;
-    const color = ctx.scene.scales.nodeColor(n);
-    const pattern = ctx.scene.scales.nodePattern(n);
-    const reconnected = hasTag(n, RECONNECTED_TAG);
-    out.push(`<g class="wf-node wf-node-${n.kind}" data-id="${esc(n.id)}">`);
-    if (n.kind === "event") {
-      const r = Math.min(b.width, b.height) / 2;
-      const cx = b.x + b.width / 2;
-      const cy = b.y + b.height / 2;
-      const end = hasTag(n, "end");
-      out.push(`<circle cx="${num(cx)}" cy="${num(cy)}" r="${num(r)}" fill="${fixedColors.paper}" stroke="${fixedColors.ink}" stroke-width="${end ? 3 : 1.5}"/>`);
-      if (ctx.lod.labels) out.push(text(cx, cy + r + 12, n.label, `font-size="10" text-anchor="middle" fill="${fixedColors.ink}"`));
-    } else if (n.kind === "gateway") {
-      const cx = b.x + b.width / 2;
-      const cy = b.y + b.height / 2;
+  for (const m of [...ctx.scene.nodeMarks].sort(byId)) {
+    const b = m.box;
+    const paint = (p: MarkPaint) => paintOf(m.color, m.color, p);
+    const stroke = `fill="${paint(m.fill)}" stroke="${paint(m.stroke.paint)}" stroke-width="${num(m.stroke.width)}"${m.stroke.dash ? ` stroke-dasharray="${m.stroke.dash.join(" ")}"` : ""}`;
+    out.push(`<g class="wf-node wf-node-${m.kind}" data-id="${esc(m.id)}">`);
+    const cx = b.x + b.width / 2;
+    const cy = b.y + b.height / 2;
+    if (m.shape === "circle") {
+      out.push(`<circle cx="${num(cx)}" cy="${num(cy)}" r="${num(m.radius)}" ${stroke}/>`);
+    } else if (m.shape === "diamond") {
       const h = b.width / 2;
-      out.push(`<path d="M${num(cx)} ${num(cy - h)}L${num(cx + h)} ${num(cy)}L${num(cx)} ${num(cy + h)}L${num(cx - h)} ${num(cy)}Z" fill="${fixedColors.paper}" stroke="${fixedColors.ink}" stroke-width="1.5"/>`);
-      if (ctx.lod.labels) out.push(text(cx, cy + 4, n.label, `font-size="11" text-anchor="middle" fill="${fixedColors.ink}"`));
+      out.push(`<path d="M${num(cx)} ${num(cy - h)}L${num(cx + h)} ${num(cy)}L${num(cx)} ${num(cy + h)}L${num(cx - h)} ${num(cy)}Z" ${stroke}/>`);
     } else {
-      out.push(rect(b, `rx="6" fill="${fixedColors.paper}" stroke="${color}" stroke-width="${n.kind === "stage" ? 3 : 2}"${reconnected ? ` stroke-dasharray="4 3"` : ""}`));
-      const band: Box = { x: b.x, y: b.y, width: 8, height: b.height };
-      out.push(rect(band, `rx="3" fill="${color}"`));
-      if (pattern !== "solid") out.push(rect(band, `rx="3" fill="url(#wf-pattern-${pattern})"`));
-      if (n.kind === "activity" && ctx.scene.activityLabels) {
-        const options = ctx.scene.activityLabels;
-        const lines = activityLabelLines(n, options, b.width, ctx.locale);
-        out.push(`<title>${esc(activityDescription(n, options, ctx.locale))}</title>`);
-        lines.name.forEach((line, i) => out.push(text(b.x + 16, b.y + 24 + i * 18, line, `font-size="14" fill="${fixedColors.ink}"`)));
-        if (options.showCounts !== false) lines.counts.forEach((line, i) => out.push(text(b.x + 16, b.y + 24 + lines.name.length * 18 + i * 16, line, `font-size="12" fill="${fixedColors.ink}"`)));
-      } else if (ctx.lod.labels) {
-        const label = truncate(n.label, Math.max(4, Math.floor((b.width - 20) / 6.4)));
-        out.push(text(b.x + 14, b.y + b.height / 2 + 4, label, `font-size="12" fill="${fixedColors.ink}"`));
-        const cases = metric(n, "cases", NaN);
-        if (Number.isFinite(cases)) {
-          out.push(text(b.x + b.width - 6, b.y + b.height - 5, formatCompact(cases, ctx.locale), `font-size="9" text-anchor="end" fill="${fixedColors.neutral}"`));
-        }
-      }
+      out.push(rect(b, `rx="${num(m.radius)}" ${stroke}`));
     }
+    if (m.band) {
+      const band: Box = { x: b.x, y: b.y, width: m.band, height: b.height };
+      out.push(rect(band, `rx="3" fill="${m.color}"`));
+      if (m.pattern !== "solid") out.push(rect(band, `rx="3" fill="url(#wf-pattern-${m.pattern})"`));
+    }
+    if (m.title) out.push(`<title>${esc(m.title)}</title>`);
+    for (const tx of shownTexts(ctx, m.texts)) out.push(markText(m.color, m.color, tx));
     out.push(`</g>`);
   }
   return out.join("");
@@ -192,6 +149,16 @@ const markOptions: MarkSvgOptions = {
   arrowId: "wf-overlay-arrow",
   patternId: "wf-pattern-outofscope",
 };
+
+function paintOf(color: string, onColor: string, paint: MarkPaint): string {
+  return paint === "value" ? color : paint === "onValue" ? onColor : fixedColors[paint];
+}
+
+function markText(color: string, onColor: string, m: MarkText): string {
+  const y = m.baseline === "middle" ? m.y + 0.3 * m.size : m.y;
+  const halo = m.halo ? ` paint-order="stroke" stroke="${fixedColors.paper}" stroke-width="3"` : "";
+  return text(m.x, y, fitText(m), `font-size="${m.size}"${m.weight ? ` font-weight="${m.weight}"` : ""}${m.anchor === "start" ? "" : ` text-anchor="${m.anchor}"`} fill="${paintOf(color, onColor, m.paint)}"${halo}`);
+}
 
 function drawMarks(ctx: Ctx, layer: OverlayMark["layer"]): string {
   return ctx.scene.marks
@@ -232,7 +199,7 @@ function drawLegend(ctx: Ctx, x: number, y: number, width: number, mapChips: Ove
         const sw: Box = { x, y: cy, width: 14, height: 12 };
         out.push(rect(sw, `rx="2" fill="${e.color}"`));
         if (e.pattern !== "solid") out.push(rect(sw, `rx="2" fill="url(#wf-pattern-${e.pattern})"`));
-        out.push(text(x + 20, cy + 10, truncate(e.key, Math.floor((width - 24) / 6)), `font-size="10" fill="${fixedColors.ink}"`));
+        out.push(text(x + 20, cy + 10, truncateText(e.key, width - 24, { size: 10 }), `font-size="10" fill="${fixedColors.ink}"`));
         cy += 16;
       }
       cy += 4;
@@ -249,17 +216,17 @@ function drawLegend(ctx: Ctx, x: number, y: number, width: number, mapChips: Ove
   ];
   for (const [glyph, key] of keys) {
     out.push(text(x, cy + 10, glyph, `font-size="10" fill="${fixedColors.ink}"`));
-    out.push(text(x + 22, cy + 10, truncate(t(L, key), Math.floor((width - 24) / 5.6)), `font-size="9.5" fill="${fixedColors.ink}"`));
+    out.push(text(x + 22, cy + 10, truncateText(t(L, key), width - 24, { size: 9.5 }), `font-size="9.5" fill="${fixedColors.ink}"`));
     cy += 14;
   }
   if (mapChips.length) {
     cy += 6;
     for (const c of mapChips) {
       const p = c.payload ?? {};
-      const label = truncate(`${p.glyph ?? ""} ${p.label ?? ""}`.trim(), Math.floor((width - 4) / 5.8));
+      const label = truncateText(`${p.glyph ?? ""} ${p.label ?? ""}`.trim(), width - 4, { size: 10, weight: 600 });
       out.push(text(x, cy + 10, label, `font-size="10" font-weight="600" fill="${fixedColors.ink}"`));
       cy += 13;
-      out.push(text(x, cy + 10, truncate(String(p.text ?? ""), Math.floor((width - 4) / 5.4)), `font-size="9.5" fill="${fixedColors.ink}"`));
+      out.push(text(x, cy + 10, truncateText(String(p.text ?? ""), width - 4, { size: 9.5 }), `font-size="9.5" fill="${fixedColors.ink}"`));
       cy += 15;
     }
   }

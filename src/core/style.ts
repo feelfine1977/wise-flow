@@ -55,11 +55,15 @@ export const fixedColors = {
   neutral: "#8c8c8c",
   outOfScope: "#b0b0b0",
   ink: "#1f1f1f",
+  /** Secondary text such as counts. */
+  inkMuted: "#5b6270",
   /** Ink for text on coloured fills; pure black reaches 4.5 : 1 on every mid-tone of the palettes. */
   inkStrong: "#000000",
   paper: "#ffffff",
   /** Hairlines and tracks (`--wf-line`). */
   line: "#cfd4dc",
+  /** Background of notes and hovered elements. */
+  surface: "#f6f7f9",
 } as const;
 
 // ---------------------------------------------------------------------------

@@ -70,14 +70,18 @@ function exported(fixture: Fixture, scene: Partial<Scene>, options: PngOptions):
  * towards the bounds. Recorded once more when chips began to show what the live
  * map shows; only the chips' calls changed: the glyph written apart, the gauge
  * (track, fill and tick) and the label in bold before the text.
+ * Recorded once more when the Canvas drawing began to draw the scene's node
+ * and edge marks; compared the same way, only the text of activity labels
+ * changed: they are cut to the node's width less its padding and no longer
+ * leave room for the case count, which sits below them.
  */
 const before = {
-  mapGlobalStages: "0cf42f5f17e1375c5bdf8a5322ce149f1a653883a31c3a8d960ab561fb8adf4c",
-  mapVendorIds: "4c742f7991441d6da66be1dde5ca12df27ac4b0ebfcf1491ab0d4d06f779e9fc",
-  mapUnfiltered: "b742e77d7d418dde3824e927a6fba5bc2d2e94f1ddf832a28b35eed0fb8a5dbb",
-  pngGlobalTitle: "e033f0a3abf981503952113d72fdd3738e465b89cfcb62fafa460b75d0abcbc7",
-  pngVendorIds: "c6230127fc255c3abc10b20c4f6e08be2ebe584684f4232651388021fc8e9bc1",
-  pngUnfilteredGerman: "34a875f66b1200cd5660f468f427c4e5f9cc6011bc69dd913c51ae7ccfd58ad6",
+  mapGlobalStages: "9a9cbfcba366c653647aaad61744a4f9c2350db928afb510dfc899cbecb7c152",
+  mapVendorIds: "6d9b374c7ec86de176161d0570da339e2e4628a5a93cca6d2123cbcaccd1c131",
+  mapUnfiltered: "441ff84947d2e280549a9ffec3617732c959110236add9e4b955df7616192003",
+  pngGlobalTitle: "d9e2051e015006b5773fd80a16d69630d307e0b693da0fe00e8f7b4559764504",
+  pngVendorIds: "259a910692e3752787e9422fd996cac7d07df68e8903ed6efb5caf4c6231e117",
+  pngUnfilteredGerman: "ff3b09e2e4eae2fc832deac5915d8755886e08b8f16dae3593a895f04772de29",
 };
 
 describe("Canvas drawing on the committed fixtures", () => {

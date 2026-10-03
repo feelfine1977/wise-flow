@@ -4,7 +4,7 @@
  * ids, kinds, tags and metrics travel in the `wise` extension so that an
  * export → import round trip is lossless.
  */
-import { type Box, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Positions, createPositions, hasTag, straightRoute } from "../core/index.js";
+import { type Box, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Positions, createPositions, edgePoints, hasTag } from "../core/index.js";
 import { type BpmnLayoutOptions, POOL_ID, layoutBpmn } from "./layout.js";
 import { type IdMap, createIdMap, registerId } from "./ids.js";
 import { type BpmnModdleInstance, type ModdleElement, createModdle, typeOfTag } from "./moddle.js";
@@ -285,8 +285,8 @@ export async function exportBpmn(graph: FlowGraph, options: ExportBpmnOptions = 
   for (const e of graph.edges) {
     const flow = flows.get(e.id);
     if (!flow) continue;
-    const route = positions.edges[e.id] ?? (positions.nodes[e.source] && positions.nodes[e.target] ? straightRoute(positions.nodes[e.source], positions.nodes[e.target]) : undefined);
-    if (!route || route.points.length < 2) {
+    const points = edgePoints(positions, e);
+    if (!points) {
       warnings.push(`edge ${e.id} has no route`);
       continue;
     }
@@ -294,7 +294,7 @@ export async function exportBpmn(graph: FlowGraph, options: ExportBpmnOptions = 
       moddle.create("bpmndi:BPMNEdge", {
         id: xmlId(`${flow.id}_di`, ctx.taken),
         bpmnElement: flow,
-        waypoint: route.points.map((p) => moddle.create("dc:Point", { x: round(p.x), y: round(p.y) })),
+        waypoint: points.map((p) => moddle.create("dc:Point", { x: round(p.x), y: round(p.y) })),
       }),
     );
   }

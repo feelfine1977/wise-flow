@@ -112,6 +112,16 @@ describe("export → import round trip", () => {
   });
 });
 
+describe("sequence flows without a route", () => {
+  it("are written straight between their shapes, as every renderer draws them", async () => {
+    const positions = await layoutBpmn(lite, { engine: "dagre" });
+    const flow = lite.edges[0];
+    const out = await exportBpmn(lite, { positions: { ...positions, edges: { ...positions.edges, [flow.id]: { points: [{ x: 0, y: 0 }] } } } });
+    expect(out.warnings).toEqual([]);
+    expect((await validateBpmn(out.xml)).counts.edges).toBe(lite.edges.length);
+  });
+});
+
 describe("BPMN vocabulary", () => {
   // One node or flow per entry of the vocabulary: event roles and definitions, gateway types,
   // the loop marker, the default flow and a generated gateway without a name.

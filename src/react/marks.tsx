@@ -10,7 +10,9 @@ import type { Overlay } from "../core/index.js";
 
 const TOKENS: Record<Exclude<MarkPaint, "value" | "onValue">, string> = {
   ink: "var(--wf-ink)",
+  inkMuted: "var(--wf-ink-muted)",
   paper: "var(--wf-paper)",
+  surface: "var(--wf-surface)",
   line: "var(--wf-line)",
   outOfScope: "var(--wf-out-of-scope)",
 };

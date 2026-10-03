@@ -2,6 +2,7 @@ import type { Node, Edge } from "@xyflow/react";
 import type {
   AbstractOptions,
   ActivityLabelOptions,
+  EdgeMark,
   EdgeRoute,
   Filter,
   FilterClause,
@@ -20,6 +21,7 @@ import type {
   LodRules,
   MenuAction,
   MenuTarget,
+  NodeMark,
   Overlay,
   OverlayMark,
   PatternId,
@@ -56,6 +58,8 @@ export type ActivityNodeData = {
   locale: Locale;
   meta?: string;
   description: string;
+  /** What the node looks like (`FlowScene.nodeMarks`); resolved from the fields above without it. */
+  mark?: NodeMark;
 };
 
 export type GroupNodeData = {
@@ -88,6 +92,8 @@ export type FollowsEdgeData = {
   dimmed: boolean;
   focused: boolean;
   description: string;
+  /** What the edge looks like (`FlowScene.edgeMarks`); resolved from the fields above without it. */
+  mark?: EdgeMark;
 };
 
 export type WfEdge = Edge<FollowsEdgeData, "follows" | "constraint" | "flow">;
