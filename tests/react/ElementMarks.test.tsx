@@ -1,7 +1,8 @@
 import { cleanup, render, waitFor } from "@testing-library/react";
+import { ReactFlow, ReactFlowProvider } from "@xyflow/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { type FlowGraph } from "../../src/index";
-import { ProcessMap } from "../../src/react/index";
+import { type FlowGraph, edgeMark, nodeMark } from "../../src/index";
+import { type WfEdge, type WfNode, ProcessMap, edgeTypes, nodeTypes } from "../../src/react/index";
 import { graph, positions, style } from "../core/element-kinds";
 
 afterEach(cleanup);
@@ -52,5 +53,41 @@ describe("React Flow nodes and edges from their marks", () => {
     const { node } = await map(long);
     expect(node("a").querySelector(".wf-node__label")!.textContent).toBe("Change Approval for Pu…");
     expect(node("a").getAttribute("title")).toContain("Change Approval for Purchase Order");
+  });
+});
+
+describe("React Flow node and edge components", () => {
+  it("draw the mark they are given rather than resolving their own", async () => {
+    const [, a, g] = graph.nodes;
+    const flow = graph.edges[1];
+    const fields = { color: "#8c8c8c", pattern: "solid" as const, badges: [], hatched: false, direction: "RIGHT" as const, focused: false, hovered: false, dimmed: false, locale: "en" as const };
+    // Marks whose texts and route differ from what the node and edge fields would give.
+    const activity = nodeMark(a, positions.nodes.a, { color: "#8c8c8c", pattern: "solid" });
+    activity.texts = activity.texts.map((t) => ({ ...t, text: t.role === "label" ? "From the mark" : "42" }));
+    const gateway = nodeMark(g, positions.nodes.g, { color: "#8c8c8c", pattern: "solid" });
+    gateway.texts = [{ ...gateway.texts[0], text: "◇" }];
+    const nodes: WfNode[] = [
+      { id: "a", type: "activity", position: { x: 0, y: 0 }, data: { ...fields, node: a, description: "a", mark: activity } },
+      { id: "g", type: "gateway", position: { x: 300, y: 0 }, data: { ...fields, node: g, description: "g", mark: gateway } },
+    ];
+    const edges: WfEdge[] = [{
+      id: flow.id, type: "flow", source: "a", target: "g",
+      data: { edge: flow, width: 1.5, color: "#8c8c8c", reconnected: false, hovered: false, dimmed: false, focused: false, description: "a to g",
+        mark: edgeMark({ ...flow, metrics: { count: 99 } }, [{ x: 10, y: 10 }, { x: 110, y: 10 }], { color: "#8c8c8c", width: 1.5 }) },
+    }];
+    const { container } = render(
+      <div style={{ width: 800, height: 400 }}>
+        <ReactFlowProvider>
+          <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} />
+        </ReactFlowProvider>
+      </div>,
+    );
+    await waitFor(() => expect(container.querySelector("g.wf-edge")).not.toBeNull());
+    expect([...container.querySelectorAll("#wf-node-a .wf-node__label, #wf-node-a .wf-node__meta")].map((e) => e.textContent)).toEqual(["From the mark", "42"]);
+    expect(container.querySelector("#wf-node-g .wf-node__label")!.textContent).toBe("◇");
+    // The edge runs along the mark's points, not between the handles, its count 4 above their middle.
+    expect(container.querySelector("g.wf-edge path.react-flow__edge-path")!.getAttribute("d")).toBe("M10 10L110 10");
+    const label = container.querySelector("g.wf-edge .wf-edge-label")!;
+    expect([label.textContent, label.getAttribute("x"), label.getAttribute("y")]).toEqual(["99", "60", "6"]);
   });
 });
