@@ -85,7 +85,7 @@ describe("the scene of a BPMN diagram", () => {
     expect(shape("arc:a:0").path).toBe("M150 100 C150 12 550 12 550 100");
     // Self-loop at the top right corner of B (300, 100, 100 × 80).
     expect(shape("selfLoop:approve:1").path).toBe("M382 100 C382 72 428 112 400 112");
-    // The first badge on A sits 22 + 4 from its right edge, half above it.
+    // The first badge slot on A spans 22 px ending 2 px inside its right edge (200 - 26 + 2), half above it.
     expect(shape("badge:a:3")).toMatchObject({ x: 176, y: 89, width: 22, height: 22, minZoom: 0.5 });
   });
 

@@ -16,6 +16,7 @@ const mock = vi.hoisted(() => {
   class Viewer {
     static instances: Viewer[] = [];
     layer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    added: { id: string; position: { top: number; left: number } }[] = [];
     constructor() { Viewer.instances.push(this); }
     on() {}
     off() {}
@@ -23,7 +24,7 @@ const mock = vi.hoisted(() => {
     get(name: string) {
       if (name === "selection") return { get: () => [], select() {} };
       if (name === "elementRegistry") return { get: (id: string) => tasks.find((t) => t.id === id), getAll: () => tasks };
-      if (name === "overlays") return { remove() {}, add: () => "1" };
+      if (name === "overlays") return { remove: () => { this.added = []; }, add: (id: string, _type: string, o: { position: { top: number; left: number } }) => { this.added.push({ id, position: o.position }); return "1"; } };
       if (name === "canvas") return { getLayer: () => this.layer, zoom: () => 1, resized() {}, removeMarker() {}, addMarker() {} };
       throw new Error(`Unexpected service ${name}`);
     }
@@ -74,5 +75,28 @@ describe("BpmnView overlays from the scene", () => {
     expect(container.querySelector(".wf-bpmn")?.getAttribute("aria-label")).toBe(
       "BPMN diagram with 7 tasks, 2 gateways and 12 sequence flows in 3 lanes. 1 visual annotations.",
     );
+  });
+
+  it("attaches badges given by BPMN id and by activity id to their task, one slot each", async () => {
+    const { container } = render(
+      <BpmnView
+        xml={xml}
+        mapping={{ create_purchase_order_item: "Task_CreatePO" }}
+        overlays={[
+          { kind: "badge", target: "Task_CreatePO", payload: { value: 0.5 } },
+          { kind: "badge", target: "create_purchase_order_item", payload: { value: 0.25 } },
+          { kind: "badge", target: "Task_ApproveInvoice", payload: {} },
+        ]}
+      />,
+    );
+    await waitFor(() => expect(container.querySelector(".wf-bpmn")?.getAttribute("data-bpmn-status")).toBe("ready"));
+    const viewer = mock.Viewer.instances[0];
+    await waitFor(() => expect(viewer.added.length).toBe(3));
+    // Slots run leftwards from the right edge of the 100 px task: 100 - 26 + 2 and 100 - 52 + 2, half a badge above.
+    expect(viewer.added.map((a) => [a.id, a.position.left, a.position.top]).sort()).toEqual([
+      ["Task_ApproveInvoice", 76, -11],
+      ["Task_CreatePO", 50, -11],
+      ["Task_CreatePO", 76, -11],
+    ]);
   });
 });
