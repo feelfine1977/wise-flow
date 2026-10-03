@@ -1,31 +1,11 @@
 import { type CSSProperties, type ReactNode, forwardRef, useCallback, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from "react";
-import {
-  type Box,
-  type EdgeRoute,
-  type FlowGraph,
-  type Locale,
-  type LodRules,
-  type Overlay,
-  type OverlayShape,
-  type Positions,
-  MAP_TARGET,
-  buildScales,
-  canonicalOverlays,
-  colorOn,
-  contrastText,
-  createPositions,
-  defaultLod,
-  defaultStyle,
-  formatShare,
-  lodForSize,
-  overlayGeometry,
-  t,
-} from "../core/index.js";
+import { type FlowGraph, type Locale, type LodRules, type Overlay, type OverlayShape, MAP_TARGET, colorOn, contrastText, createPositions, formatShare, t } from "../core/index.js";
 import { type BpmnExport, exportBpmn } from "../bpmn/export.js";
 import { type IdResolver, createIdResolver, renameToActivities } from "../bpmn/ids.js";
 import { type BpmnImport, type MappingRow, applyRenaming, importBpmn } from "../bpmn/import.js";
 import type { BpmnLayoutOptions } from "../bpmn/layout.js";
 import { type ModdleElement, isType, wiseModdleDescriptor } from "../bpmn/moddle.js";
+import { type DiagramPositions, diagramScene, registryPositions } from "../bpmn/scene.js";
 import { Legend } from "./Legend.js";
 import { Chip, tintFor } from "./nodes.js";
 import { TableAlternative } from "./TableAlternative.js";
@@ -147,10 +127,6 @@ function isTask(bo: ModdleElement | undefined): boolean {
 function isLane(bo: ModdleElement | undefined): boolean {
   return isType(bo, "bpmn:Lane") || isType(bo, "bpmn:Participant");
 }
-function isGroupShape(el: DjsElement): boolean {
-  const bo = el.businessObject;
-  return isLane(bo) || (isType(bo, "bpmn:SubProcess") && ((bo?.get("flowElements") as unknown[] | undefined)?.length ?? 0) > 0);
-}
 
 /** The rendered elements (not their labels) that an id names: FlowGraph id, BPMN id or mapped activity id. */
 function elementsNamed(registry: RegistryService, resolver: IdResolver, ids: Iterable<string>): DjsElement[] {
@@ -158,25 +134,7 @@ function elementsNamed(registry: RegistryService, resolver: IdResolver, ids: Ite
   return registry.getAll().filter((e) => !e.labelTarget && e.businessObject && wanted.some((id) => resolver.matches(e.businessObject!, id)));
 }
 
-/** Positions of the rendered elements keyed by every id that names them. */
-function registryPositions(registry: RegistryService, resolver: IdResolver): Positions {
-  const nodes: Record<string, Box> = {};
-  const groups: Record<string, Box> = {};
-  const edges: Record<string, EdgeRoute> = {};
-  for (const el of registry.getAll()) {
-    if (el.labelTarget || !el.businessObject) continue;
-    const keys = resolver.names(el.businessObject);
-    if (el.waypoints) {
-      for (const k of keys) edges[k] = { points: el.waypoints.map((p) => ({ x: p.x, y: p.y })) };
-      continue;
-    }
-    if (typeof el.x !== "number" || typeof el.y !== "number") continue;
-    const box = { x: el.x, y: el.y, width: el.width ?? 0, height: el.height ?? 0 };
-    const target = isGroupShape(el) ? groups : nodes;
-    for (const k of keys) target[k] = box;
-  }
-  return createPositions({ nodes, groups, edges }, "di", "RIGHT");
-}
+const NO_ELEMENTS: DiagramPositions<DjsElement> = { positions: createPositions({ nodes: {}, groups: {}, edges: {} }, "di", "RIGHT"), elements: new Map() };
 
 function el(tag: string, className: string, text?: string): HTMLElement {
   const node = document.createElement(tag);
@@ -438,12 +396,17 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
   // The table lists the graph with mapped tasks renamed to their activity ids.
   const renaming = useMemo(() => (imported ? renameToActivities(imported.graph.nodes.map((n) => n.id), resolver) : undefined), [imported, resolver]);
   const tableGraph = useMemo(() => (imported && renaming ? applyRenaming(imported.graph, renaming) : undefined), [imported, renaming]);
-  const scales = useMemo(() => buildScales(tableGraph ?? { nodes: [], edges: [] }, defaultStyle), [tableGraph]);
-  const lodRules = useMemo(() => lodForSize(tableGraph?.nodes.length ?? 0, { ...defaultLod, ...(props.lod ?? {}) }), [tableGraph?.nodes.length, props.lod]);
-  const lodRef = useRef(lodRules);
-  lodRef.current = lodRules;
-  const orderedOverlays = useMemo(() => canonicalOverlays(overlays), [overlays]);
-  const mapChips = orderedOverlays.filter((o) => o.kind === "chip" && o.target === MAP_TARGET);
+  // The scene of the diagram over the boxes of its rendered elements, read again after every import and change.
+  const placed = useMemo(
+    () => (status === "ready" && viewerRef.current && renaming ? registryPositions(viewerRef.current.get<RegistryService>("elementRegistry").getAll(), { resolver, renaming }) : NO_ELEMENTS),
+    [status, renderVersion, resolver, renaming], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const { scene, listed } = useMemo(
+    () => diagramScene(tableGraph, placed.positions, overlays, { resolver, renaming: renaming ?? renameToActivities([], resolver) }, { locale, lod: props.lod }),
+    [tableGraph, placed, overlays, resolver, renaming, locale, props.lod],
+  );
+  const { scales, lod: lodRules } = scene;
+  const mapChips = listed.filter((o) => o.kind === "chip" && o.target === MAP_TARGET);
 
   // 5. Project the overlays onto the diagram. The diagram is not touched; only overlays change.
   useEffect(() => {
@@ -459,11 +422,9 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
       canvas.removeMarker(e.id, "wf-bpmn--tinted");
       canvas.removeMarker(e.id, "wf-bpmn--hatched");
     }
-    if (!orderedOverlays.length) return;
+    if (!scene.geometry.shapes.length) return;
 
-    const positions = registryPositions(registry, resolver);
-    const geometry = overlayGeometry(orderedOverlays, positions, { lod: lodRules });
-    const elementOf = (id: string): DjsElement | undefined => elementsNamed(registry, resolver, [id])[0];
+    const elementOf = (id: string): DjsElement | undefined => placed.elements.get(id);
     const arrow = svgEl("marker", { id: "wf-bpmn-arrow", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 12, markerHeight: 12, markerUnits: "userSpaceOnUse", orient: "auto-start-reverse" });
     arrow.appendChild(svgEl("path", { d: "M0 0L10 5L0 10z", fill: "context-stroke" }));
     const defs = svgEl("defs", {});
@@ -478,7 +439,7 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
       if (elements.length) viewer.get<SelectionService>("selection").select(elements);
     };
 
-    for (const shape of geometry.shapes) {
+    for (const shape of scene.geometry.shapes) {
       const o = shape.overlay;
       const p = o.payload ?? {};
       switch (o.kind) {
@@ -554,13 +515,15 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
           if (p.reverse) path.setAttribute("stroke-dasharray", "6 4");
           path.addEventListener("click", () => selectPair(shape));
           g.appendChild(path);
-          if (shape.labelX !== undefined && shape.labelY !== undefined) {
-            const value = typeof p.value === "number" && Number.isFinite(p.value) ? formatShare(p.value, locale) : "";
+          const value = typeof p.value === "number" && Number.isFinite(p.value) ? formatShare(p.value, locale) : "";
+          // A self-loop without a label or a value draws no text.
+          if (shape.labelX !== undefined && shape.labelY !== undefined && (o.kind === "arc" || p.displayLabel || value)) {
             const text = svgEl("text", { x: shape.labelX, y: shape.labelY, "text-anchor": o.kind === "arc" ? "middle" : "start" });
             text.textContent = typeof p.displayLabel === "string" ? p.displayLabel : o.kind === "arc" ? `${p.glyph ?? ""} ${value}`.trim() : `↻ ${value}`;
             g.appendChild(text);
           }
-          g.setAttribute("data-min-zoom", String(shape.minZoom));
+          // Observed repeats are recorded data and stay at every zoom.
+          g.setAttribute("data-min-zoom", String(o.kind === "selfLoop" && p.observed ? 0 : shape.minZoom));
           layer.appendChild(g);
           break;
         }
@@ -579,7 +542,7 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
     return () => {
       viewer.off("canvas.viewbox.changed", applyZoom);
     };
-  }, [status, renderVersion, orderedOverlays, resolver, lodRules, locale]);
+  }, [status, scene, placed, lodRules, locale]);
 
   // 6. Controlled selection: applied to the diagram when it differs from what the diagram reported.
   useEffect(() => {
@@ -615,7 +578,7 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
       lanes: g?.groups?.filter((gr) => gr.kind !== "pool").length ?? 0,
     };
   }, [tableGraph]);
-  const description = t(locale, "bpmn.description", counts) + (orderedOverlays.length ? ` ${t(locale, "map.overlays", { count: orderedOverlays.length })}` : "");
+  const description = t(locale, "bpmn.description", counts) + (listed.length ? ` ${t(locale, "map.overlays", { count: listed.length })}` : "");
   // The table names mapped tasks by activity id; selections cross it in FlowGraph ids.
   const tableSelection: Selection = { nodes: selection.tasks.map((id) => renaming?.toMapped(id) ?? id), edges: selection.flows, groups: selection.lanes };
   const onTableSelect = useCallback(
@@ -654,7 +617,7 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
       <div ref={containerRef} className="wf-bpmn__canvas" aria-hidden={view === "table" ? true : undefined} />
       {view === "table" && tableGraph ? (
         <div className="wf-bpmn__table">
-          <TableAlternative graph={tableGraph} overlays={orderedOverlays} scales={scales} locale={locale} selection={tableSelection} onSelect={onTableSelect} />
+          <TableAlternative graph={tableGraph} overlays={listed} scales={scales} locale={locale} selection={tableSelection} onSelect={onTableSelect} />
         </div>
       ) : null}
       {controls ? (
@@ -693,7 +656,7 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
       ) : null}
       {legend && view !== "table" ? (
         <div className="wf-bpmn__panel wf-bpmn__panel--bottom-right">
-          <Legend scales={scales} overlays={orderedOverlays} locale={locale} chips={mapChips.length ? mapChips.map((c, i) => <Chip key={`${c.payload?.constraintId ?? "chip"}-${i}`} chip={c} locale={locale} />) : undefined} />
+          <Legend scales={scales} overlays={listed} locale={locale} chips={mapChips.length ? mapChips.map((c, i) => <Chip key={`${c.payload?.constraintId ?? "chip"}-${i}`} chip={c} locale={locale} />) : undefined} />
         </div>
       ) : null}
       {status === "loading" || (status === "idle" && (xml || graph)) ? (
