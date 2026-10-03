@@ -1,14 +1,14 @@
-import { withObservedSelfLoops } from "./observed-loops.js";
-import { type ActivityLabelOptions, activityDescription, activityKeyLines, activityLabelLines, activityReferences } from "./activity-labels.js";
 /**
  * Deterministic SVG export of a scene with an embedded legend and figure presets.
  */
+import { type ActivityLabelOptions, activityDescription, activityKeyLines, activityLabelLines } from "./activity-labels.js";
 import { type Locale, formatCompact, formatCount, formatNumber, formatShare } from "./format.js";
-import { type Box, type Positions, straightRoute, unionBoxes } from "./layout.js";
-import { type LaneBand, type LaneMode, laneBands } from "./lanes.js";
+import { type Box, type Positions, straightRoute } from "./layout.js";
+import { type LaneBand, type LaneMode } from "./lanes.js";
 import { type FlowGraph, type Overlay, MAP_TARGET, hasTag, metric } from "./model.js";
-import { type OverlayGeometryOptions, type OverlayShape, canonicalOverlays, overlayGeometry } from "./overlays.js";
-import { type LegendItem, type Scales, type StyleSpec, buildScales, contrastText, defaultStyle, fixedColors, lodAt, patternDefs } from "./style.js";
+import type { OverlayGeometryOptions, OverlayShape } from "./overlays.js";
+import { type FlowScene, buildScene } from "./scene.js";
+import { type LegendItem, type StyleSpec, contrastText, fixedColors, lodAt, patternDefs } from "./style.js";
 import { RECONNECTED_TAG } from "./aggregate.js";
 import { type StringKey, t } from "./strings.js";
 
@@ -23,6 +23,8 @@ export interface Scene {
   locale?: Locale;
   /** Draw stage or lane groups as bands (see `laneBands`). Default `none`. */
   lanes?: LaneMode;
+  /** Draw follows edges from a node to itself as self-loops. Default true. */
+  selfLoops?: boolean;
 }
 
 export type FigurePreset = "single-column" | "double-column" | "slide" | "none";
@@ -54,11 +56,9 @@ const esc = (s: unknown): string =>
 const num = (n: number): string => Number(n.toFixed(2)).toString();
 
 interface Ctx {
-  scene: Scene;
-  scales: Scales;
+  scene: FlowScene;
   locale: Locale;
   lod: ReturnType<typeof lodAt>;
-  font: string;
   bands: Map<string, LaneBand>;
 }
 
@@ -80,7 +80,7 @@ function drawGroups(ctx: Ctx): string {
   for (const g of [...(graph.groups ?? [])].sort((a, b) => (a.id < b.id ? -1 : 1))) {
     const b = positions.groups[g.id];
     if (!b) continue;
-    const c = ctx.scales.categorical(g.id);
+    const c = ctx.scene.scales.categorical(g.id);
     const band = ctx.bands.get(g.id);
     out.push(`<g class="wf-group${band ? " wf-group-band" : ""}" data-id="${esc(g.id)}">`);
     if (band) {
@@ -114,8 +114,8 @@ function drawEdges(ctx: Ctx): string {
     if (e.source === e.target) continue;
     const route = routeOf(ctx, e.id, e.source, e.target);
     if (!route) continue;
-    const w = ctx.scales.edgeWidth(e);
-    const color = e.kind === "constraint" ? fixedColors.mechanism : ctx.scales.edgeColor(e);
+    const w = ctx.scene.scales.edgeWidth(e);
+    const color = e.kind === "constraint" ? fixedColors.mechanism : ctx.scene.scales.edgeColor(e);
     const dash = hasTag(e, RECONNECTED_TAG) ? ` stroke-dasharray="6 5"` : e.kind === "constraint" ? ` stroke-dasharray="2 4"` : "";
     const d = route.points.map((p, i) => `${i === 0 ? "M" : "L"}${num(p.x)} ${num(p.y)}`).join("");
     out.push(`<g class="wf-edge" data-id="${esc(e.id)}"><path d="${d}" fill="none" stroke="${color}" stroke-width="${num(w)}" stroke-linejoin="round"${dash} marker-end="url(#wf-arrow)"/>`);
@@ -141,8 +141,8 @@ function drawNodes(ctx: Ctx): string {
   for (const n of nodes) {
     const b = positions.nodes[n.id];
     if (!b) continue;
-    const color = ctx.scales.nodeColor(n);
-    const pattern = ctx.scales.nodePattern(n);
+    const color = ctx.scene.scales.nodeColor(n);
+    const pattern = ctx.scene.scales.nodePattern(n);
     const reconnected = hasTag(n, RECONNECTED_TAG);
     out.push(`<g class="wf-node wf-node-${n.kind}" data-id="${esc(n.id)}">`);
     if (n.kind === "event") {
@@ -192,7 +192,7 @@ function drawOverlays(ctx: Ctx, shapes: OverlayShape[]): string {
     if (key && !ctx.lod[key] && !s.overlay.payload?.observed) continue;
     const p = s.overlay.payload ?? {};
     const value = typeof p.value === "number" ? p.value : NaN;
-    const color = !p.observed && Number.isFinite(value) ? ctx.scales.color(value, "sequential", [0, 1]) : fixedColors.neutral;
+    const color = !p.observed && Number.isFinite(value) ? ctx.scene.scales.color(value, "sequential", [0, 1]) : fixedColors.neutral;
     const title = `<title>${esc([p.label, p.text].filter(Boolean).join(" — "))}</title>`;
     switch (s.kind) {
       case "tint":
@@ -298,7 +298,7 @@ function drawLegend(ctx: Ctx, x: number, y: number, width: number, mapChips: Ove
       cy += 4;
     }
   };
-  for (const it of ctx.scales.legend) item(it);
+  for (const it of ctx.scene.scales.legend) item(it);
   const keys: [string, StringKey][] = [
     ["●", "legend.badge"],
     ["⌒", "legend.arc"],
@@ -331,23 +331,26 @@ function drawLegend(ctx: Ctx, x: number, y: number, width: number, mapChips: Ove
  * elements are drawn in id order, numbers are formatted with fixed precision and
  * no time-dependent data is embedded.
  */
-export function toSVG(givenScene: Scene, options: ExportOptions = {}): string {
-  const laid = givenScene.lanes && givenScene.lanes !== "none" ? laneBands(givenScene.graph, givenScene.positions, { lanes: givenScene.lanes }) : undefined;
-  const scene: Scene = { ...givenScene, positions: laid?.positions ?? givenScene.positions, activityLabels: givenScene.activityLabels ? { ...givenScene.activityLabels, references: activityReferences(givenScene.graph, givenScene.activityLabels.references) } : undefined };
-  const locale = scene.locale ?? "en";
-  const scales = buildScales(scene.graph, scene.style ?? defaultStyle);
-  const lod = lodAt(options.lodZoom ?? 1, scene.style?.lod);
+export function toSVG(given: Scene, options: ExportOptions = {}): string {
+  const scene = buildScene(given.graph, given.positions, {
+    overlays: given.overlays,
+    style: given.style,
+    locale: given.locale,
+    lanes: given.lanes,
+    activityLabels: given.activityLabels,
+    selfLoops: given.selfLoops,
+    overlayGeometry: options.overlayGeometry,
+  });
+  const { locale, geometry } = scene;
   const font = options.fontFamily ?? "Inter, 'Segoe UI', Helvetica, Arial, sans-serif";
-  const ctx: Ctx = { scene, scales, locale, lod, font, bands: new Map((laid?.bands ?? []).map((b) => [b.id, b])) };
-  const overlays = canonicalOverlays(scene.activityLabels ? withObservedSelfLoops(scene.graph, scene.overlays ?? scene.graph.overlays ?? [], locale, scene.activityLabels.caseLabel) : scene.overlays ?? scene.graph.overlays ?? []);
-  const geometry = overlayGeometry(overlays, scene.positions, { ...(options.overlayGeometry ?? {}), lod: scene.style?.lod });
+  const ctx: Ctx = { scene, locale, lod: lodAt(options.lodZoom ?? 1, scene.lod), bands: new Map(scene.bands.map((b) => [b.id, b])) };
   const pad = options.padding ?? 24;
   const legend = options.legend ?? true;
   const legendWidth = legend ? 220 : 0;
 
-  const content = unionBoxes([scene.positions.bounds, ...(geometry.shapes.length ? [geometry.bounds] : [])]);
-  const headerHeight = scene.title ? 40 + (options.context !== false ? 18 : 0) : 0;
-  const mapChips = overlays.filter((o) => o.kind === "chip" && o.target === MAP_TARGET);
+  const content = scene.bounds;
+  const headerHeight = given.title ? 40 + (options.context !== false ? 18 : 0) : 0;
+  const mapChips = scene.overlays.filter((o) => o.kind === "chip" && o.target === MAP_TARGET);
   const legendDraw = legend ? drawLegend(ctx, 0, 0, legendWidth - 16, mapChips) : { svg: "", height: 0 };
 
   const mapW = content.width + 2 * pad;
@@ -361,18 +364,18 @@ export function toSVG(givenScene: Scene, options: ExportOptions = {}): string {
 
   const parts: string[] = [];
   parts.push(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${num(outW)}" height="${num(outH)}" viewBox="0 0 ${num(totalW)} ${num(totalH)}" font-family="${esc(font)}" role="img" aria-label="${esc(scene.title ?? t(locale, "map.description", { nodes: scene.graph.nodes.length, edges: scene.graph.edges.length, groups: scene.graph.groups?.length ?? 0 }))}">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${num(outW)}" height="${num(outH)}" viewBox="0 0 ${num(totalW)} ${num(totalH)}" font-family="${esc(font)}" role="img" aria-label="${esc(given.title ?? t(locale, "map.description", { nodes: scene.graph.nodes.length, edges: scene.graph.edges.length, groups: scene.graph.groups?.length ?? 0 }))}">`,
   );
   parts.push(`<defs>${patternDefs()}`);
   parts.push(`<marker id="wf-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="strokeWidth"><path d="M0 0L10 5L0 10z" fill="context-stroke"/></marker>`);
   parts.push(`<marker id="wf-arrow-arc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse" markerUnits="strokeWidth"><path d="M0 0L10 5L0 10z" fill="context-stroke"/></marker>`);
   parts.push(`</defs>`);
   parts.push(rect({ x: 0, y: 0, width: totalW, height: totalH }, `fill="${options.background ?? fixedColors.paper}"`));
-  if (scene.title) {
-    parts.push(text(pad, 26, scene.title, `font-size="18" font-weight="700" fill="${fixedColors.ink}"`));
+  if (given.title) {
+    parts.push(text(pad, 26, given.title, `font-size="18" font-weight="700" fill="${fixedColors.ink}"`));
     if (options.context !== false) {
       const meta = scene.graph.meta ?? {};
-      const label = scene.subtitle ?? String(meta.label ?? meta.scene ?? "");
+      const label = given.subtitle ?? String(meta.label ?? meta.scene ?? "");
       const cases = typeof meta.cases === "number" ? formatCount(meta.cases, locale) : "–";
       const events = typeof meta.events === "number" ? formatCount(meta.events, locale) : "–";
       parts.push(text(pad, 44, t(locale, "export.context", { label, cases, events }), `font-size="11" fill="${fixedColors.neutral}"`));
@@ -399,4 +402,3 @@ export function toSVG(givenScene: Scene, options: ExportOptions = {}): string {
   parts.push(`</svg>`);
   return parts.join("");
 }
-

@@ -32,6 +32,7 @@ import {
   activityNodeSize,
   activityReferences,
   withObservedSelfLoops,
+  followsSelfLoops,
   addClause,
   asFilter,
   buildScales,
@@ -99,24 +100,6 @@ function automaticLayoutOptions(graph: FlowGraph, options: LayoutOptions, scope:
     },
   });
   return { ...options, nodeSize: (node) => sizes.get(node.id) ?? defaultNodeSize(node), cacheKey: `wf:${scope}:${fingerprint}` };
-}
-
-function selfLoopOverlays(graph: FlowGraph): Overlay[] {
-  const out: Overlay[] = [];
-  const maxCount = Math.max(1, ...graph.edges.filter((e) => e.kind === "follows").map((e) => metric(e, "count", 0)));
-  for (const e of graph.edges) {
-    if (e.kind !== "follows" || e.source !== e.target) continue;
-    const count = metric(e, "count", NaN);
-    const cases = metric(e, "cases", NaN);
-    const nodeCases = metric(graph.nodes.find((n) => n.id === e.source), "cases", NaN);
-    const share = Number.isFinite(cases) && Number.isFinite(nodeCases) && nodeCases > 0 ? cases / nodeCases : Number.isFinite(count) ? count / maxCount : undefined;
-    out.push({
-      kind: "selfLoop",
-      target: e.source,
-      payload: { label: e.id, value: share, text: Number.isFinite(count) ? `${formatCompact(count)} ×` : undefined, edgeId: e.id },
-    });
-  }
-  return out;
 }
 
 interface MenuState {
@@ -244,7 +227,7 @@ function ProcessMapInner(props: ProcessMapProps) {
     const list = [...(shown.overlays ?? []), ...(extraOverlays ?? [])].filter(
       (o) => known.has(o.target) || (o.kind === "arc" && known.has(String(o.payload?.source)) && known.has(String(o.payload?.target))),
     );
-    return canonicalOverlays(selfLoops ? activityLabels ? withObservedSelfLoops(shown, list, locale, activityLabels.caseLabel) : [...list, ...selfLoopOverlays(shown)] : list);
+    return canonicalOverlays(selfLoops ? activityLabels ? withObservedSelfLoops(shown, list, locale, activityLabels.caseLabel) : [...list, ...followsSelfLoops(shown)] : list);
   }, [shown, extraOverlays, selfLoops, activityLabels, locale]);
 
   const lodRules = useMemo(() => lodForSize(shown.nodes.length, { ...(style.lod ?? {}), ...(props.lod ?? {}) }), [shown.nodes.length, style.lod, props.lod]);

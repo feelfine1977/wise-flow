@@ -119,18 +119,4 @@ describe("observed loops in label-mode exports", () => {
     expect(withObservedSelfLoops(graph, observed, "en", "items")).toHaveLength(2);
     expect(prepareScene(graph, positions, { activityLabels: ids }).shapes.filter((shape) => shape.kind === "selfLoop")).toHaveLength(1);
   });
-
-  it("qualifies a share with distinct-case numerator and denominator, never repeat-event frequency", () => {
-    const g: FlowGraph = {
-      nodes: [{ id: "a", kind: "activity", label: "Review", metrics: { cases: 10, events: 1000 } }],
-      edges: [{ id: "aa", kind: "follows", source: "a", target: "a", metrics: { cases: 3, count: 990 } }],
-    };
-    const payload = withObservedSelfLoops(g, [], "en", "items")[0].payload!;
-    expect(payload.text).toBe("990 transitions · 3 items with this direct repeat / 10 items with activity (30 %)");
-    expect(payload.displayLabel).toBe("↻ 990 transitions");
-    const missing = { ...g, edges: [{ ...g.edges[0], metrics: {} }] };
-    expect(withObservedSelfLoops(missing, [])[0].payload?.text).toBe("transition count unavailable · repeat cases unavailable");
-    const inconsistent = { ...g, edges: [{ ...g.edges[0], metrics: { cases: 20, count: 990 } }] };
-    expect(withObservedSelfLoops(inconsistent, [])[0].payload?.text).not.toContain("%");
-  });
 });

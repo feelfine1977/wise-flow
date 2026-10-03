@@ -10,6 +10,9 @@ Framework-free TypeScript; runs in Node and in the browser. No DOM, no React.
 | `label-sizing.ts` | Pure zoom-to-label sizes, shape scale and screen-pixel conversion; opt-in host display policy |
 | `style.ts` | `buildScales`, palettes with pattern twins, contrast helpers, level-of-detail rules, `patternDefs` |
 | `overlays.ts` | constraint presets → overlays, `canonicalOverlays`, `overlayGeometry`, `describeOverlay` |
+| `overlay-geometry.ts` | placement of overlays already in canonical order: badge slots, arcs, self-loops, hatch, tint, chips |
+| `observed-loops.ts` | `followsSelfLoops`, `withFollowsSelfLoops`, `withObservedSelfLoops`: follows edges from a node to itself as self-loop overlays |
+| `scene.ts` | `buildScene`: graph and positions resolved once into activity references, lane bands, scales, the overlays to show, level-of-detail rules and overlay geometry |
 | `views.ts` | `buildViews`, `resolveViews`: named views of one map with shared scale domains |
 | `selection.ts` | `Selection` transitions (`selectElement`, `selectMany`), `selectionShape`, `relatedToSelection`, `describeSelection` |
 | `actions.ts` | `menuTargetFor`, `defaultActions` (filter, explore, compare, author; accelerators; filter clauses), `menuTitle` |
@@ -18,6 +21,6 @@ Framework-free TypeScript; runs in Node and in the browser. No DOM, no React.
 | `lanes.ts` | `laneBands`: stage groups as ordered bands along the flow, lane groups as bands across it; the lane model shared with the BPMN layout (`laneModel`, `stackLanes`, `spanLanes`, `laneRoutes`) |
 | `routing.ts` | `routeSequenceFlows` (orthogonal obstacle router), `repositionNodes` |
 | `hit.ts` | `HitIndex` (rbush) over nodes, groups, edge segments and overlay shapes |
-| `export.ts` | `toSVG` with figure presets, lane bands and an embedded legend |
+| `export.ts` | `toSVG`: draws a `buildScene` scene with figure presets and an embedded legend |
 | `format.ts` | deterministic number and duration formatting, `Locale` |
 | `strings.ts` | English and German strings, `t`, `metricLabel` |

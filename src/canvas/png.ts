@@ -75,7 +75,7 @@ function defaultCreateCanvas(width: number, height: number): CanvasLike {
 export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
   const tokens: CanvasTokens = { ...defaultTokens, ...(options.tokens ?? {}) };
   const locale = scene.locale ?? "en";
-  const prepared = prepareScene(scene.graph, scene.positions, { style: scene.style, overlays: scene.overlays ?? scene.graph.overlays, locale, lanes: scene.lanes, selfLoops: !!scene.activityLabels, activityLabels: scene.activityLabels });
+  const prepared = prepareScene(scene.graph, scene.positions, { style: scene.style, overlays: scene.overlays ?? scene.graph.overlays, locale, lanes: scene.lanes, selfLoops: scene.selfLoops !== false && !!scene.activityLabels, activityLabels: scene.activityLabels });
   const pad = options.padding ?? 24;
   const legend = options.legend ?? true;
   const legendWidth = legend ? 220 : 0;

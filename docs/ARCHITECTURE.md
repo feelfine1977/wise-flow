@@ -92,7 +92,11 @@ canonical order so that exports do not depend on input order.
 
 ### 2.6 Hit-testing and export
 An R-tree (rbush) over nodes, groups, edge segments and overlay shapes for
-hover and click on Canvas and in exports; `toSVG(scene)` with figure presets
+hover and click on Canvas and in exports. `buildScene` resolves graph,
+positions and options once into the scene renderers read (activity
+references, lane bands, scales, the overlays to show with the follows
+self-loops in canonical order, level-of-detail rules, overlay geometry);
+`toSVG(scene)` draws it with figure presets
 (single column, double column, slide), an embedded legend with the scales
 and overlay glyphs, deterministic output. `toPNG` (in `canvas/`) draws the
 same scene, presets and legend into a bitmap.
