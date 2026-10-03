@@ -5,7 +5,7 @@
  */
 import { type ActivityLabelOptions, activityReferences } from "./activity-labels.js";
 import type { Locale } from "./format.js";
-import type { Box, Positions } from "./layout.js";
+import { type Box, type Positions, unionBoxes } from "./layout.js";
 import { type LaneBand, type LaneMode, laneBands } from "./lanes.js";
 import { type FlowGraph, type Overlay, MAP_TARGET } from "./model.js";
 import { withFollowsSelfLoops } from "./observed-loops.js";
@@ -55,16 +55,6 @@ export interface FlowScene {
   bounds: Box;
 }
 
-function unionBox(boxes: Box[]): Box {
-  const valid = boxes.filter((b) => b.width >= 0 && b.height >= 0);
-  if (!valid.length) return { x: 0, y: 0, width: 0, height: 0 };
-  const x0 = Math.min(...valid.map((b) => b.x));
-  const y0 = Math.min(...valid.map((b) => b.y));
-  const x1 = Math.max(...valid.map((b) => b.x + b.width));
-  const y1 = Math.max(...valid.map((b) => b.y + b.height));
-  return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
-}
-
 function shownOverlays(graph: FlowGraph, given: Overlay[], options: FlowSceneOptions, locale: Locale): Overlay[] {
   const known = new Set([...graph.nodes.map((n) => n.id), ...(graph.groups ?? []).map((g) => g.id), MAP_TARGET]);
   const overlays = given.filter((o) => known.has(o.target) || (o.kind === "arc" && known.has(String(o.payload?.source)) && known.has(String(o.payload?.target))));
@@ -94,6 +84,6 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
     overlays,
     lod,
     geometry,
-    bounds: unionBox([positions.bounds, ...(geometry.shapes.length ? [geometry.bounds] : [])]),
+    bounds: unionBoxes([positions.bounds, ...(geometry.shapes.length ? [geometry.bounds] : [])]),
   };
 }

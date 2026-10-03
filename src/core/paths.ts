@@ -155,29 +155,22 @@ export function pathsFor(graph: FlowGraph, focus: string, options: PathsOptions 
 
 /**
  * The node ids a focus stands for: the node itself, or the members of a
- * group (paths in and out of a stage are the paths crossing its boundary).
+ * group and of the groups nested in it (paths in and out of a stage are the
+ * paths crossing its boundary).
  */
 export function focusMembers(graph: FlowGraph, focus: string): Set<string> {
-  const idx = indexGraph(graph);
+  return membersOf(indexGraph(graph), focus);
+}
+
+function membersOf(idx: GraphIndex, focus: string): Set<string> {
   if (idx.nodes.has(focus) || !idx.groups.has(focus)) return new Set([focus]);
-  const groups = idx.groups;
-  const under = (id: string | undefined): boolean => {
-    const seen = new Set<string>();
-    let cur = id;
-    while (cur && !seen.has(cur)) {
-      if (cur === focus) return true;
-      seen.add(cur);
-      cur = groups.get(cur)?.parent;
-    }
-    return false;
-  };
-  return new Set(graph.nodes.filter((n) => under(n.group)).map((n) => n.id));
+  return new Set(idx.allMembers(focus).map((n) => n.id));
 }
 
 /** Predecessors and successors of a node (or of a group's members) over follows and flow edges; no self-loops, no edges inside the group. */
 export function neighbourhood(graph: FlowGraph, id: string): { predecessors: string[]; successors: string[]; incoming: FlowEdge[]; outgoing: FlowEdge[] } {
   const idx = indexGraph(graph);
-  const members = focusMembers(graph, id);
+  const members = membersOf(idx, id);
   const incoming: FlowEdge[] = [];
   const outgoing: FlowEdge[] = [];
   for (const m of members) {

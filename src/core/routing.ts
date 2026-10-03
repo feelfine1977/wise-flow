@@ -1,11 +1,10 @@
 /** Orthogonal visibility-grid routing after swimlane placement. */
-import { straightRoute, type Box, type EdgeRoute, type Positions, type XY, positionsBounds } from "./layout.js";
+import { straightRoute, type Box, type EdgeRoute, type Positions, type XY, createPositions } from "./layout.js";
 import type { FlowGraph } from "./model.js";
 
 type Port = { point: XY; outside: XY; direction: number };
 const CLEARANCE = 12;
 const STEPS = [[1, 0], [0, 1], [-1, 0], [0, -1]] as const;
-const inside = (p: XY, b: Box) => p.x > b.x && p.x < b.x + b.width && p.y > b.y && p.y < b.y + b.height;
 const inflate = (b: Box): Box => ({ x: b.x - CLEARANCE, y: b.y - CLEARANCE, width: b.width + 2 * CLEARANCE, height: b.height + 2 * CLEARANCE });
 const distance = (a: XY, b: XY) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 const ports = (b: Box): Port[] => {
@@ -20,32 +19,50 @@ export function crossesBox(a: XY, b: XY, box: Box): boolean {
     : a.y > box.y && a.y < box.y + box.height && Math.max(a.x, b.x) > box.x && Math.min(a.x, b.x) < box.x + box.width;
 }
 
+/** Binary min-heap on the estimate; the popped entry is read from `state` and `cost`. */
 class Queue {
-  private heap: { state: number; cost: number; estimate: number }[] = [];
-  push(item: { state: number; cost: number; estimate: number }) {
-    let i = this.heap.length;
-    this.heap.push(item);
+  private states = new Int32Array(1024);
+  private costs = new Float64Array(1024);
+  private estimates = new Float64Array(1024);
+  private length = 0;
+  state = -1;
+  cost = 0;
+  push(state: number, cost: number, estimate: number) {
+    if (this.length === this.states.length) this.grow();
+    const { states, costs, estimates } = this;
+    let i = this.length++;
     while (i > 0) {
       const parent = (i - 1) >> 1;
-      if (this.heap[parent].estimate <= item.estimate) break;
-      this.heap[i] = this.heap[parent]; i = parent;
+      if (estimates[parent] <= estimate) break;
+      states[i] = states[parent]; costs[i] = costs[parent]; estimates[i] = estimates[parent]; i = parent;
     }
-    this.heap[i] = item;
+    states[i] = state; costs[i] = cost; estimates[i] = estimate;
   }
-  pop() {
-    const first = this.heap[0];
-    const tail = this.heap.pop();
-    if (this.heap.length && tail) {
+  clear() {
+    this.length = 0;
+  }
+  pop(): boolean {
+    if (!this.length) return false;
+    const { states, costs, estimates } = this;
+    this.state = states[0]; this.cost = costs[0];
+    const n = --this.length;
+    if (n) {
+      const state = states[n], cost = costs[n], estimate = estimates[n];
       let i = 0;
-      while (i * 2 + 1 < this.heap.length) {
+      while (i * 2 + 1 < n) {
         let child = i * 2 + 1;
-        if (child + 1 < this.heap.length && this.heap[child + 1].estimate < this.heap[child].estimate) child++;
-        if (this.heap[child].estimate >= tail.estimate) break;
-        this.heap[i] = this.heap[child]; i = child;
+        if (child + 1 < n && estimates[child + 1] < estimates[child]) child++;
+        if (estimates[child] >= estimate) break;
+        states[i] = states[child]; costs[i] = costs[child]; estimates[i] = estimates[child]; i = child;
       }
-      this.heap[i] = tail;
+      states[i] = state; costs[i] = cost; estimates[i] = estimate;
     }
-    return first;
+    return true;
+  }
+  private grow() {
+    const states = new Int32Array(this.states.length * 2), costs = new Float64Array(states.length), estimates = new Float64Array(states.length);
+    states.set(this.states); costs.set(this.costs); estimates.set(this.estimates);
+    this.states = states; this.costs = costs; this.estimates = estimates;
   }
 }
 
@@ -90,35 +107,55 @@ export function routeSequenceFlows(graph: FlowGraph, nodes: Record<string, Box>,
   const index = (p: XY) => yIndex.get(p.y)! * nx + xIndex.get(p.x)!;
   const points = Array.from({ length: size }, (_, id) => ({ x: x[id % nx], y: y[Math.floor(id / nx)] }));
   const point = (id: number): XY => points[id];
-  const free = new Uint8Array(size);
-  for (let id = 0; id < size; id++) free[id] = +!obstacles.some((b) => inside(point(id), b));
+  const px = Float64Array.from(points, (p) => p.x), py = Float64Array.from(points, (p) => p.y);
+  // Index range of the grid lines strictly between lo and hi.
+  const strictly = (lines: number[], lo: number, hi: number): [number, number] => {
+    let first = 0;
+    while (first < lines.length && lines[first] <= lo) first++;
+    let last = first;
+    while (last < lines.length && lines[last] < hi) last++;
+    return [first, last];
+  };
+  const free = new Uint8Array(size).fill(1);
+  // Bit 1 blocks the step to the right of a grid point, bit 2 the step below it.
+  const blocked = new Uint8Array(size);
+  for (const b of obstacles) {
+    const [x0, x1] = strictly(x, b.x, b.x + b.width), [y0, y1] = strictly(y, b.y, b.y + b.height);
+    for (let iy = y0; iy < y1; iy++) for (let ix = x0; ix < x1; ix++) free[iy * nx + ix] = 0;
+    // A horizontal step crosses when its row is inside and its span overlaps; likewise vertically.
+    for (let iy = y0; iy < y1; iy++) for (let ix = Math.max(0, x0 - 1); ix < x1 && ix + 1 < nx; ix++) blocked[iy * nx + ix] |= 1;
+    for (let ix = x0; ix < x1; ix++) for (let iy = Math.max(0, y0 - 1); iy < y1 && iy + 1 < y.length; iy++) blocked[iy * nx + ix] |= 2;
+  }
   const links = new Int32Array(size * 4).fill(-1);
   for (let id = 0; id < size; id++) {
     if (!free[id]) continue;
     const ix = id % nx, iy = Math.floor(id / nx);
     for (const dir of [0, 1]) {
       const next = dir === 0 ? (ix + 1 < nx ? id + 1 : -1) : (iy + 1 < y.length ? id + nx : -1);
-      if (next < 0 || !free[next] || obstacles.some((b) => crossesBox(point(id), point(next), b))) continue;
+      if (next < 0 || !free[next] || blocked[id] & (dir + 1)) continue;
       links[id * 4 + dir] = next; links[next * 4 + dir + 2] = id;
     }
   }
   const used = new Uint16Array(size * 4);
+  // Search state is reset per edge by a generation stamp rather than by refilling.
+  const costs = new Float64Array(size * 4), previous = new Int32Array(size * 4), origins = new Int8Array(size * 4);
+  const reached = new Uint32Array(size * 4), estimated = new Uint32Array(size), estimates = new Float64Array(size);
+  let generation = 0;
+  const queue = new Queue();
   const result: Record<string, EdgeRoute> = {};
   // Local connections take the direct tracks first; long returns use the gutters.
   const edges = graph.edges.filter((e) => nodes[e.source] && nodes[e.target]).slice().sort((a, b) => distance(nodes[a.source], nodes[a.target]) - distance(nodes[b.source], nodes[b.target]) || a.id.localeCompare(b.id));
   for (const edge of edges) {
     const source = ports(nodes[edge.source]), target = ports(nodes[edge.target]);
     const goals = new Map(target.filter((p) => free[index(p.outside)]).map((p) => [index(p.outside), p]));
-    const costs = new Float64Array(size * 4).fill(Infinity);
-    const previous = new Int32Array(size * 4).fill(-1);
-    const origins = new Int8Array(size * 4).fill(-1);
-    const queue = new Queue();
+    generation++;
+    queue.clear();
     const goalPoints = [...goals.values()].map((g) => g.outside);
-    const estimates = new Float64Array(size).fill(-1);
     const heuristic = (id: number) => {
-      if (estimates[id] < 0) {
+      if (estimated[id] !== generation) {
+        estimated[id] = generation;
         let best = Infinity;
-        for (const p of goalPoints) best = Math.min(best, distance(point(id), p));
+        for (const p of goalPoints) best = Math.min(best, Math.abs(px[id] - p.x) + Math.abs(py[id] - p.y));
         // A modest directional bias bounds exploration in very dense models.
         // Routing guarantees obstacle clearance, not a globally shortest diagram.
         estimates[id] = best * 1.5;
@@ -129,29 +166,28 @@ export function routeSequenceFlows(graph: FlowGraph, nodes: Record<string, Box>,
       const id = index(p.outside);
       if (!free[id] || boxes.some((b) => b !== nodes[edge.source] && crossesBox(p.point, p.outside, b))) return;
       const state = id * 4 + p.direction;
-      costs[state] = p.direction === 0 ? 0 : 16;
-      origins[state] = i;
-      queue.push({ state, cost: costs[state], estimate: costs[state] + heuristic(id) });
+      reached[state] = generation; costs[state] = p.direction === 0 ? 0 : 16; previous[state] = -1; origins[state] = i;
+      queue.push(state, costs[state], costs[state] + heuristic(id));
     });
     let end: number | undefined;
-    for (let item = queue.pop(); item; item = queue.pop()) {
-      const { state, cost } = item;
+    while (queue.pop()) {
+      const state = queue.state, cost = queue.cost;
       if (cost !== costs[state]) continue;
-      const id = Math.floor(state / 4), dir = state % 4;
+      const id = state >> 2, dir = state & 3;
       const goal = goals.get(id);
       // Reach the target from outside, never by turning back through its body.
       if (goal && dir === (goal.direction + 2) % 4 && !(edge.source === edge.target && previous[state] === -1)) { end = state; break; }
       for (let nextDir = 0; nextDir < 4; nextDir++) {
-        if (nextDir === (dir + 2) % 4) continue;
+        if (nextDir === ((dir + 2) & 3)) continue;
         const next = links[id * 4 + nextDir];
         if (next < 0) continue;
-        const length = distance(point(id), point(next));
-        const crossing = used[next * 4 + (nextDir + 1) % 4] + used[next * 4 + (nextDir + 3) % 4];
+        const length = Math.abs(px[id] - px[next]) + Math.abs(py[id] - py[next]);
+        const crossing = used[next * 4 + ((nextDir + 1) & 3)] + used[next * 4 + ((nextDir + 3) & 3)];
         const nextCost = cost + length * (1 + 5 * Math.min(2, used[id * 4 + nextDir])) + (nextDir === dir ? 0 : 32) + 10 * Math.min(2, crossing);
         const nextState = next * 4 + nextDir;
-        if (nextCost >= costs[nextState]) continue;
-        costs[nextState] = nextCost; previous[nextState] = state; origins[nextState] = origins[state];
-        queue.push({ state: nextState, cost: nextCost, estimate: nextCost + heuristic(next) });
+        if (reached[nextState] === generation && nextCost >= costs[nextState]) continue;
+        reached[nextState] = generation; costs[nextState] = nextCost; previous[nextState] = state; origins[nextState] = origins[state];
+        queue.push(nextState, nextCost, nextCost + heuristic(next));
       }
     }
     if (end === undefined) {
@@ -191,6 +227,5 @@ export function repositionNodes(graph: FlowGraph, positions: Positions, override
   // A moved activity can obstruct a nonincident edge, so route all supplied edges.
   // Self loops remain overlays anchored to their activity.
   const edges = routeSequenceFlows({ ...graph, edges: graph.edges.filter((e) => e.source !== e.target) }, nodes, { allowOverlap: true });
-  const partial = { nodes, groups: positions.groups, edges };
-  return { ...positions, ...partial, bounds: positionsBounds(partial) };
+  return createPositions({ nodes, groups: positions.groups, edges }, positions.engine, positions.direction);
 }

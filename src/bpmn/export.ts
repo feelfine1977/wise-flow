@@ -4,9 +4,13 @@
  * ids, kinds, tags and metrics travel in the `wise` extension so that an
  * export → import round trip is lossless.
  */
-import { type Box, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Positions, hasTag, straightRoute } from "../core/index.js";
+import { type Box, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Positions, createPositions, hasTag, straightRoute } from "../core/index.js";
 import { type BpmnLayoutOptions, POOL_ID, layoutBpmn } from "./layout.js";
+import { type IdMap, createIdMap, registerId } from "./ids.js";
 import { type BpmnModdleInstance, type ModdleElement, createModdle, typeOfTag } from "./moddle.js";
+import { BPMN_VOCABULARY as V, eventDefinitionTypes, eventType, gatewayType, isGeneratedGateway } from "./vocabulary.js";
+
+export type { IdMap } from "./ids.js";
 
 export const EXPORTER_NAME = "wise-flow";
 export const EXPORTER_VERSION = "0.2.0";
@@ -29,13 +33,6 @@ export interface ExportBpmnOptions {
   participant?: boolean;
 }
 
-export interface IdMap {
-  /** FlowGraph id → BPMN element id. */
-  toBpmn: Record<string, string>;
-  /** BPMN element id → FlowGraph id. */
-  toFlow: Record<string, string>;
-}
-
 export interface BpmnExport {
   xml: string;
   positions: Positions;
@@ -43,17 +40,6 @@ export interface BpmnExport {
   /** Elements that have no BPMN counterpart (constraint edges, notes without position). */
   warnings: string[];
 }
-
-const TASK_TYPES = ["userTask", "serviceTask", "manualTask", "scriptTask", "businessRuleTask", "sendTask", "receiveTask", "callActivity", "subProcess"];
-const EVENT_DEFINITIONS: Record<string, string> = {
-  timer: "bpmn:TimerEventDefinition",
-  message: "bpmn:MessageEventDefinition",
-  error: "bpmn:ErrorEventDefinition",
-  signal: "bpmn:SignalEventDefinition",
-  escalation: "bpmn:EscalationEventDefinition",
-  terminate: "bpmn:TerminateEventDefinition",
-  conditional: "bpmn:ConditionalEventDefinition",
-};
 
 /** An XML-safe id derived from an arbitrary id; unique against `taken`. */
 export function xmlId(id: string, taken?: Set<string>, prefix = ""): string {
@@ -71,23 +57,14 @@ export function xmlId(id: string, taken?: Set<string>, prefix = ""): string {
 
 function bpmnTypeOfNode(n: FlowNode): string {
   switch (n.kind) {
-    case "event": {
-      if (hasTag(n, "start")) return "bpmn:StartEvent";
-      if (hasTag(n, "end")) return "bpmn:EndEvent";
-      if (hasTag(n, "boundary")) return "bpmn:BoundaryEvent";
-      return hasTag(n, "catch") ? "bpmn:IntermediateCatchEvent" : "bpmn:IntermediateThrowEvent";
-    }
-    case "gateway": {
-      if (hasTag(n, "and")) return "bpmn:ParallelGateway";
-      if (hasTag(n, "or")) return "bpmn:InclusiveGateway";
-      if (hasTag(n, "eventBased")) return "bpmn:EventBasedGateway";
-      if (hasTag(n, "complex")) return "bpmn:ComplexGateway";
-      return "bpmn:ExclusiveGateway";
-    }
+    case "event":
+      return eventType(n);
+    case "gateway":
+      return gatewayType(n);
     case "note":
       return "bpmn:TextAnnotation";
     default: {
-      const tag = TASK_TYPES.find((tt) => hasTag(n, tt));
+      const tag = V.taskTypes.find((tt) => hasTag(n, tt));
       return tag ? typeOfTag(tag) : "bpmn:Task";
     }
   }
@@ -111,8 +88,7 @@ function idFor(ctx: Ctx, flowId: string, prefix = ""): string {
   const existing = ctx.ids.toBpmn[flowId];
   if (existing) return existing;
   const id = xmlId(flowId, ctx.taken, prefix);
-  ctx.ids.toBpmn[flowId] = id;
-  ctx.ids.toFlow[id] = flowId;
+  registerId(ctx.ids, id, flowId);
   return id;
 }
 
@@ -150,7 +126,7 @@ export async function exportBpmn(graph: FlowGraph, options: ExportBpmnOptions = 
   // The DI carries two decimals; the returned positions are the ones written.
   const positions = roundPositions(options.positions ?? (await layoutBpmn(graph, options.layout)));
   const moddle = createModdle();
-  const ctx: Ctx = { moddle, taken: new Set(), ids: { toBpmn: {}, toFlow: {} }, extension: options.extension ?? true };
+  const ctx: Ctx = { moddle, taken: new Set(), ids: createIdMap(), extension: options.extension ?? true };
   const warnings: string[] = [];
   const format = options.format ?? true;
 
@@ -182,13 +158,13 @@ export async function exportBpmn(graph: FlowGraph, options: ExportBpmnOptions = 
       el.set("text", n.label);
       artifacts.push(el);
     } else {
-      if (n.label && !(n.kind === "gateway" && hasTag(n, "generated"))) el.set("name", n.label);
+      if (n.label && !isGeneratedGateway(n)) el.set("name", n.label);
       if (n.kind === "event") {
-        const defs = (n.tags ?? []).map((tg) => EVENT_DEFINITIONS[tg]).filter(Boolean);
+        const defs = eventDefinitionTypes(n.tags ?? []);
         if (defs.length) el.set("eventDefinitions", defs.map((d) => moddle.create(d)));
       }
-      if ((n.kind === "activity" || n.kind === "stage") && hasTag(n, "loop")) {
-        el.set("loopCharacteristics", moddle.create("bpmn:StandardLoopCharacteristics"));
+      if ((n.kind === "activity" || n.kind === "stage") && hasTag(n, V.loop[0])) {
+        el.set("loopCharacteristics", moddle.create(V.loop[1]));
       }
       flowElements.push(el);
     }
@@ -223,7 +199,7 @@ export async function exportBpmn(graph: FlowGraph, options: ExportBpmnOptions = 
     if (typeof payload.condition === "string" && payload.condition) {
       flow.set("conditionExpression", moddle.create("bpmn:FormalExpression", { body: payload.condition }));
     }
-    if (hasTag(e, "default")) source.set("default", flow);
+    if (hasTag(e, V.defaultFlow)) source.set("default", flow);
     connect(source, target, flow);
     flowElements.push(flow);
     origin(ctx, flow, e.id, e.kind === "flow" ? undefined : e.kind, e.tags, e.metrics);
@@ -343,7 +319,7 @@ export function roundPositions(p: Positions): Positions {
   for (const [id, b] of Object.entries(p.nodes)) nodes[id] = roundBox(b);
   for (const [id, b] of Object.entries(p.groups)) groups[id] = roundBox(b);
   for (const [id, r] of Object.entries(p.edges)) edges[id] = { ...r, points: r.points.map((pt) => ({ x: round(pt.x), y: round(pt.y) })) };
-  return { ...p, nodes, groups, edges, bounds: roundBox(p.bounds) };
+  return createPositions({ nodes, groups, edges }, p.engine, p.direction);
 }
 
 function enclosing(positions: Positions, margin: number): Box {

@@ -22,12 +22,45 @@ export interface FlowEdge { id: string; kind: EdgeKind; source: string; target: 
 export interface FlowGroup { id: string; kind: GroupKind; label: string; parent?: string; }
 export interface Overlay { kind: OverlayKind; target: string; payload?: OverlayPayload; }
 export interface FlowGraph { nodes: FlowNode[]; edges: FlowEdge[]; groups?: FlowGroup[];
-  overlays?: Overlay[]; meta?: Record<string, unknown>; focus?: string; paths?: FlowPaths; }   // focus, paths: 0.3
+  overlays?: Overlay[]; meta?: FlowMeta; focus?: string; paths?: FlowPaths; }   // focus, paths: 0.3
+export interface FlowMeta { abstraction?: number | AbstractionMeta; [key: string]: unknown }
+export interface AbstractionMeta { minEdgeShare?: number; minNodeShare?: number; keepConnected?: boolean;
+  collapse?: string[] | "all" }
 
 export const MAP_TARGET = "__map";      // overlay target for map-level chips
 export function validateGraph(g: FlowGraph): GraphIssue[];
 export function indexGraph(g: FlowGraph): GraphIndex;
+export interface GraphIndex {
+  nodes: Map<string, FlowNode>; edges: Map<string, FlowEdge>; groups: Map<string, FlowGroup>;
+  outgoing: Map<string, FlowEdge[]>; incoming: Map<string, FlowEdge[]>;
+  members: Map<string, FlowNode[]>;                         // direct members only
+  ancestors(id: string, kind?: "node" | "group"): FlowGroup[];
+  allMembers(groupId: string): FlowNode[];                  // nested groups included
+  label(id: string): string;
+}
 ```
+
+`meta` passes every key through. `meta.abstraction` is either the server's
+threshold share (a number; `0` means nothing was removed) or, on a graph
+returned by `abstract`, the thresholds the library applied. `meta.abstraction`
+was `unknown` before; code that reads it as either form keeps compiling.
+
+`GraphIndex` answers the group hierarchy. `ancestors` returns the groups
+enclosing an element, innermost first: for a node its group and upwards, for
+a group its parent and upwards. An id that names both a node and a group (a
+collapsed stage node) is read as the node unless `kind` is `"group"`. The
+chain ends at an unknown parent and before a group would repeat, so cyclic
+`parent` references cannot loop. `allMembers` lists the nodes of a group and
+of every group nested in it, in graph order; `members` keeps the direct
+members. `label` is the node's label, else the group's, else the id.
+
+**Members of a group** mean the nested members everywhere: a selected group
+keeps its nested activities bright (`relatedToSelection`), a group focus
+stands for them (`focusMembers`, `neighbourhood`, `focusHighlight`), "filter
+to" a stage covers them (`clauseForTarget`), stage bands span them
+(`laneBands`) and `collapseGroups` folds them into the outermost collapsed
+stage. For a group without nested groups this is the same as its direct
+members.
 
 Metric names the defaults read: nodes `cases`, `events`, `share`,
 `violationShare`; follows edges `count`, `cases`, `share`, `violationShare`,
@@ -38,7 +71,13 @@ reads: `start`, `end` on events, `and`/`or` on gateways.
 `OverlayPayload` fields (all optional): `constraintId`, `constraintType`,
 `layer`, `label`, `value` (a share in [0, 1] that colours the overlay),
 `coverage`, `glyph`, `text` (formatted reading), `description`, `unit`,
-`threshold`, `width`, `source`/`target` (arc endpoints), `reverse`, `gauge`.
+`threshold`, `width`, `source`/`target` (arc endpoints), `reverse`, `gauge`,
+`displayLabel` (text drawn beside a self-loop or arc instead of glyph and
+value; it widens the overlay's reserved extent), `observed` (recorded data,
+drawn at every zoom) and `edgeId` (the edge an overlay stands for, such as the
+follows self-edge behind a self-loop). The last three were read before
+without being declared; their declared types are `string`, `boolean` and
+`string`.
 
 ## Label sizing (headless, opt-in)
 
@@ -134,7 +173,20 @@ export function unionGraph(scenes: FlowGraph[]): FlowGraph;
 export function filterPositions(p: Positions, g: FlowGraph): Positions;
 export function coversGraph(p: Positions, g: FlowGraph): boolean;
 export function clearLayoutCache(key?: string): void;
+export type PositionsContents = Pick<Positions, "nodes" | "groups" | "edges">;
+export function createPositions(c: PositionsContents, engine: LayoutEngine, direction: LayoutDirection): Positions;
+export function positionsBounds(c: PositionsContents): Box;
+export function unionBoxes(boxes: readonly Box[]): Box;
 ```
+
+`createPositions` is the one place positions are built: it computes `bounds`
+from the node and group boxes and the edge route points, so bounds always
+match the contents. Layout, `filterPositions`, `laneBands`, `repositionNodes`,
+`layoutBpmn`, `roundPositions` (bounds from the rounded contents), BPMN import
+and `BpmnView` build their results with it; hosts
+that assemble positions themselves should too. `unionBoxes` is the smallest
+box around the given boxes; boxes without a non-negative width and height are
+ignored, and no boxes give the empty box at the origin.
 
 Positions are absolute top-left coordinates and deterministic for the same
 input (elements are sorted by id before the engine runs). Groups become
@@ -242,6 +294,10 @@ export function useFlowGraph(g, o?), useStableLayout(scenes, o?), useOverlays(it
 export { nodeTypes, edgeTypes, describeNode, describeEdge, describeGroup, describeMap };
 ```
 
+`describeMap` names the activity and path thresholds when `meta.abstraction`
+is the object `abstract` records; a server's numeric threshold share is not
+described.
+
 `<ProcessMap/>` behaviour: collapse (stage view) runs before the thresholds
 and gets its own layout; thresholds filter positions, so sliding the
 controls never moves the surviving elements. Given `positions` are used
@@ -330,6 +386,7 @@ export function layoutBpmn(g: FlowGraph, o?: BpmnLayoutOptions): Promise<Positio
 export interface BpmnLayoutOptions extends Omit<LayoutOptions, "direction" | "groups"> {
   lanes?: "bands" | "compound" | "ignore"; rowGap?; lanePadding?; labelWidth?; poolPadding? }
 export const POOL_ID = "__pool";   // pool box in Positions.groups when the graph has lanes but no pool group
+/** @deprecated Not used by `layoutBpmn`; use `routeSequenceFlows` from `@wise/flow`. */
 export function manhattanRoute(s: Box, t: Box, kinds, gap?): EdgeRoute;
 
 // Export → BPMN 2.0 XML with BPMNDiagram / BPMNShape / BPMNEdge from the positions.
@@ -351,6 +408,22 @@ export function applyMapping(g: FlowGraph, mapping: MappingRow[] | Record<string
 export function mappingIndex(mapping): { toTasks: Record<string, string[]>; toActivity: Record<string, string> };
 export function normalizeLabel(s: string): string;
 export function positionsFromDi(definitions: ModdleElement, ids: IdMap): Positions | undefined;
+
+// Ids: FlowGraph id ↔ BPMN id ↔ activity id. An element is named by its BPMN id, its FlowGraph id
+// and every activity id the mapping points at either of them (the alias rule).
+export type ActivityMapping = MappingRow[] | Record<string, string>;   // activity id → task (FlowGraph or BPMN id)
+export function createIdResolver(o?: { ids?: IdMap; mapping?: ActivityMapping }): IdResolver;
+export interface IdResolver {
+  flowId(element: string | ModdleElement): string;        // BPMN id or moddle element → FlowGraph id
+  bpmnId(flowId: string): string | undefined;
+  activityId(flowId: string): string | undefined;
+  flowIdsOfActivity(activityId: string): string[];
+  names(element: string | ModdleElement): string[];       // BPMN id, FlowGraph id, mapped activity ids
+  matches(element: string | ModdleElement, id: string): boolean;
+}
+export function renameToActivities(nodeIds: string[], r: IdResolver): { renamed: Map<string, string>; toMapped(id): string; toFlow(id): string };
+export function createIdMap(): IdMap;
+export function registerId(ids: IdMap, bpmnId: string, flowId: string): void;
 
 // bpmn-moddle with the `wise` extension (ids, kinds, tags, metrics through the XML).
 export function createModdle(): BpmnModdleInstance;
@@ -416,7 +489,11 @@ flows and lanes or pools in FlowGraph ids; a controlled `selection` is
 applied to the diagram. In modeler mode every change is saved (debounced)
 and passed to `onChange`; XML that the modeler itself produced is not
 re-imported. The table alternative lists the imported graph with the
-mapping applied. Stylesheets: `bpmn-js/dist/assets/diagram-js.css`,
+mapping applied; a row selected in the table is reported in FlowGraph ids,
+as a diagram click is, and a diagram selection highlights the mapped row.
+Every id the view matches (overlay targets, controlled selection, reported
+selection and hover) goes through `createIdResolver` with the import's id
+map and `mapping`. Stylesheets: `bpmn-js/dist/assets/diagram-js.css`,
 `bpmn-js/dist/assets/bpmn-js.css` and
 `bpmn-js/dist/assets/bpmn-font/css/bpmn.css` in addition to the package's.
 
@@ -459,7 +536,8 @@ an arrow key), `add` and `remove` are the explicit forms. Groups are
 selected alone and leave the selection when a node or path joins. Two
 activities form a `pair`, more a `set`. `relatedToSelection` names what
 stays bright: the selected nodes and the paths touching them, the selected
-paths with their endpoints, the members of a selected group.
+paths with their endpoints, the members of a selected group including the
+members of groups nested in it (as `focusMembers` counts them).
 
 ### Actions menu
 
@@ -519,7 +597,7 @@ the focus and computes the rows from the map's follows edges otherwise
 (`source` says which); self-loops are left to the self-loop overlay,
 constraint edges are ignored; `totals` sum the transitions; `share` is
 cases relative to the activity's cases. A group focus stands for its
-members (paths crossing the boundary). `pathBetween` is the shortest, then
+members, nested groups included (paths crossing the outer boundary). `pathBetween` is the shortest, then
 strongest path (Dijkstra on hops with a small penalty for weak paths, so
 the result is deterministic) and the reverse path when one exists.
 
@@ -576,6 +654,18 @@ export interface LaneResult { positions: Positions; bands: LaneBand[]; mode: Lan
 export function laneBands(g: FlowGraph, p: Positions, o: LaneOptions): LaneResult;
 export function laneGroups(g: FlowGraph, mode: LaneMode): FlowGroup[];
 export function laneAssignment(g: FlowGraph, lanes: FlowGroup[]): Map<string, string>;
+
+// The lane model shared by role bands and `layoutBpmn`.
+export interface LaneModelOptions { lanes: "roles" | "nested"; crossLaneEdges: "direct" | "routed" }
+export interface LaneModel { options: LaneModelOptions; lanes: FlowGroup[]; laneOf: Map<string, string> }
+export interface LaneSlot { lane: FlowGroup; start: number; size: number }
+export function laneModel(g: FlowGraph, o: LaneModelOptions): LaneModel;
+export function stackLanes(g: FlowGraph, m: LaneModel, start: number, gap: number,
+  place: (lane: FlowGroup, members: FlowNode[], start: number) => number): { slots: LaneSlot[]; end: number };
+export function spanLanes(g: FlowGraph, m: LaneModel, laneBoxes: Record<string, Box>, o: { main: "x" | "y"; labelSpace?: number }): Record<string, Box>;
+export function laneRoutes(g: FlowGraph, m: LaneModel, nodes: Record<string, Box>,
+  before?: { routes: Record<string, EdgeRoute>; axis: "x" | "y"; offsets: ReadonlyMap<string, number> }): Record<string, EdgeRoute>;
+export function routeSequenceFlows(g: FlowGraph, nodes: Record<string, Box>, o?: { allowOverlap?: boolean }): Record<string, EdgeRoute>;
 ```
 
 `stages`: top-level stage groups become consecutive bands along the flow,
@@ -587,6 +677,23 @@ by a `lane:` / `role:` tag, else along its paths), routes inside one lane
 move with it, routes across lanes are dropped so the renderer draws them
 directly. `none` returns the positions as they are. The renderers,
 `toSVG` and `toPNG` draw bands for `LaneBand`s.
+
+Role bands and `layoutBpmn` share one lane model. `laneModel` picks the lanes
+and the lane of every node: `roles` takes the top-level lane groups and
+reads `lane:` / `role:` tags (role bands); `nested` takes the leaves of the
+group tree and puts a node of a parent group into its first leaf (BPMN). In
+both, a node without a lane follows its predecessor, then its successor,
+then the first lane. `stackLanes` stacks the lanes across the flow, a
+caller's `place` putting the members and returning each lane's size;
+`spanLanes` gives the groups above the lanes their boxes (`roles`: a pool
+spans its lanes and the lanes without a parent; `nested`: a group spans its
+children with a label strip, a top-level pool spans all lanes).
+`crossLaneEdges` states what happens to edges once the nodes moved:
+`direct` (role bands) moves a route with its ends and drops it across lanes
+so the renderer draws it directly; `routed` (BPMN) routes every edge around
+the shapes with `routeSequenceFlows`, the orthogonal obstacle router.
+`manhattanRoute` in `@wise/flow/bpmn` is deprecated: no layout uses it; use
+`routeSequenceFlows`.
 
 ### React (`@wise/flow/react`, 0.3)
 
@@ -711,7 +818,7 @@ explicit `layout.cacheKey` keeps caller-controlled reuse semantics.
 
 The two tabs align activity labels or ordered activity pairs across graphs. Cells show distinct `metrics.cases` divided by the supplied cohort case count, plus the count itself. Repeated occurrences and supplied shares never substitute for case counts. Reverse pairs and self-loops remain separate. The default eight rows have the largest percentage-point range across available cohorts; search and Show all reveal the rest. Arrow keys navigate the tabs. Cohort headings optionally invoke the host navigation callback.
 
-Only activity nodes and activity-to-activity `follows` edges enter the comparison. It does not reconstruct complete traces. Missing rows become zero only for a graph with `meta.abstraction === 0`, valid `nodesTotal` and `edgesTotal`, resolved endpoints and sufficient supplied activities and pairs. Otherwise they remain unavailable. Invalid counts, duplicate labels/pairs and zero cohort denominators are explicitly unavailable; overlapping rows are never summed. The host owns canonical naming, exact source counts, cohort membership and navigation.
+Only activity nodes and activity-to-activity `follows` edges enter the comparison. It does not reconstruct complete traces. Missing rows become zero only for a graph whose abstraction removed nothing (`meta.abstraction` is `0`, or the object `abstract` records with `minNodeShare` and `minEdgeShare` both `0` and no `collapse`), valid `nodesTotal` and `edgesTotal`, resolved endpoints and sufficient supplied activities and pairs. Otherwise they remain unavailable. Invalid counts, duplicate labels/pairs and zero cohort denominators are explicitly unavailable; overlapping rows are never summed. The host owns canonical naming, exact source counts, cohort membership and navigation.
 
 
 ## Activity label presentation (0.3.3)

@@ -36,5 +36,16 @@ export {
   type ImportBpmnOptions,
   type BpmnImport,
 } from "./import.js";
+export {
+  createIdResolver,
+  createIdMap,
+  registerId,
+  renameToActivities,
+  type IdResolver,
+  type IdResolverOptions,
+  type BpmnElementRef,
+  type ActivityMapping,
+  type ActivityRenaming,
+} from "./ids.js";
 export { createModdle, wiseModdleDescriptor, WISE_NS, flowIdOf, wiseAttr, isType, isAnyType, tagOfType, typeOfTag, type ModdleElement, type BpmnModdleInstance } from "./moddle.js";
 export { BpmnView, type BpmnViewProps, type BpmnSelection, type BpmnViewHandle } from "../react/BpmnView.js";

@@ -13,18 +13,19 @@ import {
   canonicalOverlays,
   colorOn,
   contrastText,
+  createPositions,
   defaultLod,
   defaultStyle,
   formatShare,
   lodForSize,
   overlayGeometry,
-  positionsBounds,
   t,
 } from "../core/index.js";
 import { type BpmnExport, exportBpmn } from "../bpmn/export.js";
-import { type BpmnImport, type MappingRow, applyMapping, importBpmn, mappingIndex } from "../bpmn/import.js";
+import { type IdResolver, createIdResolver, renameToActivities } from "../bpmn/ids.js";
+import { type BpmnImport, type MappingRow, applyRenaming, importBpmn } from "../bpmn/import.js";
 import type { BpmnLayoutOptions } from "../bpmn/layout.js";
-import { type ModdleElement, flowIdOf, isType, wiseModdleDescriptor } from "../bpmn/moddle.js";
+import { type ModdleElement, isType, wiseModdleDescriptor } from "../bpmn/moddle.js";
 import { Legend } from "./Legend.js";
 import { Chip, tintFor } from "./nodes.js";
 import { TableAlternative } from "./TableAlternative.js";
@@ -151,29 +152,30 @@ function isGroupShape(el: DjsElement): boolean {
   return isLane(bo) || (isType(bo, "bpmn:SubProcess") && ((bo?.get("flowElements") as unknown[] | undefined)?.length ?? 0) > 0);
 }
 
-/** Positions of the rendered elements keyed by FlowGraph id, BPMN id and mapped activity id. */
-function registryPositions(registry: RegistryService, aliases: Map<string, string[]>): Positions {
+/** The rendered elements (not their labels) that an id names: FlowGraph id, BPMN id or mapped activity id. */
+function elementsNamed(registry: RegistryService, resolver: IdResolver, ids: Iterable<string>): DjsElement[] {
+  const wanted = [...ids];
+  return registry.getAll().filter((e) => !e.labelTarget && e.businessObject && wanted.some((id) => resolver.matches(e.businessObject!, id)));
+}
+
+/** Positions of the rendered elements keyed by every id that names them. */
+function registryPositions(registry: RegistryService, resolver: IdResolver): Positions {
   const nodes: Record<string, Box> = {};
   const groups: Record<string, Box> = {};
   const edges: Record<string, EdgeRoute> = {};
-  const keys = (el: DjsElement): string[] => {
-    const bo = el.businessObject;
-    const flowId = bo ? flowIdOf(bo) : el.id;
-    return [...new Set([el.id, flowId, ...(aliases.get(flowId) ?? []), ...(aliases.get(el.id) ?? [])])];
-  };
   for (const el of registry.getAll()) {
     if (el.labelTarget || !el.businessObject) continue;
+    const keys = resolver.names(el.businessObject);
     if (el.waypoints) {
-      for (const k of keys(el)) edges[k] = { points: el.waypoints.map((p) => ({ x: p.x, y: p.y })) };
+      for (const k of keys) edges[k] = { points: el.waypoints.map((p) => ({ x: p.x, y: p.y })) };
       continue;
     }
     if (typeof el.x !== "number" || typeof el.y !== "number") continue;
     const box = { x: el.x, y: el.y, width: el.width ?? 0, height: el.height ?? 0 };
     const target = isGroupShape(el) ? groups : nodes;
-    for (const k of keys(el)) target[k] = box;
+    for (const k of keys) target[k] = box;
   }
-  const partial = { nodes, groups, edges };
-  return { ...partial, bounds: positionsBounds(partial), engine: "di", direction: "RIGHT" };
+  return createPositions({ nodes, groups, edges }, "di", "RIGHT");
 }
 
 function el(tag: string, className: string, text?: string): HTMLElement {
@@ -237,6 +239,7 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
   const [viewerVersion, setViewerVersion] = useState(0);
   const [exported, setExported] = useState<BpmnExport | undefined>();
   const [imported, setImported] = useState<BpmnImport | undefined>();
+  const [importedXml, setImportedXml] = useState<string | undefined>();
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [renderVersion, setRenderVersion] = useState(0);
   const [innerView, setInnerView] = useState<"diagram" | "table">("diagram");
@@ -281,6 +284,7 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
   useEffect(() => {
     if (!xml) {
       setImported(undefined);
+      setImportedXml(undefined);
       return;
     }
     let live = true;
@@ -288,6 +292,7 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
       .then((r) => {
         if (!live) return;
         setImported(r);
+        setImportedXml(xml);
         onImport?.(r);
       })
       .catch((e: Error) => live && callbacks.current.onError?.(e));
@@ -295,6 +300,12 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
       live = false;
     };
   }, [xml]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Ids of the shown XML: the export's id map, or the headless import's once it belongs to this XML.
+  const ids = props.xml === undefined && exported ? exported.ids : importedXml === xml ? imported?.ids : undefined;
+  const resolver = useMemo(() => createIdResolver({ ids, mapping }), [ids, mapping]);
+  const resolverRef = useRef(resolver);
+  resolverRef.current = resolver;
 
   // 3. Viewer lifecycle: created once per mode, destroyed on unmount.
   const optionsKey = JSON.stringify(viewerOptions ?? {});
@@ -325,7 +336,7 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
       for (const e of elements) {
         const bo = e.businessObject;
         if (!bo) continue;
-        const id = flowIdOf(bo);
+        const id = resolverRef.current.flowId(bo);
         if (isTask(bo)) s.tasks.push(id);
         else if (isType(bo, "bpmn:SequenceFlow")) s.flows.push(id);
         else if (isLane(bo)) s.lanes.push(id);
@@ -338,7 +349,7 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
     };
     const onElementHover = (event: Record<string, unknown>) => {
       const bo = (event.element as DjsElement | undefined)?.businessObject;
-      if (bo && (isTask(bo) || isType(bo, "bpmn:SequenceFlow") || isLane(bo))) callbacks.current.onHover?.(flowIdOf(bo));
+      if (bo && (isTask(bo) || isType(bo, "bpmn:SequenceFlow") || isLane(bo))) callbacks.current.onHover?.(resolverRef.current.flowId(bo));
     };
     const onElementOut = () => callbacks.current.onHover?.(null);
     const onElementsChanged = () => {
@@ -424,15 +435,9 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
     };
   }, [viewerVersion, xml, fitView]);
 
-  // Overlay bookkeeping: mapping aliases and the graph with activity ids for the table.
-  const aliasIndex = useMemo(() => {
-    const aliases = new Map<string, string[]>();
-    if (!mapping) return aliases;
-    const { toTasks } = mappingIndex(mapping);
-    for (const [activity, tasks] of Object.entries(toTasks)) for (const task of tasks) aliases.set(task, [...(aliases.get(task) ?? []), activity]);
-    return aliases;
-  }, [mapping]);
-  const tableGraph = useMemo(() => (imported ? (mapping ? applyMapping(imported.graph, mapping) : imported.graph) : undefined), [imported, mapping]);
+  // The table lists the graph with mapped tasks renamed to their activity ids.
+  const renaming = useMemo(() => (imported ? renameToActivities(imported.graph.nodes.map((n) => n.id), resolver) : undefined), [imported, resolver]);
+  const tableGraph = useMemo(() => (imported && renaming ? applyRenaming(imported.graph, renaming) : undefined), [imported, renaming]);
   const scales = useMemo(() => buildScales(tableGraph ?? { nodes: [], edges: [] }, defaultStyle), [tableGraph]);
   const lodRules = useMemo(() => lodForSize(tableGraph?.nodes.length ?? 0, { ...defaultLod, ...(props.lod ?? {}) }), [tableGraph?.nodes.length, props.lod]);
   const lodRef = useRef(lodRules);
@@ -456,18 +461,9 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
     }
     if (!orderedOverlays.length) return;
 
-    const positions = registryPositions(registry, aliasIndex);
+    const positions = registryPositions(registry, resolver);
     const geometry = overlayGeometry(orderedOverlays, positions, { lod: lodRules });
-    const elementOf = (id: string): DjsElement | undefined => {
-      if (registry.get(id)) return registry.get(id);
-      for (const e of registry.getAll()) {
-        const bo = e.businessObject;
-        if (!bo || e.labelTarget) continue;
-        const flowId = flowIdOf(bo);
-        if (flowId === id || aliasIndex.get(flowId)?.includes(id) || aliasIndex.get(e.id)?.includes(id)) return e;
-      }
-      return undefined;
-    };
+    const elementOf = (id: string): DjsElement | undefined => elementsNamed(registry, resolver, [id])[0];
     const arrow = svgEl("marker", { id: "wf-bpmn-arrow", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 12, markerHeight: 12, markerUnits: "userSpaceOnUse", orient: "auto-start-reverse" });
     arrow.appendChild(svgEl("path", { d: "M0 0L10 5L0 10z", fill: "context-stroke" }));
     const defs = svgEl("defs", {});
@@ -583,7 +579,7 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
     return () => {
       viewer.off("canvas.viewbox.changed", applyZoom);
     };
-  }, [status, renderVersion, orderedOverlays, aliasIndex, lodRules, locale]);
+  }, [status, renderVersion, orderedOverlays, resolver, lodRules, locale]);
 
   // 6. Controlled selection: applied to the diagram when it differs from what the diagram reported.
   useEffect(() => {
@@ -592,16 +588,10 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
     const key = JSON.stringify(props.selection);
     if (key === lastEmitted.current) return;
     const registry = viewer.get<RegistryService>("elementRegistry");
-    const wanted = new Set([...props.selection.tasks, ...props.selection.flows, ...props.selection.lanes]);
-    const elements = registry.getAll().filter((e) => {
-      const bo = e.businessObject;
-      if (!bo || e.labelTarget) return false;
-      const flowId = flowIdOf(bo);
-      return wanted.has(flowId) || wanted.has(e.id) || (aliasIndex.get(flowId) ?? []).some((a) => wanted.has(a));
-    });
+    const elements = elementsNamed(registry, resolver, [...props.selection.tasks, ...props.selection.flows, ...props.selection.lanes]);
     lastEmitted.current = key;
     viewer.get<SelectionService>("selection").select(elements);
-  }, [props.selection, status, renderVersion, aliasIndex]);
+  }, [props.selection, status, renderVersion, resolver]);
 
   useImperativeHandle(
     ref,
@@ -626,15 +616,16 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
     };
   }, [tableGraph]);
   const description = t(locale, "bpmn.description", counts) + (orderedOverlays.length ? ` ${t(locale, "map.overlays", { count: orderedOverlays.length })}` : "");
-  const tableSelection: Selection = { nodes: selection.tasks, edges: selection.flows, groups: selection.lanes };
+  // The table names mapped tasks by activity id; selections cross it in FlowGraph ids.
+  const tableSelection: Selection = { nodes: selection.tasks.map((id) => renaming?.toMapped(id) ?? id), edges: selection.flows, groups: selection.lanes };
   const onTableSelect = useCallback(
     (s: Selection) => {
-      const next: BpmnSelection = { tasks: s.nodes, flows: s.edges, lanes: s.groups };
+      const next: BpmnSelection = { tasks: s.nodes.map((id) => renaming?.toFlow(id) ?? id), flows: s.edges, lanes: s.groups };
       lastEmitted.current = "";
       setInnerSelection(next);
       onSelect?.(next);
     },
-    [onSelect],
+    [onSelect, renaming],
   );
 
   return (

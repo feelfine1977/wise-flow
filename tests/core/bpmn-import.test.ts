@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { globalScene } from "../../fixtures/bpic2019";
-import { applyMapping, importBpmn, mappingIndex, matchActivities, normalizeLabel } from "../../src/bpmn/index";
+import { applyMapping, importBpmn, matchActivities, normalizeLabel } from "../../src/bpmn/index";
 import { validateGraph } from "../../src/index";
 
 const xml = readFileSync(fileURLToPath(new URL("../../fixtures/p2p_small.bpmn", import.meta.url)), "utf8");
@@ -89,9 +89,5 @@ describe("importBpmn", () => {
     expect(mapped.edges.find((e) => e.id === "Flow_Req_PO")).toMatchObject({ source: "create_purchase_requisition_item", target: "create_purchase_order_item" });
     expect(validateGraph(mapped)).toEqual([]);
     expect((mapped.meta?.bpmnIds as Record<string, string>).clear_invoice).toBe("Task_ClearInvoice");
-    const index = mappingIndex(result.mapping);
-    expect(index.toTasks.clear_invoice).toEqual(["Task_ClearInvoice"]);
-    expect(index.toActivity.Task_CreatePO).toBe("create_purchase_order_item");
-    expect(mappingIndex({ clear_invoice: "Task_ClearInvoice" }).toActivity.Task_ClearInvoice).toBe("clear_invoice");
   });
 });

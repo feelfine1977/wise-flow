@@ -4,9 +4,9 @@ Framework-free TypeScript; runs in Node and in the browser. No DOM, no React.
 
 | File | Content |
 |---|---|
-| `model.ts` | `FlowGraph` types (workbench schema, with `focus` and `paths`), `validateGraph`, `indexGraph`, `MAP_TARGET` |
+| `model.ts` | `FlowGraph` types (workbench schema, with `focus` and `paths`), `validateGraph`, `indexGraph` (lookups, adjacency, group ancestors, nested members, labels), `MAP_TARGET` |
 | `aggregate.ts` | `abstract` (thresholds, collapse, keep-connected), `collapseGroups`, `isConnected`, `diff` |
-| `layout.ts` | `layout` (ELK layered in a worker or in-process, Dagre fallback), `layoutUnion`, `filterPositions`, cache; `engine: "di"` marks positions read from BPMN DI, `"given"` positions supplied by the caller |
+| `layout.ts` | `layout` (ELK layered in a worker or in-process, Dagre fallback), `layoutUnion`, `filterPositions`, `createPositions` (the one constructor; bounds from contents), `unionBoxes`, cache; `engine: "di"` marks positions read from BPMN DI, `"given"` positions supplied by the caller |
 | `label-sizing.ts` | Pure zoom-to-label sizes, shape scale and screen-pixel conversion; opt-in host display policy |
 | `style.ts` | `buildScales`, palettes with pattern twins, contrast helpers, level-of-detail rules, `patternDefs` |
 | `overlays.ts` | constraint presets → overlays, `canonicalOverlays`, `overlayGeometry`, `describeOverlay` |
@@ -18,7 +18,8 @@ Framework-free TypeScript; runs in Node and in the browser. No DOM, no React.
 | `actions.ts` | `menuTargetFor`, `defaultActions` (filter, explore, compare, author; accelerators; filter clauses), `menuTitle` |
 | `paths.ts` | `pathsFor` (from the response's `paths` block or the map), `neighbourhood`, `pathBetween`, `pathRows`, `focusHighlight` |
 | `filters.ts` | the contract's filter clauses, `canonicalFilter`, `addClause`, `removeClause`, `describeClause`, `clauseForTarget`, preview normalisation |
-| `lanes.ts` | `laneBands`: stage groups as ordered bands along the flow, lane groups as bands across it |
+| `lanes.ts` | `laneBands`: stage groups as ordered bands along the flow, lane groups as bands across it; the lane model shared with the BPMN layout (`laneModel`, `stackLanes`, `spanLanes`, `laneRoutes`) |
+| `routing.ts` | `routeSequenceFlows` (orthogonal obstacle router), `repositionNodes` |
 | `hit.ts` | `HitIndex` (rbush) over nodes, groups, edge segments and overlay shapes |
 | `export.ts` | `toSVG`: draws a `buildScene` scene with figure presets and an embedded legend |
 | `format.ts` | deterministic number and duration formatting, `Locale` |

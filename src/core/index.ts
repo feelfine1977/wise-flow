@@ -1,7 +1,7 @@
 export * from "./model.js";
 export * from "./aggregate.js";
 export * from "./layout.js";
-export { repositionNodes } from "./routing.js";
+export { repositionNodes, routeSequenceFlows } from "./routing.js";
 export * from "./style.js";
 export * from "./overlays.js";
 export * from "./hit.js";
