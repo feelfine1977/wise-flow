@@ -138,7 +138,6 @@ export function ElementMarks({ marks, origin }: { marks: OverlayMark[]; origin: 
   );
 }
 
-
 /** The marker and pattern that `ElementMarks` refer to; rendered once by the map. */
 export function MarkDefs() {
   return (

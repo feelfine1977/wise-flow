@@ -150,7 +150,6 @@ function svgEl<K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<strin
   return node;
 }
 
-
 /**
  * BPMN diagram on bpmn-js (viewer by default, modeler with `mode="model"`) with
  * the constraint overlays of the core projected onto it: badges and heat tints

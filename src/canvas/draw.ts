@@ -551,7 +551,6 @@ function drawMark(ctx: DrawContext, scene: PreparedScene, m: OverlayMark, tokens
   }
 }
 
-
 /**
  * Draw the scene into a context for a viewport. Returns what was drawn so
  * that callers (and tests) can check the culling.
