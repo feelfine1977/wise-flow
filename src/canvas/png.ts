@@ -2,7 +2,7 @@
  * PNG export: the scene drawn with the canvas routines into an offscreen
  * canvas, with the same figure presets and embedded legend as `toSVG`.
  */
-import { type Box, type FigurePreset, type LodRules, type Scene, FIGURE_WIDTHS, MAP_TARGET, activityKeyLines, formatCount, t } from "../core/index.js";
+import { type Box, type FigurePreset, type Scene, FIGURE_WIDTHS, MAP_TARGET, activityKeyLines, formatCount, t } from "../core/index.js";
 import { type DrawContext, drawLegend, drawScene } from "./draw.js";
 import { prepareScene } from "./scene.js";
 import { type CanvasTokens, defaultTokens } from "./tokens.js";
@@ -47,19 +47,6 @@ export interface PngCanvas {
   scale: number;
 }
 
-/** Level-of-detail thresholds multiplied by a factor, so that `lodZoom` decides what a figure shows. */
-function scaleLod(rules: LodRules, factor: number): LodRules {
-  return {
-    labels: rules.labels * factor,
-    edgeLabels: rules.edgeLabels * factor,
-    badges: rules.badges * factor,
-    arcs: rules.arcs * factor,
-    chips: rules.chips * factor,
-    hatch: rules.hatch * factor,
-    selfLoops: rules.selfLoops * factor,
-  };
-}
-
 function defaultCreateCanvas(width: number, height: number): CanvasLike {
   if (typeof document !== "undefined") {
     const c = document.createElement("canvas");
@@ -100,11 +87,10 @@ export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
   if (!ctx) throw new Error("toPNG: the canvas has no 2D context");
   ctx.save();
   ctx.scale(scale, scale);
-  // Level of detail is decided at `lodZoom`, independent of the figure scale.
-  const lodZoom = options.lodZoom ?? 1;
-  const lodScene = lodZoom !== k ? { ...prepared, lod: scaleLod(prepared.lod, k / lodZoom) } : prepared;
-  drawScene(ctx, lodScene, { x: (pad - content.x) * k, y: (headerHeight + pad - content.y) * k, zoom: k, width: cssWidth, height: cssHeight }, undefined, {
+  drawScene(ctx, prepared, { x: (pad - content.x) * k, y: (headerHeight + pad - content.y) * k, zoom: k, width: cssWidth, height: cssHeight }, undefined, {
     tokens,
+    // Level of detail is decided at `lodZoom`, independent of the figure scale.
+    lodZoom: options.lodZoom ?? 1,
     cull: false,
     background: options.background ?? tokens.paper,
     createCanvas: (w, h) => create(w, h),

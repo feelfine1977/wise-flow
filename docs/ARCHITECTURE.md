@@ -88,7 +88,11 @@ overlays; the core computes their geometry (badge slots along the node's
 top edge, cubic arcs above the map and reverse arcs below it, self-loops at
 the corner, chips inside groups) within a declared margin around the
 layout, and their visibility by zoom level. Overlays are drawn in a
-canonical order so that exports do not depend on input order.
+canonical order so that exports do not depend on input order. The scene
+carries one resolved mark per placed overlay (box or path, fill, stroke,
+dash, arrowhead, texts, layer, zoom threshold, whether it is drawn on the
+map); the SVG export and the Canvas drawing map those primitives to their
+output.
 
 ### 2.6 Hit-testing and export
 An R-tree (rbush) over nodes, groups, edge segments and overlay shapes for
@@ -160,13 +164,12 @@ as tabs or as small multiples with a shared selection.
 
 ## 4. Canvas renderer (0.3)
 `prepareScene` builds on the core scene (graph, positions, scales,
-overlays, lane bands, level of detail, overlay geometry) and adds retained
-geometry with the R-tree of the core; `drawScene`
-issues plain 2D context calls for a viewport (groups and bands, edges with
-arrowheads, nodes with pattern twins, hatching and badges, arcs,
-self-loops, chips, edge labels), decides the level of detail from the
-zoom and, above 1,500 elements, draws only what the R-tree finds inside
-the viewport; `CanvasRenderer` owns the canvas, the viewport and the
+overlays, lane bands, level of detail, overlay geometry and marks) and adds
+retained geometry with the R-tree of the core; `drawScene` issues plain 2D
+context calls for a viewport (groups and bands, edges with arrowheads, nodes
+with pattern twins, the overlay marks, edge labels), decides the level of
+detail from the zoom and, above 1,500 elements, draws only what the R-tree
+finds inside the viewport; `CanvasRenderer` owns the canvas, the viewport and the
 interaction state and redraws on animation frames; `CanvasMap` adds the
 pointer handling (drag to pan, wheel, Ctrl or Cmd with the wheel and pinch
 to zoom, hover through the R-tree with a tooltip, click, right click), a

@@ -10,6 +10,7 @@ import { type LaneBand, type LaneMode, laneBands } from "./lanes.js";
 import { type FlowGraph, type Overlay, MAP_TARGET } from "./model.js";
 import { withFollowsSelfLoops } from "./observed-loops.js";
 import { type OverlayGeometry, type OverlayGeometryOptions, placeOverlays } from "./overlay-geometry.js";
+import { type OverlayMark, overlayMarks } from "./overlay-marks.js";
 import { canonicalOverlays } from "./overlays.js";
 import { repositionNodes } from "./routing.js";
 import { type LodRules, type Scales, type StyleSpec, buildScales, defaultLod, defaultStyle, lodForSize } from "./style.js";
@@ -57,7 +58,9 @@ export interface FlowScene {
   /** Zoom from which each kind of element is drawn. */
   lod: LodRules;
   geometry: OverlayGeometry;
-  /** Union of the positions' bounds and the overlay geometry. */
+  /** What each shape of the geometry looks like, one mark per shape in the same order. */
+  marks: OverlayMark[];
+  /** Union of the positions' bounds and the marks drawn on the map. */
   bounds: Box;
 }
 
@@ -79,6 +82,7 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
   const rules = { ...(style.lod ?? {}), ...(options.lod ?? {}) };
   const lod = options.lodBySize ? lodForSize(graph.nodes.length, rules) : { ...defaultLod, ...rules };
   const geometry = placeOverlays(overlays, positions, { ...(options.overlayGeometry ?? {}), lod });
+  const marks = overlayMarks(geometry.shapes, locale);
   return {
     graph,
     positions,
@@ -90,6 +94,7 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
     overlays,
     lod,
     geometry,
-    bounds: unionBoxes([positions.bounds, ...(geometry.shapes.length ? [geometry.bounds] : [])]),
+    marks,
+    bounds: unionBoxes([positions.bounds, ...marks.filter((m) => m.inMap).map((m) => m.box)]),
   };
 }

@@ -51,6 +51,7 @@ import {
   relatedToSelection,
   selectElement,
   t,
+  tintColor,
 } from "../core/index.js";
 import type { DrawState, PreparedScene } from "../canvas/index.js";
 import { retainScene } from "../canvas/scene.js";
@@ -63,7 +64,7 @@ import { edgeTypes } from "./edges.js";
 import { FilterChips } from "./FilterChips.js";
 import { useFlowGraph, useMapScene, usePrefersReducedMotion, useStableLayout } from "./hooks.js";
 import { Legend } from "./Legend.js";
-import { Chip, nodeTypes, tintFor } from "./nodes.js";
+import { Chip, nodeTypes } from "./nodes.js";
 import { OverlayLayer } from "./OverlayLayer.js";
 import { PathList } from "./PathList.js";
 import { TableAlternative } from "./TableAlternative.js";
@@ -491,7 +492,7 @@ function ProcessMapInner(props: ProcessMapProps) {
         data: {
           group: g,
           color: scales.categorical(g.id).color,
-          tint: tintFor(tint?.payload?.value),
+          tint: tint && tintColor(tint),
           chips: gOverlays.filter((o) => o.kind === "chip"),
           description,
           band: bands.get(g.id),

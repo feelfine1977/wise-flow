@@ -5,7 +5,7 @@
  * a recording stub in tests. Elements outside the viewport are skipped
  * through the scene's R-tree when the scene is large.
  */
-import { type Box, type LegendItem, type OverlayShape, type Selection, type StringKey, MAP_TARGET, contrastText, fixedColors, formatCompact, formatNumber, formatShare, lodAt, t } from "../core/index.js";
+import { type Box, type LegendItem, type MarkPaint, type OverlayMark, type Selection, type StringKey, MAP_TARGET, fixedColors, formatCompact, formatNumber, formatShare, lodAt, t } from "../core/index.js";
 import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene.js";
 import { type CanvasTokens, defaultTokens } from "./tokens.js";
 
@@ -66,6 +66,8 @@ export interface DrawOptions {
   cull?: boolean;
   /** Fill the background with the paper colour (or a given colour). Default true. */
   background?: boolean | string;
+  /** Zoom at which the level of detail is decided. Default: the view's zoom. */
+  lodZoom?: number;
   /** Factory for pattern tiles; `document.createElement("canvas")` when available. */
   createCanvas?: (width: number, height: number) => { getContext(kind: "2d"): unknown } | null;
 }
@@ -136,13 +138,15 @@ export function tracePath(ctx: DrawContext, d: string): { last?: [number, number
   return { last, beforeLast };
 }
 
-function arrowhead(ctx: DrawContext, from: [number, number], to: [number, number], size: number, color: string) {
-  const dx = to[0] - from[0];
-  const dy = to[1] - from[1];
+/** Filled triangle `size` long and wide; its tip lies `overhang` × `size` beyond `to`. */
+function arrowhead(ctx: DrawContext, from: [number, number], end: [number, number], size: number, color: string, overhang = 0) {
+  const dx = end[0] - from[0];
+  const dy = end[1] - from[1];
   const len = Math.hypot(dx, dy);
   if (len === 0) return;
   const ux = dx / len;
   const uy = dy / len;
+  const to = overhang ? [end[0] + ux * size * overhang, end[1] + uy * size * overhang] : end;
   ctx.beginPath();
   ctx.moveTo(to[0], to[1]);
   ctx.lineTo(to[0] - ux * size - uy * size * 0.5, to[1] - uy * size + ux * size * 0.5);
@@ -283,10 +287,6 @@ function drawGroup(ctx: DrawContext, g: SceneGroup, tokens: CanvasTokens, select
   if (g.band) {
     ctx.fillStyle = g.band.index % 2 === 0 ? `${g.color}0f` : `${g.color}05`;
     ctx.fillRect(b.x, b.y, b.width, b.height);
-    if (g.tint) {
-      ctx.fillStyle = g.tint;
-      ctx.fillRect(b.x, b.y, b.width, b.height);
-    }
     ctx.strokeStyle = tokens.line;
     ctx.lineWidth = 1;
     ctx.setLineDash([]);
@@ -323,7 +323,7 @@ function drawGroup(ctx: DrawContext, g: SceneGroup, tokens: CanvasTokens, select
     }
   } else {
     roundedRect(ctx, b, 10);
-    ctx.fillStyle = g.tint ?? `${g.color}0f`;
+    ctx.fillStyle = `${g.color}0f`;
     ctx.fill();
     ctx.strokeStyle = selected ? tokens.focus : g.color;
     ctx.lineWidth = selected ? 2.5 : 1.5;
@@ -469,14 +469,6 @@ function drawNode(ctx: DrawContext, scene: PreparedScene, n: SceneNode, tokens: 
         ctx.fillText(n.meta, b.x + b.width - 6, b.y + b.height - 5);
       }
     }
-    if (n.hatched && lod.hatch) {
-      const hatch = hatchPattern(ctx, tokens, options);
-      roundedRect(ctx, b, 6);
-      ctx.globalAlpha = (dimmed ? 0.35 : 1) * 0.55;
-      ctx.fillStyle = hatch ?? tokens.outOfScope;
-      ctx.fill();
-      ctx.globalAlpha = dimmed ? 0.35 : 1;
-    }
   }
   if (selected) {
     ctx.strokeStyle = tokens.selection;
@@ -501,101 +493,41 @@ function drawNode(ctx: DrawContext, scene: PreparedScene, n: SceneNode, tokens: 
   ctx.globalAlpha = 1;
 }
 
-function shapeColor(scene: PreparedScene, s: OverlayShape): string {
-  const v = s.overlay.payload?.value;
-  return typeof v === "number" && Number.isFinite(v) ? scene.scales.color(v, "sequential", [0, 1]) : fixedColors.neutral;
+/** Colour of a mark's paint; a hovered mark shows its value in the focus colour. */
+function paintOf(mark: OverlayMark, paint: MarkPaint, tokens: CanvasTokens, hovered: boolean): string {
+  if (paint === "value") return hovered ? tokens.focus : mark.color;
+  if (paint === "onValue") return hovered ? fixedColors.paper : mark.onColor;
+  return tokens[paint];
 }
 
-function drawShape(ctx: DrawContext, scene: PreparedScene, s: OverlayShape, tokens: CanvasTokens, hovered: boolean) {
-  const p = s.overlay.payload ?? {};
-  const own = shapeColor(scene, s);
-  const color = hovered ? tokens.focus : own;
-  const value = typeof p.value === "number" && Number.isFinite(p.value) ? formatShare(p.value, scene.locale) : "";
-  switch (s.kind) {
-    case "tint": {
-      ctx.fillStyle = color;
-      ctx.globalAlpha = 0.18;
-      roundedRect(ctx, s, 10);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-      return;
-    }
-    case "arc": {
-      const coverage = typeof p.coverage === "number" ? Math.max(0, Math.min(1, p.coverage)) : 1;
-      const width = 2 + 8 * coverage;
-      ctx.strokeStyle = color;
-      ctx.lineWidth = width;
-      ctx.globalAlpha = 0.9;
-      ctx.setLineDash(p.reverse ? [6, 4] : []);
-      const end = tracePath(ctx, s.path ?? "");
-      ctx.stroke();
-      ctx.setLineDash([]);
-      if (end.last && end.beforeLast) arrowhead(ctx, end.beforeLast, end.last, 12, color);
-      ctx.globalAlpha = 1;
-      if (s.labelX !== undefined && s.labelY !== undefined) {
-        ctx.fillStyle = tokens.ink;
-        ctx.font = `11px ${tokens.font}`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "alphabetic";
-        haloText(ctx, typeof p.displayLabel === "string" ? p.displayLabel : `${p.glyph ?? ""} ${value}`.trim(), s.labelX, s.labelY, tokens);
-      }
-      return;
-    }
-    case "selfLoop": {
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2.5;
-      ctx.setLineDash([]);
-      const end = tracePath(ctx, s.path ?? "");
-      ctx.stroke();
-      if (end.last && end.beforeLast) arrowhead(ctx, end.beforeLast, end.last, 10, color);
-      if (s.labelX !== undefined && s.labelY !== undefined && (p.displayLabel || value)) {
-        ctx.fillStyle = tokens.ink;
-        ctx.font = `10px ${tokens.font}`;
-        ctx.textAlign = "left";
-        ctx.textBaseline = "alphabetic";
-        haloText(ctx, typeof p.displayLabel === "string" ? p.displayLabel : `↻ ${value}`, s.labelX, s.labelY, tokens);
-      }
-      return;
-    }
-    case "badge": {
-      roundedRect(ctx, s, s.height / 2);
-      ctx.fillStyle = color;
-      ctx.fill();
-      ctx.strokeStyle = tokens.paper;
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([]);
-      ctx.stroke();
-      ctx.fillStyle = hovered ? fixedColors.paper : contrastText(own);
-      ctx.font = `700 10px ${tokens.font}`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(p.glyph ?? (value || "●"), s.x + s.width / 2, s.y + s.height / 2 + 0.5);
-      if (value && p.glyph) {
-        ctx.fillStyle = tokens.ink;
-        ctx.font = `10px ${tokens.font}`;
-        ctx.textAlign = "left";
-        haloText(ctx, value, s.x + s.width + 4, s.y + s.height / 2 + 0.5, tokens);
-      }
-      return;
-    }
-    case "chip": {
-      if (s.overlay.target === MAP_TARGET) return;
-      roundedRect(ctx, s, 12);
-      ctx.fillStyle = tokens.paper;
-      ctx.fill();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.setLineDash([]);
-      ctx.stroke();
-      ctx.fillStyle = tokens.ink;
-      ctx.font = `10px ${tokens.font}`;
-      ctx.textAlign = "left";
-      ctx.textBaseline = "middle";
-      ctx.fillText(truncate(ctx, scene, `${p.glyph ?? ""} ${p.text ?? p.label ?? ""}`.trim(), s.width - 16), s.x + 8, s.y + s.height / 2 + 0.5);
-      return;
-    }
-    default:
-      return;
+function drawMark(ctx: DrawContext, scene: PreparedScene, m: OverlayMark, tokens: CanvasTokens, hovered: boolean, options: DrawOptions) {
+  // The pattern tile is drawn before the path is traced.
+  const fill = m.fill && ((m.fill.pattern && hatchPattern(ctx, tokens, options)) || paintOf(m, m.fill.paint, tokens, hovered));
+  const end = m.path !== undefined ? tracePath(ctx, m.path) : (roundedRect(ctx, m.box, m.radius), undefined);
+  if (m.fill && fill) {
+    ctx.fillStyle = fill;
+    ctx.globalAlpha = m.fill.opacity ?? 1;
+    ctx.fill();
+  }
+  if (m.stroke) {
+    const color = paintOf(m, m.stroke.paint, tokens, hovered);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = m.stroke.width;
+    ctx.globalAlpha = m.stroke.opacity ?? 1;
+    ctx.setLineDash(m.stroke.dash ?? []);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    if (m.arrow && end?.last && end.beforeLast) arrowhead(ctx, end.beforeLast, end.last, m.arrow.size, color, m.arrow.overhang);
+  }
+  ctx.globalAlpha = 1;
+  for (const tx of m.texts) {
+    ctx.fillStyle = paintOf(m, tx.paint, tokens, hovered);
+    ctx.font = `${tx.weight ? `${tx.weight} ` : ""}${tx.size}px ${tokens.font}`;
+    ctx.textAlign = tx.anchor === "start" ? "left" : "center";
+    ctx.textBaseline = tx.baseline;
+    const value = tx.maxWidth === undefined ? tx.text : truncate(ctx, scene, tx.text, tx.maxWidth);
+    if (tx.halo) haloText(ctx, value, tx.x, tx.y, tokens);
+    else ctx.fillText(value, tx.x, tx.y);
   }
 }
 
@@ -605,7 +537,8 @@ function drawShape(ctx: DrawContext, scene: PreparedScene, s: OverlayShape, toke
  */
 export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, state: DrawState = emptyState, options: DrawOptions = {}): { nodes: number; edges: number; shapes: number; culled: boolean } {
   const tokens = options.tokens ?? defaultTokens;
-  const lod = lodAt(view.zoom, scene.lod);
+  const lodZoom = options.lodZoom ?? view.zoom;
+  const lod = lodAt(lodZoom, scene.lod);
   const cull = options.cull ?? scene.size > CULL_ABOVE;
   ctx.save();
   ctx.setLineDash([]);
@@ -633,7 +566,16 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
   }
 
   for (const g of scene.groups) drawGroup(ctx, g, tokens, state.selection.groups.includes(g.group.id));
-  for (const s of scene.shapes) if (s.kind === "tint") drawShape(ctx, scene, s, tokens, false);
+  let shapes = 0;
+  const marks = (layer: OverlayMark["layer"]) => {
+    for (const m of scene.marks) {
+      if (m.layer !== layer || !m.inMap || lodZoom < m.minZoom || (shapeIds && !shapeIds.has(m.id))) continue;
+      // Marks below the edges cover whole elements and are not highlighted on hover.
+      drawMark(ctx, scene, m, tokens, layer === "above" && state.hovered === m.id, options);
+      shapes++;
+    }
+  };
+  marks("below");
 
   let edges = 0;
   for (const e of scene.edges) {
@@ -652,14 +594,7 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
     nodes++;
   }
 
-  let shapes = 0;
-  for (const s of scene.shapes) {
-    if (s.kind === "tint" || s.kind === "hatch") continue;
-    if (shapeIds && !shapeIds.has(s.id)) continue;
-    if ((s.kind === "badge" && !lod.badges) || (s.kind === "arc" && !lod.arcs) || (s.kind === "chip" && !lod.chips) || (s.kind === "selfLoop" && !lod.selfLoops && !s.overlay.payload?.observed)) continue;
-    drawShape(ctx, scene, s, tokens, state.hovered === s.id);
-    shapes++;
-  }
+  marks("above");
 
   if (lod.edgeLabels) {
     ctx.fillStyle = tokens.ink;

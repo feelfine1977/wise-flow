@@ -139,7 +139,9 @@ describe("buildScene", () => {
       [`chip:${MAP_TARGET}:6`]: { x: -10, y: -170, width: 60, height: 24, path: undefined, labelX: undefined, labelY: undefined, minZoom: defaultLod.chips },
     });
     expect(scene.geometry.bounds).toEqual({ x: -10, y: -170, width: 535, height: 220 });
-    expect(scene.bounds).toEqual({ x: -10, y: -170, width: 535, height: 220 });
+    // The map chip is listed with the legend, not drawn on the map, so the scene's bounds
+    // run from the arc's top (−88) to the positions' bottom (50) and the self-loop's right (525).
+    expect(scene.bounds).toEqual({ x: -10, y: -88, width: 535, height: 138 });
     expect(buildScene(graph, positions, { selfLoops: false }).bounds).toEqual(positions.bounds);
   });
 
