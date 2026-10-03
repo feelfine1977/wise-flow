@@ -517,7 +517,7 @@ function drawMark(ctx: DrawContext, scene: PreparedScene, m: OverlayMark, tokens
     ctx.setLineDash(m.stroke.dash ?? []);
     ctx.stroke();
     ctx.setLineDash([]);
-    if (m.arrow && end?.last && end.beforeLast) arrowhead(ctx, end.beforeLast, end.last, m.arrow.size, color, 0.1);
+    if (m.arrow && end?.last && end.beforeLast) arrowhead(ctx, end.beforeLast, end.last, m.arrow.size, color, m.arrow.overhang);
   }
   ctx.globalAlpha = 1;
   for (const tx of m.texts) {

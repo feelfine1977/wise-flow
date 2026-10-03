@@ -22,18 +22,18 @@ describe("overlay marks", () => {
       // Width 2 + 8 × coverage 0.5; label at the apex (250, 0.75 × −88 − 8).
       {
         ...base, id: "arc:a->c:2", kind: "arc", box: { x: 50, y: -88, width: 400, height: 88 }, minZoom: defaultLod.arcs, color: "#fdd0a2", onColor: "#000000",
-        path: "M50 0 C50 -88 450 -88 450 0", stroke: { paint: "value", width: 6, opacity: 0.9 }, arrow: { size: 12 },
+        path: "M50 0 C50 -88 450 -88 450 0", stroke: { paint: "value", width: 6, opacity: 0.9 }, arrow: { size: 12, overhang: 0.1 },
         texts: [{ ...ink, text: "⏱ 25 %", x: 250, y: -74, size: 11, anchor: "middle", baseline: "alphabetic" }],
       },
       // The reverse arc runs below the boxes, second on the pair (height 88 + 14), dashed, width 2 at coverage 0.
       {
         ...base, id: "arc:c->a:3", kind: "arc", box: { x: 50, y: 40, width: 400, height: 94.5 }, minZoom: defaultLod.arcs, color: "#7f2704", onColor: "#ffffff",
-        path: "M450 40 C450 142 50 142 50 40", stroke: { paint: "value", width: 2, opacity: 0.9, dash: [6, 4] }, arrow: { size: 12 },
+        path: "M450 40 C450 142 50 142 50 40", stroke: { paint: "value", width: 2, opacity: 0.9, dash: [6, 4] }, arrow: { size: 12, overhang: 0.1 },
         texts: [{ ...ink, text: "⇐ 100 %", x: 250, y: 130.5, size: 11, anchor: "middle", baseline: "alphabetic" }],
       },
       {
         ...base, id: "selfLoop:c:4", kind: "selfLoop", box: { x: 480, y: -23, width: 45, height: 37 }, minZoom: defaultLod.selfLoops, color: "#d94801", onColor: "#000000",
-        path: "M482 0 C482 -28 528 12 500 12", stroke: { paint: "value", width: 2.5 }, arrow: { size: 12 },
+        path: "M482 0 C482 -28 528 12 500 12", stroke: { paint: "value", width: 2.5 }, arrow: { size: 12, overhang: 0.1 },
         texts: [{ ...ink, text: "↻ 75 %", x: 506, y: -6, size: 10, anchor: "start", baseline: "alphabetic" }],
       },
       // A badge without a glyph shows a dot and its share once, beside it.
@@ -87,6 +87,6 @@ describe("overlay marks", () => {
     expect([undefined, 0, 0.5, 2, -1].map((c) => arcWidth(at(0, c)))).toEqual([10, 2, 6, 10, 2]);
     expect(tintColor(at(0.5))).toBe("rgba(253, 141, 60, 0.18)");
     expect(tintColor(at(undefined))).toBeUndefined();
-    expect(overlayArrow).toEqual({ size: 12 });
+    expect(overlayArrow).toEqual({ size: 12, overhang: 0.1 });
   });
 });

@@ -326,7 +326,7 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
   );
   parts.push(`<defs>${patternDefs()}`);
   parts.push(`<marker id="wf-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="strokeWidth"><path d="M0 0L10 5L0 10z" fill="context-stroke"/></marker>`);
-  parts.push(`<marker id="wf-overlay-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="${overlayArrow.size}" markerHeight="${overlayArrow.size}" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0L10 5L0 10z" fill="context-stroke"/></marker>`);
+  parts.push(`<marker id="wf-overlay-arrow" viewBox="0 0 10 10" refX="${10 * (1 - overlayArrow.overhang)}" refY="5" markerWidth="${overlayArrow.size}" markerHeight="${overlayArrow.size}" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0L10 5L0 10z" fill="context-stroke"/></marker>`);
   parts.push(`</defs>`);
   parts.push(rect({ x: 0, y: 0, width: totalW, height: totalH }, `fill="${options.background ?? fixedColors.paper}"`));
   if (given.title) {

@@ -462,7 +462,7 @@ export const BpmnView = forwardRef<BpmnViewHandle, BpmnViewProps>(function BpmnV
     const positions = registryPositions(registry, resolver);
     const geometry = overlayGeometry(orderedOverlays, positions, { lod: lodRules });
     const elementOf = (id: string): DjsElement | undefined => elementsNamed(registry, resolver, [id])[0];
-    const arrow = svgEl("marker", { id: "wf-bpmn-arrow", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: overlayArrow.size, markerHeight: overlayArrow.size, markerUnits: "userSpaceOnUse", orient: "auto-start-reverse" });
+    const arrow = svgEl("marker", { id: "wf-bpmn-arrow", viewBox: "0 0 10 10", refX: 10 * (1 - overlayArrow.overhang), refY: 5, markerWidth: overlayArrow.size, markerHeight: overlayArrow.size, markerUnits: "userSpaceOnUse", orient: "auto-start-reverse" });
     arrow.appendChild(svgEl("path", { d: "M0 0L10 5L0 10z", fill: "context-stroke" }));
     const defs = svgEl("defs", {});
     defs.appendChild(arrow);

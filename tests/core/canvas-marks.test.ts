@@ -117,6 +117,15 @@ describe("Canvas overlay marks", () => {
     ]);
   });
 
+  it("takes the arrowhead from the mark", () => {
+    const scene = prepareScene(graph, positions, { overlays, selfLoops: false, lodBySize: false });
+    const marks = scene.marks.map((m) => (m.arrow ? { ...m, arrow: { size: 20, overhang: 0.5 } } : m));
+    const { ctx, ops } = drawingContext();
+    drawScene(ctx, { ...scene, marks }, { x: 0, y: 0, zoom: 1, width: 1000, height: 600 }, undefined, { cull: false });
+    // Arc a → c ends at (450, 0) pointing down: the tip 0.5 × 20 below it, the base 20 above the tip.
+    expect(startingAt(ops, "M450,10")).toEqual([{ op: "fill", path: "M450,10 L440,-10 L460,-10 Z", color: "#fdd0a2", alpha: 0.9 }]);
+  });
+
   it("shows a hovered mark in the focus colour and hides marks below their zoom", () => {
     const hovered = draw({ selection: { nodes: [], edges: [], groups: [] }, hovered: "badge:b:6" });
     expect(startingAt(hovered, "M285,-11")[0].color).toBe(defaultTokens.focus);

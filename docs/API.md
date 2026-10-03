@@ -875,13 +875,13 @@ export interface MarkText { text: string; x: number; y: number; size: number; we
   baseline: "middle" | "alphabetic"; paint: MarkPaint; halo: boolean; maxWidth?: number }
 export interface OverlayMark { id: string; kind: OverlayKind; overlay: Overlay; box: Box; layer: "below" | "above"; inMap: boolean;
   minZoom: number; color: string; onColor: string; title: string; radius: number; path?: string; fill?: MarkFill;
-  stroke?: MarkStroke; arrow?: { size: number }; texts: MarkText[]; edgeId?: string }
+  stroke?: MarkStroke; arrow?: { size: number; overhang: number }; texts: MarkText[]; edgeId?: string }
 export function overlayMarks(shapes: OverlayShape[], locale?: Locale): OverlayMark[];
 export function overlayColor(o: Overlay): string;           // value on the sequential palette, neutral without one
 export function tintColor(o: Overlay): string | undefined;  // the same colour at TINT_OPACITY, as CSS rgba()
 export function arcWidth(o: Overlay): number;               // 2 + 8 × coverage (default 1)
 export const TINT_OPACITY: number;                          // 0.18
-export const overlayArrow: { size: number };                // 12
+export const overlayArrow: { size: number; overhang: number }; // 12, tip 0.1 × size beyond the path
 ```
 
 `buildScene` resolves a graph and its positions once into what a renderer

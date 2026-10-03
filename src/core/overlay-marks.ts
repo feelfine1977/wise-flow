@@ -68,7 +68,7 @@ export interface OverlayMark {
   fill?: MarkFill;
   stroke?: MarkStroke;
   /** Arrowhead at the end of the path (`overlayArrow`). */
-  arrow?: { size: number };
+  arrow?: { size: number; overhang: number };
   texts: MarkText[];
   /** The follows edge the overlay stands for. */
   edgeId?: string;
@@ -97,8 +97,8 @@ export function arcWidth(overlay: Overlay): number {
   return 2 + 8 * (typeof c === "number" ? Math.max(0, Math.min(1, c)) : 1);
 }
 
-/** Arrowhead of arcs and self-loops: a triangle `size` long and wide, its tip `size` / 10 beyond the path. */
-export const overlayArrow = { size: 12 } as const;
+/** Arrowhead of arcs and self-loops: a triangle `size` long and wide, its tip `overhang` × `size` beyond the path. */
+export const overlayArrow = { size: 12, overhang: 0.1 } as const;
 
 /** One mark per shape, in the shapes' order. */
 export function overlayMarks(shapes: OverlayShape[], locale: Locale = "en"): OverlayMark[] {

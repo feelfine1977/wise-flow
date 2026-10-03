@@ -19,7 +19,7 @@ export function OverlayLayer({ shapes, locale, showArcs, showSelfLoops, hoveredI
     <ViewportPortal>
       <svg className="wf-overlay-layer" style={{ position: "absolute", left: 0, top: 0, width: 1, height: 1, overflow: "visible", zIndex: 1001 }} aria-hidden="true">
         <defs>
-          <marker id="wf-arc-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth={overlayArrow.size} markerHeight={overlayArrow.size} markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+          <marker id="wf-arc-arrow" viewBox="0 0 10 10" refX={10 * (1 - overlayArrow.overhang)} refY="5" markerWidth={overlayArrow.size} markerHeight={overlayArrow.size} markerUnits="userSpaceOnUse" orient="auto-start-reverse">
             <path d="M0 0L10 5L0 10z" fill="context-stroke" />
           </marker>
         </defs>
