@@ -70,7 +70,15 @@ export function useMapController(props: ControlledProps): MapController {
     const taken = { selection: p.selection === undefined ? next.selection : previous.selection, focus: p.focus === undefined ? next.focus : previous.focus };
     const { graph, locale } = context.current;
     const announcement = result.describesChange ? announceChange(previous, { ...taken, menu: next.menu }, graph, locale) : result.announcement;
-    known.current = result.describesChange ? taken : { selection: next.selection, focus: next.focus };
+    // The step's own sentence speaks for its whole state (a menu names the selection, an action's text the focus it set),
+    // except an action's default sentence, which names only the action. A silent step speaks only for what it changed,
+    // so a change still waiting for the host is announced when the host takes it.
+    const own = result.announcement !== undefined && !(event.type === "actionDone" && event.text === undefined);
+    known.current = result.describesChange
+      ? taken
+      : own
+        ? { selection: next.selection, focus: next.focus }
+        : { selection: next.selection === previous.selection ? known.current.selection : next.selection, focus: next.focus === previous.focus ? known.current.focus : next.focus };
     const changed = (Object.keys(next) as (keyof MapState)[]).some((key) => next[key] !== previous[key]);
     if (changed) setInner((current) => ({
       ...next,

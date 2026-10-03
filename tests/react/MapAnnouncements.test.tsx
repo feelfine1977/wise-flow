@@ -72,14 +72,33 @@ describe("ProcessMap announcements", () => {
     expect(live()).toBe("Paths opened.");
   });
 
-  it("announces the focus a menu action asks a controlling host for, whether or not it takes it", async () => {
+  it("announces the focus a menu action asks a controlling host for once the host takes it", async () => {
     const onFocusChange = vi.fn();
     const { container } = await renderMap(<ProcessMap graph={graph} positions={positions} fitView={false} focus={null} onFocusChange={onFocusChange} />);
     fireEvent.contextMenu(container.querySelector('[data-id="b"]')!);
     fireEvent.click(await screen.findByRole("menuitem", { name: /^Paths in and out/ }));
     expect(onFocusChange).toHaveBeenLastCalledWith("b");
     expect(container.querySelector(".wf-process-map")?.getAttribute("data-focus")).toBeNull();
+    // The host turned the focus down: the action's own sentence, not paths that are not shown.
+    expect(live()).toBe("Paths in and out: Check.");
+    cleanup();
+
+    function Taking({ onAction }: { onAction?: () => string }) {
+      const [focus, setFocus] = useState<string | [string, string] | null>(null);
+      return <ProcessMap graph={graph} positions={positions} fitView={false} focus={focus} onFocusChange={(f) => setFocus(f ?? null)} onAction={onAction} />;
+    }
+    const taken = await renderMap(<Taking />);
+    fireEvent.contextMenu(taken.container.querySelector('[data-id="b"]')!);
+    fireEvent.click(await screen.findByRole("menuitem", { name: /^Paths in and out/ }));
+    expect(taken.container.querySelector(".wf-process-map")?.getAttribute("data-focus")).toBe("b");
     expect(live()).toBe("Paths of Check are shown; unrelated activities are dimmed.");
+    cleanup();
+
+    const withText = await renderMap(<Taking onAction={() => "Paths opened."} />);
+    fireEvent.contextMenu(withText.container.querySelector('[data-id="c"]')!);
+    fireEvent.click(await screen.findByRole("menuitem", { name: /^Paths in and out/ }));
+    expect(withText.container.querySelector(".wf-process-map")?.getAttribute("data-focus")).toBe("c");
+    expect(live()).toBe("Paths opened.");
   });
 
   it("keeps the menu's sentence when a controlling host reports the new selection back", async () => {
@@ -140,4 +159,5 @@ describe("ProcessMap announcements", () => {
     again({ selection: { nodes: ["a", "c"], edges: [], groups: [] }, focus: "a" });
     expect(live()).toBe("Paths of Receive are shown; unrelated activities are dimmed.");
   });
+
 });

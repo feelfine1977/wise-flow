@@ -49,7 +49,7 @@ import { ActivityTooltip } from "./ActivityTooltip.js";
 import { AbstractionControls } from "./AbstractionControls.js";
 import { CanvasMap, type CanvasMapHandle } from "./CanvasMap.js";
 import { ContextMenu } from "./ContextMenu.js";
-import { useMapController } from "./controller.js";
+import { type DispatchedStep, useMapController } from "./controller.js";
 import { describeEdge, describeGroup, describeMap, describeNode } from "./describe.js";
 import { edgeTypes } from "./edges.js";
 import { FilterChips } from "./FilterChips.js";
@@ -274,14 +274,16 @@ function ProcessMapInner(props: ProcessMapProps) {
             };
           }
           case "paths":
-            // The action announces the sentence for the new focus, also while a controlling host has not taken it yet.
+            // The action announces the sentence for the new focus; while a controlling host has not taken
+            // it, the action's own sentence, and the focus sentence follows when the host takes it.
             return {
               ...a,
               run: () => {
-                if (target.kind === "pair") return setFocus([target.ids[0], target.ids[1]]).announcement;
-                if (target.kind !== "edge") return setFocus(target.id).announcement;
+                const said = (step: DispatchedStep) => (step.waiting ? undefined : step.announcement);
+                if (target.kind === "pair") return said(setFocus([target.ids[0], target.ids[1]]));
+                if (target.kind !== "edge") return said(setFocus(target.id));
                 const e = shown.edges.find((x) => x.id === target.id);
-                return e ? setFocus([e.source, e.target]).announcement : undefined;
+                return e ? said(setFocus([e.source, e.target])) : undefined;
               },
             };
           case "collapse":
