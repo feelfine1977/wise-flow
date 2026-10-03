@@ -480,11 +480,18 @@ Modeler with `mode="model"`); XML is imported once per `xml` value and the
 viewport fitted (and refitted when the container resizes until a navigation control is used); overlays are
 projected through bpmn-js's overlays service (badges, tints, hatching,
 chips as HTML overlays following the shapes; arcs and self-loops drawn
-from the core's `overlayGeometry` into an SVG layer of the canvas) and are
-replaced without touching the diagram or the viewport when `overlays`
-change; overlay targets may be FlowGraph ids, BPMN ids or activity ids
-translated through `mapping`; the level-of-detail rules hide badges, chips
-and arcs below their zoom thresholds. Selection reports tasks, sequence
+into an SVG layer of the canvas) and are replaced without touching the
+diagram or the viewport when `overlays` change; overlay targets may be
+FlowGraph ids, BPMN ids or activity ids translated through `mapping`.
+Order, level of detail and geometry come from `buildScene` over the imported
+graph and the boxes of the element registry: overlays whose target (or, for
+an arc, an endpoint) names no task, event, gateway, lane, pool or subprocess
+of the diagram (a sequence flow included) are neither drawn nor listed in the
+table, the legend or the description; badges of one task given under
+different ids take one slot each; the level-of-detail
+rules hide badges, chips, arcs and self-loops below their zoom thresholds,
+except observed repeats (`observed`); a self-loop without `displayLabel` or
+value draws no text. Selection reports tasks, sequence
 flows and lanes or pools in FlowGraph ids; a controlled `selection` is
 applied to the diagram. In modeler mode every change is saved (debounced)
 and passed to `onChange`; XML that the modeler itself produced is not

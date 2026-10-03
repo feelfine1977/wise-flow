@@ -214,11 +214,12 @@ it alone decides which ids name an element.
 `<BpmnView/>` hosts bpmn-js (navigated viewer, or the modeler) loaded on
 demand, and projects overlays through bpmn-js's overlays service (badges,
 tints, hatching and chips as HTML overlays that follow their shapes) and
-an SVG layer of the canvas (arcs and self-loops from the core's overlay
-geometry over the boxes of the element registry). Overlay datasets are
-replaced without re-importing, so the diagram and the viewport stay fixed;
-targets may be FlowGraph ids, BPMN ids or activity ids resolved through
-the mapping by the id resolver. Selection and hover callbacks, from the
+an SVG layer of the canvas (arcs and self-loops). The core scene
+(`buildScene`) over the imported graph and the boxes of the element registry
+orders the overlays, sets the level of detail and places them. Overlay
+datasets are replaced without re-importing, so the diagram and the viewport
+stay fixed; targets may be FlowGraph ids, BPMN ids or activity ids resolved
+through the mapping by the id resolver. Selection and hover callbacks, from the
 diagram and from the table alternative alike, report tasks, flows and lanes
 in FlowGraph ids for constraint authoring; the modeler's changes are saved
 and passed to `onChange`. The bpmn.io watermark stays.
