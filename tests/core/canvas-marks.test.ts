@@ -237,6 +237,19 @@ describe("Canvas node and edge marks", () => {
     expect(written(drawElements(undefined, 1, long)).find((t) => t.at?.[0] === 116)?.text).toBe("Change Approval for Purch…");
   });
 
+  it("draws the marks it is given rather than the other node and edge fields", () => {
+    const scene = prepareScene(elements.graph, elements.positions, { style: elements.style, selfLoops: false, lodBySize: false });
+    const nodes = scene.nodes.map((n) => (n.node.id === "a" ? { ...n, mark: { ...n.mark, texts: [{ ...n.mark.texts[0], text: "From the mark" }] } } : n));
+    const edges = scene.edges.map((e) => (e.edge.id === "a->g" ? { ...e, mark: { ...e.mark, color: "#123456", points: [{ x: 280, y: 30 }, { x: 320, y: 30 }], texts: [{ ...e.mark.texts[0], text: "99" }] } } : e));
+    const { ctx, ops } = drawingContext();
+    drawScene(ctx, { ...scene, nodes, edges }, { x: 0, y: 0, zoom: 1, width: 1000, height: 600 }, undefined, { cull: false });
+    const texts = written(ops).map((t) => t.text);
+    expect(texts).toContain("From the mark");
+    expect(texts).not.toContain("Check invoice");
+    expect(texts).toContain("99");
+    expect(startingAt(ops, "M280,30")).toEqual([{ op: "stroke", path: "M280,30 L320,30", color: "#123456", alpha: 1, width: 1.5, dash: [] }]);
+  });
+
   it("fills a hovered node with the surface colour", () => {
     const ops = drawElements({ selection: { nodes: [], edges: [], groups: [] }, hovered: "a" });
     expect(startingAt(ops, "M106,0").find((o) => o.op === "fill")).toMatchObject({ color: "#f6f7f9" });
