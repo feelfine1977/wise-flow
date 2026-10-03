@@ -332,6 +332,7 @@ export interface OverlayLayerProps { marks?: OverlayMark[]; shapes?: OverlayShap
 //   marks?: OverlayMark[] the marks the element carries, in scene coordinates
 //   origin?: XY          the top-left corner of the element's box in scene coordinates
 // ActivityNodeData.badges and GroupNodeData.chips are deprecated: the map no longer draws from them.
+// GroupNodeData.tint held one CSS colour before; it now holds background layers (valid for `background`, not `background-color`).
 export function Badges(props: { badges: Overlay[]; locale: Locale }): JSX.Element | null; // SVG, from the top-right corner
 export function Chip(props: { chip: Overlay; locale: Locale }): JSX.Element | null;       // SVG, at the size of its mark
 ```

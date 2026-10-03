@@ -11,9 +11,11 @@ paints. Chip marks carry what the map's chips show (`MarkText.lead`,
 `OverlayMark.gauge`, `MarkGauge`, `chipText`, `chipLayout`, the paint
 `line` and `fixedColors.line`). `OverlayLayerProps` gains `marks` and `zoom`;
 `shapes` becomes optional and `showArcs` and `showSelfLoops` are deprecated
-(without `zoom` the layer behaves as before). `ActivityNodeData` and
-`GroupNodeData` gain `tint`, `marks` and `origin`; `ActivityNodeData.badges`
-and `GroupNodeData.chips` are deprecated.
+(without `zoom` the layer behaves as before). `ActivityNodeData` gains
+`tint`; it and `GroupNodeData` gain `marks` and `origin`; `ActivityNodeData.badges`
+and `GroupNodeData.chips` are deprecated. `GroupNodeData.tint` held one CSS
+colour; it now holds CSS background layers (`linear-gradient(…)`), which
+`background` accepts and `background-color` does not.
 
 Visible changes:
 
@@ -29,6 +31,8 @@ Visible changes:
 - Map: chips are drawn at the box the core gives them, with the glyph, the
   gauge and the label in bold before the text; their share is formatted in
   the map's `locale` (group chips were always English).
+- Map: chips targeting an activity, gateway, event or note are drawn on
+  it, at the core's box; only group chips were drawn before.
 - Map: hatching is the exports' pattern (8 px diagonal, 2 px line, 0.55
   opacity) over the element's box, also on groups; badges, chips and
   hatching below their zoom are left out of the DOM rather than hidden by
