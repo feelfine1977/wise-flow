@@ -6,7 +6,8 @@ Framework-free TypeScript; runs in Node and in the browser. No DOM, no React.
 |---|---|
 | `model.ts` | `FlowGraph` types (workbench schema, with `focus` and `paths`), `validateGraph`, `indexGraph` (lookups, adjacency, group ancestors, nested members, labels), `MAP_TARGET` |
 | `aggregate.ts` | `abstract` (thresholds, collapse, keep-connected), `collapseGroups`, `isConnected`, `diff` |
-| `layout.ts` | `layout` (ELK layered in a worker or in-process, Dagre fallback), `layoutUnion`, `filterPositions`, `createPositions` (the one constructor; bounds from contents), `unionBoxes`, cache; `engine: "di"` marks positions read from BPMN DI, `"given"` positions supplied by the caller |
+| `layout.ts` | `layout` (ELK layered in a worker or in-process, Dagre fallback), `layoutUnion`, `filterPositions`, `createPositions` (the one constructor; bounds from contents), `unionBoxes`, the caller-key cache and layout scopes keyed by their inputs (`createLayoutScope`), ELK workers terminated when unused; `engine: "di"` marks positions read from BPMN DI, `"given"` positions supplied by the caller |
+| `layout-key.ts` | Internal: the key of a layout's inputs (nodes with resolved sizes, edges, groups, options) |
 | `label-sizing.ts` | Pure zoom-to-label sizes, shape scale and screen-pixel conversion; opt-in host display policy |
 | `tokens.ts` | the design token table: colours of both schemes, palettes, font stack, node sizes, mark sizes, the arrowhead rule, pattern twins (`patternTwin`), hatching, and the CSS variables of `tokens.css` (`tokenVariables`); imports nothing |
 | `style.ts` | `buildScales`, palettes with pattern twins, contrast helpers, level-of-detail rules, `patternDefs` |
