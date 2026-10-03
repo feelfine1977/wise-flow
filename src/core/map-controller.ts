@@ -6,15 +6,16 @@
  * the intents the host carries out (callbacks, bringing an element into view,
  * placing the menu on screen). No DOM and no React.
  */
-import { type MenuAction, type MenuTarget, defaultActions, menuTargetFor } from "./actions.js";
+import { type MenuAction, type MenuTarget, defaultActions, menuTargetFor, menuTitle } from "./actions.js";
 import { type AbstractOptions } from "./aggregate.js";
 import { describeEdge } from "./describe.js";
 import { type Locale } from "./format.js";
 import { type Positions } from "./layout.js";
-import { type FlowGraph, indexGraph } from "./model.js";
-import { type Focus } from "./paths.js";
-import { type ElementRef, type Selection, describeSelection, emptySelection, isSelected, selectElement, selectionEquals } from "./selection.js";
-import { t } from "./strings.js";
+import { type FlowGraph, type Overlay, indexGraph } from "./model.js";
+import { describeOverlay } from "./overlays.js";
+import { type Focus, focusHighlight } from "./paths.js";
+import { type ElementRef, type Selection, describeSelection, emptySelection, isSelected, relatedToSelection, selectElement, selectionEquals } from "./selection.js";
+import { type StringKey, t } from "./strings.js";
 
 export type MapView = "map" | "table";
 
@@ -25,6 +26,8 @@ export interface MapMenu {
   actions: MenuAction[];
   /** Where the menu is shown, relative to the map body. */
   at: { x: number; y: number };
+  /** Index of the entry the keyboard is on; the first enabled entry when the menu opens. */
+  active: number;
 }
 
 export interface MapState {
@@ -52,8 +55,15 @@ export type MapEvent =
   /** The input focus entered the map, on the element `id` if it is one. */
   | { type: "focusIn"; id?: string }
   | { type: "focusOut" }
-  | { type: "key"; key: string; shiftKey?: boolean; altKey?: boolean }
+  /** A click on an overlay: an arc selects the pair it joins, any other overlay its target. */
+  | { type: "clickOverlay"; overlay: Overlay }
+  /** A key on the map, or in the actions menu while it is open. */
+  | { type: "key"; key: string; shiftKey?: boolean; altKey?: boolean; ctrlKey?: boolean; metaKey?: boolean }
   | { type: "openMenu"; element: ElementRef; at: { x: number; y: number } }
+  /** The pointer moved onto the menu's entry `index`. */
+  | { type: "pointMenu"; index: number }
+  /** The menu's entry `index` was clicked. */
+  | { type: "chooseMenu"; index: number }
   /** The menu was closed by the user (Escape, a click outside); announced. */
   | { type: "closeMenu" }
   /** The menu goes away because something else happened; not announced. */
@@ -75,7 +85,11 @@ export type MapIntent =
   /** Bring the node into view. */
   | { kind: "reveal"; id: string }
   /** Open the actions menu on the element; the host finds it on screen and answers with `openMenu`. */
-  | { kind: "menu"; element: ElementRef };
+  | { kind: "menu"; element: ElementRef }
+  /** Run the chosen action of the open menu; the host answers with `actionDone`. */
+  | { kind: "run"; action: MenuAction; target: MenuTarget }
+  /** Give the input focus back to the map (the menu closed or an action ran). */
+  | { kind: "returnFocus" };
 
 export interface MapStep {
   state: MapState;
@@ -125,6 +139,38 @@ export function announceChange(previous: Pick<MapState, "selection" | "focus">, 
   return undefined;
 }
 
+/**
+ * The selection after a click on an element: it alone, or nothing when it was
+ * selected alone; with Shift, Ctrl or Cmd (`multi`) it is added or removed.
+ */
+export function clickSelection(selection: Selection, element: ElementRef, multi = false): Selection {
+  return selectElement(selection, element, multi ? "toggle" : "replace");
+}
+
+export interface MapEmphasis {
+  /** The focus of paths in effect: the map's, else the pair of activities or stages a selection of two names. */
+  focus: Focus | undefined;
+  /** Every element of the focus is on the graph, so its paths are shown. */
+  focusShown: boolean;
+  /** What stays bright (the rest is dimmed): the paths of a shown focus, else what relates to the selection; nothing dims without either. */
+  bright: { nodes: Set<string>; edges: Set<string> } | undefined;
+}
+
+/** What the map emphasises for its selection and focus on the graph it shows. */
+export function mapEmphasis(state: Pick<MapState, "selection" | "focus">, graph: FlowGraph): MapEmphasis {
+  const { selection } = state;
+  const idx = indexGraph(graph);
+  const pairable = (id: string) => ["activity", "stage"].includes(idx.nodes.get(id)?.kind ?? "");
+  const pair: Focus | undefined =
+    selection.nodes.length === 2 && !selection.edges.length && !selection.groups.length && pairable(selection.nodes[0]) && pairable(selection.nodes[1]) ? [selection.nodes[0], selection.nodes[1]] : undefined;
+  const focus = state.focus ?? pair;
+  const has = (id: string) => idx.nodes.has(id) || idx.groups.has(id);
+  const focusShown = focus !== undefined && (typeof focus === "string" ? has(focus) : has(focus[0]) && has(focus[1]));
+  const any = selection.nodes.length + selection.edges.length + selection.groups.length > 0;
+  const bright = focusShown ? focusHighlight(graph, focus!) : any ? relatedToSelection(graph, selection) : undefined;
+  return { focus, focusShown, bright };
+}
+
 /** Nodes with a box, left to right and top to bottom: the order of Home and End. */
 function nodeOrder(graph: FlowGraph, positions: Positions): string[] {
   const box = positions.nodes;
@@ -155,7 +201,12 @@ export function mapStep(state: MapState, event: MapEvent, context: MapContext): 
     case "click": {
       const ref = event.element;
       if (!ref) return select(emptySelection, { menu: null });
-      return select(selectElement(state.selection, ref, event.multi ? "toggle" : "replace"), ref.kind === "node" ? { menu: null, active: ref.id } : { menu: null });
+      return select(clickSelection(state.selection, ref, event.multi), ref.kind === "node" ? { menu: null, active: ref.id } : { menu: null });
+    }
+    case "clickOverlay": {
+      const { source, target } = event.overlay.payload ?? {};
+      const nodes = typeof source === "string" && typeof target === "string" ? [source, target] : [event.overlay.target];
+      return select({ nodes, edges: [], groups: [] }, { menu: null });
     }
     case "select":
       return select(event.selection);
@@ -168,9 +219,9 @@ export function mapStep(state: MapState, event: MapEvent, context: MapContext): 
     case "focusOut":
       return step({ focusWithin: false });
     case "key":
-      return keyStep(state, event, context, step, select);
+      return state.menu ? menuKeyStep(state, state.menu, event, step, locale) : keyStep(state, event, context, step, select);
     case "openMenu": {
-      if (context.contextMenu === false) return { state, intents: [], describesChange: false, handled: false };
+      if (context.contextMenu === false) return ignore(state);
       const ref = event.element;
       // The element joins the selection unless it is part of the multi-selection already.
       const inSelection = isSelected(state.selection, ref);
@@ -183,15 +234,20 @@ export function mapStep(state: MapState, event: MapEvent, context: MapContext): 
       const actions = context.actions ? context.actions(target, defaults) : defaults;
       if (actions === false || actions.length === 0) return step({ selection }, intents);
       const opened = t(locale, "menu.opened", { label: target.label, count: actions.length });
-      return step({ selection, menu: { element: ref, target, actions, at: event.at } }, intents, inSelection ? opened : `${describeSelection(graph, selection, locale)} ${opened}`);
+      const menu = { element: ref, target, actions, at: event.at, active: firstEntry(actions) };
+      return step({ selection, menu }, intents, inSelection ? opened : `${describeSelection(graph, selection, locale)} ${opened}`);
     }
+    case "pointMenu":
+      return state.menu && enabled(state.menu.actions, event.index) ? step({ menu: { ...state.menu, active: event.index } }) : ignore(state);
+    case "chooseMenu":
+      return state.menu ? choose(state.menu, event.index, step) : ignore(state);
     case "closeMenu":
-      return step({ menu: null }, [], t(locale, "menu.closed"));
+      return step({ menu: null }, [{ kind: "returnFocus" }], t(locale, "menu.closed"));
     case "dismissMenu":
       return step({ menu: null });
     case "actionDone": {
-      if (!state.menu) return { state, intents: [], describesChange: false, handled: false };
-      return step({ menu: null }, [], event.text ?? t(locale, "menu.announce", { action: event.action.label, target: state.menu.target.label }));
+      if (!state.menu) return ignore(state);
+      return step({ menu: null }, [{ kind: "returnFocus" }], event.text ?? t(locale, "menu.announce", { action: event.action.label, target: state.menu.target.label }));
     }
     case "setFocus":
       return step({ focus: event.focus }, [{ kind: "focus", focus: event.focus }]);
@@ -206,6 +262,107 @@ export function mapStep(state: MapState, event: MapEvent, context: MapContext): 
   }
 }
 
+const ignore = (state: MapState): MapStep => ({ state, intents: [], describesChange: false, handled: false });
+
+const enabled = (actions: readonly MenuAction[], index: number) => actions[index] !== undefined && !actions[index].disabled;
+
+/** The entry the keyboard starts on: the first enabled one. */
+export function firstEntry(actions: readonly MenuAction[]): number {
+  const index = actions.findIndex((a) => !a.disabled);
+  return index < 0 ? 0 : index;
+}
+
+/** What a key does in a menu whose keyboard is on entry `active`. */
+export interface MenuKey {
+  /** The entry the keyboard is on afterwards. */
+  active: number;
+  /** The entry the key chose. */
+  choose?: number;
+  /** The key closes the menu. */
+  close?: boolean;
+  /** The key meant something to the menu (the host prevents its default). */
+  handled: boolean;
+}
+
+/**
+ * The keyboard of an actions menu: Arrow Down and Arrow Up move over the
+ * enabled entries and wrap, Home and End go to the first and the last one,
+ * Enter and Space choose the entry the keyboard is on, an accelerator letter
+ * chooses its entry, Escape closes the menu, and Tab closes it and moves on.
+ */
+export function menuKey(actions: readonly MenuAction[], active: number, event: Pick<Extract<MapEvent, { type: "key" }>, "key" | "altKey" | "ctrlKey" | "metaKey">): MenuKey {
+  const entries = actions.map((a, i) => (a.disabled ? -1 : i)).filter((i) => i >= 0);
+  const move = (delta: number) => {
+    if (!entries.length) return active;
+    const at = entries.indexOf(active);
+    return entries[(at + delta + entries.length) % entries.length];
+  };
+  switch (event.key) {
+    case "ArrowDown":
+      return { active: move(1), handled: true };
+    case "ArrowUp":
+      return { active: move(-1), handled: true };
+    case "Home":
+      return { active: entries[0] ?? active, handled: true };
+    case "End":
+      return { active: entries[entries.length - 1] ?? active, handled: true };
+    case "Enter":
+    case " ":
+      return { active, choose: active, handled: true };
+    case "Escape":
+      return { active, close: true, handled: true };
+    case "Tab":
+      return { active, close: true, handled: false };
+    default: {
+      if (event.key.length !== 1 || event.altKey || event.ctrlKey || event.metaKey) return { active, handled: false };
+      const letter = event.key.toLowerCase();
+      const hit = actions.findIndex((a) => !a.disabled && a.accelerator?.toLowerCase() === letter);
+      return hit < 0 ? { active, handled: false } : { active, choose: hit, handled: true };
+    }
+  }
+}
+
+type Step = (change: Partial<MapState>, intents?: MapIntent[], announcement?: string) => MapStep;
+
+/** Choosing an enabled entry asks the host to run its action; a disabled or missing one does nothing. */
+function choose(menu: MapMenu, index: number, step: Step): MapStep {
+  if (!enabled(menu.actions, index)) return step({});
+  return step({}, [{ kind: "run", action: menu.actions[index], target: menu.target }]);
+}
+
+/** A key while the menu is open moves its keyboard, chooses an entry or closes it; the map's routes wait. */
+function menuKeyStep(state: MapState, menu: MapMenu, event: Extract<MapEvent, { type: "key" }>, step: Step, locale: Locale): MapStep {
+  const r = menuKey(menu.actions, menu.active, event);
+  if (r.close) return { ...step({ menu: null }, [{ kind: "returnFocus" }], t(locale, "menu.closed")), handled: r.handled };
+  if (r.choose !== undefined) return choose(menu, r.choose, step);
+  if (!r.handled) return ignore(state);
+  return step(r.active === menu.active ? {} : { menu: { ...menu, active: r.active } });
+}
+
+/** Title, kind line and the worst expectation touching the target, for the header of the actions menu. */
+export function menuHeading(target: MenuTarget, graph: FlowGraph, overlays: readonly Overlay[], locale: Locale = "en"): { title: string; subtitle: string; note?: string } {
+  const kindKey: StringKey =
+    target.kind === "node"
+      ? (`kind.${target.nodeKind ?? "activity"}` as StringKey)
+      : target.kind === "edge"
+        ? (`kind.${target.edgeKind ?? "follows"}` as StringKey)
+        : target.kind === "group"
+          ? (`group.${target.groupKind ?? "stage"}` as StringKey)
+          : "kind.activity";
+  const idx = indexGraph(graph);
+  const groupId = target.kind === "node" ? idx.nodes.get(target.id)?.group : undefined;
+  const subtitle = `${t(locale, kindKey)}${groupId ? ` (${idx.groups.get(groupId)?.label ?? groupId})` : ""}`;
+  let worst: Overlay | undefined;
+  for (const o of overlays) {
+    const ids = target.ids;
+    const touches = ids.includes(o.target) || (o.kind === "arc" && (ids.includes(String(o.payload?.source)) || ids.includes(String(o.payload?.target))));
+    const v = o.payload?.value;
+    if (!touches || !o.payload?.constraintId || typeof v !== "number") continue;
+    if (!worst || v > (worst.payload?.value as number)) worst = o;
+  }
+  return { title: menuTitle(target, graph, locale), subtitle, note: worst ? t(locale, "menu.worst", { text: describeOverlay(worst, locale) }) : undefined };
+}
+
 /**
  * The keyboard routes: arrow keys move to the nearest activity in that
  * direction (Shift adds it to the selection), Alt with an arrow key moves
@@ -218,12 +375,12 @@ function keyStep(
   state: MapState,
   event: Extract<MapEvent, { type: "key" }>,
   context: MapContext,
-  step: (change: Partial<MapState>, intents?: MapIntent[], announcement?: string) => MapStep,
+  step: Step,
   select: (selection: Selection, change?: Partial<MapState>, intents?: MapIntent[]) => MapStep,
 ): MapStep {
   const { graph, positions } = context;
-  const ignored: MapStep = { state, intents: [], describesChange: false, handled: false };
-  if (state.menu || !positions) return ignored;
+  const ignored = ignore(state);
+  if (!positions) return ignored;
   const order = nodeOrder(graph, positions);
   if (order.length === 0) return ignored;
   const locale = context.locale ?? "en";

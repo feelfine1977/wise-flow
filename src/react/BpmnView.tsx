@@ -8,6 +8,8 @@ import type { BpmnLayoutOptions } from "../bpmn/layout.js";
 import { projectMarks } from "../bpmn/projection.js";
 import { type DiagramPositions, type RegistryElement, diagramScene, registryPositions } from "../bpmn/scene.js";
 import { type BpmnSelection, type BpmnViewer, type ConnectViewer, elementsNamed, hoverOf, isTask, selectionOf } from "../bpmn/viewer.js";
+import type { ActivityRenaming } from "../bpmn/ids.js";
+import { useMapController } from "./controller.js";
 import { Legend } from "./Legend.js";
 import { type MarkIds, MarkFigure, domMark, markDefs, svgDom } from "./marks.js";
 import { TableAlternative } from "./TableAlternative.js";
@@ -67,6 +69,12 @@ export interface BpmnViewProps {
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const MARK_IDS: MarkIds = { arrow: "wf-bpmn-arrow", pattern: "wf-bpmn-outofscope" };
+
+const NO_GRAPH: FlowGraph = { nodes: [], edges: [] };
+
+// The table and the controller name mapped tasks by activity id; selections leave the view in FlowGraph ids.
+const toTable = (s: BpmnSelection, renaming: ActivityRenaming | undefined): Selection => ({ nodes: s.tasks.map((id) => renaming?.toMapped(id) ?? id), edges: s.flows, groups: s.lanes });
+const toBpmn = (s: Selection, renaming: ActivityRenaming | undefined): BpmnSelection => ({ tasks: s.nodes.map((id) => renaming?.toFlow(id) ?? id), flows: s.edges, lanes: s.groups });
 
 const NO_ELEMENTS: DiagramPositions = { positions: createPositions({ nodes: {}, groups: {}, edges: {} }, "di", "RIGHT"), elements: new Map() };
 
@@ -130,6 +138,8 @@ export function createBpmnView(connect: ConnectViewer) {
     fitRef.current = fitView;
     const importedRef = useRef(false);
     const manualNavigation = useRef(false);
+    // A selection the diagram reported, passed to the controller.
+    const diagramSelect = useRef<(s: BpmnSelection) => void>(() => {});
 
     // 1. A graph is exported to XML; explicit XML wins.
     const layoutKey = JSON.stringify({ ...(layoutOptions ?? {}), elk: undefined, elkWorkerUrl: layoutOptions?.elkWorkerUrl ? String(layoutOptions.elkWorkerUrl) : undefined });
@@ -212,8 +222,7 @@ export function createBpmnView(connect: ConnectViewer) {
               const key = JSON.stringify(s);
               if (key === lastEmitted.current) return;
               lastEmitted.current = key;
-              setInnerSelection(s);
-              callbacks.current.onSelect?.(s);
+              diagramSelect.current(s);
             }),
             v.on("hover", (element) => {
               const id = hoverOf(element, resolverRef.current);
@@ -314,6 +323,21 @@ export function createBpmnView(connect: ConnectViewer) {
       [tableGraph, placed, overlays, resolver, renaming, locale, props.lod],
     );
     const { scales } = scene;
+
+    // Selections from the diagram and from the table are the map controller's `select` events, so they are
+    // announced as on the map; the controller sees the view's selection as the controlling host's.
+    const renamingRef = useRef(renaming);
+    renamingRef.current = renaming;
+    const tableSelection = useMemo(() => toTable(selection, renaming), [selection, renaming]);
+    const report = useCallback((s: Selection) => {
+      const next = toBpmn(s, renamingRef.current);
+      setInnerSelection(next);
+      callbacks.current.onSelect?.(next);
+    }, []);
+    const controller = useMapController({ selection: tableSelection, onSelect: report });
+    controller.context.current = { graph: tableGraph ?? NO_GRAPH, locale };
+    const { dispatch } = controller;
+    diagramSelect.current = (s) => void dispatch({ type: "select", selection: toTable(s, renamingRef.current) });
     const legendMarks = scene.marks.filter((m) => !m.inMap);
 
     // 5. Project the overlays onto the diagram. The diagram is not touched; only overlays change.
@@ -396,16 +420,12 @@ export function createBpmnView(connect: ConnectViewer) {
       };
     }, [tableGraph]);
     const description = t(locale, "bpmn.description", counts) + (listed.length ? ` ${t(locale, "map.overlays", { count: listed.length })}` : "");
-    // The table names mapped tasks by activity id; selections cross it in FlowGraph ids.
-    const tableSelection: Selection = { nodes: selection.tasks.map((id) => renaming?.toMapped(id) ?? id), edges: selection.flows, groups: selection.lanes };
     const onTableSelect = useCallback(
       (s: Selection) => {
-        const next: BpmnSelection = { tasks: s.nodes.map((id) => renaming?.toFlow(id) ?? id), flows: s.edges, lanes: s.groups };
         lastEmitted.current = "";
-        setInnerSelection(next);
-        onSelect?.(next);
+        dispatch({ type: "select", selection: s });
       },
-      [onSelect, renaming],
+      [dispatch],
     );
 
     return (
@@ -427,9 +447,7 @@ export function createBpmnView(connect: ConnectViewer) {
           {description}
         </p>
         <p id={liveId} className="wf-sr-only" aria-live="polite">
-          {selection.tasks.length + selection.flows.length + selection.lanes.length > 0
-            ? t(locale, "bpmn.selected", { tasks: selection.tasks.length, flows: selection.flows.length, lanes: selection.lanes.length })
-            : ""}
+          {controller.live}
         </p>
         <div ref={containerRef} className="wf-bpmn__canvas" aria-hidden={view === "table" ? true : undefined} />
         {view === "table" && tableGraph ? (

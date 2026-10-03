@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { type Locale, type MenuAction, type MenuGroup, type StringKey, MENU_GROUP_ORDER, t } from "../core/index.js";
+import { firstEntry, menuKey } from "../core/map-controller.js";
 
 export interface ContextMenuProps {
   /** Position inside the positioned container (CSS pixels). */
@@ -34,16 +35,50 @@ const GROUP_KEY: Record<MenuGroup, StringKey> = {
  * Accessible actions menu: `role="menu"` with `menuitem`s, arrow keys, Home
  * and End, accelerator letters, Enter and Space to activate, Escape to close
  * (focus returns to the map). Entries are grouped with separators in the
- * order filter, explore, compare, author.
+ * order filter, explore, compare, author. The keyboard is the core's
+ * `menuKey`, the one the map's controller uses for the menu it opens.
  */
-export function ContextMenu({ x, y, title, subtitle, note, actions, locale = "en", onAction, onClose, returnFocusTo, boundsRef, className }: ContextMenuProps) {
+export function ContextMenu({ actions, onAction, onClose, returnFocusTo, ...view }: ContextMenuProps) {
+  const [active, setActive] = useState(() => firstEntry(actions));
+  const close = () => {
+    onClose();
+    returnFocusTo?.focus();
+  };
+  const choose = (index: number) => {
+    const a = actions[index];
+    if (!a || a.disabled) return;
+    onAction(a);
+    returnFocusTo?.focus();
+  };
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    const r = menuKey(actions, active, e);
+    if (r.handled) e.preventDefault();
+    if (r.close) {
+      if (e.key === "Escape") e.stopPropagation();
+      close();
+    } else if (r.choose !== undefined) choose(r.choose);
+    else setActive(r.active);
+  };
+  return <MenuView {...view} actions={actions} active={active} onKeyDown={onKeyDown} onPoint={setActive} onChoose={choose} onClose={close} />;
+}
+
+export interface MenuViewProps extends Omit<ContextMenuProps, "onAction" | "returnFocusTo"> {
+  /** Index of the entry the keyboard is on; it has the input focus. */
+  active: number;
+  onKeyDown?: (event: React.KeyboardEvent) => void;
+  /** The pointer moved onto an enabled entry. */
+  onPoint: (index: number) => void;
+  /** An entry was clicked. */
+  onChoose: (index: number) => void;
+}
+
+/** The menu as drawn, with the entry `active` focused; what keys and clicks do is the caller's. */
+export function MenuView({ x, y, title, subtitle, note, actions, locale = "en", active, onKeyDown, onPoint, onChoose, onClose, boundsRef, className }: MenuViewProps) {
   const id = useId();
   const ref = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ left: x, top: y });
-  const enabled = actions.map((a, i) => (a.disabled ? -1 : i)).filter((i) => i >= 0);
-  const [active, setActive] = useState(enabled[0] ?? 0);
 
-  // Clamp into the container and focus the first entry.
+  // Clamp into the container.
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -56,87 +91,19 @@ export function ContextMenu({ x, y, title, subtitle, note, actions, locale = "en
   }, [x, y, boundsRef, actions.length]);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const first = el.querySelector<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])');
-    first?.focus();
-  }, []);
-
-  useEffect(() => {
-    const el = ref.current;
-    const items = el?.querySelectorAll<HTMLElement>('[role="menuitem"]');
-    items?.[active]?.focus();
+    ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]')[active]?.focus();
   }, [active]);
 
   // Close on a click outside.
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) close();
+      if (ref.current && !ref.current.contains(e.target as Node)) closeRef.current();
     };
     document.addEventListener("mousedown", onDown, true);
     return () => document.removeEventListener("mousedown", onDown, true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const close = () => {
-    onClose();
-    returnFocusTo?.focus();
-  };
-  const activate = (index: number) => {
-    const a = actions[index];
-    if (!a || a.disabled) return;
-    onAction(a);
-    returnFocusTo?.focus();
-  };
-  const move = (delta: number) => {
-    if (!enabled.length) return;
-    const pos = enabled.indexOf(active);
-    const next = enabled[(pos + delta + enabled.length) % enabled.length];
-    setActive(next);
-  };
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    switch (e.key) {
-      case "ArrowDown":
-        e.preventDefault();
-        move(1);
-        return;
-      case "ArrowUp":
-        e.preventDefault();
-        move(-1);
-        return;
-      case "Home":
-        e.preventDefault();
-        if (enabled.length) setActive(enabled[0]);
-        return;
-      case "End":
-        e.preventDefault();
-        if (enabled.length) setActive(enabled[enabled.length - 1]);
-        return;
-      case "Enter":
-      case " ":
-        e.preventDefault();
-        activate(active);
-        return;
-      case "Escape":
-        e.preventDefault();
-        e.stopPropagation();
-        close();
-        return;
-      case "Tab":
-        close();
-        return;
-      default: {
-        if (e.key.length === 1 && !e.altKey && !e.ctrlKey && !e.metaKey) {
-          const letter = e.key.toLowerCase();
-          const hit = actions.findIndex((a) => !a.disabled && a.accelerator?.toLowerCase() === letter);
-          if (hit >= 0) {
-            e.preventDefault();
-            activate(hit);
-          }
-        }
-      }
-    }
-  };
 
   const groups = MENU_GROUP_ORDER.map((g) => ({ group: g, items: actions.map((a, i) => ({ a, i })).filter(({ a }) => a.group === g) })).filter((g) => g.items.length > 0);
 
@@ -173,8 +140,8 @@ export function ContextMenu({ x, y, title, subtitle, note, actions, locale = "en
               aria-keyshortcuts={a.accelerator}
               title={a.description}
               data-action={a.id}
-              onMouseEnter={() => !a.disabled && setActive(i)}
-              onClick={() => activate(i)}
+              onMouseEnter={() => !a.disabled && onPoint(i)}
+              onClick={() => onChoose(i)}
             >
               <span className="wf-menu__label">{a.label}</span>
               {a.accelerator ? <kbd className="wf-menu__key">{a.accelerator}</kbd> : null}

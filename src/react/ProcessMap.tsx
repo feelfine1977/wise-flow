@@ -1,7 +1,6 @@
 import {
   Background,
   Controls,
-  MarkerType,
   MiniMap,
   Panel,
   ReactFlow,
@@ -9,60 +8,31 @@ import {
   useNodesInitialized,
   useReactFlow,
   useViewport,
-  type NodeMouseHandler,
-  type EdgeMouseHandler,
   type OnNodesChange,
 } from "@xyflow/react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import {
-  type AbstractOptions,
-  type ElementRef,
-  type FlowGraph,
-  type Focus,
-  type HitItem,
-  type MenuAction,
-  type MenuTarget,
-  type Overlay,
-  type OverlayMark,
-  type OverlayShape,
-  type XY,
-  type StringKey,
-  activityNodeSize,
-  activityReferences,
-  addClause,
-  arrowheadTokens,
-  asFilter,
-  coversGraph,
-  defaultStyle,
-  describeClause,
-  describeOverlay,
-  focusHighlight,
-  lodAt,
-  menuTitle,
-  relatedToSelection,
-  t,
-} from "../core/index.js";
-import type { MapContext } from "../core/map-controller.js";
-import type { DrawState, PreparedScene } from "../canvas/index.js";
-import { retainScene } from "../canvas/scene.js";
+import { type AbstractOptions, type ElementRef, type FlowGraph, type XY, activityNodeSize, activityReferences, coversGraph, defaultStyle, lodAt, t } from "../core/index.js";
+import { type MapContext, mapEmphasis, menuHeading } from "../core/map-controller.js";
 import { ActivityTooltip } from "./ActivityTooltip.js";
 import { AbstractionControls } from "./AbstractionControls.js";
 import { CanvasMap, type CanvasMapHandle } from "./CanvasMap.js";
-import { ContextMenu } from "./ContextMenu.js";
-import { type DispatchedStep, useMapController } from "./controller.js";
-import { describeEdge, describeGroup, describeMap, describeNode } from "./describe.js";
+import { MenuView } from "./ContextMenu.js";
+import { type MapScreen, useMapController } from "./controller.js";
+import { describeMap } from "./describe.js";
 import { edgeTypes } from "./edges.js";
 import { FilterChips } from "./FilterChips.js";
 import { useFlowGraph, useMapScene, usePrefersReducedMotion, useStableLayout } from "./hooks.js";
 import { Legend } from "./Legend.js";
-import { coverBackground, MarkDefs, MarkFigure } from "./marks.js";
+import { useMenuActions } from "./map-actions.js";
+import { useCanvasElements, useElementDescriptions, useFlowElements } from "./map-elements.js";
+import { GROUP_PREFIX, canvasPointer, flowPointer, overlayPointer } from "./map-pointer.js";
+import { MarkDefs, MarkFigure } from "./marks.js";
 import { nodeTypes } from "./nodes.js";
 import { OverlayLayer } from "./OverlayLayer.js";
 import { PathList } from "./PathList.js";
 import { TableAlternative } from "./TableAlternative.js";
 import { type ProcessMapProps, type Selection, type WfEdge, type WfGroupNode, type WfNode } from "./types.js";
 
-const GROUP_PREFIX = "group:";
 const DEFAULT_CANVAS_THRESHOLD = 2000;
 
 const NO_MOVES: Readonly<Record<string, XY>> = {};
@@ -92,7 +62,6 @@ function ProcessMapInner(props: ProcessMapProps) {
     onNodeMove,
     layoutResetKey,
     canvasThreshold = DEFAULT_CANVAS_THRESHOLD,
-    onContextMenu: onContextMenuProp,
     children,
   } = props;
 
@@ -146,54 +115,12 @@ function ProcessMapInner(props: ProcessMapProps) {
     if (onNodeMove) for (const [id, point] of Object.entries(points)) onNodeMove(id, point);
     else setManual((previous) => ({ key: layoutResetKey, points: { ...(previous.key === layoutResetKey ? previous.points : {}), ...points } }));
   }, [nodesDraggable, onNodeMove, layoutResetKey, positions, shown]);
-  const bands = useMemo(() => new Map(scene.bands.map((b) => [b.id, b])), [scene.bands]);
   const { scales, overlays, geometry } = scene;
-  // Marks below the edges are drawn by the element they cover, as its background; boxes above it by the
-  // element too, so that they follow it; marks with a path run between elements in the overlay layer.
-  const { covers, carried, between } = useMemo(() => {
-    const covers = new Map<string, OverlayMark[]>();
-    const carried = new Map<string, OverlayMark[]>();
-    const between: OverlayMark[] = [];
-    const add = (to: Map<string, OverlayMark[]>, m: OverlayMark) => to.set(m.overlay.target, [...(to.get(m.overlay.target) ?? []), m]);
-    const known = (id: string) => !!(scene.positions.nodes[id] ?? scene.positions.groups[id]);
-    for (const m of scene.marks) {
-      if (!m.inMap) continue;
-      if (m.path === undefined && known(m.overlay.target)) add(m.layer === "below" ? covers : carried, m);
-      else between.push(m);
-    }
-    return { covers, carried, between };
-  }, [scene]);
-
   const select = useCallback((s: Selection) => void dispatch({ type: "select", selection: s }), [dispatch]);
   const hover = useCallback((id: string | null) => void dispatch({ type: "hover", id }), [dispatch]);
-  const setFocus = useCallback((f: Focus | undefined) => dispatch({ type: "setFocus", focus: f }), [dispatch]);
-  // An arc selects the pair it joins, any other overlay its target.
-  const selectShape = useCallback(
-    (shape: OverlayShape) => {
-      const { source, target } = shape.overlay.payload ?? {};
-      select({ nodes: typeof source === "string" && typeof target === "string" ? [source, target] : [shape.overlay.target], edges: [], groups: [] });
-    },
-    [select],
-  );
   const tooltipId = useId();
-  const nodeKinds = useMemo(() => new Map(shown.nodes.map((n) => [n.id, n.kind])), [shown]);
-  const pairFromSelection = useMemo<Focus | undefined>(() => {
-    if (selection.nodes.length !== 2 || selection.edges.length || selection.groups.length) return undefined;
-    const [a, b] = selection.nodes;
-    const ok = (id: string) => nodeKinds.get(id) === "activity" || nodeKinds.get(id) === "stage";
-    return ok(a) && ok(b) ? [a, b] : undefined;
-  }, [selection, nodeKinds]);
-  const focus: Focus | undefined = explicitFocus ?? pairFromSelection;
-  const focusValid = useMemo(() => {
-    if (!focus) return false;
-    const has = (id: string) => shown.nodes.some((n) => n.id === id) || (shown.groups ?? []).some((g) => g.id === id);
-    return typeof focus === "string" ? has(focus) : has(focus[0]) && has(focus[1]);
-  }, [focus, shown]);
-  const bright = useMemo(() => {
-    if (focus && focusValid) return focusHighlight(shown, focus);
-    if (selection.nodes.length || selection.edges.length || selection.groups.length) return relatedToSelection(shown, selection);
-    return undefined;
-  }, [shown, focus, focusValid, selection]);
+  // The focus of paths in effect and what stays bright: the controller's.
+  const { focus, focusShown, bright } = useMemo(() => mapEmphasis({ selection, focus: explicitFocus }, shown), [selection, explicitFocus, shown]);
 
   const reducedMotion = usePrefersReducedMotion();
   const rf = useReactFlow();
@@ -205,134 +132,15 @@ function ProcessMapInner(props: ProcessMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<CanvasMapHandle>(null);
 
+  const descriptions = useElementDescriptions(shown, overlays, locale, activityLabels);
+  const { describeElement } = descriptions;
   const labelOf = useCallback((id: string) => shown.nodes.find((n) => n.id === id)?.label ?? (shown.groups ?? []).find((g) => g.id === id)?.label ?? id, [shown]);
-
-  // Descriptions
-  const overlaysByTarget = useMemo(() => {
-    const m = new Map<string, Overlay[]>();
-    for (const o of overlays) {
-      if (!m.has(o.target)) m.set(o.target, []);
-      m.get(o.target)!.push(o);
-    }
-    return m;
-  }, [overlays]);
-  const groupIndex = useMemo(() => new Map((shown.groups ?? []).map((g) => [g.id, g])), [shown]);
-  const memberCount = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const n of shown.nodes) if (n.group) m.set(n.group, (m.get(n.group) ?? 0) + 1);
-    return m;
-  }, [shown]);
-  const describeElement = useCallback(
-    (ref: ElementRef): string => {
-      if (ref.kind === "node") {
-        const n = shown.nodes.find((x) => x.id === ref.id);
-        return n ? describeNode(n, overlaysByTarget.get(n.id) ?? [], locale, n.group ? groupIndex.get(n.group)?.label : undefined, n.kind === "activity" ? activityLabels : undefined) : ref.id;
-      }
-      if (ref.kind === "edge") {
-        const e = shown.edges.find((x) => x.id === ref.id);
-        return e ? describeEdge(e, shown, locale) : ref.id;
-      }
-      const g = groupIndex.get(ref.id);
-      return g ? describeGroup(g, memberCount.get(g.id) ?? 0, overlaysByTarget.get(g.id) ?? [], locale) : ref.id;
-    },
-    [shown, overlaysByTarget, groupIndex, memberCount, locale, activityLabels],
-  );
-  const worstOverlay = useCallback(
-    (ids: string[]): string | undefined => {
-      let best: Overlay | undefined;
-      for (const o of overlays) {
-        const touches = ids.includes(o.target) || (o.kind === "arc" && (ids.includes(String(o.payload?.source)) || ids.includes(String(o.payload?.target))));
-        if (!touches || !o.payload?.constraintId) continue;
-        const v = o.payload?.value;
-        if (typeof v !== "number") continue;
-        if (!best || v > (best.payload?.value as number)) best = o;
-      }
-      return best ? t(locale, "menu.worst", { text: describeOverlay(best, locale) }) : undefined;
-    },
-    [overlays, locale],
-  );
 
   // Actions menu
   const allStages = useMemo(() => (graph.groups ?? []).filter((g) => g.kind === "stage" && !g.parent).map((g) => g.id), [graph]);
-  const attachRuns = useCallback(
-    (actions: MenuAction[], target: MenuTarget): MenuAction[] =>
-      actions.map((a) => {
-        if (a.run) return a;
-        switch (a.id) {
-          case "filter-to":
-          case "exclude": {
-            if (!props.onFilterChange || !a.clause) return a;
-            const clauses = Array.isArray(a.clause) ? a.clause : [a.clause];
-            return {
-              ...a,
-              run: () => {
-                let f = asFilter(props.filters);
-                for (const c of clauses) f = addClause(f, c);
-                props.onFilterChange!(f);
-                return t(locale, "filters.added", { clause: clauses.map((c) => describeClause(c, locale, labelOf)).join("; ") });
-              },
-            };
-          }
-          case "paths":
-            // The action announces the sentence for the new focus; while a controlling host has not taken
-            // it, the action's own sentence, and the focus sentence follows when the host takes it.
-            return {
-              ...a,
-              run: () => {
-                const said = (step: DispatchedStep) => (step.waiting ? undefined : step.announcement);
-                if (target.kind === "pair") return said(setFocus([target.ids[0], target.ids[1]]));
-                if (target.kind !== "edge") return said(setFocus(target.id));
-                const e = shown.edges.find((x) => x.id === target.id);
-                return e ? said(setFocus([e.source, e.target])) : undefined;
-              },
-            };
-          case "collapse":
-          case "expand":
-            return { ...a, run: () => void dispatch({ type: "collapse", group: target.id, collapsed: a.id === "collapse" }) };
-          case "clear-focus":
-            return { ...a, run: () => void setFocus(undefined) };
-          default:
-            return a;
-        }
-      }),
-    [props.onFilterChange, props.filters, locale, labelOf, setFocus, shown, dispatch],
-  );
-  // The host may replace the actions with runs attached, or suppress the menu.
-  const menuActions = useCallback(
-    (target: MenuTarget, defaults: MenuAction[]): MenuAction[] | false => {
-      const actions = attachRuns(defaults, target);
-      const custom = onContextMenuProp?.(target, actions);
-      return custom === false ? false : Array.isArray(custom) ? custom : actions;
-    },
-    [attachRuns, onContextMenuProp],
-  );
+  const menuActions = useMenuActions(props, shown, labelOf, dispatch);
   controller.context.current = { graph: shown, positions, locale, contextMenu, stages: allStages, actions: menuActions } satisfies MapContext;
-  const openMenu = useCallback((ref: ElementRef, at: { x: number; y: number }) => void dispatch({ type: "openMenu", element: ref, at }), [dispatch]);
-  const menuText = useMemo(() => {
-    if (!menu) return undefined;
-    const { target } = menu;
-    const kindText =
-      target.kind === "node"
-        ? t(locale, `kind.${target.nodeKind ?? "activity"}` as StringKey)
-        : target.kind === "edge"
-          ? t(locale, `kind.${target.edgeKind ?? "follows"}` as StringKey)
-          : target.kind === "group"
-            ? t(locale, `group.${target.groupKind ?? "stage"}` as StringKey)
-            : t(locale, "kind.activity");
-    const groupId = target.kind === "node" ? shown.nodes.find((n) => n.id === target.id)?.group : undefined;
-    const subtitle = `${kindText}${groupId ? ` (${groupIndex.get(groupId)?.label ?? groupId})` : ""}`;
-    return { title: menuTitle(target, shown, locale), subtitle, note: worstOverlay(target.ids) };
-  }, [menu, shown, locale, groupIndex, worstOverlay]);
-  const closeMenu = useCallback(() => void dispatch({ type: "closeMenu" }), [dispatch]);
-  const runAction = useCallback(
-    (action: MenuAction) => {
-      if (!menu) return;
-      const fromRun = action.run?.(menu.target);
-      const fromHost = props.onAction?.(action, menu.target);
-      dispatch({ type: "actionDone", action, text: typeof fromHost === "string" ? fromHost : typeof fromRun === "string" ? fromRun : undefined });
-    },
-    [menu, props.onAction, dispatch], // eslint-disable-line react-hooks/exhaustive-deps
-  );
+  const menuText = useMemo(() => (menu ? menuHeading(menu.target, shown, overlays, locale) : undefined), [menu, shown, overlays, locale]);
 
   // Screen position of an element relative to the map body (for the keyboard-opened menu).
   const elementScreenPoint = useCallback(
@@ -353,185 +161,16 @@ function ProcessMapInner(props: ProcessMapProps) {
     [useCanvas, positions, rf],
   );
 
-  // React Flow nodes and edges
-  const rfNodes = useMemo<(WfNode | WfGroupNode)[]>(() => {
-    if (!positions || useCanvas) return [];
-    const groups = shown.groups ?? [];
-    const groupBox = (id: string) => positions.groups[id];
-    const absOffset = (groupId: string | undefined): { x: number; y: number } => {
-      const box = groupId ? groupBox(groupId) : undefined;
-      return box ? { x: box.x, y: box.y } : { x: 0, y: 0 };
-    };
-    const out: (WfNode | WfGroupNode)[] = [];
-    // Parents first, in nesting order.
-    const ordered = [...groups].sort((a, b) => (a.parent ? 1 : 0) - (b.parent ? 1 : 0));
-    for (const g of ordered) {
-      const box = groupBox(g.id);
-      if (!box) continue;
-      const parentBox = g.parent ? groupBox(g.parent) : undefined;
-      const gOverlays = overlaysByTarget.get(g.id) ?? [];
-      const description = describeGroup(g, memberCount.get(g.id) ?? 0, gOverlays, locale);
-      out.push({
-        id: GROUP_PREFIX + g.id,
-        type: "wfGroup",
-        position: { x: box.x - (parentBox?.x ?? 0), y: box.y - (parentBox?.y ?? 0) },
-        parentId: g.parent && parentBox ? GROUP_PREFIX + g.parent : undefined,
-        width: box.width,
-        height: box.height,
-        draggable: false,
-        selectable: true,
-        focusable: false,
-        selected: selection.groups.includes(g.id),
-        zIndex: -1,
-        ariaLabel: description,
-        data: {
-          group: g,
-          color: scales.categorical(g.id).color,
-          tint: coverBackground(covers.get(g.id) ?? []),
-          marks: carried.get(g.id),
-          origin: { x: box.x, y: box.y },
-          chips: gOverlays.filter((o) => o.kind === "chip"),
-          description,
-          band: bands.get(g.id),
-        },
-      });
-    }
-    for (const mark of scene.nodeMarks) {
-      const n = mark.node;
-      const box = mark.box;
-      const parentGroup = n.group && groupIndex.has(n.group) && groupBox(n.group) ? n.group : undefined;
-      const off = absOffset(parentGroup);
-      const nOverlays = overlaysByTarget.get(n.id) ?? [];
-      const description = describeElement({ kind: "node", id: n.id });
-      out.push({
-        id: n.id,
-        type: n.kind,
-        position: { x: box.x - off.x, y: box.y - off.y },
-        parentId: parentGroup ? GROUP_PREFIX + parentGroup : undefined,
-        width: box.width,
-        height: box.height,
-        draggable: nodesDraggable === true && n.kind === "activity",
-        selected: selection.nodes.includes(n.id),
-        // Keep activity copy above ordinary and hovered routes, including grouped graphs.
-        zIndex: activityLabels ? 10 : undefined,
-        ariaLabel: description,
-        data: {
-          node: n,
-          activityLabels: n.kind === "activity" ? activityLabels : undefined,
-          labelWidth: box.width,
-          labelHeight: box.height,
-          color: mark.color,
-          pattern: mark.pattern,
-          badges: nOverlays.filter((o) => o.kind === "badge"),
-          hatched: nOverlays.some((o) => o.kind === "hatch"),
-          tint: coverBackground(covers.get(n.id) ?? []),
-          marks: carried.get(n.id),
-          origin: { x: box.x, y: box.y },
-          direction: positions.direction,
-          focused: focused === n.id,
-          hovered: hovered === n.id,
-          dimmed: !(activityLabels && n.kind === "activity") && !!bright && !bright.nodes.has(n.id),
-          locale,
-          description,
-          mark,
-        },
-      });
-    }
-    return out;
-  }, [positions, useCanvas, shown, scene, overlaysByTarget, covers, carried, scales, selection, hovered, focused, locale, bright, bands, groupIndex, memberCount, activityLabels, describeElement, nodesDraggable]);
-
-  const rfEdges = useMemo<WfEdge[]>(() => {
-    if (!positions || useCanvas) return [];
-    return scene.edgeMarks.map((mark) => {
-      const e = mark.edge;
-      const description = describeEdge(e, shown, locale);
-      return {
-        id: e.id,
-        type: e.kind,
-        source: e.source,
-        target: e.target,
-        selected: selection.edges.includes(e.id),
-        ariaLabel: description,
-        markerEnd: { type: MarkerType.ArrowClosed, color: mark.color, width: arrowheadTokens.edge.size, height: arrowheadTokens.edge.size, markerUnits: "userSpaceOnUse" },
-        zIndex: hovered === e.id || focused === e.id ? 5 : 0,
-        data: {
-          edge: e,
-          route: positions.edges[e.id],
-          width: mark.width,
-          color: mark.color,
-          label: mark.texts[0]?.text,
-          reconnected: mark.reconnected,
-          hovered: hovered === e.id,
-          dimmed: !!bright && !bright.edges.has(e.id),
-          focused: focused === e.id,
-          description,
-          mark,
-        },
-      };
-    });
-  }, [positions, useCanvas, shown, scene, selection, hovered, focused, locale, bright]);
-
-  // Canvas scene and its callbacks
-  const canvasScene = useMemo<PreparedScene | undefined>(() => (useCanvas && positions ? retainScene(scene) : undefined), [useCanvas, positions, scene]);
-  const canvasState = useMemo<DrawState>(() => ({ selection, hovered, focused, bright }), [selection, hovered, focused, bright]);
-  const canvasDescendants = useMemo(() => {
-    if (!useCanvas) return undefined;
-    const list: { id: string; kind: ElementRef["kind"]; description: string }[] = shown.nodes.map((n) => ({ id: n.id, kind: "node" as const, description: describeElement({ kind: "node", id: n.id }) }));
-    for (const g of shown.groups ?? []) list.push({ id: g.id, kind: "group" as const, description: describeElement({ kind: "group", id: g.id }) });
-    if (focused && shown.edges.some((e) => e.id === focused)) list.push({ id: focused, kind: "edge" as const, description: describeElement({ kind: "edge", id: focused }) });
-    return list;
-  }, [useCanvas, shown, focused, describeElement]);
-  const hitToRef = useCallback(
-    (hit: HitItem | undefined): ElementRef | undefined => {
-      if (!hit) return undefined;
-      if (hit.kind === "overlay") {
-        const shape = canvasScene?.shapeById.get(hit.shapeId ?? "");
-        const id = shape?.overlay.target ?? hit.id;
-        return shown.nodes.some((n) => n.id === id) ? { kind: "node", id } : groupIndex.has(id) ? { kind: "group", id } : undefined;
-      }
-      return { kind: hit.kind, id: hit.id };
-    },
-    [canvasScene, shown, groupIndex],
-  );
-  const describeHit = useCallback(
-    (hit: HitItem): string | undefined => {
-      if (activityLabels && hit.kind === "node" && nodeKinds.get(hit.id) === "activity") return undefined;
-      if (hit.kind === "overlay") {
-        const shape = canvasScene?.shapeById.get(hit.shapeId ?? "");
-        if (!shape) return undefined;
-        const p = shape.overlay.payload;
-        return [p?.label, p?.text].filter(Boolean).join(" — ") || describeOverlay(shape.overlay, locale);
-      }
-      return describeElement({ kind: hit.kind, id: hit.id });
-    },
-    [canvasScene, describeElement, locale, activityLabels, nodeKinds],
-  );
-  const onCanvasHover = useCallback((hit: HitItem | null) => hover(hit ? (hit.kind === "overlay" ? (hit.shapeId ?? hit.id) : hit.id) : null), [hover]);
-  const onCanvasClick = useCallback(
-    (hit: HitItem | undefined, mod: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }) => {
-      const shape = hit?.kind === "overlay" ? canvasScene?.shapeById.get(hit.shapeId ?? "") : undefined;
-      if (shape) {
-        dispatch({ type: "dismissMenu" });
-        selectShape(shape);
-        return;
-      }
-      dispatch({ type: "click", element: hitToRef(hit) ?? null, multi: mod.shiftKey || mod.metaKey || mod.ctrlKey });
-    },
-    [canvasScene, dispatch, selectShape, hitToRef],
-  );
-  const onCanvasContextMenu = useCallback(
-    (hit: HitItem | undefined, at: { x: number; y: number }) => {
-      const ref = hitToRef(hit);
-      if (ref) openMenu(ref, at);
-      else dispatch({ type: "dismissMenu" });
-    },
-    [hitToRef, openMenu, dispatch],
-  );
+  // React Flow nodes and edges, or the Canvas scene, its state and the elements listed for assistive technology.
+  const flow = useFlowElements({ enabled: !useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, nodesDraggable });
+  const canvas = useCanvasElements({ enabled: useCanvas, scene, graph: shown, positions, describeElement, selection, hovered, focused, bright, locale, activityLabels });
+  const canvasScene = canvas.scene;
+  const canvasHandlers = useMemo(() => canvasPointer(dispatch, canvasScene?.shapeById, shown), [dispatch, canvasScene, shown]);
 
   // Fit the view when a new layout arrives: once right after the nodes render and
   // once more after React Flow has measured them (a fit before measurement is a no-op).
   const nodesInitialized = useNodesInitialized();
-  const showPaths = pathList && !!focus && focusValid && view === "map";
+  const showPaths = pathList && !!focus && focusShown && view === "map";
   const fitPositions = laidPositions;
   const fitKey = fitPositions ? `${fitPositions.engine}:${Object.keys(fitPositions.nodes).length}:${Math.round(fitPositions.bounds.width)}:${Math.round(fitPositions.bounds.height)}:${lanes}:${showPaths ? "side" : "full"}` : "";
   useEffect(() => {
@@ -541,42 +180,12 @@ function ProcessMapInner(props: ProcessMapProps) {
     return () => handles.forEach((h) => window.clearTimeout(h));
   }, [fitKey, fitView, nodesInitialized, useCanvas]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Interaction (React Flow)
-  const bodyPoint = (event: { clientX: number; clientY: number }) => {
+  // Pointer interaction (React Flow); positions relative to the map body.
+  const flowHandlers = useMemo(() => flowPointer(dispatch, (event) => {
     const rect = bodyRef.current?.getBoundingClientRect();
     return { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) };
-  };
-  const onNodeClick = useCallback<NodeMouseHandler<WfNode | WfGroupNode>>(
-    (event, node) => {
-      const element: ElementRef = node.id.startsWith(GROUP_PREFIX) ? { kind: "group", id: node.id.slice(GROUP_PREFIX.length) } : { kind: "node", id: node.id };
-      dispatch({ type: "click", element, multi: event.shiftKey || event.metaKey || event.ctrlKey });
-    },
-    [dispatch],
-  );
-  const onEdgeClick = useCallback<EdgeMouseHandler<WfEdge>>(
-    (event, edge) => void dispatch({ type: "click", element: { kind: "edge", id: edge.id }, multi: event.shiftKey || event.metaKey || event.ctrlKey }),
-    [dispatch],
-  );
-  const onPaneClick = useCallback(() => void dispatch({ type: "click", element: null }), [dispatch]);
-  const onNodeContextMenu = useCallback<NodeMouseHandler<WfNode | WfGroupNode>>(
-    (event, node) => {
-      event.preventDefault();
-      const ref: ElementRef = node.id.startsWith(GROUP_PREFIX) ? { kind: "group", id: node.id.slice(GROUP_PREFIX.length) } : { kind: "node", id: node.id };
-      openMenu(ref, bodyPoint(event));
-    },
-    [openMenu],
-  );
-  const onEdgeContextMenu = useCallback<EdgeMouseHandler<WfEdge>>(
-    (event, edge) => {
-      event.preventDefault();
-      openMenu({ kind: "edge", id: edge.id }, bodyPoint(event));
-    },
-    [openMenu],
-  );
-  const onPaneContextMenu = useCallback((event: React.MouseEvent | MouseEvent) => {
-    event.preventDefault();
-    dispatch({ type: "dismissMenu" });
-  }, [dispatch]);
+  }), [dispatch]);
+  const overlayHandlers = useMemo(() => overlayPointer(dispatch), [dispatch]);
 
   const edgeIndex = useMemo(() => new Map(shown.edges.map((e) => [e.id, e])), [shown]);
 
@@ -594,17 +203,15 @@ function ProcessMapInner(props: ProcessMapProps) {
     },
     [positions, rf, reducedMotion, useCanvas],
   );
+  controller.screen.current = { reveal, place: elementScreenPoint, focus: () => containerRef.current?.focus() } satisfies MapScreen;
+  // Keys on the map and in its menu; Escape that closes the menu goes no further.
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
-      const step = dispatch({ type: "key", key: e.key, shiftKey: e.shiftKey, altKey: e.altKey });
-      if (!step.handled) return;
-      e.preventDefault();
-      for (const intent of step.intents) {
-        if (intent.kind === "reveal") reveal(intent.id);
-        else if (intent.kind === "menu") openMenu(intent.element, elementScreenPoint(intent.element));
-      }
+      const step = dispatch({ type: "key", key: e.key, shiftKey: e.shiftKey, altKey: e.altKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey });
+      if (step.handled) e.preventDefault();
+      if (e.key === "Escape" && step.intents.some((i) => i.kind === "returnFocus")) e.stopPropagation();
     },
-    [dispatch, reveal, openMenu, elementScreenPoint],
+    [dispatch],
   );
 
   const tooltipNode = activityLabels && view === "map" ? shown.nodes.find((n) => n.kind === "activity" && n.id === (hovered ?? (hasFocus ? focused : null))) : undefined;
@@ -638,11 +245,24 @@ function ProcessMapInner(props: ProcessMapProps) {
 
   const sidePanel = showPaths ? (
     <div className="wf-process-map__side">
-      <PathList graph={shown} focus={focus!} paths={props.paths ?? graph.paths} locale={locale} selection={selection} onSelect={select} onHover={hover} onClose={explicitFocus !== undefined ? () => setFocus(undefined) : undefined} />
+      <PathList graph={shown} focus={focus!} paths={props.paths ?? graph.paths} locale={locale} selection={selection} onSelect={select} onHover={hover} onClose={explicitFocus !== undefined ? () => void dispatch({ type: "setFocus", focus: undefined }) : undefined} />
     </div>
   ) : null;
   const menuElement = menu ? (
-    <ContextMenu x={menu.at.x} y={menu.at.y} title={menuText?.title ?? ""} subtitle={menuText?.subtitle} note={menuText?.note} actions={menu.actions} locale={locale} onAction={runAction} onClose={closeMenu} returnFocusTo={containerRef.current} boundsRef={bodyRef} />
+    <MenuView
+      x={menu.at.x}
+      y={menu.at.y}
+      title={menuText?.title ?? ""}
+      subtitle={menuText?.subtitle}
+      note={menuText?.note}
+      actions={menu.actions}
+      active={menu.active}
+      locale={locale}
+      onPoint={(index) => void dispatch({ type: "pointMenu", index })}
+      onChoose={(index) => void dispatch({ type: "chooseMenu", index })}
+      onClose={() => void dispatch({ type: "closeMenu" })}
+      boundsRef={bodyRef}
+    />
   ) : null;
   const legendElement = legend ? (
     <Legend scales={scales} legend={scene.legend} locale={locale} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} />) : undefined} />
@@ -698,16 +318,14 @@ function ProcessMapInner(props: ProcessMapProps) {
               <CanvasMap
                 ref={canvasRef}
                 scene={canvasScene}
-                state={canvasState}
+                state={canvas.state}
                 locale={locale}
                 fitKey={fitKey}
                 fitView={fitView}
-                describe={describeHit}
-                onHover={onCanvasHover}
-                onClick={onCanvasClick}
-                onContextMenu={onCanvasContextMenu}
+                describe={canvas.describe}
+                {...canvasHandlers}
                 onViewportChange={setCanvasViewport}
-                descendants={canvasDescendants}
+                descendants={canvas.descendants}
               >
                 {controlsElement ? <div className="wf-overlay-panel wf-overlay-panel--top-left">{controlsElement}</div> : null}
                 {legendElement ? <div className="wf-overlay-panel wf-overlay-panel--bottom-right">{legendElement}</div> : null}
@@ -722,8 +340,8 @@ function ProcessMapInner(props: ProcessMapProps) {
           <>
             <div className="wf-process-map__main">
               <ReactFlow<WfNode | WfGroupNode, WfEdge>
-                nodes={rfNodes}
-                edges={rfEdges}
+                nodes={flow.nodes}
+                edges={flow.edges}
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}
                 nodesDraggable={nodesDraggable === true}
@@ -731,16 +349,7 @@ function ProcessMapInner(props: ProcessMapProps) {
                 nodesConnectable={false}
                 elementsSelectable
                 selectNodesOnDrag={false}
-                onNodeClick={onNodeClick}
-                onEdgeClick={onEdgeClick}
-                onPaneClick={onPaneClick}
-                onNodeContextMenu={onNodeContextMenu}
-                onEdgeContextMenu={onEdgeContextMenu}
-                onPaneContextMenu={onPaneContextMenu}
-                onNodeMouseEnter={(_, n) => hover(n.id.startsWith(GROUP_PREFIX) ? n.id.slice(GROUP_PREFIX.length) : n.id)}
-                onNodeMouseLeave={() => hover(null)}
-                onEdgeMouseEnter={(_, e) => hover(e.id)}
-                onEdgeMouseLeave={() => hover(null)}
+                {...flowHandlers}
                 minZoom={0.05}
                 maxZoom={3}
                 panOnScroll
@@ -759,13 +368,12 @@ function ProcessMapInner(props: ProcessMapProps) {
                 {minimap ? <MiniMap pannable zoomable nodeStrokeWidth={2} /> : null}
                 {positions ? (
                   <OverlayLayer
-                    marks={between}
+                    marks={flow.between}
                     shapes={geometry.shapes}
                     locale={locale}
                     zoom={zoom}
                     hoveredId={hovered}
-                    onHover={hover}
-                    onSelect={selectShape}
+                    {...overlayHandlers}
                   />
                 ) : null}
                 {controlsElement ? <Panel position="top-left">{controlsElement}</Panel> : null}
