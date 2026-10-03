@@ -8,6 +8,15 @@ type ControlledProps = Pick<
   "selection" | "onSelect" | "onHover" | "focus" | "defaultFocus" | "onFocusChange" | "abstraction" | "defaultAbstraction" | "onAbstractionChange" | "view" | "onViewChange" | "announce"
 >;
 
+export interface DispatchedStep extends MapStep {
+  /**
+   * The step's sentence waits for a controlling host to take the change it
+   * describes and is not in the live region yet; `announcement` is still the
+   * sentence for the change.
+   */
+  waiting: boolean;
+}
+
 export interface MapController {
   /** The interaction state, with the values the host controls. */
   state: MapState;
@@ -16,7 +25,7 @@ export interface MapController {
   /** Announce a text from outside the controller (filter chips). */
   announce: (text: string) => void;
   /** Apply an event; the host's callbacks run, internal state updates, the step is returned for its other intents. */
-  dispatch: (event: MapEvent) => MapStep;
+  dispatch: (event: MapEvent) => DispatchedStep;
   /** What the controller reads about the map; the map sets it on every render. */
   context: MutableRefObject<MapContext>;
 }
@@ -50,7 +59,7 @@ export function useMapController(props: ControlledProps): MapController {
   // The selection and focus the live region has spoken about.
   const known = useRef<Pick<MapState, "selection" | "focus">>({ selection: state.selection, focus: undefined });
 
-  const dispatch = useCallback((event: MapEvent): MapStep => {
+  const dispatch = useCallback((event: MapEvent): DispatchedStep => {
     const previous = latest.current;
     const result = mapStep(previous, event, context.current);
     const next = result.state;
@@ -60,9 +69,8 @@ export function useMapController(props: ControlledProps): MapController {
     // take that change (the effect below announces it then); the step's own sentences do not.
     const taken = { selection: p.selection === undefined ? next.selection : previous.selection, focus: p.focus === undefined ? next.focus : previous.focus };
     const { graph, locale } = context.current;
-    const derived = result.announcement !== undefined && result.announcement === announceChange(previous, next, graph, locale);
-    const announcement = derived ? announceChange(previous, { ...taken, menu: next.menu }, graph, locale) : result.announcement;
-    known.current = derived ? taken : { selection: next.selection, focus: next.focus };
+    const announcement = result.describesChange ? announceChange(previous, { ...taken, menu: next.menu }, graph, locale) : result.announcement;
+    known.current = result.describesChange ? taken : { selection: next.selection, focus: next.focus };
     const changed = (Object.keys(next) as (keyof MapState)[]).some((key) => next[key] !== previous[key]);
     if (changed) setInner((current) => ({
       ...next,
@@ -79,7 +87,7 @@ export function useMapController(props: ControlledProps): MapController {
       else if (intent.kind === "abstraction") p.onAbstractionChange?.(intent.abstraction);
       else if (intent.kind === "view") p.onViewChange?.(intent.view);
     }
-    return result;
+    return { ...result, waiting: announcement !== result.announcement };
   }, []);
 
   const selectionKey = JSON.stringify(state.selection);

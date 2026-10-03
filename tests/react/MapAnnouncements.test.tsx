@@ -72,6 +72,16 @@ describe("ProcessMap announcements", () => {
     expect(live()).toBe("Paths opened.");
   });
 
+  it("announces the focus a menu action asks a controlling host for, whether or not it takes it", async () => {
+    const onFocusChange = vi.fn();
+    const { container } = await renderMap(<ProcessMap graph={graph} positions={positions} fitView={false} focus={null} onFocusChange={onFocusChange} />);
+    fireEvent.contextMenu(container.querySelector('[data-id="b"]')!);
+    fireEvent.click(await screen.findByRole("menuitem", { name: /^Paths in and out/ }));
+    expect(onFocusChange).toHaveBeenLastCalledWith("b");
+    expect(container.querySelector(".wf-process-map")?.getAttribute("data-focus")).toBeNull();
+    expect(live()).toBe("Paths of Check are shown; unrelated activities are dimmed.");
+  });
+
   it("keeps the menu's sentence when a controlling host reports the new selection back", async () => {
     const onSelect = vi.fn();
     const { container } = await renderMap(<Echo onSelect={onSelect} />);

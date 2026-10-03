@@ -274,7 +274,7 @@ function ProcessMapInner(props: ProcessMapProps) {
             };
           }
           case "paths":
-            // The focus is announced with the action.
+            // The action announces the sentence for the new focus, also while a controlling host has not taken it yet.
             return {
               ...a,
               run: () => {
