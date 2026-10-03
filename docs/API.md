@@ -390,6 +390,8 @@ export function ProcessMap(props: {
 export interface Selection { nodes: string[]; edges: string[]; groups: string[] }
 
 export function TableAlternative(props: { graph; overlays?; scales?; locale?; selection?; onSelect?; tables? }): JSX.Element;
+// A click or Enter on an activity or path row selects as a click on the map does: the row alone, nothing when it was
+// selected alone, and with Shift, Ctrl or Cmd the row is added to the selection or removed from it.
 export function TraceTimeline(props: { traces: Trace[]; anchor?: string; annotations?: Annotation[]; locale?;
   width?; rowHeight?; colorKey?; onSelect?; table?: boolean }): JSX.Element;
 export function AbstractionControls(props), Legend(props), OverlayLayer(props);
@@ -665,6 +667,12 @@ and passed to `onChange`; XML that the modeler itself produced is not
 re-imported. The table alternative lists the imported graph with the
 mapping applied; a row selected in the table is reported in FlowGraph ids,
 as a diagram click is, and a diagram selection highlights the mapped row.
+Selections from the diagram, from the table and from a controlled
+`selection` are announced in the polite live region with the sentences of
+`<ProcessMap/>` ("Selected: Approve Invoice.", "Selected: path A → B.",
+"Selection cleared."), named by the graph the table lists; before, the view
+announced counts ("Selected: 1 tasks, 0 flows, 0 lanes.") and said nothing
+when the selection was cleared.
 Every id the view matches (overlay targets, controlled selection, reported
 selection and hover) goes through `createIdResolver` with the import's id
 map and `mapping`. Stylesheets: `bpmn-js/dist/assets/diagram-js.css`,
@@ -895,7 +903,10 @@ element's kind and stage, and the worst expectation touching it; the
 opening, every choice and the selection are announced through a polite
 live region (`announce` injects a host text, which is announced also when
 a new `focus` arrives with it; a string returned by `onAction` is what is
-announced for that choice). `focus` (controlled, `null`
+announced for that choice). While the menu is open, its keys (arrows, Home,
+End, Enter, Space, accelerator letters, Escape, Tab) are the map
+controller's: a chosen entry runs once, the menu closes and the input focus
+returns to the map; the key does not reach the map's own routes. `focus` (controlled, `null`
 for none) or `defaultFocus` highlights the paths of an activity or stage
 (`focusHighlight`) and shows `<PathList/>` at the side with `paths`
 (default `graph.paths`); two selected activities show the path between

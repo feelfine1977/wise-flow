@@ -146,7 +146,7 @@ Keyboard navigation over activities (arrow keys; Alt with an arrow key
 along the paths; Space selects; Enter opens the actions menu; Shift with
 an arrow key extends the selection; Escape; Home, End) with
 `aria-activedescendant`, all transitions of the core's map controller
-(§2.8); ARIA labels on every element, a hidden
+(§2.8), whose intents `useMapController` carries out; ARIA labels on every element, a hidden
 description of the map and a polite live region that announces the
 selection, the menu and the result of every action; `TableAlternative`
 lists the same activities, paths and overlays as rows. Reduced motion is
@@ -183,15 +183,29 @@ lanes are dropped or routed) is shared with `layoutBpmn`.
 `map-controller.ts`: the transitions themselves. `mapStep(state, event,
 context)` takes the interaction state (selection, focus of paths,
 abstraction, view, the element the keyboard is on, hover, the open actions
-menu) and a click, key, hover, focus or menu event, and returns the next
-state, the sentence for the live region and the intents for the host
-(callbacks, bringing a node into view, finding an element on screen for the
-menu). The keyboard routes of §3 are its key transitions. Because the step
+menu with the entry its keyboard is on) and a click, key, hover, focus or
+menu event, and returns the next state, the sentence for the live region and
+the intents for the host (callbacks, bringing a node into view, finding an
+element on screen for the menu, running the chosen action, returning the
+input focus to the map). The keyboard routes of §3 are its key
+transitions; while the actions menu is open, keys move over its enabled
+entries, choose one (Enter, Space, an accelerator letter) or close it
+(Escape, Tab) with `menuKey`, which `<ContextMenu/>` on its own uses too.
+A click on an overlay selects the pair an arc joins or the overlay's target;
+`clickSelection` is what a click does to a selection (the table
+alternative's rows use it); `mapEmphasis` gives the focus of paths in effect
+(the map's, or the pair a selection of two names) and what stays bright;
+`menuHeading` the title, kind line and worst expectation of the menu. Because the step
 that opens a menu, runs an action or changes the selection also produces
 its sentence, the live region does not depend on the order in which a
 renderer applies state. `ProcessMap` feeds its events to it and draws its
 state; each of `selection`, `focus`, `abstraction` and `view` is taken from
-the prop when given and kept by the map otherwise.
+the prop when given and kept by the map otherwise. React Flow's and the
+Canvas map's pointer callbacks are translated into the same events
+(`map-pointer.ts`); neither renderer keeps selection or menu state.
+`BpmnView` passes the selections of its diagram and its table through the
+controller, so the four surfaces (React Flow, Canvas, table, BPMN) announce
+the same sentence for the same selection.
 
 ### 2.7 Views
 `buildViews(graph, views)` lays the base graph out once and resolves named
@@ -213,7 +227,8 @@ finds inside the viewport; `CanvasRenderer` owns the canvas, the viewport and th
 interaction state and redraws on animation frames; `CanvasMap` adds the
 pointer handling (drag to pan, wheel, Ctrl or Cmd with the wheel and pinch
 to zoom, hover through the R-tree with a tooltip, click, right click), a
-hidden element list for assistive technology and the zoom buttons.
+hidden element list for assistive technology and the zoom buttons; its
+pointer callbacks become the map controller's events like React Flow's.
 `ProcessMap` switches to it above `canvasThreshold` (2,000 activities
 plus paths) or on `renderer="canvas"` and keeps the selection, the menu,
 the keyboard routes, the controls and the legend. `toPNG` draws a scene
