@@ -67,7 +67,8 @@ export function nodeTestViolations(file, source) {
   return importsOf(file, source).flatMap(({ name }) => {
     if (name === undefined || !name.startsWith('.')) return /^(react|react-dom|@xyflow\/react|@testing-library)(\/|$)/.test(name ?? '') ? [`Node test loads ${name}`] : [];
     const target = resolve(dirname(file), name).replace(/\.(js|ts|tsx)$/, '');
-    if (target === resolve(root, 'src/bpmn/index')) return [`Node test loads the BPMN entry point, which loads React: ${name}`];
+    // Vitest resolves the directory to its index.
+    if (target === resolve(root, 'src/bpmn/index') || target === resolve(root, 'src/bpmn')) return [`Node test loads the BPMN entry point, which loads React: ${name}`];
     if (target.startsWith(resolve(root, 'src/react'))) return [`Node test loads React components: ${name}`];
     return [];
   });

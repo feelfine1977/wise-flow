@@ -60,6 +60,8 @@ test('Node tests reach the BPMN bridge without its entry point and without React
   for (const source of [
     'import { liteFromStages } from "../../src/bpmn/index";',
     'import { liteFromStages } from "../../src/bpmn/index.js";',
+    'import { liteFromStages } from "../../src/bpmn";',
+    'import { liteFromStages } from "../../src/bpmn/";',
     'import { BpmnView } from "../../src/react/BpmnView";',
     'import { render } from "@testing-library/react";',
     'import React from "react";',
