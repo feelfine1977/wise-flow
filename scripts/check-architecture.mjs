@@ -110,11 +110,12 @@ function filesAt(dir) {
 }
 
 export function checkArchitecture() {
+  const names = entryNames();
   const rules = [
     [boundaryViolations, [resolve(root, 'src/index.ts'), ...filesAt(resolve(root, 'src/core'))]],
     [bridgeViolations, filesAt(resolve(root, 'src/bpmn')).filter((file) => file !== resolve(root, 'src/bpmn/index.ts') && !file.endsWith('.d.ts'))],
     [nodeTestViolations, filesAt(resolve(root, 'tests/core'))],
-    [deepImportViolations, [resolve(root, 'src/index.ts'), ...['src/react', 'src/canvas', 'src/bpmn'].flatMap((dir) => filesAt(resolve(root, dir)))].filter((file) => !file.endsWith('.d.ts'))],
+    [(file, source) => deepImportViolations(file, source, names), [resolve(root, 'src/index.ts'), ...['src/react', 'src/canvas', 'src/bpmn'].flatMap((dir) => filesAt(resolve(root, dir)))].filter((file) => !file.endsWith('.d.ts'))],
   ];
   const errors = rules.flatMap(([rule, files]) => files.flatMap(file => rule(file, readFileSync(file, 'utf8')).map(message => `${relative(root, file)}: ${message}`)));
   if (errors.length) throw new Error(errors.join('\n'));
