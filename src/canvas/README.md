@@ -7,9 +7,9 @@ drawing routines run in Node against a recording context (tests).
 | File | Content |
 |---|---|
 | `scene.ts` | `prepareScene`: the core scene (`buildScene`) plus retained geometry (boxes, routes, colours, labels) and the R-tree for hover, click and culling |
-| `draw.ts` | `drawScene` (groups, edges, nodes, overlays, edge labels; level of detail by zoom; viewport culling above 1,500 elements), `drawLegend`, `tracePath` |
+| `draw.ts` | `drawScene` (groups, edges, nodes, overlays, edge labels; level of detail by zoom; viewport culling above 1,500 elements), `drawLegend` (the scene's legend with pattern twins), `tracePath` |
 | `renderer.ts` | `CanvasRenderer`: canvas, viewport (pan, zoom, fit, centre), interaction state, hit-testing, animation-frame redraw, device pixel ratio |
-| `png.ts` | `toPNG`, `toPNGCanvas`, `toPNGDataUrl`: the scene as a bitmap with the figure presets, title, context line and legend of `toSVG` |
+| `png.ts` | `toPNG`, `toPNGCanvas`, `toPNGDataUrl`: the scene as a bitmap in the figure frame and with the legend of `toSVG` |
 | `tokens.ts` | colours and fonts mirrored from `tokens.css`; `readTokens` picks the live values up from an element |
 
 `<ProcessMap renderer="auto">` uses the renderer above 2,000 activities plus
