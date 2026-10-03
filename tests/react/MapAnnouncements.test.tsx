@@ -160,4 +160,20 @@ describe("ProcessMap announcements", () => {
     expect(live()).toBe("Paths of Receive are shown; unrelated activities are dimmed.");
   });
 
+  it("announces the host's text over a focus that arrives with it", async () => {
+    const { rerender } = await renderMap(<ProcessMap graph={graph} positions={positions} fitView={false} defaultFocus="a" announce="Map ready." />);
+    expect(live()).toBe("Map ready.");
+    rerender(
+      <div style={{ width: 900, height: 500 }}>
+        <ProcessMap graph={graph} positions={positions} fitView={false} focus="b" announce="Showing Check." />
+      </div>,
+    );
+    expect(live()).toBe("Showing Check.");
+    rerender(
+      <div style={{ width: 900, height: 500 }}>
+        <ProcessMap graph={graph} positions={positions} fitView={false} focus="c" announce="Showing Check." />
+      </div>,
+    );
+    expect(live()).toBe("Paths of Pay are shown; unrelated activities are dimmed.");
+  });
 });
