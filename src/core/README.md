@@ -13,7 +13,7 @@ Framework-free TypeScript; runs in Node and in the browser. No DOM, no React.
 | `overlay-geometry.ts` | placement of overlays already in canonical order: badge slots, arcs, self-loops, hatch, tint, chips |
 | `overlay-marks.ts` | `overlayMarks`: one resolved mark per placed overlay (box or path, fill, stroke, dash, arrowhead, texts, layer, zoom threshold); `overlayColor`, `tintColor`, `arcWidth`, `overlayArrow` |
 | `observed-loops.ts` | `followsSelfLoops`, `withFollowsSelfLoops`, `withObservedSelfLoops`: follows edges from a node to itself as self-loop overlays |
-| `scene.ts` | `buildScene`: graph and positions resolved once into activity references, lane bands, scales, the overlays to show, level-of-detail rules, overlay geometry and overlay marks |
+| `scene.ts` | `buildScene`: graph and positions resolved once into activity references, lane bands, scales, the overlays to show, level-of-detail rules, overlay geometry, overlay, node and edge marks and the legend |
 | `views.ts` | `buildViews`, `resolveViews`: named views of one map with shared scale domains |
 | `selection.ts` | `Selection` transitions (`selectElement`, `selectMany`), `selectionShape`, `relatedToSelection`, `describeSelection` |
 | `actions.ts` | `menuTargetFor`, `defaultActions` (filter, explore, compare, author; accelerators; filter clauses), `menuTitle` |
@@ -22,6 +22,7 @@ Framework-free TypeScript; runs in Node and in the browser. No DOM, no React.
 | `lanes.ts` | `laneBands`: stage groups as ordered bands along the flow, lane groups as bands across it; the lane model shared with the BPMN layout (`laneModel`, `stackLanes`, `spanLanes`, `laneRoutes`) |
 | `routing.ts` | `routeSequenceFlows` (orthogonal obstacle router), `repositionNodes` |
 | `hit.ts` | `HitIndex` (rbush) over nodes, groups, edge segments and overlay shapes |
-| `export.ts` | `toSVG`: draws a `buildScene` scene and its overlay marks with figure presets and an embedded legend |
+| `figure.ts` | `sceneLegend`, `legendLayout`, `figureFrame`: the legend's rows and their heights, and the figure frame of the exports (header, map, legend column, activity key, output size for a preset) |
+| `export.ts` | `toSVG`: draws a `buildScene` scene, its marks and its legend in the figure frame |
 | `format.ts` | deterministic number and duration formatting, `Locale` |
 | `strings.ts` | English and German strings, `t`, `metricLabel` |

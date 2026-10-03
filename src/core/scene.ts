@@ -2,10 +2,12 @@
  * The scene every renderer reads: a graph with its positions resolved once
  * into activity references, lane bands, scales, the overlays to show in their
  * canonical order, level-of-detail rules, overlay geometry and the marks
- * that say what every node, edge and overlay looks like.
+ * that say what every node, edge and overlay looks like, and what the legend
+ * lists.
  */
 import { type ActivityLabelOptions, activityReferences } from "./activity-labels.js";
 import { type EdgeMark, type NodeMark, edgeMarks, nodeMarks } from "./element-marks.js";
+import { type SceneLegend, sceneLegend } from "./figure.js";
 import type { Locale } from "./format.js";
 import { type Box, type Positions, type XY, unionBoxes } from "./layout.js";
 import { type LaneBand, type LaneMode, laneBands } from "./lanes.js";
@@ -66,6 +68,8 @@ export interface FlowScene {
   nodeMarks: NodeMark[];
   /** What each edge between two placed nodes looks like, in the graph's order; not the edges from a node to itself. */
   edgeMarks: EdgeMark[];
+  /** What the legend lists: the scales in use, the overlay kinds present and the map-level chips. */
+  legend: SceneLegend;
   /** Union of the positions' bounds and the marks drawn on the map. */
   bounds: Box;
 }
@@ -104,6 +108,7 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
     marks,
     nodeMarks: nodeMarks(graph, positions, scales, { locale, activityLabels }),
     edgeMarks: edgeMarks(graph, positions, scales, locale),
+    legend: sceneLegend(scales.legend, overlays),
     bounds: unionBoxes([positions.bounds, ...marks.filter((m) => m.inMap).map((m) => m.box)]),
   };
 }

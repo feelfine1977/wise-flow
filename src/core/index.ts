@@ -22,3 +22,4 @@ export * from "./scene.js";
 export * from "./overlay-marks.js";
 export * from "./mark-svg.js";
 export * from "./element-marks.js";
+export * from "./figure.js";

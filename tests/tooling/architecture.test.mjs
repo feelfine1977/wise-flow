@@ -22,8 +22,8 @@ test('headless checks allow local algorithms, reviewed layout imports and import
     // import React from 'react';
   `), []);
 });
-test('the scene module, the overlay placement, the overlay, node and edge marks they read and their SVG elements stay inside the core', () => {
-  for (const name of ['scene.ts', 'overlay-geometry.ts', 'overlay-marks.ts', 'element-marks.ts', 'mark-svg.ts', 'observed-loops.ts']) {
+test('the scene module, the overlay placement, the overlay, node and edge marks they read, their SVG elements and the legend and figure frame stay inside the core', () => {
+  for (const name of ['scene.ts', 'overlay-geometry.ts', 'overlay-marks.ts', 'element-marks.ts', 'mark-svg.ts', 'observed-loops.ts', 'figure.ts']) {
     const path = fileURLToPath(new URL(`../../src/core/${name}`, import.meta.url));
     assert.deepEqual(boundaryViolations(path, readFileSync(path, 'utf8')), [], name);
   }

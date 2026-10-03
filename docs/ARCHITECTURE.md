@@ -107,11 +107,15 @@ hover and click on Canvas and in exports. `buildScene` resolves graph,
 positions and options once into the scene renderers read (activity
 references, lane bands, scales, the overlays to show with the follows
 self-loops in canonical order, level-of-detail rules, overlay geometry,
-overlay, node and edge marks);
+overlay, node and edge marks, and the legend: the scales in use, the
+overlay kinds present and the map-level chips);
 `toSVG(scene)` draws it with figure presets
 (single column, double column, slide), an embedded legend with the scales
 and overlay glyphs, deterministic output. `toPNG` (in `canvas/`) draws the
-same scene, presets and legend into a bitmap.
+same scene, presets and legend into a bitmap. The legend's rows and their
+heights (`legendLayout`) and the figure frame (`figureFrame`: header, map,
+legend column, activity key, output size) are measured once in the core;
+both exports and `<Legend/>` list the same rows.
 
 ## 3. React renderer
 `ProcessMap` reads the core scene (`buildScene`) through one hook: positions
@@ -188,8 +192,8 @@ hidden element list for assistive technology and the zoom buttons.
 `ProcessMap` switches to it above `canvasThreshold` (2,000 activities
 plus paths) or on `renderer="canvas"` and keeps the selection, the menu,
 the keyboard routes, the controls and the legend. `toPNG` draws a scene
-with the same routines into an offscreen canvas with the figure presets
-and the legend of `toSVG`.
+with the same routines into an offscreen canvas in the figure frame and
+with the legend of `toSVG`.
 
 ## 5. BPMN bridge (0.2)
 BPMN-lite is BPMN in the core's own vocabulary: activity nodes tagged

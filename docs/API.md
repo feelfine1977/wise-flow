@@ -204,6 +204,10 @@ export const diffStyle: StyleSpec;      // colour ← delta_violationShare on th
 export function buildScales(g: FlowGraph, spec?: StyleSpec): Scales;
 export interface Scales { edgeWidth(e): number; edgeColor(e): string; nodeColor(n): string; nodePattern(n): PatternId;
   categorical(key): { color; pattern; index }; color(value, palette, domain): string; legend: LegendItem[]; domains }
+export type LegendItem =   // `title` is a string key for `t` (it was typed `string`)
+  | { kind: "width"; title: StringKey; metric: string; domain: [number, number]; range: [number, number] }
+  | { kind: "sequential" | "diverging"; title: StringKey; metric: string; domain: number[]; stops: readonly string[] }
+  | { kind: "categorical"; title: StringKey; entries: CategoricalEntry[] };
 export const palettes: { sequential; sequentialBlue; diverging; categorical };   // colour-blind safe
 export function contrastText(background: string): string;  // ≥ 4.5 : 1 on every palette colour
 export interface LodRules { labels; edgeLabels; badges; arcs; chips; hatch; selfLoops }  // minimum zoom per element
@@ -254,7 +258,38 @@ export interface Scene { graph; positions; overlays?; style?; title?; subtitle?;
 export interface ExportOptions { preset?: "single-column" | "double-column" | "slide" | "none"; width?; legend?;
   background?; fontFamily?; padding?; lodZoom?; context? }
 export function toSVG(scene: Scene, o?: ExportOptions): string;   // deterministic, legend embedded
+
+export type FigurePreset = "single-column" | "double-column" | "slide" | "none";
+export const FIGURE_WIDTHS: Record<Exclude<FigurePreset, "none">, number>;   // 1000, 2000, 1600
+export type LegendKeyKind = "badge" | "arc" | "reverse" | "selfLoop" | "outOfScope" | "reconnected";
+export interface LegendKey { kind: LegendKeyKind; glyph: string; title: StringKey }
+export interface SceneLegend { items: LegendItem[]; keys: LegendKey[]; chips: Overlay[] }
+export function sceneLegend(items: LegendItem[], overlays: readonly Overlay[]): SceneLegend;
+export const legendMetrics: { width: 188; heading: 26; itemTitle: 16; widthScale: 20; gradient: 30; entry: 16; entriesEnd: 4;
+  key: 14; chipsGap: 6; chipLabel: 13; chipText: 15 };
+export function legendItemHeight(item: LegendItem): number;
+export interface LegendLayout { items: { item; y }[]; keys: { key; y }[]; chips: { chip; y }[]; height: number }
+export function legendLayout(legend: SceneLegend): LegendLayout;
+export const figureMetrics: { padding: 24; legendColumn: 220; legendInset: 16; titleHeight: 40; titleBaseline: 26;
+  contextHeight: 18; contextBaseline: 44; keyLine: 16 };
+export interface FigureFrameOptions { title?: boolean; context?: boolean; legend?: boolean; padding?: number; preset?: FigurePreset; width?: number }
+export interface FigureFrame { padding; header; map: { width; height; offset: XY };
+  legend?: { layout: LegendLayout; x; y; width; rule: { x; top; bottom } }; key: { lines: string[]; y }; width; height; outWidth; outHeight }
+export function figureFrame(scene: FramedScene, o?: FigureFrameOptions): FigureFrame;   // FramedScene: graph, activityLabels?, locale, bounds, legend
 ```
+
+The legend and the figure frame are described once. `sceneLegend` lists the
+scale items, a key row for each overlay kind present (badges, arcs,
+reverse-order arcs, self-loops, out-of-scope hatching) and then re-added
+paths, which every map can show, and the map-level chips; the scene carries
+it as `FlowScene.legend`. `legendLayout` places these rows from their
+heights in `legendMetrics`, so the legend's height follows from its items.
+`figureFrame` measures an exported figure: the header (title 40, context
+line 18), the map with its padding and the offset of the scene's content,
+the legend column (220: a rule, 16 inset, rows 188 wide, 16 inset), the
+activity key under the taller of map and legend, and the output size for a
+preset or width. `toSVG`, `toPNG` and the Canvas `drawLegend` draw from
+these; `<Legend/>` lists the same rows.
 
 ## Formatting and strings
 
@@ -290,6 +325,8 @@ export function TableAlternative(props: { graph; overlays?; scales?; locale?; se
 export function TraceTimeline(props: { traces: Trace[]; anchor?: string; annotations?: Annotation[]; locale?;
   width?; rowHeight?; colorKey?; onSelect?; table?: boolean }): JSX.Element;
 export function AbstractionControls(props), Legend(props), OverlayLayer(props);
+export interface LegendProps { scales: Scales; overlays?: Overlay[]; locale?: Locale; chips?: ReactNode;
+  legend?: SceneLegend }   // the scene's legend; without it the rows follow from `scales` and `overlays`
 export function useFlowGraph(g, o?), useStableLayout(scenes, o?), useOverlays(items, o?), usePrefersReducedMotion();
 export { nodeTypes, edgeTypes, describeNode, describeEdge, describeGroup, describeMap };
 export function midpoint(points: XY[]): XY;   // routeMidpoint
@@ -793,7 +830,7 @@ export interface View { x: number; y: number; zoom: number; width: number; heigh
 export interface DrawState { selection: Selection; hovered?: string | null; focused?: string | null; bright?: { nodes: Set<string>; edges: Set<string> } }
 export interface DrawOptions { tokens?: CanvasTokens; cull?: boolean; background?: boolean | string; lodZoom?: number; createCanvas? }
 export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, state?: DrawState, o?: DrawOptions): { nodes; edges; shapes; culled };
-export function drawLegend(ctx: DrawContext, scene: PreparedScene, x, y, width, tokens?): number;
+export function drawLegend(ctx: DrawContext, scene: PreparedScene, x, y, width, tokens?, o?: { createCanvas? }): number;   // the scene's legend; returns legendLayout(scene.legend).height
 export function tracePath(ctx: DrawContext, d: string): { last?; beforeLast? };
 export class CanvasRenderer { constructor(canvas: HTMLCanvasElement, o?: { tokens?; devicePixelRatio?; minZoom?; maxZoom?; draw? });
   resize(w, h); setScene(s); getScene(); setState(patch: Partial<DrawState>); getState(); setTokens(t);
@@ -831,7 +868,7 @@ group's tint and the node's hatching, but the group and node routines no
 longer paint them: the tint and hatch marks do, once each. `CanvasRenderer` owns the
 viewport (zoom clamped to `minZoom` … `maxZoom`), draws on animation
 frames and follows the device pixel ratio. `toPNG` uses the same figure
-presets, title, context line and legend as `toSVG` and reads the same
+frame (`figureFrame`) and legend as `toSVG` and reads the same
 scene: overlays, follows self-loops (`Scene.selfLoops`, default shown) and
 level of detail at `lodZoom` (default 1, without tightening by size)
 agree with the SVG export; `scale` sets the
@@ -922,7 +959,8 @@ export interface FlowSceneOptions { overlays?: Overlay[]; style?: StyleSpec; loc
   moved?: Readonly<Record<string, XY>>; activityLabels?: ActivityLabelOptions; selfLoops?: boolean; lod?: Partial<LodRules>; lodBySize?: boolean;
   overlayGeometry?: OverlayGeometryOptions }
 export interface FlowScene { graph; positions; bands: LaneBand[]; activityLabels?; locale; style; scales: Scales;
-  overlays: Overlay[]; lod: LodRules; geometry: OverlayGeometry; marks: OverlayMark[]; nodeMarks: NodeMark[]; edgeMarks: EdgeMark[]; bounds: Box }
+  overlays: Overlay[]; lod: LodRules; geometry: OverlayGeometry; marks: OverlayMark[]; nodeMarks: NodeMark[]; edgeMarks: EdgeMark[];
+  legend: SceneLegend; bounds: Box }
 export function buildScene(g: FlowGraph, p: Positions, o?: FlowSceneOptions): FlowScene;
 export function followsSelfLoops(g: FlowGraph, o?: { locale?: Locale; observed?: { caseLabel?: string } }): Overlay[];
 export function withFollowsSelfLoops(g: FlowGraph, overlays: Overlay[], o?: { locale?; observed? }): Overlay[];

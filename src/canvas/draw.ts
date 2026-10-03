@@ -5,7 +5,7 @@
  * a recording stub in tests. Elements outside the viewport are skipped
  * through the scene's R-tree when the scene is large.
  */
-import { type Box, type LegendItem, type MarkPaint, type MarkText, type OverlayMark, type Selection, type StringKey, MAP_TARGET, fitChars, fitLead, fixedColors, formatCompact, formatNumber, formatShare, lodAt, t, truncateText } from "../core/index.js";
+import { type Box, type MarkPaint, type MarkText, type OverlayMark, type Selection, fitChars, fitLead, fixedColors, formatCompact, formatNumber, formatShare, legendLayout, legendMetrics, lodAt, t, truncateText } from "../core/index.js";
 import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene.js";
 import { type CanvasTokens, defaultTokens } from "./tokens.js";
 
@@ -554,21 +554,24 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
   return { nodes, edges, shapes, culled: cull };
 }
 
-/** Legend for the PNG export: scales, overlay glyphs and map-level chips. Returns the height used. */
-export function drawLegend(ctx: DrawContext, scene: PreparedScene, x: number, y: number, width: number, tokens: CanvasTokens = defaultTokens): number {
+/**
+ * The scene's legend for the PNG export: scales with their pattern twins,
+ * the keys of the overlay kinds present and the map-level chips. Returns the
+ * height used, `legendLayout(scene.legend).height`.
+ */
+export function drawLegend(ctx: DrawContext, scene: PreparedScene, x: number, y: number, width: number, tokens: CanvasTokens = defaultTokens, options: Pick<DrawOptions, "createCanvas"> = {}): number {
   const L = scene.locale;
-  let cy = y;
+  const layout = legendLayout(scene.legend);
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = tokens.ink;
   ctx.font = `700 13px ${tokens.font}`;
-  ctx.fillText(t(L, "legend.title"), x, cy + 14);
-  cy += 26;
-  const item = (it: LegendItem) => {
+  ctx.fillText(t(L, "legend.title"), x, y + 14);
+  for (const { item: it, y: top } of layout.items) {
     ctx.fillStyle = tokens.ink;
     ctx.font = `600 11px ${tokens.font}`;
-    ctx.fillText(t(L, it.title as StringKey), x, cy + 11);
-    cy += 16;
+    ctx.fillText(t(L, it.title), x, y + top + 11);
+    const cy = y + top + legendMetrics.itemTitle;
     if (it.kind === "width") {
       const [lo, hi] = it.range;
       ctx.strokeStyle = tokens.neutral;
@@ -587,7 +590,6 @@ export function drawLegend(ctx: DrawContext, scene: PreparedScene, x: number, y:
       ctx.font = `10px ${tokens.font}`;
       ctx.fillText(formatCompact(it.domain[0], L), x + 46, cy + 10);
       ctx.fillText(formatCompact(it.domain[1], L), x + width / 2 + 46, cy + 10);
-      cy += 20;
     } else if (it.kind === "sequential" || it.kind === "diverging") {
       if (ctx.createLinearGradient) {
         const grad = ctx.createLinearGradient(x, 0, x + width - 10, 0);
@@ -610,49 +612,35 @@ export function drawLegend(ctx: DrawContext, scene: PreparedScene, x: number, y:
       ctx.textAlign = "right";
       ctx.fillText(f(it.domain[it.domain.length - 1]), x + width - 10, cy + 22);
       ctx.textAlign = "left";
-      cy += 30;
     } else if (it.kind === "categorical") {
-      for (const e of it.entries) {
+      it.entries.forEach((e, i) => {
+        const ey = cy + i * legendMetrics.entry;
         ctx.fillStyle = e.color;
-        ctx.fillRect(x, cy, 14, 12);
+        ctx.fillRect(x, ey, 14, 12);
+        const pattern = patternFor(ctx, e.pattern, tokens.ink, options);
+        if (pattern) {
+          ctx.fillStyle = pattern;
+          ctx.fillRect(x, ey, 14, 12);
+        }
         ctx.fillStyle = tokens.ink;
         ctx.font = `10px ${tokens.font}`;
-        ctx.fillText(truncate(ctx, scene, e.key, width - 24), x + 20, cy + 10);
-        cy += 16;
-      }
-      cy += 4;
+        ctx.fillText(truncate(ctx, scene, e.key, width - 24), x + 20, ey + 10);
+      });
     }
-  };
-  for (const it of scene.scales.legend) item(it);
-  const kinds = new Set(scene.overlays.map((o) => o.kind));
-  const hasReverse = scene.overlays.some((o) => o.kind === "arc" && o.payload?.reverse);
-  const keys: [string, StringKey, boolean][] = [
-    ["●", "legend.badge", kinds.has("badge")],
-    ["⌒", "legend.arc", kinds.has("arc")],
-    ["⌒ ┄", "legend.reverse", hasReverse],
-    ["↻", "legend.selfLoop", kinds.has("selfLoop")],
-    ["▨", "legend.outOfScope", kinds.has("hatch")],
-    ["┄", "legend.reconnected", true],
-  ];
+  }
   ctx.fillStyle = tokens.ink;
-  for (const [glyph, key, show] of keys) {
-    if (!show) continue;
+  for (const { key, y: top } of layout.keys) {
     ctx.font = `10px ${tokens.font}`;
-    ctx.fillText(glyph, x, cy + 10);
+    ctx.fillText(key.glyph, x, y + top + 10);
     ctx.font = `9.5px ${tokens.font}`;
-    ctx.fillText(truncate(ctx, scene, t(L, key), width - 24), x + 22, cy + 10);
-    cy += 14;
+    ctx.fillText(truncate(ctx, scene, t(L, key.title), width - 24), x + 22, y + top + 10);
   }
-  const chips = scene.overlays.filter((o) => o.kind === "chip" && o.target === MAP_TARGET);
-  if (chips.length) cy += 6;
-  for (const c of chips) {
-    const p = c.payload ?? {};
+  for (const { chip, y: top } of layout.chips) {
+    const p = chip.payload ?? {};
     ctx.font = `600 10px ${tokens.font}`;
-    ctx.fillText(truncate(ctx, scene, `${p.glyph ?? ""} ${p.label ?? ""}`.trim(), width - 4), x, cy + 10);
-    cy += 13;
+    ctx.fillText(truncate(ctx, scene, `${p.glyph ?? ""} ${p.label ?? ""}`.trim(), width - 4), x, y + top + 10);
     ctx.font = `9.5px ${tokens.font}`;
-    ctx.fillText(truncate(ctx, scene, String(p.text ?? ""), width - 4), x, cy + 10);
-    cy += 15;
+    ctx.fillText(truncate(ctx, scene, String(p.text ?? ""), width - 4), x, y + top + legendMetrics.chipLabel + 10);
   }
-  return cy - y;
+  return layout.height;
 }

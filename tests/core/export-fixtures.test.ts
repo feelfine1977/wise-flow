@@ -44,16 +44,21 @@ const observed: Variant = {
  * semibold, counts in the muted ink and a stage's members before its cases,
  * event labels inside the circle at 9 px, edge counts at half the route's
  * length, and labels, legend rows and chips shortened by the core rule (0.55 em
- * per character).
+ * per character). Recorded once more when `toSVG` began to draw the scene's
+ * legend in the shared figure frame; compared element by element, only the
+ * legend changed: its rows are 188 wide (they were 204), so the second width
+ * sample, the gradient and its right label moved 16 left and long key and chip
+ * rows keep fewer characters; only the overlay kinds present are listed; and
+ * reverse-order arcs show "⌒┄" as on the map (it was "⌒ ┄").
  */
 const before: Record<string, string> = {
-  overlays: "ef189cebd320be1ef682ca8db3b1277abe10e99e222661efc61ec2b1e2d35f06",
-  stagesGerman: "c15c1cfe04351d5d50ea135e2acafa2272bc156b35afc1a68a6eed9e90fd2ad8",
+  overlays: "f41d8fb26faa9c6e8424c80cb8aacbf50474fd856185abbb5fd8855d6740886a",
+  stagesGerman: "d562ac25563ef8f35493e3222044a66087dfe599d7733fa619ff63042ac7ccfb",
   vendor: "416f4e149b2bb6291c6d63e69d20d97b563686fc07b1cfe6621d2168aefefd59",
-  unfiltered: "01dd2254b001152a9cd9d71e45fc7b687c888a2f20a8e1eceed1eadb5265d264",
-  plain: "088f5e3a5efd5a4b956dff4e6fc7e913d6a2f868362b34a0ca8537aae455c7d8",
+  unfiltered: "88afc85971bb84e2531384a5a58422c0d5ee3feba4e31772d1065200a4e9825e",
+  plain: "52b8c3ebc251bee91a98203dd9e61df954d6de63b07e080a8e1ab86cae62e4ef",
 };
-const beforeObserved = "f20436c688f66a9a6edebae917d8a94834cb325cbb7c30c97176bfcc0d73cd6f";
+const beforeObserved = "f68cab0c7e2337104e7ba9a1ea4d5deac718a4a02e9dcc18ded12c4318df051d";
 
 describe("toSVG on the committed fixtures", () => {
   it("matches the recorded output once follows self-loops are hidden", () => {
@@ -74,8 +79,10 @@ describe("toSVG on the committed fixtures", () => {
   });
 
   it("keeps the recorded output where self-loops were already decided", () => {
-    // Below their level of detail, plain self-loops stay hidden.
-    expect(sha(toSVG(variants.plain.scene(), variants.plain.options))).toBe(before.plain);
+    // Below their level of detail, plain self-loops stay hidden; the legend lists them.
+    const plain = { ...variants.plain.options, legend: false };
+    expect(toSVG(variants.plain.scene(), plain)).toBe(toSVG({ ...variants.plain.scene(), selfLoops: false }, plain));
+    expect(toSVG(variants.plain.scene(), variants.plain.options)).toContain("Repeated execution");
     // With activity labels the observed self-loops were already drawn.
     expect(sha(toSVG(observed.scene(), observed.options))).toBe(beforeObserved);
   });
