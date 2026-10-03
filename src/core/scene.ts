@@ -57,7 +57,7 @@ export interface FlowScene {
 
 function shownOverlays(graph: FlowGraph, given: Overlay[], options: FlowSceneOptions, locale: Locale): Overlay[] {
   const known = new Set([...graph.nodes.map((n) => n.id), ...(graph.groups ?? []).map((g) => g.id), MAP_TARGET]);
-  const overlays = given.filter((o) => known.has(o.target) || (o.kind === "arc" && known.has(String(o.payload?.source)) && known.has(String(o.payload?.target))));
+  const overlays = given.filter((o) => (o.kind === "arc" ? known.has(String(o.payload?.source)) && known.has(String(o.payload?.target)) : known.has(o.target)));
   if (options.selfLoops === false) return overlays;
   return withFollowsSelfLoops(graph, overlays, { locale, observed: options.activityLabels ? { caseLabel: options.activityLabels.caseLabel } : undefined });
 }

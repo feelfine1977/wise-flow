@@ -70,7 +70,7 @@ describe("toSVG on the committed fixtures", () => {
     const scene = variants.unfiltered.scene();
     const known = new Set([...global.nodes.map((n) => n.id), ...(global.groups ?? []).map((g) => g.id), "__map"]);
     const isKnown = (o: { kind: string; target: string; payload?: Record<string, unknown> }) =>
-      known.has(o.target) || (o.kind === "arc" && known.has(String(o.payload?.source)) && known.has(String(o.payload?.target)));
+      o.kind === "arc" ? known.has(String(o.payload?.source)) && known.has(String(o.payload?.target)) : known.has(o.target);
     const overlays = scene.overlays ?? [];
     expect(overlays.filter((o) => !isKnown(o)).length).toBeGreaterThan(0);
     expect(toSVG(scene)).toBe(toSVG({ ...scene, overlays: overlays.filter(isKnown) }));

@@ -66,6 +66,13 @@ describe("buildScene", () => {
     expect(buildScene(graph, positions, { overlays: [...given].reverse() }).overlays).toEqual(scene.overlays);
   });
 
+  it("judges arcs by their endpoints, not by their target", () => {
+    const named = (target: string, source: string, to: string): Overlay => ({ kind: "arc", target, payload: { constraintId: target, source, target: to } });
+    // An arc whose target names a node is still dropped when an endpoint is missing; one to known endpoints stays whatever its target says.
+    const overlays = [named("a", "a", "ghost"), named("s1", "ghost", "b"), named("anything", "b", "a")];
+    expect(summary(buildScene(graph, positions, { overlays, selfLoops: false }).overlays)).toEqual(["arc:anything:anything"]);
+  });
+
   it("reads graph.overlays when no overlays are given", () => {
     expect(summary(buildScene({ ...graph, overlays: [given[1]] }, positions).overlays)).toEqual(["selfLoop:c:cc", "badge:b:c2"]);
     expect(buildScene({ ...graph, overlays: [given[1]] }, positions, { overlays: [] }).overlays).toHaveLength(1);
