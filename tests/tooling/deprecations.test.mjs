@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync, readdirSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
@@ -30,14 +30,21 @@ export function deprecatedNames(file, source) {
   return found;
 }
 
-/** Rows `| \`name\` | replacement |` of the "Deprecated names" section of a document. */
+/** Rows `| \`name\` | replacement |` of the "Deprecated names" section of a document, with the entry point of the table (its `###` heading). */
 export function documentedDeprecations(markdown) {
   const start = markdown.indexOf('\n## Deprecated names\n');
   if (start < 0) return new Map();
   const next = markdown.indexOf('\n## ', start + 1);
   const section = markdown.slice(start, next < 0 ? undefined : next);
-  return new Map([...section.matchAll(/^\| `([^`]+)` \| (.*) \|$/gm)].map(([, name, replacement]) => [name, replacement.trim()]));
+  return new Map([...section.matchAll(/^### `([^`]+)`$|^\| `([^`]+)` \| (.*) \|$/gm)].reduce((rows, [, heading, name, replacement]) => {
+    if (heading) rows.entry = heading;
+    else rows.push([name, { replacement: replacement.trim(), entry: rows.entry }]);
+    return rows;
+  }, []));
 }
+
+/** The entry point that exports the names declared under a source directory. */
+const entryOf = (file) => ({ react: '@wise/flow/react', bpmn: '@wise/flow/bpmn', canvas: '@wise/flow/canvas' })[relative(resolve(root, 'src'), file).split(sep)[0]] ?? '@wise/flow';
 
 function filesAt(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -47,12 +54,14 @@ function filesAt(dir) {
 }
 
 test('every deprecated name of the package is listed in docs/API.md with its replacement', () => {
-  const names = new Set(filesAt(resolve(root, 'src')).flatMap((file) => deprecatedNames(file, readFileSync(file, 'utf8'))));
+  const names = new Map(filesAt(resolve(root, 'src')).flatMap((file) => deprecatedNames(file, readFileSync(file, 'utf8')).map((name) => [name, entryOf(file)])));
   const documented = documentedDeprecations(readFileSync(resolve(root, 'docs/API.md'), 'utf8'));
-  for (const name of ['byId', 'manhattanRoute', 'OverlayLayerProps.showArcs', 'ActivityNodeData.badges', 'GroupNodeData.chips']) assert.ok(names.has(name), name);
-  for (const name of names) {
+  for (const [name, entry] of [['byId', '@wise/flow'], ['manhattanRoute', '@wise/flow/bpmn'], ['OverlayLayerProps.showArcs', '@wise/flow/react'], ['ActivityNodeData.badges', '@wise/flow/react'], ['GroupNodeData.chips', '@wise/flow/react']]) assert.equal(names.get(name), entry, name);
+  for (const [name, entry] of names) {
     assert.ok(documented.has(name), `${name} is deprecated but not listed under "Deprecated names" in docs/API.md`);
-    assert.ok(documented.get(name) && documented.get(name) !== 'none', `${name} has no replacement in docs/API.md`);
+    const { replacement, entry: listed } = documented.get(name);
+    assert.ok(replacement && replacement !== 'none', `${name} has no replacement in docs/API.md`);
+    assert.equal(listed, entry, `${name} is listed under ${listed} instead of ${entry} in docs/API.md`);
   }
   for (const name of documented.keys()) assert.ok(names.has(name), `docs/API.md lists ${name}, which is not deprecated`);
 });
@@ -71,6 +80,6 @@ test('deprecations are found on re-exports, declarations and members, and only t
 });
 
 test('the document check reads only the rows of its own section', () => {
-  const rows = documentedDeprecations('## Other\n\n| `x` | y |\n\n## Deprecated names\n\n| Name | Replacement |\n| --- | --- |\n| `a` | `b` |\n\n### Sub\n\n| `C.d` | none |\n\n## Later\n\n| `z` | w |\n');
-  assert.deepEqual([...rows], [['a', '`b`'], ['C.d', 'none']]);
+  const rows = documentedDeprecations('## Other\n\n| `x` | y |\n\n## Deprecated names\n\n### `p`\n\n| Name | Replacement |\n| --- | --- |\n| `a` | `b` |\n\n### `p/q`\n\n| `C.d` | none |\n\n## Later\n\n| `z` | w |\n');
+  assert.deepEqual([...rows], [['a', { replacement: '`b`', entry: 'p' }], ['C.d', { replacement: 'none', entry: 'p/q' }]]);
 });
