@@ -11,7 +11,7 @@ afterEach(() => {
 
 /** A 2D context that records the texts of the last frame with the font they were drawn in. */
 function textRecorder() {
-  let texts: { text: string; font: string }[] = [];
+  let texts: { text: string; font: string; align: string }[] = [];
   const noop = () => {};
   const ctx = {
     fillStyle: "", strokeStyle: "", lineWidth: 1, font: "", globalAlpha: 1, textAlign: "left", textBaseline: "alphabetic", lineJoin: "miter", lineCap: "butt",
@@ -23,7 +23,7 @@ function textRecorder() {
       texts = [];
     },
     fillText(text: string) {
-      texts.push({ text, font: ctx.font });
+      texts.push({ text, font: ctx.font, align: ctx.textAlign });
     },
     measureText: (text: string) => ({ width: text.length * 6 }),
   };
@@ -47,8 +47,8 @@ describe("ProcessMap with the Canvas renderer", () => {
         <ProcessMap graph={graph} positions={positions} renderer="canvas" lod={{ badges: 0 }} controls={false} legend={false} />
       </div>,
     );
-    // The bold 10 px centre text is what the drawing routines write into a badge.
-    const badges = () => recorder.frame().filter((t) => t.font.startsWith("700 10px")).map((t) => t.text).sort();
+    // The bold 10 px centred text is what the drawing routines write into a badge (a chip's bold label starts left).
+    const badges = () => recorder.frame().filter((t) => t.font.startsWith("700 10px") && t.align === "center").map((t) => t.text).sort();
     await waitFor(() => expect(badges().length).toBeGreaterThan(0));
     expect(badges()).toEqual(expected);
   });
