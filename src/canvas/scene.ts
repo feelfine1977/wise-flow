@@ -23,7 +23,6 @@ import {
   type Locale,
   type LodRules,
   type Overlay,
-  type OverlayGeometry,
   type OverlayGeometryOptions,
   type OverlayShape,
   type PatternId,
@@ -165,7 +164,7 @@ export function prepareScene(graph: FlowGraph, givenPositions: Positions, option
   return retainScene({ graph, positions, bands: options.bands ?? laid.bands, activityLabels: options.activityLabels, locale, scales, overlays, lod, geometry });
 }
 
-type SceneParts = Pick<FlowScene, "graph" | "positions" | "bands" | "activityLabels" | "locale" | "scales" | "overlays" | "lod"> & { geometry: OverlayGeometry };
+type SceneParts = Pick<FlowScene, "graph" | "positions" | "bands" | "activityLabels" | "locale" | "scales" | "overlays" | "lod" | "geometry">;
 
 /** Retained geometry for a scene the core has built (`buildScene`) or its parts. */
 export function retainScene({ graph, positions, bands, activityLabels, locale, scales, overlays, lod, geometry }: SceneParts): PreparedScene {
