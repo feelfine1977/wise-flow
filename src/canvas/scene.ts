@@ -152,8 +152,12 @@ export function prepareScene(graph: FlowGraph, givenPositions: Positions, option
     lodBySize: options.lodBySize !== false,
     overlayGeometry: options.overlayGeometry,
   });
-  const { positions, scales, locale, geometry, activityLabels } = scene;
-  const bands = options.bands ?? scene.bands;
+  return retainScene(options.bands ? { ...scene, bands: options.bands } : scene);
+}
+
+/** Retained geometry for a scene the core has built (`buildScene`). */
+export function retainScene(scene: FlowScene): PreparedScene {
+  const { graph, positions, bands, scales, locale, geometry, activityLabels } = scene;
   const shapesByTarget = new Map<string, OverlayShape[]>();
   for (const s of geometry.shapes) {
     if (!shapesByTarget.has(s.overlay.target)) shapesByTarget.set(s.overlay.target, []);
@@ -218,7 +222,6 @@ export function prepareScene(graph: FlowGraph, givenPositions: Positions, option
   const hit = HitIndex.fromScene(routed, geometry);
   return {
     ...scene,
-    bands,
     shapes: geometry.shapes,
     nodes,
     edges,

@@ -62,3 +62,27 @@ it("accepts an actual mouse drag at half zoom without treating it as a click", a
   await waitFor(() => expect(onMove).toHaveBeenCalled());
   expect(onMove.mock.calls.at(-1)).toEqual(["a", { x: 190, y: 200 }]);
 });
+
+it("moves an activity inside its stage band and keeps the band where the lanes put it", async () => {
+  const moved = vi.fn();
+  const banded = (key: number, onNodeMove?: typeof moved) => <ProcessMap graph={graph} positions={positions} lanes="stages" nodesDraggable layoutResetKey={key} onNodeMove={onNodeMove} controls={false} legend={false} fitView={false}><Move /></ProcessMap>;
+  const { container, rerender } = render(banded(0));
+  const node = () => container.querySelector<HTMLElement>('.react-flow__node[data-id="a"]')!;
+  const band = () => container.querySelector<HTMLElement>('.react-flow__node[data-id="group:capture"]')!;
+  await waitFor(() => expect(node()).toBeTruthy());
+  // Nodes span x 130–730 and y 160–208; the band adds 24 around them and 32 for its label above:
+  // x 106, y 104, 648 × 128. React Flow places a's box at its absolute position.
+  expect(band().style.transform).toBe("translate(106px,104px)");
+  expect(band().style.width).toBe("648px");
+  expect(band().querySelector("[data-band]")?.getAttribute("data-band")).toBe("main");
+  expect(node().style.transform).toBe("translate(130px,160px)");
+  // The move is relative to the band: (70 + 106, 160 + 104).
+  fireEvent.click(screen.getByText("Move activity"));
+  await waitFor(() => expect(node().style.transform).toBe("translate(176px,264px)"));
+  expect(band().style.transform).toBe("translate(106px,104px)");
+  rerender(banded(1));
+  await waitFor(() => expect(node().style.transform).toBe("translate(130px,160px)"));
+  rerender(banded(1, moved));
+  fireEvent.click(screen.getByText("Move activity"));
+  expect(moved).toHaveBeenCalledWith("a", { x: 176, y: 264 });
+});

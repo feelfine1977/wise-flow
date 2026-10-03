@@ -37,7 +37,7 @@ export function OverlayLayer({ shapes, locale, showArcs, showSelfLoops, hoveredI
             const coverage = typeof p.coverage === "number" ? Math.max(0, Math.min(1, p.coverage)) : 1;
             const width = 2 + 8 * coverage;
             return (
-              <g key={s.id} className={`wf-arc${p.reverse ? " wf-arc--reverse" : ""}`} data-constraint={p.constraintId}>
+              <g key={s.id} className={`wf-arc${p.reverse ? " wf-arc--reverse" : ""}`} data-overlay-id={s.id} data-constraint={p.constraintId}>
                 <title>{[p.label, p.text].filter(Boolean).join(" — ")}</title>
                 <path
                   d={s.path}
@@ -60,7 +60,7 @@ export function OverlayLayer({ shapes, locale, showArcs, showSelfLoops, hoveredI
             );
           }
           return (
-            <g key={s.id} className="wf-selfloop" data-constraint={p.constraintId} data-edge-id={typeof p.edgeId === "string" ? p.edgeId : undefined}>
+            <g key={s.id} className="wf-selfloop" data-overlay-id={s.id} data-constraint={p.constraintId} data-edge-id={typeof p.edgeId === "string" ? p.edgeId : undefined}>
               <title>{[p.label, p.text].filter(Boolean).join(" — ")}</title>
               <path
                 d={s.path}

@@ -854,7 +854,7 @@ SVG and Canvas PNG exports include the canonical activity key even when the colo
 
 ```ts
 export interface FlowSceneOptions { overlays?: Overlay[]; style?: StyleSpec; locale?: Locale; lanes?: LaneMode;
-  activityLabels?: ActivityLabelOptions; selfLoops?: boolean; lod?: Partial<LodRules>; lodBySize?: boolean;
+  moved?: Readonly<Record<string, XY>>; activityLabels?: ActivityLabelOptions; selfLoops?: boolean; lod?: Partial<LodRules>; lodBySize?: boolean;
   overlayGeometry?: OverlayGeometryOptions }
 export interface FlowScene { graph; positions; bands: LaneBand[]; activityLabels?; locale; style; scales: Scales;
   overlays: Overlay[]; lod: LodRules; geometry: OverlayGeometry; bounds: Box }
@@ -875,6 +875,19 @@ already stands for that edge; then sorted once with `canonicalOverlays`.
 `selfLoops: false` leaves the follows self-loops out. The level-of-detail
 rules are `defaultLod` under `style.lod` under `o.lod`; `lodBySize` tightens
 them with the number of nodes as a live map does, exports leave it off.
+`moved` places nodes at absolute points after the lane bands are cut (the
+bands stay where the lanes put them) and routes the edges again with
+`repositionNodes`; the overlay geometry follows the moved boxes.
+
+`<ProcessMap/>` reads the same scene: one scene per graph, positions and
+options gives its bands, scales, overlays, level-of-detail rules and overlay
+geometry, and in Canvas mode the same scene is handed to the Canvas map.
+Its overlays are `graph.overlays` and the `overlays` prop together. Since
+this change the map follows the scene's rules: plain self-loop labels are
+formatted in the map's `locale`; a given self-loop overlay that stands for
+a follows edge (its `edgeId`, no constraint) is replaced by the derived one
+instead of being drawn twice; an arc is kept only when both its endpoints
+are on the map; and the Canvas map draws every graph overlay once.
 
 `toSVG` draws this scene. Since this change it draws follows self-loops by
 default (as the live map does), also without `activityLabels`;
