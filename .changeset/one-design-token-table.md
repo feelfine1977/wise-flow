@@ -11,7 +11,11 @@ token table in the core (`colorTokens`, `darkColorTokens`, `paletteTokens`,
 `tokenVariables`, `arrowMarker`, `patternTwinSvg`, `hatchSvg` and
 `markArrowhead`. `fixedColors`, `palettes`, `DEFAULT_SIZES`, `overlayArrow`,
 `PatternId`, `PATTERNS` and the Canvas `defaultTokens` read the table and keep
-their names and values. `tokens.css` is checked against the table.
+their names and values. `patternDefs` takes any ink colour: its `ink`
+parameter is typed `string` (it was the literal type of the default ink), and
+`overlayArrow` is typed `{ readonly size: number; readonly overhang: number }`
+(it had the literal types 12 and 0.1). `tokens.css` is checked against the
+table.
 
 Visible changes:
 
