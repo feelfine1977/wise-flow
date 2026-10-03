@@ -6,11 +6,11 @@ import type { OverlayShape } from "./overlay-geometry.js";
 import { colorOn, contrastText, fixedColors, hexToRgb } from "./style.js";
 
 /**
- * A colour by role. `ink`, `paper` and `outOfScope` are tokens the renderer
- * resolves (and may theme); `value` is the mark's `color` and `onValue` the
- * text colour on it.
+ * A colour by role. `ink`, `paper`, `line` and `outOfScope` are tokens the
+ * renderer resolves (and may theme); `value` is the mark's `color` and
+ * `onValue` the text colour on it.
  */
-export type MarkPaint = "ink" | "paper" | "outOfScope" | "value" | "onValue";
+export type MarkPaint = "ink" | "paper" | "line" | "outOfScope" | "value" | "onValue";
 
 export interface MarkFill {
   paint: MarkPaint;
@@ -40,6 +40,18 @@ export interface MarkText {
   halo: boolean;
   /** Width the text is truncated to, when it is limited. */
   maxWidth?: number;
+  /** Bold run printed before `text` (a chip's label); `maxWidth` limits both together. */
+  lead?: string;
+}
+
+/** A track `width` long with its first `value` share filled and a tick at the `threshold` share (both 0–1). */
+export interface MarkGauge {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  value: number;
+  threshold: number;
 }
 
 export interface OverlayMark {
@@ -70,6 +82,8 @@ export interface OverlayMark {
   /** Arrowhead at the end of the path (`overlayArrow`). */
   arrow?: { size: number; overhang: number };
   texts: MarkText[];
+  /** Gauge drawn in the line colour, filled in the value colour, with an ink tick. */
+  gauge?: MarkGauge;
   /** The follows edge the overlay stands for. */
   edgeId?: string;
 }
