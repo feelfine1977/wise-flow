@@ -15,7 +15,7 @@ test('the built declaration file of the core entry point exports exactly the com
     assert.deepEqual(exportDifferences(declaredExports(file), list), []);
     const core = readFileSync(join(dir, 'core/index.d.ts'), 'utf8');
     assert.doesNotMatch(core, /export \*/, 'every name is listed');
-    for (const tag of core.match(/@deprecated[^*]*/g)) assert.match(tag, /next major version/);
+    for (const tag of core.match(/@deprecated[^*]*/g) ?? []) assert.match(tag, /next major version/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
