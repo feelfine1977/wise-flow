@@ -6,8 +6,7 @@
  */
 import { MarkerType } from "@xyflow/react";
 import { useCallback, useMemo } from "react";
-import { type ActivityLabelOptions, type ElementRef, type FlowGraph, type HitItem, type Locale, type Overlay, type OverlayMark, type Positions, type Selection, arrowheadTokens, describeOverlay } from "../core/index.js";
-import type { FlowScene } from "../core/scene.js";
+import { type ActivityLabelOptions, type ElementRef, type FlowGraph, type FlowScene, type HitItem, type Locale, type Overlay, type OverlayMark, type Positions, type Selection, arrowheadTokens, describeOverlay } from "../core/index.js";
 import type { DrawState, PreparedScene } from "../canvas/index.js";
 import { retainScene } from "../canvas/scene.js";
 import { describeEdge, describeGroup, describeNode } from "./describe.js";
