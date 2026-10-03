@@ -14,7 +14,7 @@ skipped. Branch protection is a repository setting, not something YAML enables.
 
 | Lane | Executable checks | What it establishes |
 | --- | --- | --- |
-| Static and architecture | `lint`, `typecheck`, `check:architecture`, `check:workflows`, `test:tooling`, production `npm audit` | Strict source types; headless imports cannot reach React/renderers; the BPMN bridge's modules other than its entry point load neither React nor bpmn-js eagerly, and Node tests do not import the entry point or React; outside the core, names the core entry point provides are imported from it; the built declarations of `@wise/flow` export exactly the names of `scripts/core-exports.json`, deprecated as listed; YAML/policy validation; regression checks for the checkers; no known high/critical production advisory. |
+| Static and architecture | `lint`, `typecheck`, `check:architecture`, `check:workflows`, `test:tooling`, production `npm audit` | Strict source types; headless imports cannot reach React/renderers; the BPMN bridge's modules other than its entry point load neither React nor bpmn-js eagerly, and Node tests do not import the entry point or React; outside the core, names the core entry point provides are imported from it; the scene and the map controller stay in the core and no other module declares their names; the React map, the Canvas renderer and the BPMN bridge import each other only through their hosts (`CanvasMap`, `map-elements`, `BpmnView`) and only the owning adapter loads React, React Flow, bpmn-js or bpmn-moddle; the built declarations of `@wise/flow` export exactly the names of `scripts/core-exports.json`, deprecated as listed; YAML/policy validation; regression checks for the checkers; no known high/critical production advisory. |
 | Unit/component, Node 22 and 24 | `test:coverage` | Synthetic graph invariants, deterministic behavior, interaction callbacks and lifecycle. Both lanes enforce whole-source coverage. |
 | Installed package | Node 22 + React 18.3.1 + Chromium; Node 24 + React 19.2.8 + Chromium/Firefox/WebKit | A fresh consumer installs the actual tarball. Tests Node ESM/headless imports, both layout engines, BPMN round trip, strict NodeNext declarations, production bundling, worker/fonts/CSS, viewer/modeler and selection lifecycle. |
 | Browser accessibility | Production Storybook build, `test:browser` | Axe WCAG A/AA checks on graph and timeline tables, plus keyboard selection of a graph-table row. |
@@ -32,10 +32,12 @@ matrix yet; local macOS execution does not prove Windows support.
 
 Vitest 4 uses separate Node and jsdom projects. Coverage includes **all production
 TS/TSX files**, excluding declaration-only files; unimported implementation files
-remain counted. Thresholds are statements **82%**, lines **84%**, branches **69%**,
-functions **81%**. These are initial measured floors, not quality targets. Review
-uncovered branches, especially filtering, replacement, errors and resource cleanup;
-raise thresholds as meaningful tests are added. Never reduce them to hide a defect.
+remain counted. Thresholds are statements **93%**, lines **95%**, branches **84%**,
+functions **92%**: the measured whole-source values (93.3%, 95.08%, 84.18%, 92.24%
+on Node 24) rounded down, raised from the initial floors of 82%, 84%, 69% and 81%
+once the deepened modules gained tests at their interfaces. They are floors, not
+quality targets. Review uncovered branches, especially filtering, replacement,
+errors and resource cleanup; raise thresholds as meaningful tests are added. Never reduce them to hide a defect.
 
 The previous Vitest 2 counters are not directly comparable to Vitest 4's AST
 remapping. This change upgrades Vite to 6.4.3 and Vitest/coverage to 4.1.11 to close

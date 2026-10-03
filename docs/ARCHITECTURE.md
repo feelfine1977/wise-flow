@@ -6,23 +6,71 @@
 ┌────────────────────────────────────────────────────────────┐
 │ react/   <ProcessMap/> <TableAlternative/> <TraceTimeline/> │
 │          <BpmnView/> <ViewSwitcher/> <ContextMenu/>          │
-│          <PathList/> <FilterChips/> <CanvasMap/>             │
-│          <VariantStrip/> <PerformanceSpectrum/> <DottedChart/>│
-│          (0.4)                                               │
+│          <PathList/> <FilterChips/> <CanvasMap/> <Legend/>   │
+│          useMapController · map-pointer · map-actions ·      │
+│          map-elements · nodes · edges · marks                │
 │          hooks: useFlowGraph, useStableLayout, useOverlays   │
 ├──────────────────────────┬─────────────────────────────────┤
 │ canvas/  scene · draw ·  │ bpmn/  lite · layout · export ·   │
-│          renderer · png  │        import · mapping · moddle  │
+│          renderer · png  │        import · ids · vocabulary · │
+│          · tokens        │        scene · projection ·        │
+│                          │        viewer · bpmn-js · moddle   │
 ├──────────────────────────┴─────────────────────────────────┤
-│ core/    model · aggregate · layout · style · overlays ·    │
-│          views · hit · export · format · strings ·          │
-│          selection · actions · paths · filters · lanes      │
+│ core/    model · aggregate · layout · lanes · routing ·     │
+│          scene · overlays · overlay-geometry ·              │
+│          overlay-marks · element-marks · mark-svg · figure ·│
+│          tokens · style · hit · export · views ·            │
+│          selection · map-controller · actions · paths ·     │
+│          filters · format · strings                         │
 └────────────────────────────────────────────────────────────┘
 ```
 
 Dependencies point downwards only. `core` has no DOM and no React; it is
 tested in Node. Renderers translate the core's scene description into
 React Flow elements, Canvas draw calls or bpmn-js overlays.
+
+### 1.1 Module map
+
+Each row is one module that owns a decision; the renderers are adapters that
+read what it resolves and do not decide it again.
+
+| Module | Interface | Owns | Read by |
+| --- | --- | --- | --- |
+| Scene (`core/scene.ts`) | `buildScene(graph, positions, options)` → `FlowScene` | activity references, lane bands, scales, the overlays to show in canonical order with the follows self-loops, level-of-detail rules, overlay geometry, the marks and the legend, resolved once (§2.6) | `toSVG`, `prepareScene` (Canvas, `toPNG`), `ProcessMap`, `BpmnView` (`bpmn/scene.ts` over the registry's boxes) |
+| Overlay marks (`core/overlay-marks.ts`) | `FlowScene.marks`, `OverlayMark` | per placed overlay: box or path, fill, stroke, dash, arrowhead, texts, layer, zoom threshold, whether it is on the map (§2.5) | SVG export, Canvas drawing, React nodes and `OverlayLayer`, BPMN projection |
+| Node and edge marks (`core/element-marks.ts`) | `FlowScene.nodeMarks`, `FlowScene.edgeMarks`, `truncateText` | outline, fill, border, band, texts and their level of detail; edge route, colour, dash, count label (§2.5) | SVG export, Canvas drawing, React node and edge components |
+| Mark SVG (`core/mark-svg.ts`) | `markSvg`, `svgMarkup` | the SVG elements of a mark | SVG export, React map, BPMN view |
+| Legend and figure frame (`core/figure.ts`) | `sceneLegend`, `legendLayout`, `figureFrame` | legend rows and heights, the exported figure's frame (§2.6) | `toSVG`, `toPNG`, Canvas `drawLegend`, `<Legend/>` |
+| Design tokens (`core/tokens.ts`) | `designTokens` and its parts, `patternTwin`, `tokenVariables` | colours, palettes, fonts, node and mark sizes, the arrowhead rule, pattern twins; `tokens.css` is checked against it (§2.4) | marks, SVG export, Canvas `readTokens`, `tokens.css` |
+| Graph index and positions (`core/model.ts`, `core/layout.ts`) | `indexGraph`, `createPositions` | lookups, adjacency, group ancestors, nested members, labels; positions whose bounds always match their contents (§2.1, §2.3) | selection, filters, paths, lanes, layout, every renderer |
+| Layout cache (`core/layout.ts`, `core/layout-key.ts`) | `layout`, `createLayoutScope`, `cacheKey`, `clearLayoutCache` | layouts keyed by their own inputs, bounded per scope, released on `dispose`; ELK workers started and terminated on demand (§2.3) | `ProcessMap`, `useStableLayout`, `layoutBpmn` |
+| Lane model (`core/lanes.ts`) | `laneModel`, `stackLanes`, `spanLanes`, `laneRoutes`, `laneBands` | which groups are lanes, each node's lane, stacking, pool and parent boxes, edges across lanes (§2.8) | map bands (`ProcessMap`, Canvas, SVG), `layoutBpmn` |
+| Map controller (`core/map-controller.ts`) | `mapStep(state, event, context)` → next state, sentence, intents | selection, focus of paths, hover, keyboard position, actions menu and the live region's sentence (§2.8) | `useMapController` (`ProcessMap`, React Flow and Canvas pointer input via `map-pointer.ts`), `<ContextMenu/>`, `<TableAlternative/>`, `BpmnView` |
+| Id resolver (`bpmn/ids.ts`) | `createIdResolver`, `renameToActivities` | which FlowGraph, BPMN and activity ids name one element (§5) | `importBpmn`, `exportBpmn`, `applyMapping`, `BpmnView` |
+| Viewer seam (`bpmn/viewer.ts`, `bpmn/bpmn-js.ts`, `bpmn/projection.ts`) | `BpmnViewer`, `projectMarks`, `selectionOf`, `hoverOf` | everything `BpmnView` asks of bpmn-js; where each mark goes on the diagram (§5) | `BpmnView` with the bpmn-js adapter; the component tests with an in-memory viewer |
+
+### 1.2 Checked boundaries
+
+`npm run check:architecture` (`scripts/check-architecture.mjs`, with negative
+examples in `tests/tooling/architecture.test.mjs`) enforces:
+
+- The core imports only the core and the reviewed packages (`@dagrejs/dagre`,
+  `d3-scale`, `elkjs`, `rbush`); no React, no DOM, no renderer.
+- The scene and the map controller stay inside the core: `core/scene.ts` and
+  `core/map-controller.ts` exist there, and no module of `src/index.ts`,
+  `react/`, `canvas/` or `bpmn/` declares a name they export, so no renderer
+  builds its own scene or transitions.
+- Adapters do not import each other. The Canvas renderer and the BPMN bridge
+  never import one another; the React layer reaches the Canvas renderer only
+  from `CanvasMap.tsx` and `map-elements.ts`, and the BPMN bridge only from
+  `BpmnView.tsx`; the bridge reaches React only where its entry point
+  re-exports `BpmnView`. React and React Flow are loaded only in `react/`,
+  bpmn-js and bpmn-moddle only in `bpmn/`.
+- The BPMN bridge's modules other than its entry point load neither React nor
+  bpmn-js eagerly; Node tests reach the bridge through `bpmn/headless.ts`.
+- Outside the core, a name the core entry point provides is imported from the
+  entry point, whose names `scripts/core-exports.json` lists; the deprecated
+  names of every entry point are listed in [API](API.md#deprecated-names).
 
 ## 2. Core
 
@@ -129,32 +177,14 @@ heights (`legendLayout`) and the figure frame (`figureFrame`: header, map,
 legend column, activity key, output size) are measured once in the core;
 both exports and `<Legend/>` list the same rows.
 
-## 3. React renderer
-`ProcessMap` reads the core scene (`buildScene`) through one hook: positions
-restricted to the shown graph, lanes, manual moves, overlays, scales,
-level-of-detail rules and geometry; in Canvas mode the same scene becomes the
-Canvas map's retained geometry. Thin mapping to React Flow nodes and edges
-with custom components per node and edge kind that draw the scene's node
-and edge marks; groups as parent nodes;
-the scene's overlay marks drawn by the node and group components that carry
-them (badges, hatching, chips at their boxes, each from its zoom; tints as
-background layers) and by an SVG layer in the viewport (arcs, self-loops);
-edge labels and node details toggled through level-of-detail classes on the
-container. Abstraction controls (activities, paths, stage
-view, keep connected, table view) in a panel; the legend always visible.
-Keyboard navigation over activities (arrow keys; Alt with an arrow key
-along the paths; Space selects; Enter opens the actions menu; Shift with
-an arrow key extends the selection; Escape; Home, End) with
-`aria-activedescendant`, all transitions of the core's map controller
-(§2.8), whose intents `useMapController` carries out; ARIA labels on every element, a hidden
-description of the map and a polite live region that announces the
-selection, the menu and the result of every action; `TableAlternative`
-lists the same activities, paths and overlays as rows. Reduced motion is
-respected. The actions menu (`ContextMenu`, `role="menu"`, accelerator
-letters, focus returned to the map) opens on a right click or Enter; a
-focus shows the paths of an activity with `PathList` at the side (the map
-area shrinks and is fitted again); `FilterChips` sit above the map;
-`lanes` draws bands instead of group boxes.
+### 2.7 Views
+`buildViews(graph, views)` lays the base graph out once and resolves named
+views on it: every view carries its own metrics (merged over the base by
+id), overlays and style. The domain of a metric on a channel is computed
+over all views, so the same colour or width means the same number in
+Finance, Logistics, Compliance and Automation alike; the filled-in domains
+are returned with each view's style. `<ViewSwitcher/>` renders the views
+as tabs or as small multiples with a shared selection.
 
 ### 2.8 Interaction model (0.3)
 The interaction state is data in the core so that the React renderer, the
@@ -207,14 +237,32 @@ Canvas map's pointer callbacks are translated into the same events
 controller, so the four surfaces (React Flow, Canvas, table, BPMN) announce
 the same sentence for the same selection.
 
-### 2.7 Views
-`buildViews(graph, views)` lays the base graph out once and resolves named
-views on it: every view carries its own metrics (merged over the base by
-id), overlays and style. The domain of a metric on a channel is computed
-over all views, so the same colour or width means the same number in
-Finance, Logistics, Compliance and Automation alike; the filled-in domains
-are returned with each view's style. `<ViewSwitcher/>` renders the views
-as tabs or as small multiples with a shared selection.
+## 3. React renderer
+`ProcessMap` reads the core scene (`buildScene`) through one hook: positions
+restricted to the shown graph, lanes, manual moves, overlays, scales,
+level-of-detail rules and geometry; in Canvas mode the same scene becomes the
+Canvas map's retained geometry. Thin mapping to React Flow nodes and edges
+with custom components per node and edge kind that draw the scene's node
+and edge marks; groups as parent nodes;
+the scene's overlay marks drawn by the node and group components that carry
+them (badges, hatching, chips at their boxes, each from its zoom; tints as
+background layers) and by an SVG layer in the viewport (arcs, self-loops);
+edge labels and node details toggled through level-of-detail classes on the
+container. Abstraction controls (activities, paths, stage
+view, keep connected, table view) in a panel; the legend always visible.
+Keyboard navigation over activities (arrow keys; Alt with an arrow key
+along the paths; Space selects; Enter opens the actions menu; Shift with
+an arrow key extends the selection; Escape; Home, End) with
+`aria-activedescendant`, all transitions of the core's map controller
+(§2.8), whose intents `useMapController` carries out; ARIA labels on every element, a hidden
+description of the map and a polite live region that announces the
+selection, the menu and the result of every action; `TableAlternative`
+lists the same activities, paths and overlays as rows. Reduced motion is
+respected. The actions menu (`ContextMenu`, `role="menu"`, accelerator
+letters, focus returned to the map) opens on a right click or Enter; a
+focus shows the paths of an activity with `PathList` at the side (the map
+area shrinks and is fitted again); `FilterChips` sit above the map;
+`lanes` draws bands instead of group boxes.
 
 ## 4. Canvas renderer (0.3)
 `prepareScene` builds on the core scene (graph, positions, scales,

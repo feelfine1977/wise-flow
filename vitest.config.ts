@@ -19,8 +19,8 @@ export default defineConfig({
       reportsDirectory: "coverage",
       reportOnFailure: true,
       // Whole-source Vitest 4 AST coverage; not comparable to Vitest 2's V8 counters.
-      // Ratchet these floors upward as the remaining branches gain meaningful tests.
-      thresholds: { statements: 82, lines: 84, branches: 69, functions: 81 },
+      // The measured values rounded down; ratchet them upward as the remaining branches gain meaningful tests.
+      thresholds: { statements: 93, lines: 95, branches: 84, functions: 92 },
     },
   },
 });
