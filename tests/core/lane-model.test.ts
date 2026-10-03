@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type Box, type FlowGraph, laneModel, laneRoutes, routeSequenceFlows, spanLanes, stackLanes } from "../../src/index";
-import { manhattanRoute } from "../../src/bpmn/index";
+import { manhattanRoute } from "../../src/bpmn/headless";
 
 // P (pool) ⊃ L1, L2 ⊃ L2a, L2b; X (stage) and L3 at the top level; Q is a pool without children.
 const nested: FlowGraph = {

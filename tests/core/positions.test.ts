@@ -10,7 +10,7 @@ import {
   repositionNodes,
   unionBoxes,
 } from "../../src/index";
-import { exportBpmn, importBpmn, layoutBpmn } from "../../src/bpmn/index";
+import { exportBpmn, importBpmn, layoutBpmn } from "../../src/bpmn/headless";
 
 /** Deterministic pseudo-random numbers in [0, 1) (LCG). */
 function rng(seed: number): () => number {
