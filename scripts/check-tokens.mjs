@@ -11,44 +11,61 @@ export async function loadTokens(path = resolve(root, 'src/core/tokens.ts')) {
   return import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
 }
 
-/** Custom property declarations of the rule blocks whose selector (and enclosing at-rule) match. */
-function declarations(css, selector) {
-  const out = {};
+/** Rule blocks of a stylesheet: the selector, the enclosing at-rules (`@media …`, joined) and the custom property declarations. */
+function ruleBlocks(css) {
   const source = css.replace(/\/\*[\s\S]*?\*\//g, '');
-  let found = false;
-  const block = /([^{}]+)\{([^{}]*)\}/g;
-  for (const m of source.matchAll(block)) {
-    if (m[1].replace(/\s+/g, ' ').trim() !== selector) continue;
-    found = true;
-    for (const d of m[2].matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) out[d[1]] = d[2];
+  const out = [];
+  const open = [];
+  let start = 0;
+  for (let i = 0; i < source.length; i++) {
+    if (source[i] === '{') {
+      open.push({ prelude: source.slice(start, i).replace(/\s+/g, ' ').trim(), body: i + 1 });
+      start = i + 1;
+    } else if (source[i] === '}') {
+      const block = open.pop();
+      start = i + 1;
+      if (!block || block.prelude.startsWith('@')) continue;
+      const variables = {};
+      for (const d of source.slice(block.body, i).matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) variables[d[1]] = d[2];
+      out.push({ selector: block.prelude, atRule: open.map((o) => o.prelude).join(' '), variables });
+    }
   }
-  return found ? out : undefined;
+  return out;
 }
+
+const label = ({ selector, atRule = '' }) => (atRule ? `${atRule} ${selector}` : selector);
 
 const normal = (v) => v.replace(/\s+/g, ' ').replace(/'/g, '"').trim().replace(/#[0-9a-f]+\b/gi, (h) => h.toLowerCase());
 
-/** The blocks of `tokens.css` and the variables of the table each must hold. */
+/** The blocks of `tokens.css`, with their enclosing at-rule, and the variables of the table each must hold. */
 export const TOKEN_BLOCKS = [
   { selector: ':root', scheme: 'light' },
-  { selector: ':root:not([data-theme="light"])', scheme: 'dark' },
+  { selector: ':root:not([data-theme="light"])', atRule: '@media (prefers-color-scheme: dark)', scheme: 'dark' },
   { selector: ':root[data-theme="dark"]', scheme: 'dark' },
 ];
 
 /** Differences between `tokens.css` and the variables of the token table (`tokenVariables`), as readable lines. */
 export function tokenDifferences(css, variables) {
   const out = [];
-  for (const { selector, scheme } of TOKEN_BLOCKS) {
-    const actual = declarations(css, selector);
-    const expected = variables[scheme];
-    if (!actual) {
-      out.push(`${selector}: block missing`);
+  const blocks = ruleBlocks(css);
+  for (const block of TOKEN_BLOCKS) {
+    const name = label(block);
+    const matching = blocks.filter((b) => label(b) === name);
+    if (!matching.length) {
+      out.push(`${name}: block missing`);
       continue;
     }
-    for (const [name, value] of Object.entries(expected)) {
-      if (!(name in actual)) out.push(`${selector}: ${name} missing, the table has ${value}`);
-      else if (normal(actual[name]) !== normal(value)) out.push(`${selector}: ${name} is ${actual[name].trim()}, the table has ${value}`);
+    const actual = Object.assign({}, ...matching.map((b) => b.variables));
+    const expected = variables[block.scheme];
+    for (const [variable, value] of Object.entries(expected)) {
+      if (!(variable in actual)) out.push(`${name}: ${variable} missing, the table has ${value}`);
+      else if (normal(actual[variable]) !== normal(value)) out.push(`${name}: ${variable} is ${actual[variable].trim()}, the table has ${value}`);
     }
-    for (const name of Object.keys(actual)) if (!(name in expected)) out.push(`${selector}: ${name} is not in the table`);
+    for (const variable of Object.keys(actual)) if (!(variable in expected)) out.push(`${name}: ${variable} is not in the table`);
+  }
+  const known = new Set(TOKEN_BLOCKS.map(label));
+  for (const block of blocks.filter((b) => !known.has(label(b)))) {
+    for (const variable of Object.keys(block.variables)) out.push(`${label(block)}: ${variable} is not in a block of the table`);
   }
   return out;
 }

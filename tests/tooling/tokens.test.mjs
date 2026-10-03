@@ -26,6 +26,24 @@ test('the check names a changed, a missing and an extra variable and a missing b
   assert.deepEqual(tokenDifferences(noDark, variables), [':root[data-theme="dark"]: block missing']);
 });
 
+test('the check names a dark block outside its media query and a variable in a block the table does not know', () => {
+  const unwrapped = css.replace(/@media \(prefers-color-scheme: dark\) \{\s*(:root:not\(\[data-theme="light"\]\) \{[^}]*\})\s*\}/, '$1');
+  assert.notEqual(unwrapped, css);
+  assert.deepEqual(tokenDifferences(unwrapped, variables), [
+    '@media (prefers-color-scheme: dark) :root:not([data-theme="light"]): block missing',
+    ':root:not([data-theme="light"]): --wf-paper is not in a block of the table',
+    ':root:not([data-theme="light"]): --wf-surface is not in a block of the table',
+    ':root:not([data-theme="light"]): --wf-ink is not in a block of the table',
+    ':root:not([data-theme="light"]): --wf-ink-muted is not in a block of the table',
+    ':root:not([data-theme="light"]): --wf-line is not in a block of the table',
+    ':root:not([data-theme="light"]): --wf-line-strong is not in a block of the table',
+    ':root:not([data-theme="light"]): --wf-selection is not in a block of the table',
+    ':root:not([data-theme="light"]): --wf-hover is not in a block of the table',
+  ]);
+  const stray = `${css}\n.wf-process-map { --wf-ink: #000000; }`;
+  assert.deepEqual(tokenDifferences(stray, variables), ['.wf-process-map: --wf-ink is not in a block of the table']);
+});
+
 test('the check ignores comments, quotes, spacing and the case of hex digits', () => {
   const restyled = css
     .replace('--wf-font: Inter, "Segoe UI", Helvetica, Arial, sans-serif;', "--wf-font:   Inter, 'Segoe UI',  Helvetica, Arial, sans-serif ; /* the stack */")
