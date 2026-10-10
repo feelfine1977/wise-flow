@@ -1039,3 +1039,120 @@
   font-size: 14px;
   line-height: 1;
 }
+
+/* Aligned cohort comparison. All bars share a 0–100% scale. */
+.wf-comparison {
+  min-width: 0;
+  max-width: 100%;
+  color: var(--wf-ink);
+  background: var(--wf-paper);
+  font-family: var(--wf-font);
+  line-height: 1.5;
+}
+.wf-comparison button,
+.wf-comparison input {
+  font: inherit;
+  color: inherit;
+  border: 1px solid var(--wf-line-strong);
+  border-radius: var(--wf-radius);
+  background: var(--wf-surface);
+  padding: 0.4rem 0.65rem;
+}
+.wf-comparison button { cursor: pointer; }
+.wf-comparison button:hover { background: var(--wf-hover); }
+.wf-comparison button:focus-visible,
+.wf-comparison input:focus-visible,
+.wf-comparison__overflow:focus-visible,
+.wf-comparison__method summary:focus-visible {
+  outline: 2px solid var(--wf-focus);
+  outline-offset: 2px;
+}
+.wf-comparison__tabs,
+.wf-comparison__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.wf-comparison__tabs [aria-selected="true"] {
+  background: var(--wf-selection);
+  border-bottom: 3px solid var(--wf-focus);
+  font-weight: 600;
+}
+.wf-comparison__controls input { width: min(100%, 24rem); box-sizing: border-box; }
+.wf-comparison__summary,
+.wf-comparison__explanation { font-size: 0.875rem; color: var(--wf-ink-muted); }
+.wf-comparison__overflow { max-width: 100%; max-height: 65vh; overflow: auto; }
+.wf-comparison table { width: 100%; border-collapse: collapse; text-align: left; }
+.wf-comparison caption { text-align: left; font-weight: 600; padding: 0.5rem 0; }
+.wf-comparison th,
+.wf-comparison td {
+  min-width: 12rem;
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--wf-line);
+  vertical-align: top;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.wf-comparison th:first-child { min-width: 18rem; width: 32%; font-weight: 500; }
+.wf-comparison thead th { position: sticky; top: 0; z-index: 2; background: var(--wf-surface); }
+.wf-comparison tbody th { position: sticky; left: 0; z-index: 1; background: var(--wf-surface); }
+.wf-comparison thead th:first-child { left: 0; z-index: 3; }
+.wf-comparison__cohort { text-align: left; white-space: normal; overflow-wrap: anywhere; }
+.wf-comparison__denominator { display: block; font-size: 0.8rem; font-weight: 400; color: var(--wf-ink-muted); margin-top: 0.25rem; }
+.wf-comparison__value,
+.wf-comparison__count { display: block; font-size: 14px; font-variant-numeric: tabular-nums; }
+.wf-comparison__count { color: var(--wf-ink-muted); }
+.wf-comparison__unavailable { font-size: 0.875rem; color: var(--wf-ink-muted); }
+.wf-comparison__bar { display: block; height: 0.375rem; margin-top: 0.4rem; background: var(--wf-line); border-radius: 2px; }
+.wf-comparison__bar > span { display: block; height: 100%; background: var(--wf-focus); border-radius: inherit; }
+.wf-comparison__method { margin-top: 0.75rem; font-size: 0.875rem; color: var(--wf-ink-muted); }
+.wf-comparison__method summary { cursor: pointer; color: var(--wf-ink); }
+.wf-comparison__method p { max-width: 75ch; }
+
+/* Opt-in activity labels use the dimensions reserved before layout. */
+.wf-process-map .wf-node--activity-labels {
+  align-items: flex-start;
+  padding: 10px 14px 10px 16px;
+  opacity: 1;
+  background: var(--wf-paper);
+}
+.wf-activity-copy, .wf-activity-name, .wf-activity-counts,
+.wf-activity-name > span, .wf-activity-counts > span {
+  display: block;
+  white-space: pre;
+}
+.wf-activity-name {
+  color: var(--wf-ink);
+  font-size: 14px;
+  line-height: 18px;
+  font-weight: 500;
+}
+.wf-activity-counts {
+  color: var(--wf-ink);
+  font-size: 12px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.wf-activity-tooltip {
+  position: absolute;
+  box-sizing: border-box;
+  max-height: calc(100% - 16px);
+  overflow: auto;
+  z-index: 1000;
+  width: max-content;
+  max-width: min(320px, calc(100% - 16px));
+  padding: 10px 12px;
+  border: 1px solid var(--wf-line-strong);
+  border-radius: 6px;
+  background: var(--wf-paper);
+  color: var(--wf-ink);
+  box-shadow: var(--wf-shadow);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  pointer-events: auto;
+  user-select: text;
+}
+
+.wf-bpmn__navigation { position: absolute; left: 12px; bottom: 12px; z-index: 15; display: flex; align-items: center; gap: 4px; }

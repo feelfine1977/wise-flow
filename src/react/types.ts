@@ -1,6 +1,7 @@
 import type { Node, Edge } from "@xyflow/react";
 import type {
   AbstractOptions,
+  ActivityLabelOptions,
   EdgeRoute,
   Filter,
   FilterClause,
@@ -22,6 +23,7 @@ import type {
   Overlay,
   PatternId,
   Positions,
+  XY,
   Selection,
   StyleSpec,
 } from "../core/index.js";
@@ -31,6 +33,9 @@ export type { Selection };
 export { emptySelection };
 
 export type ActivityNodeData = {
+  activityLabels?: ActivityLabelOptions;
+  labelWidth?: number;
+  labelHeight?: number;
   node: FlowNode;
   color: string;
   pattern: PatternId;
@@ -74,9 +79,16 @@ export type FollowsEdgeData = {
 export type WfEdge = Edge<FollowsEdgeData, "follows" | "constraint" | "flow">;
 
 export interface ProcessMapProps {
+  activityLabels?: ActivityLabelOptions;
   graph: FlowGraph;
   /** Positions from `layout` or `layoutUnion`; computed when omitted. */
   positions?: Positions;
+  /** Enable manual activity placement in the SVG renderer. Default false. */
+  nodesDraggable?: boolean;
+  /** When supplied, the host applies this absolute position to its controlled positions. */
+  onNodeMove?: (id: string, position: XY) => void;
+  /** Change to clear internal manual positions and restore the supplied/automatic layout. */
+  layoutResetKey?: string | number;
   /** Overlays in addition to `graph.overlays`. */
   overlays?: Overlay[];
   style?: StyleSpec;

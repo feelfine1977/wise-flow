@@ -384,7 +384,7 @@ function drawNode(ctx: DrawContext, scene: PreparedScene, n: SceneNode, tokens: 
   const selected = state.selection.nodes.includes(id);
   const focused = state.focused === id;
   const hovered = state.hovered === id;
-  const dimmed = !!state.bright && !state.bright.nodes.has(id);
+  const dimmed = !n.activityLines && !!state.bright && !state.bright.nodes.has(id);
   ctx.globalAlpha = dimmed ? 0.35 : 1;
   ctx.setLineDash(n.reconnected ? [4, 3] : []);
   if (n.node.kind === "event") {
@@ -427,7 +427,7 @@ function drawNode(ctx: DrawContext, scene: PreparedScene, n: SceneNode, tokens: 
     ctx.fillText(n.glyph ?? "×", cx, cy + 1);
   } else {
     roundedRect(ctx, b, 6);
-    ctx.fillStyle = hovered || n.node.kind === "note" ? tokens.surface : tokens.paper;
+    ctx.fillStyle = (!n.activityLines && hovered) || n.node.kind === "note" ? tokens.surface : tokens.paper;
     ctx.fill();
     ctx.strokeStyle = selected || focused ? tokens.focus : n.color;
     ctx.lineWidth = n.node.kind === "stage" ? 3 : 2;
@@ -444,7 +444,17 @@ function drawNode(ctx: DrawContext, scene: PreparedScene, n: SceneNode, tokens: 
         ctx.fillRect(band.x, band.y, band.width, band.height);
       }
     }
-    if (lod.labels) {
+    if (n.activityLines) {
+      ctx.fillStyle = tokens.ink;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
+      ctx.font = `14px ${tokens.font}`;
+      n.activityLines.name.forEach((line, i) => ctx.fillText(line, b.x + 16, b.y + 24 + i * 18));
+      if (n.meta !== undefined) {
+        ctx.font = `12px ${tokens.font}`;
+        n.activityLines.counts.forEach((line, i) => ctx.fillText(line, b.x + 16, b.y + 24 + n.activityLines!.name.length * 18 + i * 16));
+      }
+    } else if (lod.labels) {
       ctx.fillStyle = tokens.ink;
       ctx.font = `${n.node.kind === "stage" ? "600 " : ""}12px ${tokens.font}`;
       ctx.textAlign = "left";
@@ -527,7 +537,7 @@ function drawShape(ctx: DrawContext, scene: PreparedScene, s: OverlayShape, toke
         ctx.font = `11px ${tokens.font}`;
         ctx.textAlign = "center";
         ctx.textBaseline = "alphabetic";
-        haloText(ctx, `${p.glyph ?? ""} ${value}`.trim(), s.labelX, s.labelY, tokens);
+        haloText(ctx, typeof p.displayLabel === "string" ? p.displayLabel : `${p.glyph ?? ""} ${value}`.trim(), s.labelX, s.labelY, tokens);
       }
       return;
     }
@@ -538,12 +548,12 @@ function drawShape(ctx: DrawContext, scene: PreparedScene, s: OverlayShape, toke
       const end = tracePath(ctx, s.path ?? "");
       ctx.stroke();
       if (end.last && end.beforeLast) arrowhead(ctx, end.beforeLast, end.last, 10, color);
-      if (s.labelX !== undefined && s.labelY !== undefined && value) {
+      if (s.labelX !== undefined && s.labelY !== undefined && (p.displayLabel || value)) {
         ctx.fillStyle = tokens.ink;
         ctx.font = `10px ${tokens.font}`;
         ctx.textAlign = "left";
         ctx.textBaseline = "alphabetic";
-        haloText(ctx, `↻ ${value}`, s.labelX, s.labelY, tokens);
+        haloText(ctx, typeof p.displayLabel === "string" ? p.displayLabel : `↻ ${value}`, s.labelX, s.labelY, tokens);
       }
       return;
     }
@@ -646,7 +656,7 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
   for (const s of scene.shapes) {
     if (s.kind === "tint" || s.kind === "hatch") continue;
     if (shapeIds && !shapeIds.has(s.id)) continue;
-    if ((s.kind === "badge" && !lod.badges) || (s.kind === "arc" && !lod.arcs) || (s.kind === "chip" && !lod.chips) || (s.kind === "selfLoop" && !lod.selfLoops)) continue;
+    if ((s.kind === "badge" && !lod.badges) || (s.kind === "arc" && !lod.arcs) || (s.kind === "chip" && !lod.chips) || (s.kind === "selfLoop" && !lod.selfLoops && !s.overlay.payload?.observed)) continue;
     drawShape(ctx, scene, s, tokens, state.hovered === s.id);
     shapes++;
   }

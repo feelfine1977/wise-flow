@@ -11,6 +11,7 @@ import {
   useViewport,
   type NodeMouseHandler,
   type EdgeMouseHandler,
+  type OnNodesChange,
 } from "@xyflow/react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
@@ -24,10 +25,13 @@ import {
   type MenuTarget,
   type Overlay,
   type OverlayShape,
-  type Positions,
+  type XY,
   type StringKey,
   MAP_TARGET,
   RECONNECTED_TAG,
+  activityNodeSize,
+  activityReferences,
+  withObservedSelfLoops,
   addClause,
   asFilter,
   buildScales,
@@ -52,10 +56,12 @@ import {
   metric,
   overlayGeometry,
   relatedToSelection,
+  repositionNodes,
   selectElement,
   t,
 } from "../core/index.js";
 import { type DrawState, type PreparedScene, prepareScene } from "../canvas/index.js";
+import { ActivityTooltip } from "./ActivityTooltip.js";
 import { AbstractionControls } from "./AbstractionControls.js";
 import { CanvasMap, type CanvasMapHandle } from "./CanvasMap.js";
 import { ContextMenu } from "./ContextMenu.js";
@@ -152,10 +158,20 @@ function ProcessMapInner(props: ProcessMapProps) {
     pathList = true,
     contextMenu = true,
     renderer = "auto",
+    nodesDraggable = false,
+    onNodeMove,
+    layoutResetKey,
     canvasThreshold = DEFAULT_CANVAS_THRESHOLD,
     onContextMenu: onContextMenuProp,
     children,
   } = props;
+
+  const activityLabels = useMemo(() => props.activityLabels ? {
+    ...props.activityLabels, references: activityReferences(graph, props.activityLabels.references),
+  } : undefined, [graph, props.activityLabels]);
+  const sizedLayoutOptions = useMemo(() => activityLabels && !layoutOptions?.nodeSize ? {
+    ...layoutOptions, nodeSize: (node: FlowGraph["nodes"][number]) => activityNodeSize(node, activityLabels),
+  } : layoutOptions, [layoutOptions, activityLabels]);
 
   // Abstraction (controlled or internal)
   const [innerAbstraction, setInnerAbstraction] = useState<AbstractOptions>(props.defaultAbstraction ?? {});
@@ -189,8 +205,8 @@ function ProcessMapInner(props: ProcessMapProps) {
   const needsOwnLayout = !givenPositions || !coversGraph(givenPositions, shown);
   const layoutCacheScope = useId();
   const ownLayoutOptions = useMemo(
-    () => !needsOwnLayout || layoutOptions?.cacheKey !== undefined ? layoutOptions ?? {} : automaticLayoutOptions(shown, layoutOptions ?? {}, layoutCacheScope),
-    [needsOwnLayout, layoutOptions, shown, layoutCacheScope],
+    () => !needsOwnLayout || sizedLayoutOptions?.cacheKey !== undefined ? sizedLayoutOptions ?? {} : automaticLayoutOptions(shown, sizedLayoutOptions ?? {}, layoutCacheScope),
+    [needsOwnLayout, sizedLayoutOptions, shown, layoutCacheScope],
   );
   const own = useStableLayout(needsOwnLayout ? shown : undefined, ownLayoutOptions);
   const automaticCacheKey = needsOwnLayout && layoutOptions?.cacheKey === undefined ? ownLayoutOptions.cacheKey : undefined;
@@ -203,7 +219,23 @@ function ProcessMapInner(props: ProcessMapProps) {
     if (!source) return undefined;
     return laneBands(shown, filterPositions(source, shown), { lanes });
   }, [needsOwnLayout, own.positions, givenPositions, shown, lanes]);
-  const positions: Positions | undefined = laid?.positions;
+  const [manual, setManual] = useState<{ key: ProcessMapProps["layoutResetKey"]; points: Record<string, XY> }>({ key: layoutResetKey, points: {} });
+  const positions = useMemo(() => laid?.positions && repositionNodes(shown, laid.positions,
+    manual.key === layoutResetKey ? manual.points : {}), [shown, laid, manual, layoutResetKey]);
+  const onNodesChange = useCallback<OnNodesChange<WfNode | WfGroupNode>>((changes) => {
+    if (!nodesDraggable || !positions) return;
+    const points: Record<string, XY> = {};
+    for (const change of changes) {
+      if (change.type !== "position" || !change.position) continue;
+      const node = shown.nodes.find((n) => n.id === change.id && n.kind === "activity");
+      if (!node) continue;
+      const parent = node.group ? positions.groups[node.group] : undefined;
+      points[node.id] = { x: change.position.x + (parent?.x ?? 0), y: change.position.y + (parent?.y ?? 0) };
+    }
+    if (!Object.keys(points).length) return;
+    if (onNodeMove) for (const [id, point] of Object.entries(points)) onNodeMove(id, point);
+    else setManual((previous) => ({ key: layoutResetKey, points: { ...(previous.key === layoutResetKey ? previous.points : {}), ...points } }));
+  }, [nodesDraggable, onNodeMove, layoutResetKey, positions, shown]);
   const bands = useMemo(() => new Map((laid?.bands ?? []).map((b) => [b.id, b])), [laid]);
 
   const scales = useMemo(() => buildScales(shown, style), [shown, style]);
@@ -212,8 +244,8 @@ function ProcessMapInner(props: ProcessMapProps) {
     const list = [...(shown.overlays ?? []), ...(extraOverlays ?? [])].filter(
       (o) => known.has(o.target) || (o.kind === "arc" && known.has(String(o.payload?.source)) && known.has(String(o.payload?.target))),
     );
-    return canonicalOverlays(selfLoops ? [...list, ...selfLoopOverlays(shown)] : list);
-  }, [shown, extraOverlays, selfLoops]);
+    return canonicalOverlays(selfLoops ? activityLabels ? withObservedSelfLoops(shown, list, locale, activityLabels.caseLabel) : [...list, ...selfLoopOverlays(shown)] : list);
+  }, [shown, extraOverlays, selfLoops, activityLabels, locale]);
 
   const lodRules = useMemo(() => lodForSize(shown.nodes.length, { ...(style.lod ?? {}), ...(props.lod ?? {}) }), [shown.nodes.length, style.lod, props.lod]);
   const geometry = useMemo(() => (positions ? overlayGeometry(overlays, positions, { lod: lodRules }) : undefined), [overlays, positions, lodRules]);
@@ -237,6 +269,8 @@ function ProcessMapInner(props: ProcessMapProps) {
     [onHover],
   );
   const [focused, setFocused] = useState<string | null>(null);
+  const [hasFocus, setHasFocus] = useState(false);
+  const tooltipId = useId();
   const [innerFocus, setInnerFocus] = useState<Focus | undefined>(props.defaultFocus);
   const explicitFocus: Focus | undefined = props.focus === undefined ? innerFocus : (props.focus ?? undefined);
   const setFocus = useCallback(
@@ -267,9 +301,9 @@ function ProcessMapInner(props: ProcessMapProps) {
 
   const reducedMotion = usePrefersReducedMotion();
   const rf = useReactFlow();
-  const { zoom: rfZoom } = useViewport();
-  const [canvasZoom, setCanvasZoom] = useState(1);
-  const zoom = useCanvas ? canvasZoom : rfZoom;
+  const { zoom: rfZoom, x: rfX, y: rfY } = useViewport();
+  const [canvasViewport, setCanvasViewport] = useState({ x: 0, y: 0, zoom: 1 });
+  const zoom = useCanvas ? canvasViewport.zoom : rfZoom;
   const lod = lodAt(zoom, lodRules);
   const bodyRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -321,7 +355,7 @@ function ProcessMapInner(props: ProcessMapProps) {
     (ref: ElementRef): string => {
       if (ref.kind === "node") {
         const n = shown.nodes.find((x) => x.id === ref.id);
-        return n ? describeNode(n, overlaysByTarget.get(n.id) ?? [], locale, n.group ? groupIndex.get(n.group)?.label : undefined) : ref.id;
+        return n ? describeNode(n, overlaysByTarget.get(n.id) ?? [], locale, n.group ? groupIndex.get(n.group)?.label : undefined, n.kind === "activity" ? activityLabels : undefined) : ref.id;
       }
       if (ref.kind === "edge") {
         const e = shown.edges.find((x) => x.id === ref.id);
@@ -330,7 +364,7 @@ function ProcessMapInner(props: ProcessMapProps) {
       const g = groupIndex.get(ref.id);
       return g ? describeGroup(g, memberCount.get(g.id) ?? 0, overlaysByTarget.get(g.id) ?? [], locale) : ref.id;
     },
-    [shown, overlaysByTarget, groupIndex, memberCount, locale],
+    [shown, overlaysByTarget, groupIndex, memberCount, locale, activityLabels],
   );
   const worstOverlay = useCallback(
     (ids: string[]): string | undefined => {
@@ -506,7 +540,7 @@ function ProcessMapInner(props: ProcessMapProps) {
       const parentGroup = n.group && groupIndex.has(n.group) && groupBox(n.group) ? n.group : undefined;
       const off = absOffset(parentGroup);
       const nOverlays = overlaysByTarget.get(n.id) ?? [];
-      const description = describeNode(n, nOverlays, locale, n.group ? groupIndex.get(n.group)?.label : undefined);
+      const description = describeElement({ kind: "node", id: n.id });
       out.push({
         id: n.id,
         type: n.kind,
@@ -514,11 +548,16 @@ function ProcessMapInner(props: ProcessMapProps) {
         parentId: parentGroup ? GROUP_PREFIX + parentGroup : undefined,
         width: box.width,
         height: box.height,
-        draggable: false,
+        draggable: nodesDraggable === true && n.kind === "activity",
         selected: selection.nodes.includes(n.id),
+        // Keep activity copy above ordinary and hovered routes, including grouped graphs.
+        zIndex: activityLabels ? 10 : undefined,
         ariaLabel: description,
         data: {
           node: n,
+          activityLabels: n.kind === "activity" ? activityLabels : undefined,
+          labelWidth: box.width,
+          labelHeight: box.height,
           color: scales.nodeColor(n),
           pattern: scales.nodePattern(n),
           badges: nOverlays.filter((o) => o.kind === "badge"),
@@ -526,14 +565,14 @@ function ProcessMapInner(props: ProcessMapProps) {
           direction: positions.direction,
           focused: focused === n.id,
           hovered: hovered === n.id,
-          dimmed: !!bright && !bright.nodes.has(n.id),
+          dimmed: !(activityLabels && n.kind === "activity") && !!bright && !bright.nodes.has(n.id),
           locale,
           description,
         },
       });
     }
     return out;
-  }, [positions, useCanvas, shown, overlaysByTarget, scales, selection, hovered, focused, locale, bright, bands, groupIndex, memberCount]);
+  }, [positions, useCanvas, shown, overlaysByTarget, scales, selection, hovered, focused, locale, bright, bands, groupIndex, memberCount, activityLabels, describeElement, nodesDraggable]);
 
   const rfEdges = useMemo<WfEdge[]>(() => {
     if (!positions || useCanvas) return [];
@@ -571,8 +610,8 @@ function ProcessMapInner(props: ProcessMapProps) {
   // Canvas scene and its callbacks
   const canvasScene = useMemo<PreparedScene | undefined>(() => {
     if (!useCanvas || !positions) return undefined;
-    return prepareScene(shown, positions, { style, overlays, selfLoops: false, lod: props.lod, locale, bands: laid?.bands ?? [] });
-  }, [useCanvas, positions, shown, style, overlays, props.lod, locale, laid]);
+    return prepareScene(shown, positions, { style, overlays, selfLoops: false, lod: props.lod, locale, bands: laid?.bands ?? [], activityLabels });
+  }, [useCanvas, positions, shown, style, overlays, props.lod, locale, laid, activityLabels]);
   const canvasState = useMemo<DrawState>(() => ({ selection, hovered, focused, bright }), [selection, hovered, focused, bright]);
   const canvasDescendants = useMemo(() => {
     if (!useCanvas) return undefined;
@@ -595,6 +634,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   );
   const describeHit = useCallback(
     (hit: HitItem): string | undefined => {
+      if (activityLabels && hit.kind === "node" && nodeKinds.get(hit.id) === "activity") return undefined;
       if (hit.kind === "overlay") {
         const shape = canvasScene?.shapeById.get(hit.shapeId ?? "");
         if (!shape) return undefined;
@@ -603,7 +643,7 @@ function ProcessMapInner(props: ProcessMapProps) {
       }
       return describeElement({ kind: hit.kind, id: hit.id });
     },
-    [canvasScene, describeElement, locale],
+    [canvasScene, describeElement, locale, activityLabels, nodeKinds],
   );
   const onCanvasHover = useCallback((hit: HitItem | null) => hover(hit ? (hit.kind === "overlay" ? (hit.shapeId ?? hit.id) : hit.id) : null), [hover]);
   const onCanvasClick = useCallback(
@@ -644,7 +684,8 @@ function ProcessMapInner(props: ProcessMapProps) {
   // once more after React Flow has measured them (a fit before measurement is a no-op).
   const nodesInitialized = useNodesInitialized();
   const showPaths = pathList && !!focus && focusValid && view === "map";
-  const fitKey = positions ? `${positions.engine}:${Object.keys(positions.nodes).length}:${Math.round(positions.bounds.width)}:${Math.round(positions.bounds.height)}:${lanes}:${showPaths ? "side" : "full"}` : "";
+  const fitPositions = laid?.positions;
+  const fitKey = fitPositions ? `${fitPositions.engine}:${Object.keys(fitPositions.nodes).length}:${Math.round(fitPositions.bounds.width)}:${Math.round(fitPositions.bounds.height)}:${lanes}:${showPaths ? "side" : "full"}` : "";
   useEffect(() => {
     if (!fitView || !positions || useCanvas) return;
     const options = { padding: 0.08, duration: reducedMotion ? 0 : 200 };
@@ -815,6 +856,17 @@ function ProcessMapInner(props: ProcessMapProps) {
     [menu, positions, orderedNodeIds, focused, edgeIndex, selection, focusNode, select, shown, locale, contextMenu, openMenu, elementScreenPoint, explicitFocus, setFocus],
   );
 
+  const tooltipNode = activityLabels && view === "map" ? shown.nodes.find((n) => n.kind === "activity" && n.id === (hovered ?? (hasFocus ? focused : null))) : undefined;
+  const tooltipAnchor = useCallback((id: string) => {
+    const viewport = useCanvas ? canvasViewport : { x: rfX, y: rfY, zoom: rfZoom };
+    const box = positions?.nodes[id];
+    // Both viewport transforms are relative to the map main area, whose top-left
+    // coincides with the body. Do not mix page/client coordinates with CSS pixels.
+    const point = box ? { x: viewport.x + (box.x + box.width / 2) * viewport.zoom, y: viewport.y + (box.y + box.height / 2) * viewport.zoom } : elementScreenPoint({ kind: "node", id });
+    const height = (box?.height ?? 0) * viewport.zoom;
+    return { x: point.x + 12, y: point.y + height / 2 + 8, above: point.y - height / 2 - 8 };
+  }, [elementScreenPoint, useCanvas, positions, rfZoom, rfX, rfY, canvasViewport]);
+
   const descId = useId();
   const liveId = useId();
   const description = useMemo(() => describeMap(shown, overlays, locale), [shown, overlays, locale]);
@@ -866,6 +918,13 @@ function ProcessMapInner(props: ProcessMapProps) {
       aria-activedescendant={activeDescendant}
       tabIndex={0}
       onKeyDown={onKeyDown}
+      onFocusCapture={(event) => {
+        setHasFocus(true);
+        const id = (event.target as HTMLElement).closest?.(".react-flow__node")?.getAttribute("data-id");
+        if (id && nodeKinds.get(id) === "activity") setFocused(id);
+      }}
+      onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setHasFocus(false); }}
+      data-activity-labels={activityLabels?.mode}
       data-layout-status={needsOwnLayout ? own.status : "given"}
       data-engine={positions?.engine}
       data-renderer={view === "table" ? "table" : useCanvas ? "canvas" : "svg"}
@@ -900,7 +959,7 @@ function ProcessMapInner(props: ProcessMapProps) {
                 onHover={onCanvasHover}
                 onClick={onCanvasClick}
                 onContextMenu={onCanvasContextMenu}
-                onViewportChange={(v) => setCanvasZoom(v.zoom)}
+                onViewportChange={setCanvasViewport}
                 descendants={canvasDescendants}
               >
                 {controlsElement ? <div className="wf-overlay-panel wf-overlay-panel--top-left">{controlsElement}</div> : null}
@@ -920,7 +979,8 @@ function ProcessMapInner(props: ProcessMapProps) {
                 edges={rfEdges}
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}
-                nodesDraggable={false}
+                nodesDraggable={nodesDraggable === true}
+                onNodesChange={onNodesChange}
                 nodesConnectable={false}
                 elementsSelectable
                 selectNodesOnDrag={false}
@@ -975,6 +1035,7 @@ function ProcessMapInner(props: ProcessMapProps) {
             {menuElement}
           </>
         )}
+        {activityLabels ? <ActivityTooltip id={tooltipId} node={tooltipNode} description={tooltipNode ? describeElement({ kind: "node", id: tooltipNode.id }) : ""} anchor={tooltipAnchor} /> : null}
       </div>
     </div>
   );

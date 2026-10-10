@@ -156,3 +156,14 @@ describe("HitIndex", () => {
     expect(index.at(-10000, -10000)).toEqual([]);
   });
 });
+
+
+it("includes explicit arc labels in geometry bounds even for vertically aligned endpoints", async () => {
+  const positions = await layout({ nodes: [{ id: "a", kind: "activity", label: "A" }, { id: "b", kind: "activity", label: "B" }], edges: [{ id: "ab", kind: "follows", source: "a", target: "b" }] }, { engine: "dagre", direction: "DOWN" });
+  const displayLabel = "63% of evaluated purchase-order items miss the configured constraint";
+  const geometry = overlayGeometry([{ kind: "arc", target: "a", payload: { source: "a", target: "b", value: 0.63, displayLabel } }], positions);
+  const shape = geometry.shapes[0];
+  expect(shape.width).toBeGreaterThanOrEqual(displayLabel.length * 11);
+  expect(geometry.bounds.y).toBeLessThanOrEqual(shape.labelY! - 14);
+  expect(geometry.bounds.x).toBeLessThanOrEqual(shape.labelX! - displayLabel.length * 11 / 2);
+});

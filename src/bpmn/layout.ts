@@ -17,6 +17,8 @@ import {
   straightRoute,
 } from "../core/index.js";
 
+import { routeSequenceFlows } from "./routing.js";
+
 /** BPMN shape sizes as drawn by bpmn-js and Camunda Modeler. */
 export const BPMN_SIZES: Record<FlowNode["kind"], NodeSize> = {
   activity: { width: 100, height: 80 },
@@ -33,9 +35,9 @@ export function bpmnNodeSize(node: FlowNode): NodeSize {
 export interface BpmnLayoutOptions extends Omit<LayoutOptions, "direction" | "groups"> {
   /** Lanes as stacked bands (default when lane groups exist), as ELK compounds, or ignored. */
   lanes?: "bands" | "compound" | "ignore";
-  /** Vertical distance between rows inside a lane. Default 24. */
+  /** Vertical distance between rows inside a lane. Default 56. */
   rowGap?: number;
-  /** Padding inside a lane above the first and below the last row. Default 30. */
+  /** Padding inside a lane above the first and below the last row. Default 48. */
   lanePadding?: number;
   /** Width of the label strip on the left of pool and lanes. Default 30. */
   labelWidth?: number;
@@ -140,18 +142,17 @@ export function manhattanRoute(s: Box, t: Box, kinds: { source: FlowNode["kind"]
  * sequence flows are routed orthogonally. Nested lanes span their children.
  */
 export async function layoutBpmn(graph: FlowGraph, options: BpmnLayoutOptions = {}): Promise<Positions> {
-  const { lanes: laneMode, rowGap = 24, lanePadding = 30, labelWidth = 30, poolPadding = 40, ...rest } = options;
-  const base: LayoutOptions = { ...rest, direction: "RIGHT", nodeSize: rest.nodeSize ?? bpmnNodeSize, spacing: { node: 24, layer: 60, ...(rest.spacing ?? {}) } };
+  const { lanes: laneMode, rowGap = 56, lanePadding = 48, labelWidth = 30, poolPadding = 40, ...rest } = options;
+  const base: LayoutOptions = { ...rest, direction: "RIGHT", nodeSize: rest.nodeSize ?? bpmnNodeSize, spacing: { node: 56, layer: 80, ...(rest.spacing ?? {}) } };
   const { lanes, laneOf } = assignLanes(graph);
   const mode = laneMode ?? (lanes.length ? "bands" : "ignore");
   if (mode === "compound") return layout(graph, { ...base, groups: "compound" });
   const elk = await layout(graph, { ...base, groups: "ignore" });
   if (mode === "ignore" || lanes.length === 0) return elk;
 
-  const nodeById = new Map(graph.nodes.map((n) => [n.id, n]));
   const nodes: Record<string, Box> = {};
   const groups: Record<string, Box> = {};
-  const rowHeight = Math.max(...Object.values(BPMN_SIZES).map((s) => s.height)) + rowGap;
+  const rowHeight = Math.max(80, ...Object.values(elk.nodes).map((b) => b.height)) + rowGap;
   const minX = Math.min(...Object.values(elk.nodes).map((b) => b.x));
   const x0 = labelWidth * 2 + poolPadding;
   let y = 0;
@@ -206,13 +207,7 @@ export async function layoutBpmn(graph: FlowGraph, options: BpmnLayoutOptions = 
   }
   if (!all.some((g) => g.kind === "pool" && !g.parent)) groups[POOL_ID] = { x: 0, y: 0, width: poolWidth, height: y };
 
-  const edges: Record<string, EdgeRoute> = {};
-  for (const e of graph.edges) {
-    const s = nodes[e.source];
-    const t = nodes[e.target];
-    if (!s || !t || e.source === e.target) continue;
-    edges[e.id] = manhattanRoute(s, t, { source: nodeById.get(e.source)?.kind ?? "activity", target: nodeById.get(e.target)?.kind ?? "activity" });
-  }
+  const edges = routeSequenceFlows(graph, nodes);
   const partial = { nodes, groups, edges };
   return { ...partial, bounds: positionsBounds(partial), engine: elk.engine, direction: "RIGHT" };
 }
