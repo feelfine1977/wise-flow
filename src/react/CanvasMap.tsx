@@ -56,9 +56,8 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
   const fitted = useRef<string | undefined>(undefined);
   const fittedView = useRef<unknown>(undefined);
   const fitNow = () => {
-    const r = rendererRef.current;
-    r?.fit();
-    fittedView.current = r?.getViewport();
+    rendererRef.current?.fit();
+    fittedView.current = rendererRef.current?.getViewport();
   };
   const [ready, setReady] = useState(false);
 

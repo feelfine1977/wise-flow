@@ -46,11 +46,12 @@ interface View {
   zoom: number;
 }
 
-/** The node drawn nearest the centre of a view, with its centre and the view. */
+/** The node drawn nearest the centre of a view, with its centre and the view; `to` is the layout it holds the view for. */
 interface Anchor {
   id: string;
   centre: XY;
   view: View;
+  to?: Positions;
 }
 
 const centreOf = (b: { x: number; y: number; width: number; height: number }): XY => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
@@ -226,7 +227,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   const moved = useRef(false);
   const drawn = useRef(positions);
   useLayoutEffect(() => void (drawn.current = positions), [positions]);
-  const [fit, setFit] = useState<{ key: string; laid: string; count: number; anchor?: Anchor; hold?: boolean; arrived?: Positions }>({ key: laidKey, laid: laidKey, count: 0 });
+  const [fit, setFit] = useState<{ key: string; laid: string; count: number; anchor?: Anchor; hold?: boolean }>({ key: laidKey, laid: laidKey, count: 0 });
   if (fit.count !== arrival.count) {
     const r = canvasRef.current?.renderer();
     const { transform: [x, y, zoom], width, height } = flowStore.getState();
@@ -234,17 +235,16 @@ function ProcessMapInner(props: ProcessMapProps) {
     const current = useCanvas ? r && { ...r.getViewport(), width: rect!.width, height: rect!.height } : { x, y, zoom, width, height };
     const keep = !fitView || (useCanvas ? canvasRef.current?.moved() : moved.current);
     const anchor = current && keep ? anchorAt(drawn.current, current) : undefined;
-    setFit({ ...fit, count: arrival.count, anchor, hold: !!anchor, arrived: target });
+    setFit({ ...fit, count: arrival.count, anchor: anchor && { ...anchor, to: target }, hold: !!anchor });
   } else if (!arrival.moving && fit.laid !== laidKey) {
-    setFit({ key: fit.hold ? fit.key : laidKey, laid: laidKey, count: fit.count, anchor: fit.hold ? fit.anchor : undefined, arrived: fit.arrived });
+    setFit({ key: fit.hold ? fit.key : laidKey, laid: laidKey, count: fit.count, anchor: fit.hold ? fit.anchor : undefined });
   }
   const fitKey = fit.key;
   const userMove = () => void (moved.current = true);
   const { anchor } = fit;
   useLayoutEffect(() => {
     const box = anchor && positions?.nodes[anchor.id];
-    // Only on the way to the layout the anchor was taken for; later positions leave the view alone.
-    if (!anchor || !box || (!arrival.moving && arrival.positions !== fit.arrived)) return;
+    if (!anchor || !box || (!arrival.moving && arrival.positions !== anchor.to)) return;
     const { centre, view: v } = anchor;
     const next = { x: v.x + (centre.x - centreOf(box).x) * v.zoom, y: v.y + (centre.y - centreOf(box).y) * v.zoom, zoom: v.zoom };
     if (useCanvas) {
