@@ -52,6 +52,32 @@ function drawn(fixture: Fixture, options: PrepareOptions): string {
   return digest();
 }
 
+/** Flow rectangles that cut through every group of the fixture, so culling leaves out nodes, edges and marks but no group. */
+type Strip = { x: number; y: number; width: number; height: number };
+
+/** Calls of culled draws of the strip at two zooms, plain and with a selection, hover and focus of paths. */
+function culled(fixture: Fixture, options: PrepareOptions, strip: Strip): { digest: string; drawn: number; total: number } {
+  const { graph, positions: p, overlays } = fixture();
+  const scene = prepareScene(graph, p, { overlays, ...options });
+  const { ctx, digest } = loggingContext();
+  const [first, second] = scene.edges;
+  const state = {
+    selection: { nodes: [scene.nodes[1].node.id], edges: [first.edge.id], groups: [scene.groups[0].group.id] },
+    hovered: second.edge.id,
+    focused: scene.nodes[2].node.id,
+    bright: { nodes: new Set([scene.nodes[1].node.id, first.edge.source, first.edge.target]), edges: new Set([first.edge.id]) },
+  };
+  let drawn = 0;
+  for (const zoom of [1, 0.3]) {
+    const view = { x: -strip.x * zoom, y: -strip.y * zoom, zoom, width: strip.width * zoom, height: strip.height * zoom };
+    for (const s of [undefined, state]) {
+      const stats = drawScene(ctx, scene, view, s, { cull: true });
+      drawn = Math.max(drawn, stats.nodes + stats.edges + stats.shapes);
+    }
+  }
+  return { digest: digest(), drawn, total: scene.nodes.length + scene.edges.length + scene.marks.length };
+}
+
 function exported(fixture: Fixture, scene: Partial<Scene>, options: PngOptions): string {
   const { ctx, digest } = loggingContext();
   toPNGCanvas({ ...fixture(), ...scene }, { scale: 1, createCanvas: (width, height) => ({ width, height, getContext: () => ctx }), ...options });
@@ -92,6 +118,17 @@ const before = {
   pngUnfilteredGerman: "a128bd5ac5e03630189b933c3b6fa84630e28f7d4b6ba8e61324def43c445918",
 };
 
+/**
+ * SHA-256 of the recorded calls of culled draws, recorded while the drawing
+ * still walked every element and tested it against the R-tree's result.
+ */
+const culledBefore = {
+  culledGlobal: "bac0dd01c958408e73f20c6aef7e19fdd63df1b18df85e7250820596389458f0",
+  culledGlobalStages: "177a0be9328cdbf9a1cc424a40e746527754015b2143b598312387fe30a6b1e2",
+  culledVendorIds: "df3a144324a48baae2c50086752728ffe6ea86113d2529c13d2e3ce32e23320f",
+  culledUnfiltered: "d7060d0bfb1109996132693d55950e32d8978e10004f40c87fc75e5a60fd1ba2",
+};
+
 describe("Canvas drawing on the committed fixtures", () => {
   it("records the pinned calls for the Canvas map and for toPNG", () => {
     expect({
@@ -102,5 +139,16 @@ describe("Canvas drawing on the committed fixtures", () => {
       pngVendorIds: exported(fixtures.vendor, { activityLabels: ids }, {}),
       pngUnfilteredGerman: exported(fixtures.unfiltered, { selfLoops: false, locale: "de" }, { lodZoom: 1, legend: false }),
     }).toEqual(before);
+  });
+
+  it("records the pinned calls for views culled through the R-tree", () => {
+    const views = {
+      culledGlobal: culled(fixtures.global, {}, { x: 0, y: 150, width: 2900, height: 330 }),
+      culledGlobalStages: culled(fixtures.global, { lanes: "stages" }, { x: 0, y: 300, width: 2900, height: 100 }),
+      culledVendorIds: culled(fixtures.vendor, { activityLabels: ids }, { x: 0, y: 100, width: 2500, height: 120 }),
+      culledUnfiltered: culled(fixtures.unfiltered, {}, { x: 0, y: 150, width: 2900, height: 330 }),
+    };
+    for (const v of Object.values(views)) expect(v.drawn).toBeLessThan(v.total);
+    expect(Object.fromEntries(Object.entries(views).map(([k, v]) => [k, v.digest]))).toEqual(culledBefore);
   });
 });
