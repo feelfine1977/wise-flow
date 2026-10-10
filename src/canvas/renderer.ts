@@ -41,8 +41,10 @@ export class CanvasRenderer {
   drawOptions: Omit<DrawOptions, "tokens">;
   /** Called after the viewport changed through `setViewport`, `panBy`, `zoomBy`, `centerOn` or `fit`. */
   onViewportChange?: (v: Viewport) => void;
-  /** Statistics of the last draw. */
-  lastDraw: { nodes: number; edges: number; shapes: number; culled: boolean; ms: number } | undefined;
+  /** Statistics of the last draw; `withheld` when the edge budget left edges in view out. */
+  lastDraw: (ReturnType<typeof drawScene> & { ms: number }) | undefined;
+  /** Called after every draw with its statistics. */
+  onDraw?: (stats: NonNullable<CanvasRenderer["lastDraw"]>) => void;
 
   constructor(canvas: HTMLCanvasElement, options: CanvasRendererOptions = {}) {
     this.canvas = canvas;
@@ -146,11 +148,12 @@ export class CanvasRenderer {
     return { x: p.x, y: p.y, width: b.width * this.viewport.zoom, height: b.height * this.viewport.zoom };
   }
 
-  /** The best hit under a screen point: overlays first, then nodes, edges, groups. */
+  /** The best hit under a screen point: overlays first, then nodes, edges, groups; not an edge the last draw withheld. */
   hitAt(screenX: number, screenY: number, tolerancePx = 4): HitItem | undefined {
     if (!this.scene) return undefined;
     const p = this.toFlow(screenX, screenY);
-    return this.scene.hit.at(p.x, p.y, tolerancePx / this.viewport.zoom)[0];
+    const cut = this.lastDraw?.withheld;
+    return this.scene.hit.at(p.x, p.y, tolerancePx / this.viewport.zoom).find((it) => !cut || it.kind !== "edge" || it.index === undefined || cut.drawn.has(it.index));
   }
 
   requestDraw(): void {
@@ -174,6 +177,7 @@ export class CanvasRenderer {
     ctx.restore();
     const ended = typeof performance !== "undefined" ? performance.now() : Date.now();
     this.lastDraw = { ...stats, ms: ended - started };
+    this.onDraw?.(this.lastDraw);
   }
 
   dispose(): void {

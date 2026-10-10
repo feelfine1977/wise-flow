@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import { constraintItems, globalScene, vendorScene, vendorSceneKey } from "../../fixtures/bpic2019";
 import { type ActivityLabelOptions, type FlowGraph, type Overlay, type Positions, abstract, layout, overlaysFor } from "../../src/index";
-import { type DrawContext, type PrepareOptions, type PngOptions, drawLegend, drawScene, prepareScene, toPNGCanvas } from "../../src/canvas/index";
+import { type DrawContext, type DrawOptions, type PrepareOptions, type PngOptions, drawLegend, drawScene, prepareScene, toPNGCanvas } from "../../src/canvas/index";
 import type { Scene } from "../../src/index";
 
 /** A 2D context that logs every call and assignment with its arguments. */
@@ -43,11 +43,11 @@ const fixtures: Record<string, Fixture> = {
   unfiltered: () => ({ graph: global, positions: positions.global, overlays: overlaysFor(constraintItems()) }),
 };
 
-function drawn(fixture: Fixture, options: PrepareOptions): string {
+function drawn(fixture: Fixture, options: PrepareOptions, edgeBudget?: DrawOptions["edgeBudget"]): string {
   const { graph, positions: p, overlays } = fixture();
   const scene = prepareScene(graph, p, { overlays, ...options });
   const { ctx, digest } = loggingContext();
-  for (const zoom of [1, 0.3, 0.1]) drawScene(ctx, scene, { x: 10, y: 10, zoom, width: 4000, height: 3000 }, undefined, { cull: false });
+  for (const zoom of [1, 0.3, 0.1]) drawScene(ctx, scene, { x: 10, y: 10, zoom, width: 4000, height: 3000 }, undefined, { cull: false, edgeBudget });
   drawLegend(ctx, scene, 0, 0, 200);
   return digest();
 }
@@ -56,7 +56,7 @@ function drawn(fixture: Fixture, options: PrepareOptions): string {
 type Strip = { x: number; y: number; width: number; height: number };
 
 /** Calls of culled draws of the strip at two zooms, plain and with a selection, hover and focus of paths. */
-function culled(fixture: Fixture, options: PrepareOptions, strip: Strip): { digest: string; drawn: number; total: number } {
+function culled(fixture: Fixture, options: PrepareOptions, strip: Strip, edgeBudget?: DrawOptions["edgeBudget"]): { digest: string; drawn: number; total: number } {
   const { graph, positions: p, overlays } = fixture();
   const scene = prepareScene(graph, p, { overlays, ...options });
   const { ctx, digest } = loggingContext();
@@ -71,7 +71,7 @@ function culled(fixture: Fixture, options: PrepareOptions, strip: Strip): { dige
   for (const zoom of [1, 0.3]) {
     const view = { x: -strip.x * zoom, y: -strip.y * zoom, zoom, width: strip.width * zoom, height: strip.height * zoom };
     for (const s of [undefined, state]) {
-      const stats = drawScene(ctx, scene, view, s, { cull: true });
+      const stats = drawScene(ctx, scene, view, s, { cull: true, edgeBudget });
       drawn = Math.max(drawn, stats.nodes + stats.edges + stats.shapes);
     }
   }
@@ -150,5 +150,17 @@ describe("Canvas drawing on the committed fixtures", () => {
     };
     for (const v of Object.values(views)) expect(v.drawn).toBeLessThan(v.total);
     expect(Object.fromEntries(Object.entries(views).map(([k, v]) => [k, v.digest]))).toEqual(culledBefore);
+  });
+
+  it("records the same calls with the edge budget at all or above the edges in view", () => {
+    for (const edgeBudget of ["all", 10_000] as const) {
+      expect(drawn(fixtures.global, { lanes: "stages" }, edgeBudget)).toBe(before.mapGlobalStages);
+      expect(drawn(fixtures.vendor, { activityLabels: ids }, edgeBudget)).toBe(before.mapVendorIds);
+      expect(drawn(fixtures.unfiltered, {}, edgeBudget)).toBe(before.mapUnfiltered);
+      expect(culled(fixtures.global, {}, { x: 0, y: 150, width: 2900, height: 330 }, edgeBudget).digest).toBe(culledBefore.culledGlobal);
+      expect(culled(fixtures.unfiltered, {}, { x: 0, y: 150, width: 2900, height: 330 }, edgeBudget).digest).toBe(culledBefore.culledUnfiltered);
+    }
+    // A budget below the edges in view changes the calls.
+    expect(drawn(fixtures.global, { lanes: "stages" }, 5)).not.toBe(before.mapGlobalStages);
   });
 });
