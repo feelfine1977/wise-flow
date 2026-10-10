@@ -6,7 +6,7 @@
  */
 import { MarkerType } from "@xyflow/react";
 import { useCallback, useMemo } from "react";
-import { type ActivityLabelOptions, type ElementRef, type FlowGraph, type FlowScene, type HitItem, type Locale, type Overlay, type OverlayMark, type Positions, type Selection, arrowheadTokens, describeOverlay, indexGraph } from "../core/index.js";
+import { type ActivityLabelOptions, type ElementRef, type FlowGraph, type FlowScene, type GraphIndex, type HitItem, type Locale, type Overlay, type OverlayMark, type Positions, type Selection, arrowheadTokens, describeOverlay, indexGraph } from "../core/index.js";
 import type { DrawState, PreparedScene } from "../canvas/index.js";
 import { retainScene } from "../canvas/scene.js";
 import { describeIndexedEdge } from "../core/describe.js";
@@ -225,21 +225,69 @@ interface CanvasInput {
   bright: Bright;
   locale: Locale;
   activityLabels: ActivityLabelOptions | undefined;
+  /** Activities plus groups above which the element list holds only the neighbourhood of the keyboard position. */
+  limit?: number;
+}
+
+/**
+ * The elements listed around `at` (a node or an edge), at most `limit`: an
+ * edge, its ends, or the node; their groups; then the predecessors and
+ * successors of the node or the ends, in the order of their paths.
+ */
+function neighbourhood(index: GraphIndex, at: string, limit: number): ElementRef[] {
+  const out: ElementRef[] = [];
+  const seen = new Set<string>();
+  const add = (kind: ElementRef["kind"], id: string) => {
+    const key = `${kind}:${id}`;
+    if (out.length < limit && !seen.has(key)) {
+      seen.add(key);
+      out.push({ kind, id });
+    }
+  };
+  const edge = index.edges.get(at);
+  const centres = (edge ? [edge.source, edge.target] : [at]).filter((id) => index.nodes.has(id));
+  if (edge) add("edge", edge.id);
+  for (const id of centres) add("node", id);
+  for (const id of centres) {
+    const group = index.nodes.get(id)!.group;
+    if (group && index.groups.has(group)) add("group", group);
+  }
+  for (const id of centres) {
+    for (const e of index.incoming.get(id) ?? []) if (index.nodes.has(e.source)) add("node", e.source);
+    for (const e of index.outgoing.get(id) ?? []) if (index.nodes.has(e.target)) add("node", e.target);
+  }
+  return out;
+}
+
+/** The activity Home goes to: the first node with a box, left to right and top to bottom. */
+function firstInReadingOrder(graph: FlowGraph, positions: Positions | undefined): string | undefined {
+  let first: string | undefined;
+  for (const n of graph.nodes) {
+    const b = positions?.nodes[n.id];
+    const f = first === undefined ? undefined : positions!.nodes[first];
+    if (b && (!f || b.x < f.x || (b.x === f.x && b.y < f.y))) first = n.id;
+  }
+  return first;
 }
 
 /** The Canvas map's retained scene, its draw state, its element list and its tooltip texts. */
 export function useCanvasElements(input: CanvasInput) {
-  const { enabled, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels } = input;
+  const { enabled, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, limit = Infinity } = input;
   const { describeElement, index } = descriptions;
   const canvasScene = useMemo<PreparedScene | undefined>(() => (enabled && positions ? retainScene(scene) : undefined), [enabled, positions, scene]);
   const canvasState = useMemo<DrawState>(() => ({ selection, hovered, focused, bright }), [selection, hovered, focused, bright]);
+  const bounded = enabled && shown.nodes.length + (shown.groups?.length ?? 0) > limit;
+  // Above the limit the list follows the keyboard: its element, else the activity it starts from.
+  const home = useMemo(() => (bounded ? firstInReadingOrder(shown, positions) : undefined), [bounded, shown, positions]);
+  const centre = bounded ? [focused, selection.nodes[0], home].find((id): id is string => id != null && (index.nodes.has(id) || index.edges.has(id))) : undefined;
   const canvasDescendants = useMemo(() => {
     if (!enabled) return undefined;
+    if (bounded) return centre === undefined ? [] : neighbourhood(index, centre, limit).map((ref) => ({ ...ref, description: describeElement(ref) }));
     const list: { id: string; kind: ElementRef["kind"]; description: string }[] = shown.nodes.map((n) => ({ id: n.id, kind: "node" as const, description: describeElement({ kind: "node", id: n.id }) }));
     for (const g of shown.groups ?? []) list.push({ id: g.id, kind: "group" as const, description: describeElement({ kind: "group", id: g.id }) });
     if (focused && index.edges.has(focused)) list.push({ id: focused, kind: "edge" as const, description: describeElement({ kind: "edge", id: focused }) });
     return list;
-  }, [enabled, shown, index, focused, describeElement]);
+  }, [enabled, bounded, centre, limit, shown, index, focused, describeElement]);
   const describeHit = useCallback(
     (hit: HitItem): string | undefined => {
       if (activityLabels && hit.kind === "node" && index.nodes.get(hit.id)?.kind === "activity") return undefined;
@@ -253,5 +301,5 @@ export function useCanvasElements(input: CanvasInput) {
     },
     [canvasScene, describeElement, locale, activityLabels, index],
   );
-  return { scene: canvasScene, state: canvasState, descendants: canvasDescendants, describe: describeHit };
+  return { scene: canvasScene, state: canvasState, descendants: canvasDescendants, describe: describeHit, bounded };
 }

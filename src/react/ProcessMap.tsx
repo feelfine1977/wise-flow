@@ -11,7 +11,7 @@ import {
   type OnNodesChange,
 } from "@xyflow/react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { type AbstractOptions, type ElementRef, type FlowGraph, type XY, activityNodeSize, activityReferences, coversGraph, defaultStyle, lodAt, t } from "../core/index.js";
+import { type AbstractOptions, type ElementRef, type FlowGraph, type XY, activityNodeSize, activityReferences, coversGraph, defaultStyle, formatCount, lodAt, t } from "../core/index.js";
 import { type MapContext, mapEmphasis, menuHeading } from "../core/map-controller.js";
 import { ActivityTooltip } from "./ActivityTooltip.js";
 import { AbstractionControls } from "./AbstractionControls.js";
@@ -34,6 +34,8 @@ import { TableAlternative } from "./TableAlternative.js";
 import { type ProcessMapProps, type Selection, type WfEdge, type WfGroupNode, type WfNode } from "./types.js";
 
 const DEFAULT_CANVAS_THRESHOLD = 2000;
+const DEFAULT_DESCRIBED_LIMIT = 500;
+const TABLE_PAGE_SIZE = 100;
 
 const NO_MOVES: Readonly<Record<string, XY>> = {};
 
@@ -62,6 +64,7 @@ function ProcessMapInner(props: ProcessMapProps) {
     onNodeMove,
     layoutResetKey,
     canvasThreshold = DEFAULT_CANVAS_THRESHOLD,
+    describedLimit = DEFAULT_DESCRIBED_LIMIT,
     children,
   } = props;
 
@@ -163,7 +166,14 @@ function ProcessMapInner(props: ProcessMapProps) {
 
   // React Flow nodes and edges, or the Canvas scene, its state and the elements listed for assistive technology.
   const flow = useFlowElements({ enabled: !useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, nodesDraggable });
-  const canvas = useCanvasElements({ enabled: useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels });
+  const canvas = useCanvasElements({ enabled: useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, limit: describedLimit });
+  const largeTable = shown.nodes.length + (shown.groups?.length ?? 0) > describedLimit;
+  // A bounded element list says so, with the totals the table view lists.
+  const bounded = canvas.bounded ? t(locale, "map.described.bounded", { nodes: formatCount(shown.nodes.length, locale), edges: formatCount(shown.edges.length, locale) }) : undefined;
+  const { announce } = controller;
+  useEffect(() => {
+    if (bounded) announce(bounded);
+  }, [bounded, announce]);
   const canvasScene = canvas.scene;
   const canvasHandlers = useMemo(() => canvasPointer(dispatch, canvasScene?.shapeById, shown), [dispatch, canvasScene, shown]);
 
@@ -301,6 +311,7 @@ function ProcessMapInner(props: ProcessMapProps) {
       <p id={descId} className="wf-sr-only">
         {description}
         {useCanvas ? ` ${t(locale, "map.renderer.canvas", { nodes: shown.nodes.length, edges: shown.edges.length })}` : ""}
+        {bounded ? ` ${bounded}` : ""}
       </p>
       <p id={liveId} className="wf-sr-only" aria-live="polite" data-testid="wf-live">
         {controller.live}
@@ -310,7 +321,7 @@ function ProcessMapInner(props: ProcessMapProps) {
         {view === "table" ? (
           <div style={{ position: "absolute", inset: 0, overflow: "auto", padding: 12 }}>
             {controlsElement}
-            <TableAlternative graph={shown} overlays={overlays} scales={scales} locale={locale} selection={selection} onSelect={select} />
+            <TableAlternative graph={shown} overlays={overlays} scales={scales} locale={locale} selection={selection} onSelect={select} pageSize={largeTable ? TABLE_PAGE_SIZE : undefined} />
           </div>
         ) : useCanvas ? (
           <>
