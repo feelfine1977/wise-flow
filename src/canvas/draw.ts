@@ -533,7 +533,7 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
     each(scene.marks, "overlay", markId, (m) => {
       if (m.layer !== layer || !m.inMap || lodZoom < m.minZoom) return;
       // Marks below the edges cover whole elements and are not highlighted on hover.
-      drawMark(ctx, scene, m, tokens, layer === "above" && state.hovered === m.id, options);
+      drawMark(ctx, scene, m, tokens, layer !== "below" && state.hovered === m.id, options);
       shapes++;
     });
   marks("below");
@@ -547,6 +547,7 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
     drawEdge(ctx, e, tokens, highlighted, dimmed);
     edges++;
   });
+  marks("between");
 
   let nodes = 0;
   each(scene.nodes, "node", nodeId, (n) => {

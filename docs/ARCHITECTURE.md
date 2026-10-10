@@ -204,13 +204,17 @@ group id or `__map`. Presets map a constraint description (presence,
 singularity, exclusion, lag, precedence, balance / metric, applicability)
 and its statistics to overlays with formatted readings. Renderers draw
 overlays; the core computes their geometry (badge slots along the node's
-top edge, cubic arcs above the map and reverse arcs below it, self-loops at
-the corner, chips inside groups) within a declared margin around the
-layout, and their visibility by zoom level. Overlays are drawn in a
+top edge, cubic arcs above the map and reverse arcs below it, each at the
+height or on the side that crosses the fewest other activities, with its
+label on it where it covers no activity, other arc label or group title,
+self-loops at the corner, chips inside groups) within a declared margin
+around the layout, and their visibility by zoom level. Overlays are drawn in a
 canonical order so that exports do not depend on input order. The scene
 carries one resolved mark per placed overlay (box or path, fill, stroke,
 dash, arrowhead, texts, layer, zoom threshold, whether it is drawn on the
-map); one mapping turns a mark into SVG elements, which the SVG export
+map); the layer puts tints below the edges, arcs between the edges and the
+nodes, so that a node and its badges stay readable where an arc crosses it,
+and the other marks above the nodes; one mapping turns a mark into SVG elements, which the SVG export
 writes and the React map and the BPMN view create in the DOM, and the Canvas
 drawing maps the same primitives to 2D calls. Nodes and edges have marks
 too: a node's outline, fill, border, colour band and texts (label or glyph,
@@ -305,7 +309,9 @@ with custom components per node and edge kind that draw the scene's node
 and edge marks; groups as parent nodes;
 the scene's overlay marks drawn by the node and group components that carry
 them (badges, hatching, chips at their boxes, each from its zoom; tints as
-background layers) and by an SVG layer in the viewport (arcs, self-loops);
+background layers) and by SVG layers in the viewport (arcs in React Flow's
+edge label layer, above the edges and below the nodes; self-loops above the
+nodes);
 edge labels and node details toggled through level-of-detail classes on the
 container. Abstraction controls (activities, paths, stage
 view, keep connected, table view) in a panel; the legend always visible.
@@ -331,8 +337,8 @@ area shrinks and is fitted again); `FilterChips` sit above the map;
 `prepareScene` builds on the core scene (graph, positions, scales,
 overlays, lane bands, level of detail, overlay geometry and marks) and adds
 retained geometry with the R-tree of the core; `drawScene` issues plain 2D
-context calls for a viewport (groups and bands, edges with arrowheads, nodes
-with pattern twins, the overlay marks, edge labels), decides the level of
+context calls for a viewport (groups and bands, tints, edges with arrowheads,
+arcs, nodes with pattern twins, the other overlay marks, edge labels), decides the level of
 detail from the zoom and, above 1,500 elements, draws only what the R-tree
 finds inside the viewport, reading each element by its position in the
 scene's lists so that a draw costs what the view holds. With an edge

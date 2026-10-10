@@ -140,6 +140,26 @@ describe("Canvas overlay marks", () => {
     ]);
   });
 
+  it("paints the arcs above the edges and below the nodes and their badges, on the map and in toPNG", () => {
+    // What each call paints: the edges a → b and b → c, the two arcs, the three nodes' outlines and the two badges.
+    const parts: [string, string][] = [
+      ["edge", "M100,20 L200,20"], ["edge", "M300,20 L400,20"],
+      ["arc", "M50,0 C50,-88,450,-88,450,0"], ["arc", "M450,40 C450,142,50,142,50,40"],
+      ["node", "M6,0 L94,0"], ["node", "M206,0 L294,0"], ["node", "M406,0 L494,0"],
+      ["badge", "M87,-11"], ["badge", "M285,-11"],
+    ];
+    const order = (ops: Op[]) => ops.flatMap((o) => (o.op === "stroke" ? parts.filter(([, at]) => o.path?.startsWith(at)).map(([part]) => part) : []));
+    const painted = ["edge", "edge", "arc", "arc", "node", "node", "node", "badge", "badge"];
+    expect(order(draw())).toEqual(painted);
+    const scene = prepareScene(graph, positions, { overlays, selfLoops: false, lodBySize: false });
+    const culled = drawingContext();
+    drawScene(culled.ctx, scene, { x: 0, y: 0, zoom: 1, width: 1000, height: 600 }, undefined, { cull: true });
+    expect(order(culled.ops)).toEqual(painted);
+    const png = drawingContext();
+    toPNGCanvas({ graph, positions, overlays, selfLoops: false }, { legend: false, scale: 1, createCanvas: (width, height) => ({ width, height, getContext: () => png.ctx }) });
+    expect(order(png.ops)).toEqual(painted);
+  });
+
   it("takes the arrowhead from the mark", () => {
     const scene = prepareScene(graph, positions, { overlays, selfLoops: false, lodBySize: false });
     const marks = scene.marks.map((m) => (m.arrow ? { ...m, arrow: { size: 20, overhang: 0.5 } } : m));

@@ -13,7 +13,7 @@ import { type Box, type Positions, type XY, unionBoxes } from "./layout.js";
 import { type LaneBand, type LaneMode, laneBands } from "./lanes.js";
 import { type FlowGraph, type Overlay, MAP_TARGET } from "./model.js";
 import { withFollowsSelfLoops } from "./observed-loops.js";
-import { type OverlayGeometry, type OverlayGeometryOptions, placeOverlays } from "./overlay-geometry.js";
+import { type OverlayGeometry, type OverlayGeometryOptions, groupTitles, placeOverlays } from "./overlay-geometry.js";
 import { type OverlayMark, overlayMarks } from "./overlay-marks.js";
 import { canonicalOverlays } from "./overlays.js";
 import { repositionNodes } from "./routing.js";
@@ -91,7 +91,7 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
   const overlays = canonicalOverlays(shownOverlays(graph, options.overlays ?? graph.overlays ?? [], options, locale));
   const rules = { ...(style.lod ?? {}), ...(options.lod ?? {}) };
   const lod = options.lodBySize ? lodForSize(graph.nodes.length, rules) : { ...defaultLod, ...rules };
-  const geometry = placeOverlays(overlays, positions, { ...(options.overlayGeometry ?? {}), lod });
+  const geometry = placeOverlays(overlays, positions, { ...(options.overlayGeometry ?? {}), lod }, groupTitles(graph.groups ?? [], positions));
   const marks = overlayMarks(geometry.shapes, locale);
   const scales = buildScales(graph, style);
   return {

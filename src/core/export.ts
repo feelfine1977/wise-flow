@@ -251,6 +251,7 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
   parts.push(drawGroups(ctx));
   parts.push(drawMarks(ctx, "below"));
   parts.push(drawEdges(ctx));
+  parts.push(drawMarks(ctx, "between"));
   parts.push(drawNodes(ctx));
   parts.push(drawMarks(ctx, "above"));
   parts.push(`</g>`);

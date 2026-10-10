@@ -360,6 +360,25 @@ without evaluated cases read "not applicable in this scene".
 anchors, minimum zoom) that never extend beyond `overlayMargin()` around the
 positions' bounds.
 
+An arc keeps clear of the activities between its ends where it can. Its
+default course runs above the map from the tops of its ends (below from the
+bottoms for a reverse arc) at a height of 22 % of its span, at least 40,
+plus 14 for each earlier arc on the same pair, at most 140 (`arcHeight`). When
+that course, drawn at its stroke width, crosses the box of a node other than
+its ends, the arc takes the course that crosses the fewest: first on its own
+side, then on the other, each from the nearest height in steps of 14 (the
+further one first when two are equally near, up to 32 steps), within the
+margin. A tie keeps the earlier course, so an arc that crosses nothing is
+drawn as before. The dash and the glyph still tell a reverse arc from a
+forward one on either side. The arc's label sits on it, 8 above the curve
+(14 below for a course below the map), at the point nearest the middle (in
+steps of 1/32 of the curve) where its box (11 per character and 4 on either
+side, from 14 above its baseline to 4 below) covers no node, no earlier
+arc's label and no group's title; where none is free, at the point that
+covers the fewest. Before, every arc took its default course and its label
+sat at the middle. `buildScene` and the renderers reading it (SVG, PNG, the
+Canvas map, the React map and the BPMN view) all draw these courses.
+
 ## Hit index and export
 
 ```ts
@@ -563,8 +582,10 @@ Overlays on the map are drawn from the scene's marks (see "Scene"). A node or
 group draws the marks it carries (badges, chips, hatching) inside itself, at
 the boxes the core gives them, each from its `minZoom`, and the marks that
 cover it (tints) as background layers; `<OverlayLayer/>` draws the marks that
-run between elements (arcs, self-loops) in flow coordinates; the legend lists
-map-level chips. The stylesheet holds only the layout of these drawings; it no
+run between elements in flow coordinates: arcs above the edges and below the
+nodes (in React Flow's edge label layer, which lies between them), so that a
+node and the badges it carries stay readable where an arc crosses it, and
+self-loops above the nodes; the legend lists map-level chips. The stylesheet holds only the layout of these drawings; it no
 longer positions or colours badges and chips itself.
 
 ```ts
@@ -582,7 +603,9 @@ export function Chip(props: { chip: Overlay; locale: Locale }): JSX.Element | nu
 ```
 
 `<OverlayLayer/>` draws the given `marks` (or the marks of `shapes`) that are
-on the map and above the nodes, each from its `minZoom` when `zoom` is given;
+on the map and not below the edges, each from its `minZoom` when `zoom` is
+given: those of the layer `between` (arcs) between the edges and the nodes,
+the others above the nodes (before, every mark it drew lay above the nodes);
 `onSelect` receives the shape of a clicked mark. `showArcs` and
 `showSelfLoops` are deprecated: without `zoom` the layer keeps its former
 behaviour and draws only arcs (with `showArcs`) and self-loops (with
@@ -1085,8 +1108,9 @@ tightens the level of detail with the number of nodes for a fitted live
 map; `bands` keeps caller-computed bands and the positions as given. `drawScene` issues plain 2D
 context calls (a screen canvas, an offscreen canvas for PNG, or a
 recording stub in tests): groups and bands, the scene's overlay marks below
-the edges (tints), edges with arrowheads, nodes with pattern twins, the
-marks above the nodes, edge labels; level of detail follows
+the edges (tints), edges with arrowheads, the marks between the edges and
+the nodes (arcs), nodes with pattern twins, the marks above the nodes, edge
+labels; level of detail follows
 `lodAt(o.lodZoom ?? view.zoom)` and each mark is drawn from its `minZoom`;
 a hovered mark shows its value colour in the focus colour; above 1,500
 elements (or with `cull: true`) only the groups, marks, edges and nodes the
@@ -1211,7 +1235,7 @@ export interface MarkStroke { paint: MarkPaint; width: number; opacity?: number;
 export interface MarkText { text: string; x: number; y: number; size: number; weight?: number; anchor: "start" | "middle" | "end";
   baseline: "middle" | "alphabetic"; paint: MarkPaint; halo: boolean; maxWidth?: number; lead?: string }
 export interface MarkGauge { x: number; y: number; width: number; height: number; value: number; threshold: number } // shares 0–1
-export interface OverlayMark { id: string; kind: OverlayKind; overlay: Overlay; box: Box; layer: "below" | "above"; inMap: boolean;
+export interface OverlayMark { id: string; kind: OverlayKind; overlay: Overlay; box: Box; layer: "below" | "between" | "above"; inMap: boolean;
   minZoom: number; color: string; onColor: string; title: string; radius: number; path?: string; fill?: MarkFill;
   stroke?: MarkStroke; arrow?: { size: number; overhang: number }; texts: MarkText[]; gauge?: MarkGauge; edgeId?: string }
 export function overlayMarks(shapes: OverlayShape[], locale?: Locale): OverlayMark[];
@@ -1272,7 +1296,9 @@ bands stay where the lanes put them) and routes the edges again with
 order, with everything needed to draw it: a rounded box (`box`, `radius`)
 or a `path`, fill, stroke with width, opacity and dash, an arrowhead, the
 texts with position, size, weight, anchor, baseline and halo, the layer
-(tints below the edges, everything else above the nodes), the zoom from
+(tints below the edges, arcs between the edges and the nodes, everything
+else above the nodes; arcs were above the nodes before, and `between` is a
+new value of `layer`), the zoom from
 which the mark is drawn (`minZoom`; observed self-loops at every zoom) and
 whether it is drawn on the map at all (`inMap`: map-level chips are listed
 with the legend instead). Colours are roles: `value` is the mark's `color`

@@ -62,8 +62,11 @@ export interface OverlayMark {
   overlay: Overlay;
   /** Extent of the mark in scene coordinates. */
   box: Box;
-  /** Drawn below the edges (tints) or above the nodes. */
-  layer: "below" | "above";
+  /**
+   * Drawn below the edges (tints), between the edges and the nodes (arcs, so that
+   * a node and its badges stay readable where an arc crosses it) or above the nodes.
+   */
+  layer: "below" | "between" | "above";
   /** Drawn on the map; map-level chips are listed with the legend instead. */
   inMap: boolean;
   /** Zoom from which the mark is drawn. */
@@ -134,6 +137,13 @@ export function chipText(overlay: Overlay, locale: Locale = "en"): { lead?: stri
   return p.label ? { lead: `${p.label}: `, text } : { text };
 }
 
+/** What an arc prints: its display label, or its glyph and share. */
+export function arcLabel(overlay: Overlay, locale: Locale = "en"): string {
+  const p = overlay.payload ?? {};
+  if (typeof p.displayLabel === "string") return p.displayLabel;
+  return `${p.glyph ?? ""} ${typeof p.value === "number" && Number.isFinite(p.value) ? formatShare(p.value, locale) : ""}`.trim();
+}
+
 /** One mark per shape, in the shapes' order. */
 export function overlayMarks(shapes: OverlayShape[], locale: Locale = "en"): OverlayMark[] {
   return shapes.map((s) => overlayMark(s, locale));
@@ -149,7 +159,7 @@ function overlayMark(s: OverlayShape, locale: Locale): OverlayMark {
     kind: s.kind,
     overlay: o,
     box: { x: s.x, y: s.y, width: s.width, height: s.height },
-    layer: s.kind === "tint" ? "below" : "above",
+    layer: s.kind === "tint" ? "below" : s.kind === "arc" ? "between" : "above",
     inMap: !(s.kind === "chip" && o.target === MAP_TARGET),
     minZoom: p.observed ? 0 : s.minZoom,
     color,
@@ -167,7 +177,7 @@ function overlayMark(s: OverlayShape, locale: Locale): OverlayMark {
     case "hatch":
       return { ...mark, radius: 6, fill: { paint: "outOfScope", pattern: "outOfScope", opacity: 0.55 } };
     case "arc": {
-      const label = typeof p.displayLabel === "string" ? p.displayLabel : `${p.glyph ?? ""} ${share}`.trim();
+      const label = arcLabel(o, locale);
       return {
         ...mark,
         path: s.path,

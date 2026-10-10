@@ -106,11 +106,12 @@ describe("toSVG overlay marks", () => {
   it("maps every mark to SVG primitives", () => {
     // The overlay arrowhead in user units: 12 long and wide, its tip 1.2 beyond the path's end.
     expect(svg).toContain('<marker id="wf-overlay-arrow" viewBox="-10.8 -6 12 12" refX="0" refY="0" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M1.2 0L-10.8 6L-10.8 -6Z" fill="context-stroke"/></marker>');
+    // In paint order: the tint below the edges, the arcs between the edges and the nodes, the rest above the nodes.
     expect(marks).toEqual([
       '<g class="wf-overlay wf-tint"><title>Balance — 50 % above</title><rect x="190" y="-10" width="320" height="60" rx="10" fill="#fd8d3c" fill-opacity="0.18" stroke="none"/></g>',
-      '<g class="wf-overlay wf-hatch"><title>Scope — Out of scope</title><rect x="0" y="0" width="100" height="40" rx="6" fill="url(#wf-pattern-outofscope)" fill-opacity="0.55" stroke="none"/></g>',
       `<g class="wf-overlay wf-arc"><title></title><path d="M50 0 C50 -88 450 -88 450 0" fill="none" stroke="#fdd0a2" stroke-width="6" stroke-opacity="0.9" ${arrow}/><text x="250" y="-74" font-size="11" text-anchor="middle" ${halo}>⏱ 25 %</text></g>`,
       `<g class="wf-overlay wf-arc"><title></title><path d="M450 40 C450 142 50 142 50 40" fill="none" stroke="#7f2704" stroke-width="2" stroke-opacity="0.9" stroke-dasharray="6 4" ${arrow}/><text x="250" y="130.5" font-size="11" text-anchor="middle" ${halo}>⇐ 100 %</text></g>`,
+      '<g class="wf-overlay wf-hatch"><title>Scope — Out of scope</title><rect x="0" y="0" width="100" height="40" rx="6" fill="url(#wf-pattern-outofscope)" fill-opacity="0.55" stroke="none"/></g>',
       `<g class="wf-overlay wf-selfloop"><title></title><path d="M482 0 C482 -28 528 12 500 12" fill="none" stroke="#d94801" stroke-width="2.5" ${arrow}/><text x="506" y="-6" font-size="10" ${halo}>↻ 75 %</text></g>`,
       // Text whose middle is given sits on a baseline 0.3 × its size lower: 0.5 + 3.
       `<g class="wf-overlay wf-badge"><title></title><rect x="76" y="-11" width="22" height="22" rx="11" fill="#7f2704" stroke="#ffffff" stroke-width="1.5"/><text x="87" y="3.5" font-size="10" font-weight="700" text-anchor="middle" fill="#ffffff">●</text><text x="102" y="3.5" font-size="10" ${halo}>100 %</text></g>`,
@@ -129,6 +130,19 @@ describe("toSVG overlay marks", () => {
         '<rect x="361.2" y="5" width="40" height="6" rx="3" fill="#cfd4dc"/><rect x="361.2" y="5" width="28" height="6" fill="#fd8d3c"/><rect x="386.87" y="4" width="2" height="8" fill="#1f1f1f"/>' +
         '<text x="348.8" y="11.5" font-size="10" fill="#1f1f1f">◔</text><text x="407.2" y="11.5" font-size="10" fill="#1f1f1f"><tspan font-weight="700">Touches: </tspan>2.1 ⌀</text></g>',
     ]);
+  });
+
+  it("writes the arcs after the edges and before the nodes and their badges", () => {
+    const first = (cls: string) => svg.indexOf(`<g class="${cls}`);
+    const last = (cls: string) => svg.lastIndexOf(`<g class="${cls}`);
+    // Both edges, then both arcs, then the three nodes, then the badges a and b carry.
+    expect(svg.match(/<g class="wf-(edge|overlay wf-arc|node|overlay wf-badge)\b/g)).toEqual([
+      '<g class="wf-edge', '<g class="wf-edge', '<g class="wf-overlay wf-arc', '<g class="wf-overlay wf-arc',
+      '<g class="wf-node', '<g class="wf-node', '<g class="wf-node', '<g class="wf-overlay wf-badge', '<g class="wf-overlay wf-badge',
+    ]);
+    expect(last("wf-edge")).toBeLessThan(first("wf-overlay wf-arc"));
+    expect(last("wf-overlay wf-arc")).toBeLessThan(first("wf-node"));
+    expect(last("wf-node")).toBeLessThan(first("wf-overlay wf-badge"));
   });
 
   it("shows the share of a badge without a glyph once", () => {
