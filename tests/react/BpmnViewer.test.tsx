@@ -8,7 +8,7 @@ import type { Overlay } from "../../src/index";
 import { connectBpmnJs } from "../../src/bpmn/bpmn-js";
 import type { ConnectViewer, ViewerEvents } from "../../src/bpmn/viewer";
 import { type BpmnViewHandle, createBpmnView } from "../../src/react/BpmnView";
-import { memoryViewers } from "./memory-viewer";
+import { memoryViewers, registryOf } from "./memory-viewer";
 
 const viewers = memoryViewers();
 const BpmnView = createBpmnView(viewers.connect);
@@ -179,6 +179,116 @@ describe("BpmnView through the viewer seam", () => {
     act(() => modeler.pending[0]());
     await waitFor(() => expect(modeler.overlays.map((o) => o.element)).toEqual(["Task_CreatePO"]));
     expect(container.querySelector(".wf-bpmn")?.getAttribute("data-bpmn-mode")).toBe("model");
+  });
+
+  it("calls back with the import only once the diagram is shown, fitted and ready", async () => {
+    const deferred = memoryViewers({ deferImports: true });
+    const Deferred = createBpmnView(deferred.connect);
+    const badge: Overlay = { kind: "badge", target: "Task_CreatePO", payload: { glyph: "≥1" } };
+    // What the host could observe when it is called back: the view's status, the viewer's zooms and its overlays.
+    const seen: { status: string | null | undefined; zooms: unknown[]; overlays: number }[] = [];
+    const onImport = vi.fn(() => {
+      const viewer = deferred.instances.at(-1)!;
+      seen.push({ status: container.querySelector(".wf-bpmn")?.getAttribute("data-bpmn-status"), zooms: [...viewer.zooms], overlays: viewer.overlays.length });
+    });
+    const { container, rerender } = render(<Deferred xml={xml} onImport={onImport} overlays={[badge]} />);
+    const group = container.querySelector(".wf-bpmn")!;
+    // The headless import describes the diagram while the viewer is still importing it.
+    await waitFor(() => expect(group.getAttribute("aria-label")).toBe("BPMN diagram with 7 tasks, 2 gateways and 12 sequence flows in 3 lanes. 1 visual annotations."));
+    await waitFor(() => expect(deferred.instances[0]?.pending).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, 20));
+    expect([group.getAttribute("data-bpmn-status"), onImport.mock.calls.length, deferred.instances[0].zooms]).toEqual(["loading", 0, []]);
+    act(() => deferred.instances[0].pending[0]());
+    await waitFor(() => expect(onImport).toHaveBeenCalledTimes(1));
+    expect(seen).toEqual([{ status: "ready", zooms: ["fit-viewport"], overlays: 1 }]);
+    // The headless import: one mapping row per task of the diagram.
+    expect(onImport.mock.calls[0]).toEqual([expect.objectContaining({ mapping: Array.from({ length: 7 }, () => expect.anything()) })]);
+    // Other overlays are not another import.
+    rerender(<Deferred xml={xml} onImport={onImport} />);
+    await waitFor(() => expect(deferred.instances[0].overlays).toEqual([]));
+    // A new XML in the modeler: the old viewer's readiness does not count for the new one's diagram.
+    const next = `${xml}<!-- next -->`;
+    rerender(<Deferred xml={next} onImport={onImport} mode="model" />);
+    await waitFor(() => expect(deferred.instances[1]?.pending).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(onImport).toHaveBeenCalledTimes(1);
+    act(() => deferred.instances[1].pending[0]());
+    await waitFor(() => expect(onImport).toHaveBeenCalledTimes(2));
+    expect(seen[1]).toEqual({ status: "ready", zooms: ["fit-viewport"], overlays: 0 });
+    expect(deferred.instances[1].imported).toEqual([next]);
+    // Another mode on the same XML is not another import.
+    rerender(<Deferred xml={next} onImport={onImport} />);
+    await waitFor(() => expect(deferred.instances[2]?.pending).toHaveLength(1));
+    act(() => deferred.instances[2].pending[0]());
+    await waitFor(() => expect(group.getAttribute("data-bpmn-status")).toBe("ready"));
+    expect(onImport).toHaveBeenCalledTimes(2);
+  });
+
+  it("waits for the next viewer when the last one could not show the diagram", async () => {
+    let failing = true;
+    const deferred = memoryViewers({ deferImports: true });
+    const Deferred = createBpmnView(async (options) => {
+      const viewer = await deferred.connect(options);
+      if (failing) viewer.importXML = async () => { throw new Error("cannot import"); };
+      return viewer;
+    });
+    const onImport = vi.fn();
+    const { container, rerender } = render(<Deferred xml={xml} onImport={onImport} onError={() => {}} />);
+    await waitFor(() => expect(onImport).toHaveBeenCalledTimes(1));
+    expect(container.querySelector(".wf-bpmn")?.getAttribute("data-bpmn-status")).toBe("error");
+    // The modeler with a new XML: the viewer's failure does not count for the modeler's diagram.
+    failing = false;
+    rerender(<Deferred xml={`${xml}<!-- next -->`} onImport={onImport} onError={() => {}} mode="model" />);
+    await waitFor(() => expect(deferred.instances[1]?.pending).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(onImport).toHaveBeenCalledTimes(1);
+    act(() => deferred.instances[1].pending[0]());
+    await waitFor(() => expect(onImport).toHaveBeenCalledTimes(2));
+    expect(container.querySelector(".wf-bpmn")?.getAttribute("data-bpmn-status")).toBe("ready");
+  });
+
+  it("calls back with the import when the next viewer shows or fails it at once", async () => {
+    const registry = await registryOf(xml);
+    for (const fails of [false, true]) {
+      // The next viewer arrives after the headless import and settles its import before the view renders again.
+      const fast = memoryViewers({ registry });
+      let slow = false;
+      const Fast = createBpmnView(async (options) => {
+        if (slow) await new Promise((r) => setTimeout(r, 50));
+        const viewer = await fast.connect(options);
+        if (fails) viewer.importXML = async () => { throw new Error("cannot import"); };
+        return viewer;
+      });
+      const onImport = vi.fn();
+      const { container, rerender, unmount } = render(<Fast xml={xml} onImport={onImport} onError={() => {}} />);
+      await waitFor(() => expect(onImport).toHaveBeenCalledTimes(1));
+      slow = true;
+      rerender(<Fast xml={`${xml}<!-- next -->`} onImport={onImport} onError={() => {}} mode="model" />);
+      await waitFor(() => expect(fast.instances).toHaveLength(2));
+      await waitFor(() => expect(onImport).toHaveBeenCalledTimes(2));
+      expect(container.querySelector(".wf-bpmn")?.getAttribute("data-bpmn-status")).toBe(fails ? "error" : "ready");
+      unmount();
+    }
+  });
+
+  it("still calls back with the import when the viewer cannot be created", async () => {
+    const onImport = vi.fn();
+    const Failing = createBpmnView(async () => { throw new Error("no viewer"); });
+    render(<Failing xml={xml} onImport={onImport} onError={() => {}} />);
+    await waitFor(() => expect(onImport).toHaveBeenCalledTimes(1));
+  });
+
+  it("keeps the viewport while only the overlays and the mapping change", async () => {
+    const badge: Overlay = { kind: "badge", target: "create_po", payload: { glyph: "≥1" } };
+    const arc: Overlay = { kind: "arc", target: "lag", payload: { source: "Task_CreatePO", target: "Task_ClearInvoice", value: 1 } };
+    const { container, rerender } = render(<BpmnView xml={xml} overlays={[badge]} />);
+    const viewer = await ready(container);
+    await waitFor(() => expect(viewer.zooms).toEqual(["fit-viewport"]));
+    rerender(<BpmnView xml={xml} overlays={[badge, arc]} mapping={{ create_po: "Task_CreatePO" }} />);
+    await waitFor(() => expect(viewer.overlays).toHaveLength(1));
+    rerender(<BpmnView xml={xml} overlays={[]} mapping={{ create_po: "Task_CreatePO" }} />);
+    await waitFor(() => expect(viewer.overlays).toEqual([]));
+    expect([viewer.imported.length, viewer.zooms, viewer.viewboxes, viewer.resizes]).toEqual([1, ["fit-viewport"], [], 0]);
   });
 
   it("shows paths from their zoom and selects an arc's ends on a click", async () => {

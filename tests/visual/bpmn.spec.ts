@@ -19,7 +19,7 @@ test("overlays on a model keep the viewport while the dataset switches", async (
   await expect(page.locator(".wf-bpmn-overlays path").first()).toBeAttached();
   await expect(page.locator('.djs-element[data-element-id="Task_CreatePO"]')).toBeVisible();
   const viewbox = page.getByTestId("viewbox");
-  // Refresh the initial readout after the viewer is ready; onImport can run earlier.
+  // Refresh the readout from the ready view; onImport reads it too, after the initial fit.
   await page.getByRole("button", { name: "All items", exact: true }).click();
   await expect(viewbox).toHaveText(/^viewport x -?\d+ · y -?\d+ · zoom \d+\.\d{2}$/);
   const before = await viewbox.textContent();

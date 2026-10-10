@@ -735,6 +735,17 @@ map and `mapping`. Stylesheets: `bpmn-js/dist/assets/diagram-js.css`,
 `bpmn-js/dist/assets/bpmn-js.css` and
 `bpmn-js/dist/assets/bpmn-font/css/bpmn.css` in addition to the package's.
 
+When the view reports: `data-bpmn-status` on its root becomes `ready` once
+the viewer has imported the XML and fitted the viewport (with `fitView`), and
+`onImport` is called with the headless import (graph, mapping table,
+warnings) once the view is `ready` for that XML and its overlays are
+projected, or once the diagram cannot be shown (`error`). A host that reads
+the viewport in `onImport` therefore reads the fitted one. Before, `onImport`
+was called as soon as the headless import finished, usually before the viewer
+had imported and fitted the diagram. It is still called once per import of
+an `xml` value; switching `overlays`, `mapping` or `mode` does not call it
+again, and an overlay change never moves the viewport.
+
 ## Changes in 0.2 against 0.1
 
 Additions only; the 0.1 surface is unchanged.
