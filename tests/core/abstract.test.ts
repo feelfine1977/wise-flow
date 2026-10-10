@@ -158,6 +158,31 @@ describe("abstract", () => {
     }
   });
 
+  it("re-adds the edge that closes the most needs, then the strongest, judging needs as they stand", () => {
+    // p→q, r→p and u→p are kept; q needs an outgoing edge, r and u an incoming one.
+    const g: FlowGraph = {
+      nodes: ["p", "q", "r", "u"].map((id) => ({ id, kind: "activity" as const, label: id.toUpperCase() })),
+      edges: [
+        { id: "pq", source: "p", target: "q", kind: "follows", metrics: { count: 100 } },
+        { id: "rp", source: "r", target: "p", kind: "follows", metrics: { count: 100 } },
+        { id: "up", source: "u", target: "p", kind: "follows", metrics: { count: 100 } },
+        { id: "qr", source: "q", target: "r", kind: "follows", metrics: { count: 30 } },
+        { id: "qu", source: "q", target: "u", kind: "follows", metrics: { count: 20 } },
+        { id: "pu", source: "p", target: "u", kind: "follows", metrics: { count: 25 } },
+        { id: "qp", source: "q", target: "p", kind: "follows", metrics: { count: 40 } },
+        { id: "pr", source: "p", target: "r", kind: "follows", metrics: { count: 35 } },
+      ],
+    };
+    const added = abstract(g, { minEdgeShare: 0.5 })
+      .edges.filter((e) => hasTag(e, RECONNECTED_TAG))
+      .map((e) => e.id)
+      .sort();
+    // qr and qu close two needs each, qr is stronger; qp and pr are stronger still but
+    // close one each. Then q has its outgoing edge and r its incoming one, so qp and pr
+    // close nothing and qu closes only u's need, which pu does with more strength.
+    expect(added).toEqual(["pu", "qr"]);
+  });
+
   it("tags re-added elements and can be switched off", () => {
     const connected = abstract(globalScene, { minEdgeShare: 0.3 });
     expect(connected.edges.some((e) => hasTag(e, RECONNECTED_TAG))).toBe(true);
