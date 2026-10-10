@@ -9,11 +9,15 @@ import '@wise/flow/bpmn.css';
 import '@wise/flow/tokens.css';
 import '@wise/flow/style.css';
 import elkWorkerUrl from '@wise/flow/elk-worker.min.js?url';
+import dagreWorkerUrl from '@wise/flow/dagre-worker.min.js?url';
 
 async function main() {
 const graph: FlowGraph = { nodes: [{ id: 'receive', kind: 'activity', label: 'Receive' }, { id: 'complete', kind: 'activity', label: 'Complete' }], edges: [{ id: 'flow', kind: 'follows', source: 'receive', target: 'complete' }] };
 const positions = await layout(graph, { engine: 'elk', elkWorkerUrl });
 if (positions.engine !== 'elk') throw new Error('Worker layout failed');
+// ELK fails on an unknown algorithm; the fallback may not run on this thread, so only the Dagre worker can run it.
+const fallback = await layout(graph, { elkWorkerUrl, dagreWorkerUrl, fallbackLimit: 0, elkOptions: { 'elk.algorithm': 'flow.none' } });
+if (fallback.engine !== 'dagre' || !(fallback.nodes.complete.x > fallback.nodes.receive.x)) throw new Error('Dagre in the worker failed');
 if (prepareScene(graph, positions).nodes.length !== 2 || !toSVG({ graph, positions }).includes('Receive')) throw new Error('Scene export failed');
 // A badge on a task, projected onto the viewer and again onto the modeler.
 const overlays: Overlay[] = [{ kind: 'badge', target: 'receive', payload: { glyph: '≥1', value: 0.5 } }];

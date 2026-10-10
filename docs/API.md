@@ -167,8 +167,13 @@ export interface LayoutOptions {
   edgeRouting?: "ORTHOGONAL" | "POLYLINE" | "SPLINES";
   groups?: "compound" | "ignore"; orderStages?: boolean;
   elkWorkerUrl?: string | URL;          // run ELK in a Web Worker served from this URL
-  elk?: ELK; elkOptions?: Record<string, string>; timeoutMs?: number; cacheKey?: string;
+  dagreWorkerUrl?: string | URL;        // run Dagre in a Web Worker served from this URL
+  elk?: ELK; elkOptions?: Record<string, string>; cacheKey?: string;
+  timeoutMs?: number;                   // per engine run, default 20000
+  fallbackLimit?: number;               // nodes + edges for Dagre fallback on the calling thread, default 500
+  signal?: AbortSignal;                 // stop waiting; not part of the layout's inputs
 }
+export class LayoutUnavailableError extends Error {}   // name "LayoutUnavailableError"
 export function layout(g: FlowGraph, o?: LayoutOptions): Promise<Positions>;
 export function layoutUnion(scenes: FlowGraph[], o?: LayoutOptions): Promise<Positions>;
 export function unionGraph(scenes: FlowGraph[]): FlowGraph;
@@ -214,10 +219,46 @@ option (an `elk` instance by identity). A changed graph or changed options are
 laid out anew; the last `maxEntries` layouts are kept. `dispose()` forgets the
 scope's layouts; the scope stays usable. Caller keys inside a scope go to the
 shared cache as above. `clearLayoutCache()` without a key forgets every cached
-layout, every scope's included. ELK workers (`elkWorkerUrl`) start on demand,
-one per URL, and are terminated once no scope and no running layout uses them:
-after each `layout` call outside a scope, and when the last scope that used
-one is disposed. An `elk` instance the caller supplies is never terminated.
+layout, every scope's included.
+
+Workers. With `elkWorkerUrl` (the URL of `@wise/flow/elk-worker.min.js` or
+`elkjs/lib/elk-worker.min.js` as served) ELK runs in a Web Worker; with
+`dagreWorkerUrl` (the URL of `@wise/flow/dagre-worker.min.js`, Dagre and the
+package's Dagre step, MIT) Dagre runs in one, whether asked for by
+`engine: "dagre"` or as the fallback; it gives the same positions as on the
+calling thread. Without a worker URL, or where `Worker` does not exist (Node),
+the engines run in-process. A worker runs one layout at a time; workers start
+on demand, one per running layout, and are terminated once no scope and no
+running layout uses them: after each `layout` call outside a scope, and when
+the last scope that used one is disposed (a scope keeps one idle worker per
+URL until then). An `elk` instance the caller supplies is never terminated.
+
+Stopping. A layout runs while somebody waits for it. `signal` stops waiting:
+the promise rejects with the signal's reason (an `AbortError` unless another
+reason is given), and once nobody else waits for the same layout (the same
+`cacheKey`, or the same inputs in a scope) its worker is terminated and
+nothing it sends afterwards is read; an aborted layout is not kept. A request
+to a scope replaces the scope's earlier request: if that one is still
+running, its promise rejects with an `AbortError` ("A newer layout request
+replaced this one."), and its worker is terminated unless another caller
+still waits for it. A layout asked for again before the current task ends
+(a component that mounts again) keeps running. `timeoutMs` bounds each engine
+run: ELK, and Dagre in a worker. When it passes, the worker running it is
+terminated, so no layout work continues; `engine: "auto"` then falls back to
+Dagre, `"elk"` and `"dagre"` reject with "layout timed out after … ms". A
+timeout does not try ELK again (without stage partitions, as an ELK error
+still does). **In-process ELK, and an `elk` instance the caller supplies,
+cannot be interrupted**: an abort or timeout rejects at once, but the engine
+finishes its run in the background and its result is discarded; in-process
+ELK also blocks the calling thread while it runs, so a timeout cannot end it
+early. Pass `elkWorkerUrl` wherever a worker can be served.
+
+Fallback limit. Without `dagreWorkerUrl` the Dagre fallback (`engine: "auto"`
+after ELK failed or timed out) runs on the calling thread only up to
+`fallbackLimit` nodes plus edges (default 500; Dagre's cost grows quickly
+with dense graphs, from tenths of a second at 500 to many seconds). Above it
+the layout rejects with `LayoutUnavailableError` instead of freezing the page.
+`engine: "dagre"` runs whatever the size.
 
 ## Style
 

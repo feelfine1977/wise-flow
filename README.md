@@ -54,6 +54,7 @@ a version number alone does not identify an unpublished candidate.
 | `@wise/flow/bpmn.css` | All required bpmn-js styles and font references |
 | `@wise/flow/bpmn/assets/*` | Copied BPMN asset tree, including `bpmn-font/font/bpmn.woff2` |
 | `@wise/flow/elk-worker.min.js` | Optional ELK worker asset |
+| `@wise/flow/dagre-worker.min.js` | Optional Dagre worker asset (layout fallback off the calling thread) |
 
 The root entry does not load React or require a DOM. The package still installs
 renderer dependencies and React peers; it is not a separate minimal core package.
@@ -75,15 +76,19 @@ const positions = await layout(graph);
 const svg = toSVG({ graph, positions, title: 'Example process' });
 ```
 
-ELK runs in-process by default, with Dagre fallback. For a browser worker in Vite:
+ELK runs in-process by default, with Dagre fallback. In-process ELK cannot be
+interrupted, and without a Dagre worker the fallback runs on the calling thread
+only up to 500 nodes plus edges. For browser workers in Vite:
 
 ```ts
 import elkWorkerUrl from '@wise/flow/elk-worker.min.js?url';
-const positions = await layout(graph, { elkWorkerUrl });
+import dagreWorkerUrl from '@wise/flow/dagre-worker.min.js?url';
+const positions = await layout(graph, { elkWorkerUrl, dagreWorkerUrl, signal });
 ```
 
-Other bundlers can copy the exported worker and pass its served URL. Serve it
-from an origin permitted by your application's worker policy.
+Other bundlers can copy the exported workers and pass their served URLs. Serve
+them from an origin permitted by your application's worker policy. An aborted,
+timed-out or replaced layout terminates its worker.
 
 ## React and BPMN
 

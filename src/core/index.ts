@@ -68,6 +68,7 @@ export {
   coversGraph,
   straightRoute,
   DEFAULT_SIZES,
+  LayoutUnavailableError,
 } from "./layout.js";
 export type {
   XY,
