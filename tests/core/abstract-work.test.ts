@@ -128,4 +128,12 @@ describe("abstraction work", () => {
     }
     expect(large.visits / small.visits).toBeLessThanOrEqual(2.3);
   });
+
+  it("reconnects a simplified cyclic graph of 100,000 activities", () => {
+    // Slow: about two seconds here, where one search per join did not finish in 500 s.
+    // The suite's time limit only stops a run that has gone back to that.
+    const result = abstract(seededCyclicGraph(7, 100000), { minEdgeShare: 0.3, minNodeShare: 0.2 });
+    expect(isConnected(result)).toBe(true);
+    expect(result.nodes.some((node) => node.tags?.includes("reconnected"))).toBe(true);
+  });
 });
