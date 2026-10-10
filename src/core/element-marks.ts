@@ -128,7 +128,7 @@ export interface EdgeMark {
   reconnected: boolean;
 }
 
-export interface NodeMarkOptions {
+interface NodeMarkOptions {
   color: string;
   pattern: PatternId;
   locale?: Locale;

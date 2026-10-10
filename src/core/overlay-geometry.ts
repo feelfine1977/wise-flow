@@ -254,8 +254,3 @@ export function placeOverlays(
   });
   return { shapes, bounds: unionBoxes(shapes), margin };
 }
-
-/** Anchor point of a shape for tooltips. */
-export function shapeAnchor(s: OverlayShape): XY {
-  return { x: s.labelX ?? s.x + s.width / 2, y: s.labelY ?? s.y };
-}

@@ -13,7 +13,7 @@ export { type PatternId, PATTERNS } from "./tokens.js";
 /** The palettes of the token table (`paletteTokens`). */
 export const palettes = paletteTokens;
 
-export type PaletteName = keyof typeof palettes;
+type PaletteName = keyof typeof palettes;
 
 /** Fixed colours for hotspot types, gate states and the light scheme, from the token table (`colorTokens`). */
 export const fixedColors = {
@@ -47,7 +47,7 @@ export function hexToRgb(hex: string): [number, number, number] {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-export function rgbToHex([r, g, b]: [number, number, number]): string {
+function rgbToHex([r, g, b]: [number, number, number]): string {
   const c = (v: number) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0");
   return `#${c(r)}${c(g)}${c(b)}`;
 }
@@ -65,7 +65,7 @@ export function interpolatePalette(stops: readonly string[], t: number): string 
   return rgbToHex([a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f]);
 }
 
-export function relativeLuminance(hex: string): number {
+function relativeLuminance(hex: string): number {
   const [r, g, b] = hexToRgb(hex).map((v) => {
     const s = v / 255;
     return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);

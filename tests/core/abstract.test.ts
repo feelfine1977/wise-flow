@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { globalScene, vendorScene } from "../../fixtures/bpic2019";
-import { COLLAPSED_TAG, DIFF_TAGS, RECONNECTED_TAG, type FlowEdge, type FlowGraph, type FlowNode, abstract, byId, collapseGroups, diff, hasTag, isConnected, validateGraph } from "../../src/index";
+import { byId } from "../../src/core/model";
+import { COLLAPSED_TAG, DIFF_TAGS, RECONNECTED_TAG, type FlowEdge, type FlowGraph, type FlowNode, abstract, collapseGroups, diff, hasTag, isConnected, validateGraph } from "../../src/index";
 import { tiedGraph } from "./abstract-cases";
 
 /** Deterministic pseudo-random graph generator (LCG). */

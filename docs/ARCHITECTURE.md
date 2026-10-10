@@ -75,7 +75,8 @@ examples in `tests/tooling/architecture.test.mjs`) enforces:
   component of the React adapter that renders a map counts as a map.
 - Outside the core, a name the core entry point provides is imported from the
   entry point, whose names `scripts/core-exports.json` lists; the deprecated
-  names of every entry point are listed in [API](API.md#deprecated-names).
+  names of every entry point are listed in [API](API.md#deprecated-names), the
+  removed ones under [next version](API.md#removed-in-the-next-version).
 
 ## 2. Core
 

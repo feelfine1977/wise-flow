@@ -36,7 +36,7 @@ export interface ActivityPaths {
 
 export type PathSortKey = "count" | "cases" | "share" | "medianLagHours" | "p90LagHours" | "violationShare" | "label";
 
-export interface PathsOptions {
+interface PathsOptions {
   /** Paths to use instead of `graph.paths`. */
   paths?: FlowPaths;
   /** Sort column; default `count`, descending. */

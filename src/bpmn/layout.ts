@@ -6,13 +6,11 @@
  */
 import {
   type Box,
-  type EdgeRoute,
   type FlowGraph,
   type FlowNode,
   type LayoutOptions,
   type NodeSize,
   type Positions,
-  type XY,
   type LaneModelOptions,
   layout,
   laneModel,
@@ -20,7 +18,6 @@ import {
   createPositions,
   spanLanes,
   stackLanes,
-  straightRoute,
 } from "../core/index.js";
 
 /** BPMN lanes: nested lanes spanned by their parents; every sequence flow is routed around the shapes. */
@@ -54,51 +51,6 @@ export interface BpmnLayoutOptions extends Omit<LayoutOptions, "direction" | "gr
 
 /** Id of the pool box in `Positions.groups` when the graph has lanes but no pool group. */
 export const POOL_ID = "__pool";
-
-const width = (b: Box) => b.x + b.width;
-
-/**
- * @deprecated No layout uses it; route with `routeSequenceFlows` from the core.
- *
- * Orthogonal route between two boxes: straight when aligned, one bend pair when
- * the target lies to the right, a loop below both when it lies to the left.
- * Gateways leave and enter through their tips.
- */
-export function manhattanRoute(s: Box, t: Box, kinds: { source: FlowNode["kind"]; target: FlowNode["kind"] }, gap = 20): EdgeRoute {
-  const sc = { x: s.x + s.width / 2, y: s.y + s.height / 2 };
-  const tc = { x: t.x + t.width / 2, y: t.y + t.height / 2 };
-  const pts: XY[] = [];
-  const sameRow = Math.abs(sc.y - tc.y) < 1;
-  if (t.x >= width(s) + gap) {
-    if (sameRow) {
-      pts.push({ x: width(s), y: sc.y }, { x: t.x, y: tc.y });
-    } else if (kinds.source === "gateway") {
-      const y = tc.y > sc.y ? s.y + s.height : s.y;
-      pts.push({ x: sc.x, y }, { x: sc.x, y: tc.y }, { x: t.x, y: tc.y });
-    } else if (kinds.target === "gateway") {
-      const y = sc.y > tc.y ? t.y + t.height : t.y;
-      pts.push({ x: width(s), y: sc.y }, { x: tc.x, y: sc.y }, { x: tc.x, y });
-    } else {
-      const mid = (width(s) + t.x) / 2;
-      pts.push({ x: width(s), y: sc.y }, { x: mid, y: sc.y }, { x: mid, y: tc.y }, { x: t.x, y: tc.y });
-    }
-  } else if (width(t) + gap <= s.x) {
-    // Back edge: leave through the bottom, run below both shapes, enter through the bottom.
-    const below = Math.max(s.y + s.height, t.y + t.height) + gap;
-    pts.push({ x: sc.x, y: s.y + s.height }, { x: sc.x, y: below }, { x: tc.x, y: below }, { x: tc.x, y: t.y + t.height });
-  } else if (!sameRow) {
-    // Same column: vertical.
-    const down = tc.y > sc.y;
-    pts.push({ x: sc.x, y: down ? s.y + s.height : s.y }, { x: sc.x, y: down ? t.y : t.y + t.height });
-    if (Math.abs(sc.x - tc.x) >= 1) {
-      const midY = (pts[0].y + pts[1].y) / 2;
-      pts.splice(1, 1, { x: sc.x, y: midY }, { x: tc.x, y: midY }, { x: tc.x, y: down ? t.y : t.y + t.height });
-    }
-  } else {
-    return straightRoute(s, t);
-  }
-  return { points: pts };
-}
 
 /**
  * Lay out a BPMN-lite graph. Lane groups become full-width bands stacked in one

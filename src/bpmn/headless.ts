@@ -20,7 +20,7 @@ export {
   type LiteFromStagesOptions,
   type LiteFromGraphOptions,
 } from "./lite.js";
-export { layoutBpmn, manhattanRoute, bpmnNodeSize, BPMN_SIZES, POOL_ID, type BpmnLayoutOptions } from "./layout.js";
+export { layoutBpmn, bpmnNodeSize, BPMN_SIZES, POOL_ID, type BpmnLayoutOptions } from "./layout.js";
 export { exportBpmn, validateBpmn, roundPositions, xmlId, exportableEdges, EXPORTER_NAME, EXPORTER_VERSION, TARGET_NAMESPACE, type ExportBpmnOptions, type BpmnExport, type IdMap, type BpmnValidation } from "./export.js";
 export {
   importBpmn,

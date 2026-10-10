@@ -8,12 +8,8 @@ export interface OverlayLayerProps {
   /** The placed shapes; `onSelect` receives the shape of the mark that was clicked. */
   shapes?: OverlayShape[];
   locale: Locale;
-  /** Zoom of the map: each mark is drawn from its `minZoom`. */
+  /** Zoom of the map: each mark is drawn from its `minZoom`. Without it every mark is drawn. */
   zoom?: number;
-  /** @deprecated Without `zoom`, draws arcs only when set. Pass `zoom` instead. */
-  showArcs?: boolean;
-  /** @deprecated Without `zoom`, draws self-loops (observed ones always) only when set. Pass `zoom` instead. */
-  showSelfLoops?: boolean;
   hoveredId: string | null;
   onHover?: (id: string | null) => void;
   onSelect?: (shape: OverlayShape) => void;
@@ -28,12 +24,9 @@ const IDS: MarkIds = { arrow: "wf-arc-arrow", pattern: "wf-overlay-outofscope" }
  * marks an element carries are drawn by its node or group, and map-level chips by
  * the legend.
  */
-export function OverlayLayer({ marks, shapes = [], locale, zoom, showArcs = false, showSelfLoops = false, hoveredId, onHover, onSelect }: OverlayLayerProps) {
+export function OverlayLayer({ marks, shapes = [], locale, zoom = Infinity, hoveredId, onHover, onSelect }: OverlayLayerProps) {
   const all = marks ?? overlayMarks(shapes, locale);
-  // Without a zoom the layer keeps its former contract: arcs and self-loops by flag.
-  const shown = (m: OverlayMark) =>
-    zoom !== undefined ? zoom >= m.minZoom : m.path !== undefined && (m.kind === "arc" ? showArcs : showSelfLoops || !!m.overlay.payload?.observed);
-  const visible = all.filter((m) => m.inMap && m.layer !== "below" && shown(m));
+  const visible = all.filter((m) => m.inMap && m.layer !== "below" && zoom >= m.minZoom);
   if (!visible.length) return null;
   const shapeOf = (m: OverlayMark): OverlayShape => shapes.find((s) => s.id === m.id) ?? { id: m.id, overlay: m.overlay, kind: m.kind, ...m.box, path: m.path, minZoom: m.minZoom };
   const between = visible.filter((m) => m.layer === "between");

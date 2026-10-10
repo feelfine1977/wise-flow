@@ -287,7 +287,7 @@ export function describeOverlay(o: Overlay, locale: Locale = "en"): string {
 // ---------------------------------------------------------------------------
 // Geometry
 
-export { type OverlayShape, type OverlayGeometryOptions, type OverlayGeometry, overlayMargin, shapeAnchor } from "./overlay-geometry.js";
+export { type OverlayShape, type OverlayGeometryOptions, type OverlayGeometry, overlayMargin } from "./overlay-geometry.js";
 
 /**
  * Geometry of overlays on a laid-out scene: badge slots along the top edge of the

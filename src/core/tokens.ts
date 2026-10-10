@@ -176,7 +176,7 @@ export const patternTokens = {
 } as const;
 
 /** Shape of a pattern twin in its tile: lines from (x1, y1) to (x2, y2) and dot centres. */
-export interface PatternShape {
+interface PatternShape {
   size: number;
   lines: [number, number, number, number][];
   dots: [number, number][];

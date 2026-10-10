@@ -1,7 +1,7 @@
 import { type Locale, formatCompact, formatCount, formatShare } from "./format.js";
 import { type FlowEdge, type FlowGraph, type FlowNode, type Overlay, type OverlayPayload, metric } from "./model.js";
 
-export interface FollowsSelfLoopOptions {
+interface FollowsSelfLoopOptions {
   locale?: Locale;
   /**
    * Label the loops as observed directly-follows repeats (the activity-label

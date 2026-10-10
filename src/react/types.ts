@@ -44,8 +44,6 @@ export type ActivityNodeData = {
   node: FlowNode;
   color: string;
   pattern: PatternId;
-  /** @deprecated The map draws badges from `marks`; still filled for custom node types. */
-  badges: Overlay[];
   hatched: boolean;
   /** CSS background layers of the marks that cover the node (tints), from the scene's marks. */
   tint?: string;
@@ -73,8 +71,6 @@ export type GroupNodeData = {
   marks?: OverlayMark[];
   /** Top-left corner of the group's box in scene coordinates, where its marks are drawn from. */
   origin?: XY;
-  /** @deprecated The map draws chips from `marks`; still filled for custom node types. */
-  chips: Overlay[];
   description: string;
   /** The group is drawn as a lane band (see `lanes`). */
   band?: LaneBand;

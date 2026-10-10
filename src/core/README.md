@@ -4,7 +4,7 @@ Framework-free TypeScript; runs in Node and in the browser. No DOM, no React.
 
 | File | Content |
 |---|---|
-| `index.ts` | the entry point of `@wise/flow`: every exported name listed, deprecated ones marked (`docs/API.md`); `scripts/core-exports.json` holds the names the built declarations must export |
+| `index.ts` | the entry point of `@wise/flow`: every exported name listed (deprecated ones marked, see `docs/API.md`); `scripts/core-exports.json` holds the names the built declarations must export |
 | `model.ts` | `FlowGraph` types (workbench schema, with `focus` and `paths`), `validateGraph`, `indexGraph` (lookups, adjacency, group ancestors, nested members, labels), `MAP_TARGET` |
 | `aggregate.ts` | `abstract` (thresholds, collapse, keep-connected), `collapseGroups`, `isConnected`, `diff` |
 | `layout.ts` | `layout` (ELK layered in a worker or in-process, Dagre fallback), `layoutUnion`, `filterPositions`, `createPositions` (the one constructor; bounds from contents), `unionBoxes`, the caller-key cache and layout scopes keyed by their inputs (`createLayoutScope`), ELK workers terminated when unused; `engine: "di"` marks positions read from BPMN DI, `"given"` positions supplied by the caller |

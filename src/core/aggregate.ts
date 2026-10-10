@@ -639,7 +639,7 @@ function strengthOfLoop(e: FlowEdge, denominator: number, candidates: string[]):
   return denominator > 0 ? Math.min(1, v / denominator) : 1;
 }
 
-export interface DiffOptions {
+interface DiffOptions {
   /** Metrics to compare; default: every metric present on either side. */
   metrics?: string[];
 }

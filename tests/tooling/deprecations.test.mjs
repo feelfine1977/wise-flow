@@ -56,7 +56,6 @@ function filesAt(dir) {
 test('every deprecated name of the package is listed in docs/API.md with its replacement', () => {
   const names = new Map(filesAt(resolve(root, 'src')).flatMap((file) => deprecatedNames(file, readFileSync(file, 'utf8')).map((name) => [name, entryOf(file)])));
   const documented = documentedDeprecations(readFileSync(resolve(root, 'docs/API.md'), 'utf8'));
-  for (const [name, entry] of [['byId', '@wise/flow'], ['manhattanRoute', '@wise/flow/bpmn'], ['OverlayLayerProps.showArcs', '@wise/flow/react'], ['ActivityNodeData.badges', '@wise/flow/react'], ['GroupNodeData.chips', '@wise/flow/react']]) assert.equal(names.get(name), entry, name);
   for (const [name, entry] of names) {
     assert.ok(documented.has(name), `${name} is deprecated but not listed under "Deprecated names" in docs/API.md`);
     const { replacement, entry: listed } = documented.get(name);

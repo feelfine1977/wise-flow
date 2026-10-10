@@ -484,7 +484,7 @@ export interface StableLayout { positions: Positions | undefined; status: Layout
 export { nodeTypes, edgeTypes, describeNode, describeEdge, describeGroup, describeMap };
 export function midpoint(points: XY[]): XY;   // routeMidpoint
 // Node and edge data carry the scene's marks; without one the components resolve it from the other fields.
-export type ActivityNodeData = { node; color; pattern; badges; hatched; direction; focused; hovered; dimmed; locale; description;
+export type ActivityNodeData = { node; color; pattern; hatched; direction; focused; hovered; dimmed; locale; description;
   activityLabels?; labelWidth?; labelHeight?; meta?; mark?: NodeMark };
 export type FollowsEdgeData = { edge; route?; width; color; label?; reconnected; hovered; dimmed; focused; description; mark?: EdgeMark };
 ```
@@ -599,13 +599,11 @@ longer positions or colours badges and chips itself.
 
 ```ts
 export interface OverlayLayerProps { marks?: OverlayMark[]; shapes?: OverlayShape[]; locale: Locale; zoom?: number;
-  /** @deprecated */ showArcs?: boolean; /** @deprecated */ showSelfLoops?: boolean;
   hoveredId: string | null; onHover?: (id: string | null) => void; onSelect?: (shape: OverlayShape) => void }
 // ActivityNodeData and GroupNodeData also carry:
 //   tint?: string        CSS background layers of the marks that cover the element
 //   marks?: OverlayMark[] the marks the element carries, in scene coordinates
 //   origin?: XY          the top-left corner of the element's box in scene coordinates
-// ActivityNodeData.badges and GroupNodeData.chips are deprecated: the map no longer draws from them.
 // GroupNodeData.tint held one CSS colour before; it now holds background layers (valid for `background`, not `background-color`).
 export function Badges(props: { badges: Overlay[]; locale: Locale }): JSX.Element | null; // SVG, from the top-right corner
 export function Chip(props: { chip: Overlay; locale: Locale }): JSX.Element | null;       // SVG, at the size of its mark
@@ -615,12 +613,8 @@ export function Chip(props: { chip: Overlay; locale: Locale }): JSX.Element | nu
 on the map and not below the edges, each from its `minZoom` when `zoom` is
 given: those of the layer `between` (arcs) between the edges and the nodes,
 the others above the nodes (before, every mark it drew lay above the nodes);
-`onSelect` receives the shape of a clicked mark. `showArcs` and
-`showSelfLoops` are deprecated: without `zoom` the layer keeps its former
-behaviour and draws only arcs (with `showArcs`) and self-loops (with
-`showSelfLoops`, observed ones always). `ActivityNodeData.badges` and
-`GroupNodeData.chips` are still filled but deprecated; custom node types
-should draw `marks` instead. `<Badges/>` and `<Chip/>` now draw SVG from the
+`onSelect` receives the shape of a clicked mark. Without `zoom` the layer
+draws every mark. Custom node types draw `marks` and `origin`. `<Badges/>` and `<Chip/>` now draw SVG from the
 marks the core resolves for the overlays: badges extend left from the
 top-right corner of the element they are placed in, a chip has the size of
 its mark.
@@ -696,8 +690,6 @@ export function layoutBpmn(g: FlowGraph, o?: BpmnLayoutOptions): Promise<Positio
 export interface BpmnLayoutOptions extends Omit<LayoutOptions, "direction" | "groups"> {
   lanes?: "bands" | "compound" | "ignore"; rowGap?; lanePadding?; labelWidth?; poolPadding? }
 export const POOL_ID = "__pool";   // pool box in Positions.groups when the graph has lanes but no pool group
-/** @deprecated Not used by `layoutBpmn`; use `routeSequenceFlows` from `@wise/flow`. */
-export function manhattanRoute(s: Box, t: Box, kinds, gap?): EdgeRoute;
 
 // Export → BPMN 2.0 XML with BPMNDiagram / BPMNShape / BPMNEdge from the positions.
 export function exportBpmn(g: FlowGraph, o?: { positions?: Positions; layout?: BpmnLayoutOptions; id?; processId?; name?;
@@ -1032,8 +1024,7 @@ children with a label strip, a top-level pool spans all lanes).
 `direct` (role bands) moves a route with its ends and drops it across lanes
 so the renderer draws it directly; `routed` (BPMN) routes every edge around
 the shapes with `routeSequenceFlows`, the orthogonal obstacle router.
-`manhattanRoute` in `@wise/flow/bpmn` is deprecated: no layout uses it; use
-`routeSequenceFlows`.
+`manhattanRoute` was removed from `@wise/flow/bpmn`; use `routeSequenceFlows`.
 
 ### React (`@wise/flow/react`, 0.3)
 
@@ -1553,16 +1544,23 @@ Custom child controls should import `useReactFlow`, `useNodesInitialized` and `u
 
 ## Deprecated names
 
-No name is removed from any entry point. A deprecated name keeps working, is
-marked `@deprecated` in the declarations, and leaves its entry point in the next
-major version. Each table names what to use instead. A tooling test
-(`tests/tooling/deprecations.test.mjs`) checks that every `@deprecated` name
-in the source is listed here with a replacement.
+No name is deprecated at present. A name that is marked `@deprecated` in the
+source is listed here, with the entry point as a `###` heading and a table of
+name and replacement. A tooling test (`tests/tooling/deprecations.test.mjs`)
+checks that every `@deprecated` name in the source is listed here with a
+replacement, and that every listed name is deprecated.
+
+`scripts/core-exports.json` holds the names of the `.` entry point and the
+deprecated ones; a tooling test compares the built `index.d.ts` with it. Outside
+the core, the package imports a name the entry point provides from the entry
+point.
+
+## Removed in the next version
+
+These names were deprecated in 0.3 and are gone; the one consumer used none of
+them. Each row names what to use instead.
 
 ### `@wise/flow`
-
-`src/core/index.ts` lists every name of the `.` entry point; no import path
-changes. The names below are used by no renderer, no test and no document:
 
 | Name | Replacement |
 | --- | --- |
@@ -1584,10 +1582,6 @@ changes. The names below are used by no renderer, no test and no document:
 | `DefaultActionOptions` | `NonNullable<Parameters<typeof defaultActions>[3]>` |
 | `FollowsSelfLoopOptions` | `NonNullable<Parameters<typeof followsSelfLoops>[1]>` |
 | `NodeMarkOptions` | `Parameters<typeof nodeMark>[2]` |
-
-`scripts/core-exports.json` holds the entry point's names and the deprecated
-ones; a tooling test compares the built `index.d.ts` with it. Outside the core,
-the package imports a name the entry point provides from the entry point.
 
 ### `@wise/flow/react`
 
