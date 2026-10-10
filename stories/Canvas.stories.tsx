@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { constraintItems, globalScene } from "../fixtures/bpic2019";
 import { type Box, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Overlay, type Positions, abstract, layout as layoutGraph, overlaysFor, positionsBounds } from "../src/index";
 import { toPNG } from "../src/canvas/index";
-import { ProcessMap } from "../src/react/index";
+import { ProcessMap } from "./maps";
 
 const meta: Meta = {
   title: "Canvas",

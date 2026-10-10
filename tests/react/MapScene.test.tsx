@@ -77,7 +77,7 @@ describe("ProcessMap scene", () => {
 
   it("hands the Canvas map the scene it built, with every graph overlay once", async () => {
     const graph: FlowGraph = { ...loop, overlays: [{ kind: "badge", target: "b", payload: { constraintId: "c1", value: 0.2 } }] };
-    render(<ProcessMap graph={graph} positions={loopPositions} renderer="canvas" {...plain} />);
+    render(<ProcessMap graph={graph} positions={loopPositions} renderer="canvas" edgeBudget="all" {...plain} />);
     await waitFor(() => expect(canvasScenes.at(-1)).toBeDefined());
     const handed = canvasScenes.at(-1)!;
     expect(prepareScene).not.toHaveBeenCalled();

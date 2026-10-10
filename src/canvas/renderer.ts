@@ -4,7 +4,8 @@
  * scene's R-tree. Pointer and keyboard handling belong to the host (the
  * React wrapper), which calls `panBy`, `zoomBy`, `hitAt` and `setState`.
  */
-import { type Box, type HitItem, type XY, emptySelection } from "../core/index.js";
+import { type Box, type EdgeBudget, type HitItem, type XY, emptySelection } from "../core/index.js";
+import { type EdgeBudgetAdapter, edgeBudgetAdapter } from "../core/edge-budget.js";
 import { type DrawContext, type DrawOptions, type DrawState, type View, drawScene } from "./draw.js";
 import type { PreparedScene } from "./scene.js";
 import { type CanvasTokens, defaultTokens } from "./tokens.js";
@@ -20,9 +21,13 @@ export interface CanvasRendererOptions {
   devicePixelRatio?: number;
   minZoom?: number;
   maxZoom?: number;
-  /** Forwarded to the drawing routines (culling, pattern tiles). */
-  draw?: Omit<DrawOptions, "tokens">;
+  /** Forwarded to the drawing routines (culling, pattern tiles); the edge budget may also be `"adaptive"`. */
+  draw?: RendererDrawOptions;
+  /** The clock (ms) the adaptive edge budget times frames with. Default `performance.now`. */
+  clock?: () => number;
 }
+
+export type RendererDrawOptions = Omit<DrawOptions, "tokens" | "edgeBudget"> & { edgeBudget?: EdgeBudget | "adaptive" };
 
 export class CanvasRenderer {
   readonly canvas: HTMLCanvasElement;
@@ -35,10 +40,12 @@ export class CanvasRenderer {
   private dpr: number;
   private frame: number | undefined;
   private disposed = false;
+  private clock: () => number;
+  private adapter: EdgeBudgetAdapter | undefined;
   tokens: CanvasTokens;
   minZoom: number;
   maxZoom: number;
-  drawOptions: Omit<DrawOptions, "tokens">;
+  drawOptions: RendererDrawOptions;
   /** Called after the viewport changed through `setViewport`, `panBy`, `zoomBy`, `centerOn` or `fit`. */
   onViewportChange?: (v: Viewport) => void;
   /** Statistics of the last draw; `withheld` when the edge budget left edges in view out. */
@@ -54,6 +61,7 @@ export class CanvasRenderer {
     this.minZoom = options.minZoom ?? 0.05;
     this.maxZoom = options.maxZoom ?? 3;
     this.drawOptions = options.draw ?? {};
+    this.clock = options.clock ?? (() => performance.now());
   }
 
   /** Size in CSS pixels; the backing store follows the device pixel ratio. */
@@ -173,11 +181,28 @@ export class CanvasRenderer {
     ctx.save();
     ctx.scale(this.dpr, this.dpr);
     const view: View = { ...this.viewport, width: this.width, height: this.height };
-    const stats = drawScene(ctx, this.scene, view, this.state, { ...this.drawOptions, tokens: this.tokens });
+    const { edgeBudget, ...options } = this.drawOptions;
+    let stats!: ReturnType<typeof drawScene>;
+    const run = (budget: EdgeBudget | undefined) => {
+      stats = drawScene(ctx, this.scene!, view, this.state, { ...options, edgeBudget: budget, tokens: this.tokens });
+      return stats.withheld ?? { shown: stats.edges, total: stats.edges };
+    };
+    if (edgeBudget === "adaptive") (this.adapter ??= edgeBudgetAdapter(this.clock)).frame(run);
+    else run(edgeBudget);
     ctx.restore();
     const ended = typeof performance !== "undefined" ? performance.now() : Date.now();
     this.lastDraw = { ...stats, ms: ended - started };
     this.onDraw?.(this.lastDraw);
+  }
+
+  /** A pan or zoom starts: an adaptive edge budget times its frames. */
+  beginGesture(): void {
+    if (this.drawOptions.edgeBudget === "adaptive") (this.adapter ??= edgeBudgetAdapter(this.clock)).start();
+  }
+
+  /** It ends: an adaptive edge budget may move a step and is drawn. */
+  endGesture(): void {
+    if (this.adapter?.end()) this.requestDraw();
   }
 
   dispose(): void {

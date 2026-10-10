@@ -3,7 +3,8 @@ import elkWorkerUrl from "elkjs/lib/elk-worker.min.js?url";
 import { useMemo, useState } from "react";
 import { constraintItems, globalScene, vendorScene } from "../fixtures/bpic2019";
 import { type AbstractOptions, diff, diffStyle, overlaysFor } from "../src/index";
-import { ProcessMap, type Selection } from "../src/react/index";
+import { type Selection } from "../src/react/index";
+import { ProcessMap } from "./maps";
 
 const meta: Meta<typeof ProcessMap> = {
   title: "Process map",

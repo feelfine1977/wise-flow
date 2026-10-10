@@ -169,6 +169,52 @@ export function adapterViolations(file, source) {
   });
 }
 
+/** The module the stories take their maps from; it fixes their edge budget. */
+export const storyMaps = 'stories/maps.tsx';
+const mapComponents = new Set(['ProcessMap', 'ViewSwitcher', 'CanvasMap']);
+
+/**
+ * Stories draw with a fixed edge budget, so that the browser and visual lanes
+ * do not depend on the speed of the machine: a story takes its maps from
+ * `stories/maps.tsx`, never from the library, and no story or Storybook file
+ * asks for an adaptive budget. That module passes every map a fixed budget,
+ * after the props it forwards: a number, `"all"`, or the story's value with
+ * one of those as its fallback.
+ */
+export function storyViolations(file, source) {
+  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  const shared = resolve(file) === resolve(root, storyMaps);
+  const library = new Map();
+  const errors = [];
+  for (const node of tree.statements) {
+    if (!ts.isImportDeclaration(node) || !ts.isStringLiteral(node.moduleSpecifier) || !node.moduleSpecifier.text.startsWith('.')) continue;
+    if (!within(resolve(dirname(file), node.moduleSpecifier.text), 'src/react')) continue;
+    const bindings = node.importClause?.namedBindings;
+    if (bindings && ts.isNamespaceImport(bindings)) errors.push(`Imports the React entry point as a whole; stories take the maps from ${storyMaps}`);
+    for (const e of bindings && ts.isNamedImports(bindings) ? bindings.elements : []) {
+      const name = (e.propertyName ?? e.name).text;
+      if (!mapComponents.has(name)) continue;
+      library.set(e.name.text, name);
+      if (!shared) errors.push(`Takes ${name} from the library; stories take it from ${storyMaps}, whose edge budget is fixed`);
+    }
+  }
+  const fixed = (v) => !!v && (ts.isNumericLiteral(v) || (ts.isStringLiteral(v) && v.text === 'all'));
+  const visit = (node) => {
+    if (ts.isStringLiteralLike(node) && node.text === 'adaptive') errors.push('Asks for an adaptive edge budget; stories draw with a fixed one');
+    if (shared && (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && library.has(node.tagName.getText(tree))) {
+      const props = node.attributes.properties;
+      const at = props.findIndex((p) => ts.isJsxAttribute(p) && p.name.getText(tree) === 'edgeBudget');
+      const init = props[at]?.initializer;
+      const value = init && ts.isJsxExpression(init) ? init.expression : init;
+      const ok = fixed(value) || (!!value && ts.isBinaryExpression(value) && value.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken && fixed(value.right));
+      if (!ok || props.slice(at + 1).some(ts.isJsxSpreadAttribute)) errors.push(`Renders ${library.get(node.tagName.getText(tree))} without a fixed edge budget after its other props`);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  return errors;
+}
+
 function filesAt(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
     const path = resolve(dir, entry.name);
@@ -187,6 +233,7 @@ export function checkArchitecture() {
     [(file, source) => deepImportViolations(file, source, names), [resolve(root, 'src/index.ts'), ...['src/react', 'src/canvas', 'src/bpmn'].flatMap((dir) => filesAt(resolve(root, dir)))].filter((file) => !file.endsWith('.d.ts'))],
     [(file, source) => seamViolations(file, source, seams), [resolve(root, 'src/index.ts'), ...adapterFiles]],
     [adapterViolations, adapterFiles],
+    [storyViolations, ['stories', '.storybook'].flatMap((dir) => filesAt(resolve(root, dir)))],
   ];
   const errors = rules.flatMap(([rule, files]) => files.flatMap(file => rule(file, readFileSync(file, 'utf8')).map(message => `${relative(root, file)}: ${message}`)));
   if (errors.length) throw new Error(errors.join('\n'));

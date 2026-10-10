@@ -99,7 +99,7 @@ async function canvasMap(): Promise<Surface> {
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
   const { container } = render(
     <div style={{ width: 1200, height: 800 }}>
-      <ProcessMap graph={graph} positions={positions} renderer="canvas" fitView={false} />
+      <ProcessMap graph={graph} positions={positions} renderer="canvas" edgeBudget="all" fitView={false} />
     </div>,
   );
   await waitFor(() => expect(container.querySelector(".wf-canvas-map")).toBeTruthy());

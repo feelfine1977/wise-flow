@@ -138,9 +138,13 @@ export interface ProcessMapProps {
    * edges (with an overlay mark on them, selected, at the keyboard
    * position or on a highlighted path) first, then by weight and id. While
    * edges are withheld the map says how many it shows; the table view lists
-   * every edge. Default `"all"`.
+   * every edge. A number or `"all"` is fixed. `"adaptive"` (the default)
+   * starts at 2,000 and, on the Canvas map, moves through the steps 500,
+   * 1,000, 2,000, 4,000, … after several consecutive frames of a pan or zoom
+   * gesture above 16.7 ms or below half of it, and only once the view is at
+   * rest; the React Flow map keeps the first step.
    */
-  edgeBudget?: EdgeBudget;
+  edgeBudget?: EdgeBudget | "adaptive";
   selection?: Selection;
   onSelect?: (selection: Selection) => void;
   onHover?: (id: string | null) => void;
