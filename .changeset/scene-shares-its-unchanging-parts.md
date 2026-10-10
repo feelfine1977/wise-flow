@@ -11,4 +11,7 @@ each. The Canvas scene gives the nodes without badges one frozen empty `badges`
 list and indexes a two-point route by its own `points` array. A sparse prepared
 scene with 100,000 nodes and edges retains about 23 % less (with activity
 labels about 32 % less). Every value, the SVG export and the Canvas calls are
-unchanged; a host that changed a shared part in place now copies it first.
+unchanged; a host that changed a shared part in place now copies it first. The
+optional keys of a mark (`band`, `title`, an edge's `dash`) and of a node's
+texts (`maxWidth`, `lod`, `weight`) are now present, `undefined`, where they do
+not apply, so `Object.keys`, `in` and a spread over defaults see them.
