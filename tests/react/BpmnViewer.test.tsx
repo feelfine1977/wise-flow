@@ -184,24 +184,28 @@ describe("BpmnView through the viewer seam", () => {
   it("calls back with the import only once the diagram is shown, fitted and ready", async () => {
     const deferred = memoryViewers({ deferImports: true });
     const Deferred = createBpmnView(deferred.connect);
-    // What the host could observe when it is called back: the view's status and the viewer's zooms.
-    const seen: { status: string | null | undefined; zooms: unknown[] }[] = [];
-    const onImport = vi.fn(() => void seen.push({ status: container.querySelector(".wf-bpmn")?.getAttribute("data-bpmn-status"), zooms: [...deferred.instances.at(-1)!.zooms] }));
-    const { container, rerender } = render(<Deferred xml={xml} onImport={onImport} />);
+    const badge: Overlay = { kind: "badge", target: "Task_CreatePO", payload: { glyph: "≥1" } };
+    // What the host could observe when it is called back: the view's status, the viewer's zooms and its overlays.
+    const seen: { status: string | null | undefined; zooms: unknown[]; overlays: number }[] = [];
+    const onImport = vi.fn(() => {
+      const viewer = deferred.instances.at(-1)!;
+      seen.push({ status: container.querySelector(".wf-bpmn")?.getAttribute("data-bpmn-status"), zooms: [...viewer.zooms], overlays: viewer.overlays.length });
+    });
+    const { container, rerender } = render(<Deferred xml={xml} onImport={onImport} overlays={[badge]} />);
     const group = container.querySelector(".wf-bpmn")!;
     // The headless import describes the diagram while the viewer is still importing it.
-    await waitFor(() => expect(group.getAttribute("aria-label")).toBe("BPMN diagram with 7 tasks, 2 gateways and 12 sequence flows in 3 lanes."));
+    await waitFor(() => expect(group.getAttribute("aria-label")).toBe("BPMN diagram with 7 tasks, 2 gateways and 12 sequence flows in 3 lanes. 1 visual annotations."));
     await waitFor(() => expect(deferred.instances[0]?.pending).toHaveLength(1));
     await new Promise((r) => setTimeout(r, 20));
     expect([group.getAttribute("data-bpmn-status"), onImport.mock.calls.length, deferred.instances[0].zooms]).toEqual(["loading", 0, []]);
     act(() => deferred.instances[0].pending[0]());
     await waitFor(() => expect(onImport).toHaveBeenCalledTimes(1));
-    expect(seen).toEqual([{ status: "ready", zooms: ["fit-viewport"] }]);
+    expect(seen).toEqual([{ status: "ready", zooms: ["fit-viewport"], overlays: 1 }]);
     // The headless import: one mapping row per task of the diagram.
     expect(onImport.mock.calls[0]).toEqual([expect.objectContaining({ mapping: Array.from({ length: 7 }, () => expect.anything()) })]);
     // Other overlays are not another import.
-    rerender(<Deferred xml={xml} onImport={onImport} overlays={[{ kind: "badge", target: "Task_CreatePO", payload: { glyph: "≥1" } }]} />);
-    await waitFor(() => expect(deferred.instances[0].overlays).toHaveLength(1));
+    rerender(<Deferred xml={xml} onImport={onImport} />);
+    await waitFor(() => expect(deferred.instances[0].overlays).toEqual([]));
     // A new XML in the modeler: the old viewer's readiness does not count for the new one's diagram.
     const next = `${xml}<!-- next -->`;
     rerender(<Deferred xml={next} onImport={onImport} mode="model" />);
@@ -210,8 +214,14 @@ describe("BpmnView through the viewer seam", () => {
     expect(onImport).toHaveBeenCalledTimes(1);
     act(() => deferred.instances[1].pending[0]());
     await waitFor(() => expect(onImport).toHaveBeenCalledTimes(2));
-    expect(seen[1]).toEqual({ status: "ready", zooms: ["fit-viewport"] });
+    expect(seen[1]).toEqual({ status: "ready", zooms: ["fit-viewport"], overlays: 0 });
     expect(deferred.instances[1].imported).toEqual([next]);
+    // Another mode on the same XML is not another import.
+    rerender(<Deferred xml={next} onImport={onImport} />);
+    await waitFor(() => expect(deferred.instances[2]?.pending).toHaveLength(1));
+    act(() => deferred.instances[2].pending[0]());
+    await waitFor(() => expect(group.getAttribute("data-bpmn-status")).toBe("ready"));
+    expect(onImport).toHaveBeenCalledTimes(2);
   });
 
   it("still calls back with the import when the viewer cannot be created", async () => {
