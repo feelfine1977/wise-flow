@@ -111,15 +111,19 @@ function exported(fixture: Fixture, scene: Partial<Scene>, options: PngOptions):
  * Recorded once more when arcs began to be drawn between the edges and the
  * nodes: every recording holds the same calls as before, and only the calls of
  * the arcs (stroke, arrowhead and label) moved from after the nodes to after
- * the edges.
+ * the edges. Recorded once more when arcs began to keep clear of the other
+ * activities: the scenes differ only in arc marks (in the global fixture four
+ * arcs take another course and four more move their label along the arc; in
+ * the vendor fixture two and one; in the unfiltered one, one label), so only
+ * the arcs' calls changed.
  */
 const before = {
-  mapGlobalStages: "41a7b0aa1ccc6fc4ffbdac164c00d27ad897a0e09dde5baeaeedb97ef5aefd20",
-  mapVendorIds: "8342138ee0aec0605df384aed83877b549d2b9594829e8477d90327b2b9142c8",
-  mapUnfiltered: "b72e8a1d76f7647a17fb06e3839b434a21b1e6cc021974feb671655ffeeea5b4",
-  pngGlobalTitle: "845401687f0c9093e507e0803cac227b35e81208e4f7a8bb1f431d67017c00e3",
-  pngVendorIds: "d111edbb9b2a36d29d0ea321ffce30311626062f20e0f4d9780d36760570546c",
-  pngUnfilteredGerman: "e6391a6dcc7155c570ed4a8e5ba799dc9959b24fe84d76678db8447e88bb869b",
+  mapGlobalStages: "9db6c60bad268bac1d034241e3be0ad640066102f8b55f062cfe1d2934792ee7",
+  mapVendorIds: "a2cc80340a1e94eb74fea10e25b17b6c8e5dbf2ef35a6c3d296f4606828298e1",
+  mapUnfiltered: "54a137c465c8c008aa35990f5431d211dbeabee90338ecffe4f23b7b02ccc8d8",
+  pngGlobalTitle: "23bed0f51a1accedc2494fabdf92837b531eccddd616b8f01799ab8365779763",
+  pngVendorIds: "3e30000e123af23278127f47f901b6ac35bb96c3f62618be6837bfbc3611287e",
+  pngUnfilteredGerman: "7350a5db2c3ebcff764f5dd9d23aebf7c9d905fa666afea98adab0503b6bc752",
 };
 
 /**
@@ -127,11 +131,13 @@ const before = {
  * still walked every element and tested it against the R-tree's result, and
  * recorded again for the two strips with arcs when arcs began to be drawn
  * between the edges and the nodes; their calls moved as in the uncull draws.
+ * Recorded once more, for the three strips with arcs, when arcs began to keep
+ * clear of the other activities; only the arcs' calls changed.
  */
 const culledBefore = {
-  culledGlobal: "129a9323ca7964675cb3397fd2a2aeda4bc3a14e3c77bef01afed0430056c0e0",
-  culledGlobalStages: "177a0be9328cdbf9a1cc424a40e746527754015b2143b598312387fe30a6b1e2",
-  culledVendorIds: "efcf4c49628e24cbd7d4421dec5e5a21d8e30375f294796862da0751ba871f36",
+  culledGlobal: "7e90c53c831b066a8591e8c112bf5238c4b69578ab42c109c315ddf99449077e",
+  culledGlobalStages: "313cd2232dd20a7ef1c60edaba696d756f05f043591a8b09b49d87114f889379",
+  culledVendorIds: "3242db8c7f087f0076240d4a0065d5eebb42249ad00f79a6c0a5f0f108fb1bf9",
   culledUnfiltered: "d7060d0bfb1109996132693d55950e32d8978e10004f40c87fc75e5a60fd1ba2",
 };
 

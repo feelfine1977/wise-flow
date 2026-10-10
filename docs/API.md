@@ -318,6 +318,26 @@ without evaluated cases read "not applicable in this scene".
 anchors, minimum zoom) that never extend beyond `overlayMargin()` around the
 positions' bounds.
 
+An arc keeps clear of the activities between its ends where it can. Its
+default course runs above the map from the tops of its ends (below from the
+bottoms for a reverse arc) at a height of 22 % of its span, at least 40,
+plus 14 for each earlier arc on the same pair, at most 140 (`arcHeight`). When
+that course, drawn at its stroke width, crosses the box of a node other than
+its ends, the arc takes the course that crosses the fewest: first on its own
+side, then on the other, each from the nearest height in steps of 14 (the
+further one first when two are equally near, up to 32 steps), within the
+margin and no higher than clears the nodes' bounds. A tie keeps the earlier
+course, so an arc that crosses nothing is drawn as before. The dash and the
+glyph still tell a reverse arc from a forward one on either side. The arc's
+label sits on it, 8 above the curve (14 below for a course below the map), at
+the point nearest the middle (in steps of 1/32 of the curve) where its box
+(11 per character and 4 on either side, from 14 above its baseline to 4
+below) covers no node, no earlier arc's label and no group's title; where
+none is free, at the point that covers the fewest. Before, every arc took
+its default course and its label sat at the middle. `buildScene` and the
+renderers reading it (SVG, PNG, the Canvas map, the React map and the BPMN
+view) all draw these courses.
+
 ## Hit index and export
 
 ```ts

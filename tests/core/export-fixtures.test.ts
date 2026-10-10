@@ -60,16 +60,21 @@ const observed: Variant = {
  * Recorded once more when arcs began to be drawn between the edges and the
  * nodes; with the arc groups taken out the output is the same, and the arc
  * groups, unchanged, now follow the last edge instead of the last node
- * (`plain` has no arcs and kept its digest).
+ * (`plain` has no arcs and kept its digest). Recorded once more when arcs
+ * began to keep clear of the other activities; with the arc groups taken out
+ * the output is the same (the figure's size too). Of the twelve arcs of the
+ * global fixture four take another course and four more move their label
+ * along the arc; of the vendor's four, two and one; of `unfiltered`'s three,
+ * one moves its label.
  */
 const before: Record<string, string> = {
-  overlays: "f28643c881f719fddbdfdcac9b7c0cdc88c37ce44c1515675b1efc6db9cb866c",
-  stagesGerman: "1de38e9c82b9ef806a77c92fa618fb4212db790a1a5832fb7d06c6ea98c9aae4",
-  vendor: "043d7f34c742410f6676cdbe736e018c3c4eff980c1a15e3d74754eb348434d4",
-  unfiltered: "14e258b6a9ceb3fb38f64804b8eb3d7107cc53554636b482bd640f708e49b87a",
+  overlays: "74e67077d3b0f99f6893858a24aa05e3ae291722aba13f93aa53b9da27410bc9",
+  stagesGerman: "eb450ad2a8059ebda77de03601ef2c860c94a3f3f6a4d70a8267ac584154f38f",
+  vendor: "dba267f9dec9a165cfd032ea66f671ca1fcc8c89b40b6e563d15fafcd2d19acb",
+  unfiltered: "475c1cfa8937212d9f8a92c0a4c21533b318ecae296c5fc537ef20c5512febc0",
   plain: "db64726176b89df026082bcc92fdeff7598af00d8b0effd952344530a25931b0",
 };
-const beforeObserved = "15dba9df0c23d1452a733f17f3b8dbc8922d0882f265a05c09f6ef4ba801ba60";
+const beforeObserved = "fe4d21ec7aa3b6c9fb0e0b818218fdaa6975bd743dc971a55df3bfbc05409a8b";
 
 describe("toSVG on the committed fixtures", () => {
   it("matches the recorded output once follows self-loops are hidden", () => {

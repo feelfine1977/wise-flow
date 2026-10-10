@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { type Box, type FlowGraph, type FlowScene, type OverlayMark, type Positions, buildScene, createPositions, toSVG } from "../../src/index";
+import { constraintItems, globalScene } from "../../fixtures/bpic2019";
+import { type DrawContext, drawScene, prepareScene, toPNGCanvas } from "../../src/canvas/index";
+import { type Box, type FlowGraph, type FlowScene, type Overlay, type OverlayMark, type Positions, abstract, buildScene, createPositions, overlaysFor, toSVG } from "../../src/index";
 import * as kinds from "./overlay-kinds";
+import p2pMap from "./p2p-map-positions.json";
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 
@@ -80,5 +83,146 @@ describe("arcs that cross no other activity", () => {
       rowsMarks: sha(JSON.stringify(rowsScene.marks)),
       rowsSvg: sha(toSVG({ graph: rows.graph, positions: rows.positions }, { legend: false })),
     }).toEqual(recorded);
+  });
+});
+
+const meets = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+/** The rectangle an arc's label may cover: 11 per character and 4 on either side, from 14 above its baseline to 4 below. */
+const labelBox = (m: OverlayMark): Box => {
+  const t = m.texts[0];
+  return { x: t.x - t.text.length * 5.5 - 4, y: t.y - 14, width: t.text.length * 11 + 8, height: 18 };
+};
+/** An arc's mark with another path, to ask what that course crosses. */
+const along = (m: OverlayMark, path: string): OverlayMark => ({ ...m, path });
+const nodesOf = (boxes: Record<string, Box>): FlowGraph["nodes"] => Object.keys(boxes).map((id) => ({ id, kind: "activity", label: id.toUpperCase() }));
+const arc = (source: string, target: string, payload: Overlay["payload"] = {}): Overlay => ({ kind: "arc", target: `${source}->${target}`, payload: { source, target, value: 0.5, glyph: "⏱", ...payload } });
+
+describe("the course of an arc", () => {
+  // a and b 600 apart; c just above a, d and e just below a and b, f over the middle.
+  const boxes: Record<string, Box> = {
+    a: { x: 0, y: 200, width: 100, height: 40 },
+    b: { x: 600, y: 200, width: 100, height: 40 },
+    c: { x: 0, y: 160, width: 100, height: 25 },
+    d: { x: 0, y: 260, width: 100, height: 30 },
+    e: { x: 600, y: 260, width: 100, height: 30 },
+    f: { x: 300, y: 80, width: 100, height: 30 },
+  };
+  const scene = (order: string[] = Object.keys(boxes)) =>
+    buildScene({ nodes: nodesOf(Object.fromEntries(order.map((id) => [id, boxes[id]]))), edges: [] }, createPositions({ nodes: Object.fromEntries(order.map((id) => [id, boxes[id]])), groups: {}, edges: {} }, "given", "RIGHT"), { overlays: [arc("a", "b")] });
+
+  it("crosses the fewest activities when every course crosses one", () => {
+    const [mark] = arcs(scene());
+    // Above, every course leaves a's top through c; below, every course crosses d and e.
+    for (let h = 40; h <= 446; h += 14) {
+      expect(crossedBy(along(mark, `M50 200 C50 ${200 - h} 650 ${200 - h} 650 200`), boxes), `above at ${h}`).toContain("c");
+      expect(crossedBy(along(mark, `M50 240 C50 ${240 + h} 650 ${240 + h} 650 240`), boxes), `below at ${h}`).toEqual(expect.arrayContaining(["d", "e"]));
+    }
+    // The default height, 0.22 × 600 = 132, also crosses f (its middle at 200 − 0.75 × 132 = 101, 5 wide on either
+    // side); 118, 146 and 160 still reach f's box (80–110), 104 is the nearest that passes below it.
+    expect(crossedBy(along(mark, "M50 200 C50 68 650 68 650 200"), boxes)).toEqual(["c", "f"]);
+    for (const h of [118, 146, 160]) expect(crossedBy(along(mark, `M50 200 C50 ${200 - h} 650 ${200 - h} 650 200`), boxes)).toEqual(["c", "f"]);
+    expect(mark.path).toBe("M50 200 C50 96 650 96 650 200");
+    expect(crossedBy(mark, boxes)).toEqual(["c"]);
+  });
+
+  it("chooses the same course for the same input, in any order", () => {
+    expect(scene().marks).toEqual(scene().marks);
+    expect(scene([...Object.keys(boxes)].reverse()).marks).toEqual(scene().marks);
+  });
+
+  it("moves the label along the arc to the nearest point where it covers no activity", () => {
+    const [mark] = arcs(scene());
+    // In the middle (350, 114) and at the next six points, 1/32 apart, its 74 × 18 box reaches into f;
+    // at t = 3/8 the arc is at (239.84, 126.88) and the label 8 above it clears f.
+    expect(mark.texts[0]).toMatchObject({ text: "⏱ 50 %", x: 239.84375, y: 118.875 });
+    expect(Object.values(boxes).filter((b) => meets(b, labelBox(mark)))).toEqual([]);
+  });
+});
+
+describe("the label of an arc", () => {
+  // p and q 1,000 apart: two arcs on the pair both have the highest default course, 140.
+  const boxes: Record<string, Box> = { p: { x: 0, y: 200, width: 100, height: 40 }, q: { x: 1000, y: 200, width: 100, height: 40 } };
+  const positions = (groups: Record<string, Box> = {}) => createPositions({ nodes: boxes, groups, edges: {} }, "given", "RIGHT");
+
+  it("keeps clear of the labels of earlier arcs", () => {
+    const graph: FlowGraph = { nodes: nodesOf(boxes), edges: [] };
+    const [first, second] = arcs(buildScene(graph, positions(), { overlays: [arc("p", "q", { constraintId: "lag" }), arc("p", "q", { constraintId: "order", glyph: "⇒", value: 0.25 })] }));
+    expect(second.path).toBe(first.path);
+    // The first at the middle, (550, 95 − 8); the second at t = 7/16, the nearest point where its box clears the first's.
+    expect(first.texts[0]).toMatchObject({ text: "⏱ 50 %", x: 550, y: 87 });
+    expect(second.texts[0]).toMatchObject({ text: "⇒ 25 %", x: 456.73828125, y: 88.640625 });
+    expect(meets(labelBox(first), labelBox(second))).toBe(false);
+  });
+
+  it("keeps clear of a group's title", () => {
+    // The title "Stage" of a group whose corner is at (505, 67) is written at (517, 89) and covers 517–559 × 75–93.
+    const graph: FlowGraph = { nodes: nodesOf(boxes), edges: [], groups: [{ id: "g", kind: "stage", label: "Stage" }] };
+    const [mark] = arcs(buildScene(graph, positions({ g: { x: 505, y: 67, width: 200, height: 100 } }), { overlays: [arc("p", "q")] }));
+    // In the middle and at 15/32 the label's box reaches the title; at 17/32 it starts at 559.8.
+    expect(mark.texts[0]).toMatchObject({ x: 596.81396484375, y: 87.41015625 });
+  });
+});
+
+describe("arcs on the BPIC map of the P2P story", () => {
+  // The story's abstraction and overlays, on the layout ELK gives it (committed as data).
+  const shown = abstract(globalScene, { minNodeShare: 0.01, minEdgeShare: 0.03, keepConnected: true });
+  const positions = createPositions(p2pMap as Pick<Positions, "nodes" | "groups" | "edges">, "elk", "RIGHT");
+  const overlays = overlaysFor(constraintItems("global"), { graph: globalScene, locale: "en" });
+  const cancel = "cancel_invoice_receipt";
+
+  it("lays out the activities of the story's abstraction", () => {
+    expect(Object.keys(positions.nodes).sort()).toEqual(shown.nodes.map((n) => n.id).sort());
+    expect(shown.nodes.find((n) => n.id === cancel)?.label).toBe("Cancel Invoice Receipt");
+  });
+
+  for (const lanes of ["none", "stages"] as const) {
+    it(`keeps every arc and every arc label clear of the other activities (lanes: ${lanes})`, () => {
+      const scene = buildScene(shown, positions, { overlays, lanes, lodBySize: true });
+      const all = arcs(scene);
+      expect(all).toHaveLength(12);
+      // At its default height (140) the arc from Record Goods Receipt to Record Invoice Receipt crossed Cancel Invoice Receipt.
+      const [goodsToInvoice] = all;
+      expect(goodsToInvoice.id).toBe("arc:record_goods_receipt->record_invoice_receipt:12");
+      expect(crossedBy(along(goodsToInvoice, "M1300.28 262 C1300.28 122 2077.72 88.1 2077.72 228.1"), scene.positions.nodes)).toEqual([cancel]);
+      for (const m of all) expect(crossedBy(m, scene.positions.nodes), m.id).toEqual([]);
+      const labels = all.map(labelBox);
+      for (const [i, l] of labels.entries()) {
+        expect(Object.entries(scene.positions.nodes).filter(([, b]) => meets(b, l)).map(([id]) => id), all[i].id).toEqual([]);
+        expect(labels.filter((other, j) => j !== i && meets(other, l)), all[i].id).toEqual([]);
+      }
+    });
+  }
+
+  it("is drawn with the same geometry by the SVG export, the Canvas map and toPNG", () => {
+    const scene = buildScene(shown, positions, { overlays });
+    const marks = arcs(scene);
+    // SVG: each arc's path and label as the mark has them.
+    const svg = toSVG({ graph: shown, positions, overlays }, { legend: false });
+    const written = [...svg.matchAll(/<g class="wf-overlay wf-arc"><title>[^<]*<\/title><path d="([^"]+)"[^>]*\/><text x="([^"]+)" y="([^"]+)"/g)].map((m) => [m[1], Number(m[2]), Number(m[3])]);
+    expect(written).toEqual(marks.map((m) => [m.path, Number(m.texts[0].x.toFixed(2)), Number(m.texts[0].y.toFixed(2))]));
+    // Canvas map and PNG: the prepared scene holds the same marks, and each arc is stroked along its path.
+    const prepared = prepareScene(shown, positions, { overlays, lodBySize: false });
+    expect(arcs(prepared)).toEqual(marks);
+    const curves = (draw: (ctx: DrawContext) => void) => {
+      const out: string[] = [];
+      let path = "";
+      const r = (n: number) => Number(n.toFixed(2));
+      const ctx = new Proxy({} as Record<string, unknown>, {
+        get: (_t, key: string) => {
+          if (key === "moveTo") return (x: number, y: number) => void (path = `M${r(x)} ${r(y)}`);
+          if (key === "bezierCurveTo") return (...a: number[]) => void (path += ` C${a.map(r).join(" ")}`);
+          if (key === "stroke") return () => void (path.includes("C") && out.push(path));
+          if (key === "measureText") return (s: string) => ({ width: s.length * 6 });
+          return () => undefined;
+        },
+        set: () => true,
+      }) as unknown as DrawContext;
+      draw(ctx);
+      return out;
+    };
+    const arcPaths = marks.map((m) => m.path);
+    const isArc = (p: string) => arcPaths.includes(p);
+    expect(curves((ctx) => drawScene(ctx, prepared, { x: 0, y: 0, zoom: 1, width: 4000, height: 1000 }, undefined, { cull: false })).filter(isArc)).toEqual(arcPaths);
+    expect(curves((ctx) => toPNGCanvas({ graph: shown, positions, overlays }, { legend: false, scale: 1, createCanvas: (width, height) => ({ width, height, getContext: () => ctx }) })).filter(isArc)).toEqual(arcPaths);
   });
 });

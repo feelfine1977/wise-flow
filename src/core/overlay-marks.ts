@@ -137,6 +137,13 @@ export function chipText(overlay: Overlay, locale: Locale = "en"): { lead?: stri
   return p.label ? { lead: `${p.label}: `, text } : { text };
 }
 
+/** What an arc prints: its display label, or its glyph and share. */
+export function arcLabel(overlay: Overlay, locale: Locale = "en"): string {
+  const p = overlay.payload ?? {};
+  if (typeof p.displayLabel === "string") return p.displayLabel;
+  return `${p.glyph ?? ""} ${typeof p.value === "number" && Number.isFinite(p.value) ? formatShare(p.value, locale) : ""}`.trim();
+}
+
 /** One mark per shape, in the shapes' order. */
 export function overlayMarks(shapes: OverlayShape[], locale: Locale = "en"): OverlayMark[] {
   return shapes.map((s) => overlayMark(s, locale));
@@ -170,7 +177,7 @@ function overlayMark(s: OverlayShape, locale: Locale): OverlayMark {
     case "hatch":
       return { ...mark, radius: 6, fill: { paint: "outOfScope", pattern: "outOfScope", opacity: 0.55 } };
     case "arc": {
-      const label = typeof p.displayLabel === "string" ? p.displayLabel : `${p.glyph ?? ""} ${share}`.trim();
+      const label = arcLabel(o, locale);
       return {
         ...mark,
         path: s.path,

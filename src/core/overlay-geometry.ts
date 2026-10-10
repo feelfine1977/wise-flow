@@ -2,9 +2,10 @@
  * Overlay geometry: where badges, arcs, self-loops, hatching, tints and chips
  * sit on a laid-out scene.
  */
+import RBush from "rbush";
 import { type Box, type Positions, type XY, unionBoxes } from "./layout.js";
-import { type Overlay, type OverlayKind, MAP_TARGET } from "./model.js";
-import { chipLayout, chipText } from "./overlay-marks.js";
+import { type FlowGroup, type Overlay, type OverlayKind, MAP_TARGET } from "./model.js";
+import { arcLabel, arcWidth, chipLayout, chipText } from "./overlay-marks.js";
 import { type LodRules, defaultLod } from "./style.js";
 
 export interface OverlayShape {
@@ -26,7 +27,7 @@ export interface OverlayShape {
 export interface OverlayGeometryOptions {
   lod?: Partial<LodRules>;
   badgeSize?: number;
-  /** Arc height above the nodes, clamped to this range. */
+  /** Default arc height above the nodes, clamped to this range; an arc that crosses other nodes may rise further within the margin. */
   arcHeight?: [number, number];
   chipHeight?: number;
 }
@@ -54,17 +55,48 @@ function chipWidth(o: Overlay): number {
 
 const fmt = (n: number) => Number(n.toFixed(2)).toString();
 
+type Item = { id: string; minX: number; minY: number; maxX: number; maxY: number };
+
+const meets = (a: Box, b: Box) => a.x <= b.x + b.width && b.x <= a.x + a.width && a.y <= b.y + b.height && b.y <= a.y + a.height;
+
+/** Whether the segment from `a` to `b` meets the box `it` grown by `r` (Liang–Barsky). */
+function segmentMeets(a: XY, b: XY, it: Item, r: number): boolean {
+  let t0 = 0;
+  let t1 = 1;
+  for (const [p, q] of [[a.x - b.x, a.x - it.minX + r], [b.x - a.x, it.maxX + r - a.x], [a.y - b.y, a.y - it.minY + r], [b.y - a.y, it.maxY + r - a.y]]) {
+    if (p < 0) t0 = Math.max(t0, q / p);
+    else if (p > 0) t1 = Math.min(t1, q / p);
+    else if (q < 0) return false;
+  }
+  return t0 <= t1;
+}
+
+/**
+ * Where the renderers write each group's title: 12 in from the left edge of its
+ * box, on a baseline 22 below its top, at 14 px (about 0.6 em per character).
+ */
+export function groupTitles(groups: readonly FlowGroup[], positions: Positions): Box[] {
+  return groups.flatMap((g) => {
+    const b = positions.groups[g.id];
+    return b ? [{ x: b.x + 12, y: b.y + 8, width: Array.from(g.label).length * 8.4, height: 18 }] : [];
+  });
+}
+
 /**
  * Geometry of overlays that are already in canonical order (see
  * `canonicalOverlays`); shape ids carry the position in that order. Badge slots along the top edge of the
  * node, arcs as cubic curves above (or, for reverse arcs, below) the map, self-loops
  * at the top-right corner, hatch and tint over the element's box, chips inside groups.
- * Shapes never extend beyond `overlayMargin` around the positions' bounds.
+ * An arc takes another height or side only where that crosses fewer other nodes;
+ * its label sits on it nearest its middle where it covers no node, earlier arc label
+ * or title. Shapes never extend beyond `overlayMargin` around the positions' bounds.
  */
 export function placeOverlays(
   ordered: Overlay[],
   positions: Positions,
   options: OverlayGeometryOptions = {},
+  /** Boxes that arc labels keep clear of besides the nodes and each other (`groupTitles`). */
+  titles: readonly Box[] = [],
 ): OverlayGeometry {
   const lod = { ...defaultLod, ...(options.lod ?? {}) };
   const badge = options.badgeSize ?? 22;
@@ -87,6 +119,11 @@ export function placeOverlays(
   const arcCount = new Map<string, number>();
   const chipCount = new Map<string, number>();
   const boxOf = (id: string): Box | undefined => positions.nodes[id] ?? positions.groups[id];
+  // The nodes in an R-tree, built for the first arc; the arc labels placed so far.
+  let tree: RBush<Item> | undefined;
+  const within = (b: Box): Item[] =>
+    (tree ??= new RBush<Item>().load(Object.entries(positions.nodes).map(([id, n]) => ({ id, minX: n.x, minY: n.y, maxX: n.x + n.width, maxY: n.y + n.height })))).search({ minX: b.x, minY: b.y, maxX: b.x + b.width, maxY: b.y + b.height });
+  const labels: Box[] = [];
 
   ordered.forEach((o, index) => {
     const id = `${o.kind}:${o.target}:${index}`;
@@ -112,16 +149,62 @@ export function placeOverlays(
         const reverse = !!p.reverse;
         const sx = s.x + s.width / 2;
         const tx = tg.x + tg.width / 2;
-        const sy = reverse ? s.y + s.height : s.y;
-        const ty = reverse ? tg.y + tg.height : tg.y;
-        const span = Math.abs(tx - sx);
-        const h = Math.min(arcMax, Math.max(arcMin, span * 0.22) + n * 14);
-        const dir = reverse ? 1 : -1;
-        const c1y = sy + dir * h;
-        const c2y = ty + dir * h;
-        const path = `M${fmt(sx)} ${fmt(sy)} C${fmt(sx)} ${fmt(c1y)} ${fmt(tx)} ${fmt(c2y)} ${fmt(tx)} ${fmt(ty)}`;
-        const apexY = 0.125 * sy + 0.375 * c1y + 0.375 * c2y + 0.125 * ty;
-        const labelX = (sx + tx) / 2, labelY = apexY + (reverse ? 14 : -8);
+        const half = arcWidth(o) / 2;
+        const h0 = Math.min(arcMax, Math.max(arcMin, Math.abs(tx - sx) * 0.22) + n * 14);
+        // A course from the tops (or bottoms) of the ends, and the other nodes it crosses (up to `bound`).
+        const course = (below: boolean, h: number, bound = Infinity) => {
+          const sy = below ? s.y + s.height : s.y;
+          const ty = below ? tg.y + tg.height : tg.y;
+          const dy = below ? h : -h;
+          const at = (t: number): XY => {
+            const u = 1 - t;
+            const [w0, w1, w2, w3] = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t];
+            return { x: t === 0.5 ? (sx + tx) / 2 : (w0 + w1) * sx + (w2 + w3) * tx, y: w0 * sy + w1 * (sy + dy) + w2 * (ty + dy) + w3 * ty };
+          };
+          const hit = new Set<string>();
+          for (let i = 0, a = at(0); i < 32 && hit.size < bound; i++) {
+            const b = at((i + 1) / 32);
+            for (const it of within({ x: Math.min(a.x, b.x) - half, y: Math.min(a.y, b.y) - half, width: Math.abs(b.x - a.x) + 2 * half, height: Math.abs(b.y - a.y) + 2 * half })) {
+              if (it.id !== p.source && it.id !== p.target && segmentMeets(a, b, it, half)) hit.add(it.id);
+            }
+            a = b;
+          }
+          return { below, sy, ty, dy, at, crossed: hit.size };
+        };
+        // Own side first, nearest height first (further out on a tie), up to 32 steps of 14, within
+        // the margin and not beyond clearing the nodes' bounds.
+        let best = course(reverse, h0);
+        for (const below of [reverse, !reverse]) {
+          const mid = below ? (s.y + s.height + tg.y + tg.height) / 2 : (s.y + tg.y) / 2;
+          const room = below ? limit.y + limit.height - 18 - mid : mid - 22 - limit.y;
+          const clear = (below ? positions.bounds.y + positions.bounds.height - mid : mid - positions.bounds.y) + 0.75 * (half + 15);
+          for (let k = below === reverse ? 1 : 0; k <= 32 && best.crossed; k++) {
+            for (const h of k ? [h0 + k * 14, h0 - k * 14] : [h0]) {
+              if (h >= arcMin && 0.75 * h <= Math.min(room, clear) && best.crossed) {
+                const c = course(below, h, best.crossed);
+                if (c.crossed < best.crossed) best = c;
+              }
+            }
+          }
+        }
+        const { sy, ty, dy, at, below } = best;
+        const path = `M${fmt(sx)} ${fmt(sy)} C${fmt(sx)} ${fmt(sy + dy)} ${fmt(tx)} ${fmt(ty + dy)} ${fmt(tx)} ${fmt(ty)}`;
+        const apexY = at(0.5).y;
+        const labelAt = (t: number): XY => ({ x: at(t).x, y: at(t).y + (below ? 14 : -8) });
+        let label = labelAt(0.5);
+        const text = arcLabel(o);
+        if (text) {
+          const rect = (l: XY): Box => ({ x: l.x - text.length * 5.5 - 4, y: l.y - 14, width: text.length * 11 + 8, height: 18 });
+          let least = Infinity;
+          for (let k = 0; k < 29 && least; k++) {
+            const l = labelAt(0.5 + (k % 2 ? -1 : 1) * Math.ceil(k / 2) / 32);
+            const r = rect(l);
+            const count = within(r).length + [...labels, ...titles].filter((b) => meets(b, r)).length;
+            if (count < least) [label, least] = [l, count];
+          }
+          labels.push(rect(label));
+        }
+        const { x: labelX, y: labelY } = label;
         const labelHalfWidth = typeof p.displayLabel === "string" ? p.displayLabel.length * 11 / 2 + 4 : 0;
         const x0 = Math.min(sx, tx, labelX - labelHalfWidth);
         const x1 = Math.max(sx, tx, labelX + labelHalfWidth);

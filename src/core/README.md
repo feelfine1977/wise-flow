@@ -13,7 +13,7 @@ Framework-free TypeScript; runs in Node and in the browser. No DOM, no React.
 | `tokens.ts` | the design token table: colours of both schemes, palettes, font stack, node sizes, mark sizes, the arrowhead rule, pattern twins (`patternTwin`), hatching, and the CSS variables of `tokens.css` (`tokenVariables`); imports nothing |
 | `style.ts` | `buildScales`, palettes with pattern twins, contrast helpers, level-of-detail rules, `patternDefs` |
 | `overlays.ts` | constraint presets → overlays, `canonicalOverlays`, `overlayGeometry`, `describeOverlay` |
-| `overlay-geometry.ts` | placement of overlays already in canonical order: badge slots, arcs, self-loops, hatch, tint, chips |
+| `overlay-geometry.ts` | placement of overlays already in canonical order: badge slots, arcs (the course crossing the fewest other nodes, the label clear of nodes, other labels and group titles), self-loops, hatch, tint, chips |
 | `overlay-marks.ts` | `overlayMarks`: one resolved mark per placed overlay (box or path, fill, stroke, dash, arrowhead, texts, layer, zoom threshold); `overlayColor`, `tintColor`, `arcWidth`, `overlayArrow` |
 | `observed-loops.ts` | `followsSelfLoops`, `withFollowsSelfLoops`, `withObservedSelfLoops`: follows edges from a node to itself as self-loop overlays |
 | `scene.ts` | `buildScene`: graph and positions resolved once into activity references, lane bands, scales, the overlays to show, level-of-detail rules, overlay geometry, overlay, node and edge marks and the legend |

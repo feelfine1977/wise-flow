@@ -193,9 +193,11 @@ group id or `__map`. Presets map a constraint description (presence,
 singularity, exclusion, lag, precedence, balance / metric, applicability)
 and its statistics to overlays with formatted readings. Renderers draw
 overlays; the core computes their geometry (badge slots along the node's
-top edge, cubic arcs above the map and reverse arcs below it, self-loops at
-the corner, chips inside groups) within a declared margin around the
-layout, and their visibility by zoom level. Overlays are drawn in a
+top edge, cubic arcs above the map and reverse arcs below it, each at the
+height or on the side that crosses the fewest other activities, with its
+label on it where it covers no activity, other arc label or group title,
+self-loops at the corner, chips inside groups) within a declared margin
+around the layout, and their visibility by zoom level. Overlays are drawn in a
 canonical order so that exports do not depend on input order. The scene
 carries one resolved mark per placed overlay (box or path, fill, stroke,
 dash, arrowhead, texts, layer, zoom threshold, whether it is drawn on the
