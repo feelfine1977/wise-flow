@@ -8,9 +8,8 @@ import { type FlowEdge, type FlowGraph, hasTag } from "../../src/index";
  * - the case starts with one token on each outgoing flow of the start node;
  * - a task or an event takes one token from one incoming flow and puts one on
  *   every outgoing flow (several outgoing flows without a gateway are all
- *   taken, as BPMN reads flows without a condition; `uncontrolled: "choice"`
- *   reads them as a choice of one instead); without outgoing flows the token
- *   leaves the process;
+ *   taken, as BPMN reads flows without a condition); without outgoing flows
+ *   the token leaves the process;
  * - an exclusive gateway (xor, or untagged) takes one token from one incoming
  *   flow and puts it on one outgoing flow of its choice;
  * - a parallel gateway (and) waits for a token on every incoming flow, takes
@@ -38,7 +37,7 @@ export interface TokenGame {
 
 const carriesTokens = (e: FlowEdge) => e.kind !== "constraint" && !hasTag(e, "message") && !hasTag(e, "association");
 
-export function playTokens(graph: FlowGraph, options: { limit?: number; uncontrolled?: "all" | "choice" } = {}): TokenGame {
+export function playTokens(graph: FlowGraph, options: { limit?: number } = {}): TokenGame {
   const limit = options.limit ?? 100_000;
   const flows = graph.edges.filter(carriesTokens);
   const index = new Map(flows.map((e, i) => [e.id, i]));
@@ -99,9 +98,7 @@ export function playTokens(graph: FlowGraph, options: { limit?: number; uncontro
         }
       } else {
         for (const f of inFlows) {
-          if (m[f] === 0) continue;
-          if (options.uncontrolled === "choice" && outFlows.length > 1) for (const o of outFlows) step([f], [o]);
-          else step([f], outFlows);
+          if (m[f] > 0) step([f], outFlows);
         }
       }
     }

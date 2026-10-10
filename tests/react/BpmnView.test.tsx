@@ -27,7 +27,7 @@ describe("BpmnView", () => {
     );
     await waitFor(() => expect(screen.getAllByRole("table").length).toBe(3));
     const group = container.querySelector(".wf-bpmn") as HTMLElement;
-    expect(group.getAttribute("aria-label")).toBe("BPMN diagram with 7 tasks, 2 gateways and 12 sequence flows in 3 lanes.");
+    expect(group.getAttribute("aria-label")).toBe("BPMN diagram with 7 tasks, 3 gateways and 13 sequence flows in 3 lanes.");
     // The mapped task appears under its activity id in the table.
     expect(container.textContent).toContain("Create Purchase Order Item");
     const rows = Array.from(container.querySelectorAll("tbody tr"));

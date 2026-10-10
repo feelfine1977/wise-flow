@@ -51,7 +51,7 @@ describe("BpmnView overlays from the scene", () => {
       { kind: "badge", target: "no_such_task", payload: { value: 0.5 } },
     ]);
     expect(container.querySelector(".wf-bpmn")?.getAttribute("aria-label")).toBe(
-      "BPMN diagram with 7 tasks, 2 gateways and 12 sequence flows in 3 lanes. 1 visual annotations.",
+      "BPMN diagram with 7 tasks, 3 gateways and 13 sequence flows in 3 lanes. 1 visual annotations.",
     );
   });
 

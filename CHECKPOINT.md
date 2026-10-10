@@ -210,10 +210,11 @@ one incoming or outgoing flow without a gateway in between.
 ### 6.3 BPMN › overlays on a model
 
 What appears: the hand-written model `fixtures/p2p_small.bpmn` (pool with
-the lanes Purchasing, Warehouse, Accounts payable; seven tasks; two
-gateways; a rejection loop) with the fixture's constraint overlays for the
-dataset *All items*: 17 overlays, badges on Record Invoice Receipt (≤1 4 %)
-and Clear Invoice (≥1 23 %), lag and precedence arcs between Record Goods
+the lanes Purchasing, Warehouse, Accounts payable; seven tasks; three
+exclusive gateways; a rejection loop through the *Approved?* choice) with
+the fixture's constraint overlays for the dataset *All items*: 17
+overlays, badges on Record Invoice Receipt (≤1 4 %) and Clear Invoice
+(≥1 23 %), lag and precedence arcs between Record Goods
 Receipt / Record Service Entry Sheet and Record Invoice Receipt with dashed
 reverse arcs, hatched tasks outside the 3-way-match scope, map-level chips
 under the legend. Below the diagram the mapping table lists every task

@@ -33,6 +33,7 @@ describe("importBpmn", () => {
       Gateway_Received: "gateway",
       Task_InvoiceReceipt: "activity",
       Task_ApproveInvoice: "activity",
+      Gateway_Approved: "gateway",
       Task_ClearInvoice: "activity",
       EndEvent_Paid: "event",
     });
@@ -41,17 +42,18 @@ describe("importBpmn", () => {
     expect(g.nodes.find((n) => n.id === "Gateway_GoodsOrService")).toMatchObject({ label: "Goods or service?", group: "Lane_Warehouse", tags: ["xor"] });
     expect(g.nodes.find((n) => n.id === "Task_InvoiceReceipt")?.tags).toEqual(["task", "userTask"]);
     expect(g.nodes.find((n) => n.id === "Task_ClearInvoice")?.tags).toEqual(["task", "serviceTask"]);
-    expect(g.edges.length).toBe(12);
+    expect(g.edges.length).toBe(13);
     expect(g.edges.every((e) => e.kind === "flow")).toBe(true);
     const goods = g.edges.find((e) => e.id === "Flow_Goods")!;
     expect(goods).toMatchObject({ source: "Gateway_GoodsOrService", target: "record_goods_receipt", payload: { bpmnId: "Flow_Goods", label: "goods" } });
     const rejected = g.edges.find((e) => e.id === "Flow_Rejected")!;
-    expect([rejected.source, rejected.target]).toEqual(["Task_ApproveInvoice", "Task_InvoiceReceipt"]);
+    expect([rejected.source, rejected.target]).toEqual(["Gateway_Approved", "Task_InvoiceReceipt"]);
+    expect(g.nodes.find((n) => n.id === "Gateway_Approved")).toMatchObject({ label: "Approved?", group: "Lane_AccountsPayable", tags: ["xor"] });
     // Positions from the DI, in absolute coordinates.
     expect(result.positions?.engine).toBe("di");
     expect(result.positions?.nodes.Task_CreatePO).toEqual({ x: 440, y: 140, width: 100, height: 80 });
-    expect(result.positions?.groups.Lane_Warehouse).toEqual({ x: 190, y: 280, width: 1210, height: 200 });
-    expect(result.positions?.groups.Participant_p2p.width).toBe(1240);
+    expect(result.positions?.groups.Lane_Warehouse).toEqual({ x: 190, y: 280, width: 1310, height: 200 });
+    expect(result.positions?.groups.Participant_p2p.width).toBe(1340);
     expect(result.positions?.edges.Flow_PO_Gateway.points).toEqual([
       { x: 540, y: 180 },
       { x: 610, y: 180 },

@@ -194,7 +194,7 @@ describe("BpmnView through the viewer seam", () => {
     const { container, rerender } = render(<Deferred xml={xml} onImport={onImport} overlays={[badge]} />);
     const group = container.querySelector(".wf-bpmn")!;
     // The headless import describes the diagram while the viewer is still importing it.
-    await waitFor(() => expect(group.getAttribute("aria-label")).toBe("BPMN diagram with 7 tasks, 2 gateways and 12 sequence flows in 3 lanes. 1 visual annotations."));
+    await waitFor(() => expect(group.getAttribute("aria-label")).toBe("BPMN diagram with 7 tasks, 3 gateways and 13 sequence flows in 3 lanes. 1 visual annotations."));
     await waitFor(() => expect(deferred.instances[0]?.pending).toHaveLength(1));
     await new Promise((r) => setTimeout(r, 20));
     expect([group.getAttribute("data-bpmn-status"), onImport.mock.calls.length, deferred.instances[0].zooms]).toEqual(["loading", 0, []]);

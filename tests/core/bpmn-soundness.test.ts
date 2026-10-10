@@ -68,15 +68,11 @@ describe("token game on the story models", () => {
     expect(playTokens(block)).toEqual({ ...sound, states: block.edges.length + 1 });
   });
 
-  it("finds the small model sound only when Approve Invoice's two flows are read as a choice", async () => {
+  it("finds the small model sound", async () => {
     const small = (await importBpmn(readFileSync(new URL("../../fixtures/p2p_small.bpmn", import.meta.url), "utf8"))).graph;
     expect(validateGateways(small)).toEqual([]);
-    // Approve Invoice has two outgoing flows without a gateway or a condition; BPMN
-    // takes both, so a rejected invoice is cleared while it is approved again, and
-    // a second token can reach the clearing and the end before the first leaves.
-    const bpmn = playTokens(small);
-    expect(bpmn).toMatchObject({ complete: true, stuck: [] });
-    expect([...new Set(bpmn.unsafe.flat())]).toEqual(["Flow_Approve_Clear", "Flow_Clear_End"]);
-    expect(playTokens(small, { uncontrolled: "choice" })).toEqual({ ...sound, states: small.edges.length + 1 });
+    // Two exclusive choices (goods or service, approved or rejected), one token:
+    // one state per flow of its 13 and the empty state.
+    expect(playTokens(small)).toEqual({ ...sound, states: 14 });
   });
 });
