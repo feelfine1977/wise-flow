@@ -145,7 +145,7 @@ describe("ProcessMap", () => {
     const reversed = { ...pair, edges: [{ ...pair.edges[0], source: "b", target: "a" }] };
     rerender(automaticMap({}, reversed));
     await ready(container);
-    await waitFor(() => expect(nodeBox(container, "a").x).toBeGreaterThan(nodeBox(container, "b").x));
+    expect(nodeBox(container, "a").x).toBeGreaterThan(nodeBox(container, "b").x);
   });
 
   it.each(["fixed", "callback"] as const)("uses changed %s node sizes", async (mode) => {
