@@ -20,7 +20,7 @@ import {
   validateBpmn,
 } from "../src/bpmn/index";
 import { type FlowGraph, type Overlay, overlaysFor } from "../src/index";
-import { ProcessMap } from "../src/react/index";
+import { ProcessMap } from "./maps";
 
 const meta: Meta = {
   title: "BPMN",

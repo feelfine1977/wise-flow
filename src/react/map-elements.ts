@@ -10,6 +10,7 @@ import { type ActivityLabelOptions, type EdgeBudget, type ElementRef, type FlowG
 import type { DrawState, PreparedScene } from "../canvas/index.js";
 import { retainScene } from "../canvas/scene.js";
 import { describeIndexedEdge } from "../core/describe.js";
+import { FIRST_STEP } from "../core/edge-budget.js";
 import { describeGroup, describeNode } from "./describe.js";
 import { coverBackground } from "./marks.js";
 import { GROUP_PREFIX } from "./map-pointer.js";
@@ -69,7 +70,7 @@ interface FlowInput {
   locale: Locale;
   activityLabels: ActivityLabelOptions | undefined;
   nodesDraggable: boolean;
-  edgeBudget?: EdgeBudget;
+  edgeBudget?: EdgeBudget | "adaptive";
   /** Edges on a highlighted path. */
   highlighted?: ReadonlySet<string>;
 }
@@ -182,8 +183,8 @@ export function useFlowElements(input: FlowInput) {
     return out;
   }, [positions, enabled, shown, scene, overlaysByTarget, covers, carried, scales, selection, hovered, focused, locale, bright, bands, groupIndex, memberCount, activityLabels, describeElement, nodesDraggable]);
 
-  // Every edge of the scene is in view of React Flow.
-  const withheld = useMemo(() => (enabled ? budgetEdges(scene, edgeBudget, { selection, focused, highlighted }) : undefined), [enabled, scene, edgeBudget, selection, focused, highlighted]);
+  // Every edge of the scene is in view of React Flow; with no frame to time, adaptive keeps its first step.
+  const withheld = useMemo(() => (enabled ? budgetEdges(scene, edgeBudget === "adaptive" ? FIRST_STEP : edgeBudget, { selection, focused, highlighted }) : undefined), [enabled, scene, edgeBudget, selection, focused, highlighted]);
   const rfEdges = useMemo<WfEdge[]>(() => {
     if (!positions || !enabled) return [];
     return (withheld ? scene.edgeMarks.filter((_, i) => withheld.drawn.has(i)) : scene.edgeMarks).map((mark) => {

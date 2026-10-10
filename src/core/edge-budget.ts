@@ -12,6 +12,12 @@ import type { FlowScene } from "./scene.js";
 /** How many edges a map draws: a number, or `"all"`. */
 export type EdgeBudget = number | "all";
 
+/** The edges a map draws while its budget withholds some, and the edges its note counts. */
+export interface ShownEdges {
+  edges: readonly string[];
+  total: number;
+}
+
 /** What keeps an edge drawn under any budget, besides an overlay mark on it (one that names it, or an arc from its source to its target). */
 export interface EdgeProtection {
   selection?: { edges: readonly string[] };
@@ -47,9 +53,18 @@ function orderOf(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style">) {
   return known;
 }
 
-/** The edges a budget draws of those in view (all when omitted); undefined when it withholds none. */
-export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style">, budget: EdgeBudget | undefined, protection: EdgeProtection = {}, inView?: readonly number[]): EdgeSelection | undefined {
+/** The edges a budget draws of those in view (all when omitted), or those a map reported; undefined when it withholds none. */
+export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style">, budget: EdgeBudget | ShownEdges | undefined, protection: EdgeProtection = {}, inView?: readonly number[]): EdgeSelection | undefined {
   const total = inView ? inView.length : scene.edgeMarks.length;
+  if (typeof budget === "object") {
+    const named = new Set(budget.edges);
+    const drawn = new Set<number>();
+    for (let k = 0; k < total; k++) {
+      const i = inView ? inView[k] : k;
+      if (named.has(scene.edgeMarks[i].id)) drawn.add(i);
+    }
+    return drawn.size < total ? { drawn, shown: drawn.size, total: budget.total } : undefined;
+  }
   // Not a number (NaN) withholds nothing, as "all" does.
   if (budget === undefined || budget === "all" || !(total > budget)) return undefined;
   const { rank, marked } = orderOf(scene);
@@ -66,3 +81,53 @@ export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "styl
   for (let k = 0, room = Math.floor(budget) - drawn.size; k < room && k < rest.length; k++) drawn.add(rest[k]);
   return drawn.size < total ? { drawn, shown: drawn.size, total } : undefined;
 }
+
+/** The adaptive budget's first step; the steps are 500, 1,000, 2,000, … */
+export const FIRST_STEP = 2000;
+const TARGET_MS = 16.7;
+const RUN = 5;
+
+/** The edges a frame drew and those in view. */
+export interface FrameCounts {
+  shown: number;
+  total: number;
+}
+
+/**
+ * The adaptive budget. It times the frames of gestures with `clock` (ms) and,
+ * as the last gesture ends, moves one step: down after RUN frames in a row
+ * above the target that drew more than the step below, up after RUN below
+ * half of it (a step doubles the edges) that withheld edges.
+ */
+export function edgeBudgetAdapter(clock: () => number) {
+  let budget = FIRST_STEP;
+  let gestures = 0;
+  let slow = 0;
+  let fast = 0;
+  let due = 0;
+  return {
+    get budget() {
+      return budget;
+    },
+    start() {
+      if (!gestures++) slow = fast = due = 0;
+    },
+    end() {
+      if (!gestures || --gestures) return false;
+      budget *= 2 ** due;
+      return !!due;
+    },
+    frame(draw: (budget: number) => FrameCounts) {
+      if (!gestures) return void draw(budget);
+      const started = clock();
+      const { shown, total } = draw(budget);
+      const ms = clock() - started;
+      slow = ms > TARGET_MS && budget > 500 && shown > budget / 2 ? slow + 1 : 0;
+      fast = ms < TARGET_MS / 2 && shown < total ? fast + 1 : 0;
+      if (slow === RUN) due = -1;
+      if (fast === RUN) due = 1;
+    },
+  };
+}
+
+export type EdgeBudgetAdapter = ReturnType<typeof edgeBudgetAdapter>;

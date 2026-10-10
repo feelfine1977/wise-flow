@@ -44,7 +44,7 @@ describe("ProcessMap with the Canvas renderer", () => {
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => recorder.ctx as unknown as CanvasRenderingContext2D);
     render(
       <div style={{ width: 1200, height: 800 }}>
-        <ProcessMap graph={graph} positions={positions} renderer="canvas" lod={{ badges: 0 }} controls={false} legend={false} />
+        <ProcessMap graph={graph} positions={positions} renderer="canvas" edgeBudget="all" lod={{ badges: 0 }} controls={false} legend={false} />
       </div>,
     );
     // The bold 10 px centred text is what the drawing routines write into a badge (a chip's bold label starts left).
@@ -74,7 +74,7 @@ describe("the live Canvas map and the theme", () => {
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => recorder.ctx as unknown as CanvasRenderingContext2D);
     const view = render(
       <div style={{ width: 1200, height: 800 }}>
-        <ProcessMap graph={vendor} positions={positions} renderer="canvas" controls={false} legend={false} />
+        <ProcessMap graph={vendor} positions={positions} renderer="canvas" edgeBudget="all" controls={false} legend={false} />
       </div>,
     );
     const host = () => view.container.querySelector(".wf-canvas-map") as HTMLElement;

@@ -384,6 +384,7 @@ export type {
   EdgeBudget,
   EdgeProtection,
   EdgeSelection,
+  ShownEdges,
 } from "./edge-budget.js";
 
 export {

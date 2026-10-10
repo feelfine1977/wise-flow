@@ -68,7 +68,7 @@ function mountMap(graph: FlowGraph, positions: Positions, props: Partial<React.C
   quietCanvas();
   const view = render(
     <div style={{ width: 1200, height: 800 }}>
-      <ProcessMap graph={graph} positions={positions} renderer="canvas" controls={false} legend={false} fitView={false} {...props} />
+      <ProcessMap graph={graph} positions={positions} renderer="canvas" edgeBudget="all" controls={false} legend={false} fitView={false} {...props} />
     </div>,
   );
   const map = view.container.querySelector(".wf-process-map") as HTMLElement;

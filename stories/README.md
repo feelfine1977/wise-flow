@@ -16,6 +16,12 @@ One story file per component, rendered with the design tokens of
 | `TableAlternative.stories.tsx` | vendor scene as tables, map in table view |
 | `TraceTimeline.stories.tsx` | absolute time, aligned at goods receipt, table alternative |
 
+Stories take `ProcessMap` and `ViewSwitcher` from `maps.tsx`, which passes
+them a fixed edge budget (`"all"`, unless a story passes a number), so that
+the stories and the browser and visual lanes draw the same edges on every
+machine; `npm run check:architecture` refuses a story that takes a map from
+the library or asks for an adaptive budget.
+
 ELK runs in a Web Worker in the stories through
 `import elkWorkerUrl from "elkjs/lib/elk-worker.min.js?url"`; the BPMN
 stories import the hand-written model with `?raw` and the bpmn-js

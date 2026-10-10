@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   type AbstractOptions,
   type Box,
   type ConstraintDescription,
   type ConstraintStats,
+  type EdgeSelection,
   type FlowGraph,
   type FlowScene,
   type FlowSceneOptions,
@@ -11,6 +12,7 @@ import {
   type Overlay,
   type OverlayPresetOptions,
   type Positions,
+  type ShownEdges,
   type XY,
   LayoutUnavailableError,
   abstract,
@@ -197,4 +199,35 @@ export function useArrival(positions: Positions | undefined, provisional: boolea
     return () => cancelAnimationFrame(frame);
   }, [arrival]); // eslint-disable-line react-hooks/exhaustive-deps
   return { positions: drawn, moving: progress < 1, count: arrival.count };
+}
+
+/** Reports the edges a map draws to `onEdgesShown` when they change. */
+export function useEdgesShown(onEdgesShown: ((shown: ShownEdges | undefined) => void) | undefined) {
+  const callback = useRef(onEdgesShown);
+  useLayoutEffect(() => void (callback.current = onEdgesShown));
+  const last = useRef("");
+  return useCallback((withheld: EdgeSelection | undefined, marks: readonly { id: string }[]) => {
+    // Nobody listens: start again from every edge drawn.
+    if (!callback.current) return void (last.current = "");
+    const edges = withheld ? [...withheld.drawn].sort((a, b) => a - b).map((i) => marks[i].id) : [];
+    const key = withheld ? `${withheld.total}\n${edges.join("\n")}` : "";
+    if (key === last.current) return;
+    last.current = key;
+    callback.current(withheld && { edges, total: withheld.total });
+  }, []);
+}
+
+/** Reports for both renderers; a switch starts again from every edge drawn. */
+export function useEdgesShownAcross(onEdgesShown: ((shown: ShownEdges | undefined) => void) | undefined, canvas: boolean) {
+  const callback = useRef(onEdgesShown);
+  useLayoutEffect(() => void (callback.current = onEdgesShown));
+  const told = useRef<ShownEdges | undefined>(undefined);
+  const tell = useCallback((shown: ShownEdges | undefined) => {
+    told.current = shown;
+    callback.current?.(shown);
+  }, []);
+  useLayoutEffect(() => {
+    if (told.current) tell(undefined);
+  }, [canvas, tell]);
+  return onEdgesShown && tell;
 }
