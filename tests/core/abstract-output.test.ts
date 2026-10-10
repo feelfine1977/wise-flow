@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { abstract } from "../../src/index";
 import { abstractionCases, abstractionDigest, abstractionGraphs } from "./abstract-cases";
-// Recorded from the implementation before the denominators of the strengths were
-// computed once per abstraction; only a deliberate change of the output may change it.
+// Recorded from the implementation before self-loop strength and reconnection were made
+// linear; only a deliberate change of the output may change it.
 import expected from "./abstract-expected.json";
 
 describe("abstraction output", () => {
