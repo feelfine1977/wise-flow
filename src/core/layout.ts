@@ -198,9 +198,9 @@ function unwrap(mod: unknown): ElkCtor {
 const loadApiCtor = () => import("elkjs/lib/elk-api.js").then(unwrap);
 const loadBundledCtor = () => import("elkjs/lib/elk.bundled.js").then(unwrap);
 
-/** The worker URL a layout with these options runs ELK or Dagre in, if any. */
-function workerUrl(url: string | URL | undefined, o: LayoutOptions): string | undefined {
-  return !o.elk && url && typeof Worker !== "undefined" ? String(url) : undefined;
+/** The worker URL a layout runs an engine in, if any. */
+function workerUrl(url: string | URL | undefined): string | undefined {
+  return url && typeof Worker !== "undefined" ? String(url) : undefined;
 }
 
 /**
@@ -640,8 +640,9 @@ async function compute(graph: FlowGraph, options: LayoutOptions, signal: AbortSi
   }
   const engine = options.engine ?? "auto";
   // The workers of this layout; a scope keeps those of each URL it used until it is disposed.
-  const [elk, dagre] = [options.elkWorkerUrl, options.dagreWorkerUrl].map((given) => {
-    const url = workerUrl(given, options);
+  // A supplied ELK instance replaces ELK's worker, not Dagre's.
+  const [elk, dagre] = [options.elk ? undefined : options.elkWorkerUrl, options.dagreWorkerUrl].map((given) => {
+    const url = workerUrl(given);
     if (url && held && !held.has(url)) {
       held.add(url);
       holdUrl(url, 1);

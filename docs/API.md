@@ -231,7 +231,8 @@ the engines run in-process. A worker runs one layout at a time; workers start
 on demand, one per running layout, and are terminated once no scope and no
 running layout uses them: after each `layout` call outside a scope, and when
 the last scope that used one is disposed (a scope keeps one idle worker per
-URL until then). An `elk` instance the caller supplies is never terminated.
+URL until then). An `elk` instance the caller supplies is used instead of the
+ELK worker, not the Dagre worker, and is never terminated.
 
 Stopping. A layout runs while somebody waits for it. `signal` stops waiting:
 the promise rejects with the signal's reason (an `AbortError` unless another

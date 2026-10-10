@@ -263,6 +263,12 @@ describe("the Dagre fallback", () => {
     expect(onCallingThread).not.toHaveBeenCalled();
   });
 
+  it("runs in the Dagre worker after an ELK instance the caller supplies failed", async () => {
+    expect((await layout(pair, { elk: failing, dagreWorkerUrl: dagreUrl, fallbackLimit: 0 })).engine).toBe("dagre");
+    expect(FakeWorker.created.map((w) => [w.url, w.dagreRuns, w.terminated])).toEqual([[dagreUrl, 1, true]]);
+    expect(onCallingThread).not.toHaveBeenCalled();
+  });
+
   it("stops the Dagre worker on abort and on timeout", async () => {
     FakeWorker.holdDagre = true;
     const stop = new AbortController();
