@@ -101,6 +101,40 @@ so the total element count may differ by one re-added edge between
 neighbouring thresholds. `diff(a, b)` returns a graph with `b`'s metrics,
 `a_<metric>` and `delta_<metric>`, one-sided elements tagged.
 
+**Joining components.** An edge costs a reconnecting path `1 + (1 −
+strength)`: 1 for the edge, so every removed node on a path adds at least 1
+(a path through k removed nodes has k + 1 edges), plus its weakness, at
+most 1 more for an edge of strength 0. Constraint and flow edges have
+strength 1; self-loops never join anything. Node strength does not enter
+the cost. It only picks the component the joins start from: the one whose
+activities' strengths sum highest (events and gateways count 0; a tie goes
+to the component with the smallest node id). First the cheapest direct
+edges between kept nodes join components, a minimum spanning forest by
+cost, then edge id. Then every join takes the component nearest to all
+that is joined so far, through its cheapest path, and re-adds the removed
+nodes on it; each other component a re-added node touches joins at once
+through its cheapest direct edge (cost, then edge id). The objective holds
+per join, not for the total: which of two equally near components joins
+first can change what later joins cost.
+
+Up to 0.3.5 every join searched again from the whole joined component.
+Equally near nodes left that search in the order they had entered it, which
+followed the input order of nodes and edges, and a node kept the first path
+that reached it. Now one search grows the joined component and continues
+from each newly joined part at distance 0; it searches a node again only
+when a newly joined part is nearer to it. On the cyclic and many-component
+graphs of the tests the work grows like (nodes + edges) · log nodes; a
+removed node near many components that are joined one after another, each
+slightly nearer to it, is searched once per such join. Ties are broken by
+id: of equally near nodes of other components the one with the smallest id
+is joined first, a node on equally cheap paths is entered by the edge with
+the smallest id, and a touched component joins by the smallest id among
+its cheapest direct edges. With unique ids the result therefore does not
+depend on the input order. Each join costs what the search per join of
+0.3.5 would have found; where it broke a tie differently, later joins and
+so the total may differ in either direction. The committed fixtures are
+unchanged at every threshold.
+
 ### 2.3 Layout
 `layout(graph, options)` runs ELK layered: in a Web Worker when the
 application passes `elkWorkerUrl` (the URL of `elkjs/lib/elk-worker.min.js`),

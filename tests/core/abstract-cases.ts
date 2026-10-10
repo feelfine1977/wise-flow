@@ -52,6 +52,31 @@ export function seededCyclicGraph(seed: number, n: number): FlowGraph {
   };
 }
 
+/**
+ * A seeded connected graph whose counts and cases take four values each, so that
+ * strengths are quarters and equally cheap reconnecting paths are common.
+ */
+export function tiedGraph(seed: number, n: number): FlowGraph {
+  let s = seed >>> 0;
+  const rnd = () => {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    return s / 2 ** 32;
+  };
+  const quarter = () => 25 * (1 + Math.floor(rnd() * 4));
+  const nodes: FlowNode[] = Array.from({ length: n }, (_, i) => ({ id: `a${i}`, kind: "activity", label: `A${i}`, metrics: { cases: quarter() } }));
+  const edges: FlowEdge[] = [];
+  const seen = new Set<string>();
+  const add = (a: number, b: number) => {
+    const id = `a${a}->a${b}`;
+    if (a === b || seen.has(id)) return;
+    seen.add(id);
+    edges.push({ id, kind: "follows", source: `a${a}`, target: `a${b}`, metrics: { count: quarter() } });
+  };
+  for (let i = 1; i < n; i++) add(Math.floor(rnd() * i), i);
+  for (let k = 0; k < n; k++) add(Math.floor(rnd() * n), Math.floor(rnd() * n));
+  return { nodes, edges };
+}
+
 /** Every committed fixture graph and the seeded cyclic graph, by name. */
 export async function abstractionGraphs(): Promise<Record<string, FlowGraph>> {
   const xml = readFileSync(fileURLToPath(new URL("../../fixtures/p2p_small.bpmn", import.meta.url)), "utf8");

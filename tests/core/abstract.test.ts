@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { globalScene, vendorScene } from "../../fixtures/bpic2019";
-import { COLLAPSED_TAG, DIFF_TAGS, RECONNECTED_TAG, type FlowGraph, abstract, collapseGroups, diff, hasTag, isConnected, validateGraph } from "../../src/index";
+import { COLLAPSED_TAG, DIFF_TAGS, RECONNECTED_TAG, type FlowEdge, type FlowGraph, type FlowNode, abstract, byId, collapseGroups, diff, hasTag, isConnected, validateGraph } from "../../src/index";
+import { tiedGraph } from "./abstract-cases";
 
 /** Deterministic pseudo-random graph generator (LCG). */
 function randomGraph(seed: number, n: number): FlowGraph {
@@ -42,6 +43,31 @@ function randomGraph(seed: number, n: number): FlowGraph {
 }
 
 const thresholds = [0, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.35, 0.5, 0.8];
+
+/** The same elements in an order drawn by a seeded generator. */
+function shuffled<T>(items: T[], seed: number): T[] {
+  let s = seed >>> 0;
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    const j = Math.floor((s / 2 ** 32) * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+/** Nodes and edges in id order, so that two results compare regardless of their input order. */
+const inIdOrder = (g: FlowGraph) => JSON.stringify({ nodes: [...g.nodes].sort(byId), edges: [...g.edges].sort(byId) });
+
+/** Follows edges of the given counts between activities; ids are `source->target`. */
+function follows(pairs: [string, string, number][]): FlowEdge[] {
+  return pairs.map(([source, target, count]) => ({ id: `${source}->${target}`, kind: "follows", source, target, metrics: { count } }));
+}
+
+const activities = (cases: Record<string, number>): FlowNode[] => Object.entries(cases).map(([id, c]) => ({ id, kind: "activity", label: id, metrics: { cases: c } }));
+
+/** The ids of the re-added nodes and edges, sorted. */
+const readded = (g: FlowGraph) => [...g.nodes, ...g.edges].filter((el) => hasTag(el, RECONNECTED_TAG)).map((el) => el.id).sort();
 
 describe("abstract", () => {
   const parallel: FlowGraph = {
@@ -181,6 +207,56 @@ describe("abstract", () => {
     // close one each. Then q has its outgoing edge and r its incoming one, so qp and pr
     // close nothing and qu closes only u's need, which pu does with more strength.
     expect(added).toEqual(["pu", "qr"]);
+  });
+
+  it("joins a component through the path whose edges cost least, one plus the edge's weakness each", () => {
+    // m and x are kept, the r nodes removed (1 case of 100). Each edge costs 1 + (1 - count / 100):
+    // through r1 alone 1.9 + 1.9 = 3.8, through r2 and r3 1 + 1 + 1 = 3, through r4 1.6 + 1.6 = 3.2.
+    const graph = (r4: number): FlowGraph => ({
+      nodes: activities({ m: 100, x: 100, r1: 1, r2: 1, r3: 1, r4: 1 }),
+      edges: follows([["m", "r1", 10], ["r1", "x", 10], ["m", "r2", 100], ["r2", "r3", 100], ["r3", "x", 100], ["m", "r4", r4], ["r4", "x", r4]]),
+    });
+    expect(readded(abstract(graph(40), { minNodeShare: 0.5 }))).toEqual(["m->r2", "r2", "r2->r3", "r3", "r3->x"]);
+    // At 60 the path through r4 costs 1.4 + 1.4 = 2.8, less than the one through two removed nodes.
+    expect(readded(abstract(graph(60), { minNodeShare: 0.5 }))).toEqual(["m->r4", "r4", "r4->x"]);
+  });
+
+  it("enters each node of equally cheap paths by the edge with the smallest id, whatever the input order", () => {
+    // a, b and c are kept and joined; x is kept alone. b and c each reach x through a removed
+    // node at cost 2, so x is entered by rb->x, which sorts before rc->x.
+    const nodes = activities({ a: 100, b: 100, c: 100, x: 100, rb: 1, rc: 1 });
+    const kept = follows([["a", "b", 100], ["a", "c", 100]]);
+    const paths = follows([["b", "rb", 100], ["rb", "x", 100], ["c", "rc", 100], ["rc", "x", 100]]);
+    for (const edges of [[...kept, ...paths], [...kept].reverse().concat(paths), [...paths].reverse().concat(kept)]) {
+      expect(readded(abstract({ nodes, edges }, { minNodeShare: 0.5 }))).toEqual(["b->rb", "rb", "rb->x"]);
+    }
+  });
+
+  it("joins equally near components in the order of their smallest node id", () => {
+    // y and z are both 2 from m. y comes first and is reached through r1; r1 then touches z,
+    // which joins by its direct edge. Taking z first would enter it by q2->z (before r1->z)
+    // and need a second path for y: four edges instead of three.
+    const graph: FlowGraph = {
+      nodes: activities({ m: 100, y: 50, z: 50, q2: 1, r1: 1 }),
+      edges: follows([["m", "q2", 100], ["q2", "z", 100], ["m", "r1", 100], ["r1", "y", 100], ["r1", "z", 100]]),
+    };
+    expect(readded(abstract(graph, { minNodeShare: 0.3 }))).toEqual(["m->r1", "r1", "r1->y", "r1->z"]);
+  });
+
+  it("reconnects equally cheap alternatives the same way whatever the input order", () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const g = tiedGraph(seed, 12 + (seed % 30));
+      for (const relativeTo of ["max", "total"] as const) {
+        for (const [minEdgeShare, minNodeShare] of [[0.5, 0.5], [0.75, 0.5], [0.3, 0.75], [1, 0.25]]) {
+          const options = { relativeTo, minEdgeShare, minNodeShare };
+          const expected = inIdOrder(abstract(g, options));
+          for (let k = 1; k <= 3; k++) {
+            const permuted = { nodes: shuffled(g.nodes, seed * 31 + k), edges: shuffled(g.edges, seed * 17 + k) };
+            expect(inIdOrder(abstract(permuted, options)), `seed ${seed}, ${relativeTo} ${minEdgeShare}/${minNodeShare}, order ${k}`).toBe(expected);
+          }
+        }
+      }
+    }
   });
 
   it("tags re-added elements and can be switched off", () => {
