@@ -20,7 +20,7 @@ Framework-free TypeScript; runs in Node and in the browser. No DOM, no React.
 | `views.ts` | `buildViews`, `resolveViews`: named views of one map with shared scale domains |
 | `selection.ts` | `Selection` transitions (`selectElement`, `selectMany`), `selectionShape`, `relatedToSelection`, `describeSelection` |
 | `map-controller.ts` | Internal: the map controller. `mapStep` applies a click, key, hover, focus or menu event to the interaction state (selection, focus of paths, abstraction, view, keyboard position, hover, actions menu) and returns the next state, the live region's sentence and the intents for the host; `announceChange`; the actions menu's keyboard (`menuKey`, `firstEntry`) and header (`menuHeading`); `clickSelection`; `mapEmphasis` (focus in effect, what stays bright) |
-| `describe.ts` | Internal: `describeEdge`, the sentence for a path that the map announces and labels with |
+| `describe.ts` | Internal: `describeEdge`, the sentence for a path that the map announces and labels with; `describeIndexedEdge` reads the end labels from a `GraphIndex` built once per graph |
 | `actions.ts` | `menuTargetFor`, `defaultActions` (filter, explore, compare, author; accelerators; filter clauses), `menuTitle` |
 | `paths.ts` | `pathsFor` (from the response's `paths` block or the map), `neighbourhood`, `pathBetween`, `pathRows`, `focusHighlight` |
 | `filters.ts` | the contract's filter clauses, `canonicalFilter`, `addClause`, `removeClause`, `describeClause`, `clauseForTarget`, preview normalisation |
