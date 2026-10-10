@@ -169,6 +169,80 @@ export function adapterViolations(file, source) {
   });
 }
 
+/** The module the stories take their maps from; it fixes their edge budget. */
+export const storyMaps = 'stories/maps.tsx';
+const mapComponents = new Set(['ProcessMap', 'ViewSwitcher', 'CanvasMap']);
+const isMap = (node, tree) => (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && mapComponents.has(node.tagName.getText(tree));
+// The React entry point, from the source or from the built package.
+const reactEntry = (file, name) => name === '@wise/flow/react' || (name.startsWith('.') && ['src/react', 'dist/react'].some((dir) => within(resolve(dirname(file), name), dir)));
+
+/**
+ * Stories draw with a fixed edge budget, so that the browser and visual lanes
+ * do not depend on the speed of the machine: a story takes its maps from
+ * `stories/maps.tsx`, never from the library, and no story or Storybook file
+ * asks for an adaptive budget. That module passes every map a fixed budget,
+ * after the props it forwards: a number, `"all"`, or the story's value with
+ * one of those as its fallback.
+ */
+export function storyViolations(file, source) {
+  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  const shared = resolve(file) === resolve(root, storyMaps);
+  const library = new Map();
+  const errors = [];
+  for (const node of tree.statements) {
+    const reexport = ts.isExportDeclaration(node);
+    if (!(ts.isImportDeclaration(node) || reexport) || !node.moduleSpecifier || !ts.isStringLiteral(node.moduleSpecifier) || !reactEntry(file, node.moduleSpecifier.text)) continue;
+    const bindings = reexport ? node.exportClause : node.importClause?.namedBindings;
+    if (reexport ? !bindings || ts.isNamespaceExport(bindings) : bindings && ts.isNamespaceImport(bindings)) errors.push(`Takes the React entry point as a whole; stories take the maps from ${storyMaps}`);
+    for (const e of bindings && (ts.isNamedImports(bindings) || ts.isNamedExports(bindings)) ? bindings.elements : []) {
+      const name = (e.propertyName ?? e.name).text;
+      if (!mapComponents.has(name)) continue;
+      library.set(e.name.text, name);
+      // Passed on unwrapped, a map keeps its adaptive default even from the shared module.
+      if (!shared || reexport) errors.push(`Takes ${name} from the library; stories take it from ${storyMaps}, whose edge budget is fixed`);
+    }
+  }
+  const fixed = (v) => !!v && (ts.isNumericLiteral(v) || (ts.isStringLiteral(v) && v.text === 'all'));
+  const visit = (node) => {
+    if (ts.isStringLiteralLike(node) && node.text === 'adaptive') errors.push('Asks for an adaptive edge budget; stories draw with a fixed one');
+    if (shared && (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && library.has(node.tagName.getText(tree))) {
+      const props = node.attributes.properties;
+      const at = props.findIndex((p) => ts.isJsxAttribute(p) && p.name.getText(tree) === 'edgeBudget');
+      const init = props[at]?.initializer;
+      const value = init && ts.isJsxExpression(init) ? init.expression : init;
+      const ok = fixed(value) || (!!value && ts.isBinaryExpression(value) && value.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken && fixed(value.right));
+      if (!ok || props.slice(at + 1).some(ts.isJsxSpreadAttribute)) errors.push(`Renders ${library.get(node.tagName.getText(tree))} without a fixed edge budget after its other props`);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  return errors;
+}
+
+/**
+ * A component of the React adapter that renders one of the maps passes on its
+ * edge budget and its adaptive default, as `ViewSwitcher` does, so it counts
+ * as a map itself: the stories take it from `stories/maps.tsx` too.
+ */
+export function mapHostViolations(file, source) {
+  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  let renders = false;
+  const visit = (node) => {
+    renders ||= isMap(node, tree);
+    if (!renders) ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  if (!renders) return [];
+  const exported = (node) => ts.getCombinedModifierFlags(node) & ts.ModifierFlags.Export;
+  const names = tree.statements.flatMap((node) => {
+    if ((ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node)) && node.name && exported(node)) return [node.name.text];
+    if (ts.isVariableStatement(node) && exported(node.declarationList.declarations[0])) return node.declarationList.declarations.map((d) => d.name.getText(tree));
+    if (ts.isExportDeclaration(node) && !node.moduleSpecifier && !node.isTypeOnly && node.exportClause && ts.isNamedExports(node.exportClause)) return node.exportClause.elements.filter((e) => !e.isTypeOnly).map((e) => e.name.text);
+    return [];
+  });
+  return names.filter((name) => /^[A-Z]/.test(name) && !mapComponents.has(name)).map((name) => `${name} renders a map; list it with the maps the stories take from ${storyMaps}`);
+}
+
 function filesAt(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
     const path = resolve(dir, entry.name);
@@ -187,6 +261,8 @@ export function checkArchitecture() {
     [(file, source) => deepImportViolations(file, source, names), [resolve(root, 'src/index.ts'), ...['src/react', 'src/canvas', 'src/bpmn'].flatMap((dir) => filesAt(resolve(root, dir)))].filter((file) => !file.endsWith('.d.ts'))],
     [(file, source) => seamViolations(file, source, seams), [resolve(root, 'src/index.ts'), ...adapterFiles]],
     [adapterViolations, adapterFiles],
+    [storyViolations, ['stories', '.storybook'].flatMap((dir) => filesAt(resolve(root, dir)))],
+    [mapHostViolations, filesAt(resolve(root, 'src/react')).filter((file) => file.endsWith('.tsx'))],
   ];
   const errors = rules.flatMap(([rule, files]) => files.flatMap(file => rule(file, readFileSync(file, 'utf8')).map(message => `${relative(root, file)}: ${message}`)));
   if (errors.length) throw new Error(errors.join('\n'));

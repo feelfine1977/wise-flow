@@ -3,7 +3,8 @@ import elkWorkerUrl from "elkjs/lib/elk-worker.min.js?url";
 import { useEffect, useMemo, useState } from "react";
 import { constraintItems, globalScene } from "../fixtures/bpic2019";
 import { type ViewSet, type ViewSpec, abstract, buildViews, overlaysFor } from "../src/index";
-import { type Selection, ViewSwitcher } from "../src/react/index";
+import { type Selection } from "../src/react/index";
+import { ViewSwitcher } from "./maps";
 
 const meta: Meta = {
   title: "Views",

@@ -2,7 +2,8 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { useMemo, useState } from "react";
 import { constraintItems, vendorScene, vendorSceneKey } from "../fixtures/bpic2019";
 import { abstract, overlaysFor } from "../src/index";
-import { ProcessMap, type Selection, TableAlternative } from "../src/react/index";
+import { type Selection, TableAlternative } from "../src/react/index";
+import { ProcessMap } from "./maps";
 
 const meta: Meta<typeof TableAlternative> = {
   title: "Table alternative",

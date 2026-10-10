@@ -3,7 +3,10 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     projects: [
-      { extends: true, test: { name: "core", include: ["tests/core/**/*.test.ts"], environment: "node" } },
+      { extends: true, test: { name: "core", include: ["tests/core/**/*.test.ts"], exclude: ["tests/core/graph-size.test.ts"], environment: "node" } },
+      // A million edges take up to about 1.6 GB of heap in one worker; run them after the other files, alone, so
+      // parallel workers do not exhaust the memory of a small machine and kill that worker.
+      { extends: true, test: { name: "core-large", include: ["tests/core/graph-size.test.ts"], environment: "node", sequence: { groupOrder: 1 } } },
       { extends: true, test: { name: "react", include: ["tests/react/**/*.test.tsx"], environment: "jsdom", setupFiles: ["tests/react/setup.ts"] } },
     ],
     testTimeout: 30000,

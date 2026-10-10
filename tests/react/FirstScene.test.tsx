@@ -94,7 +94,7 @@ describe("first scene", () => {
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => ctx as unknown as CanvasRenderingContext2D);
     const { container } = render(
       <div style={{ width: 800, height: 600 }}>
-        <ProcessMap graph={chain} renderer="canvas" layout={{ elk: never, engine: "elk" }} controls={false} legend={false} />
+        <ProcessMap graph={chain} renderer="canvas" edgeBudget="all" layout={{ elk: never, engine: "elk" }} controls={false} legend={false} />
       </div>,
     );
     // Listed for assistive technology at once: the activities (the list holds edges only at the keyboard position).
@@ -265,7 +265,7 @@ describe("the Canvas view when the layout arrives", () => {
     const recorded = recordView();
     const { container } = render(
       <div style={{ width: 800, height: 600 }}>
-        <ProcessMap graph={chain} renderer="canvas" layout={{ elk: held.elk, engine: "elk" }} controls={false} legend={false} />
+        <ProcessMap graph={chain} renderer="canvas" edgeBudget="all" layout={{ elk: held.elk, engine: "elk" }} controls={false} legend={false} />
       </div>,
     );
     await waitFor(() => expect(held.calls).toHaveLength(1));
@@ -286,7 +286,7 @@ describe("the Canvas view when the layout arrives", () => {
     const recorded = recordView();
     const { container } = render(
       <div style={{ width: 800, height: 600 }}>
-        <ProcessMap graph={chain} renderer="canvas" layout={{ elk: held.elk, engine: "elk" }} controls={false} legend={false} />
+        <ProcessMap graph={chain} renderer="canvas" edgeBudget="all" layout={{ elk: held.elk, engine: "elk" }} controls={false} legend={false} />
       </div>,
     );
     await waitFor(() => expect(held.calls).toHaveLength(1));
@@ -315,7 +315,7 @@ describe("the Canvas view when the layout arrives", () => {
     const view = recorded.view;
     const { container } = render(
       <div style={{ width: 800, height: 600 }}>
-        <ProcessMap graph={chain} renderer="canvas" layout={{ elk: held.elk, engine: "elk" }} fitView={false} controls={false} legend={false} />
+        <ProcessMap graph={chain} renderer="canvas" edgeBudget="all" layout={{ elk: held.elk, engine: "elk" }} fitView={false} controls={false} legend={false} />
       </div>,
     );
     await waitFor(() => expect(held.calls).toHaveLength(1));

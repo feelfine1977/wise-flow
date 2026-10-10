@@ -18,8 +18,10 @@ export interface CanvasMapProps {
   onViewportChange?: (v: { x: number; y: number; zoom: number }) => void;
   /** Elements listed for assistive technology (`aria-activedescendant` targets). */
   descendants?: { id: string; kind: "node" | "edge" | "group"; description: string }[];
-  /** How many of the edges in view are drawn (`budgetEdges`); a note says when edges are withheld. Default `"all"`. */
-  edgeBudget?: EdgeBudget;
+  /** How many of the edges in view are drawn (`budgetEdges`), or `"adaptive"` (default): a step fitted to the frame time of gestures. A note says when edges are withheld. */
+  edgeBudget?: EdgeBudget | "adaptive";
+  /** The clock (ms) the adaptive edge budget times frames with, read from mount. Default `performance.now`. */
+  clock?: () => number;
   /** Called with the note once its numbers have settled, for a live region. */
   onAnnounce?: (text: string) => void;
   className?: string;
@@ -62,13 +64,14 @@ export function EdgeNote({ withheld, locale, onAnnounce }: { withheld?: { shown:
  * focus, dimming) comes from the parent; keyboard handling stays there.
  */
 export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function CanvasMap(
-  { scene, state, locale = "en", fitKey, fitView = true, describe, onHover, onClick, onContextMenu, onViewportChange, descendants, edgeBudget, onAnnounce, className, children },
+  { scene, state, locale = "en", fitKey, fitView = true, describe, onHover, onClick, onContextMenu, onViewportChange, descendants, edgeBudget = "adaptive", clock, onAnnounce, className, children },
   ref,
 ) {
   const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<CanvasRenderer | null>(null);
   const drag = useRef<{ x: number; y: number; moved: boolean; pointerId: number } | null>(null);
+  const wheeling = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
   const [dragging, setDragging] = useState(false);
   const [overHit, setOverHit] = useState(false);
@@ -86,7 +89,7 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
     const canvas = canvasRef.current;
     const host = hostRef.current;
     if (!canvas || !host) return;
-    const renderer = new CanvasRenderer(canvas, { tokens: readTokens(host) });
+    const renderer = new CanvasRenderer(canvas, { tokens: readTokens(host), clock });
     renderer.onViewportChange = (v) => onViewportChange?.(v);
     renderer.onDraw = ({ withheld: w }) => {
       const key = w ? `${w.shown}/${w.total}` : "";
@@ -117,6 +120,7 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
       mo?.disconnect();
       scheme?.removeEventListener?.("change", retheme);
       ro?.disconnect();
+      clearTimeout(wheeling.current);
       renderer.dispose();
       rendererRef.current = null;
     };
@@ -177,6 +181,8 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0) return;
+    // A drag whose release was lost ends here.
+    if (drag.current?.moved) rendererRef.current?.endGesture();
     const p = local(e);
     drag.current = { x: p.x, y: p.y, moved: false, pointerId: e.pointerId };
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
@@ -191,6 +197,7 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
         const dx = p.x - drag.current.x;
         const dy = p.y - drag.current.y;
         if (drag.current.moved || Math.hypot(dx, dy) > 3) {
+          if (!drag.current.moved) r.beginGesture();
           drag.current.moved = true;
           setDragging(true);
           r.panBy(dx, dy);
@@ -218,7 +225,7 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
       drag.current = null;
       setDragging(false);
       if (!r || !d) return;
-      if (d.moved) return;
+      if (d.moved) return r.endGesture();
       const p = local(e);
       onClick?.(r.hitAt(p.x, p.y), { shiftKey: e.shiftKey, metaKey: e.metaKey, ctrlKey: e.ctrlKey });
     },
@@ -235,6 +242,13 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
     const r = rendererRef.current;
     if (!r) return;
     e.preventDefault();
+    // A wheel gesture ends 200 ms after its last event.
+    if (wheeling.current === undefined) r.beginGesture();
+    clearTimeout(wheeling.current);
+    wheeling.current = setTimeout(() => {
+      wheeling.current = undefined;
+      r.endGesture();
+    }, 200);
     const p = local(e);
     if (e.ctrlKey || e.metaKey) {
       r.zoomBy(Math.exp(-e.deltaY * 0.01), p);

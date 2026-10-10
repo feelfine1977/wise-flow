@@ -96,7 +96,7 @@ function ProcessMapInner(props: ProcessMapProps) {
     layoutResetKey,
     canvasThreshold = DEFAULT_CANVAS_THRESHOLD,
     describedLimit = DEFAULT_DESCRIBED_LIMIT,
-    edgeBudget,
+    edgeBudget = "adaptive",
     children,
   } = props;
 

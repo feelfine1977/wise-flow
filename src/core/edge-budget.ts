@@ -66,3 +66,53 @@ export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "styl
   for (let k = 0, room = Math.floor(budget) - drawn.size; k < room && k < rest.length; k++) drawn.add(rest[k]);
   return drawn.size < total ? { drawn, shown: drawn.size, total } : undefined;
 }
+
+/** The adaptive budget's first step; the steps are 500, 1,000, 2,000, … */
+export const FIRST_STEP = 2000;
+const TARGET_MS = 16.7;
+const RUN = 5;
+
+/** The edges a frame drew and those in view. */
+export interface FrameCounts {
+  shown: number;
+  total: number;
+}
+
+/**
+ * The adaptive budget. It times the frames of gestures with `clock` (ms) and,
+ * as the last gesture ends, moves one step: down after RUN frames in a row
+ * above the target that drew more than the step below, up after RUN below
+ * half of it (a step doubles the edges) that withheld edges.
+ */
+export function edgeBudgetAdapter(clock: () => number) {
+  let budget = FIRST_STEP;
+  let gestures = 0;
+  let slow = 0;
+  let fast = 0;
+  let due = 0;
+  return {
+    get budget() {
+      return budget;
+    },
+    start() {
+      if (!gestures++) slow = fast = due = 0;
+    },
+    end() {
+      if (!gestures || --gestures) return false;
+      budget *= 2 ** due;
+      return !!due;
+    },
+    frame(draw: (budget: number) => FrameCounts) {
+      if (!gestures) return void draw(budget);
+      const started = clock();
+      const { shown, total } = draw(budget);
+      const ms = clock() - started;
+      slow = ms > TARGET_MS && budget > 500 && shown > budget / 2 ? slow + 1 : 0;
+      fast = ms < TARGET_MS / 2 && shown < total ? fast + 1 : 0;
+      if (slow === RUN) due = -1;
+      if (fast === RUN) due = 1;
+    },
+  };
+}
+
+export type EdgeBudgetAdapter = ReturnType<typeof edgeBudgetAdapter>;
