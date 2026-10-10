@@ -11,7 +11,7 @@ import {
   type OnNodesChange,
 } from "@xyflow/react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { type AbstractOptions, type ElementRef, type FlowGraph, type XY, activityNodeSize, activityReferences, coversGraph, defaultStyle, lodAt, t } from "../core/index.js";
+import { type AbstractOptions, type ElementRef, type FlowGraph, type GraphIndex, type XY, activityNodeSize, activityReferences, coversGraph, defaultStyle, lodAt, t } from "../core/index.js";
 import { type MapContext, mapEmphasis, menuHeading } from "../core/map-controller.js";
 import { ActivityTooltip } from "./ActivityTooltip.js";
 import { AbstractionControls } from "./AbstractionControls.js";
@@ -36,6 +36,12 @@ import { type ProcessMapProps, type Selection, type WfEdge, type WfGroupNode, ty
 const DEFAULT_CANVAS_THRESHOLD = 2000;
 
 const NO_MOVES: Readonly<Record<string, XY>> = {};
+
+/** The activity node with this id, if the shown graph has one. */
+const activityNode = (index: GraphIndex, id: string | null) => {
+  const node = id === null ? undefined : index.nodes.get(id);
+  return node?.kind === "activity" ? node : undefined;
+};
 
 /** Inner component; needs the React Flow provider for viewport hooks. */
 function ProcessMapInner(props: ProcessMapProps) {
@@ -101,21 +107,25 @@ function ProcessMapInner(props: ProcessMapProps) {
   const { scene, positions, laidPositions } = useMapScene(shown, needsOwnLayout ? own.positions : givenPositions, manual.key === layoutResetKey ? manual.points : NO_MOVES, {
     overlays: sceneOverlays, style, locale, lanes, activityLabels, selfLoops, lod: props.lod,
   });
+  const { scales, overlays, geometry } = scene;
+  // One index of the shown graph: every description, label and lookup by id reads it.
+  const descriptions = useElementDescriptions(shown, overlays, locale, activityLabels);
+  const { describeElement, index } = descriptions;
+  const labelOf = index.label;
   const onNodesChange = useCallback<OnNodesChange<WfNode | WfGroupNode>>((changes) => {
     if (!nodesDraggable || !positions) return;
     const points: Record<string, XY> = {};
     for (const change of changes) {
       if (change.type !== "position" || !change.position) continue;
-      const node = shown.nodes.find((n) => n.id === change.id && n.kind === "activity");
-      if (!node) continue;
+      const node = index.nodes.get(change.id);
+      if (node?.kind !== "activity") continue;
       const parent = node.group ? positions.groups[node.group] : undefined;
       points[node.id] = { x: change.position.x + (parent?.x ?? 0), y: change.position.y + (parent?.y ?? 0) };
     }
     if (!Object.keys(points).length) return;
     if (onNodeMove) for (const [id, point] of Object.entries(points)) onNodeMove(id, point);
     else setManual((previous) => ({ key: layoutResetKey, points: { ...(previous.key === layoutResetKey ? previous.points : {}), ...points } }));
-  }, [nodesDraggable, onNodeMove, layoutResetKey, positions, shown]);
-  const { scales, overlays, geometry } = scene;
+  }, [nodesDraggable, onNodeMove, layoutResetKey, positions, index]);
   const select = useCallback((s: Selection) => void dispatch({ type: "select", selection: s }), [dispatch]);
   const hover = useCallback((id: string | null) => void dispatch({ type: "hover", id }), [dispatch]);
   const tooltipId = useId();
@@ -132,9 +142,6 @@ function ProcessMapInner(props: ProcessMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<CanvasMapHandle>(null);
 
-  const descriptions = useElementDescriptions(shown, overlays, locale, activityLabels);
-  const { describeElement } = descriptions;
-  const labelOf = useCallback((id: string) => shown.nodes.find((n) => n.id === id)?.label ?? (shown.groups ?? []).find((g) => g.id === id)?.label ?? id, [shown]);
 
   // Actions menu
   const allStages = useMemo(() => (graph.groups ?? []).filter((g) => g.kind === "stage" && !g.parent).map((g) => g.id), [graph]);
@@ -163,7 +170,7 @@ function ProcessMapInner(props: ProcessMapProps) {
 
   // React Flow nodes and edges, or the Canvas scene, its state and the elements listed for assistive technology.
   const flow = useFlowElements({ enabled: !useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, nodesDraggable });
-  const canvas = useCanvasElements({ enabled: useCanvas, scene, graph: shown, positions, describeElement, selection, hovered, focused, bright, locale, activityLabels });
+  const canvas = useCanvasElements({ enabled: useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels });
   const canvasScene = canvas.scene;
   const canvasHandlers = useMemo(() => canvasPointer(dispatch, canvasScene?.shapeById, shown), [dispatch, canvasScene, shown]);
 
@@ -187,7 +194,6 @@ function ProcessMapInner(props: ProcessMapProps) {
   }), [dispatch]);
   const overlayHandlers = useMemo(() => overlayPointer(dispatch), [dispatch]);
 
-  const edgeIndex = useMemo(() => new Map(shown.edges.map((e) => [e.id, e])), [shown]);
 
   // Bring a node the keyboard moved to into view.
   const reveal = useCallback(
@@ -214,7 +220,7 @@ function ProcessMapInner(props: ProcessMapProps) {
     [dispatch],
   );
 
-  const tooltipNode = activityLabels && view === "map" ? shown.nodes.find((n) => n.kind === "activity" && n.id === (hovered ?? (hasFocus ? focused : null))) : undefined;
+  const tooltipNode = activityLabels && view === "map" ? activityNode(index, hovered ?? (hasFocus ? focused : null)) : undefined;
   const tooltipAnchor = useCallback((id: string) => {
     const viewport = useCanvas ? canvasViewport : { x: rfX, y: rfY, zoom: rfZoom };
     const box = positions?.nodes[id];
@@ -241,7 +247,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   const hasStages = (baseGraph.groups ?? []).some((g) => g.kind === "stage") || !!abstraction.collapse;
   const layoutPending = needsOwnLayout && own.status === "pending";
   const showFilters = props.filters !== undefined || props.onFilterChange !== undefined;
-  const activeDescendant = focused ? (edgeIndex.has(focused) ? `wf-edge-${focused}` : `wf-node-${focused}`) : undefined;
+  const activeDescendant = focused ? (index.edges.has(focused) ? `wf-edge-${focused}` : `wf-node-${focused}`) : undefined;
 
   const sidePanel = showPaths ? (
     <div className="wf-process-map__side">

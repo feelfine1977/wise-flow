@@ -6,17 +6,18 @@
  */
 import { MarkerType } from "@xyflow/react";
 import { useCallback, useMemo } from "react";
-import { type ActivityLabelOptions, type ElementRef, type FlowGraph, type FlowScene, type HitItem, type Locale, type Overlay, type OverlayMark, type Positions, type Selection, arrowheadTokens, describeOverlay } from "../core/index.js";
+import { type ActivityLabelOptions, type ElementRef, type FlowGraph, type FlowScene, type HitItem, type Locale, type Overlay, type OverlayMark, type Positions, type Selection, arrowheadTokens, describeOverlay, indexGraph } from "../core/index.js";
 import type { DrawState, PreparedScene } from "../canvas/index.js";
 import { retainScene } from "../canvas/scene.js";
-import { describeEdge, describeGroup, describeNode } from "./describe.js";
+import { describeIndexedEdge } from "../core/describe.js";
+import { describeGroup, describeNode } from "./describe.js";
 import { coverBackground } from "./marks.js";
 import { GROUP_PREFIX } from "./map-pointer.js";
 import type { WfEdge, WfGroupNode, WfNode } from "./types.js";
 
 type Bright = { nodes: Set<string>; edges: Set<string> } | undefined;
 
-/** ARIA descriptions of the shown elements. */
+/** ARIA descriptions of the shown elements, read through one index of the shown graph. */
 export function useElementDescriptions(shown: FlowGraph, overlays: Overlay[], locale: Locale, activityLabels: ActivityLabelOptions | undefined) {
   // Descriptions
   const overlaysByTarget = useMemo(() => {
@@ -27,7 +28,8 @@ export function useElementDescriptions(shown: FlowGraph, overlays: Overlay[], lo
     }
     return m;
   }, [overlays]);
-  const groupIndex = useMemo(() => new Map((shown.groups ?? []).map((g) => [g.id, g])), [shown]);
+  const index = useMemo(() => indexGraph(shown), [shown]);
+  const groupIndex = index.groups;
   const memberCount = useMemo(() => {
     const m = new Map<string, number>();
     for (const n of shown.nodes) if (n.group) m.set(n.group, (m.get(n.group) ?? 0) + 1);
@@ -36,19 +38,19 @@ export function useElementDescriptions(shown: FlowGraph, overlays: Overlay[], lo
   const describeElement = useCallback(
     (ref: ElementRef): string => {
       if (ref.kind === "node") {
-        const n = shown.nodes.find((x) => x.id === ref.id);
+        const n = index.nodes.get(ref.id);
         return n ? describeNode(n, overlaysByTarget.get(n.id) ?? [], locale, n.group ? groupIndex.get(n.group)?.label : undefined, n.kind === "activity" ? activityLabels : undefined) : ref.id;
       }
       if (ref.kind === "edge") {
-        const e = shown.edges.find((x) => x.id === ref.id);
-        return e ? describeEdge(e, shown, locale) : ref.id;
+        const e = index.edges.get(ref.id);
+        return e ? describeIndexedEdge(e, index, locale) : ref.id;
       }
       const g = groupIndex.get(ref.id);
       return g ? describeGroup(g, memberCount.get(g.id) ?? 0, overlaysByTarget.get(g.id) ?? [], locale) : ref.id;
     },
-    [shown, overlaysByTarget, groupIndex, memberCount, locale, activityLabels],
+    [index, overlaysByTarget, groupIndex, memberCount, locale, activityLabels],
   );
-  return { describeElement, overlaysByTarget, groupIndex, memberCount };
+  return { describeElement, index, overlaysByTarget, groupIndex, memberCount };
 }
 
 export type ElementDescriptions = ReturnType<typeof useElementDescriptions>;
@@ -72,7 +74,7 @@ interface FlowInput {
 /** React Flow nodes (groups first, as parents) and edges, and the overlay marks drawn between elements. */
 export function useFlowElements(input: FlowInput) {
   const { enabled, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, nodesDraggable } = input;
-  const { overlaysByTarget, groupIndex, memberCount, describeElement } = descriptions;
+  const { overlaysByTarget, groupIndex, memberCount, describeElement, index } = descriptions;
   const { scales } = scene;
   const bands = useMemo(() => new Map(scene.bands.map((b) => [b.id, b])), [scene.bands]);
   // Marks below the edges are drawn by the element they cover, as its background; boxes above it by the
@@ -181,7 +183,7 @@ export function useFlowElements(input: FlowInput) {
     if (!positions || !enabled) return [];
     return scene.edgeMarks.map((mark) => {
       const e = mark.edge;
-      const description = describeEdge(e, shown, locale);
+      const description = describeIndexedEdge(e, index, locale);
       return {
         id: e.id,
         type: e.kind,
@@ -206,7 +208,7 @@ export function useFlowElements(input: FlowInput) {
         },
       };
     });
-  }, [positions, enabled, shown, scene, selection, hovered, focused, locale, bright]);
+  }, [positions, enabled, scene, index, selection, hovered, focused, locale, bright]);
   return { nodes: rfNodes, edges: rfEdges, between };
 }
 
@@ -216,7 +218,7 @@ interface CanvasInput {
   scene: FlowScene;
   graph: FlowGraph;
   positions: Positions | undefined;
-  describeElement: (ref: ElementRef) => string;
+  descriptions: Pick<ElementDescriptions, "describeElement" | "index">;
   selection: Selection;
   hovered: string | null;
   focused: string | null;
@@ -227,20 +229,20 @@ interface CanvasInput {
 
 /** The Canvas map's retained scene, its draw state, its element list and its tooltip texts. */
 export function useCanvasElements(input: CanvasInput) {
-  const { enabled, scene, graph: shown, positions, describeElement, selection, hovered, focused, bright, locale, activityLabels } = input;
-  const nodeKinds = useMemo(() => new Map(shown.nodes.map((n) => [n.id, n.kind])), [shown]);
+  const { enabled, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels } = input;
+  const { describeElement, index } = descriptions;
   const canvasScene = useMemo<PreparedScene | undefined>(() => (enabled && positions ? retainScene(scene) : undefined), [enabled, positions, scene]);
   const canvasState = useMemo<DrawState>(() => ({ selection, hovered, focused, bright }), [selection, hovered, focused, bright]);
   const canvasDescendants = useMemo(() => {
     if (!enabled) return undefined;
     const list: { id: string; kind: ElementRef["kind"]; description: string }[] = shown.nodes.map((n) => ({ id: n.id, kind: "node" as const, description: describeElement({ kind: "node", id: n.id }) }));
     for (const g of shown.groups ?? []) list.push({ id: g.id, kind: "group" as const, description: describeElement({ kind: "group", id: g.id }) });
-    if (focused && shown.edges.some((e) => e.id === focused)) list.push({ id: focused, kind: "edge" as const, description: describeElement({ kind: "edge", id: focused }) });
+    if (focused && index.edges.has(focused)) list.push({ id: focused, kind: "edge" as const, description: describeElement({ kind: "edge", id: focused }) });
     return list;
-  }, [enabled, shown, focused, describeElement]);
+  }, [enabled, shown, index, focused, describeElement]);
   const describeHit = useCallback(
     (hit: HitItem): string | undefined => {
-      if (activityLabels && hit.kind === "node" && nodeKinds.get(hit.id) === "activity") return undefined;
+      if (activityLabels && hit.kind === "node" && index.nodes.get(hit.id)?.kind === "activity") return undefined;
       if (hit.kind === "overlay") {
         const shape = canvasScene?.shapeById.get(hit.shapeId ?? "");
         if (!shape) return undefined;
@@ -249,7 +251,7 @@ export function useCanvasElements(input: CanvasInput) {
       }
       return describeElement({ kind: hit.kind, id: hit.id });
     },
-    [canvasScene, describeElement, locale, activityLabels, nodeKinds],
+    [canvasScene, describeElement, locale, activityLabels, index],
   );
   return { scene: canvasScene, state: canvasState, descendants: canvasDescendants, describe: describeHit };
 }
