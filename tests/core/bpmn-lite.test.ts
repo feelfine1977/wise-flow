@@ -208,6 +208,25 @@ describe("liteFromGraph parallel gateways", () => {
     expect(liteFromGraph(g, { andGateways: true }).nodes.filter((n) => hasTag(n, "and"))).toEqual([]);
   });
 
+  it("keeps a split exclusive when one branch reaches the common node on two paths and the other on none", () => {
+    // b leads to d twice (a second path between the same tasks), c only back to b:
+    // a parallel join at d would wait for c forever.
+    const g = graph("a b c d", "a>b a>c b>c c>b b>d");
+    g.edges.push({ id: "b->d again", kind: "follows", source: "b", target: "d", metrics: { count: 1 } });
+    const and = liteFromGraph(g, { andGateways: true });
+    expect(and.nodes.filter((n) => hasTag(n, "and"))).toEqual([]);
+    expect(validateGateways(and)).toEqual([]);
+  });
+
+  it("keeps a split exclusive when it leads to one branch twice", () => {
+    // With self-loops as flows, b b counts as following itself, so b, b and c look concurrent.
+    const g = graph("a b c d", "a>b a>c b>c c>b b>d c>d b>b");
+    g.edges.push({ id: "a->b again", kind: "follows", source: "a", target: "b", metrics: { count: 1 } });
+    const and = liteFromGraph(g, { andGateways: true, selfLoops: "flow" });
+    expect(and.nodes.filter((n) => hasTag(n, "and"))).toEqual([]);
+    expect(validateGateways(and)).toEqual([]);
+  });
+
   it("keeps a split exclusive when the branches lead to a gateway of the input, which gets no join", () => {
     const g = graph("a b c", "a>b a>c b>c c>b b>d c>d");
     g.nodes.push({ id: "d", kind: "gateway", label: "D", tags: ["xor"] });

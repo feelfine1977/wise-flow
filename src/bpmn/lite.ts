@@ -369,7 +369,7 @@ export function liteFromGraph(graph: FlowGraph, options: LiteFromGraphOptions = 
       }
       const [join] = exits;
       const ins = inc.get(join)!;
-      if (!entered || exits.size !== 1 || join === n.id || byId.get(join)!.kind === "gateway" || ins.length !== block.size || ins.some((e) => !block.has(e.source))) continue;
+      if (!entered || exits.size !== 1 || join === n.id || byId.get(join)!.kind === "gateway" || block.size < branches.length || ins.length !== block.size || branches.some((b) => !ins.some((e) => e.source === b))) continue;
       andSplits.add(n.id);
       andJoins.add(join);
       for (const b of branches) for (const e of out.get(b)!) if (block.has(e.target)) interleaved.add(e);
