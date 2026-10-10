@@ -392,6 +392,7 @@ export function ProcessMap(props: {
   onContextMenu?: (target: MenuTarget, actions: MenuAction[]) => MenuAction[] | false | void;
   onAction?: (action: MenuAction, target: MenuTarget) => void | string; announce?: string;
   describedLimit?: number;   // default 500 activities plus groups
+  edgeBudget?: EdgeBudget;   // default "all"; see "Edge budget"
 }): JSX.Element;
 export interface Selection { nodes: string[]; edges: string[]; groups: string[] }
 
@@ -955,7 +956,8 @@ export function PathList(props: { graph; focus: Focus; paths?: FlowPaths; locale
   sort?: PathSortKey; ascending?; onSortChange?; className? }): JSX.Element;
 export function FilterChips(props: { filter?: Filter | FilterClause[]; preview?; locale?; labelOf?; onFilterChange?; onAnnounce?; clearable?; className? }): JSX.Element;
 export function CanvasMap(props: { scene: PreparedScene | undefined; state: DrawState; locale?; fitKey?; fitView?; describe?; onHover?; onClick?;
-  onContextMenu?; onViewportChange?; descendants?; className?; children? } & { ref?: Ref<CanvasMapHandle> }): JSX.Element;
+  onContextMenu?; onViewportChange?; descendants?; className?; children?;
+  edgeBudget?: EdgeBudget; onAnnounce?: (text: string) => void } & { ref?: Ref<CanvasMapHandle> }): JSX.Element;
 export interface CanvasMapHandle { centerOn(id, zoom?); fit(); zoomBy(factor); screenBox(id): Box | undefined; renderer(): CanvasRenderer | null;
   moved(): boolean }   // true when the view changed since the map was last fitted
 ```
@@ -996,16 +998,20 @@ export function prepareScene(g: FlowGraph, p: Positions, o?: { activityLabels?; 
   lanes?: LaneMode; bands?: LaneBand[]; overlayGeometry?; selfLoops?: boolean }): PreparedScene;
 export interface DrawContext { /* the subset of CanvasRenderingContext2D the routines use */ }
 export interface View { x: number; y: number; zoom: number; width: number; height: number }
-export interface DrawState { selection: Selection; hovered?: string | null; focused?: string | null; bright?: { nodes: Set<string>; edges: Set<string> } }
-export interface DrawOptions { tokens?: CanvasTokens; cull?: boolean; background?: boolean | string; lodZoom?: number; createCanvas? }
-export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, state?: DrawState, o?: DrawOptions): { nodes; edges; shapes; culled };
+export interface DrawState { selection: Selection; hovered?: string | null; focused?: string | null; bright?: { nodes: Set<string>; edges: Set<string> };
+  highlighted?: ReadonlySet<string> }   // edges on a highlighted path, drawn under any edge budget
+export interface DrawOptions { tokens?: CanvasTokens; cull?: boolean; background?: boolean | string; lodZoom?: number; createCanvas?;
+  edgeBudget?: EdgeBudget }   // default "all"
+export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, state?: DrawState, o?: DrawOptions): { nodes; edges; shapes; culled;
+  withheld?: EdgeSelection };   // present when the edge budget left edges in view out
 export function drawLegend(ctx: DrawContext, scene: PreparedScene, x, y, width, tokens?, o?: { createCanvas? }): number;   // the scene's legend; returns legendLayout(scene.legend).height
 export function tracePath(ctx: DrawContext, d: string): { last?; beforeLast? };
 export class CanvasRenderer { constructor(canvas: HTMLCanvasElement, o?: { tokens?; devicePixelRatio?; minZoom?; maxZoom?; draw? });
   resize(w, h); setScene(s); getScene(); setState(patch: Partial<DrawState>); getState(); setTokens(t);
   getViewport(); setViewport(v, notify?); fit(padding?); panBy(dx, dy); zoomBy(factor, centre?); centerOn(point, zoom?);
   toFlow(x, y); toScreen(x, y); screenBox(id); hitAt(x, y, tolerancePx?): HitItem | undefined; requestDraw(); draw(); dispose();
-  onViewportChange?: (v: Viewport) => void; lastDraw?: { nodes; edges; shapes; culled; ms } }
+  onViewportChange?: (v: Viewport) => void; lastDraw?: { nodes; edges; shapes; culled; withheld?; ms };
+  onDraw?: (stats: { nodes; edges; shapes; culled; withheld?; ms }) => void }   // called after every draw
 export interface CanvasTokens { font; paper; surface; ink; inkMuted; line; lineStrong; focus; selection; neutral; outOfScope }
 export const defaultTokens: CanvasTokens;   // from the token table (`colorTokens`, `fontTokens`)
 export function readTokens(element: Element | null | undefined, overrides?: Partial<CanvasTokens>): CanvasTokens;   // from the CSS variables (`cssVariable(key)`)
@@ -1290,6 +1296,57 @@ are on the map; and the Canvas map draws every graph overlay once.
 default (as the live map does), also without `activityLabels`;
 `Scene.selfLoops: false` hides them, also in `toPNG`. Overlays on unknown
 targets are dropped before their order is fixed.
+
+## Edge budget
+
+```ts
+export type EdgeBudget = number | "all";
+export interface EdgeProtection { selection?: { edges: readonly string[] }; focused?: string | null; highlighted?: ReadonlySet<string> }
+export interface EdgeSelection { drawn: Set<number>; shown: number; total: number }   // positions in scene.edgeMarks
+export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style">, budget: EdgeBudget | undefined,
+  protection?: EdgeProtection, inView?: readonly number[]): EdgeSelection | undefined;
+```
+
+When tens of thousands of edges are in view (a hub, or a fitted large map),
+culling cannot shorten a draw. An edge budget of n draws n of the edges in
+view, chosen once in the core by `budgetEdges` so that the Canvas map and
+the React Flow map draw the same ones. The order is fixed: protected edges
+first, then the weight descending (the metric the edge width reads,
+`style.edgeWidth.metric`, `count` by default; an edge without it comes
+last), then the id. A budget of n draws the first n edges of that order,
+and every protected edge even beyond n, so lowering the budget only removes
+edges from the end of the order and never replaces a drawn edge by another.
+
+An edge is protected when it carries an overlay mark of the scene (a mark
+that names it, `OverlayMark.edgeId`, as a loop's mark does, or an arc that
+joins its source to its target in that direction), when it is selected, when the keyboard
+is on it (`focused`), or when it lies on a highlighted path: the edges of the
+focus of paths in effect (`mapEmphasis(...).bright.edges` while
+`focusShown`, which includes the pair of activities a selection of two
+names). The edges a selection of activities merely brightens are not
+protected.
+
+`budgetEdges` returns undefined when the budget is `"all"` or undefined, or
+when it withholds nothing (no more edges in view than the budget, or every
+edge protected); otherwise the positions in `scene.edgeMarks` of the edges
+drawn, how many that is (`shown`) and how many were in view (`total`). The
+edges in view are `inView` (positions in `scene.edgeMarks`), or every edge
+of the scene without it. The order by weight is computed once per scene and
+kept with its `edgeMarks` while they live.
+
+`<ProcessMap edgeBudget/>` applies it in both renderers (default `"all"`:
+every edge drawn, as before). The React Flow map has every edge of the
+scene in view and passes only the drawn ones to React Flow. The Canvas map
+(`drawScene` with `DrawOptions.edgeBudget`, `CanvasRenderer` through its
+`draw` options, `<CanvasMap edgeBudget/>`) counts as in view what it would
+draw: in a culled view the edges the hit index finds there, otherwise every
+edge; withheld edges are drawn neither as lines nor with their labels, and
+`CanvasRenderer.hitAt` does not return an edge its last draw withheld. While
+edges are withheld the map shows a note with both numbers, "Showing 2,000 of
+49,999 flows" (`map.edges.withheld`, English and German), as text at the
+bottom centre of the map (`role="note"`), and the polite live region
+announces it once its numbers have stayed the same for 400 ms, so a view
+in motion does not flood it. The table view always lists every edge.
 
 ## BPMN routing and navigation (0.3.4)
 
