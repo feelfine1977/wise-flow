@@ -150,17 +150,35 @@ export function nodeCount(node: FlowNode, locale: Locale = "en"): string | undef
   return `${Number.isFinite(members) ? `${members} · ` : ""}${shown}`.trim() || undefined;
 }
 
-const ink = (text: string, x: number, y: number, size: number, rest: Partial<ElementText> & Pick<ElementText, "role">): ElementText => ({
+// Texts and marks are written as one literal with every key (a key without a
+// value reads as absent), which the engine keeps in one allocation.
+const ink = (text: string, x: number, y: number, size: number, role: ElementText["role"], anchor: ElementText["anchor"] = "start", baseline: ElementText["baseline"] = "middle", extra: Partial<ElementText> = {}, paint: MarkPaint = "ink"): ElementText => ({
   text,
   x,
   y,
   size,
-  anchor: "start",
-  baseline: "middle",
-  paint: "ink",
+  anchor,
+  baseline,
+  paint,
   halo: false,
-  ...rest,
+  role,
+  maxWidth: extra.maxWidth,
+  lod: extra.lod,
+  weight: extra.weight,
 });
+
+const strokes = new Map<string, NodeMark["stroke"]>();
+
+/** One frozen outline per paint, width and dash, shared by the marks that have it. */
+function outline(paint: MarkPaint, width: number, dash?: readonly number[]): NodeMark["stroke"] {
+  const key = `${paint} ${width} ${dash}`;
+  let stroke = strokes.get(key);
+  if (!stroke) strokes.set(key, (stroke = Object.freeze(dash ? { paint, width, dash: dash as number[] } : { paint, width })));
+  return stroke;
+}
+
+const RECONNECTED_DASH = Object.freeze([4, 3]);
+const NOTE_DASH = Object.freeze([2, 3]);
 
 /** What one node looks like in its box. */
 export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): NodeMark {
@@ -168,69 +186,50 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
   const reconnected = hasTag(node, RECONNECTED_TAG);
   const cx = box.x + box.width / 2;
   const cy = box.y + box.height / 2;
-  const mark: NodeMark = {
+  const mark = (shape: NodeMark["shape"], radius: number, stroke: NodeMark["stroke"], texts: ElementText[], fill: MarkPaint = "paper", band?: number, title?: string): NodeMark => ({
     id: node.id,
     kind: node.kind,
     node,
     box,
-    shape: "box",
-    radius: sizeTokens.radius,
+    shape,
+    radius,
     color: options.color,
     pattern: options.pattern,
-    fill: "paper",
-    stroke: { paint: "ink", width: 1.5, ...(reconnected ? { dash: [4, 3] } : {}) },
-    texts: [],
+    fill,
+    stroke,
+    texts,
     reconnected,
-  };
+    band,
+    title,
+  });
+  const dash = reconnected ? RECONNECTED_DASH : undefined;
   switch (node.kind) {
     case "event":
-      return {
-        ...mark,
-        shape: "circle",
-        radius: Math.min(box.width, box.height) / 2,
-        stroke: { ...mark.stroke, width: hasTag(node, "end") ? 3 : 1.5 },
-        texts: [ink(node.label, cx, cy, textSizeTokens.small, { role: "label", anchor: "middle", maxWidth: box.width - 4, lod: "labels" })],
-      };
+      return mark("circle", Math.min(box.width, box.height) / 2, outline("ink", hasTag(node, "end") ? 3 : 1.5, dash), [ink(node.label, cx, cy, textSizeTokens.small, "label", "middle", "middle", { maxWidth: box.width - 4, lod: "labels" })]);
     case "gateway":
-      return { ...mark, shape: "diamond", radius: 0, texts: [ink(gatewayGlyph(node), cx, cy + 1, textSizeTokens.glyph, { role: "glyph", weight: 700, anchor: "middle" })] };
+      return mark("diamond", 0, outline("ink", 1.5, dash), [ink(gatewayGlyph(node), cx, cy + 1, textSizeTokens.glyph, "glyph", "middle", "middle", { weight: 700 })]);
     case "note":
-      return {
-        ...mark,
-        fill: "surface",
-        stroke: { paint: "value", width: 2, dash: [2, 3] },
-        texts: [ink(node.label, box.x + 16, cy, textSizeTokens.note, { role: "label", maxWidth: box.width - 24 })],
-      };
+      return mark("box", sizeTokens.radius, outline("value", 2, NOTE_DASH), [ink(node.label, box.x + 16, cy, textSizeTokens.note, "label", "start", "middle", { maxWidth: box.width - 24 })], "surface");
     default: {
-      const stroke = { paint: "value" as const, width: node.kind === "stage" ? 3 : 2, ...(reconnected ? { dash: [4, 3] } : {}) };
+      const stroke = outline("value", node.kind === "stage" ? 3 : 2, dash);
       const labels = node.kind === "activity" ? options.activityLabels : undefined;
       if (labels) {
         const lines = activityLabelLines(node, labels, box.width, locale);
         const counts = labels.showCounts === false ? [] : lines.counts;
-        const left = (text: string, size: number, y: number, role: ElementText["role"]) => ink(text, box.x + 16, y, size, { role, baseline: "alphabetic" });
-        return {
-          ...mark,
-          stroke,
-          band: sizeTokens.band,
-          title: activityDescription(node, labels, locale),
-          texts: [
-            ...lines.name.map((line, i) => left(line, textSizeTokens.nameLine, box.y + 24 + i * 18, "nameLine")),
-            ...counts.map((line, i) => left(line, textSizeTokens.countLine, box.y + 24 + lines.name.length * 18 + i * 16, "countLine")),
-          ],
-        };
+        const left = (text: string, size: number, y: number, role: ElementText["role"]) => ink(text, box.x + 16, y, size, role, "start", "alphabetic");
+        const names = lines.name.map((line, i) => left(line, textSizeTokens.nameLine, box.y + 24 + i * 18, "nameLine"));
+        return mark("box", sizeTokens.radius, stroke, names.concat(counts.map((line, i) => left(line, textSizeTokens.countLine, box.y + 24 + lines.name.length * 18 + i * 16, "countLine"))), "paper", sizeTokens.band, activityDescription(node, labels, locale));
       }
       const count = nodeCount(node, locale);
-      return {
-        ...mark,
-        stroke,
-        band: sizeTokens.band,
-        texts: [
-          ink(node.label, box.x + 16, cy, textSizeTokens.label, { role: "label", maxWidth: box.width - 24, lod: "labels", ...(node.kind === "stage" ? { weight: 600 } : {}) }),
-          ...(count ? [ink(count, box.x + box.width - 6, box.y + box.height - 5, textSizeTokens.small, { role: "count", anchor: "end", baseline: "alphabetic", paint: "inkMuted", lod: "labels" })] : []),
-        ],
-      };
+      const label = ink(node.label, box.x + 16, cy, textSizeTokens.label, "label", "start", "middle", { maxWidth: box.width - 24, lod: "labels", weight: node.kind === "stage" ? 600 : undefined });
+      return mark("box", sizeTokens.radius, stroke, count ? [label, ink(count, box.x + box.width - 6, box.y + box.height - 5, textSizeTokens.small, "count", "end", "alphabetic", { lod: "labels" }, "inkMuted")] : [label], "paper", sizeTokens.band);
     }
   }
 }
+
+const RECONNECTED_EDGE_DASH = Object.freeze([6, 5]);
+const CONSTRAINT_DASH = Object.freeze([2, 4]);
+const NO_TEXTS: ElementText[] = Object.freeze([]) as unknown as ElementText[];
 
 /** What one edge looks like along its route. */
 export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string; width: number; locale?: Locale }): EdgeMark {
@@ -244,29 +243,40 @@ export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string;
     points,
     color: options.color,
     width: options.width,
-    ...(reconnected ? { dash: [6, 5] } : edge.kind === "constraint" ? { dash: [2, 4] } : {}),
+    dash: (reconnected ? RECONNECTED_EDGE_DASH : edge.kind === "constraint" ? CONSTRAINT_DASH : undefined) as number[] | undefined,
     texts: Number.isFinite(count)
       ? [{ text: formatCompact(count, options.locale ?? "en"), x: at.x, y: at.y, size: textSizeTokens.edgeCount, anchor: "middle", baseline: "alphabetic", paint: "ink", halo: true, role: "count", lod: "edgeLabels" }]
-      : [],
+      : NO_TEXTS,
     reconnected,
   };
 }
 
+/** Equal count texts of the marks share one string. */
+function shareCounts<M extends { texts: ElementText[] }>(marks: M[]): M[] {
+  const pool = new Map<string, string>();
+  for (const m of marks) for (const t of m.texts) if (t.role === "count") pool.set(t.text, (t.text = pool.get(t.text) ?? t.text));
+  return marks;
+}
+
 /** One mark per node with a box, in the graph's order. */
 export function nodeMarks(graph: FlowGraph, positions: Positions, scales: Scales, options: { locale?: Locale; activityLabels?: ActivityLabelOptions } = {}): NodeMark[] {
-  return graph.nodes.flatMap((n) => {
-    const box = positions.nodes[n.id];
-    return box ? [nodeMark(n, box, { color: scales.nodeColor(n), pattern: scales.nodePattern(n), locale: options.locale, activityLabels: options.activityLabels })] : [];
-  });
+  return shareCounts(
+    graph.nodes.flatMap((n) => {
+      const box = positions.nodes[n.id];
+      return box ? [nodeMark(n, box, { color: scales.nodeColor(n), pattern: scales.nodePattern(n), locale: options.locale, activityLabels: options.activityLabels })] : [];
+    }),
+  );
 }
 
 /** One mark per edge between two placed nodes, in the graph's order; edges from a node to itself are self-loop overlays. */
 export function edgeMarks(graph: FlowGraph, positions: Positions, scales: Scales, locale: Locale = "en"): EdgeMark[] {
-  return graph.edges.flatMap((e) => {
-    if (e.source === e.target) return [];
-    const points = edgePoints(positions, e);
-    return points ? [edgeMark(e, points, { color: edgeColor(e, scales), width: scales.edgeWidth(e), locale })] : [];
-  });
+  return shareCounts(
+    graph.edges.flatMap((e) => {
+      if (e.source === e.target) return [];
+      const points = edgePoints(positions, e);
+      return points ? [edgeMark(e, points, { color: edgeColor(e, scales), width: scales.edgeWidth(e), locale })] : [];
+    }),
+  );
 }
 
 /** Constraint edges in the mechanism colour, the others by the edge colour scale. */
