@@ -7,6 +7,7 @@ import {
   ReactFlowProvider,
   useNodesInitialized,
   useReactFlow,
+  useStore,
   useStoreApi,
   useViewport,
   type OnNodesChange,
@@ -210,6 +211,10 @@ function ProcessMapInner(props: ProcessMapProps) {
 
   // React Flow nodes and edges, or the Canvas scene, its state and the elements listed for assistive technology.
   const flow = useFlowElements({ enabled: !useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, nodesDraggable, edgeBudget, highlighted });
+  // React Flow draws new nodes a commit later; until then the layout is not in place.
+  const laidBy = useRef(new WeakMap<object, Positions | undefined>()).current;
+  laidBy.set(flow.nodes, laidPositions);
+  const flowBehind = useStore((s) => view !== "table" && !useCanvas && laidBy.get(s.nodes) !== laidPositions);
   const canvas = useCanvasElements({ enabled: useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, highlighted, limit: describedLimit });
   const largeTable = shown.nodes.length + (shown.groups?.length ?? 0) > describedLimit;
   // A bounded element list says so, with the totals the table view lists.
@@ -387,7 +392,7 @@ function ProcessMapInner(props: ProcessMapProps) {
       onFocusCapture={(event) => void dispatch({ type: "focusIn", id: (event.target as HTMLElement).closest?.(".react-flow__node")?.getAttribute("data-id") ?? undefined })}
       onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) dispatch({ type: "focusOut" }); }}
       data-activity-labels={activityLabels?.mode}
-      data-layout-status={arranging ? "pending" : needsOwnLayout ? own.status : "given"}
+      data-layout-status={arranging || (needsOwnLayout && flowBehind) ? "pending" : needsOwnLayout ? own.status : "given"}
       data-engine={positions?.engine}
       data-renderer={view === "table" ? "table" : useCanvas ? "canvas" : "svg"}
       data-lanes={lanes}

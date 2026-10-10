@@ -166,6 +166,23 @@ describe("arrival of the layout", () => {
     expect(translate(container, "c")).toEqual({ x: 500, y: 1200 });
   });
 
+  it("says ready only once the nodes are drawn in their places", async () => {
+    reducedMotion(true);
+    const held = heldElk();
+    const { container } = render(<ProcessMap graph={chain} layout={{ elk: held.elk, engine: "elk" }} />);
+    await waitFor(() => expect(held.calls).toHaveLength(1));
+    const map = container.querySelector(".wf-process-map")!;
+    // Where c is drawn each time the status changes, read as an observer of the page reads it.
+    const seen: string[] = [];
+    const observer = new MutationObserver(() => seen.push(`${map.getAttribute("data-layout-status")} ${translate(container, "c").y}`));
+    observer.observe(map, { attributes: true, attributeFilter: ["data-layout-status"] });
+    // Answered outside act, so that React schedules its work as it does in a browser.
+    held.answer();
+    await waitFor(() => expect(map.getAttribute("data-layout-status")).toBe("ready"));
+    expect(seen).toEqual(["ready 1200"]);
+    observer.disconnect();
+  });
+
   it("keeps the zoom and the node at the centre of a view that is not fitted", async () => {
     reducedMotion(true);
     const held = heldElk();
