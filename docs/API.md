@@ -140,7 +140,9 @@ subset); with `keepConnected` the result is one connected component
 whenever the input is, restored by a maximum spanning forest over the
 strongest direct edges, then by the cheapest paths through removed nodes,
 then by one edge per activity that lost all incoming or all outgoing paths;
-re-added elements are tagged `reconnected`. A collapsed group becomes a
+re-added elements are tagged `reconnected`. Of equally cheap reconnecting
+paths the one chosen depends on ids only, not on the input order
+([Architecture §2.2](ARCHITECTURE.md#22-aggregation)). A collapsed group becomes a
 `stage` node with the group's id; counts are summed, `cases` and `share`
 are maxima, other metrics weighted means, internal transitions land in
 `internalCount`.

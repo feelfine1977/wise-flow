@@ -303,13 +303,12 @@ export function isConnected(graph: FlowGraph): boolean {
   return new Set(comp.values()).size === 1;
 }
 
+/** Entries leave by key, then by `tie`; no two entries in one heap share both. */
 class MinHeap<T> {
-  private items: { key: number; order: number; value: T }[] = [];
-  private counter = 0;
-  push(key: number, value: T) {
-    const it = { key, order: this.counter++, value };
+  private items: { key: number; tie: string; value: T }[] = [];
+  push(key: number, value: T, tie = "") {
     const a = this.items;
-    a.push(it);
+    a.push({ key, tie, value });
     let i = a.length - 1;
     while (i > 0) {
       const p = (i - 1) >> 1;
@@ -319,7 +318,7 @@ class MinHeap<T> {
       } else break;
     }
   }
-  pop(): T | undefined {
+  pop(): { key: number; value: T } | undefined {
     const a = this.items;
     if (a.length === 0) return undefined;
     const top = a[0];
@@ -338,212 +337,32 @@ class MinHeap<T> {
         i = m;
       }
     }
-    return top.value;
+    return top;
   }
   get size() {
     return this.items.length;
   }
-  private less(a: { key: number; order: number }, b: { key: number; order: number }) {
-    return a.key < b.key || (a.key === b.key && a.order < b.order);
+  private less(a: { key: number; tie: string }, b: { key: number; tie: string }) {
+    return a.key < b.key || (a.key === b.key && a.tie < b.tie);
   }
 }
 
 /**
- * Re-add the cheapest paths of the original graph until the kept nodes form one
- * component, then give every kept activity an incoming and an outgoing edge where
- * the original graph had one. Re-added elements are tagged `reconnected`.
+ * What `abstract` keeps before it reconnects: the graph it abstracts (with stages
+ * collapsed when asked), the kept nodes and edges in input order and the strength
+ * of every element. Exported for the reconnection's tests, not from the package.
  */
-function reconnect(
-  original: FlowGraph,
-  keptNodes: FlowNode[],
-  keptEdges: FlowEdge[],
-  edgeStrength: Map<string, number>,
-  nodeStrength: Map<string, number>,
-): { nodes: FlowNode[]; edges: FlowEdge[] } {
-  const originalIdx = indexGraph(original);
-  const nodes = [...keptNodes];
-  const nodeIds = new Set(nodes.map((n) => n.id));
-  const edges = [...keptEdges];
-  const edgeIds = new Set(edges.map((e) => e.id));
-  const tag = (e: FlowEdge): FlowEdge => ({ ...e, tags: [...new Set([...(e.tags ?? []), RECONNECTED_TAG])] });
-  const addEdge = (e: FlowEdge) => {
-    if (edgeIds.has(e.id)) return;
-    edgeIds.add(e.id);
-    edges.push(tag(e));
-  };
-  const addNode = (id: string) => {
-    if (nodeIds.has(id)) return;
-    const n = originalIdx.nodes.get(id);
-    if (!n) return;
-    nodeIds.add(id);
-    nodes.push({ ...n, tags: [...new Set([...(n.tags ?? []), RECONNECTED_TAG])] });
-  };
-  const allIds = new Set(original.nodes.map((n) => n.id));
-  const adj = undirectedAdjacency(original.edges, allIds);
-  const cost = (e: FlowEdge) => 1 + (1 - (edgeStrength.get(e.id) ?? 1));
-  // Costs do not change during a reconnection, so each node's neighbours are sorted once.
-  const sortedNeighbours = new Map<string, { edge: FlowEdge; other: string }[]>();
-  const neighboursByCost = (id: string) => {
-    let ns = sortedNeighbours.get(id);
-    if (!ns) {
-      ns = [...(adj.neighbours.get(id) ?? [])].sort((a, b) => cost(a.edge) - cost(b.edge) || byId(a.edge, b.edge));
-      sortedNeighbours.set(id, ns);
-    }
-    return ns;
-  };
-
-  // 1a. Maximum spanning forest over the original edges between present nodes:
-  //     the strongest direct edges that join two components are re-added first.
-  const joinDirect = (): number => {
-    let comp = components(nodeIds, edges);
-    let count = new Set(comp.values()).size;
-    if (count <= 1) return count;
-    const parent = new Map<string, string>();
-    const find = (x: string): string => {
-      let r = x;
-      while (parent.get(r) !== undefined && parent.get(r) !== r) r = parent.get(r)!;
-      return r;
-    };
-    for (const [id, c] of comp) parent.set(id, `#${c}`);
-    const direct = original.edges
-      .filter((e) => e.source !== e.target && nodeIds.has(e.source) && nodeIds.has(e.target) && !edgeIds.has(e.id))
-      .sort((a, b) => cost(a) - cost(b) || byId(a, b));
-    for (const e of direct) {
-      const ra = find(e.source);
-      const rb = find(e.target);
-      if (ra === rb) continue;
-      parent.set(ra, rb);
-      addEdge(e);
-      count--;
-      if (count <= 1) break;
-    }
-    comp = components(nodeIds, edges);
-    return new Set(comp.values()).size;
-  };
-
-  // 1b. Remaining components are reached through the cheapest path of the original
-  //     graph (re-adding the removed nodes on it), starting from the heaviest component.
-  for (let guard = 0; guard < original.nodes.length; guard++) {
-    if (joinDirect() <= 1) break;
-    const comp = components(nodeIds, edges);
-    const weight = new Map<number, number>();
-    for (const n of nodes) {
-      const c = comp.get(n.id) ?? 0;
-      weight.set(c, (weight.get(c) ?? 0) + (isStructuralNode(n) ? 0 : (nodeStrength.get(n.id) ?? 1)));
-    }
-    let mainComp = 0;
-    let best = -1;
-    for (const [c, w] of [...weight.entries()].sort((a, b) => a[0] - b[0])) {
-      if (w > best) {
-        best = w;
-        mainComp = c;
-      }
-    }
-    const dist = new Map<string, number>();
-    const prev = new Map<string, { edge: FlowEdge; from: string }>();
-    const heap = new MinHeap<string>();
-    for (const [id, c] of comp) {
-      if (c === mainComp) {
-        dist.set(id, 0);
-        heap.push(0, id);
-      }
-    }
-    let hit: string | undefined;
-    while (heap.size) {
-      const cur = heap.pop()!;
-      const d = dist.get(cur)!;
-      const c = comp.get(cur);
-      if (c !== undefined && c !== mainComp) {
-        hit = cur;
-        break;
-      }
-      for (const { edge, other } of neighboursByCost(cur)) {
-        const nd = d + cost(edge);
-        const od = dist.get(other);
-        if (od === undefined || nd < od) {
-          dist.set(other, nd);
-          prev.set(other, { edge, from: cur });
-          heap.push(nd, other);
-        }
-      }
-    }
-    if (!hit) break; // the original graph is disconnected itself
-    let cur = hit;
-    while (prev.has(cur)) {
-      const { edge, from } = prev.get(cur)!;
-      addNode(cur);
-      addNode(from);
-      addEdge(edge);
-      cur = from;
-    }
-  }
-
-  // 2. Every kept activity keeps flow context: an incoming and an outgoing edge.
-  //    Open needs (a node without incoming or without outgoing edges) are served by
-  //    the original edge that closes the most needs at once, then by strength, so
-  //    that one edge serving two nodes is never replaced by two edges. Nodes re-added
-  //    by step 1 are reconnection artefacts and are left as they are. Both rules keep
-  //    the result monotone in the thresholds.
-  const keptIds = new Set(keptNodes.map((n) => n.id));
-  const hasIn = new Set<string>();
-  const hasOut = new Set<string>();
-  const note = (e: FlowEdge) => {
-    if (e.source === e.target) return;
-    hasOut.add(e.source);
-    hasIn.add(e.target);
-  };
-  for (const e of edges) note(e);
-  // Asked only about the ends of candidates, which are original edges between two
-  // different nodes, so the original had an incoming or outgoing edge there.
-  const needsIn = (id: string) => keptIds.has(id) && !hasIn.has(id) && !isStructuralNode(originalIdx.nodes.get(id)!);
-  const needsOut = (id: string) => keptIds.has(id) && !hasOut.has(id) && !isStructuralNode(originalIdx.nodes.get(id)!);
-  const candidates = original.edges.filter((e) => e.source !== e.target && nodeIds.has(e.source) && nodeIds.has(e.target) && !edgeIds.has(e.id));
-  // Each step takes the candidate that closes the most needs, then the strongest, then
-  // the smallest id, then the first. Scores only fall as needs close, so candidates wait
-  // in a heap under the score they had when queued and are requeued when it has fallen.
-  const strength = candidates.map((e) => edgeStrength.get(e.id) ?? 1);
-  const rank = new Array<number>(candidates.length);
-  candidates
-    .map((_, i) => i)
-    .sort((a, b) => strength[b] - strength[a] || byId(candidates[a], candidates[b]) || a - b)
-    .forEach((i, r) => (rank[i] = r));
-  const scoreOf = (e: FlowEdge) => (needsOut(e.source) ? 1 : 0) + (needsIn(e.target) ? 1 : 0);
-  const queued = new MinHeap<{ index: number; score: number }>();
-  const queue = (index: number, score: number) => queued.push((2 - score) * candidates.length + rank[index], { index, score });
-  candidates.forEach((e, i) => {
-    const score = scoreOf(e);
-    if (score > 0) queue(i, score);
-  });
-  while (queued.size) {
-    const { index, score: was } = queued.pop()!;
-    const e = candidates[index];
-    if (edgeIds.has(e.id)) continue;
-    const score = scoreOf(e);
-    if (score === 0) continue;
-    if (score < was) {
-      queue(index, score);
-      continue;
-    }
-    addEdge(e);
-    note(e);
-  }
-  return { nodes, edges };
+export interface Thresholded {
+  base: FlowGraph;
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  edgeStrength: Map<string, number>;
+  nodeStrength: Map<string, number>;
 }
 
-/**
- * Abstract a graph: optionally collapse stage groups, then remove weak activities and
- * weak follows edges, then (by default) restore connectivity with the strongest removed
- * elements. Structural nodes (events, gateways), constraint and flow edges are kept.
- * The result keeps the input order of elements; re-added elements are tagged.
- */
-export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowGraph {
-  const {
-    minEdgeShare = 0,
-    minNodeShare = 0,
-    keepConnected = true,
-    collapse = false,
-    relativeTo = "max",
-  } = options;
+/** Collapse stages and remove weak activities and follows edges, as `abstract` does first. */
+export function thresholded(graph: FlowGraph, options: AbstractOptions = {}): Thresholded {
+  const { minEdgeShare = 0, minNodeShare = 0, collapse = false, relativeTo = "max" } = options;
   const base = collapse ? collapseGroups(graph, collapse) : graph;
   const edgeCandidates = options.edgeMetric ? [options.edgeMetric, ...EDGE_METRICS] : EDGE_METRICS;
   const nodeCandidates = options.nodeMetric ? [options.nodeMetric, ...NODE_METRICS] : NODE_METRICS;
@@ -564,21 +383,209 @@ export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowG
   for (const n of base.nodes) if (!nodeStrength.has(n.id)) nodeStrength.set(n.id, 1);
   const keep = new Set(options.keep ?? []);
 
-  const keptNodes = base.nodes.filter(
+  const nodes = base.nodes.filter(
     (n) => isStructuralNode(n) || keep.has(n.id) || (nodeStrength.get(n.id) ?? 1) >= minNodeShare,
   );
-  const keptIds = new Set(keptNodes.map((n) => n.id));
-  const keptEdges = base.edges.filter(
+  const keptIds = new Set(nodes.map((n) => n.id));
+  const edges = base.edges.filter(
     (e) =>
       keptIds.has(e.source) &&
       keptIds.has(e.target) &&
       (e.kind !== "follows" || (edgeStrength.get(e.id) ?? 1) >= minEdgeShare),
   );
+  return { base, nodes, edges, edgeStrength, nodeStrength };
+}
 
-  let nodes = keptNodes;
-  let edges = keptEdges;
+const tagged = <T extends FlowNode | FlowEdge>(el: T): T => ({ ...el, tags: [...new Set([...(el.tags ?? []), RECONNECTED_TAG])] });
+
+/**
+ * Step 1 of the reconnection (docs/ARCHITECTURE.md §2.2): the cheapest direct edges
+ * join components, then one search grows the heaviest component and takes in the
+ * nearest other one at a time, from all that is joined at distance 0.
+ */
+export function joinComponents({ base, nodes: keptNodes, edges: keptEdges, edgeStrength, nodeStrength }: Thresholded): { nodes: FlowNode[]; edges: FlowEdge[] } {
+  const byNodeId = new Map(base.nodes.map((n) => [n.id, n]));
+  const nodes = [...keptNodes];
+  const nodeIds = new Set(nodes.map((n) => n.id));
+  const edges = [...keptEdges];
+  const edgeIds = new Set(edges.map((e) => e.id));
+  const addEdge = (e: FlowEdge) => {
+    if (edgeIds.has(e.id)) return;
+    edgeIds.add(e.id);
+    edges.push(tagged(e));
+  };
+  // A path costs 1 per edge plus the edge's weakness, so each removed node on it adds at least 1.
+  const cost = (e: FlowEdge) => 1 + (1 - (edgeStrength.get(e.id) ?? 1));
+  const parent = new Map<string, string>();
+  for (const id of nodeIds) parent.set(id, id);
+  const find = (id: string): string => {
+    for (let up = parent.get(id)!; up !== id; up = parent.get(id)!) {
+      const top = parent.get(up)!;
+      parent.set(id, top);
+      id = top;
+    }
+    return id;
+  };
+  const union = (a: string, b: string) => {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra === rb) return false;
+    parent.set(ra, rb);
+    return true;
+  };
+  for (const e of edges) union(e.source, e.target);
+  const direct = base.edges
+    .filter((e) => e.source !== e.target && nodeIds.has(e.source) && nodeIds.has(e.target) && !edgeIds.has(e.id))
+    .sort((a, b) => cost(a) - cost(b) || byId(a, b));
+  for (const e of direct) if (union(e.source, e.target)) addEdge(e);
+
+  // Components by their smallest node id, weighed by the strength of their activities.
+  const members = new Map<string, string[]>();
+  const weight = new Map<string, number>();
+  for (const id of [...nodeIds].sort()) {
+    const root = find(id);
+    if (!members.has(root)) members.set(root, []);
+    members.get(root)!.push(id);
+    weight.set(root, (weight.get(root) ?? 0) + (isStructuralNode(byNodeId.get(id)!) ? 0 : (nodeStrength.get(id) ?? 1)));
+  }
+  if (members.size < 2) return { nodes, edges };
+  let main = "";
+  let heaviest = -1;
+  for (const [root, w] of weight) if (w > heaviest) [main, heaviest] = [root, w];
+
+  const adjacency = undirectedAdjacency(base.edges, new Set(byNodeId.keys())).neighbours;
+  const dist = new Map<string, number>();
+  const via = new Map<string, FlowEdge>();
+  const joined = new Set<string>();
+  const heap = new MinHeap<string>();
+  const join = (id: string) => {
+    joined.add(id);
+    dist.set(id, 0);
+    heap.push(0, id, id);
+  };
+  const absorb = (root: string) => members.get(root)!.forEach(join);
+  absorb(main);
+  for (let top = heap.pop(); top; top = heap.pop()) {
+    const { key: d, value: at } = top;
+    if (d > dist.get(at)!) continue;
+    if (nodeIds.has(at) && !joined.has(at)) {
+      // The nearest component: re-add the path back to what is joined, then the
+      // cheapest direct edge from a re-added node to each component it touches.
+      const added: string[] = [];
+      for (let from = at; ; ) {
+        const e = via.get(from)!;
+        addEdge(e);
+        from = e.source === from ? e.target : e.source;
+        if (joined.has(from)) break;
+        nodeIds.add(from);
+        nodes.push(tagged(byNodeId.get(from)!));
+        added.push(from);
+        join(from);
+      }
+      absorb(find(at));
+      const touched = new Map<string, FlowEdge>();
+      for (const id of added) {
+        for (const { edge, other } of adjacency.get(id)!) {
+          if (!nodeIds.has(other) || joined.has(other)) continue;
+          const root = find(other);
+          const best = touched.get(root);
+          if (!best || (cost(edge) - cost(best) || byId(edge, best)) < 0) touched.set(root, edge);
+        }
+      }
+      for (const [root, e] of touched) {
+        addEdge(e);
+        absorb(root);
+      }
+      continue;
+    }
+    for (const { edge, other } of adjacency.get(at)!) {
+      const nd = d + cost(edge);
+      const od = dist.get(other);
+      if (od === undefined || nd < od) {
+        dist.set(other, nd);
+        via.set(other, edge);
+        heap.push(nd, other, other);
+      } else if (nd === od && edge.id < via.get(other)!.id) via.set(other, edge);
+    }
+  }
+  return { nodes, edges };
+}
+
+/**
+ * Step 2 of the reconnection: every kept activity keeps flow context, an incoming
+ * and an outgoing edge where the original graph had one. Open needs (a node without
+ * incoming or without outgoing edges) are served by the original edge that closes
+ * the most needs at once, then by strength, so that one edge serving two nodes is
+ * never replaced by two edges. Nodes re-added by step 1 are reconnection artefacts
+ * and are left as they are. Both rules keep the result monotone in the thresholds.
+ */
+function restoreFlowContext(
+  { base, nodes: keptNodes, edgeStrength }: Thresholded,
+  joined: { nodes: FlowNode[]; edges: FlowEdge[] },
+): { nodes: FlowNode[]; edges: FlowEdge[] } {
+  const nodeIds = new Set(joined.nodes.map((n) => n.id));
+  const { edges } = joined;
+  const edgeIds = new Set(edges.map((e) => e.id));
+  const open = new Set(keptNodes.filter((n) => !isStructuralNode(n)).map((n) => n.id));
+  const hasIn = new Set<string>();
+  const hasOut = new Set<string>();
+  const note = (e: FlowEdge) => {
+    if (e.source === e.target) return;
+    hasOut.add(e.source);
+    hasIn.add(e.target);
+  };
+  for (const e of edges) note(e);
+  // Asked only about the ends of candidates, which are original edges between two
+  // different nodes, so the original had an incoming or outgoing edge there.
+  const needsIn = (id: string) => open.has(id) && !hasIn.has(id);
+  const needsOut = (id: string) => open.has(id) && !hasOut.has(id);
+  const candidates = base.edges.filter((e) => e.source !== e.target && nodeIds.has(e.source) && nodeIds.has(e.target) && !edgeIds.has(e.id));
+  // Each step takes the candidate that closes the most needs, then the strongest, then
+  // the smallest id, then the first. Scores only fall as needs close, so candidates wait
+  // in a heap under the score they had when queued and are requeued when it has fallen.
+  const strength = candidates.map((e) => edgeStrength.get(e.id) ?? 1);
+  const rank = new Array<number>(candidates.length);
+  candidates
+    .map((_, i) => i)
+    .sort((a, b) => strength[b] - strength[a] || byId(candidates[a], candidates[b]) || a - b)
+    .forEach((i, r) => (rank[i] = r));
+  const scoreOf = (e: FlowEdge) => (needsOut(e.source) ? 1 : 0) + (needsIn(e.target) ? 1 : 0);
+  const queued = new MinHeap<{ index: number; score: number }>();
+  const queue = (index: number, score: number) => queued.push((2 - score) * candidates.length + rank[index], { index, score });
+  candidates.forEach((e, i) => {
+    const score = scoreOf(e);
+    if (score > 0) queue(i, score);
+  });
+  while (queued.size) {
+    const { index, score: was } = queued.pop()!.value;
+    const e = candidates[index];
+    if (edgeIds.has(e.id)) continue;
+    const score = scoreOf(e);
+    if (score === 0) continue;
+    if (score < was) {
+      queue(index, score);
+      continue;
+    }
+    edgeIds.add(e.id);
+    edges.push(tagged(e));
+    note(e);
+  }
+  return joined;
+}
+
+/**
+ * Abstract a graph: optionally collapse stage groups, then remove weak activities and
+ * weak follows edges, then (by default) restore connectivity with the strongest removed
+ * elements. Structural nodes (events, gateways), constraint and flow edges are kept.
+ * The result keeps the input order of elements; re-added elements are tagged.
+ */
+export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowGraph {
+  const { minEdgeShare = 0, minNodeShare = 0, keepConnected = true, collapse = false } = options;
+  const kept = thresholded(graph, options);
+  const { base } = kept;
+  let { nodes, edges } = kept;
   if (keepConnected) {
-    const r = reconnect(base, keptNodes, keptEdges, edgeStrength, nodeStrength);
+    const r = restoreFlowContext(kept, joinComponents(kept));
     // Keep the original element order for stable rendering.
     const nodeOrder = new Map(base.nodes.map((n, i) => [n.id, i]));
     const edgeOrder = new Map(base.edges.map((e, i) => [e.id, i]));
