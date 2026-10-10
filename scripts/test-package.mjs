@@ -60,7 +60,7 @@ const installedRequire = createRequire(join(consumer, 'package.json'));
 for (const path of ['tokens.css', 'style.css', 'react-flow.css', 'bpmn.css', 'bpmn/assets/bpmn-font/css/bpmn.css', 'bpmn/assets/bpmn-font/font/bpmn.woff2', 'elk-worker.min.js', 'dagre-worker.min.js']) {
   assert.ok(readFileSync(installedRequire.resolve(`@wise/flow/${path}`)).length > 0);
 }
-for (const path of ['LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md', 'dist/licenses/bpmn-js.txt', 'dist/licenses/elkjs.txt', 'dist/licenses/@xyflow-react.txt']) assert.ok(existsSync(join(consumer, 'node_modules/@wise/flow', path)));
+for (const path of ['LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md', 'dist/licenses/bpmn-js.txt', 'dist/licenses/elkjs.txt', 'dist/licenses/@xyflow-react.txt', 'dist/licenses/@dagrejs-dagre.txt', 'dist/licenses/@dagrejs-graphlib.txt']) assert.ok(existsSync(join(consumer, 'node_modules/@wise/flow', path)));
 // Load tooling from the consumer too, so its bundling cannot see checkout dependencies.
 const { build, preview } = await import(pathToFileURL(join(consumer, 'node_modules/vite/dist/node/index.js')).href);
 await build({ root: consumer, configFile: false, build: { target: 'es2022', assetsInlineLimit: 0 } });
