@@ -271,6 +271,34 @@ describe("the Canvas view when the layout arrives", () => {
     await waitFor(() => centred({ x: 590, y: 1124 }));
   });
 
+  it("is fitted to the layout when the fit button was pressed after a zoom", async () => {
+    reducedMotion(true);
+    const held = heldElk();
+    const recorded = recordView();
+    const { container } = render(
+      <div style={{ width: 800, height: 600 }}>
+        <ProcessMap graph={chain} renderer="canvas" layout={{ elk: held.elk, engine: "elk" }} controls={false} legend={false} />
+      </div>,
+    );
+    await waitFor(() => expect(held.calls).toHaveLength(1));
+    const { width, height } = container.querySelector("canvas")!.getBoundingClientRect();
+    const centred = (c: { x: number; y: number }) => {
+      const v = recorded.view;
+      expect(c.x * v.zoom + v.x).toBeCloseTo(width / 2);
+      expect(c.y * v.zoom + v.y).toBeCloseTo(height / 2);
+    };
+    await waitFor(() => centred({ x: 334, y: 24 }));
+    const fitted = recorded.view.zoom;
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    await waitFor(() => expect(recorded.view.zoom).toBeGreaterThan(fitted));
+    fireEvent.click(screen.getByRole("button", { name: "Fit the map" }));
+    await waitFor(() => expect(recorded.view.zoom).toBe(fitted));
+    await act(async () => held.answer());
+    // Fitted, not kept: the layout (180 × 248) needs another zoom than the provisional arrangement (668 × 48).
+    await waitFor(() => centred({ x: 590, y: 1124 }));
+    expect(recorded.view.zoom).not.toBe(fitted);
+  });
+
   it("keeps its zoom and the node at its centre when it is not fitted", async () => {
     reducedMotion(true);
     const held = heldElk();

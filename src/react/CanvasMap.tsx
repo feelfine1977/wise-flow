@@ -55,6 +55,11 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
   const [overHit, setOverHit] = useState(false);
   const fitted = useRef<string | undefined>(undefined);
   const fittedView = useRef<unknown>(undefined);
+  const fitNow = () => {
+    const r = rendererRef.current;
+    r?.fit();
+    fittedView.current = r?.getViewport();
+  };
   const [ready, setReady] = useState(false);
 
   useLayoutEffect(() => {
@@ -98,8 +103,7 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
     r.setScene(scene);
     if (scene && fitView && ready && fitted.current !== fitKey) {
       fitted.current = fitKey;
-      r.fit();
-      fittedView.current = r.getViewport();
+      fitNow();
     }
   }, [scene, fitKey, fitView, ready]);
 
@@ -116,9 +120,7 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
         if (!r || !b) return;
         r.centerOn({ x: b.x + b.width / 2, y: b.y + b.height / 2 }, zoom);
       },
-      fit() {
-        rendererRef.current?.fit();
-      },
+      fit: fitNow,
       moved() {
         return !!fittedView.current && rendererRef.current?.getViewport() !== fittedView.current;
       },
@@ -263,7 +265,7 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
           <button type="button" className="wf-button" aria-label={t(locale, "map.zoomOut")} onClick={() => rendererRef.current?.zoomBy(1 / ZOOM_STEP)}>
             −
           </button>
-          <button type="button" className="wf-button" aria-label={t(locale, "map.fit")} onClick={() => rendererRef.current?.fit()}>
+          <button type="button" className="wf-button" aria-label={t(locale, "map.fit")} onClick={fitNow}>
             ⤢
           </button>
         </div>
