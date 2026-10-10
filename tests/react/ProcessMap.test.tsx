@@ -30,13 +30,8 @@ function nodeBox(container: HTMLElement, id: string) {
   return { x: Number(translate![1]), y: Number(translate![2]), width: parseFloat(node!.style.width), height: parseFloat(node!.style.height) };
 }
 
-// React Flow copies controlled nodes into its store in an effect, so the nodes can
-// appear one commit after the layout status turns ready.
 async function ready(container: HTMLElement) {
-  await waitFor(() => {
-    expect(container.querySelector('[data-layout-status="ready"]')).not.toBeNull();
-    expect(container.querySelector(".react-flow__node")).not.toBeNull();
-  });
+  await waitFor(() => expect(container.querySelector('[data-layout-status="ready"]')).not.toBeNull());
 }
 
 function automaticMap(options: LayoutOptions, data = pair) {
@@ -128,10 +123,8 @@ describe("ProcessMap", () => {
 
     rerender(automaticMap({ direction: "DOWN" }));
     await ready(container);
-    await waitFor(() => {
-      expect(nodeBox(container, "b").y).toBeGreaterThan(nodeBox(container, "a").y);
-      expect(nodeBox(container, "b").x).toBeCloseTo(nodeBox(container, "a").x);
-    });
+    expect(nodeBox(container, "b").y).toBeGreaterThan(nodeBox(container, "a").y);
+    expect(nodeBox(container, "b").x).toBeCloseTo(nodeBox(container, "a").x);
   });
 
   it("keeps independent maps with the same IDs in their requested directions", async () => {
@@ -167,10 +160,8 @@ describe("ProcessMap", () => {
 
     rerender(automaticMap(options(260, 80)));
     await ready(container);
-    await waitFor(() => {
-      expect(nodeBox(container, "a")).toMatchObject({ width: 260, height: 80 });
-      expect(nodeBox(container, "b").x - nodeBox(container, "a").x).toBeGreaterThan(beforeGap);
-    });
+    expect(nodeBox(container, "a")).toMatchObject({ width: 260, height: 80 });
+    expect(nodeBox(container, "b").x - nodeBox(container, "a").x).toBeGreaterThan(beforeGap);
   });
 
   it("reevaluates a stable size callback when its node data changes", async () => {
@@ -182,7 +173,7 @@ describe("ProcessMap", () => {
     const wider = { ...pair, nodes: pair.nodes.map((node) => ({ ...node, metrics: { width: 300 } })) };
     rerender(automaticMap(options, wider));
     await ready(container);
-    await waitFor(() => expect(nodeBox(container, "a").width).toBe(300));
+    expect(nodeBox(container, "a").width).toBe(300);
   });
 
   it("uses the new kind's default size when node IDs are unchanged", async () => {
@@ -193,21 +184,20 @@ describe("ProcessMap", () => {
     const events = { ...pair, nodes: pair.nodes.map((node) => ({ ...node, kind: "event" as const })) };
     rerender(automaticMap({}, events));
     await ready(container);
-    await waitFor(() => {
-      expect(nodeBox(container, "a").width).toBeLessThan(before.width);
-      expect(nodeBox(container, "a").height).toBeLessThan(before.height);
-    });
+    expect(nodeBox(container, "a").width).toBeLessThan(before.width);
+    expect(nodeBox(container, "a").height).toBeLessThan(before.height);
   });
 
   it("increases the gap between layers when spacing changes", async () => {
     const { container, rerender } = render(automaticMap({ spacing: { layer: 30 } }));
     await ready(container);
     const gap = () => nodeBox(container, "b").x - nodeBox(container, "a").x - nodeBox(container, "a").width;
-    const before = gap();
+    // Dagre's rank separation is the layer spacing: the gap from a's right side to b's left side.
+    expect(gap()).toBe(30);
 
     rerender(automaticMap({ spacing: { layer: 150 } }));
     await ready(container);
-    await waitFor(() => expect(gap()).toBeGreaterThan(before));
+    expect(gap()).toBe(150);
   });
 
   it("honors an explicit cache key across option changes and unmounting", async () => {
