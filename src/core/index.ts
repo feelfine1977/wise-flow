@@ -331,8 +331,6 @@ export {
   withFollowsSelfLoops,
   withObservedSelfLoops,
 } from "./observed-loops.js";
-export type {
-} from "./observed-loops.js";
 
 export {
   buildScene,
