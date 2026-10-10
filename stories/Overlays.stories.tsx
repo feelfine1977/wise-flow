@@ -77,10 +77,21 @@ export const examples: Record<string, Example> = {
   },
 };
 
+/** One overlay of every kind, written by hand. */
+export const rawKinds: Overlay[] = [
+  { kind: "badge", target: "create_po", payload: { label: "badge", glyph: "≥1", value: 0.42, text: "42 % missing" } },
+  { kind: "arc", target: "create_po->clear_invoice", payload: { label: "arc", source: "create_po", target: "clear_invoice", value: 0.6, coverage: 0.8, glyph: "⏱", text: "60 % late" } },
+  { kind: "hatch", target: "service_entry", payload: { label: "hatch", text: "outside scope" } },
+  { kind: "tint", target: "invoice", payload: { label: "tint", value: 0.7 } },
+  { kind: "chip", target: "receipt", payload: { label: "chip", text: "mean 2.4 · threshold 2", value: 0.3, gauge: { value: 2.4, threshold: 2, width: 4 } } },
+  { kind: "chip", target: MAP_TARGET, payload: { label: "map chip", text: "applies to 63 % of cases", glyph: "⊂" } },
+  { kind: "selfLoop", target: "invoice_receipt", payload: { label: "self-loop", value: 0.12, text: "12 % repeated" } },
+];
+
 const meta: Meta = {
   title: "Overlays",
   parameters: { layout: "fullscreen" },
-  excludeStories: ["catalogueGraph", "examples"],
+  excludeStories: ["catalogueGraph", "examples", "rawKinds"],
 };
 export default meta;
 
@@ -104,20 +115,4 @@ export const Lag: StoryObj = { name: "Lag → arc above the map", render: () => 
 export const Precedence: StoryObj = { name: "Precedence → arc + reverse arc", render: () => <Catalogue keys={["precedence"]} /> };
 export const Balance: StoryObj = { name: "Balance → chip + group tint", render: () => <Catalogue keys={["balance"]} /> };
 export const Applicability: StoryObj = { name: "Applicability → hatch + scope chip", render: () => <Catalogue keys={["applicability"]} /> };
-export const RawKinds: StoryObj = {
-  name: "Raw overlay kinds",
-  render: () => (
-    <Catalogue
-      keys={[]}
-      extra={[
-        { kind: "badge", target: "create_po", payload: { label: "badge", glyph: "≥1", value: 0.42, text: "42 % missing" } },
-        { kind: "arc", target: "create_po->clear_invoice", payload: { label: "arc", source: "create_po", target: "clear_invoice", value: 0.6, coverage: 0.8, glyph: "⏱", text: "60 % late" } },
-        { kind: "hatch", target: "service_entry", payload: { label: "hatch", text: "outside scope" } },
-        { kind: "tint", target: "invoice", payload: { label: "tint", value: 0.7 } },
-        { kind: "chip", target: "receipt", payload: { label: "chip", text: "mean 2.4 · threshold 2", value: 0.3, gauge: { value: 2.4, threshold: 2, width: 4 } } },
-        { kind: "chip", target: MAP_TARGET, payload: { label: "map chip", text: "applies to 63 % of cases", glyph: "⊂" } },
-        { kind: "selfLoop", target: "invoice_receipt", payload: { label: "self-loop", value: 0.12, text: "12 % repeated" } },
-      ]}
-    />
-  ),
-};
+export const RawKinds: StoryObj = { name: "Raw overlay kinds", render: () => <Catalogue keys={[]} extra={rawKinds} /> };
