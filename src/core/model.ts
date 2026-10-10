@@ -306,7 +306,7 @@ export function validateGateways(graph: FlowGraph): GraphIssue[] {
         else if (f.target === split || taken.has(f.target) || !outs(f.target).length) return false;
         else if (!region.has(f.target)) {
           region.add(f.target);
-          stack.push(...outs(f.target));
+          for (const e of outs(f.target)) stack.push(e);
         }
       }
       if (reached.length !== 1 || inputs.has(reached[0])) return false;

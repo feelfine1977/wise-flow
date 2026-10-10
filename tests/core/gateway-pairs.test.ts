@@ -68,6 +68,15 @@ describe("validateGateways", () => {
     expect(playTokens(g).unsafe.length).toBeGreaterThan(0);
   });
 
+  it("follows a branch through a choice wider than a call can take arguments", () => {
+    // xor1 offers 200,000 tasks that xor2 merges again: one branch, so a sound block.
+    const wide: FlowEdge[] = [];
+    for (let i = 0; i < 200_000; i++) wide.push({ id: `x${i}`, kind: "flow", source: "xor1", target: `t${i}` }, { id: `y${i}`, kind: "flow", source: `t${i}`, target: "xor2" });
+    const g = model("start>and1 and1>a and1>b a>xor1 xor2>and2 b>and2 and2>end", wide);
+    for (let i = 0; i < 200_000; i++) g.nodes.push({ id: `t${i}`, kind: "activity", label: `t${i}` });
+    expect(validateGateways(g)).toEqual([]);
+  });
+
   it("reports nothing on blocks that are nested, loop inside a branch or repeat as a whole", () => {
     const sound = [
       model("start>and1 and1>and2 and1>c and2>a and2>b a>and3 b>and3 and3>and4 c>and4 and4>end"),
