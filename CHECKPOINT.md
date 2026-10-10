@@ -191,10 +191,17 @@ overlays sit on the tasks. With the defaults the header reads
 
 What to do: move the *Paths* slider down to 5 %: more paths survive, more
 gateways appear, the diagram is laid out again (this is a new model, not a
-new dataset). Untick *AND gateways where concurrent*: the parallel gateways
-(+) become exclusive ones (×). Move *Activities* up to 20 %: only the
-strongest tasks remain and the model stays a connected chain from start to
-end.
+new dataset). With the defaults every gateway is exclusive (×): Record Goods
+Receipt and Vendor creates invoice follow each other in both orders, but
+they do not leave one common task, so their merge is no parallel join. Move
+*Activities* up to 15 %: Create Purchase Order Item now leads to exactly
+these two, which lead only to Record Invoice Receipt, and the model shows
+one parallel split and its parallel join (+) around them ("7 tasks · 6
+gateways · 2 events · 17 flows · 5 lanes"). Untick *AND gateways where
+concurrent*: the pair becomes exclusive gateways and the two tasks get the
+flows between them back ("10 gateways · … · 23 flows"). Move *Activities* up
+to 20 %: only the strongest tasks remain and the model stays a connected
+chain from start to end.
 
 Pass when: the counts in the header change with the sliders, the model
 always has exactly one start and one end event, and no task has more than
@@ -203,10 +210,11 @@ one incoming or outgoing flow without a gateway in between.
 ### 6.3 BPMN › overlays on a model
 
 What appears: the hand-written model `fixtures/p2p_small.bpmn` (pool with
-the lanes Purchasing, Warehouse, Accounts payable; seven tasks; two
-gateways; a rejection loop) with the fixture's constraint overlays for the
-dataset *All items*: 17 overlays, badges on Record Invoice Receipt (≤1 4 %)
-and Clear Invoice (≥1 23 %), lag and precedence arcs between Record Goods
+the lanes Purchasing, Warehouse, Accounts payable; seven tasks; three
+exclusive gateways; a rejection loop through the *Approved?* choice) with
+the fixture's constraint overlays for the dataset *All items*: 17
+overlays, badges on Record Invoice Receipt (≤1 4 %) and Clear Invoice
+(≥1 23 %), lag and precedence arcs between Record Goods
 Receipt / Record Service Entry Sheet and Record Invoice Receipt with dashed
 reverse arcs, hatched tasks outside the 3-way-match scope, map-level chips
 under the legend. Below the diagram the mapping table lists every task
@@ -446,10 +454,11 @@ its legend.
   lanes; the forms that turn a selection into a constraint belong to the
   workbench (0.4 in the roadmap).
 - `liteFromGraph` decides AND gateways with the directly-follows heuristic
-  (successors that follow each other in both orders); it does not mine
-  concurrency from the log, and a model above a low threshold can carry
-  many gateways. BPMN-lite does not produce sub-processes, message flows
-  or boundary events; the importer reads them.
+  (successors that follow each other in both orders) and emits them only as
+  a split and join pair around such branches; it does not mine concurrency
+  from the log, finds no nested parallel blocks, and a model above a low
+  threshold can carry many gateways. BPMN-lite does not produce
+  sub-processes, message flows or boundary events; the importer reads them.
 - `layoutBpmn` places every lane as one band and routes flows with a
   three-segment Manhattan rule; back edges run below the shapes and may
   cross tasks in a dense lane. The ELK compound layout is available with

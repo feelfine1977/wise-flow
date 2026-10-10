@@ -282,6 +282,51 @@ export function validateGraph(graph: FlowGraph): GraphIssue[] {
   return issues;
 }
 
+/** Warnings for parallel gateways without a partner (docs/API.md); rejects nothing. */
+export function validateGateways(graph: FlowGraph): GraphIssue[] {
+  const idx = indexGraph({ nodes: graph.nodes, edges: graph.edges.filter((e) => e.kind !== "constraint" && !hasTag(e, "message") && !hasTag(e, "association")) });
+  const outs = (id: string) => idx.outgoing.get(id) ?? [];
+  const ins = (id: string) => idx.incoming.get(id) ?? [];
+  const pairs = (split: string, branches: FlowEdge[], join: string): boolean => {
+    const taken = new Set<string>();
+    const inputs = new Set<FlowEdge>();
+    for (const branch of branches) {
+      const region = new Set<string>();
+      const reached: FlowEdge[] = [];
+      const stack = [branch];
+      while (stack.length) {
+        const f = stack.pop()!;
+        if (f.target === join) reached.push(f);
+        else if (f.target === split || taken.has(f.target) || !outs(f.target).length) return false;
+        else if (!region.has(f.target)) {
+          region.add(f.target);
+          for (const e of outs(f.target)) stack.push(e);
+        }
+      }
+      if (reached.length !== 1 || inputs.has(reached[0])) return false;
+      inputs.add(reached[0]);
+      for (const v of region) {
+        taken.add(v);
+        if (ins(v).some((e) => e !== branch && !region.has(e.source))) return false;
+      }
+    }
+    return true;
+  };
+  const parallel = graph.nodes.filter((n) => n.kind === "gateway" && hasTag(n, "and"));
+  const joins = parallel.filter((n) => ins(n.id).length > 1);
+  const partners = new Set<FlowNode>();
+  const issues: GraphIssue[] = [];
+  for (const split of parallel) {
+    const branches = outs(split.id);
+    if (branches.length < 2) continue;
+    const join = joins.find((j) => j !== split && ins(j.id).length === branches.length && pairs(split.id, branches, j.id));
+    if (join) partners.add(join);
+    else issues.push({ level: "warning", message: "parallel split whose branches do not all reach one parallel join", id: split.id });
+  }
+  for (const join of joins) if (!partners.has(join)) issues.push({ level: "warning", message: "parallel join that is the partner of no parallel split", id: join.id });
+  return issues;
+}
+
 /** Shallow copy of a graph with sorted, de-duplicated element arrays. */
 export function normalizeGraph(graph: FlowGraph): FlowGraph {
   const byId = <T extends { id: string }>(items: T[]): T[] => {

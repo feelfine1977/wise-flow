@@ -296,6 +296,7 @@
     "truncateText",
     "unionBoxes",
     "unionGraph",
+    "validateGateways",
     "validateGraph",
     "viewsSharePositions",
     "withFollowsSelfLoops",

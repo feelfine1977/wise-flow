@@ -6,6 +6,7 @@ export {
   hasTag,
   indexGraph,
   validateGraph,
+  validateGateways,
   normalizeGraph,
   MAP_TARGET,
 } from "./model.js";
