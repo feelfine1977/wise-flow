@@ -960,7 +960,8 @@ marks above the nodes, edge labels; level of detail follows
 a hovered mark shows its value colour in the focus colour; above 1,500
 elements only the elements inside the viewport are drawn. Marks that are
 not drawn on the map (map-level chips) are neither in `bounds` nor in the
-hit index. Nodes and edges are drawn from their marks (`SceneNode.mark`,
+hit index; the one segment of a two-point route is the route's own `points`
+array. Nodes and edges are drawn from their marks (`SceneNode.mark`,
 `SceneEdge.mark`, the scene's `nodeMarks` and `edgeMarks`); the other
 fields of `SceneNode` and `SceneEdge` stay as data. `SceneGroup.tint` and `SceneNode.hatched` still describe the
 group's tint and the node's hatching, but the group and node routines no
@@ -1184,7 +1185,14 @@ between the two boxes where the positions have none), colour (`edgeColor`),
 width, dash (re-added `6 5`, constraint `2 4`) and, where the edge has a
 `count`, of any kind, the count at `edgeLabelPoint`. Every text names its
 `role` and the level-of-detail rule it is drawn from (`lod`; drawn at
-every zoom without one). Texts with a `maxWidth` are shortened by one rule,
+every zoom without one). What does not differ between elements is shared and
+frozen: one node outline (`stroke`) per paint, width and dash, one dash per
+kind of dashed edge, one empty `texts` list for the edges without a count
+and, in the Canvas scene, one empty `badges` list for the nodes without
+badges. Copy such a part before changing it
+(`{ ...mark, stroke: { ...mark.stroke, width: 3 } }`). Equal counts share one
+string, and the optional keys of a mark and of a node's texts are present,
+`undefined`, where they do not apply. Texts with a `maxWidth` are shortened by one rule,
 `truncateText`: the longest start that fits with an ellipsis, by an
 injectable `TextMeasure` (`estimateTextWidth` without font metrics). `toSVG`
 and the React Flow map use the estimate, the Canvas drawing the context's

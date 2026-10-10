@@ -115,6 +115,12 @@ report. These folders and `artifacts/` are ignored. Artifacts expire after 14 da
 on GitHub. The package consumer is temporary and removed on exit; its lockfile,
 screenshot, asset sizes, tarball SHA and source provenance remain in artifacts.
 
+[scripts/scene-memory.mjs](../scripts/scene-memory.mjs) is a diagnostic, not a
+gate: after `npm run build` it prints the heap a prepared Canvas scene of a
+sparse synthetic graph retains per node and per edge, part by part (hit index,
+lookups, retained elements, marks and their texts); `--labels` turns activity
+labels on, `--straight` leaves the edges without routes.
+
 Budgets in [scripts/budgets.json](../scripts/budgets.json) are initial regression
 limits, not load-time promises. The consumer total includes lazy BPMN/modeler and
 ELK assets; it is **not initial page download size**. Runtime latency, memory,

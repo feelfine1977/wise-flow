@@ -104,7 +104,7 @@ function edgeItems(id: string, route: EdgeRoute, tolerance: number): HitItem[] {
       minY: Math.min(a.y, b.y) - tolerance,
       maxX: Math.max(a.x, b.x) + tolerance,
       maxY: Math.max(a.y, b.y) + tolerance,
-      segment: [a, b],
+      segment: route.points.length === 2 ? (route.points as [XY, XY]) : [a, b],
     });
   }
   return out;

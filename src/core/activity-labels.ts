@@ -46,27 +46,29 @@ export function wrapActivityText(value: string, width: number, fontSize = 14): s
   // reserve a full em. No browser font measurement or viewport-dependent wrapping.
   const advance = (char: string) => fontSize * ((char.codePointAt(0) ?? 0) <= 0x2ff ? 0.7 : 1);
   const limit = Math.max(fontSize, width);
+  // Joined from characters: a line appended to char by char is kept as a chain of strings.
   const lines: string[] = [];
-  let line = "";
+  let line: string[] = [];
   let used = 0;
+  const end = () => {
+    lines.push(line.join(""));
+    line = [];
+    used = 0;
+  };
   for (const word of value.trim().split(/\s+/u)) {
     const chars = Array.from(word);
     const wordWidth = chars.reduce((total, char) => total + advance(char), 0);
-    if (line && used + advance(" ") + wordWidth > limit) {
-      lines.push(line);
-      line = "";
-      used = 0;
-    }
-    if (line) { line += " "; used += advance(" "); }
+    if (line.length && used + advance(" ") + wordWidth > limit) end();
+    if (line.length) { line.push(" "); used += advance(" "); }
     for (const char of chars) {
       const size = advance(char);
-      if (line && used + size > limit) { lines.push(line); line = ""; used = 0; }
-      line += char;
+      if (line.length && used + size > limit) end();
+      line.push(char);
       used += size;
     }
   }
-  if (line) lines.push(line);
-  return lines.length ? lines : [""];
+  if (line.length) end();
+  return lines.length === 1 && lines[0] === value ? [value] : lines.length ? lines : [""];
 }
 
 /** One chosen node metric: distinct cases/items, never event frequency. */
@@ -87,7 +89,7 @@ export function activityCounts(node: FlowNode, options: ActivityLabelOptions, lo
 
 export function activityDescription(node: FlowNode, options: ActivityLabelOptions, locale: Locale = "en"): string {
   const reference = ownValue(options.references, node.id);
-  return `${reference ? `${reference} — ` : ""}${node.label}. ${activityCounts(node, options, locale, true)}.`;
+  return [reference ? `${reference} — ` : "", node.label, ". ", activityCounts(node, options, locale, true), "."].join("");
 }
 
 export function activityLabelLines(node: FlowNode, options: ActivityLabelOptions, width: number, locale: Locale = "en") {
