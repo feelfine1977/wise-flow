@@ -137,6 +137,8 @@ export function createBpmnView(connect: ConnectViewer) {
     const fitRef = useRef(fitView);
     fitRef.current = fitView;
     const importedRef = useRef(false);
+    // The current viewer is done with the XML (imported or failed), or none could be created.
+    const settledRef = useRef(false);
     const announced = useRef<BpmnImport | undefined>(undefined);
     const manualNavigation = useRef(false);
     // A selection the diagram reported, passed to the controller.
@@ -263,6 +265,7 @@ export function createBpmnView(connect: ConnectViewer) {
         })
         .catch((e: Error) => {
           if (!live) return;
+          settledRef.current = true;
           setStatus("error");
           callbacks.current.onError?.(e);
         });
@@ -272,6 +275,7 @@ export function createBpmnView(connect: ConnectViewer) {
         if (changeFrame !== undefined) window.cancelAnimationFrame(changeFrame);
         observer?.disconnect();
         importedRef.current = false;
+        settledRef.current = false;
         viewerRef.current = null;
         setViewer(null);
         // The next viewer starts empty; overlays wait for its own registry.
@@ -289,6 +293,7 @@ export function createBpmnView(connect: ConnectViewer) {
       setStatus("loading");
       manualNavigation.current = false;
       importedRef.current = false;
+      settledRef.current = false;
       viewer
         .importXML(xml)
         .then(() => {
@@ -296,12 +301,14 @@ export function createBpmnView(connect: ConnectViewer) {
           // The new diagram has no selection, even when the controlled value is unchanged.
           lastEmitted.current = "";
           importedRef.current = true;
+          settledRef.current = true;
           if (fitView) viewer.zoom("fit-viewport");
           setElements(viewer.elements());
           setStatus("ready");
         })
         .catch((e: Error) => {
           if (!live) return;
+          settledRef.current = true;
           setStatus("error");
           callbacks.current.onError?.(e);
         });
@@ -389,7 +396,7 @@ export function createBpmnView(connect: ConnectViewer) {
 
     // The import is reported once the viewer shows it fitted, or cannot show it.
     useEffect(() => {
-      if (!imported || importedXml !== xml || announced.current === imported || (status !== "error" && (status !== "ready" || !importedRef.current))) return;
+      if (!imported || importedXml !== xml || announced.current === imported || !settledRef.current) return;
       announced.current = imported;
       callbacks.current.onImport?.(imported);
     }, [imported, importedXml, xml, status]);

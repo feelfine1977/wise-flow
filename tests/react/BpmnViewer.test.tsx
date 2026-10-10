@@ -224,6 +224,29 @@ describe("BpmnView through the viewer seam", () => {
     expect(onImport).toHaveBeenCalledTimes(2);
   });
 
+  it("waits for the next viewer when the last one could not show the diagram", async () => {
+    let failing = true;
+    const deferred = memoryViewers({ deferImports: true });
+    const Deferred = createBpmnView(async (options) => {
+      const viewer = await deferred.connect(options);
+      if (failing) viewer.importXML = async () => { throw new Error("cannot import"); };
+      return viewer;
+    });
+    const onImport = vi.fn();
+    const { container, rerender } = render(<Deferred xml={xml} onImport={onImport} onError={() => {}} />);
+    await waitFor(() => expect(onImport).toHaveBeenCalledTimes(1));
+    expect(container.querySelector(".wf-bpmn")?.getAttribute("data-bpmn-status")).toBe("error");
+    // The modeler with a new XML: the viewer's failure does not count for the modeler's diagram.
+    failing = false;
+    rerender(<Deferred xml={`${xml}<!-- next -->`} onImport={onImport} onError={() => {}} mode="model" />);
+    await waitFor(() => expect(deferred.instances[1]?.pending).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(onImport).toHaveBeenCalledTimes(1);
+    act(() => deferred.instances[1].pending[0]());
+    await waitFor(() => expect(onImport).toHaveBeenCalledTimes(2));
+    expect(container.querySelector(".wf-bpmn")?.getAttribute("data-bpmn-status")).toBe("ready");
+  });
+
   it("still calls back with the import when the viewer cannot be created", async () => {
     const onImport = vi.fn();
     const Failing = createBpmnView(async () => { throw new Error("no viewer"); });
