@@ -5,7 +5,7 @@
  * a recording stub in tests. When the scene is large, only the elements the
  * scene's R-tree finds in the viewport are read, in the order of a full draw.
  */
-import { type Arrowhead, type Box, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type Selection, arrowheadExtent, arrowheadTokens, fitChars, fitLead, fixedColors, formatCompact, formatNumber, formatShare, hatchTokens, legendLayout, legendMetrics, budgetEdges, lodAt, markArrowhead, patternTokens, patternTwin, t, truncateText } from "../core/index.js";
+import { type Arrowhead, type Box, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type Selection, type ShownEdges, arrowheadExtent, arrowheadTokens, fitChars, fitLead, fixedColors, formatCompact, formatNumber, formatShare, hatchTokens, legendLayout, legendMetrics, budgetEdges, lodAt, markArrowhead, patternTokens, patternTwin, t, truncateText } from "../core/index.js";
 import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene.js";
 import { type CanvasTokens, defaultTokens } from "./tokens.js";
 
@@ -72,8 +72,8 @@ export interface DrawOptions {
   lodZoom?: number;
   /** Factory for pattern tiles; `document.createElement("canvas")` when available. */
   createCanvas?: (width: number, height: number) => { getContext(kind: "2d"): unknown } | null;
-  /** How many of the edges in view are drawn (`budgetEdges`). Default `"all"`. */
-  edgeBudget?: EdgeBudget;
+  /** How many of the edges in view are drawn (`budgetEdges`), or which (those a map reported). Default `"all"`. */
+  edgeBudget?: EdgeBudget | ShownEdges;
 }
 
 export const emptyState: DrawState = { selection: { nodes: [], edges: [], groups: [] } };

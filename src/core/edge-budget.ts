@@ -12,6 +12,12 @@ import type { FlowScene } from "./scene.js";
 /** How many edges a map draws: a number, or `"all"`. */
 export type EdgeBudget = number | "all";
 
+/** The edges a map draws while its budget withholds some, and the edges its note counts. */
+export interface ShownEdges {
+  edges: readonly string[];
+  total: number;
+}
+
 /** What keeps an edge drawn under any budget, besides an overlay mark on it (one that names it, or an arc from its source to its target). */
 export interface EdgeProtection {
   selection?: { edges: readonly string[] };
@@ -47,9 +53,18 @@ function orderOf(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style">) {
   return known;
 }
 
-/** The edges a budget draws of those in view (all when omitted); undefined when it withholds none. */
-export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style">, budget: EdgeBudget | undefined, protection: EdgeProtection = {}, inView?: readonly number[]): EdgeSelection | undefined {
+/** The edges a budget draws of those in view (all when omitted), or those a map reported; undefined when it withholds none. */
+export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style">, budget: EdgeBudget | ShownEdges | undefined, protection: EdgeProtection = {}, inView?: readonly number[]): EdgeSelection | undefined {
   const total = inView ? inView.length : scene.edgeMarks.length;
+  if (typeof budget === "object") {
+    const named = new Set(budget.edges);
+    const drawn = new Set<number>();
+    for (let k = 0; k < total; k++) {
+      const i = inView ? inView[k] : k;
+      if (named.has(scene.edgeMarks[i].id)) drawn.add(i);
+    }
+    return drawn.size < total ? { drawn, shown: drawn.size, total: budget.total } : undefined;
+  }
   // Not a number (NaN) withholds nothing, as "all" does.
   if (budget === undefined || budget === "all" || !(total > budget)) return undefined;
   const { rank, marked } = orderOf(scene);
