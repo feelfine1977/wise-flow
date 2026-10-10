@@ -172,15 +172,14 @@ export function placeOverlays(
           return { below, sy, ty, dy, at, crossed: hit.size };
         };
         // Own side first, nearest height first (further out on a tie), up to 32 steps of 14, within
-        // the margin and not beyond clearing the nodes' bounds.
+        // the margin.
         let best = course(reverse, h0);
         for (const below of [reverse, !reverse]) {
           const mid = below ? (s.y + s.height + tg.y + tg.height) / 2 : (s.y + tg.y) / 2;
           const room = below ? limit.y + limit.height - 18 - mid : mid - 22 - limit.y;
-          const clear = (below ? positions.bounds.y + positions.bounds.height - mid : mid - positions.bounds.y) + 0.75 * (half + 15);
           for (let k = below === reverse ? 1 : 0; k <= 32 && best.crossed; k++) {
             for (const h of k ? [h0 + k * 14, h0 - k * 14] : [h0]) {
-              if (h >= arcMin && 0.75 * h <= Math.min(room, clear) && best.crossed) {
+              if (h >= arcMin && 0.75 * h <= room && best.crossed) {
                 const c = course(below, h, best.crossed);
                 if (c.crossed < best.crossed) best = c;
               }

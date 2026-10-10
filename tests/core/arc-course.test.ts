@@ -139,6 +139,51 @@ describe("the course of an arc", () => {
   });
 });
 
+describe("the course of an arc on the map's lowest row", () => {
+  // a and b 600 apart on the map's lowest row; the arc is 10 wide (no coverage), so 5 on either side.
+  const a: Box = { x: 0, y: 200, width: 100, height: 40 };
+  const b: Box = { x: 600, y: 200, width: 100, height: 40 };
+  const course = (boxes: Record<string, Box>) => {
+    const [mark] = arcs(buildScene({ nodes: nodesOf(boxes), edges: [] }, createPositions({ nodes: boxes, groups: {}, edges: {} }, "given", "RIGHT"), { overlays: [arc("a", "b")] }));
+    return { mark, crossed: crossedBy(mark, boxes) };
+  };
+
+  it("takes the other side when every course on its own crosses an activity", () => {
+    // c sits on a, so every course above leaves a's top through it; nothing lies below the row.
+    const boxes = { a, b, c: { x: 0, y: 160, width: 100, height: 25 } };
+    const { mark, crossed } = course(boxes);
+    // The default height 0.22 × 600 = 132, from the bottoms (240) downwards: the middle at 240 + 0.75 × 132 = 339, the label 14 below it.
+    expect(mark.path).toBe("M50 240 C50 372 650 372 650 240");
+    expect(crossed).toEqual([]);
+    expect(mark.texts[0]).toMatchObject({ x: 350, y: 353 });
+  });
+
+  it("rises over an activity at the top of the map when only a taller course clears it", () => {
+    // f spans 150–550 × 100–190 above the row and is the map's top; d and e sit under a and b, so every course below crosses them.
+    const boxes = { a, b, f: { x: 150, y: 100, width: 400, height: 90 }, d: { x: 0, y: 260, width: 100, height: 30 }, e: { x: 600, y: 260, width: 100, height: 30 } };
+    // Over f's left edge (x = 150, t ≈ 0.2596) a course of height h is at 200 − 3t(1 − t)h ≈ 200 − 0.5766h; it clears f's top
+    // with its stroke from h ≈ 182. Of the default 132 and its steps of 14, 174 still reaches f and 188 is the nearest clear one.
+    for (const h of [76, 90, 104, 118, 132, 146, 160, 174]) expect(crossedBy(along(course(boxes).mark, `M50 200 C50 ${200 - h} 650 ${200 - h} 650 200`), boxes), `at ${h}`).toEqual(["f"]);
+    const { mark, crossed } = course(boxes);
+    expect(mark.path).toBe("M50 200 C50 12 650 12 650 200");
+    expect(crossed).toEqual([]);
+    // Its middle at 200 − 0.75 × 188 = 59, the label 8 above it.
+    expect(mark.texts[0]).toMatchObject({ x: 350, y: 51 });
+  });
+
+  it("keeps its default course when every other crosses as many activities", () => {
+    // c sits on a and d under it: every course above crosses c and every course below crosses d.
+    const boxes = { a, b, c: { x: 0, y: 160, width: 100, height: 25 }, d: { x: 0, y: 260, width: 100, height: 30 } };
+    for (const h of [40, 104, 188, 300]) {
+      expect(crossedBy(along(course(boxes).mark, `M50 200 C50 ${200 - h} 650 ${200 - h} 650 200`), boxes), `above at ${h}`).toEqual(["c"]);
+      expect(crossedBy(along(course(boxes).mark, `M50 240 C50 ${240 + h} 650 ${240 + h} 650 240`), boxes), `below at ${h}`).toEqual(["d"]);
+    }
+    const { mark, crossed } = course(boxes);
+    expect(mark.path).toBe("M50 200 C50 68 650 68 650 200");
+    expect(crossed).toEqual(["c"]);
+  });
+});
+
 describe("the label of an arc", () => {
   // p and q 1,000 apart: two arcs on the pair both have the highest default course, 140.
   const boxes: Record<string, Box> = { p: { x: 0, y: 200, width: 100, height: 40 }, q: { x: 1000, y: 200, width: 100, height: 40 } };
