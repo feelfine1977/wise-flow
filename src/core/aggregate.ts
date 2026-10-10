@@ -381,6 +381,16 @@ function reconnect(
   const allIds = new Set(original.nodes.map((n) => n.id));
   const adj = undirectedAdjacency(original.edges, allIds);
   const cost = (e: FlowEdge) => 1 + (1 - (edgeStrength.get(e.id) ?? 1));
+  // Costs do not change during a reconnection, so each node's neighbours are sorted once.
+  const sortedNeighbours = new Map<string, { edge: FlowEdge; other: string }[]>();
+  const neighboursByCost = (id: string) => {
+    let ns = sortedNeighbours.get(id);
+    if (!ns) {
+      ns = [...(adj.neighbours.get(id) ?? [])].sort((a, b) => cost(a.edge) - cost(b.edge) || byId(a.edge, b.edge));
+      sortedNeighbours.set(id, ns);
+    }
+    return ns;
+  };
 
   // 1a. Maximum spanning forest over the original edges between present nodes:
   //     the strongest direct edges that join two components are re-added first.
@@ -447,8 +457,7 @@ function reconnect(
         hit = cur;
         break;
       }
-      const ns = [...(adj.neighbours.get(cur) ?? [])].sort((a, b) => cost(a.edge) - cost(b.edge) || byId(a.edge, b.edge));
-      for (const { edge, other } of ns) {
+      for (const { edge, other } of neighboursByCost(cur)) {
         const nd = d + cost(edge);
         const od = dist.get(other);
         if (od === undefined || nd < od) {
@@ -484,28 +493,39 @@ function reconnect(
     hasIn.add(e.target);
   };
   for (const e of edges) note(e);
-  const needsIn = (id: string) => keptIds.has(id) && !hasIn.has(id) && !isStructuralNode(originalIdx.nodes.get(id)!) && (originalIdx.incoming.get(id) ?? []).some((e) => e.source !== e.target);
-  const needsOut = (id: string) => keptIds.has(id) && !hasOut.has(id) && !isStructuralNode(originalIdx.nodes.get(id)!) && (originalIdx.outgoing.get(id) ?? []).some((e) => e.source !== e.target);
+  // Asked only about the ends of candidates, which are original edges between two
+  // different nodes, so the original had an incoming or outgoing edge there.
+  const needsIn = (id: string) => keptIds.has(id) && !hasIn.has(id) && !isStructuralNode(originalIdx.nodes.get(id)!);
+  const needsOut = (id: string) => keptIds.has(id) && !hasOut.has(id) && !isStructuralNode(originalIdx.nodes.get(id)!);
   const candidates = original.edges.filter((e) => e.source !== e.target && nodeIds.has(e.source) && nodeIds.has(e.target) && !edgeIds.has(e.id));
-  for (let guard = 0; guard < candidates.length + 1; guard++) {
-    let best: FlowEdge | undefined;
-    let bestScore = 0;
-    for (const e of candidates) {
-      if (edgeIds.has(e.id)) continue;
-      const score = (needsOut(e.source) ? 1 : 0) + (needsIn(e.target) ? 1 : 0);
-      if (score === 0) continue;
-      if (
-        !best ||
-        score > bestScore ||
-        (score === bestScore && ((edgeStrength.get(e.id) ?? 1) > (edgeStrength.get(best.id) ?? 1) || ((edgeStrength.get(e.id) ?? 1) === (edgeStrength.get(best.id) ?? 1) && byId(e, best) < 0)))
-      ) {
-        best = e;
-        bestScore = score;
-      }
+  // Each step takes the candidate that closes the most needs, then the strongest, then
+  // the smallest id, then the first. Scores only fall as needs close, so candidates wait
+  // in a heap under the score they had when queued and are requeued when it has fallen.
+  const strength = candidates.map((e) => edgeStrength.get(e.id) ?? 1);
+  const rank = new Array<number>(candidates.length);
+  candidates
+    .map((_, i) => i)
+    .sort((a, b) => strength[b] - strength[a] || byId(candidates[a], candidates[b]) || a - b)
+    .forEach((i, r) => (rank[i] = r));
+  const scoreOf = (e: FlowEdge) => (needsOut(e.source) ? 1 : 0) + (needsIn(e.target) ? 1 : 0);
+  const queued = new MinHeap<{ index: number; score: number }>();
+  const queue = (index: number, score: number) => queued.push((2 - score) * candidates.length + rank[index], { index, score });
+  candidates.forEach((e, i) => {
+    const score = scoreOf(e);
+    if (score > 0) queue(i, score);
+  });
+  while (queued.size) {
+    const { index, score: was } = queued.pop()!;
+    const e = candidates[index];
+    if (edgeIds.has(e.id)) continue;
+    const score = scoreOf(e);
+    if (score === 0) continue;
+    if (score < was) {
+      queue(index, score);
+      continue;
     }
-    if (!best) break;
-    addEdge(best);
-    note(best);
+    addEdge(e);
+    note(e);
   }
   return { nodes, edges };
 }
@@ -529,7 +549,16 @@ export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowG
   const nodeCandidates = options.nodeMetric ? [options.nodeMetric, ...NODE_METRICS] : NODE_METRICS;
   const follows = base.edges.filter((e) => e.kind === "follows" && e.source !== e.target);
   const edgeStrength = strengths(follows, edgeCandidates, relativeTo);
-  for (const e of base.edges) if (!edgeStrength.has(e.id)) edgeStrength.set(e.id, e.source === e.target ? strengthOfLoop(e, follows, edgeCandidates, relativeTo) : 1);
+  let loopDenominator: number | undefined;
+  for (const e of base.edges) {
+    if (edgeStrength.has(e.id)) continue;
+    if (e.source !== e.target) {
+      edgeStrength.set(e.id, 1);
+      continue;
+    }
+    loopDenominator ??= loopStrengthDenominator(follows, edgeCandidates, relativeTo);
+    edgeStrength.set(e.id, strengthOfLoop(e, loopDenominator, edgeCandidates));
+  }
   const scalable = base.nodes.filter((n) => !isStructuralNode(n));
   const nodeStrength = strengths(scalable, nodeCandidates, relativeTo);
   for (const n of base.nodes) if (!nodeStrength.has(n.id)) nodeStrength.set(n.id, 1);
@@ -586,20 +615,20 @@ export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowG
   };
 }
 
-function strengthOfLoop(
-  e: FlowEdge,
-  follows: FlowEdge[],
-  candidates: string[],
-  relativeTo: "max" | "total",
-): number {
-  const v = firstMetric(e, candidates);
-  if (v === undefined) return 1;
+/** The maximum or the total of the follows edges' metric, which self-loops are measured against. */
+function loopStrengthDenominator(follows: FlowEdge[], candidates: string[], relativeTo: "max" | "total"): number {
   let denominator = 0;
   for (const f of follows) {
     const fv = firstMetric(f, candidates);
     if (fv === undefined) continue;
     denominator = relativeTo === "max" ? Math.max(denominator, fv) : denominator + fv;
   }
+  return denominator;
+}
+
+function strengthOfLoop(e: FlowEdge, denominator: number, candidates: string[]): number {
+  const v = firstMetric(e, candidates);
+  if (v === undefined) return 1;
   return denominator > 0 ? Math.min(1, v / denominator) : 1;
 }
 

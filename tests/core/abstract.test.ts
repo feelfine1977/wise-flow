@@ -158,12 +158,60 @@ describe("abstract", () => {
     }
   });
 
+  it("re-adds the edge that closes the most needs, then the strongest, judging needs as they stand", () => {
+    // p→q, r→p and u→p are kept; q needs an outgoing edge, r and u an incoming one.
+    const g: FlowGraph = {
+      nodes: ["p", "q", "r", "u"].map((id) => ({ id, kind: "activity" as const, label: id.toUpperCase() })),
+      edges: [
+        { id: "pq", source: "p", target: "q", kind: "follows", metrics: { count: 100 } },
+        { id: "rp", source: "r", target: "p", kind: "follows", metrics: { count: 100 } },
+        { id: "up", source: "u", target: "p", kind: "follows", metrics: { count: 100 } },
+        { id: "qr", source: "q", target: "r", kind: "follows", metrics: { count: 30 } },
+        { id: "qu", source: "q", target: "u", kind: "follows", metrics: { count: 20 } },
+        { id: "pu", source: "p", target: "u", kind: "follows", metrics: { count: 25 } },
+        { id: "qp", source: "q", target: "p", kind: "follows", metrics: { count: 40 } },
+        { id: "pr", source: "p", target: "r", kind: "follows", metrics: { count: 35 } },
+      ],
+    };
+    const added = abstract(g, { minEdgeShare: 0.5 })
+      .edges.filter((e) => hasTag(e, RECONNECTED_TAG))
+      .map((e) => e.id)
+      .sort();
+    // qr and qu close two needs each, qr is stronger; qp and pr are stronger still but
+    // close one each. Then q has its outgoing edge and r its incoming one, so qp and pr
+    // close nothing and qu closes only u's need, which pu does with more strength.
+    expect(added).toEqual(["pu", "qr"]);
+  });
+
   it("tags re-added elements and can be switched off", () => {
     const connected = abstract(globalScene, { minEdgeShare: 0.3 });
     expect(connected.edges.some((e) => hasTag(e, RECONNECTED_TAG))).toBe(true);
     const raw = abstract(globalScene, { minEdgeShare: 0.3, keepConnected: false });
     expect(raw.edges.every((e) => !hasTag(e, RECONNECTED_TAG))).toBe(true);
     expect(raw.edges.length).toBeLessThanOrEqual(connected.edges.length);
+  });
+
+  it("measures self-loops against the maximum or the raw total of the other follows edges", () => {
+    const loops: FlowGraph = {
+      nodes: [{ id: "a", kind: "activity", label: "A" }, { id: "b", kind: "activity", label: "B" }, { id: "c", kind: "activity", label: "C" }],
+      edges: [
+        { id: "ab", source: "a", target: "b", kind: "follows", metrics: { count: 60 } },
+        { id: "ba", source: "b", target: "a", kind: "follows", metrics: { count: -20 } },
+        { id: "aa", source: "a", target: "a", kind: "follows", metrics: { count: 15 } },
+        { id: "bb", source: "b", target: "b", kind: "follows", metrics: { count: 80 } },
+        { id: "cc", source: "c", target: "c", kind: "follows" },
+      ],
+    };
+    const loopsKept = (relativeTo: "max" | "total", minEdgeShare: number) =>
+      abstract(loops, { relativeTo, minEdgeShare, keepConnected: false })
+        .edges.filter((e) => e.source === e.target)
+        .map((e) => e.id);
+    // max: 15 / 60 = 0.25; 80 / 60 is capped at 1; a loop without a metric counts 1.
+    expect(loopsKept("max", 0.25)).toEqual(["aa", "bb", "cc"]);
+    expect(loopsKept("max", 0.26)).toEqual(["bb", "cc"]);
+    // total: the negative count is summed as it is, 15 / (60 - 20) = 0.375.
+    expect(loopsKept("total", 0.375)).toEqual(["aa", "bb", "cc"]);
+    expect(loopsKept("total", 0.38)).toEqual(["bb", "cc"]);
   });
 
   it("removes weak activities but never events, gateways or kept ids", () => {
