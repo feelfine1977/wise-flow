@@ -29,6 +29,7 @@ import type {
   Positions,
   XY,
   Selection,
+  ShownEdges,
   StyleSpec,
 } from "../core/index.js";
 import { emptySelection } from "../core/index.js";
@@ -141,6 +142,13 @@ export interface ProcessMapProps {
    * every edge. Default `"all"`.
    */
   edgeBudget?: EdgeBudget;
+  /**
+   * Called when the edges the map draws change: while the edge budget
+   * withholds some, with the ids drawn and the total the note states;
+   * undefined once every edge is drawn again. Pass the last value as
+   * `edgeBudget` to `toSVG` or `toPNG` to export what the map shows.
+   */
+  onEdgesShown?: (shown: ShownEdges | undefined) => void;
   selection?: Selection;
   onSelect?: (selection: Selection) => void;
   onHover?: (id: string | null) => void;

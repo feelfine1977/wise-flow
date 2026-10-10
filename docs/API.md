@@ -390,7 +390,8 @@ export interface HitItem { minX; minY; maxX; maxY; id: string; kind: "node" | "e
 export interface Scene { graph; positions; overlays?; style?; title?; subtitle?; locale?; lanes?: LaneMode;
   activityLabels?: ActivityLabelOptions; selfLoops?: boolean }
 export interface ExportOptions { preset?: "single-column" | "double-column" | "slide" | "none"; width?; legend?;
-  background?; fontFamily?; padding?; lodZoom?; context? }
+  background?; fontFamily?; padding?; lodZoom?; context?;
+  edgeBudget?: EdgeBudget | ShownEdges }   // default every edge; see "Edge budget"
 export function toSVG(scene: Scene, o?: ExportOptions): string;   // deterministic, legend embedded
 
 export type FigurePreset = "single-column" | "double-column" | "slide" | "none";
@@ -405,10 +406,12 @@ export function legendItemHeight(item: LegendItem): number;
 export interface LegendLayout { items: { item; y }[]; keys: { key; y }[]; chips: { chip; y }[]; height: number }
 export function legendLayout(legend: SceneLegend): LegendLayout;
 export const figureMetrics: { padding: 24; legendColumn: 220; legendInset: 16; titleHeight: 40; titleBaseline: 26;
-  contextHeight: 18; contextBaseline: 44; keyLine: 16 };
-export interface FigureFrameOptions { title?: boolean; context?: boolean; legend?: boolean; padding?: number; preset?: FigurePreset; width?: number }
+  contextHeight: 18; contextBaseline: 44; keyLine: 16; noteRow: 16; noteBaseline: 12; noteSize: 11 };
+export interface FigureFrameOptions { title?: boolean; context?: boolean; legend?: boolean; padding?: number; preset?: FigurePreset; width?: number;
+  withheld?: { shown: number; total: number } }
 export interface FigureFrame { padding; header; map: { width; height; offset: XY };
-  legend?: { layout: LegendLayout; x; y; width; rule: { x; top; bottom } }; key: { lines: string[]; y }; width; height; outWidth; outHeight }
+  legend?: { layout: LegendLayout; x; y; width; rule: { x; top; bottom } }; note?: { text: string; x; y }; key: { lines: string[]; y };
+  width; height; outWidth; outHeight }
 export function figureFrame(scene: FramedScene, o?: FigureFrameOptions): FigureFrame;   // FramedScene: graph, activityLabels?, locale, bounds, legend
 ```
 
@@ -422,7 +425,12 @@ heights in `legendMetrics`, so the legend's height follows from its items.
 line 18), the map with its padding and the offset of the scene's content,
 the legend column (220: a rule, 16 inset, rows 188 wide, 16 inset), the
 activity key under the taller of map and legend, and the output size for a
-preset or width. `toSVG`, `toPNG` and the Canvas `drawLegend` draw from
+preset or width. With `withheld` it adds the note on withheld edges
+(`map.edges.withheld` in the scene's locale) in a row of 16 under the map
+and the legend, its baseline 12 into the row and the activity key below it;
+the legend's rule then ends beside the map, and a figure narrower than the
+note (11 px, measured by `estimateTextWidth`) is widened so that the note
+fits between the paddings. `toSVG`, `toPNG` and the Canvas `drawLegend` draw from
 these; `<Legend/>` lists the same rows.
 
 ## Formatting and strings
@@ -454,6 +462,7 @@ export function ProcessMap(props: {
   onAction?: (action: MenuAction, target: MenuTarget) => void | string; announce?: string;
   describedLimit?: number;   // default 500 activities plus groups
   edgeBudget?: EdgeBudget;   // default "all"; see "Edge budget"
+  onEdgesShown?: (shown: ShownEdges | undefined) => void;   // the edges drawn while some are withheld, for toSVG and toPNG
 }): JSX.Element;
 export interface Selection { nodes: string[]; edges: string[]; groups: string[] }
 
@@ -1035,7 +1044,8 @@ export function PathList(props: { graph; focus: Focus; paths?: FlowPaths; locale
 export function FilterChips(props: { filter?: Filter | FilterClause[]; preview?; locale?; labelOf?; onFilterChange?; onAnnounce?; clearable?; className? }): JSX.Element;
 export function CanvasMap(props: { scene: PreparedScene | undefined; state: DrawState; locale?; fitKey?; fitView?; describe?; onHover?; onClick?;
   onContextMenu?; onViewportChange?; descendants?; className?; children?;
-  edgeBudget?: EdgeBudget; onAnnounce?: (text: string) => void } & { ref?: Ref<CanvasMapHandle> }): JSX.Element;
+  edgeBudget?: EdgeBudget; onAnnounce?: (text: string) => void; onEdgesShown?: (shown: ShownEdges | undefined) => void }
+  & { ref?: Ref<CanvasMapHandle> }): JSX.Element;
 export interface CanvasMapHandle { centerOn(id, zoom?); fit(); zoomBy(factor); screenBox(id): Box | undefined; renderer(): CanvasRenderer | null;
   moved(): boolean }   // true when the view changed since the map was last fitted
 ```
@@ -1079,7 +1089,7 @@ export interface View { x: number; y: number; zoom: number; width: number; heigh
 export interface DrawState { selection: Selection; hovered?: string | null; focused?: string | null; bright?: { nodes: Set<string>; edges: Set<string> };
   highlighted?: ReadonlySet<string> }   // edges on a highlighted path, drawn under any edge budget
 export interface DrawOptions { tokens?: CanvasTokens; cull?: boolean; background?: boolean | string; lodZoom?: number; createCanvas?;
-  edgeBudget?: EdgeBudget }   // default "all"
+  edgeBudget?: EdgeBudget | ShownEdges }   // default "all"
 export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, state?: DrawState, o?: DrawOptions): { nodes; edges; shapes; culled;
   withheld?: EdgeSelection };   // present when the edge budget left edges in view out
 export function drawLegend(ctx: DrawContext, scene: PreparedScene, x, y, width, tokens?, o?: { createCanvas? }): number;   // the scene's legend; returns legendLayout(scene.legend).height
@@ -1093,7 +1103,8 @@ export class CanvasRenderer { constructor(canvas: HTMLCanvasElement, o?: { token
 export interface CanvasTokens { font; paper; surface; ink; inkMuted; line; lineStrong; focus; selection; neutral; outOfScope }
 export const defaultTokens: CanvasTokens;   // from the token table (`colorTokens`, `fontTokens`)
 export function readTokens(element: Element | null | undefined, overrides?: Partial<CanvasTokens>): CanvasTokens;   // from the CSS variables (`cssVariable(key)`)
-export interface PngOptions { preset?: FigurePreset; width?; scale?; background?; legend?; padding?; lodZoom?; tokens?; createCanvas?; context? }
+export interface PngOptions { preset?: FigurePreset; width?; scale?; background?; legend?; padding?; lodZoom?; tokens?; createCanvas?; context?;
+  edgeBudget?: EdgeBudget | ShownEdges }   // default every edge; see "Edge budget"
 export function toPNGCanvas(scene: Scene, o?: PngOptions): { canvas; width; height; cssWidth; cssHeight; scale };
 export function toPNG(scene: Scene, o?: PngOptions): Promise<Blob>;
 export function toPNGDataUrl(scene: Scene, o?: PngOptions): string;
@@ -1384,7 +1395,8 @@ targets are dropped before their order is fixed.
 export type EdgeBudget = number | "all";
 export interface EdgeProtection { selection?: { edges: readonly string[] }; focused?: string | null; highlighted?: ReadonlySet<string> }
 export interface EdgeSelection { drawn: Set<number>; shown: number; total: number }   // positions in scene.edgeMarks
-export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style">, budget: EdgeBudget | undefined,
+export interface ShownEdges { edges: readonly string[]; total: number }   // what a map draws, as onEdgesShown reports it
+export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style">, budget: EdgeBudget | ShownEdges | undefined,
   protection?: EdgeProtection, inView?: readonly number[]): EdgeSelection | undefined;
 ```
 
@@ -1428,6 +1440,36 @@ edges are withheld the map shows a note with both numbers, "Showing 2,000 of
 bottom centre of the map (`role="note"`), and the polite live region
 announces it once its numbers have stayed the same for 400 ms, so a view
 in motion does not flood it. The table view always lists every edge.
+
+Given a `ShownEdges` instead of a number, `budgetEdges` draws exactly the
+edges it names (of those in view) and states its `total`; it withholds
+nothing when it names every edge in view.
+
+### Exporting what the map shows
+
+`<ProcessMap onEdgesShown/>` (and `<CanvasMap onEdgesShown/>`) is called
+whenever the edges the map draws change: while the budget withholds edges,
+with their ids (`edges`, in the scene's order) and the number the map's note
+counts (`total`); with undefined once every edge is drawn again. It is not
+called while nothing was ever withheld. A culled Canvas map counts the edges
+in its view, so a pan can change the value.
+
+`toSVG`, `toPNG`, `toPNGCanvas` and `toPNGDataUrl` take `edgeBudget`:
+
+- the last `ShownEdges` the map reported: the figure draws exactly those
+  edges (with their labels), and the note states the map's two numbers;
+- a number: the figure draws by the map's order, protecting the edges with
+  an overlay mark on them (a figure has no selection, keyboard position or
+  highlighted path), and counts every edge of the figure;
+- `"all"`, or no value (also undefined, which `onEdgesShown` reports while
+  every edge is drawn): every edge and no note, the same output as before
+  this option existed.
+
+While edges are withheld the note is part of the figure as text: "Showing 3
+of 8 flows" (`map.edges.withheld` in the scene's `locale`, English and
+German) at 11 px in the ink colour under the map and the legend, inside the
+figure's frame (see `figureFrame`); in SVG it is a `<text
+class="wf-edge-note">`. The figure keeps every node, group and overlay.
 
 ## BPMN routing and navigation (0.3.4)
 
