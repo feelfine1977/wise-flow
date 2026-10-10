@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   type AbstractOptions,
+  type Box,
   type ConstraintDescription,
   type ConstraintStats,
   type FlowGraph,
@@ -19,7 +20,9 @@ import {
   overlaysFor,
   unionGraph,
 } from "../core/index.js";
+import { knownLayout } from "../core/layout.js";
 import { layoutInputKey } from "../core/layout-key.js";
+import { provisionalLayout, reusePositions } from "../core/provisional.js";
 
 /** Abstracted graph, recomputed when the graph or the options change. */
 export function useFlowGraph(graph: FlowGraph, options?: AbstractOptions): FlowGraph {
@@ -33,13 +36,21 @@ export interface StableLayout {
   positions: Positions | undefined;
   status: LayoutStatus;
   error?: Error;
+  /**
+   * True while `positions` are an arrangement shown until the layout arrives
+   * (status `pending`): the earlier positions of the nodes still present with
+   * new nodes beside their neighbours, or a provisional arrangement.
+   */
+  provisional: boolean;
 }
 
 /**
  * Lay out the union of one or more scenes once; the result serves every scene so
  * that compared maps keep identical positions. Recomputes when the scenes or the
  * options change; stale results are discarded. Layouts are kept per component
- * by their inputs and released on unmount.
+ * by their inputs and released on unmount. Until a layout arrives, `positions`
+ * holds a finished layout of the same inputs if the component has one (status
+ * `ready`), otherwise a provisional arrangement (`provisional`, status `pending`).
  */
 export function useStableLayout(scenes: FlowGraph | FlowGraph[] | undefined, options?: LayoutOptions): StableLayout {
   const list = useMemo(() => (scenes === undefined ? [] : Array.isArray(scenes) ? scenes : [scenes]), [scenes]);
@@ -48,28 +59,32 @@ export function useStableLayout(scenes: FlowGraph | FlowGraph[] | undefined, opt
   const inputs = union ? layoutInputKey(union, options ?? {}) : undefined;
   const [scope] = useState(createLayoutScope);
   useEffect(() => () => scope.dispose(), [scope]);
-  const [state, setState] = useState<StableLayout>({ positions: undefined, status: "idle" });
-  const token = useRef(0);
-  useEffect(() => {
-    if (!union) {
-      setState({ positions: undefined, status: "idle" });
-      return;
-    }
-    const counter = token;
-    const id = ++counter.current;
-    setState((s) => ({ ...s, status: "pending" }));
-    scope
-      .layout(union, options)
-      .then((positions) => {
-        if (counter.current === id) setState({ positions, status: "ready" });
-      })
-      .catch((error: Error) => {
-        if (counter.current === id) setState({ positions: undefined, status: "error", error });
-      });
-    return () => {
-      counter.current++;
-    };
+  const shown = useRef<Positions>(undefined);
+  // What a request shows until its layout arrives.
+  const request = useMemo(() => {
+    if (!union) return undefined;
+    const known = knownLayout(scope, union, options);
+    const reused = known ?? (shown.current && reusePositions(union, shown.current, options));
+    return { known, positions: reused ?? provisionalLayout(union, options) };
   }, [union, inputs, options?.cacheKey, scope]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [result, setResult] = useState<{ request: unknown; positions?: Positions; error?: Error }>();
+  useEffect(() => {
+    if (!union) return;
+    let current = true;
+    scope.layout(union, options).then(
+      (positions) => current && setResult({ request, positions }),
+      (error: Error) => current && setResult({ request, error }),
+    );
+    return () => {
+      current = false;
+    };
+  }, [request]); // eslint-disable-line react-hooks/exhaustive-deps
+  const state = useMemo<StableLayout>(() => {
+    if (!request) return { positions: undefined, status: "idle", provisional: false };
+    if (result?.request === request) return result.error ? { positions: undefined, status: "error", error: result.error, provisional: false } : { positions: result.positions, status: "ready", provisional: false };
+    return request.known ? { positions: request.known, status: "ready", provisional: false } : { positions: request.positions, status: "pending", provisional: true };
+  }, [request, result]);
+  if (state.positions) shown.current = state.positions;
   return state;
 }
 
@@ -122,4 +137,57 @@ export function usePrefersReducedMotion(): boolean {
     return () => mq.removeEventListener?.("change", handler);
   }, []);
   return reduced;
+}
+
+/** Milliseconds a layout takes to move into the place of a provisional arrangement. */
+const ARRIVAL_MS = 300;
+
+export interface Arrival {
+  /** The positions to draw; on the way from the provisional arrangement to the layout while `moving`. */
+  positions: Positions | undefined;
+  moving: boolean;
+  /** Counts the layouts that replaced a provisional arrangement. */
+  count: number;
+}
+
+const mix = (a: Box, b: Box, t: number): Box => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, width: a.width + (b.width - a.width) * t, height: a.height + (b.height - a.height) * t });
+
+function between(from: Positions, to: Positions, t: number): Positions {
+  const s = t * t * (3 - 2 * t);
+  const part = (a: Record<string, Box>, b: Record<string, Box>) => {
+    const out: Record<string, Box> = {};
+    for (const id in b) out[id] = a[id] ? mix(a[id], b[id], s) : b[id];
+    return out;
+  };
+  // Edges are drawn straight between the moving boxes until the layout's routes arrive.
+  return createPositions({ nodes: part(from.nodes, to.nodes), groups: part(from.groups, to.groups), edges: {} }, to.engine, to.direction);
+}
+
+/**
+ * Positions as drawn: a layout that replaces a provisional arrangement moves
+ * there over a short time, or at once when `still` (reduced motion); any other
+ * change is drawn at once.
+ */
+export function useArrival(positions: Positions | undefined, provisional: boolean, still: boolean): Arrival {
+  const [arrival, setArrival] = useState<{ to?: Positions; provisional: boolean; from?: Positions; count: number }>({ to: positions, provisional, count: 0 });
+  const [progress, setProgress] = useState(1);
+  const drawn = useMemo(() => (arrival.from && arrival.to && progress < 1 ? between(arrival.from, arrival.to, progress) : arrival.to), [arrival, progress]);
+  if (arrival.to !== positions || arrival.provisional !== provisional) {
+    const replaces = arrival.provisional && !provisional && !!drawn && !!positions;
+    setArrival({ to: positions, provisional, from: replaces ? drawn : undefined, count: arrival.count + (replaces ? 1 : 0) });
+    setProgress(replaces && !still && typeof requestAnimationFrame === "function" ? 0 : 1);
+  }
+  useEffect(() => {
+    if (!arrival.from || progress >= 1) return;
+    let start: number | undefined;
+    const step = (now: number) => {
+      start ??= now;
+      const t = Math.min(1, (now - start) / ARRIVAL_MS);
+      setProgress(t);
+      if (t < 1) frame = requestAnimationFrame(step);
+    };
+    let frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [arrival]); // eslint-disable-line react-hooks/exhaustive-deps
+  return { positions: drawn, moving: progress < 1, count: arrival.count };
 }

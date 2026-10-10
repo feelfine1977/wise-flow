@@ -25,6 +25,8 @@ export interface CanvasMapProps {
 export interface CanvasMapHandle {
   centerOn(id: string, zoom?: number): void;
   fit(): void;
+  /** True when the view changed since the map was last fitted. */
+  moved(): boolean;
   zoomBy(factor: number): void;
   /** Box of a node or group relative to the map body. */
   screenBox(id: string): Box | undefined;
@@ -52,6 +54,11 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
   const [dragging, setDragging] = useState(false);
   const [overHit, setOverHit] = useState(false);
   const fitted = useRef<string | undefined>(undefined);
+  const fittedView = useRef<unknown>(undefined);
+  const fitNow = () => {
+    rendererRef.current?.fit();
+    fittedView.current = rendererRef.current?.getViewport();
+  };
   const [ready, setReady] = useState(false);
 
   useLayoutEffect(() => {
@@ -95,7 +102,7 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
     r.setScene(scene);
     if (scene && fitView && ready && fitted.current !== fitKey) {
       fitted.current = fitKey;
-      r.fit();
+      fitNow();
     }
   }, [scene, fitKey, fitView, ready]);
 
@@ -112,8 +119,9 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
         if (!r || !b) return;
         r.centerOn({ x: b.x + b.width / 2, y: b.y + b.height / 2 }, zoom);
       },
-      fit() {
-        rendererRef.current?.fit();
+      fit: fitNow,
+      moved() {
+        return !!fittedView.current && rendererRef.current?.getViewport() !== fittedView.current;
       },
       zoomBy(factor) {
         rendererRef.current?.zoomBy(factor);
@@ -256,7 +264,7 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
           <button type="button" className="wf-button" aria-label={t(locale, "map.zoomOut")} onClick={() => rendererRef.current?.zoomBy(1 / ZOOM_STEP)}>
             −
           </button>
-          <button type="button" className="wf-button" aria-label={t(locale, "map.fit")} onClick={() => rendererRef.current?.fit()}>
+          <button type="button" className="wf-button" aria-label={t(locale, "map.fit")} onClick={fitNow}>
             ⤢
           </button>
         </div>
