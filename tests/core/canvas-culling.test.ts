@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Overlay, createPositions } from "../../src/index";
+import { type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Overlay, HitIndex, createPositions } from "../../src/index";
 import { CanvasRenderer, type DrawContext, type PreparedScene, drawScene, prepareScene } from "../../src/canvas/index";
 
 /**
@@ -139,6 +139,20 @@ describe("drawing a culled view of a large scene", () => {
     // Each candidate is read at most twice (edges and overlay marks: once for the shape or line, once for the label or layer); nothing else is.
     for (const d of drawn) expect(d.visits).toBeLessThanOrEqual(2 * d.candidates);
     expect(b.visits).toBe(a.visits);
+  });
+
+  it("draws every element in list order from a hit index built without positions", () => {
+    // The items of the scene's own index, without the positions a host's index would not have.
+    const items = small.hit.within({ x: -1e6, y: -1e6, width: 2e6, height: 2e6 }).map(({ index: _, ...it }) => it);
+    const plain = { ...small, hit: new HitIndex().load(items) };
+    const [culled, full] = [true, false].map((cull) => {
+      const { ctx, digest } = loggingContext();
+      return { stats: drawScene(ctx, plain, view, state, { cull }), digest: digest() };
+    });
+    // Row 0 holds 199 elements and each further row 299: 66 more rows reach 19,933, and row 67 adds
+    // column 0 with its upper edge, 21 columns of three and the node and left edge of column 22.
+    expect(culled.stats).toEqual({ culled: true, nodes: 6_723, edges: 13_277, shapes: full.stats.shapes });
+    expect(culled.digest).toBe(full.digest);
   });
 
   it("answers hit tests through the R-tree without reading the scene's elements", () => {

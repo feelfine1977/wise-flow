@@ -984,7 +984,9 @@ hit index finds inside the viewport are read and drawn, in the order of a
 full draw: every item of `scene.hit` carries its element's position in
 `groups`, `marks`, `edges` or `nodes` as `HitItem.index`, so a draw reads
 about as many elements as the view holds, whatever the size of the scene.
-Groups wholly outside the viewport are no longer drawn there. Marks that are
+Groups wholly outside the viewport are no longer drawn there. A hit
+index whose items lack `index` (built without `indexOf`) is drawn by
+walking the lists, as before. Marks that are
 not drawn on the map (map-level chips) are neither in `bounds` nor in the
 hit index; the one segment of a two-point route is the route's own `points`
 array. Nodes and edges are drawn from their marks (`SceneNode.mark`,

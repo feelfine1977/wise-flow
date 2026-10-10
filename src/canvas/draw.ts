@@ -498,8 +498,9 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
   ctx.translate(view.x, view.y);
   ctx.scale(view.zoom, view.zoom);
 
-  // Culled: what the R-tree finds in the view, in drawing order.
-  const found = cull ? scene.hit.within(visibleBox(view)).sort(drawingOrder) : undefined;
+  // Culled: what the R-tree finds in the view, in drawing order. An index built without positions walks the lists.
+  let found = cull ? scene.hit.within(visibleBox(view)).sort(drawingOrder) : undefined;
+  if (found?.some((it) => it.index === undefined)) found = undefined;
   const each = <T>(list: readonly T[], kind: HitItem["kind"], idOf: (item: T) => string, draw: (item: T) => void) => {
     if (!found) {
       for (const item of list) draw(item);

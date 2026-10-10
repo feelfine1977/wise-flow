@@ -11,3 +11,5 @@ viewport are no longer drawn in a culled view, like nodes and edges. Every item
 of `PreparedScene.hit` carries its element's position in the scene's lists as
 the new optional `HitItem.index`, and `HitIndex.fromScene` takes an optional
 fourth argument that supplies it; hit tests return the same items as before.
+A scene whose hit index was built without that argument is drawn by walking
+every element, as before.
