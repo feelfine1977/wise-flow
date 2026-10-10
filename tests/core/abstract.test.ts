@@ -243,6 +243,17 @@ describe("abstract", () => {
     expect(readded(abstract(graph, { minNodeShare: 0.3 }))).toEqual(["m->r1", "r1", "r1->y", "r1->z"]);
   });
 
+  it("joins a component a re-added node touches by the smallest id among its cheapest direct edges", () => {
+    // b, p and q are all 2 from m through r1; b joins first and re-adds r1. r1 touches the
+    // component of p and q by r1->p and q->r1, equally cheap, so q->r1, the smaller id, joins
+    // it, although p is the smaller node id and a search from r1 would enter it by r1->p.
+    const graph: FlowGraph = {
+      nodes: activities({ m: 100, b: 40, p: 40, q: 40, r1: 1 }),
+      edges: follows([["m", "r1", 100], ["r1", "b", 100], ["q", "r1", 100], ["r1", "p", 100], ["q", "p", 100]]),
+    };
+    expect(readded(abstract(graph, { minNodeShare: 0.3 }))).toEqual(["m->r1", "q->r1", "r1", "r1->b"]);
+  });
+
   it("reconnects equally cheap alternatives the same way whatever the input order", () => {
     for (let seed = 1; seed <= 40; seed++) {
       const g = tiedGraph(seed, 12 + (seed % 30));
