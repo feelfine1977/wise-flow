@@ -43,7 +43,7 @@ read what it resolves and do not decide it again.
 | Legend and figure frame (`core/figure.ts`) | `sceneLegend`, `legendLayout`, `figureFrame` | legend rows and heights, the exported figure's frame (§2.6) | `toSVG`, `toPNG`, Canvas `drawLegend`, `<Legend/>` |
 | Design tokens (`core/tokens.ts`) | `designTokens` and its parts, `patternTwin`, `tokenVariables` | colours, palettes, fonts, node and mark sizes, the arrowhead rule, pattern twins; `tokens.css` is checked against it (§2.4) | marks, SVG export, Canvas `readTokens`, `tokens.css` |
 | Graph index and positions (`core/model.ts`, `core/layout.ts`) | `indexGraph`, `createPositions` | lookups, adjacency, group ancestors, nested members, labels; positions whose bounds always match their contents (§2.1, §2.3) | selection, filters, paths, lanes, layout, every renderer |
-| Layout cache (`core/layout.ts`, `core/layout-key.ts`) | `layout`, `createLayoutScope`, `cacheKey`, `clearLayoutCache` | layouts keyed by their own inputs, bounded per scope, released on `dispose`; ELK workers started and terminated on demand (§2.3) | `ProcessMap`, `useStableLayout`, `layoutBpmn` |
+| Layout cache (`core/layout.ts`, `core/layout-key.ts`) | `layout`, `createLayoutScope`, `cacheKey`, `clearLayoutCache`, `signal` | layouts keyed by their own inputs, bounded per scope, released on `dispose`; a layout runs while somebody waits for it; ELK and Dagre workers started on demand and terminated when their layout is aborted, timed out or replaced (§2.3) | `ProcessMap`, `useStableLayout`, `layoutBpmn` |
 | Provisional arrangement (`core/provisional.ts`) | `provisionalLayout`, `reusePositions` (internal) | what a map shows until its layout arrives: a linear-time layered arrangement, or earlier positions of the nodes still present (§2.3) | `useStableLayout` (`ProcessMap`) |
 | Lane model (`core/lanes.ts`) | `laneModel`, `stackLanes`, `spanLanes`, `laneRoutes`, `laneBands` | which groups are lanes, each node's lane, stacking, pool and parent boxes, edges across lanes (§2.8) | map bands (`ProcessMap`, Canvas, SVG), `layoutBpmn` |
 | Map controller (`core/map-controller.ts`) | `mapStep(state, event, context)` → next state, sentence, intents | selection, focus of paths, hover, keyboard position, actions menu and the live region's sentence (§2.8) | `useMapController` (`ProcessMap`, React Flow and Canvas pointer input via `map-pointer.ts`), `<ContextMenu/>`, `<TableAlternative/>`, `BpmnView` |
@@ -146,7 +146,17 @@ unchanged at every threshold.
 application passes `elkWorkerUrl` (the URL of `elkjs/lib/elk-worker.min.js`),
 in-process otherwise (Node, tests). Stage groups become compound nodes with
 their order along the flow direction enforced through ELK partitions; lanes
-are compound nodes as well. Dagre is the fallback on failure or timeout.
+are compound nodes as well. Dagre is the fallback on failure or timeout: in a
+Web Worker with `dagreWorkerUrl` (the package's `dagre-worker.min.js`, which
+runs the compiled `dagreJob` of the layout module, so both places give the same
+positions), otherwise on the calling thread only up to `fallbackLimit` nodes
+plus edges; above it the layout fails with `LayoutUnavailableError` and the
+map keeps its provisional arrangement. **Stopping**: each layout is a job that
+runs while somebody waits for it; a caller's `signal`, a newer request to the
+same scope and `timeoutMs` (per engine run) stop waiting, and a job nobody
+waits for terminates its worker (one worker per running job, so no other
+layout is affected) and reads nothing it sends afterwards. In-process ELK
+cannot be interrupted; its result is discarded.
 Elements are sorted by id before the engine runs, so positions are
 deterministic. `Positions` holds absolute boxes for nodes and groups, edge
 routes, bounds, engine and direction. **Stable layout**: `layoutUnion(scenes)`
@@ -156,9 +166,9 @@ layout module owns it. A caller key (`cacheKey`) keeps positions in a shared
 cache until its owner forgets the key. Without one, a layout scope
 (`createLayoutScope`) keys each layout by its inputs (nodes with resolved
 sizes, edges, groups, options), keeps a bounded number and releases them on
-`dispose`, so a changed graph is always laid out anew. The module starts ELK
+`dispose`, so a changed graph is always laid out anew. The module starts
 workers on demand and terminates each once no scope and no running layout
-uses it. The map lays out the *abstracted* graph (not the full
+uses it; a scope keeps one idle worker per URL. The map lays out the *abstracted* graph (not the full
 directly-follows graph), because hundreds of weak edges degrade layered
 layouts; each map's scope makes returning to a previous abstraction level free.
 **First scene**: until a layout arrives, `useStableLayout` returns a finished

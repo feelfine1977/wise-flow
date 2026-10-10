@@ -12,6 +12,7 @@ import {
   type OverlayPresetOptions,
   type Positions,
   type XY,
+  LayoutUnavailableError,
   abstract,
   buildScene,
   createLayoutScope,
@@ -39,7 +40,9 @@ export interface StableLayout {
   /**
    * True while `positions` are an arrangement shown until the layout arrives
    * (status `pending`): the earlier positions of the nodes still present with
-   * new nodes beside their neighbours, or a provisional arrangement.
+   * new nodes beside their neighbours, or a provisional arrangement. Also true
+   * when they stay instead of a layout that is unavailable (status `error`
+   * with a `LayoutUnavailableError`).
    */
   provisional: boolean;
 }
@@ -51,6 +54,7 @@ export interface StableLayout {
  * by their inputs and released on unmount. Until a layout arrives, `positions`
  * holds a finished layout of the same inputs if the component has one (status
  * `ready`), otherwise a provisional arrangement (`provisional`, status `pending`).
+ * A layout the component no longer shows is aborted.
  */
 export function useStableLayout(scenes: FlowGraph | FlowGraph[] | undefined, options?: LayoutOptions): StableLayout {
   const list = useMemo(() => (scenes === undefined ? [] : Array.isArray(scenes) ? scenes : [scenes]), [scenes]);
@@ -70,18 +74,21 @@ export function useStableLayout(scenes: FlowGraph | FlowGraph[] | undefined, opt
   const [result, setResult] = useState<{ request: unknown; positions?: Positions; error?: Error }>();
   useEffect(() => {
     if (!union) return;
-    let current = true;
-    scope.layout(union, options).then(
-      (positions) => current && setResult({ request, positions }),
-      (error: Error) => current && setResult({ request, error }),
+    const stop = new AbortController();
+    scope.layout(union, { ...options, signal: stop.signal }).then(
+      (positions) => !stop.signal.aborted && setResult({ request, positions }),
+      (error: Error) => !stop.signal.aborted && setResult({ request, error }),
     );
-    return () => {
-      current = false;
-    };
+    return () => stop.abort();
   }, [request]); // eslint-disable-line react-hooks/exhaustive-deps
   const state = useMemo<StableLayout>(() => {
     if (!request) return { positions: undefined, status: "idle", provisional: false };
-    if (result?.request === request) return result.error ? { positions: undefined, status: "error", error: result.error, provisional: false } : { positions: result.positions, status: "ready", provisional: false };
+    if (result?.request === request) {
+      const { error } = result;
+      if (!error) return { positions: result.positions, status: "ready", provisional: false };
+      const kept = error instanceof LayoutUnavailableError;
+      return { positions: kept ? request.positions : undefined, status: "error", error, provisional: kept };
+    }
     return request.known ? { positions: request.known, status: "ready", provisional: false } : { positions: request.positions, status: "pending", provisional: true };
   }, [request, result]);
   if (state.positions) shown.current = state.positions;

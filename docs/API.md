@@ -526,8 +526,19 @@ a finished layout of the same inputs (status `"ready"`), or provisional
 positions as above with `provisional: true` and status `"pending"`; when the
 layout arrives, `positions` are replaced once by it (`"ready"`,
 `provisional: false`). Without scenes the status is `"idle"`; a failed layout
-gives `"error"` with `positions` undefined, as before. Until this release
+gives `"error"` with `positions` undefined, as before, except a
+`LayoutUnavailableError`: then the provisional positions stay, with
+`provisional: true`, status `"error"` and the error. Until this release
 `positions` held the previous result (or nothing) while a layout was pending.
+The hook aborts the layout of a request it no longer shows (changed scenes
+or options, unmount), which terminates its worker.
+
+Refined layout unavailable: when the layout fails with
+`LayoutUnavailableError`, `<ProcessMap/>` keeps the provisional scene, fully
+interactive; the status panel and the map's description say "The refined
+layout is unavailable; the map shows a provisional arrangement." (string
+`map.layoutUnavailable`, English and German) and `data-layout-status` is
+`"error"`. Other layout errors are shown as before.
 
 Stylesheets: `@wise/flow/tokens.css` (design tokens, light and dark),
 `@wise/flow/style.css` (components) and `@xyflow/react/dist/style.css`.
