@@ -38,7 +38,8 @@ function usePage<T>(rows: T[], text: (row: T) => string, query: string, pageSize
   const q = query.trim().toLocaleLowerCase();
   const matching = q ? rows.filter((r) => text(r).toLocaleLowerCase().includes(q)) : rows;
   const last = Math.max(0, Math.ceil(matching.length / pageSize) - 1);
-  // A new query starts on the first page.
+  // A new query starts on the first page, and so does the next one, even when it is an earlier query again.
+  if (page.query !== query) setPage({ query, at: 0 });
   const at = page.query === query ? Math.min(page.at, last) : 0;
   const from = at * pageSize;
   const shown = matching.slice(from, from + pageSize);

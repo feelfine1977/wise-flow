@@ -227,6 +227,20 @@ describe("the table alternative of a large map", () => {
     expect(screen.getAllByRole("status")[0].textContent).toBe("Nothing to show.");
   });
 
+  it("starts on the first page again when the search goes back to an earlier text", () => {
+    const { graph } = seeded(300);
+    render(<TableAlternative graph={graph} pageSize={100} tables={["nodes"]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Next rows" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next rows" }));
+    expect(screen.getByRole("status").textContent).toBe("Rows 201–300 of 300");
+    // Typing and clearing the search is a new query each time: back to rows 1–100, not to the third page.
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "activity 1" } });
+    expect(screen.getByRole("status").textContent).toBe("Rows 1–100 of 111");
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "" } });
+    expect(screen.getByRole("status").textContent).toBe("Rows 1–100 of 300");
+    expect(within(within(screen.getByRole("table")).getAllByRole("row")[1]).getByRole("rowheader").textContent).toBe("Activity 0");
+  });
+
   it("speaks German", () => {
     const { graph } = seeded(250);
     render(<TableAlternative graph={graph} pageSize={100} locale="de" />);
