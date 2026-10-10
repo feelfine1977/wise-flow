@@ -16,7 +16,7 @@ and `bpmn-js/dist/assets/bpmn-font/css/bpmn.css`.
 | `ViewSwitcher.tsx` | `<ViewSwitcher/>`: named views of one map as tabs or as a grid of small multiples with shared scales |
 | `nodes.tsx` | activity, stage, gateway, event, note and group node components (groups also as lane bands); badges and chips |
 | `edges.tsx` | follows / constraint / flow edge component on the layout routes |
-| `OverlayLayer.tsx` | arcs and self-loops in the viewport |
+| `OverlayLayer.tsx` | arcs between the edges and the nodes (in React Flow's edge label layer), self-loops above the nodes |
 | `AbstractionControls.tsx` | sliders, stage toggle, keep-connected, table toggle |
 | `Legend.tsx` | scales, overlay glyphs and map-level chips |
 | `TableAlternative.tsx` | activities, paths and overlays as tables; rows select with the map controller's `clickSelection` |

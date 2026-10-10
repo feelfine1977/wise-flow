@@ -69,8 +69,38 @@ describe("overlay marks in the React Flow map", () => {
     const byId = new Map(drawnIds.map((id, i) => [id, tree(parse(exportedGroups[i]))]));
     const domGroups = [...container.querySelectorAll<SVGGElement>(".wf-overlay[data-overlay-id]")];
     // Tints are drawn as the background of the element they cover (below).
-    expect(domGroups.map((g) => g.dataset.overlayId).sort()).toEqual(map.marks.filter((m) => m.inMap && m.layer === "above").map((m) => m.id).sort());
+    expect(domGroups.map((g) => g.dataset.overlayId).sort()).toEqual(map.marks.filter((m) => m.inMap && m.layer !== "below").map((m) => m.id).sort());
     for (const g of domGroups) expect(tree(g), g.dataset.overlayId).toEqual(byId.get(g.dataset.overlayId!));
+  });
+
+  it("draws the arcs after the edges and before the nodes and their badges, the self-loops after the nodes", async () => {
+    const { container, scene } = await vendorMap();
+    await waitFor(() => expect(container.querySelector(".react-flow__edge")).not.toBeNull());
+    const arcs = scene.marks.filter((m) => m.kind === "arc").map((m) => m.id);
+    expect(arcs.length).toBeGreaterThan(0);
+    // React Flow stacks its viewport's children by z-index, then in document order: the edges
+    // (z-index 0 here), its edge label layer, the nodes (from 0), the viewport portal.
+    const layer = container.querySelector<HTMLElement>(".react-flow__edgelabel-renderer")!;
+    const drawn = [...layer.querySelectorAll<SVGGElement>(".wf-overlay[data-overlay-id]")];
+    expect(drawn.map((g) => g.dataset.overlayId)).toEqual(arcs);
+    expect(drawn[0].closest("svg")!.style.zIndex).toBe("0");
+    const follows = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const edges = [...container.querySelectorAll<SVGElement>(".react-flow__edges > svg")];
+    expect(edges.length).toBeGreaterThan(0);
+    for (const edge of edges) {
+      expect(follows(edge, layer)).toBe(true);
+      expect(Number(edge.style.zIndex || 0)).toBeLessThanOrEqual(0);
+    }
+    const nodes = [...container.querySelectorAll<HTMLElement>(".react-flow__node:not(.react-flow__node-wfGroup)")];
+    expect(nodes.length).toBeGreaterThan(0);
+    for (const node of nodes) {
+      expect(follows(layer, node)).toBe(true);
+      expect(Number(node.style.zIndex || 0)).toBeGreaterThanOrEqual(0);
+    }
+    // Badges are drawn by the node that carries them; self-loops in the portal above the nodes.
+    expect(container.querySelector(".react-flow__node [data-overlay-id^='badge:']")).not.toBeNull();
+    const loop = container.querySelector<SVGGElement>(".react-flow__viewport-portal [data-overlay-id^='selfLoop:']")!;
+    expect(loop.closest("svg")!.style.zIndex).toBe("1001");
   });
 
   it("tints a node with the colour of the overlay's value", async () => {

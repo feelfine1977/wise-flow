@@ -1,7 +1,7 @@
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import type { OverlayShape } from "../../src/core/index";
-vi.mock("@xyflow/react", () => ({ ViewportPortal: ({ children }: { children: React.ReactNode }) => children }));
+vi.mock("@xyflow/react", () => ({ ViewportPortal: ({ children }: { children: React.ReactNode }) => children, EdgeLabelRenderer: ({ children }: { children: React.ReactNode }) => children }));
 import { OverlayLayer } from "../../src/react/OverlayLayer";
 afterEach(cleanup);
 it("keeps the explicit constraint meaning on an arc without changing its numeric evidence", () => {

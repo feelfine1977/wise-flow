@@ -19,15 +19,15 @@ describe("overlay marks", () => {
       { ...base, id: "tint:s2:0", kind: "tint", layer: "below", box: { x: 190, y: -10, width: 320, height: 60 }, minZoom: 0, color: "#fd8d3c", onColor: "#000000", title: "Balance — 50 % above", radius: 10, fill: { paint: "value", opacity: 0.18 } },
       // Without a value the colour is neutral; the hatching is 0.55 opaque, as on the map.
       { ...base, id: "hatch:a:1", kind: "hatch", box: { x: 0, y: 0, width: 100, height: 40 }, minZoom: defaultLod.hatch, color: "#8c8c8c", onColor: "#000000", title: "Scope — Out of scope", radius: 6, fill: { paint: "outOfScope", pattern: "outOfScope", opacity: 0.55 } },
-      // Width 2 + 8 × coverage 0.5; label at the apex (250, 0.75 × −88 − 8).
+      // Width 2 + 8 × coverage 0.5; label at the apex (250, 0.75 × −88 − 8); between the edges and the nodes.
       {
-        ...base, id: "arc:a->c:2", kind: "arc", box: { x: 50, y: -88, width: 400, height: 88 }, minZoom: defaultLod.arcs, color: "#fdd0a2", onColor: "#000000",
+        ...base, id: "arc:a->c:2", kind: "arc", layer: "between", box: { x: 50, y: -88, width: 400, height: 88 }, minZoom: defaultLod.arcs, color: "#fdd0a2", onColor: "#000000",
         path: "M50 0 C50 -88 450 -88 450 0", stroke: { paint: "value", width: 6, opacity: 0.9 }, arrow: { size: 12, overhang: 0.1 },
         texts: [{ ...ink, text: "⏱ 25 %", x: 250, y: -74, size: 11, anchor: "middle", baseline: "alphabetic" }],
       },
       // The reverse arc runs below the boxes, second on the pair (height 88 + 14), dashed, width 2 at coverage 0.
       {
-        ...base, id: "arc:c->a:3", kind: "arc", box: { x: 50, y: 40, width: 400, height: 94.5 }, minZoom: defaultLod.arcs, color: "#7f2704", onColor: "#ffffff",
+        ...base, id: "arc:c->a:3", kind: "arc", layer: "between", box: { x: 50, y: 40, width: 400, height: 94.5 }, minZoom: defaultLod.arcs, color: "#7f2704", onColor: "#ffffff",
         path: "M450 40 C450 142 50 142 50 40", stroke: { paint: "value", width: 2, opacity: 0.9, dash: [6, 4] }, arrow: { size: 12, overhang: 0.1 },
         texts: [{ ...ink, text: "⇐ 100 %", x: 250, y: 130.5, size: 11, anchor: "middle", baseline: "alphabetic" }],
       },

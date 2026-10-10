@@ -57,15 +57,19 @@ const observed: Variant = {
  * 1.3 at 0.6), the edge marker the live map's arrow (3 long, 4.8 wide, outlined
  * by 0.6, in user units) where it was 7 stroke widths, and the overlay marker
  * written in user units with the same triangle.
+ * Recorded once more when arcs began to be drawn between the edges and the
+ * nodes; with the arc groups taken out the output is the same, and the arc
+ * groups, unchanged, now follow the last edge instead of the last node
+ * (`plain` has no arcs and kept its digest).
  */
 const before: Record<string, string> = {
-  overlays: "c46fef64e826278b6ea176b79666380fdf472e921eb9d5bec835682919afbfa6",
-  stagesGerman: "c6712a3e23ef00b92abe11fd40417f4e081951293e884b8db931c1a25792fda9",
-  vendor: "f0384d4f3635183cbc26e32c8db90c46525f21da0eb6e415d6a2c4d88fe5e438",
-  unfiltered: "216380aa82161026a9da4f44ebea07c58394d620a5a17297005d67fa2c38986e",
+  overlays: "f28643c881f719fddbdfdcac9b7c0cdc88c37ce44c1515675b1efc6db9cb866c",
+  stagesGerman: "1de38e9c82b9ef806a77c92fa618fb4212db790a1a5832fb7d06c6ea98c9aae4",
+  vendor: "043d7f34c742410f6676cdbe736e018c3c4eff980c1a15e3d74754eb348434d4",
+  unfiltered: "14e258b6a9ceb3fb38f64804b8eb3d7107cc53554636b482bd640f708e49b87a",
   plain: "db64726176b89df026082bcc92fdeff7598af00d8b0effd952344530a25931b0",
 };
-const beforeObserved = "cdf9a074e4d65b386638ef09ea904f33695a361b6463cd8e9f64c92f0cf1e054";
+const beforeObserved = "15dba9df0c23d1452a733f17f3b8dbc8922d0882f265a05c09f6ef4ba801ba60";
 
 describe("toSVG on the committed fixtures", () => {
   it("matches the recorded output once follows self-loops are hidden", () => {

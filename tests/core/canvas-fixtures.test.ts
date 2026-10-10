@@ -108,24 +108,30 @@ function exported(fixture: Fixture, scene: Partial<Scene>, options: PngOptions):
  * and 4.8 wide with the tip on the route's end, filled and outlined by 0.6 in
  * the edge's colour, where it was a triangle of 8 plus the edge width (at most
  * 16). Overlay arrowheads and the line pattern tiles drew the same calls.
+ * Recorded once more when arcs began to be drawn between the edges and the
+ * nodes: every recording holds the same calls as before, and only the calls of
+ * the arcs (stroke, arrowhead and label) moved from after the nodes to after
+ * the edges.
  */
 const before = {
-  mapGlobalStages: "f953fc4eeff602da978642d01289b97e1c7596aad8db987bd5e83b6c8ed8962e",
-  mapVendorIds: "4457b26e673fbcbfe6b7db6febfbb12c2fe5e744e2b7caf7222635f93b6389d2",
-  mapUnfiltered: "e6fd89e29a997013e2b62d46d41e4d73b9c01b22e357b9fa5a49196d5af41c19",
-  pngGlobalTitle: "a804ab69ebae791d19aef56a8f8888b046447af403b874b96324bc39aee6df67",
-  pngVendorIds: "12e3741749edf5c1525023b6e3336bf81cfba61e48a7d5ff67bc73b39f66a068",
-  pngUnfilteredGerman: "a128bd5ac5e03630189b933c3b6fa84630e28f7d4b6ba8e61324def43c445918",
+  mapGlobalStages: "41a7b0aa1ccc6fc4ffbdac164c00d27ad897a0e09dde5baeaeedb97ef5aefd20",
+  mapVendorIds: "8342138ee0aec0605df384aed83877b549d2b9594829e8477d90327b2b9142c8",
+  mapUnfiltered: "b72e8a1d76f7647a17fb06e3839b434a21b1e6cc021974feb671655ffeeea5b4",
+  pngGlobalTitle: "845401687f0c9093e507e0803cac227b35e81208e4f7a8bb1f431d67017c00e3",
+  pngVendorIds: "d111edbb9b2a36d29d0ea321ffce30311626062f20e0f4d9780d36760570546c",
+  pngUnfilteredGerman: "e6391a6dcc7155c570ed4a8e5ba799dc9959b24fe84d76678db8447e88bb869b",
 };
 
 /**
  * SHA-256 of the recorded calls of culled draws, recorded while the drawing
- * still walked every element and tested it against the R-tree's result.
+ * still walked every element and tested it against the R-tree's result, and
+ * recorded again for the two strips with arcs when arcs began to be drawn
+ * between the edges and the nodes; their calls moved as in the uncull draws.
  */
 const culledBefore = {
-  culledGlobal: "bac0dd01c958408e73f20c6aef7e19fdd63df1b18df85e7250820596389458f0",
+  culledGlobal: "129a9323ca7964675cb3397fd2a2aeda4bc3a14e3c77bef01afed0430056c0e0",
   culledGlobalStages: "177a0be9328cdbf9a1cc424a40e746527754015b2143b598312387fe30a6b1e2",
-  culledVendorIds: "df3a144324a48baae2c50086752728ffe6ea86113d2529c13d2e3ce32e23320f",
+  culledVendorIds: "efcf4c49628e24cbd7d4421dec5e5a21d8e30375f294796862da0751ba871f36",
   culledUnfiltered: "d7060d0bfb1109996132693d55950e32d8978e10004f40c87fc75e5a60fd1ba2",
 };
 

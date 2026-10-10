@@ -62,8 +62,11 @@ export interface OverlayMark {
   overlay: Overlay;
   /** Extent of the mark in scene coordinates. */
   box: Box;
-  /** Drawn below the edges (tints) or above the nodes. */
-  layer: "below" | "above";
+  /**
+   * Drawn below the edges (tints), between the edges and the nodes (arcs, so that
+   * a node and its badges stay readable where an arc crosses it) or above the nodes.
+   */
+  layer: "below" | "between" | "above";
   /** Drawn on the map; map-level chips are listed with the legend instead. */
   inMap: boolean;
   /** Zoom from which the mark is drawn. */
@@ -149,7 +152,7 @@ function overlayMark(s: OverlayShape, locale: Locale): OverlayMark {
     kind: s.kind,
     overlay: o,
     box: { x: s.x, y: s.y, width: s.width, height: s.height },
-    layer: s.kind === "tint" ? "below" : "above",
+    layer: s.kind === "tint" ? "below" : s.kind === "arc" ? "between" : "above",
     inMap: !(s.kind === "chip" && o.target === MAP_TARGET),
     minZoom: p.observed ? 0 : s.minZoom,
     color,
