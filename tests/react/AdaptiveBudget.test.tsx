@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createRef } from "react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { type FlowEdge, type FlowGraph, type FlowNode, createPositions, resolveViews } from "../../src/index";
+import { type FlowEdge, type FlowGraph, type FlowNode, type ShownEdges, createPositions, resolveViews, toSVG } from "../../src/index";
 import { prepareScene } from "../../src/canvas/index";
 import { CanvasMap, type CanvasMapHandle, ProcessMap, ViewSwitcher } from "../../src/react/index";
 
@@ -56,9 +56,11 @@ async function mountMap(edgeBudget: number | "all" | "adaptive" | undefined, ms 
   let now = 0;
   const clock = vi.fn(() => (now += ms));
   const ref = createRef<CanvasMapHandle>();
+  // What the host is told to export.
+  const reported: (ShownEdges | undefined)[] = [];
   render(
     <div style={{ width: 1200, height: 800 }}>
-      <CanvasMap ref={ref} scene={scene} state={state} fitKey="fit" edgeBudget={edgeBudget} clock={clock} />
+      <CanvasMap ref={ref} scene={scene} state={state} fitKey="fit" edgeBudget={edgeBudget} clock={clock} onEdgesShown={(s) => reported.push(s)} />
     </div>,
   );
   await waitFor(() => expect(ref.current?.renderer()?.lastDraw).toBeDefined());
@@ -95,7 +97,7 @@ async function mountMap(edgeBudget: number | "all" | "adaptive" | undefined, ms 
     }
     return during;
   }
-  return { renderer, clock, shown, pan, zoom, host };
+  return { renderer, clock, shown, pan, zoom, host, reported };
 }
 
 describe("adaptive edge budget on the Canvas map", () => {
@@ -119,6 +121,24 @@ describe("adaptive edge budget on the Canvas map", () => {
     expect(note()).toBe("Showing 2,000 of 2,500 flows");
     fireEvent.pointerDown(map.host, { clientX: 600, clientY: 400, button: 0, pointerId: 2 });
     await waitFor(() => expect(note()).toBe("Showing 1,000 of 2,500 flows"));
+  });
+
+  it("reports the edges of the new step to the host, which an export then draws with the note", async () => {
+    const { pan, reported } = await mountMap("adaptive");
+    await waitFor(() => expect(note()).toBe("Showing 2,000 of 2,500 flows"));
+    expect(reported).toEqual([expect.objectContaining({ total: 2500 })]);
+    expect(reported[0]!.edges).toHaveLength(2000);
+    await pan();
+    await waitFor(() => expect(note()).toBe("Showing 1,000 of 2,500 flows"));
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 20)));
+    // Told once per step; the 1,000 heaviest are h->t1 … h->t1000 (counts 2,500 … 1,501).
+    expect(reported).toHaveLength(2);
+    const last = reported[1]!;
+    expect(last.total).toBe(2500);
+    expect(last.edges).toEqual(Array.from({ length: 1000 }, (_, k) => `h->t${k + 1}`));
+    const svg = toSVG(large, { edgeBudget: last });
+    expect(svg.match(/<g class="wf-edge" /g)).toHaveLength(1000);
+    expect(svg).toMatch(/class="wf-edge-note"[^>]*>Showing 1,000 of 2,500 flows</);
   });
 
   it("steps up after a gesture of fast frames", async () => {
