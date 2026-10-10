@@ -8,6 +8,7 @@ export {
   hasTag,
   indexGraph,
   validateGraph,
+  validateGateways,
   normalizeGraph,
   /** @deprecated Leaves the entry point in the next major version; test `node.kind === "event" || node.kind === "gateway"`. */
   isStructuralNode,
