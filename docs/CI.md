@@ -75,12 +75,13 @@ configuration before enabling this advanced workflow to avoid duplicate scans.
 CodeQL execution success means analysis completed; alert severity/ruleset review
 is separate. Require its status and review code-scanning alerts for releases.
 
-All external Actions are pinned by full commit SHA; checkouts do not persist
-credentials. Workflows use read-only default permissions, finite job timeouts,
-concurrency cancellation and no `pull_request_target`. Dependabot proposes npm
-and Actions updates weekly; there is no automatic merge or publishing. Schedules
-run from the default branch, so this configuration becomes scheduled only after
-it is merged there.
+All external Actions are pinned by full commit SHA with the release version in
+a trailing comment (`# v7.0.1`); checkouts do not persist credentials.
+Workflows use read-only default permissions, finite job timeouts, concurrency
+cancellation and no `pull_request_target`. Dependabot proposes npm and Actions
+updates weekly; there is no automatic merge or publishing. Schedules run from
+the default branch, so this configuration becomes scheduled only after it is
+merged there.
 
 The npm audit gate uses the current advisory service and therefore needs network
 access. An outage fails the check rather than silently certifying dependencies.
