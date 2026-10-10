@@ -207,11 +207,27 @@ export function useEdgesShown(onEdgesShown: ((shown: ShownEdges | undefined) => 
   useLayoutEffect(() => void (callback.current = onEdgesShown));
   const last = useRef("");
   return useCallback((withheld: EdgeSelection | undefined, marks: readonly { id: string }[]) => {
-    if (!callback.current) return;
+    // Nobody listens: start again from every edge drawn.
+    if (!callback.current) return void (last.current = "");
     const edges = withheld ? [...withheld.drawn].sort((a, b) => a - b).map((i) => marks[i].id) : [];
     const key = withheld ? `${withheld.total}\n${edges.join("\n")}` : "";
     if (key === last.current) return;
     last.current = key;
     callback.current(withheld && { edges, total: withheld.total });
   }, []);
+}
+
+/** Reports for both renderers; a switch starts again from every edge drawn. */
+export function useEdgesShownAcross(onEdgesShown: ((shown: ShownEdges | undefined) => void) | undefined, canvas: boolean) {
+  const callback = useRef(onEdgesShown);
+  useLayoutEffect(() => void (callback.current = onEdgesShown));
+  const told = useRef<ShownEdges | undefined>(undefined);
+  const tell = useCallback((shown: ShownEdges | undefined) => {
+    told.current = shown;
+    callback.current?.(shown);
+  }, []);
+  useLayoutEffect(() => {
+    if (told.current) tell(undefined);
+  }, [canvas, tell]);
+  return onEdgesShown && tell;
 }

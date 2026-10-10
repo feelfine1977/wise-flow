@@ -91,4 +91,32 @@ describe("exporting what the map shows", () => {
     // Exported without a value, the figure has every edge again.
     expect(svgEdges(toSVG(small, { edgeBudget: view.reported[1] }))).toHaveLength(8);
   });
+
+  it("reports what the new renderer draws after a switch of renderer", async () => {
+    quietCanvas();
+    const reported: (ShownEdges | undefined)[] = [];
+    const map = (renderer: "svg" | "canvas", edgeBudget: number) => (
+      <div style={{ width: 1200, height: 800 }}>
+        <ProcessMap graph={small.graph} positions={small.positions} controls={false} legend={false} fitView={false} selfLoops={false} contextMenu={false} pathList={false} renderer={renderer} edgeBudget={edgeBudget} onEdgesShown={(shown) => reported.push(shown)} />
+      </div>
+    );
+    const last = () => reported.at(-1) && [...reported.at(-1)!.edges].sort();
+    const view = render(map("svg", 2));
+    await waitFor(() => expect(last()).toEqual(["h-t5", "h-t7"]));
+    // The Canvas map draws every edge: the host is told so, not left with the two.
+    await act(async () => view.rerender(map("canvas", 20)));
+    await waitFor(() => expect(reported).toHaveLength(2));
+    expect(reported[1]).toBeUndefined();
+    await act(async () => view.rerender(map("canvas", 3)));
+    await waitFor(() => expect(last()).toEqual(["h-t2", "h-t5", "h-t7"]));
+    // Back on React Flow, the same two edges as at first are reported again.
+    await act(async () => view.rerender(map("svg", 2)));
+    await waitFor(() => expect(last()).toEqual(["h-t5", "h-t7"]));
+    // And when it then draws every edge, the host hears that too.
+    await act(async () => view.rerender(map("canvas", 2)));
+    await waitFor(() => expect(last()).toEqual(["h-t5", "h-t7"]));
+    await act(async () => view.rerender(map("svg", 20)));
+    await waitFor(() => expect(reported.at(-1)).toBeUndefined());
+    expect(note()).toBeUndefined();
+  });
 });

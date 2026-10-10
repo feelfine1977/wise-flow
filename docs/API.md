@@ -1452,7 +1452,9 @@ whenever the edges the map draws change: while the budget withholds edges,
 with their ids (`edges`, in the scene's order) and the number the map's note
 counts (`total`); with undefined once every edge is drawn again. It is not
 called while nothing was ever withheld. A culled Canvas map counts the edges
-in its view, so a pan can change the value.
+in its view, so a pan can change the value. When `<ProcessMap/>` switches
+renderer (`renderer="auto"` crossing its threshold), it is called with
+undefined and then with what the new renderer withholds, if anything.
 
 `toSVG`, `toPNG`, `toPNGCanvas` and `toPNGDataUrl` take `edgeBudget`:
 

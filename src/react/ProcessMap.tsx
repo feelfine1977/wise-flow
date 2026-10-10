@@ -22,7 +22,7 @@ import { type MapScreen, useMapController } from "./controller.js";
 import { describeMap } from "./describe.js";
 import { edgeTypes } from "./edges.js";
 import { FilterChips } from "./FilterChips.js";
-import { useArrival, useEdgesShown, useFlowGraph, useMapScene, usePrefersReducedMotion, useStableLayout } from "./hooks.js";
+import { useArrival, useEdgesShown, useEdgesShownAcross, useFlowGraph, useMapScene, usePrefersReducedMotion, useStableLayout } from "./hooks.js";
 import { Legend } from "./Legend.js";
 import { useMenuActions } from "./map-actions.js";
 import { useCanvasElements, useElementDescriptions, useFlowElements } from "./map-elements.js";
@@ -211,7 +211,8 @@ function ProcessMapInner(props: ProcessMapProps) {
   // React Flow nodes and edges, or the Canvas scene, its state and the elements listed for assistive technology.
   const flow = useFlowElements({ enabled: !useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, nodesDraggable, edgeBudget, highlighted });
   // The Canvas map reports the edges it draws itself.
-  const reportShown = useEdgesShown(useCanvas ? undefined : props.onEdgesShown);
+  const tellShown = useEdgesShownAcross(props.onEdgesShown, useCanvas);
+  const reportShown = useEdgesShown(useCanvas ? undefined : tellShown);
   useEffect(() => reportShown(flow.withheld, scene.edgeMarks), [flow.withheld, scene, reportShown]);
   const canvas = useCanvasElements({ enabled: useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, highlighted, limit: describedLimit });
   const largeTable = shown.nodes.length + (shown.groups?.length ?? 0) > describedLimit;
@@ -428,7 +429,7 @@ function ProcessMapInner(props: ProcessMapProps) {
                 descendants={canvas.descendants}
                 edgeBudget={edgeBudget}
                 onAnnounce={announce}
-                onEdgesShown={props.onEdgesShown}
+                onEdgesShown={tellShown}
               >
                 {controlsElement ? <div className="wf-overlay-panel wf-overlay-panel--top-left">{controlsElement}</div> : null}
                 {legendElement ? <div className="wf-overlay-panel wf-overlay-panel--bottom-right">{legendElement}</div> : null}
