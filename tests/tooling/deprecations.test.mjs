@@ -53,16 +53,37 @@ function filesAt(dir) {
   });
 }
 
+/** What is wrong between the deprecated names (name → entry point) and the documented ones; empty when they agree. */
+export function deprecationProblems(names, documented) {
+  const problems = [];
+  for (const [name, entry] of names) {
+    if (!documented.has(name)) {
+      problems.push(`${name} is deprecated but not listed under "Deprecated names" in docs/API.md`);
+      continue;
+    }
+    const { replacement, entry: listed } = documented.get(name);
+    if (!replacement || replacement === 'none') problems.push(`${name} has no replacement in docs/API.md`);
+    if (listed !== entry) problems.push(`${name} is listed under ${listed} instead of ${entry} in docs/API.md`);
+  }
+  for (const name of documented.keys()) if (!names.has(name)) problems.push(`docs/API.md lists ${name}, which is not deprecated`);
+  return problems;
+}
+
 test('every deprecated name of the package is listed in docs/API.md with its replacement', () => {
   const names = new Map(filesAt(resolve(root, 'src')).flatMap((file) => deprecatedNames(file, readFileSync(file, 'utf8')).map((name) => [name, entryOf(file)])));
   const documented = documentedDeprecations(readFileSync(resolve(root, 'docs/API.md'), 'utf8'));
-  for (const [name, entry] of names) {
-    assert.ok(documented.has(name), `${name} is deprecated but not listed under "Deprecated names" in docs/API.md`);
-    const { replacement, entry: listed } = documented.get(name);
-    assert.ok(replacement && replacement !== 'none', `${name} has no replacement in docs/API.md`);
-    assert.equal(listed, entry, `${name} is listed under ${listed} instead of ${entry} in docs/API.md`);
-  }
-  for (const name of documented.keys()) assert.ok(names.has(name), `docs/API.md lists ${name}, which is not deprecated`);
+  assert.deepEqual(deprecationProblems(names, documented), []);
+});
+
+test('a new deprecation fails the check until it is documented under its entry point with a replacement', () => {
+  const found = (source) => new Map(deprecatedNames('x.ts', source).map((name) => [name, '@wise/flow']));
+  const added = found('export const a = 1;\n/** @deprecated Use `a`. */\nexport const b = 2;\n');
+  const section = (rows) => documentedDeprecations(`\n## Deprecated names\n\n### \`@wise/flow\`\n\n| Name | Replacement |\n| --- | --- |\n${rows}\n## Later\n`);
+  assert.deepEqual(deprecationProblems(added, section('')), ['b is deprecated but not listed under "Deprecated names" in docs/API.md']);
+  assert.deepEqual(deprecationProblems(added, section('| `b` | none |\n')), ['b has no replacement in docs/API.md']);
+  assert.deepEqual(deprecationProblems(new Map([['b', '@wise/flow/react']]), section('| `b` | `a` |\n')), ['b is listed under @wise/flow instead of @wise/flow/react in docs/API.md']);
+  assert.deepEqual(deprecationProblems(new Map(), section('| `b` | `a` |\n')), ['docs/API.md lists b, which is not deprecated']);
+  assert.deepEqual(deprecationProblems(added, section('| `b` | `a` |\n')), []);
 });
 
 test('deprecations are found on re-exports, declarations and members, and only there', () => {
