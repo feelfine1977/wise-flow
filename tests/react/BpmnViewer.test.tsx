@@ -197,7 +197,8 @@ describe("BpmnView through the viewer seam", () => {
     act(() => deferred.instances[0].pending[0]());
     await waitFor(() => expect(onImport).toHaveBeenCalledTimes(1));
     expect(seen).toEqual([{ status: "ready", zooms: ["fit-viewport"] }]);
-    expect(onImport.mock.calls[0]).toEqual([expect.objectContaining({ mapping: expect.any(Array) })]);
+    // The headless import: one mapping row per task of the diagram.
+    expect(onImport.mock.calls[0]).toEqual([expect.objectContaining({ mapping: Array.from({ length: 7 }, () => expect.anything()) })]);
     // Other overlays are not another import.
     rerender(<Deferred xml={xml} onImport={onImport} overlays={[{ kind: "badge", target: "Task_CreatePO", payload: { glyph: "≥1" } }]} />);
     await waitFor(() => expect(deferred.instances[0].overlays).toHaveLength(1));
