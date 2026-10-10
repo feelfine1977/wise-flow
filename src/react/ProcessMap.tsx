@@ -142,7 +142,6 @@ function ProcessMapInner(props: ProcessMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<CanvasMapHandle>(null);
 
-
   // Actions menu
   const allStages = useMemo(() => (graph.groups ?? []).filter((g) => g.kind === "stage" && !g.parent).map((g) => g.id), [graph]);
   const menuActions = useMenuActions(props, shown, labelOf, dispatch);
@@ -193,7 +192,6 @@ function ProcessMapInner(props: ProcessMapProps) {
     return { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) };
   }), [dispatch]);
   const overlayHandlers = useMemo(() => overlayPointer(dispatch), [dispatch]);
-
 
   // Bring a node the keyboard moved to into view.
   const reveal = useCallback(
