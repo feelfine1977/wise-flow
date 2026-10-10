@@ -149,6 +149,27 @@ describe("stopping a layout", () => {
     expect(worker.layouts).toHaveLength(1);
   });
 
+  it("ignores the late answer of a worker a timeout terminated in a scope and starts a new worker next", async () => {
+    const scope = createLayoutScope();
+    const quick = { ...viaWorker, timeoutMs: 30 };
+    const pending = scope.layout(pair, quick).catch((error: Error) => error);
+    const first = await running();
+    expect(await pending).toEqual(new Error("layout timed out after 30 ms"));
+    expect(first.terminated).toBe(true);
+
+    first.answer();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(knownLayout(scope, pair, quick)).toBeUndefined();
+    expect(scope.size).toBe(0);
+
+    const next = scope.layout(pair, viaWorker);
+    const second = await running(1);
+    expect(second).not.toBe(first);
+    second.answer();
+    expect((await next).nodes.b.x).toBe(100);
+    scope.dispose();
+  });
+
   it("terminates the worker of a request a newer one in the same scope replaces", async () => {
     const scope = createLayoutScope();
     const older = scope.layout(pair, viaWorker);
