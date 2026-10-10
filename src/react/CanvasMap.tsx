@@ -1,5 +1,5 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
-import { type Box, type HitItem, type Locale, type XY, t } from "../core/index.js";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type Box, type EdgeBudget, type HitItem, type Locale, type XY, formatCount, t } from "../core/index.js";
 import { type CanvasTokens, CanvasRenderer, type DrawState, type PreparedScene, readTokens } from "../canvas/index.js";
 
 export interface CanvasMapProps {
@@ -18,6 +18,10 @@ export interface CanvasMapProps {
   onViewportChange?: (v: { x: number; y: number; zoom: number }) => void;
   /** Elements listed for assistive technology (`aria-activedescendant` targets). */
   descendants?: { id: string; kind: "node" | "edge" | "group"; description: string }[];
+  /** How many of the edges in view are drawn (`budgetEdges`); a note says when edges are withheld. Default `"all"`. */
+  edgeBudget?: EdgeBudget;
+  /** Called with the note once its numbers have settled, for a live region. */
+  onAnnounce?: (text: string) => void;
   className?: string;
   children?: React.ReactNode;
 }
@@ -35,6 +39,21 @@ export interface CanvasMapHandle {
 
 const ZOOM_STEP = 1.2;
 
+/** The note shown while the edge budget withholds edges, announced once its numbers settle. */
+export function EdgeNote({ withheld, locale, onAnnounce }: { withheld?: { shown: number; total: number }; locale: Locale; onAnnounce?: (text: string) => void }) {
+  const text = withheld && t(locale, "map.edges.withheld", { shown: formatCount(withheld.shown, locale), total: formatCount(withheld.total, locale) });
+  useEffect(() => {
+    if (!text || !onAnnounce) return;
+    const timer = setTimeout(() => onAnnounce(text), 400);
+    return () => clearTimeout(timer);
+  }, [text, onAnnounce]);
+  return text ? (
+    <div className="wf-panel wf-edge-note" role="note" data-testid="wf-edge-note">
+      {text}
+    </div>
+  ) : null;
+}
+
 /**
  * Canvas renderer host: a full-size canvas with pan (drag, wheel), zoom
  * (Ctrl or Cmd with the wheel, pinch, buttons), hover and click through the
@@ -43,7 +62,7 @@ const ZOOM_STEP = 1.2;
  * focus, dimming) comes from the parent; keyboard handling stays there.
  */
 export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function CanvasMap(
-  { scene, state, locale = "en", fitKey, fitView = true, describe, onHover, onClick, onContextMenu, onViewportChange, descendants, className, children },
+  { scene, state, locale = "en", fitKey, fitView = true, describe, onHover, onClick, onContextMenu, onViewportChange, descendants, edgeBudget, onAnnounce, className, children },
   ref,
 ) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -60,6 +79,8 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
     fittedView.current = rendererRef.current?.getViewport();
   };
   const [ready, setReady] = useState(false);
+  const [withheld, setWithheld] = useState<{ shown: number; total: number }>();
+  const withheldKey = useRef("");
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
@@ -67,6 +88,12 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
     if (!canvas || !host) return;
     const renderer = new CanvasRenderer(canvas, { tokens: readTokens(host) });
     renderer.onViewportChange = (v) => onViewportChange?.(v);
+    renderer.onDraw = ({ withheld: w }) => {
+      const key = w ? `${w.shown}/${w.total}` : "";
+      if (key === withheldKey.current) return;
+      withheldKey.current = key;
+      setWithheld(w && { shown: w.shown, total: w.total });
+    };
     rendererRef.current = renderer;
     const resize = () => {
       const rect = host.getBoundingClientRect();
@@ -109,6 +136,13 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
   useEffect(() => {
     rendererRef.current?.setState(state);
   }, [state]);
+
+  useEffect(() => {
+    const r = rendererRef.current;
+    if (!r) return;
+    r.drawOptions = { ...r.drawOptions, edgeBudget };
+    r.requestDraw();
+  }, [edgeBudget]);
 
   useImperativeHandle(
     ref,
@@ -230,6 +264,19 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
     [onContextMenu],
   );
 
+  // Not rebuilt when the note changes.
+  const listed = useMemo(
+    () =>
+      descendants ? (
+        <div className="wf-sr-only" data-testid="wf-canvas-descendants">
+          {descendants.map((d) => (
+            <span key={`${d.kind}:${d.id}`} id={`wf-${d.kind}-${d.id}`} role="img" aria-label={d.description} data-id={d.id} data-kind={d.kind} />
+          ))}
+        </div>
+      ) : null,
+    [descendants],
+  );
+
   return (
     <div
       ref={hostRef}
@@ -244,16 +291,15 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
       data-testid="wf-canvas-map"
     >
       <canvas ref={canvasRef} aria-hidden="true" />
-      {descendants ? (
-        <div className="wf-sr-only" data-testid="wf-canvas-descendants">
-          {descendants.map((d) => (
-            <span key={`${d.kind}:${d.id}`} id={`wf-${d.kind}-${d.id}`} role="img" aria-label={d.description} data-id={d.id} data-kind={d.kind} />
-          ))}
-        </div>
-      ) : null}
+      {listed}
       {tooltip ? (
         <div className="wf-canvas-map__tooltip" role="tooltip" style={{ left: tooltip.x, top: tooltip.y }}>
           {tooltip.text}
+        </div>
+      ) : null}
+      {withheld ? (
+        <div className="wf-overlay-panel wf-overlay-panel--bottom-center">
+          <EdgeNote withheld={withheld} locale={locale} onAnnounce={onAnnounce} />
         </div>
       ) : null}
       <div className="wf-overlay-panel wf-overlay-panel--bottom-left">

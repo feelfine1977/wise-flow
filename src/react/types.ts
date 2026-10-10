@@ -2,6 +2,7 @@ import type { Node, Edge } from "@xyflow/react";
 import type {
   AbstractOptions,
   ActivityLabelOptions,
+  EdgeBudget,
   EdgeMark,
   EdgeRoute,
   Filter,
@@ -132,6 +133,14 @@ export interface ProcessMapProps {
    * pages with a search field. Default 500.
    */
   describedLimit?: number;
+  /**
+   * How many of the edges in view the map draws (`budgetEdges`): protected
+   * edges (with an overlay mark on them, selected, at the keyboard
+   * position or on a highlighted path) first, then by weight and id. While
+   * edges are withheld the map says how many it shows; the table view lists
+   * every edge. Default `"all"`.
+   */
+  edgeBudget?: EdgeBudget;
   selection?: Selection;
   onSelect?: (selection: Selection) => void;
   onHover?: (id: string | null) => void;
