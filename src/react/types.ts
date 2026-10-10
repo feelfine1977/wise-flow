@@ -125,6 +125,13 @@ export interface ProcessMapProps {
   renderer?: "auto" | "svg" | "canvas";
   /** Elements (activities plus paths) above which `auto` uses the canvas. Default 2000. */
   canvasThreshold?: number;
+  /**
+   * Activities plus groups above which the Canvas map lists for assistive
+   * technology only the element at the keyboard position and its neighbours
+   * (predecessors, successors, group), and the table view shows its rows in
+   * pages with a search field. Default 500.
+   */
+  describedLimit?: number;
   selection?: Selection;
   onSelect?: (selection: Selection) => void;
   onHover?: (id: string | null) => void;

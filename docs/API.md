@@ -386,12 +386,16 @@ export function ProcessMap(props: {
   lanes?: LaneMode; contextMenu?: boolean;
   onContextMenu?: (target: MenuTarget, actions: MenuAction[]) => MenuAction[] | false | void;
   onAction?: (action: MenuAction, target: MenuTarget) => void | string; announce?: string;
+  describedLimit?: number;   // default 500 activities plus groups
 }): JSX.Element;
 export interface Selection { nodes: string[]; edges: string[]; groups: string[] }
 
-export function TableAlternative(props: { graph; overlays?; scales?; locale?; selection?; onSelect?; tables? }): JSX.Element;
+export function TableAlternative(props: { graph; overlays?; scales?; locale?; selection?; onSelect?; tables?; pageSize?: number }): JSX.Element;
 // A click or Enter on an activity or path row selects as a click on the map does: the row alone, nothing when it was
 // selected alone, and with Shift, Ctrl or Cmd the row is added to the selection or removed from it.
+// With `pageSize` every table shows one page of rows with "Previous rows" and "Next rows" buttons and a status line
+// ("Rows 1–100 of 20,000"), a search field filters the rows of all tables by their text, and the tables carry
+// `aria-rowcount` and their rows `aria-rowindex`. Without it (default) every row is rendered and there is no search.
 export function TraceTimeline(props: { traces: Trace[]; anchor?: string; annotations?: Annotation[]; locale?;
   width?; rowHeight?; colorKey?; onSelect?; table?: boolean }): JSX.Element;
 export function AbstractionControls(props), Legend(props), OverlayLayer(props);
@@ -429,6 +433,20 @@ points at the focused node; every node, edge and group carries an
 region. `renderer: "auto"` draws on the Canvas renderer above
 `canvasThreshold` (2,000 activities plus paths), `"canvas"` always,
 `"svg"` never (see "Interaction and Canvas (0.3)").
+
+Large maps: the Canvas renderer lists every activity and group in a hidden
+element list for assistive technology (the targets of
+`aria-activedescendant`). Above `describedLimit` (default 500 activities
+plus groups) the list holds at most that many elements: the element the
+keyboard is on (before the first key, the selected activity or the one Home
+goes to), the ends of a path, their group, and their predecessors and
+successors. Every keyboard move re-centres it, so the keys reach every
+activity along the paths. The live region and the map's description then
+say how many activities and paths there are and that the table view lists
+all of them, and the table view shows 100 rows per page with a search field
+(`TableAlternative` with `pageSize`). At or below the limit nothing changes.
+New strings `map.described.bounded`, `table.search`, `table.rows`,
+`table.previous` and `table.next` in English and German.
 
 Stylesheets: `@wise/flow/tokens.css` (design tokens, light and dark),
 `@wise/flow/style.css` (components) and `@xyflow/react/dist/style.css`.

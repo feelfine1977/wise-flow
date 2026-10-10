@@ -39,3 +39,14 @@ export const InsideMap: Story = {
     );
   },
 };
+
+/** The tables of a large map: ten rows per page and a search field over all three. */
+export const Paged: Story = {
+  name: "Paged and searchable tables",
+  args: { pageSize: 10 },
+  render: (args) => {
+    const [selection, setSelection] = useState<Selection>({ nodes: [], edges: [], groups: [] });
+    const overlays = useMemo(() => overlaysFor(constraintItems(vendorSceneKey), { graph: vendorScene, locale: args.locale }), [args.locale]);
+    return <TableAlternative {...args} graph={vendorScene} overlays={overlays} selection={selection} onSelect={setSelection} />;
+  },
+};

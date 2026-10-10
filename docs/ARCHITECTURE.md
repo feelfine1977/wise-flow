@@ -275,7 +275,9 @@ finds inside the viewport; `CanvasRenderer` owns the canvas, the viewport and th
 interaction state and redraws on animation frames; `CanvasMap` adds the
 pointer handling (drag to pan, wheel, Ctrl or Cmd with the wheel and pinch
 to zoom, hover through the R-tree with a tooltip, click, right click), a
-hidden element list for assistive technology and the zoom buttons; its
+hidden element list for assistive technology (above `describedLimit`, 500
+activities plus groups, only the keyboard position's neighbourhood, with the
+table view paged and searchable) and the zoom buttons; its
 pointer callbacks become the map controller's events like React Flow's.
 `ProcessMap` switches to it above `canvasThreshold` (2,000 activities
 plus paths) or on `renderer="canvas"` and keeps the selection, the menu,
