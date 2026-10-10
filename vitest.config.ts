@@ -1,11 +1,17 @@
 import { defineConfig } from "vitest/config";
 
+const largeInputs = ["tests/core/graph-size.test.ts"];
+
 export default defineConfig({
   test: {
     projects: [
-      { extends: true, test: { name: "core", include: ["tests/core/**/*.test.ts"], environment: "node" } },
+      { extends: true, test: { name: "core", include: ["tests/core/**/*.test.ts"], exclude: [...largeInputs], environment: "node" } },
+      // Holds a million-edge scene (about 1.9 GB per fork with coverage): run alone, after the others.
+      { extends: true, test: { name: "large", include: largeInputs, environment: "node", sequence: { groupOrder: 1 }, maxWorkers: 1 } },
       { extends: true, test: { name: "react", include: ["tests/react/**/*.test.tsx"], environment: "jsdom", setupFiles: ["tests/react/setup.ts"] } },
     ],
+    // Hosted runners have two to four cores; more forks than that only multiply the memory a run needs.
+    maxWorkers: 4,
     testTimeout: 30000,
     hookTimeout: 30000,
     allowOnly: !process.env.CI,
