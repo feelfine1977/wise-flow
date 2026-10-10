@@ -25,9 +25,10 @@ plus edges (default 500); above it the layout rejects with the new
 `LayoutUnavailableError` instead of freezing the page. `engine: "dagre"`
 still runs whatever the size.
 
-`useStableLayout` aborts the layout of a request it no longer shows; on a
-`LayoutUnavailableError` it keeps the provisional positions (status
-`"error"`, `provisional: true`). `<ProcessMap/>` then keeps the provisional
+`useStableLayout` aborts the layout of a request it no longer shows (it
+passes its own `signal`; one in its options, or in `<ProcessMap layout>`, has
+no effect there); on a `LayoutUnavailableError` it keeps the provisional
+positions (status `"error"`, `provisional: true`). `<ProcessMap/>` then keeps the provisional
 scene and its status panel and description say "The refined layout is
 unavailable; the map shows a provisional arrangement." (new string
 `map.layoutUnavailable`, English and German); `data-layout-status` is

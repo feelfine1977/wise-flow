@@ -532,7 +532,9 @@ gives `"error"` with `positions` undefined, as before, except a
 `provisional: true`, status `"error"` and the error. Until this release
 `positions` held the previous result (or nothing) while a layout was pending.
 The hook aborts the layout of a request it no longer shows (changed scenes
-or options, unmount), which terminates its worker.
+or options, unmount), which terminates its worker. It passes its own `signal`:
+a `signal` in its options, or in `<ProcessMap layout>`, is replaced and has no
+effect there.
 
 Refined layout unavailable: when the layout fails with
 `LayoutUnavailableError`, `<ProcessMap/>` keeps the provisional scene, fully

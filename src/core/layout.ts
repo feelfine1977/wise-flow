@@ -93,6 +93,7 @@ export interface LayoutOptions {
   /**
    * Stops waiting: the layout rejects with the signal's reason, and a worker that
    * runs it for nobody else is terminated. Not part of the layout's inputs.
+   * `useStableLayout` and `<ProcessMap/>` pass their own in its place.
    */
   signal?: AbortSignal;
   /**
