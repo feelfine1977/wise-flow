@@ -35,8 +35,9 @@ Never rename a `darwin` baseline to `linux`. Linux approval requires the matchin
 Linux environment. Failure artifacts contain actual/diff images and traces,
 not automatically approved snapshots.
 
-Historical provenance for recovered interaction Linux images is retained in
-[visual/baseline-provenance.json](visual/baseline-provenance.json). They came from
-[run 34035991497](https://github.com/feelfine1977/wise-flow/actions/runs/34035991497),
-artifact 9990219174, source `a561766aa158e9effeee132f6c1c045feb606b6a`.
-Their recovery does not establish a new candidate's Linux visual result.
+The origin of the current reference images is recorded in
+[visual/baseline-provenance.json](visual/baseline-provenance.json): the source
+commit, the date of the owner's approval, the macOS version and the container
+image the Linux images were captured in, and the SHA-256 of all twelve files.
+The Linux images were captured in that container, not on the hosted runner; a
+strict run on the hosted runner is what qualifies them there.
