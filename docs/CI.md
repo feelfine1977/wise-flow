@@ -30,7 +30,10 @@ matrix yet; local macOS execution does not prove Windows support.
 
 ## Coverage and test-driven changes
 
-Vitest 4 uses separate Node and jsdom projects. Coverage includes **all production
+Vitest 4 uses separate Node and jsdom projects. A third Node project,
+`core-large`, holds the graph-sized inputs (a million edges, up to about 1.6 GB of
+heap in one worker); it runs after the others, alone, so parallel workers do not
+exhaust the memory of a small runner and get the worker killed. Coverage includes **all production
 TS/TSX files**, excluding declaration-only files; unimported implementation files
 remain counted. Thresholds are statements **93%**, lines **95%**, branches **84%**,
 functions **92%**: the measured whole-source values (93.3%, 95.08%, 84.18%, 92.24%
