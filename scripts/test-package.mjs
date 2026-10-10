@@ -57,10 +57,10 @@ run(process.execPath, ['bpmn.mjs'], consumer);
 writeFileSync(join(consumer, 'tsconfig.json'), JSON.stringify({ compilerOptions: { target: 'ES2022', module: 'NodeNext', moduleResolution: 'NodeNext', strict: true, noEmit: true, skipLibCheck: false, lib: ['ES2022', 'DOM'] }, files: ['types.ts'] }));
 run(process.execPath, ['node_modules/typescript/bin/tsc', '-p', '.'], consumer);
 const installedRequire = createRequire(join(consumer, 'package.json'));
-for (const path of ['tokens.css', 'style.css', 'react-flow.css', 'bpmn.css', 'bpmn/assets/bpmn-font/css/bpmn.css', 'bpmn/assets/bpmn-font/font/bpmn.woff2', 'elk-worker.min.js']) {
+for (const path of ['tokens.css', 'style.css', 'react-flow.css', 'bpmn.css', 'bpmn/assets/bpmn-font/css/bpmn.css', 'bpmn/assets/bpmn-font/font/bpmn.woff2', 'elk-worker.min.js', 'dagre-worker.min.js']) {
   assert.ok(readFileSync(installedRequire.resolve(`@wise/flow/${path}`)).length > 0);
 }
-for (const path of ['LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md', 'dist/licenses/bpmn-js.txt', 'dist/licenses/elkjs.txt', 'dist/licenses/@xyflow-react.txt']) assert.ok(existsSync(join(consumer, 'node_modules/@wise/flow', path)));
+for (const path of ['LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md', 'dist/licenses/bpmn-js.txt', 'dist/licenses/elkjs.txt', 'dist/licenses/@xyflow-react.txt', 'dist/licenses/@dagrejs-dagre.txt', 'dist/licenses/@dagrejs-graphlib.txt']) assert.ok(existsSync(join(consumer, 'node_modules/@wise/flow', path)));
 // Load tooling from the consumer too, so its bundling cannot see checkout dependencies.
 const { build, preview } = await import(pathToFileURL(join(consumer, 'node_modules/vite/dist/node/index.js')).href);
 await build({ root: consumer, configFile: false, build: { target: 'es2022', assetsInlineLimit: 0 } });
@@ -130,10 +130,11 @@ try {
   await page.evaluate(() => document.fonts.ready);
   assert.ok(await page.evaluate(() => document.fonts.check('16px bpmn')));
   assert.ok(requests.some(u => /elk-worker.*\.js/.test(u)), 'ELK worker must load as an asset');
+  assert.ok(requests.some(u => /dagre-worker.*\.js/.test(u)), 'Dagre worker must load as an asset');
   assert.ok(requests.some(u => /bpmn.*\.woff2/.test(u)), 'BPMN font must load as an asset');
   assert.deepEqual(errors, []);
   await page.screenshot({ path: join(artifactDir, 'packed-consumer.png'), fullPage: true });
-  metadata.checks = `passed: isolated npm ci, Node ESM/headless, ELK/Dagre, BPMN round trip, NodeNext declarations, Vite production build, ${browserName} map/viewer/modeler/selection lifecycle and user deselection/CSS/fonts/worker`;
+  metadata.checks = `passed: isolated npm ci, Node ESM/headless, ELK/Dagre, BPMN round trip, NodeNext declarations, Vite production build, ${browserName} map/viewer/modeler/selection lifecycle and user deselection/CSS/fonts/ELK and Dagre workers`;
   writeFileSync(metadataPath, JSON.stringify(metadata, null, 2) + '\n');
   console.log(metadata.checks + `\nArtifact: ${tarball}\nSHA256: ${sha}\nConsumer: ${consumer}`);
 } catch (error) {

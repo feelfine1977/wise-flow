@@ -13,7 +13,7 @@ export function resolvedSizes(graph: FlowGraph, { nodeSize }: LayoutOptions): Ma
 
 /**
  * What the engines read: nodes with their resolved sizes (callbacks count by what
- * they return), edges, groups and every option, an ELK instance by identity.
+ * they return), edges, groups and every option but the signal, an ELK instance by identity.
  */
 export function layoutInputKey(graph: FlowGraph, options: LayoutOptions, sizes = resolvedSizes(graph, options)): string {
   const { elk, elkWorkerUrl } = options;
@@ -22,6 +22,6 @@ export function layoutInputKey(graph: FlowGraph, options: LayoutOptions, sizes =
     graph.nodes.map((n) => [n.id, n.label, n.group, sizes.get(n.id)]),
     graph.edges.map((e) => [e.id, e.source, e.target]),
     graph.groups?.map((g) => [g.id, g.kind, g.label, g.parent]),
-    { ...options, nodeSize: 0, cacheKey: 0, elk: elk && engineIds.get(elk), elkWorkerUrl: elkWorkerUrl && String(elkWorkerUrl) },
+    { ...options, nodeSize: 0, cacheKey: 0, signal: undefined, elk: elk && engineIds.get(elk), elkWorkerUrl: elkWorkerUrl && String(elkWorkerUrl) },
   ]);
 }

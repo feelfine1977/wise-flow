@@ -1,10 +1,11 @@
 /**
- * Layout: ELK layered (in a Web Worker when a worker URL is given, in-process
- * otherwise), Dagre as fallback, and union layouts for stable positions across
- * compared scenes.
+ * Layout: ELK layered and Dagre (each in a Web Worker when its worker URL is
+ * given, in-process otherwise), Dagre as fallback, and union layouts for stable
+ * positions across compared scenes. A layout runs while somebody waits for it:
+ * a worker whose layout nobody waits for any more is terminated.
  */
 import type { ELK, ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api.js";
-import { Graph as DagreGraph, layout as dagreLayout } from "@dagrejs/dagre";
+import * as dagreModule from "@dagrejs/dagre";
 import { type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, byId, indexGraph } from "./model.js";
 import { layoutInputKey, resolvedSizes } from "./layout-key.js";
 import { nodeSizeTokens } from "./tokens.js";
@@ -66,21 +67,46 @@ export interface LayoutOptions {
   /**
    * URL of `elkjs/lib/elk-worker.min.js` as served by the application; when given
    * and `Worker` exists, ELK runs in a Web Worker. Otherwise the bundled build runs
-   * in-process (Node and browsers).
+   * in-process (Node and browsers), where a running layout cannot be interrupted.
    */
   elkWorkerUrl?: string | URL;
+  /**
+   * URL of `@wise/flow/dagre-worker.min.js` as served by the application; when
+   * given and `Worker` exists, Dagre runs in a Web Worker, also as the fallback.
+   */
+  dagreWorkerUrl?: string | URL;
   /** A prepared ELK instance, e.g. with a custom worker factory. */
   elk?: ELK;
   /** Extra ELK layout options merged over the defaults. */
   elkOptions?: Record<string, string>;
-  /** Milliseconds before the layout falls back to Dagre. Default 20000. */
+  /**
+   * Milliseconds each engine run may take (ELK; Dagre in a worker). Its worker is
+   * then terminated; `auto` falls back to Dagre, otherwise the layout fails. Default 20000.
+   */
   timeoutMs?: number;
+  /**
+   * Most nodes plus edges the Dagre fallback lays out on the calling thread
+   * (without `dagreWorkerUrl`); above that the layout fails with
+   * `LayoutUnavailableError`. Default 500.
+   */
+  fallbackLimit?: number;
+  /**
+   * Stops waiting: the layout rejects with the signal's reason, and a worker that
+   * runs it for nobody else is terminated. Not part of the layout's inputs.
+   * `useStableLayout` and `<ProcessMap/>` pass their own in its place.
+   */
+  signal?: AbortSignal;
   /**
    * Cache key; the same key returns the cached positions without recomputing,
    * whatever the graph and the other options. The caller owns the key and forgets
    * it with `clearLayoutCache(key)` when its inputs change.
    */
   cacheKey?: string;
+}
+
+/** The Dagre fallback would have run on the calling thread above `fallbackLimit`; it did not. */
+export class LayoutUnavailableError extends Error {
+  override name = "LayoutUnavailableError";
 }
 
 /** Default box of each node kind (`nodeSizeTokens`). */
@@ -162,9 +188,6 @@ type ElkCtor = new (args?: { workerUrl?: string; workerFactory?: (url?: string) 
 
 let inProcessElk: Promise<ELK> | undefined;
 
-/** ELK instances that run in a Web Worker, by worker URL, with the number of their users. */
-const workerElks = new Map<string, { elk: Promise<ELK>; users: number }>();
-
 function unwrap(mod: unknown): ElkCtor {
   const m = mod as { default?: ElkCtor & { default?: ElkCtor } };
   const ctor = (m.default ?? mod) as ElkCtor & { default?: ElkCtor };
@@ -176,28 +199,116 @@ function unwrap(mod: unknown): ElkCtor {
 const loadApiCtor = () => import("elkjs/lib/elk-api.js").then(unwrap);
 const loadBundledCtor = () => import("elkjs/lib/elk.bundled.js").then(unwrap);
 
-/** The worker URL a layout with these options runs ELK in, if any. */
-function workerUrlOf(o: LayoutOptions): string | undefined {
-  return !o.elk && o.elkWorkerUrl && typeof Worker !== "undefined" ? String(o.elkWorkerUrl) : undefined;
+/** The worker URL a layout runs an engine in, if any. */
+function workerUrl(url: string | URL | undefined): string | undefined {
+  return url && typeof Worker !== "undefined" ? String(url) : undefined;
 }
 
-/** Use the worker for a URL, starting it when nobody uses it yet. */
-function acquireWorker(url: string): Promise<ELK> {
-  let entry = workerElks.get(url);
-  if (!entry) {
-    entry = { elk: loadApiCtor().then((Ctor) => new Ctor({ workerUrl: url, workerFactory: (u) => new Worker(u!) })), users: 0 };
-    workerElks.set(url, entry);
-  }
-  entry.users++;
-  return entry.elk;
+/**
+ * One Web Worker, running one layout at a time: ELK's worker through ELK's API,
+ * or the package's Dagre worker, which answers a `DagreInput` with `{ output }`
+ * or `{ error }`. Once stopped, nothing it sends is read.
+ */
+interface LayoutWorker {
+  elk(): Promise<ELK>;
+  dagre(input: DagreInput): Promise<DagreOutput>;
+  stop(): void;
 }
 
-/** Stop using the worker for a URL; the last user terminates it. */
-function releaseWorker(url: string): void {
-  const entry = workerElks.get(url);
-  if (!entry || --entry.users > 0) return;
-  workerElks.delete(url);
-  entry.elk.then((elk) => elk.terminateWorker(), () => undefined);
+function startWorker(url: string): LayoutWorker {
+  let stopped = false;
+  let elk: Promise<ELK> | undefined;
+  let worker: Worker | undefined;
+  let read: ((event: MessageEvent) => void) | undefined;
+  const open = (reader: (event: MessageEvent) => void) => {
+    read = reader;
+    if (!worker) {
+      worker = new Worker(url);
+      worker.onmessage = (event) => stopped || read!(event);
+      if (stopped) worker.terminate();
+    }
+    return worker;
+  };
+  return {
+    elk: () => (elk ??= loadApiCtor().then((Ctor) => new Ctor({
+      workerUrl: url,
+      workerFactory: () => {
+        const port = { postMessage: (message: unknown) => worker!.postMessage(message), terminate: () => worker!.terminate(), onmessage: null as ((event: MessageEvent) => void) | null };
+        open((event) => port.onmessage?.(event));
+        return port as unknown as Worker;
+      },
+    }))),
+    dagre: (input) => new Promise((resolve, reject) => {
+      open(({ data }: MessageEvent<{ output?: DagreOutput; error?: string }>) => (data.output ? resolve(data.output) : reject(new Error(data.error)))).postMessage(input);
+    }),
+    stop() {
+      stopped = true;
+      worker?.terminate();
+    },
+  };
+}
+
+/** An idle worker per URL, kept while a scope holds the URL. */
+const idle = new Map<string, LayoutWorker>();
+/** Number of scopes that hold each URL. */
+const holders = new Map<string, number>();
+
+function holdUrl(url: string, change: 1 | -1): void {
+  const count = (holders.get(url) ?? 0) + change;
+  if (count > 0) return void holders.set(url, count);
+  holders.delete(url);
+  idle.get(url)?.stop();
+  idle.delete(url);
+}
+
+/** The worker of one layout: taken on first use, replaced after `stop`, given back at the end. */
+function lease(url: string) {
+  let current: LayoutWorker | undefined;
+  return {
+    get() {
+      if (!current) {
+        current = idle.get(url) ?? startWorker(url);
+        idle.delete(url);
+      }
+      return current;
+    },
+    stop() {
+      current?.stop();
+      current = undefined;
+    },
+    done() {
+      if (current && holders.has(url) && !idle.has(url)) idle.set(url, current);
+      else current?.stop();
+      current = undefined;
+    },
+  };
+}
+
+type Lease = ReturnType<typeof lease>;
+
+class LayoutTimeout extends Error {}
+
+/**
+ * `promise`, unless the signal aborts or `ms` pass first: then `stop` ends the
+ * run and the result rejects with the abort reason or a timeout.
+ */
+function guard<T>(promise: Promise<T>, ms: number, signal: AbortSignal, stop?: () => void): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const end = (error: unknown) => {
+      clear();
+      stop?.();
+      reject(error);
+    };
+    const abort = () => end(signal.reason);
+    const timer = setTimeout(() => end(new LayoutTimeout(`layout timed out after ${ms} ms`)), ms);
+    const clear = () => {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", abort);
+    };
+    if (signal.aborted) return abort();
+    signal.addEventListener("abort", abort);
+    promise.then((value) => (clear(), resolve(value)), (error) => (clear(), reject(error)));
+  });
 }
 
 interface Prepared {
@@ -314,40 +425,19 @@ function fromElk(result: ElkNode, p: Prepared): Positions {
   return createPositions({ nodes, groups, edges }, "elk", p.direction);
 }
 
-async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`layout timed out after ${ms} ms`)), ms);
-  });
-  try {
-    return await Promise.race([promise, timeout]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
-
-async function layoutElk(p: Prepared, o: LayoutOptions, holder?: EngineHolder): Promise<Positions> {
-  const url = workerUrlOf(o);
-  if (url === undefined) return runElk(o.elk ?? (await (inProcessElk ??= loadBundledCtor().then((Ctor) => new Ctor()))), p, o);
-  holder?.hold(url);
-  const elk = acquireWorker(url);
-  try {
-    return await runElk(await elk, p, o);
-  } finally {
-    releaseWorker(url);
-  }
-}
-
-async function runElk(elk: ELK, p: Prepared, o: LayoutOptions): Promise<Positions> {
+async function layoutElk(p: Prepared, o: LayoutOptions, signal: AbortSignal, work?: Lease): Promise<Positions> {
   const ms = o.timeoutMs ?? 20000;
   const partition = (o.orderStages ?? true) && p.useGroups;
+  const attempt = async (part: boolean) => {
+    const elk = await (work ? work.get().elk() : o.elk ?? (inProcessElk ??= loadBundledCtor().then((Ctor) => new Ctor())));
+    signal.throwIfAborted();
+    return fromElk(await guard(elk.layout(elkGraph(p, o, part)), ms, signal, work?.stop), p);
+  };
   try {
-    const result = await withTimeout(elk.layout(elkGraph(p, o, partition)), ms);
-    return fromElk(result, p);
+    return await attempt(partition);
   } catch (err) {
-    if (!partition) throw err;
-    const result = await withTimeout(elk.layout(elkGraph(p, o, false)), ms);
-    return fromElk(result, p);
+    if (!partition || err instanceof LayoutTimeout || signal.aborted) throw err;
+    return attempt(false);
   }
 }
 
@@ -356,69 +446,163 @@ async function runElk(elk: ELK, p: Prepared, o: LayoutOptions): Promise<Position
 
 const DAGRE_DIR: Record<LayoutDirection, "LR" | "TB" | "RL" | "BT"> = { RIGHT: "LR", DOWN: "TB", LEFT: "RL", UP: "BT" };
 
-function layoutDagre(p: Prepared, o: LayoutOptions): Positions {
+/** A Dagre layout as plain data, so that it can cross to a worker. */
+export interface DagreInput {
+  graph: { rankdir: string; nodesep: number; ranksep: number; marginx: number; marginy: number };
+  compound: boolean;
+  /** Group id, label and parent group. */
+  groups: [string, string, string?][];
+  /** Node id, width, height and group. */
+  nodes: [string, number, number, string?][];
+  /** Edge id, source and target. */
+  edges: [string, string, string][];
+}
+
+/** Centre and size of each node and group Dagre placed; the points of each edge. */
+export interface DagreOutput {
+  boxes: Record<string, { x: number; y: number; width?: number; height?: number }>;
+  edges: Record<string, XY[]>;
+}
+
+function dagreInput(p: Prepared, o: LayoutOptions): DagreInput {
   const spacing = o.spacing ?? {};
-  const g = new DagreGraph({ compound: p.useGroups, multigraph: true });
-  g.setGraph({
-    rankdir: DAGRE_DIR[p.direction],
-    nodesep: spacing.node ?? 28,
-    ranksep: spacing.layer ?? 64,
-    marginx: 8,
-    marginy: 8,
-  });
-  g.setDefaultEdgeLabel(() => ({}));
   const groupIds = new Set(p.groups.map((gr) => gr.id));
-  if (p.useGroups) {
-    for (const gr of p.groups) g.setNode(gr.id, { label: gr.label, clusterLabelPos: "top" });
-    for (const gr of p.groups) if (gr.parent && groupIds.has(gr.parent)) g.setParent(gr.id, gr.parent);
+  const inGroup = (id?: string) => (p.useGroups && id && groupIds.has(id) ? id : undefined);
+  return {
+    graph: { rankdir: DAGRE_DIR[p.direction], nodesep: spacing.node ?? 28, ranksep: spacing.layer ?? 64, marginx: 8, marginy: 8 },
+    compound: p.useGroups,
+    groups: p.useGroups ? p.groups.map((gr) => [gr.id, gr.label, inGroup(gr.parent)]) : [],
+    nodes: p.nodes.map((n) => {
+      const s = sizeOf(n, o);
+      return [n.id, s.width, s.height, inGroup(n.group)];
+    }),
+    edges: p.edges.filter((e) => e.source !== e.target).map((e) => [e.id, e.source, e.target]),
+  };
+}
+
+/** What the Dagre job uses of Dagre (its own types do not resolve for every consumer). */
+interface DagreGraph {
+  setGraph(label: object): unknown;
+  setDefaultEdgeLabel(label: () => object): unknown;
+  setNode(id: string, label: object): unknown;
+  setParent(id: string, parent: string): unknown;
+  setEdge(source: string, target: string, label: object, name: string): unknown;
+  node(id: string): unknown;
+  edge(edge: { v: string; w: string; name: string }): unknown;
+}
+
+/**
+ * Runs Dagre on an input. It reads nothing but its arguments: the package's
+ * Dagre worker runs this function's source as it is.
+ */
+export function dagreJob(dagre: { Graph: new (options: object) => DagreGraph; layout(graph: DagreGraph): void }, input: DagreInput): DagreOutput {
+  const g = new dagre.Graph({ compound: input.compound, multigraph: true });
+  g.setGraph(input.graph);
+  g.setDefaultEdgeLabel(() => ({}));
+  for (const [id, label] of input.groups) g.setNode(id, { label, clusterLabelPos: "top" });
+  for (const [id, , parent] of input.groups) if (parent) g.setParent(id, parent);
+  for (const [id, width, height, parent] of input.nodes) {
+    g.setNode(id, { width, height });
+    if (parent) g.setParent(id, parent);
   }
-  for (const n of p.nodes) {
-    const s = sizeOf(n, o);
-    g.setNode(n.id, { width: s.width, height: s.height });
-    if (p.useGroups && n.group && groupIds.has(n.group)) g.setParent(n.id, n.group);
+  for (const [id, source, target] of input.edges) g.setEdge(source, target, { minlen: 1 }, id);
+  dagre.layout(g);
+  const boxes: DagreOutput["boxes"] = {};
+  const edges: DagreOutput["edges"] = {};
+  for (const [id] of [...input.groups, ...input.nodes]) {
+    const v = g.node(id) as DagreOutput["boxes"][string] | undefined;
+    if (v) boxes[id] = { x: v.x, y: v.y, width: v.width, height: v.height };
   }
-  for (const e of p.edges) {
-    if (e.source === e.target) continue;
-    g.setEdge(e.source, e.target, { minlen: 1 }, e.id);
+  for (const [id, source, target] of input.edges) {
+    const v = g.edge({ v: source, w: target, name: id }) as { points?: XY[] } | undefined;
+    if (v?.points) edges[id] = v.points.map((pt) => ({ x: pt.x, y: pt.y }));
   }
-  dagreLayout(g);
+  return { boxes, edges };
+}
+
+function fromDagre({ boxes, edges: points }: DagreOutput, p: Prepared): Positions {
   const nodes: Record<string, Box> = {};
   const groups: Record<string, Box> = {};
   const edges: Record<string, EdgeRoute> = {};
   for (const n of p.nodes) {
-    const v = g.node(n.id) as { x: number; y: number; width: number; height: number } | undefined;
-    if (!v) continue;
-    nodes[n.id] = { x: v.x - v.width / 2, y: v.y - v.height / 2, width: v.width, height: v.height };
+    const v = boxes[n.id] as Box | undefined;
+    if (v) nodes[n.id] = { x: v.x - v.width / 2, y: v.y - v.height / 2, width: v.width, height: v.height };
   }
   if (p.useGroups) {
     for (const gr of p.groups) {
-      const v = g.node(gr.id) as { x?: number; y?: number; width?: number; height?: number } | undefined;
+      const v = boxes[gr.id];
       if (!v || v.width === undefined || v.x === undefined) continue;
-      const width = (v.width ?? 0) + GROUP_PADDING.left + GROUP_PADDING.right;
+      const width = v.width + GROUP_PADDING.left + GROUP_PADDING.right;
       const height = (v.height ?? 0) + GROUP_PADDING.top + GROUP_PADDING.bottom;
       groups[gr.id] = { x: v.x - width / 2, y: (v.y ?? 0) - height / 2 - (GROUP_PADDING.top - GROUP_PADDING.bottom) / 2, width, height };
     }
   }
-  for (const e of p.edges) {
-    if (e.source === e.target) continue;
-    const v = g.edge({ v: e.source, w: e.target, name: e.id }) as { points?: XY[] } | undefined;
-    if (v?.points) edges[e.id] = { points: v.points.map((pt) => ({ x: pt.x, y: pt.y })) };
-  }
+  for (const e of p.edges) if (points[e.id]) edges[e.id] = { points: points[e.id] };
   return createPositions({ nodes, groups, edges }, "dagre", p.direction);
+}
+
+/**
+ * Dagre in the Dagre worker if there is one, else on the calling thread; as a
+ * fallback on the calling thread only up to `fallbackLimit` nodes plus edges.
+ */
+async function layoutDagre(p: Prepared, o: LayoutOptions, signal: AbortSignal, work: Lease | undefined, fallback: boolean): Promise<Positions> {
+  const input = dagreInput(p, o);
+  if (work) return fromDagre(await guard(work.get().dagre(input), o.timeoutMs ?? 20000, signal, work.stop), p);
+  const size = p.nodes.length + p.edges.length;
+  const limit = o.fallbackLimit ?? 500;
+  if (fallback && size > limit) {
+    throw new LayoutUnavailableError(`Dagre fallback not run on the calling thread: ${p.nodes.length} nodes and ${p.edges.length} edges exceed the limit of ${limit}`);
+  }
+  return fromDagre(dagreJob(dagreModule, input), p);
 }
 
 // ---------------------------------------------------------------------------
 // Public API
 
-/** Keeps a worker running for a scope until the scope is disposed. */
-interface EngineHolder {
-  hold(url: string): void;
+/** A layout that runs while somebody waits for it. */
+interface Job {
+  positions: Promise<Positions>;
+  stop: AbortController;
+  waiting: number;
+  done: boolean;
+}
+
+function startJob(make: (signal: AbortSignal) => Promise<Positions>): Job {
+  const stop = new AbortController();
+  const job: Job = { positions: make(stop.signal), stop, waiting: 0, done: false };
+  job.positions.then((positions) => {
+    job.done = true;
+    settled.set(job, positions);
+  }, () => (job.done = true));
+  return job;
+}
+
+/**
+ * The job's positions, or the reason of the first of the signals to abort. When
+ * the last caller stops waiting the job is stopped, unless it is asked for again
+ * before the current task ends (a component that mounts again).
+ */
+function wait(job: Job, signals: (AbortSignal | undefined)[]): Promise<Positions> {
+  job.waiting++;
+  return new Promise((resolve, reject) => {
+    const listened = signals.filter((s): s is AbortSignal => s !== undefined);
+    const leave = () => listened.forEach((s) => s.removeEventListener("abort", abort));
+    const abort = () => {
+      leave();
+      const reason = listened.find((s) => s.aborted)!.reason;
+      reject(reason);
+      if (--job.waiting === 0) queueMicrotask(() => job.waiting === 0 && !job.done && job.stop.abort(reason));
+    };
+    if (listened.some((s) => s.aborted)) return abort();
+    listened.forEach((s) => s.addEventListener("abort", abort));
+    job.positions.then((positions) => (leave(), resolve(positions)), (error) => (leave(), reject(error)));
+  });
 }
 
 /** Layouts by caller key; the caller owns them. */
-const cache = new Map<string, Promise<Positions>>();
-/** The positions of finished layouts, by their promise. */
-const settled = new WeakMap<Promise<Positions>, Positions>();
+const cache = new Map<string, Job>();
+/** The positions of finished layouts. */
+const settled = new WeakMap<Job, Positions>();
 /** Counts global clears; a scope from an earlier generation forgets its layouts. */
 let generation = 0;
 
@@ -432,39 +616,53 @@ export function clearLayoutCache(key?: string): void {
   generation++;
 }
 
-/** The layout kept under `key`, or a new one that is kept unless it fails. Hits move to the end. */
-function remember(entries: Map<string, Promise<Positions>>, key: string, make: () => Promise<Positions>): Promise<Positions> {
-  let pending = entries.get(key);
+/** The layout kept under `key`, or a new one that is kept unless it fails or is stopped. Hits move to the end. */
+function remember(entries: Map<string, Job>, key: string, make: () => Job): Job {
+  let job = entries.get(key);
   entries.delete(key);
-  if (!pending) {
-    const made = make().catch((err) => {
-      if (entries.get(key) === made) entries.delete(key);
-      throw err;
-    });
-    made.then((positions) => settled.set(made, positions), () => undefined);
-    pending = made;
+  if (!job || job.stop.signal.aborted) {
+    const made = (job = make());
+    made.positions.catch(() => entries.get(key) === made && entries.delete(key));
   }
-  entries.set(key, pending);
-  return pending;
+  entries.set(key, job);
+  return job;
 }
 
-function run(graph: FlowGraph, options: LayoutOptions, holder?: EngineHolder): Promise<Positions> {
-  const key = options.cacheKey;
-  return key ? remember(cache, key, () => compute(graph, options, holder)) : compute(graph, options, holder);
+/** A job for these inputs; with a caller key, the one kept under it. */
+function jobFor(graph: FlowGraph, options: LayoutOptions, held?: Set<string>): Job {
+  const make = () => startJob((signal) => compute(graph, options, signal, held));
+  return options.cacheKey ? remember(cache, options.cacheKey, make) : make();
 }
 
-async function compute(graph: FlowGraph, options: LayoutOptions, holder?: EngineHolder): Promise<Positions> {
+async function compute(graph: FlowGraph, options: LayoutOptions, signal: AbortSignal, held?: Set<string>): Promise<Positions> {
   const p = prepare(graph, options);
   if (p.nodes.length === 0) {
     return createPositions({ nodes: {}, groups: {}, edges: {} }, options.engine === "dagre" ? "dagre" : "elk", p.direction);
   }
   const engine = options.engine ?? "auto";
-  if (engine === "dagre") return layoutDagre(p, options);
+  // The workers of this layout; a scope keeps those of each URL it used until it is disposed.
+  // A supplied ELK instance replaces ELK's worker, not Dagre's.
+  const [elk, dagre] = [options.elk ? undefined : options.elkWorkerUrl, options.dagreWorkerUrl].map((given) => {
+    const url = workerUrl(given);
+    if (url && held && !held.has(url)) {
+      held.add(url);
+      holdUrl(url, 1);
+    }
+    return url === undefined ? undefined : lease(url);
+  });
   try {
-    return await layoutElk(p, options, holder);
-  } catch (err) {
-    if (engine === "elk") throw err;
-    return layoutDagre(p, options);
+    if (engine !== "dagre") {
+      try {
+        return await layoutElk(p, options, signal, elk);
+      } catch (err) {
+        if (engine === "elk" || signal.aborted) throw err;
+      } finally {
+        elk?.done();
+      }
+    }
+    return await layoutDagre(p, options, signal, dagre, engine !== "dagre");
+  } finally {
+    dagre?.done();
   }
 }
 
@@ -472,10 +670,10 @@ async function compute(graph: FlowGraph, options: LayoutOptions, holder?: Engine
  * Lay out a graph. Positions are absolute and deterministic for the same input
  * (elements are sorted by id before the engine runs). Groups become compound nodes.
  * Without `cacheKey` nothing is kept; a worker started for this layout alone is
- * terminated when it is done.
+ * terminated when it is done or when `signal` aborts.
  */
 export function layout(graph: FlowGraph, options: LayoutOptions = {}): Promise<Positions> {
-  return run(graph, options);
+  return options.signal?.aborted ? Promise.reject(options.signal.reason) : wait(jobFor(graph, options), [options.signal]);
 }
 
 export interface LayoutScopeOptions {
@@ -488,10 +686,12 @@ export interface LayoutScopeOptions {
  * keys each layout by its inputs: the nodes' ids, labels, groups and resolved
  * sizes (size callbacks count by what they return), the edges' ids and endpoints,
  * the groups' ids, kinds, labels and parents, and every other option (an `elk`
- * instance by identity). A changed graph or changed options are laid out anew;
+ * instance by identity, `signal` not at all). A changed graph or changed options are laid out anew;
  * returning to earlier inputs is free. Caller keys go to the shared,
  * caller-owned cache as with `layout`. ELK workers the scope starts keep running
- * until it is disposed.
+ * until it is disposed. Each request replaces the scope's earlier one: if that
+ * is still running, it rejects with an `AbortError`, and its worker is
+ * terminated unless another caller still waits for it.
  */
 export interface LayoutScope {
   layout(graph: FlowGraph, options?: LayoutOptions): Promise<Positions>;
@@ -513,22 +713,17 @@ const finished = new WeakMap<LayoutScope, (graph: FlowGraph, options: LayoutOpti
  * holds for these inputs once their layout has finished; nothing is computed.
  */
 export function knownLayout(scope: LayoutScope, graph: FlowGraph, options: LayoutOptions = {}): Positions | undefined {
-  const pending = options.cacheKey ? cache.get(options.cacheKey) : undefined;
-  return pending ? settled.get(pending) : finished.get(scope)?.(graph, options);
+  const job = options.cacheKey ? cache.get(options.cacheKey) : undefined;
+  return job ? settled.get(job) : finished.get(scope)?.(graph, options);
 }
 
 /** Layouts keyed by the graph's nodes with resolved sizes, edges, groups and options; see `LayoutScope`. */
 export function createLayoutScope(scopeOptions: LayoutScopeOptions = {}): LayoutScope {
   const maxEntries = Math.max(1, scopeOptions.maxEntries ?? 8);
-  const entries = new Map<string, Promise<Positions>>();
+  const entries = new Map<string, Job>();
   const held = new Set<string>();
-  const holder: EngineHolder = {
-    hold(url) {
-      if (held.has(url)) return;
-      held.add(url);
-      acquireWorker(url);
-    },
-  };
+  /** The scope's latest request and what stops waiting for it when the next one comes. */
+  let latest: { job: Job; replaced: AbortController } | undefined;
   let seen = generation;
   const forgetIfCleared = () => {
     if (seen !== generation) entries.clear();
@@ -536,16 +731,24 @@ export function createLayoutScope(scopeOptions: LayoutScopeOptions = {}): Layout
   };
   const scope: LayoutScope = {
     layout(graph, options = {}) {
-      if (options.cacheKey) return run(graph, options, holder);
-      forgetIfCleared();
-      const sizes = resolvedSizes(graph, options);
-      const key = layoutInputKey(graph, options, sizes);
-      const pending = remember(entries, key, () => compute(graph, { ...options, nodeSize: (node) => sizes.get(node.id)! }, holder));
-      for (const oldest of entries.keys()) {
-        if (entries.size <= maxEntries) break;
-        entries.delete(oldest);
+      if (options.signal?.aborted) return Promise.reject(options.signal.reason);
+      let job: Job;
+      if (options.cacheKey) job = jobFor(graph, options, held);
+      else {
+        forgetIfCleared();
+        const sizes = resolvedSizes(graph, options);
+        const sized = { ...options, nodeSize: (node: FlowNode) => sizes.get(node.id)! };
+        job = remember(entries, layoutInputKey(graph, options, sizes), () => jobFor(graph, sized, held));
+        for (const oldest of entries.keys()) {
+          if (entries.size <= maxEntries) break;
+          entries.delete(oldest);
+        }
       }
-      return pending;
+      if (latest?.job !== job) {
+        latest?.replaced.abort(new DOMException("A newer layout request replaced this one.", "AbortError"));
+        latest = { job, replaced: new AbortController() };
+      }
+      return wait(job, [options.signal, latest.replaced.signal]);
     },
     layoutUnion(scenes, options) {
       return scope.layout(unionGraph(scenes), options);
@@ -556,15 +759,15 @@ export function createLayoutScope(scopeOptions: LayoutScopeOptions = {}): Layout
     },
     dispose() {
       entries.clear();
-      for (const url of held) releaseWorker(url);
+      for (const url of held) holdUrl(url, -1);
       held.clear();
     },
   };
   finished.set(scope, (graph, options) => {
     if (options.cacheKey) return undefined;
     forgetIfCleared();
-    const pending = entries.get(layoutInputKey(graph, options));
-    return pending && settled.get(pending);
+    const job = entries.get(layoutInputKey(graph, options));
+    return job && settled.get(job);
   });
   return scope;
 }

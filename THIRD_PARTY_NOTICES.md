@@ -14,6 +14,11 @@ assets retain their original licences; they are not relicensed as Flow code.
 - **elkjs 0.9.3:** `lib/elk-worker.min.js` copied unchanged. Original EPL-2.0
   licence: `dist/licenses/elkjs.txt`. Corresponding source and build instructions:
   https://github.com/kieler/elkjs/tree/v0.9.3
+- **@dagrejs/dagre 3.1.1** (with @dagrejs/graphlib 4.0.5 bundled in its build):
+  `dist/dagre.min.js` included unchanged in `dist/dagre-worker.min.js`, wrapped
+  in a function scope and followed by Flow's Dagre step. Original MIT notices
+  and licences: `dist/licenses/@dagrejs-dagre.txt` and
+  `dist/licenses/@dagrejs-graphlib.txt`. Source: https://github.com/dagrejs/dagre
 
 Other runtime dependencies are installed by npm with their own licence files.
 See `docs/LICENSING.md`. Preserve these notices when redistributing the assets.

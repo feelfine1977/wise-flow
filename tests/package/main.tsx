@@ -9,11 +9,25 @@ import '@wise/flow/bpmn.css';
 import '@wise/flow/tokens.css';
 import '@wise/flow/style.css';
 import elkWorkerUrl from '@wise/flow/elk-worker.min.js?url';
+import dagreWorkerUrl from '@wise/flow/dagre-worker.min.js?url';
 
 async function main() {
 const graph: FlowGraph = { nodes: [{ id: 'receive', kind: 'activity', label: 'Receive' }, { id: 'complete', kind: 'activity', label: 'Complete' }], edges: [{ id: 'flow', kind: 'follows', source: 'receive', target: 'complete' }] };
 const positions = await layout(graph, { engine: 'elk', elkWorkerUrl });
 if (positions.engine !== 'elk') throw new Error('Worker layout failed');
+// ELK fails on an unknown algorithm; the fallback may not run on this thread, so only the Dagre worker can run it.
+const fallback = await layout(graph, { elkWorkerUrl, dagreWorkerUrl, fallbackLimit: 0, elkOptions: { 'elk.algorithm': 'flow.none' } });
+if (fallback.engine !== 'dagre' || !(fallback.nodes.complete.x > fallback.nodes.receive.x)) throw new Error('Dagre in the worker failed');
+// The shipped worker runs the same Dagre step as the calling thread: nested groups, a branch and a back edge give the same positions.
+const grouped: FlowGraph = {
+  nodes: ['a', 'b', 'c', 'd'].map((id, i) => ({ id, kind: 'activity', label: id.toUpperCase(), group: i < 2 ? 'first' : 'second' })),
+  edges: [['a', 'b'], ['a', 'c'], ['b', 'd'], ['c', 'd'], ['d', 'a']].map(([source, target]) => ({ id: `${source}-${target}`, kind: 'follows', source, target })),
+  groups: [{ id: 'all', kind: 'stage', label: 'All' }, { id: 'first', kind: 'stage', label: 'First', parent: 'all' }, { id: 'second', kind: 'stage', label: 'Second', parent: 'all' }],
+};
+for (const direction of ['RIGHT', 'DOWN'] as const) {
+  const inWorker = await layout(grouped, { engine: 'dagre', direction, dagreWorkerUrl });
+  if (JSON.stringify(inWorker) !== JSON.stringify(await layout(grouped, { engine: 'dagre', direction }))) throw new Error('Dagre in the worker gave other positions');
+}
 if (prepareScene(graph, positions).nodes.length !== 2 || !toSVG({ graph, positions }).includes('Receive')) throw new Error('Scene export failed');
 // A badge on a task, projected onto the viewer and again onto the modeler.
 const overlays: Overlay[] = [{ kind: 'badge', target: 'receive', payload: { glyph: '≥1', value: 0.5 } }];

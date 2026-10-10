@@ -17,7 +17,7 @@ licences for copied distribution assets under `dist/licenses/`, plus
 | diagram-js, bpmn-moddle | MIT | Separate packages; the bpmn-js watermark condition must not be attributed to all BPMN dependencies |
 | @xyflow/react, @xyflow/system | MIT | React Flow base CSS is copied without modification |
 | elkjs | EPL-2.0 | Worker copied without modification; licence and source location accompany the package |
-| @dagrejs/dagre, @dagrejs/graphlib | MIT | Installed runtime dependencies |
+| @dagrejs/dagre, @dagrejs/graphlib | MIT | Installed runtime dependencies; Dagre's browser build is included unchanged in the Dagre worker, with its licence |
 | d3-scale | ISC | See installed dependency and transitive package notices |
 | rbush, quickselect | MIT | Installed runtime dependencies |
 

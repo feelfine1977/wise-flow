@@ -189,7 +189,7 @@ describe("arrival of the layout", () => {
 });
 
 describe("the view when the layout arrives", () => {
-  async function arrived(zoomIn: boolean) {
+  async function arrived(zoomIn: boolean, answer = true) {
     reducedMotion(true);
     const held = heldElk();
     const { container } = render(
@@ -213,7 +213,7 @@ describe("the view when the layout arrives", () => {
       await waitFor(() => expect(viewport(container).zoom).toBeGreaterThan(fitted));
     }
     const before = viewport(container);
-    await act(async () => held.answer());
+    if (answer) await act(async () => held.answer());
     return { container, before, centred };
   }
 
@@ -232,6 +232,15 @@ describe("the view when the layout arrives", () => {
     // Zooming in keeps the centre: b (334, 24) stays the node nearest it and keeps its place on screen at (590, 1124).
     expect(590 * after.zoom + after.x).toBeCloseTo(334 * before.zoom + before.x);
     expect(1124 * after.zoom + after.y).toBeCloseTo(24 * before.zoom + before.y);
+  });
+
+  it("keeps the zoom the user chose while the layout is still on its way", async () => {
+    const { container, before } = await arrived(true, false);
+    // Selecting a node updates React Flow's nodes: a fit the map asked for before the zoom must not run then.
+    fireEvent.click(container.querySelector('.react-flow__node[data-id="b"]')!);
+    await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
+    expect(container.querySelector('.react-flow__node[data-id="b"]')!.classList).toContain("selected");
+    expect(viewport(container)).toEqual(before);
   });
 });
 

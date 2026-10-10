@@ -26,7 +26,8 @@
     "./bpmn.css": "./dist/bpmn.css",
     "./react-flow.css": "./dist/react-flow.css",
     "./bpmn/assets/*": "./dist/bpmn/assets/*",
-    "./elk-worker.min.js": "./dist/elk-worker.min.js"
+    "./elk-worker.min.js": "./dist/elk-worker.min.js",
+    "./dagre-worker.min.js": "./dist/dagre-worker.min.js"
   },
   "types": "./dist/index.d.ts",
   "files": [

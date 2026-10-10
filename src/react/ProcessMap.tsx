@@ -12,7 +12,7 @@ import {
   type OnNodesChange,
 } from "@xyflow/react";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { type AbstractOptions, type ElementRef, type FlowGraph, type Positions, type XY, activityNodeSize, activityReferences, coversGraph, defaultStyle, formatCount, lodAt, t } from "../core/index.js";
+import { type AbstractOptions, type ElementRef, type FlowGraph, type Positions, type XY, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, defaultStyle, formatCount, lodAt, t } from "../core/index.js";
 import { type MapContext, mapEmphasis, menuHeading } from "../core/map-controller.js";
 import { ActivityTooltip } from "./ActivityTooltip.js";
 import { AbstractionControls } from "./AbstractionControls.js";
@@ -136,7 +136,10 @@ function ProcessMapInner(props: ProcessMapProps) {
   const reducedMotion = usePrefersReducedMotion();
   const target = needsOwnLayout ? own.positions : givenPositions;
   const arrival = useArrival(target, provisional, reducedMotion);
-  const arranging = provisional || arrival.moving;
+  // Without a refined layout the provisional arrangement stays, and the map says so.
+  const unavailable = needsOwnLayout && own.error instanceof LayoutUnavailableError;
+  const arranging = (provisional && !unavailable) || arrival.moving;
+  const notice = arranging ? t(locale, "map.arranging") : unavailable ? t(locale, "map.layoutUnavailable") : undefined;
   const [manual, setManual] = useState<{ key: ProcessMapProps["layoutResetKey"]; points: Record<string, XY> }>({ key: layoutResetKey, points: {} });
   // Graph overlays and the given ones; the scene keeps those it can place and adds the follows self-loops.
   const sceneOverlays = useMemo(() => (extraOverlays ? [...(shown.overlays ?? []), ...extraOverlays] : undefined), [shown, extraOverlays]);
@@ -243,7 +246,11 @@ function ProcessMapInner(props: ProcessMapProps) {
     setFit({ key: fit.hold ? fit.key : laidKey, laid: laidKey, count: fit.count, anchor: fit.hold ? fit.anchor : undefined });
   }
   const fitKey = fit.key;
-  const userMove = () => void (moved.current = true);
+  // A fit React Flow still holds queued would replace the view the user chose at its next node update.
+  const userMove = () => {
+    moved.current = true;
+    flowStore.setState({ fitViewQueued: false });
+  };
   const { anchor } = fit;
   useLayoutEffect(() => {
     const box = anchor && positions?.nodes[anchor.id];
@@ -356,9 +363,9 @@ function ProcessMapInner(props: ProcessMapProps) {
     <Legend scales={scales} legend={scene.legend} locale={locale} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} />) : undefined} />
   ) : null;
   const controlsElement = controls ? <AbstractionControls value={abstraction} onChange={setAbstraction} locale={locale} hasStages={hasStages} view={view} onViewChange={setView} /> : null;
-  const statusElement = arranging ? (
+  const statusElement = notice ? (
     <div className="wf-panel" role="status">
-      {t(locale, "map.arranging")}
+      {notice}
     </div>
   ) : own.status === "error" ? (
     <div className="wf-panel" role="alert">
@@ -390,7 +397,7 @@ function ProcessMapInner(props: ProcessMapProps) {
         {description}
         {useCanvas ? ` ${t(locale, "map.renderer.canvas", { nodes: shown.nodes.length, edges: shown.edges.length })}` : ""}
         {bounded ? ` ${bounded}` : ""}
-        {arranging ? ` ${t(locale, "map.arranging")}` : ""}
+        {notice ? ` ${notice}` : ""}
       </p>
       <p id={liveId} className="wf-sr-only" aria-live="polite" data-testid="wf-live">
         {controller.live}
