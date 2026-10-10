@@ -271,7 +271,8 @@ retained geometry with the R-tree of the core; `drawScene` issues plain 2D
 context calls for a viewport (groups and bands, edges with arrowheads, nodes
 with pattern twins, the overlay marks, edge labels), decides the level of
 detail from the zoom and, above 1,500 elements, draws only what the R-tree
-finds inside the viewport; `CanvasRenderer` owns the canvas, the viewport and the
+finds inside the viewport, reading each element by its position in the
+scene's lists so that a draw costs what the view holds; `CanvasRenderer` owns the canvas, the viewport and the
 interaction state and redraws on animation frames; `CanvasMap` adds the
 pointer handling (drag to pan, wheel, Ctrl or Cmd with the wheel and pinch
 to zoom, hover through the R-tree with a tooltip, click, right click), a

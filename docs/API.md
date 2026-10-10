@@ -319,8 +319,11 @@ positions' bounds.
 ## Hit index and export
 
 ```ts
-export class HitIndex { static fromScene(p: Positions, g?: OverlayGeometry): HitIndex;
+export class HitIndex { static fromScene(p: Positions, g?: OverlayGeometry, edgeTolerance?: number,
+    indexOf?: (kind: HitItem["kind"], id: string) => number | undefined): HitIndex;
   at(x, y, tolerance?): HitItem[]; within(box: Box): HitItem[] }
+export interface HitItem { minX; minY; maxX; maxY; id: string; kind: "node" | "edge" | "group" | "overlay";
+  segment?: [XY, XY]; shapeId?: string; index?: number }   // index: indexOf(kind, id or shape id)
 export interface Scene { graph; positions; overlays?; style?; title?; subtitle?; locale?; lanes?: LaneMode;
   activityLabels?: ActivityLabelOptions; selfLoops?: boolean }
 export interface ExportOptions { preset?: "single-column" | "double-column" | "slide" | "none"; width?; legend?;
@@ -976,7 +979,14 @@ the edges (tints), edges with arrowheads, nodes with pattern twins, the
 marks above the nodes, edge labels; level of detail follows
 `lodAt(o.lodZoom ?? view.zoom)` and each mark is drawn from its `minZoom`;
 a hovered mark shows its value colour in the focus colour; above 1,500
-elements only the elements inside the viewport are drawn. Marks that are
+elements (or with `cull: true`) only the groups, marks, edges and nodes the
+hit index finds inside the viewport are read and drawn, in the order of a
+full draw: every item of `scene.hit` carries its element's position in
+`groups`, `marks`, `edges` or `nodes` as `HitItem.index`, so a draw reads
+about as many elements as the view holds, whatever the size of the scene.
+Groups wholly outside the viewport are no longer drawn there. A hit
+index whose items lack `index` (built without `indexOf`) is drawn by
+walking the lists, as before. Marks that are
 not drawn on the map (map-level chips) are neither in `bounds` nor in the
 hit index; the one segment of a two-point route is the route's own `points`
 array. Nodes and edges are drawn from their marks (`SceneNode.mark`,

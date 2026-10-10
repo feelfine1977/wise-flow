@@ -16,6 +16,7 @@ import {
   type FlowGroup,
   type FlowNode,
   type FlowScene,
+  type HitItem,
   type LaneBand,
   type LaneMode,
   type Locale,
@@ -209,7 +210,10 @@ export function retainScene(scene: FlowScene): PreparedScene {
   // Marks that are not drawn on the map (map-level chips) take no room and answer no hit.
   const drawn = new Set(marks.filter((m) => m.inMap).map((m) => m.id));
   const shown = geometry.shapes.filter((s) => drawn.has(s.id));
-  const hit = HitIndex.fromScene(routed, { ...geometry, shapes: shown });
+  // Each item keeps its element's place in the list it is drawn from.
+  const order = { group: groups.map((g) => g.group.id), node: nodes.map((n) => n.node.id), edge: edges.map((e) => e.edge.id), overlay: marks.map((m) => m.id) };
+  const at = Object.fromEntries(Object.entries(order).map(([k, ids]) => [k, new Map(ids.map((id, i) => [id, i]))])) as Record<HitItem["kind"], Map<string, number>>;
+  const hit = HitIndex.fromScene(routed, { ...geometry, shapes: shown }, undefined, (kind, id) => at[kind].get(id));
   return {
     ...scene,
     shapes: geometry.shapes,
