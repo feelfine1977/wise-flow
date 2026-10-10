@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { adapterViolations, boundaryViolations, bridgeViolations, deepImportViolations, entryNames, nodeTestViolations, seamNames, seamViolations, storyMaps, storyViolations } from '../../scripts/check-architecture.mjs';
+import { adapterViolations, boundaryViolations, bridgeViolations, deepImportViolations, entryNames, nodeTestViolations, seamNames, seamViolations, mapHostViolations, storyMaps, storyViolations } from '../../scripts/check-architecture.mjs';
 
 const file = fileURLToPath(new URL('../../src/core/example.ts', import.meta.url));
 test('headless boundaries reject transitive entry points, types and dynamic renderer imports', () => {
@@ -148,6 +148,11 @@ test('stories take their maps from the shared module and never ask for an adapti
     [shared, 'import { ProcessMap as M } from "../src/react/index";\nexport const P = (p) => <M edgeBudget="all" {...p} />;'],
     [shared, 'import { ProcessMap as M } from "../src/react/index";\nexport const P = (p) => <M {...p} edgeBudget={p.edgeBudget} />;'],
     [shared, 'import { ViewSwitcher as V } from "../src/react/index";\nexport const P = (p) => <V {...p} edgeBudget={p.edgeBudget ?? undefined} />;'],
+    [story, 'export { ProcessMap } from "../src/react/index";'],
+    [story, 'export * from "../src/react/index";'],
+    [story, 'import { ProcessMap } from "../dist/react/index.js";'],
+    [story, 'import { ProcessMap } from "@wise/flow/react";'],
+    [shared, 'export { CanvasMap } from "../src/react/index";'],
   ]) assert.ok(storyViolations(path, source).length > 0, source);
   for (const [path, source] of [
     [story, 'import { ProcessMap } from "./maps";\nimport { TraceTimeline, type Selection } from "../src/react/index";\nexport const A = () => <ProcessMap graph={g} />;'],
@@ -162,4 +167,18 @@ test('the stories as they are draw with a fixed edge budget', () => {
     const path = fileURLToPath(new URL(`../../stories/${name}`, import.meta.url));
     assert.deepEqual(storyViolations(path, readFileSync(path, 'utf8')), [], name);
   }
+});
+
+test('a library component that renders a map counts as one of the maps the stories take from the shared module', () => {
+  const src = (name) => fileURLToPath(new URL(`../../src/react/${name}`, import.meta.url));
+  for (const source of [
+    'export function Thumbnail(p) { return <ProcessMap {...p} />; }',
+    'export const Pair = (p) => <div><ViewSwitcher {...p} /></div>;',
+    'function Inner(p) { return <CanvasMap {...p} />; }\nexport { Inner as Panel };',
+  ]) assert.ok(mapHostViolations(src('Example.tsx'), source).length > 0, source);
+  for (const source of [
+    'export function ProcessMap(p) { return <CanvasMap {...p} />; }\nexport function groupNodeId(id) { return id; }\nexport interface Props { a: number }',
+    'export function ViewSwitcher(p) { return <ProcessMap {...p} />; }',
+    'export function Legend(p) { return <div />; }',
+  ]) assert.deepEqual(mapHostViolations(src('Example.tsx'), source), [], source);
 });

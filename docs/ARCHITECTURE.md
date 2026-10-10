@@ -71,7 +71,8 @@ examples in `tests/tooling/architecture.test.mjs`) enforces:
 - The BPMN bridge's modules other than its entry point load neither React nor
   bpmn-js eagerly; Node tests reach the bridge through `bpmn/headless.ts`.
 - Stories take their maps from `stories/maps.tsx`, which gives them a fixed
-  edge budget, and no story or Storybook file asks for an adaptive one.
+  edge budget, and no story or Storybook file asks for an adaptive one. A
+  component of the React adapter that renders a map counts as a map.
 - Outside the core, a name the core entry point provides is imported from the
   entry point, whose names `scripts/core-exports.json` lists; the deprecated
   names of every entry point are listed in [API](API.md#deprecated-names).
