@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { act, cleanup, render, renderHook, waitFor } from "@testing-library/react";
 import type { ELK, ElkNode } from "elkjs/lib/elk-api.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -120,5 +121,63 @@ describe("useStableLayout", () => {
     expect(result.current).toMatchObject({ status: "ready", provisional: false });
     expect(Object.keys(result.current.positions!.nodes).sort()).toEqual(["a", "b", "d"]);
     expect(results.filter((r) => r.positions?.engine === "elk").every((r) => !r.positions!.nodes.c)).toBe(true);
+  });
+});
+
+describe("a map mounted twice by StrictMode", () => {
+  /** Answers `register` at once and a layout a little later, every node 100 apart in id order; records termination. */
+  class AnsweringWorker {
+    static created: AnsweringWorker[] = [];
+    onmessage: ((event: { data: unknown }) => void) | null = null;
+    terminated = false;
+    layouts = 0;
+    constructor() {
+      AnsweringWorker.created.push(this);
+    }
+    postMessage(message: { id: number; cmd: string; graph?: ElkNode }) {
+      if (message.cmd === "register") queueMicrotask(() => this.onmessage?.({ data: { id: message.id, data: true } }));
+      if (message.cmd !== "layout") return;
+      this.layouts++;
+      const graph = message.graph!;
+      setTimeout(() => {
+        if (!this.terminated) this.onmessage?.({ data: { id: message.id, data: { ...graph, children: (graph.children ?? []).map((child, i) => ({ ...child, x: 100 * i, y: 0 })) } } });
+      }, 10);
+    }
+    terminate() {
+      this.terminated = true;
+    }
+  }
+
+  it("leaves one worker at most, draws the layout, lays out nothing again for the same inputs and stops its workers on unmount", async () => {
+    vi.stubGlobal("Worker", AnsweringWorker);
+    const options: LayoutOptions = { engine: "elk", elkWorkerUrl: "https://example.test/elk-worker.min.js" };
+    const { container, rerender, unmount } = render(
+      <StrictMode>
+        <div style={{ width: 800, height: 600 }}>
+          <ProcessMap graph={chain} layout={options} fitView={false} />
+        </div>
+      </StrictMode>,
+    );
+    const map = container.querySelector(".wf-process-map")!;
+    await waitFor(() => expect(map.getAttribute("data-layout-status")).toBe("ready"));
+    // The remount started the layout again; the first job's worker is stopped or kept idle, never both alive.
+    const created = AnsweringWorker.created;
+    expect(created.filter((w) => !w.terminated)).toHaveLength(1);
+    expect(created.reduce((n, w) => n + w.layouts, 0)).toBe(1);
+    expect(map.getAttribute("data-engine")).toBe("elk");
+    expect(translate(container, "c")).toEqual({ x: 200, y: 0 });
+    // The same inputs again: the scope holds the layout, no worker is asked.
+    rerender(
+      <StrictMode>
+        <div style={{ width: 800, height: 600 }}>
+          <ProcessMap graph={chain} layout={options} fitView={false} locale="de" />
+        </div>
+      </StrictMode>,
+    );
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 30)));
+    expect(created.reduce((n, w) => n + w.layouts, 0)).toBe(1);
+    expect(AnsweringWorker.created).toBe(created);
+    unmount();
+    await waitFor(() => expect(created.every((w) => w.terminated)).toBe(true));
   });
 });
