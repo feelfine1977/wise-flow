@@ -40,6 +40,19 @@ function textCanvas() {
   return texts;
 }
 
+/** A 2D context that records the texts written by each draw (a draw starts by clearing the canvas). */
+function frameCanvas() {
+  const frames: string[][] = [];
+  const ctx = new Proxy({ measureText: (s: string) => ({ width: s.length * 6 }), createPattern: () => null, clearRect: () => void frames.push([]), fillText: (s: string) => frames[frames.length - 1]?.push(s) } as Record<string | symbol, unknown>, {
+    get: (target, key) => (key in target ? target[key] : () => {}),
+    set: (target, key, value) => ((target[key] = value), true),
+  });
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => ctx as unknown as CanvasRenderingContext2D);
+  return frames;
+}
+/** The count labels of a draw, sorted. */
+const counts = (frame: string[] | undefined) => [...new Set((frame ?? []).filter((s) => /^\d+$/.test(s)))].sort();
+
 const rfEdges = (container: HTMLElement) => [...container.querySelectorAll(".react-flow__edge")].map((e) => e.getAttribute("data-id")).sort();
 const note = () => screen.queryByTestId("wf-edge-note");
 const live = () => screen.getByTestId("wf-live").textContent;
@@ -159,16 +172,17 @@ describe("edge budget and the keyboard", () => {
   });
 
   it("lists and draws the edge the keyboard moved onto in the Canvas map", async () => {
-    const texts = textCanvas();
+    const frames = frameCanvas();
     const { container } = mount({ renderer: "canvas", edgeBudget: 3, lod: { edgeLabels: 0 } });
     await waitFor(() => expect(note()?.textContent).toBe("Showing 3 of 8 flows"));
+    await waitFor(() => expect(counts(frames.at(-1))).toEqual(["50", "60", "70"]));
     const map = screen.getByRole("group", { name: /Process map/ });
     await act(async () => void fireEvent.keyDown(map, { key: "Home" }));
     await act(async () => void fireEvent.keyDown(map, { key: "ArrowRight", altKey: true }));
     expect(active(map)).toBe("wf-edge-h->t1");
     expect(container.querySelector("[id='wf-edge-h->t1']")).not.toBeNull();
-    texts.length = 0;
-    await waitFor(() => expect([...new Set(texts.filter((s) => /^\d+$/.test(s)))].sort()).toEqual(["10", "60", "70"]));
+    // The next draw writes the focused edge's label in place of the weakest unprotected edge's.
+    await waitFor(() => expect(counts(frames.at(-1))).toEqual(["10", "60", "70"]));
     expect(note()?.textContent).toBe("Showing 3 of 8 flows");
   });
 });
