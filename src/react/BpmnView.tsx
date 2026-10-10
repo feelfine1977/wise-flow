@@ -54,7 +54,7 @@ export interface BpmnViewProps {
   lod?: Partial<LodRules>;
   /** Fit the diagram after import. Default true. */
   fitView?: boolean;
-  /** Called with the headless import of the XML (graph, mapping table, warnings). */
+  /** Called with the headless import of the XML (graph, mapping table, warnings) once the diagram is shown and fitted, or could not be shown. */
   onImport?: (result: BpmnImport) => void;
   /** Modeler: called with the XML after every change (debounced). */
   onChange?: (xml: string) => void;
@@ -132,11 +132,12 @@ export function createBpmnView(connect: ConnectViewer) {
     const selection = props.selection ?? innerSelection;
     const lastEmitted = useRef<string>("");
     const savedXml = useRef<string | undefined>(undefined);
-    const callbacks = useRef({ onSelect, onHover, onChange, onError });
-    callbacks.current = { onSelect, onHover, onChange, onError };
+    const callbacks = useRef({ onSelect, onHover, onChange, onError, onImport });
+    callbacks.current = { onSelect, onHover, onChange, onError, onImport };
     const fitRef = useRef(fitView);
     fitRef.current = fitView;
     const importedRef = useRef(false);
+    const announced = useRef<BpmnImport | undefined>(undefined);
     const manualNavigation = useRef(false);
     // A selection the diagram reported, passed to the controller.
     const diagramSelect = useRef<(s: BpmnSelection) => void>(() => {});
@@ -175,13 +176,12 @@ export function createBpmnView(connect: ConnectViewer) {
           if (!live) return;
           setImported(r);
           setImportedXml(xml);
-          onImport?.(r);
         })
         .catch((e: Error) => live && callbacks.current.onError?.(e));
       return () => {
         live = false;
       };
-    }, [xml]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [xml]);
 
     // Ids of the shown XML: the export's id map, or the headless import's once it belongs to this XML.
     const ids = props.xml === undefined && exported ? exported.ids : importedXml === xml ? imported?.ids : undefined;
@@ -386,6 +386,13 @@ export function createBpmnView(connect: ConnectViewer) {
       applyZoom();
       return viewer.on("viewbox", applyZoom);
     }, [viewer, status, scene, placed]);
+
+    // The import is reported once the viewer shows it fitted, or cannot show it.
+    useEffect(() => {
+      if (!imported || importedXml !== xml || announced.current === imported || (status !== "error" && (status !== "ready" || !importedRef.current))) return;
+      announced.current = imported;
+      callbacks.current.onImport?.(imported);
+    }, [imported, importedXml, xml, status]);
 
     // 6. Controlled selection: applied to the diagram when it differs from what the diagram reported.
     useEffect(() => {

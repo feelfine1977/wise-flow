@@ -181,6 +181,58 @@ describe("BpmnView through the viewer seam", () => {
     expect(container.querySelector(".wf-bpmn")?.getAttribute("data-bpmn-mode")).toBe("model");
   });
 
+  it("calls back with the import only once the diagram is shown, fitted and ready", async () => {
+    const deferred = memoryViewers({ deferImports: true });
+    const Deferred = createBpmnView(deferred.connect);
+    // What the host could observe when it is called back: the view's status and the viewer's zooms.
+    const seen: { status: string | null | undefined; zooms: unknown[] }[] = [];
+    const onImport = vi.fn(() => void seen.push({ status: container.querySelector(".wf-bpmn")?.getAttribute("data-bpmn-status"), zooms: [...deferred.instances.at(-1)!.zooms] }));
+    const { container, rerender } = render(<Deferred xml={xml} onImport={onImport} />);
+    const group = container.querySelector(".wf-bpmn")!;
+    // The headless import describes the diagram while the viewer is still importing it.
+    await waitFor(() => expect(group.getAttribute("aria-label")).toBe("BPMN diagram with 7 tasks, 2 gateways and 12 sequence flows in 3 lanes."));
+    await waitFor(() => expect(deferred.instances[0]?.pending).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, 20));
+    expect([group.getAttribute("data-bpmn-status"), onImport.mock.calls.length, deferred.instances[0].zooms]).toEqual(["loading", 0, []]);
+    act(() => deferred.instances[0].pending[0]());
+    await waitFor(() => expect(onImport).toHaveBeenCalledTimes(1));
+    expect(seen).toEqual([{ status: "ready", zooms: ["fit-viewport"] }]);
+    expect(onImport.mock.calls[0]).toEqual([expect.objectContaining({ mapping: expect.any(Array) })]);
+    // Other overlays are not another import.
+    rerender(<Deferred xml={xml} onImport={onImport} overlays={[{ kind: "badge", target: "Task_CreatePO", payload: { glyph: "≥1" } }]} />);
+    await waitFor(() => expect(deferred.instances[0].overlays).toHaveLength(1));
+    // A new XML in the modeler: the old viewer's readiness does not count for the new one's diagram.
+    const next = `${xml}<!-- next -->`;
+    rerender(<Deferred xml={next} onImport={onImport} mode="model" />);
+    await waitFor(() => expect(deferred.instances[1]?.pending).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(onImport).toHaveBeenCalledTimes(1);
+    act(() => deferred.instances[1].pending[0]());
+    await waitFor(() => expect(onImport).toHaveBeenCalledTimes(2));
+    expect(seen[1]).toEqual({ status: "ready", zooms: ["fit-viewport"] });
+    expect(deferred.instances[1].imported).toEqual([next]);
+  });
+
+  it("still calls back with the import when the viewer cannot be created", async () => {
+    const onImport = vi.fn();
+    const Failing = createBpmnView(async () => { throw new Error("no viewer"); });
+    render(<Failing xml={xml} onImport={onImport} onError={() => {}} />);
+    await waitFor(() => expect(onImport).toHaveBeenCalledTimes(1));
+  });
+
+  it("keeps the viewport while only the overlays and the mapping change", async () => {
+    const badge: Overlay = { kind: "badge", target: "create_po", payload: { glyph: "≥1" } };
+    const arc: Overlay = { kind: "arc", target: "lag", payload: { source: "Task_CreatePO", target: "Task_ClearInvoice", value: 1 } };
+    const { container, rerender } = render(<BpmnView xml={xml} overlays={[badge]} />);
+    const viewer = await ready(container);
+    await waitFor(() => expect(viewer.zooms).toEqual(["fit-viewport"]));
+    rerender(<BpmnView xml={xml} overlays={[badge, arc]} mapping={{ create_po: "Task_CreatePO" }} />);
+    await waitFor(() => expect(viewer.overlays).toHaveLength(1));
+    rerender(<BpmnView xml={xml} overlays={[]} mapping={{ create_po: "Task_CreatePO" }} />);
+    await waitFor(() => expect(viewer.overlays).toEqual([]));
+    expect([viewer.imported.length, viewer.zooms, viewer.viewboxes, viewer.resizes]).toEqual([1, ["fit-viewport"], [], 0]);
+  });
+
   it("shows paths from their zoom and selects an arc's ends on a click", async () => {
     const onSelect = vi.fn();
     const arc: Overlay = { kind: "arc", target: "lag", payload: { source: "Task_CreatePO", target: "Task_ClearInvoice", value: 1 } };
