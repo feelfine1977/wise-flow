@@ -8,7 +8,7 @@ import type { Overlay } from "../../src/index";
 import { connectBpmnJs } from "../../src/bpmn/bpmn-js";
 import type { ConnectViewer, ViewerEvents } from "../../src/bpmn/viewer";
 import { type BpmnViewHandle, createBpmnView } from "../../src/react/BpmnView";
-import { memoryViewers } from "./memory-viewer";
+import { memoryViewers, registryOf } from "./memory-viewer";
 
 const viewers = memoryViewers();
 const BpmnView = createBpmnView(viewers.connect);
@@ -245,6 +245,30 @@ describe("BpmnView through the viewer seam", () => {
     act(() => deferred.instances[1].pending[0]());
     await waitFor(() => expect(onImport).toHaveBeenCalledTimes(2));
     expect(container.querySelector(".wf-bpmn")?.getAttribute("data-bpmn-status")).toBe("ready");
+  });
+
+  it("calls back with the import when the next viewer shows or fails it at once", async () => {
+    const registry = await registryOf(xml);
+    for (const fails of [false, true]) {
+      // The next viewer arrives after the headless import and settles its import before the view renders again.
+      const fast = memoryViewers({ registry });
+      let slow = false;
+      const Fast = createBpmnView(async (options) => {
+        if (slow) await new Promise((r) => setTimeout(r, 50));
+        const viewer = await fast.connect(options);
+        if (fails) viewer.importXML = async () => { throw new Error("cannot import"); };
+        return viewer;
+      });
+      const onImport = vi.fn();
+      const { container, rerender, unmount } = render(<Fast xml={xml} onImport={onImport} onError={() => {}} />);
+      await waitFor(() => expect(onImport).toHaveBeenCalledTimes(1));
+      slow = true;
+      rerender(<Fast xml={`${xml}<!-- next -->`} onImport={onImport} onError={() => {}} mode="model" />);
+      await waitFor(() => expect(fast.instances).toHaveLength(2));
+      await waitFor(() => expect(onImport).toHaveBeenCalledTimes(2));
+      expect(container.querySelector(".wf-bpmn")?.getAttribute("data-bpmn-status")).toBe(fails ? "error" : "ready");
+      unmount();
+    }
   });
 
   it("still calls back with the import when the viewer cannot be created", async () => {
