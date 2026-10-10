@@ -152,19 +152,19 @@ export function nodeCount(node: FlowNode, locale: Locale = "en"): string | undef
 
 // Texts and marks are written as one literal with every key (a key without a
 // value reads as absent), which the engine keeps in one allocation.
-const ink = (text: string, x: number, y: number, size: number, role: ElementText["role"], anchor: ElementText["anchor"] = "start", baseline: ElementText["baseline"] = "middle", extra: Partial<ElementText> = {}, paint: MarkPaint = "ink"): ElementText => ({
+const ink = (text: string, x: number, y: number, size: number, rest: Partial<ElementText> & Pick<ElementText, "role">): ElementText => ({
   text,
   x,
   y,
   size,
-  anchor,
-  baseline,
-  paint,
+  anchor: rest.anchor ?? "start",
+  baseline: rest.baseline ?? "middle",
+  paint: rest.paint ?? "ink",
   halo: false,
-  role,
-  maxWidth: extra.maxWidth,
-  lod: extra.lod,
-  weight: extra.weight,
+  role: rest.role,
+  maxWidth: rest.maxWidth,
+  lod: rest.lod,
+  weight: rest.weight,
 });
 
 const strokes = new Map<string, NodeMark["stroke"]>();
@@ -205,24 +205,24 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
   const dash = reconnected ? RECONNECTED_DASH : undefined;
   switch (node.kind) {
     case "event":
-      return mark("circle", Math.min(box.width, box.height) / 2, outline("ink", hasTag(node, "end") ? 3 : 1.5, dash), [ink(node.label, cx, cy, textSizeTokens.small, "label", "middle", "middle", { maxWidth: box.width - 4, lod: "labels" })]);
+      return mark("circle", Math.min(box.width, box.height) / 2, outline("ink", hasTag(node, "end") ? 3 : 1.5, dash), [ink(node.label, cx, cy, textSizeTokens.small, { role: "label", anchor: "middle", maxWidth: box.width - 4, lod: "labels" })]);
     case "gateway":
-      return mark("diamond", 0, outline("ink", 1.5, dash), [ink(gatewayGlyph(node), cx, cy + 1, textSizeTokens.glyph, "glyph", "middle", "middle", { weight: 700 })]);
+      return mark("diamond", 0, outline("ink", 1.5, dash), [ink(gatewayGlyph(node), cx, cy + 1, textSizeTokens.glyph, { role: "glyph", weight: 700, anchor: "middle" })]);
     case "note":
-      return mark("box", sizeTokens.radius, outline("value", 2, NOTE_DASH), [ink(node.label, box.x + 16, cy, textSizeTokens.note, "label", "start", "middle", { maxWidth: box.width - 24 })], "surface");
+      return mark("box", sizeTokens.radius, outline("value", 2, NOTE_DASH), [ink(node.label, box.x + 16, cy, textSizeTokens.note, { role: "label", maxWidth: box.width - 24 })], "surface");
     default: {
       const stroke = outline("value", node.kind === "stage" ? 3 : 2, dash);
       const labels = node.kind === "activity" ? options.activityLabels : undefined;
       if (labels) {
         const lines = activityLabelLines(node, labels, box.width, locale);
         const counts = labels.showCounts === false ? [] : lines.counts;
-        const left = (text: string, size: number, y: number, role: ElementText["role"]) => ink(text, box.x + 16, y, size, role, "start", "alphabetic");
+        const left = (text: string, size: number, y: number, role: ElementText["role"]) => ink(text, box.x + 16, y, size, { role, baseline: "alphabetic" });
         const names = lines.name.map((line, i) => left(line, textSizeTokens.nameLine, box.y + 24 + i * 18, "nameLine"));
         return mark("box", sizeTokens.radius, stroke, names.concat(counts.map((line, i) => left(line, textSizeTokens.countLine, box.y + 24 + lines.name.length * 18 + i * 16, "countLine"))), "paper", sizeTokens.band, activityDescription(node, labels, locale));
       }
       const count = nodeCount(node, locale);
-      const label = ink(node.label, box.x + 16, cy, textSizeTokens.label, "label", "start", "middle", { maxWidth: box.width - 24, lod: "labels", weight: node.kind === "stage" ? 600 : undefined });
-      return mark("box", sizeTokens.radius, stroke, count ? [label, ink(count, box.x + box.width - 6, box.y + box.height - 5, textSizeTokens.small, "count", "end", "alphabetic", { lod: "labels" }, "inkMuted")] : [label], "paper", sizeTokens.band);
+      const label = ink(node.label, box.x + 16, cy, textSizeTokens.label, { role: "label", maxWidth: box.width - 24, lod: "labels", weight: node.kind === "stage" ? 600 : undefined });
+      return mark("box", sizeTokens.radius, stroke, count ? [label, ink(count, box.x + box.width - 6, box.y + box.height - 5, textSizeTokens.small, { role: "count", anchor: "end", baseline: "alphabetic", paint: "inkMuted", lod: "labels" })] : [label], "paper", sizeTokens.band);
     }
   }
 }
