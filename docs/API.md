@@ -445,6 +445,8 @@ activity along the paths. The live region and the map's description then
 say how many activities and paths there are and that the table view lists
 all of them, and the table view shows 100 rows per page with a search field
 (`TableAlternative` with `pageSize`). At or below the limit nothing changes.
+New strings `map.described.bounded`, `table.search`, `table.rows`,
+`table.previous` and `table.next` in English and German.
 
 Stylesheets: `@wise/flow/tokens.css` (design tokens, light and dark),
 `@wise/flow/style.css` (components) and `@xyflow/react/dist/style.css`.
