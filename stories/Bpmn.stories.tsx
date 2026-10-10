@@ -119,8 +119,9 @@ export const FromStages: StoryObj = {
 /**
  * The BPI Challenge 2019 log as a BPMN-lite model: the directly-follows graph
  * is abstracted with the sliders, then every branching node gets an XOR split
- * and every merging node an XOR join (AND where the successors follow each
- * other in both orders). Stage groups become lanes; the constraint overlays of
+ * and every merging node an XOR join (AND split and join as a pair around
+ * successors that follow each other in both orders and lead to one common
+ * task). Stage groups become lanes; the constraint overlays of
  * the fixture sit on the tasks.
  */
 export const FromLog: StoryObj = {

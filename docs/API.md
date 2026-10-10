@@ -29,6 +29,7 @@ export interface AbstractionMeta { minEdgeShare?: number; minNodeShare?: number;
 
 export const MAP_TARGET = "__map";      // overlay target for map-level chips
 export function validateGraph(g: FlowGraph): GraphIssue[];
+export function validateGateways(g: FlowGraph): GraphIssue[];   // warnings: unpaired parallel gateways
 export function indexGraph(g: FlowGraph): GraphIndex;
 export interface GraphIndex {
   nodes: Map<string, FlowNode>; edges: Map<string, FlowEdge>; groups: Map<string, FlowGroup>;
@@ -44,6 +45,19 @@ export interface GraphIndex {
 threshold share (a number; `0` means nothing was removed) or, on a graph
 returned by `abstract`, the thresholds the library applied. `meta.abstraction`
 was `unknown` before; code that reads it as either form keeps compiling.
+
+`validateGateways` checks the pairing of parallel gateways in any graph with
+gateways, generated or imported: a parallel split (a `gateway` node tagged
+`and` with several outgoing flows) has a partner when its branches end, one
+each, in the incoming flows of one parallel join, every branch running from
+the split to the join without leaving the block (no other entry, no end, no
+flow back to the split) and the branches meeting only at the join. It
+returns a warning for a parallel split without a partner and for a
+parallel join that is the partner of no parallel split; flows are the edges
+other than constraints, messages and associations. Nothing is rejected: an
+imported model loads as before, and a host decides what to do with the
+warnings. A sound model whose parallel branches are not nested as blocks is
+reported too.
 
 `GraphIndex` answers the group hierarchy. `ancestors` returns the groups
 enclosing an element, innermost first: for a node its group and upwards, for
@@ -675,7 +689,7 @@ export interface StageActivity { id; label?; role?; optional?; loop?; tags?; met
 export interface Stage { id; label?; activities: (StageActivity | string)[]; role?; flow?: "sequence" | "choice" | "parallel"; optional? }
 export interface StageModel { id?; label?; stages: Stage[] }
 export function liteFromStages(model: StageModel, o?: { lanes?: "stage" | "role" | "none"; startLabel?; endLabel? }): FlowGraph;
-export function liteFromGraph(g: FlowGraph, o?: { abstraction?: AbstractOptions; andGateways?: boolean;
+export function liteFromGraph(g: FlowGraph, o?: { abstraction?: AbstractOptions; andGateways?: boolean;   // AND only as a split/join pair
   lanes?: "groups" | "none"; selfLoops?: "marker" | "flow" | "drop" }): FlowGraph;
 export function stageModelFromGraph(g: FlowGraph, o?: { limit?: number; label?: string }): StageModel;
 export function liteCounts(g: FlowGraph): { tasks; gateways; events; flows; lanes };
@@ -745,6 +759,22 @@ export interface BpmnViewHandle { viewer(): unknown; saveXML(): Promise<string |
 export function ViewSwitcher(props: { views: ViewSet; mode?: "single" | "grid"; onModeChange?; activeView?; onActiveViewChange?;
   columns?; locale?; selection?; onSelect?; onHover?; legend?; lod?; minimap?; className?; containerStyle? }): JSX.Element;   // from @wise/flow/react
 ```
+
+Gateways of `liteFromGraph`: a node with several successors gets an XOR
+split `gw_split_<id>`, a node with several predecessors an XOR join
+`gw_join_<id>`. With `andGateways`, parallel gateways are emitted only as a
+pair: the split of a node becomes AND, and the join of a node becomes AND,
+when the branches leaving the first are exactly the inputs of the second:
+the successors of the first node follow each other in both orders (which is
+how a directly-follows graph shows concurrency), each of them is entered
+only from that node or from another branch and left only to the second
+node, and the second node's predecessors are exactly these branches. The
+paths between the branches only show that they interleave and become no
+flows. Every split or join without such a partner is XOR, so a generated
+model has no parallel join that waits for a branch an exclusive split did
+not take, and no parallel split whose branches an exclusive merge lets
+through twice; `validateGateways` reports nothing on it. Without
+`andGateways` every gateway is XOR, as before.
 
 Mapping of BPMN-lite to BPMN 2.0: activity and stage nodes → `bpmn:Task`
 (or the sub-type named by a tag: `userTask`, `serviceTask`, `manualTask`,

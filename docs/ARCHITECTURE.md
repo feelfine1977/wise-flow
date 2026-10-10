@@ -86,7 +86,8 @@ ids (canonical activity ids in the workbench). Edges: `follows`
 `flow` (BPMN sequence flow). Groups: `lane`, `stage`, `pool`, nested through
 `parent`. Every element carries a `metrics` record (numbers) and `tags`
 (strings) that scales and overlays read. `validateGraph` reports duplicate
-ids, dangling edges and unknown targets.
+ids, dangling edges and unknown targets; `validateGateways` reports parallel
+gateways that are not paired (§5).
 
 ### 2.2 Aggregation
 `abstract(graph, { minEdgeShare, minNodeShare, keepConnected, collapse })`
@@ -367,11 +368,20 @@ activities (gateways only where the model needs them: XOR around optional
 activities and stages and `choice` stages, AND around `parallel` stages)
 and `liteFromGraph` from a directly-follows graph above an abstraction
 level (XOR split where a node has several successors, XOR join where it
-has several predecessors, AND on request where the successors follow each
-other in both orders, loop markers for self-loops, start and end events
-kept or added, groups as lanes). Ids are deterministic functions of the
-input ids, so a rebuilt model keeps its ids. `<ProcessMap/>` renders
-BPMN-lite natively when the full modeler is not wanted.
+has several predecessors, on request an AND split and AND join as a pair
+around successors that follow each other in both orders and lead to one
+common node, loop markers for self-loops, start and end events kept or
+added, groups as lanes). Parallel gateways come only in pairs: a parallel
+split and a parallel join enclose the same branches, each running from the
+split to the join without leaving the block; every other split and join is
+exclusive, so a generated model never waits at a join for a token that an
+exclusive split did not send, nor passes a merge twice. `validateGateways`
+(core) checks this pairing on any graph with gateways, imported ones too,
+and reports, as warnings, a parallel split whose branches do not all reach
+one parallel join and a parallel join that is no split's partner. Ids are
+deterministic functions of the input ids, so a rebuilt model keeps its ids.
+`<ProcessMap/>` renders BPMN-lite natively when the full modeler is not
+wanted.
 
 `layoutBpmn` uses ELK for the layering along the flow and then stacks the
 lanes as full-width bands in one pool with the core's lane model, assigns

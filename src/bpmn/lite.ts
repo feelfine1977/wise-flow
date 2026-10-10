@@ -3,7 +3,8 @@
  * `activity` nodes, `gateway` nodes tagged xor/and, `event` nodes tagged
  * start/end, `flow` edges, `lane` groups). Built either from a directly-follows
  * FlowGraph or from a stage model with known activities and no log. All ids are
- * deterministic functions of the input ids.
+ * deterministic functions of the input ids. AND gateways come only as a split
+ * and join pair around the same branches; every other gateway is XOR.
  */
 import {
   type AbstractOptions,
@@ -209,9 +210,13 @@ export interface LiteFromGraphOptions {
   /** Abstraction applied before the conversion (thresholds, collapse). */
   abstraction?: AbstractOptions;
   /**
-   * Mark a split (join) as AND when every pair of its successors (predecessors)
-   * directly follows each other in both orders in the graph, which is how a
-   * directly-follows relation shows concurrency. Default: XOR only.
+   * Emit an AND split and an AND join as a pair around concurrent branches:
+   * the successors of a node, when every pair of them directly follows each
+   * other in both orders (how a directly-follows relation shows concurrency),
+   * each is entered only from that node or another branch and left only to one
+   * common node, and that node's predecessors are exactly these branches. The
+   * paths between the branches become no flows. Every other split and join
+   * stays XOR. Default: XOR only.
    */
   andGateways?: boolean;
   /** Groups of the graph become lanes (default) or are dropped. */
@@ -242,8 +247,8 @@ function sumMetrics(edges: FlowEdge[]): Metrics {
 /**
  * BPMN-lite graph from a directly-follows FlowGraph: activities and stages
  * become tasks, paths become sequence flows, a node with several successors gets
- * an XOR split (AND with `andGateways` where the successors are concurrent), a
- * node with several predecessors an XOR join, start and end events are kept or
+ * an XOR split, a node with several predecessors an XOR join (an AND pair around
+ * concurrent branches with `andGateways`), start and end events are kept or
  * added, groups become lanes. Sequence flows keep the metrics of the path they
  * replace and name it in `payload.origin`.
  */
@@ -277,7 +282,7 @@ export function liteFromGraph(graph: FlowGraph, options: LiteFromGraphOptions = 
   const nodeIds = new Set(nodes.map((n) => n.id));
 
   // Edges: paths and flows between kept nodes; constraints are overlays, not flows.
-  const edges: FlowEdge[] = [];
+  let edges: FlowEdge[] = [];
   for (const e of base.edges) {
     if (e.kind === "constraint") continue;
     if (!nodeIds.has(e.source) || !nodeIds.has(e.target)) continue;
@@ -324,25 +329,53 @@ export function liteFromGraph(graph: FlowGraph, options: LiteFromGraphOptions = 
   }
 
   // Gateways where a node has several successors or predecessors.
-  const out = new Map<string, FlowEdge[]>();
-  const inc = new Map<string, FlowEdge[]>();
-  for (const e of edges) {
-    if (e.source === e.target) continue;
-    if (!out.has(e.source)) out.set(e.source, []);
-    if (!inc.has(e.target)) inc.set(e.target, []);
-    out.get(e.source)!.push(e);
-    inc.get(e.target)!.push(e);
-  }
-  const direct = new Set(edges.map((e) => `${e.source} ${e.target}`));
+  const adjacency = (list: FlowEdge[]) => {
+    const out = new Map<string, FlowEdge[]>();
+    const inc = new Map<string, FlowEdge[]>();
+    for (const e of list) {
+      if (e.source === e.target) continue;
+      if (!out.has(e.source)) out.set(e.source, []);
+      if (!inc.has(e.target)) inc.set(e.target, []);
+      out.get(e.source)!.push(e);
+      inc.get(e.target)!.push(e);
+    }
+    return [out, inc] as const;
+  };
+  let [out, inc] = adjacency(edges);
+  const direct = new Set(edges.map((e) => `${e.source} ${e.target}`));
   const concurrent = (ids: string[]): boolean => {
     for (let i = 0; i < ids.length; i++) {
       for (let j = i + 1; j < ids.length; j++) {
-        if (!direct.has(`${ids[i]} ${ids[j]}`) || !direct.has(`${ids[j]} ${ids[i]}`)) return false;
+        if (!direct.has(`${ids[i]} ${ids[j]}`) || !direct.has(`${ids[j]} ${ids[i]}`)) return false;
       }
     }
     return ids.length > 1;
   };
   const byId = new Map(nodes.map((n) => [n.id, n]));
+  // AND only as a pair around concurrent branches; paths between them are no flows.
+  const andSplits = new Set<string>();
+  const andJoins = new Set<string>();
+  const interleaved = new Set<FlowEdge>();
+  if (options.andGateways) {
+    for (const n of nodes) {
+      const branches = (out.get(n.id) ?? []).map((e) => e.target);
+      if (n.kind === "gateway" || !concurrent(branches)) continue;
+      const block = new Set(branches);
+      const exits = new Set<string>();
+      let entered = true;
+      for (const b of branches) {
+        for (const e of out.get(b)!) if (!block.has(e.target)) exits.add(e.target);
+        for (const e of inc.get(b)!) if (!block.has(e.source) && e.source !== n.id) entered = false;
+      }
+      const [join] = exits;
+      const ins = inc.get(join)!;
+      if (!entered || exits.size !== 1 || join === n.id || byId.get(join)!.kind === "gateway" || ins.length !== block.size || ins.some((e) => !block.has(e.source))) continue;
+      andSplits.add(n.id);
+      andJoins.add(join);
+      for (const b of branches) for (const e of out.get(b)!) if (block.has(e.target)) interleaved.add(e);
+    }
+    [out, inc] = adjacency((edges = edges.filter((e) => !interleaved.has(e))));
+  }
   const splitOf = new Map<string, string>();
   const joinOf = new Map<string, string>();
   const gateways: FlowNode[] = [];
@@ -352,16 +385,14 @@ export function liteFromGraph(graph: FlowGraph, options: LiteFromGraphOptions = 
     const outs = out.get(n.id) ?? [];
     if (outs.length > 1) {
       const id = `gw_split_${n.id}`;
-      const kind = options.andGateways && concurrent(outs.map((e) => e.target)) ? AND : XOR;
-      gateways.push(gatewayNode(id, kind, "split", n.group));
+      gateways.push(gatewayNode(id, andSplits.has(n.id) ? AND : XOR, "split", n.group));
       splitOf.set(n.id, id);
       glue.push(flowEdge(n.id, id, sumMetrics(outs)));
     }
     const ins = inc.get(n.id) ?? [];
     if (ins.length > 1) {
       const id = `gw_join_${n.id}`;
-      const kind = options.andGateways && concurrent(ins.map((e) => e.source)) ? AND : XOR;
-      gateways.push(gatewayNode(id, kind, "join", n.group));
+      gateways.push(gatewayNode(id, andJoins.has(n.id) ? AND : XOR, "join", n.group));
       joinOf.set(n.id, id);
       glue.push(flowEdge(id, n.id, sumMetrics(ins)));
     }

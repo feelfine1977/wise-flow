@@ -6,7 +6,7 @@ behind the viewer seam of `viewer.ts`.
 
 | File | Content |
 |---|---|
-| `lite.ts` | `liteFromStages` (stage model with known activities → BPMN-lite), `liteFromGraph` (directly-follows graph → BPMN-lite with XOR/AND gateways), `stageModelFromGraph`, `liteCounts`, `gatewayLabel` |
+| `lite.ts` | `liteFromStages` (stage model with known activities → BPMN-lite), `liteFromGraph` (directly-follows graph → BPMN-lite with XOR gateways, AND only as a split/join pair), `stageModelFromGraph`, `liteCounts`, `gatewayLabel` |
 | `layout.ts` | `layoutBpmn` (ELK layering, then the core's lane model: nested lanes stacked as bands in one pool, flows routed by `routeSequenceFlows`), `manhattanRoute` (deprecated), BPMN shape sizes |
 | `export.ts` | `exportBpmn` (BPMN 2.0 XML with DI and the `wise` extension), `validateBpmn`, `xmlId`, `roundPositions` |
 | `import.ts` | `importBpmn` (XML → FlowGraph, positions from DI, mapping table), `matchActivities`, `applyMapping`, `normalizeLabel`, `positionsFromDi` |

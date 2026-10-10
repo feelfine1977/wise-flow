@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { globalScene } from "../../fixtures/bpic2019";
 import { p2pStages, withSceneMetrics } from "../../fixtures/p2p_stages";
 import { POOL_ID, exportBpmn, gatewayLabel, importBpmn, layoutBpmn, liteFromGraph, liteFromStages, validateBpmn } from "../../src/bpmn/headless";
-import { type FlowGraph, abstract } from "../../src/index";
+import { type FlowGraph, abstract, validateGateways } from "../../src/index";
 
 const lite = liteFromStages(withSceneMetrics(p2pStages, globalScene));
 
@@ -109,6 +109,21 @@ describe("export → import round trip", () => {
     const flow = graphLite.edges.find((e) => e.metrics?.count !== undefined)!;
     expect(back.graph.edges.find((e) => e.id === flow.id)?.metrics?.count).toBe(flow.metrics!.count);
     expect(back.graph.nodes.filter((n) => n.kind === "gateway").every((n) => n.tags?.includes("xor"))).toBe(true);
+  });
+});
+
+describe("parallel gateways in a model from the log", () => {
+  it("keep their kind through export and import", async () => {
+    const kinds = (g: FlowGraph) => g.nodes.filter((n) => n.kind === "gateway").map((n) => `${n.id} ${n.tags?.find((t) => t === "and" || t === "xor")}`).sort();
+    // The story's abstraction (exclusive gateways only) and one with a parallel block.
+    const story = liteFromGraph(globalScene, { abstraction: { minNodeShare: 0.05, minEdgeShare: 0.12, keepConnected: true }, andGateways: true });
+    const block = liteFromGraph(globalScene, { abstraction: { minNodeShare: 0.15, minEdgeShare: 0.12, keepConnected: true }, andGateways: true });
+    expect(kinds(block)).toEqual(expect.arrayContaining(["gw_split_create_purchase_order_item and", "gw_join_record_invoice_receipt and"]));
+    for (const graphLite of [story, block]) {
+      const back = await importBpmn((await exportBpmn(graphLite, { layout: { engine: "dagre" } })).xml);
+      expect(kinds(back.graph)).toEqual(kinds(graphLite));
+      expect(validateGateways(back.graph)).toEqual([]);
+    }
   });
 });
 

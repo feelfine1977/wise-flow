@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { globalScene } from "../../fixtures/bpic2019";
 import { p2pStages } from "../../fixtures/p2p_stages";
 import { type StageModel, END_ID, START_ID, liteCounts, liteFromGraph, liteFromStages, stageModelFromGraph } from "../../src/bpmn/headless";
-import { type FlowGraph, abstract, hasTag, indexGraph, validateGraph } from "../../src/index";
+import { type FlowGraph, type FlowNode, abstract, hasTag, indexGraph, validateGateways, validateGraph } from "../../src/index";
 
 const idsOf = (g: FlowGraph) => [...g.nodes.map((n) => n.id), ...g.edges.map((e) => e.id)].sort();
 
@@ -136,6 +136,82 @@ describe("liteFromGraph", () => {
     const shuffled = { ...scene, nodes: [...scene.nodes].reverse(), edges: [...scene.edges].reverse() };
     const b = liteFromGraph(shuffled);
     expect(idsOf(a)).toEqual(idsOf(b));
+  });
+});
+
+describe("liteFromGraph parallel gateways", () => {
+  const activity = (id: string): FlowNode => ({ id, kind: "activity", label: id.toUpperCase(), metrics: { cases: 10 } });
+  const follows = (pairs: string): FlowGraph["edges"] =>
+    pairs.split(" ").map((pair) => {
+      const [source, target] = pair.split(">");
+      return { id: `${source}->${target}`, kind: "follows", source, target, metrics: { count: 4 } };
+    });
+  const graph = (ids: string, pairs: string): FlowGraph => ({ nodes: ids.split(" ").map(activity), edges: follows(pairs) });
+  const shape = (g: FlowGraph) => ({
+    nodes: g.nodes.map((n) => `${n.id} ${n.kind} ${(n.tags ?? []).join(",")}`),
+    edges: g.edges.map((e) => e.id),
+  });
+
+  it("puts one parallel split and one parallel join around two concurrent activities", () => {
+    // b and c follow each other in both orders between a and d.
+    const g = graph("a b c d", "a>b a>c b>c c>b b>d c>d");
+    const lite = liteFromGraph(g, { andGateways: true });
+    expect(shape(lite)).toEqual({
+      nodes: [
+        "__start event start",
+        "a activity task",
+        "gw_split_a gateway and,split,generated",
+        "b activity task",
+        "c activity task",
+        "gw_join_d gateway and,join,generated",
+        "d activity task",
+        "__end event end",
+      ],
+      // b->c and c->b only show that b and c interleave: no flow.
+      edges: ["gw_split_a->b", "gw_split_a->c", "b->gw_join_d", "c->gw_join_d", "__start->a", "d->__end", "a->gw_split_a", "gw_join_d->d"],
+    });
+    expect(lite.edges.find((e) => e.id === "gw_split_a->b")).toMatchObject({ source: "gw_split_a", target: "b", metrics: { count: 4 }, payload: { origin: "a->b" } });
+    expect(lite.nodes.find((n) => n.id === "gw_split_a")?.label).toBe("Parallel");
+    expect(lite.nodes.find((n) => n.id === "gw_join_d")?.label).toBe("Join");
+    expect(validateGateways(lite)).toEqual([]);
+  });
+
+  it("puts a block of three branches and a block that follows it in pairs", () => {
+    const g = graph("a b c d e f g h z", "a>b a>c a>d b>c c>b b>d d>b c>d d>c b>e c>e d>e e>f e>g f>g g>f f>h g>h h>a h>z");
+    const lite = liteFromGraph(g, { andGateways: true });
+    const gateways = lite.nodes.filter((n) => n.kind === "gateway").map((n) => `${n.id} ${(n.tags ?? []).slice(0, 2).join(",")}`);
+    // a is entered from the start and from h (XOR merge); h leaves to a or to z (XOR choice).
+    expect(gateways).toEqual(["gw_join_a xor,join", "gw_split_a and,split", "gw_join_e and,join", "gw_split_e and,split", "gw_join_h and,join", "gw_split_h xor,split"]);
+    expect(validateGateways(lite)).toEqual([]);
+  });
+
+  it("merges concurrent sources that come from exclusive splits exclusively", () => {
+    // g and v follow each other in both orders and both lead to r, but g may also
+    // go on to x and each is entered from its own predecessor: no common split.
+    const g = graph("p q g v x r", "p>g q>v g>v v>g g>r v>r g>x");
+    const and = liteFromGraph(g, { andGateways: true });
+    expect(and.nodes.find((n) => n.id === "gw_join_r")?.tags).toEqual(["xor", "join", "generated"]);
+    expect(and.nodes.filter((n) => hasTag(n, "and"))).toEqual([]);
+    expect(and).toEqual(liteFromGraph(g));
+  });
+
+  it("keeps a parallel-looking split exclusive when its branches end in different places", () => {
+    const g = graph("a b c d e", "a>b a>c b>c c>b b>d c>e");
+    const and = liteFromGraph(g, { andGateways: true });
+    expect(and.nodes.find((n) => n.id === "gw_split_a")?.tags).toEqual(["xor", "split", "generated"]);
+    expect(and.nodes.filter((n) => hasTag(n, "and"))).toEqual([]);
+    expect(and).toEqual(liteFromGraph(g));
+  });
+
+  it("keeps a split exclusive when a branch is also entered from outside the block", () => {
+    const g = graph("a b c d x", "a>b a>c b>c c>b b>d c>d x>b");
+    expect(liteFromGraph(g, { andGateways: true }).nodes.filter((n) => hasTag(n, "and"))).toEqual([]);
+  });
+
+  it("keeps a split exclusive when the branches lead to a gateway of the input, which gets no join", () => {
+    const g = graph("a b c", "a>b a>c b>c c>b b>d c>d");
+    g.nodes.push({ id: "d", kind: "gateway", label: "D", tags: ["xor"] });
+    expect(liteFromGraph(g, { andGateways: true }).nodes.filter((n) => hasTag(n, "and"))).toEqual([]);
   });
 });
 
