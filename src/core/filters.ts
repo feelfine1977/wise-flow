@@ -31,7 +31,7 @@ export interface AttributeClause {
   missing?: boolean;
 }
 
-export type ActivityOp = "contains" | "not_contains" | "starts_with" | "ends_with" | "never";
+type ActivityOp = "contains" | "not_contains" | "starts_with" | "ends_with" | "never";
 
 export interface ActivityClause {
   kind: "activity";

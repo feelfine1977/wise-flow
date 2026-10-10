@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { type Box, type FlowGraph, laneModel, laneRoutes, routeSequenceFlows, spanLanes, stackLanes } from "../../src/index";
-import { manhattanRoute } from "../../src/bpmn/headless";
 
 // P (pool) ⊃ L1, L2 ⊃ L2a, L2b; X (stage) and L3 at the top level; Q is a pool without children.
 const nested: FlowGraph = {
@@ -131,20 +130,5 @@ describe("lane model", () => {
     expect(Object.keys(r).sort()).toEqual(["ab", "ac"]);
     expect(r.ab.points).toEqual([{ x: 100, y: 40 }, { x: 200, y: 40 }]);
     expect(r).toEqual(routeSequenceFlows(g, nodes));
-  });
-});
-
-describe("manhattanRoute (deprecated)", () => {
-  const task = (x: number, y: number): Box => ({ x, y, width: 100, height: 80 });
-  const tasks = { source: "activity", target: "activity" } as const;
-  it("joins boxes on one row straight and bends half-way otherwise", () => {
-    expect(manhattanRoute(task(0, 0), task(200, 0), tasks).points).toEqual([{ x: 100, y: 40 }, { x: 200, y: 40 }]);
-    expect(manhattanRoute(task(0, 0), task(200, 100), tasks).points).toEqual([{ x: 100, y: 40 }, { x: 150, y: 40 }, { x: 150, y: 140 }, { x: 200, y: 140 }]);
-  });
-  it("leaves a gateway through its tip, loops back edges below and runs vertically in one column", () => {
-    const gateway = { x: 0, y: 0, width: 50, height: 50 };
-    expect(manhattanRoute(gateway, task(200, 100), { source: "gateway", target: "activity" }).points).toEqual([{ x: 25, y: 50 }, { x: 25, y: 140 }, { x: 200, y: 140 }]);
-    expect(manhattanRoute(task(300, 0), task(0, 0), tasks).points).toEqual([{ x: 350, y: 80 }, { x: 350, y: 100 }, { x: 50, y: 100 }, { x: 50, y: 80 }]);
-    expect(manhattanRoute(task(0, 0), task(0, 200), tasks).points).toEqual([{ x: 50, y: 80 }, { x: 50, y: 200 }]);
   });
 });

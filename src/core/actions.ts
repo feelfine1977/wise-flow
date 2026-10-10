@@ -62,7 +62,7 @@ export function menuTargetFor(graph: FlowGraph, element: ElementRef, selection: 
   return { kind: "node", id: element.id, ids: [element.id], label: label(element.id), nodeKind: idx.nodes.get(element.id)?.kind };
 }
 
-export interface DefaultActionOptions {
+interface DefaultActionOptions {
   /** The group of the target is collapsed into a stage node. */
   collapsed?: boolean;
   /** A focus (paths) is shown, so "hide the paths" makes sense. */

@@ -6,7 +6,7 @@ import RBush from "rbush";
 import type { Box, EdgeRoute, Positions, XY } from "./layout.js";
 import type { OverlayGeometry } from "./overlays.js";
 
-export type HitKind = "node" | "edge" | "group" | "overlay";
+type HitKind = "node" | "edge" | "group" | "overlay";
 
 export interface HitItem {
   minX: number;

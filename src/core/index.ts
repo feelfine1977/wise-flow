@@ -1,18 +1,12 @@
 // The core entry point. Every name is listed; a name marked deprecated stays
-// exported until the next major version.
+// exported until it is removed (see "Deprecated names" in docs/API.md).
 
 export {
-  /** @deprecated Leaves the entry point in the next major version; test `"source" in element`. */
-  isEdge,
   metric,
   hasTag,
   indexGraph,
   validateGraph,
   normalizeGraph,
-  /** @deprecated Leaves the entry point in the next major version; test `node.kind === "event" || node.kind === "gateway"`. */
-  isStructuralNode,
-  /** @deprecated Leaves the entry point in the next major version; compare `a.id` and `b.id`. */
-  byId,
   MAP_TARGET,
 } from "./model.js";
 export type {
@@ -31,8 +25,6 @@ export type {
   AbstractionMeta,
   FlowMeta,
   FlowGraph,
-  /** @deprecated Leaves the entry point in the next major version; use `FlowNode | FlowEdge`. */
-  FlowElement,
   GraphIndex,
   GraphIssue,
 } from "./model.js";
@@ -50,8 +42,6 @@ export {
 } from "./aggregate.js";
 export type {
   AbstractOptions,
-  /** @deprecated Leaves the entry point in the next major version; use `NonNullable<Parameters<typeof diff>[2]>`. */
-  DiffOptions,
 } from "./aggregate.js";
 
 export {
@@ -91,18 +81,12 @@ export {
 
 export {
   hexToRgb,
-  /** @deprecated Leaves the entry point in the next major version; format the rounded channels as `#rrggbb`. */
-  rgbToHex,
   interpolatePalette,
-  /** @deprecated Leaves the entry point in the next major version; use `contrastRatio`. */
-  relativeLuminance,
   contrastRatio,
   contrastText,
   hashKey,
   lodAt,
   lodForSize,
-  /** @deprecated Leaves the entry point in the next major version; use `buildScales(graph, spec).color`. */
-  colorOn,
   buildScales,
   patternDefs,
   PATTERNS,
@@ -114,8 +98,6 @@ export {
 } from "./style.js";
 export type {
   PatternId,
-  /** @deprecated Leaves the entry point in the next major version; use `NonNullable<ColorSpec["palette"]>`. */
-  PaletteName,
   ChannelSpec,
   ColorSpec,
   LodRules,
@@ -146,8 +128,6 @@ export {
 export type {
   ColorToken,
   Arrowhead,
-  /** @deprecated Leaves the entry point in the next major version; use `ReturnType<typeof patternTwin>`. */
-  PatternShape,
 } from "./tokens.js";
 
 export {
@@ -157,8 +137,6 @@ export {
   describeOverlay,
   overlayGeometry,
   overlayMargin,
-  /** @deprecated Leaves the entry point in the next major version; use `{ x: s.labelX ?? s.x + s.width / 2, y: s.labelY ?? s.y }`. */
-  shapeAnchor,
 } from "./overlays.js";
 export type {
   ConstraintType,
@@ -174,8 +152,6 @@ export {
   HitIndex,
 } from "./hit.js";
 export type {
-  /** @deprecated Leaves the entry point in the next major version; use `HitItem["kind"]`. */
-  HitKind,
   HitItem,
 } from "./hit.js";
 
@@ -218,8 +194,6 @@ export type {
   ViewSpec,
   ResolvedView,
   ViewSet,
-  /** @deprecated Leaves the entry point in the next major version; use `NonNullable<Parameters<typeof buildViews>[2]>`. */
-  BuildViewsOptions,
 } from "./views.js";
 
 export {
@@ -256,8 +230,6 @@ export type {
   PathRow,
   ActivityPaths,
   PathSortKey,
-  /** @deprecated Leaves the entry point in the next major version; use `NonNullable<Parameters<typeof pathsFor>[2]>`. */
-  PathsOptions,
   PathBetween,
   Focus,
 } from "./paths.js";
@@ -281,8 +253,6 @@ export type {
   TimeMode,
   TimeClause,
   AttributeClause,
-  /** @deprecated Leaves the entry point in the next major version; use `ActivityClause["op"]`. */
-  ActivityOp,
   ActivityClause,
   FollowsClause,
   LagClause,
@@ -327,8 +297,6 @@ export type {
   MenuGroup,
   MenuTarget,
   MenuAction,
-  /** @deprecated Leaves the entry point in the next major version; use `NonNullable<Parameters<typeof defaultActions>[3]>`. */
-  DefaultActionOptions,
 } from "./actions.js";
 
 export {
@@ -362,10 +330,6 @@ export {
   followsSelfLoops,
   withFollowsSelfLoops,
   withObservedSelfLoops,
-} from "./observed-loops.js";
-export type {
-  /** @deprecated Leaves the entry point in the next major version; use `NonNullable<Parameters<typeof followsSelfLoops>[1]>`. */
-  FollowsSelfLoopOptions,
 } from "./observed-loops.js";
 
 export {
@@ -440,8 +404,6 @@ export type {
   ElementText,
   NodeMark,
   EdgeMark,
-  /** @deprecated Leaves the entry point in the next major version; use `Parameters<typeof nodeMark>[2]`. */
-  NodeMarkOptions,
 } from "./element-marks.js";
 
 export {

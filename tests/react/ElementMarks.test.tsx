@@ -60,7 +60,7 @@ describe("React Flow node and edge components", () => {
   it("draw the mark they are given rather than resolving their own", async () => {
     const [, a, g] = graph.nodes;
     const flow = graph.edges[1];
-    const fields = { color: "#8c8c8c", pattern: "solid" as const, badges: [], hatched: false, direction: "RIGHT" as const, focused: false, hovered: false, dimmed: false, locale: "en" as const };
+    const fields = { color: "#8c8c8c", pattern: "solid" as const, hatched: false, direction: "RIGHT" as const, focused: false, hovered: false, dimmed: false, locale: "en" as const };
     // Marks whose texts and route differ from what the node and edge fields would give.
     const activity = nodeMark(a, positions.nodes.a, { color: "#8c8c8c", pattern: "solid" });
     activity.texts = activity.texts.map((t) => ({ ...t, text: t.role === "label" ? "From the mark" : "42" }));

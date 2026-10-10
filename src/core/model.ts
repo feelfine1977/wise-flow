@@ -146,12 +146,6 @@ export interface FlowGraph {
 /** Target id of overlays that belong to the whole map rather than an element. */
 export const MAP_TARGET = "__map";
 
-export type FlowElement = FlowNode | FlowEdge;
-
-export function isEdge(el: FlowElement): el is FlowEdge {
-  return (el as FlowEdge).source !== undefined && (el as FlowEdge).target !== undefined;
-}
-
 /** Read a metric with a fallback; `NaN` and missing values yield the fallback. */
 export function metric(el: { metrics?: Metrics } | undefined, name: string, fallback = 0): number {
   const v = el?.metrics?.[name];

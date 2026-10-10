@@ -1,5 +1,6 @@
 import type { Thresholded } from "../../src/core/aggregate";
-import { type FlowEdge, type FlowNode, RECONNECTED_TAG, byId, components, indexGraph, isStructuralNode } from "../../src/index";
+import { byId, isStructuralNode } from "../../src/core/model";
+import { type FlowEdge, type FlowNode, RECONNECTED_TAG, components, indexGraph } from "../../src/index";
 
 /**
  * The reconnection's first step before it became one growing search, kept as the

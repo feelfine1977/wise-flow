@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { byId } from "../../src/core/model";
 import { joinComponents, thresholded } from "../../src/core/aggregate";
-import { type FlowEdge, type FlowNode, RECONNECTED_TAG, abstract, byId, components, hasTag, isConnected } from "../../src/index";
+import { type FlowEdge, type FlowNode, RECONNECTED_TAG, abstract, components, hasTag, isConnected } from "../../src/index";
 import { abstractionCases, abstractionDigest, abstractionGraphs, seededCyclicGraph, tiedGraph } from "./abstract-cases";
 // Recorded from the implementation before self-loop strength and reconnection were made
 // linear; only a deliberate change of the output may change it.

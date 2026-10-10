@@ -42,7 +42,7 @@ export interface ViewSet {
   domains: Record<string, number[]>;
 }
 
-export interface BuildViewsOptions {
+interface BuildViewsOptions {
   /** Positions for the base graph; computed when omitted. */
   positions?: Positions;
   layout?: LayoutOptions;
