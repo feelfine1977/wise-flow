@@ -377,4 +377,21 @@ describe("hosts that supply positions", () => {
     expect(container.querySelector(".wf-process-map")!.getAttribute("data-layout-status")).toBe("given");
     expect(translate(container, "a")).toEqual({ x: 500, y: 1000 });
   });
+
+  it("move a view that is not fitted only when the layout arrives, not with later positions", async () => {
+    reducedMotion(true);
+    const map = (p: Positions) => <ProcessMap graph={chain} positions={p} fitView={false} />;
+    const { container, rerender } = render(map(createPositions(at(0), "provisional", "RIGHT")));
+    rerender(map(at(100)));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
+    // The user pans 50 up; the host then gives positions of the same extent with a, b, c in reverse.
+    const arrived = viewport(container);
+    fireEvent.wheel(container.querySelector(".react-flow__pane")!, { deltaX: 0, deltaY: 100 });
+    await waitFor(() => expect(viewport(container)).not.toEqual(arrived));
+    const panned = viewport(container);
+    const reversed = createPositions({ nodes: { a: at(100).nodes.c, b: at(100).nodes.b, c: at(100).nodes.a }, groups: {}, edges: {} }, "dagre", "RIGHT");
+    rerender(map(reversed));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
+    expect(viewport(container)).toEqual(panned);
+  });
 });

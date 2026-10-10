@@ -132,7 +132,8 @@ function ProcessMapInner(props: ProcessMapProps) {
   // `useStableLayout` say so too); the layout then moves into its place.
   const provisional = needsOwnLayout ? own.provisional : givenPositions?.engine === "provisional";
   const reducedMotion = usePrefersReducedMotion();
-  const arrival = useArrival(needsOwnLayout ? own.positions : givenPositions, provisional, reducedMotion);
+  const target = needsOwnLayout ? own.positions : givenPositions;
+  const arrival = useArrival(target, provisional, reducedMotion);
   const arranging = provisional || arrival.moving;
   const [manual, setManual] = useState<{ key: ProcessMapProps["layoutResetKey"]; points: Record<string, XY> }>({ key: layoutResetKey, points: {} });
   // Graph overlays and the given ones; the scene keeps those it can place and adds the follows self-loops.
@@ -225,7 +226,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   const moved = useRef(false);
   const drawn = useRef(positions);
   useLayoutEffect(() => void (drawn.current = positions), [positions]);
-  const [fit, setFit] = useState<{ key: string; laid: string; count: number; anchor?: Anchor; hold?: boolean }>({ key: laidKey, laid: laidKey, count: 0 });
+  const [fit, setFit] = useState<{ key: string; laid: string; count: number; anchor?: Anchor; hold?: boolean; arrived?: Positions }>({ key: laidKey, laid: laidKey, count: 0 });
   if (fit.count !== arrival.count) {
     const r = canvasRef.current?.renderer();
     const { transform: [x, y, zoom], width, height } = flowStore.getState();
@@ -233,16 +234,17 @@ function ProcessMapInner(props: ProcessMapProps) {
     const current = useCanvas ? r && { ...r.getViewport(), width: rect!.width, height: rect!.height } : { x, y, zoom, width, height };
     const keep = !fitView || (useCanvas ? canvasRef.current?.moved() : moved.current);
     const anchor = current && keep ? anchorAt(drawn.current, current) : undefined;
-    setFit({ ...fit, count: arrival.count, anchor, hold: !!anchor });
+    setFit({ ...fit, count: arrival.count, anchor, hold: !!anchor, arrived: target });
   } else if (!arrival.moving && fit.laid !== laidKey) {
-    setFit({ key: fit.hold ? fit.key : laidKey, laid: laidKey, count: fit.count, anchor: fit.hold ? fit.anchor : undefined });
+    setFit({ key: fit.hold ? fit.key : laidKey, laid: laidKey, count: fit.count, anchor: fit.hold ? fit.anchor : undefined, arrived: fit.arrived });
   }
   const fitKey = fit.key;
   const userMove = () => void (moved.current = true);
   const { anchor } = fit;
   useLayoutEffect(() => {
     const box = anchor && positions?.nodes[anchor.id];
-    if (!anchor || !box) return;
+    // Only on the way to the layout the anchor was taken for; later positions leave the view alone.
+    if (!anchor || !box || (!arrival.moving && arrival.positions !== fit.arrived)) return;
     const { centre, view: v } = anchor;
     const next = { x: v.x + (centre.x - centreOf(box).x) * v.zoom, y: v.y + (centre.y - centreOf(box).y) * v.zoom, zoom: v.zoom };
     if (useCanvas) {
