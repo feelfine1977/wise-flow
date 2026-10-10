@@ -49,6 +49,9 @@ const LEFT = 140;
 const RIGHT = 24;
 const TOP = 28;
 
+const least = (values: readonly number[]) => values.reduce((m, v) => Math.min(m, v), Infinity);
+const greatest = (values: readonly number[]) => values.reduce((m, v) => Math.max(m, v), -Infinity);
+
 function toMs(ts: TraceEvent["timestamp"]): number {
   return ts instanceof Date ? ts.getTime() : typeof ts === "number" ? new Date(ts).getTime() : Date.parse(ts);
 }
@@ -83,7 +86,7 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
       const times = trace.events.map((e) => toMs(e.timestamp));
       const anchorIndex = anchor ? trace.events.findIndex((e) => e.canonicalId === anchor || e.activity === anchor) : -1;
       const validTimes = times.filter(Number.isFinite);
-      const offset = !anchor ? 0 : Number.isFinite(times[anchorIndex]) ? times[anchorIndex] : validTimes.length ? Math.min(...validTimes) : 0;
+      const offset = !anchor ? 0 : Number.isFinite(times[anchorIndex]) ? times[anchorIndex] : validTimes.length ? least(validTimes) : 0;
       return { trace, times, anchorIndex, rel: times.map((tm) => (tm - offset) / 86400000) };
     });
   }, [traces, anchor]);
@@ -97,14 +100,14 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
   const domain = useMemo(() => {
     if (anchor) {
       const all = rows.flatMap((r) => r.rel).filter(Number.isFinite);
-      const lo = Math.min(0, ...all);
-      const hi = Math.max(0, ...all);
+      const lo = Math.min(0, least(all));
+      const hi = Math.max(0, greatest(all));
       return [lo, hi === lo ? lo + 1 : hi] as [number, number];
     }
     const all = rows.flatMap((r) => r.times).filter(Number.isFinite);
     if (all.length === 0) return [0, 86400000] as [number, number];
-    const lo = Math.min(...all);
-    const hi = Math.max(...all);
+    const lo = least(all);
+    const hi = greatest(all);
     return [lo, hi === lo ? lo + 86400000 : hi] as [number, number];
   }, [rows, anchor]);
 
@@ -195,7 +198,7 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
               <text className="wf-row-label" x={LEFT - 8} y={cy + 4} textAnchor="end">
                 {row.trace.caseId}
               </text>
-              {measuredXs.length > 1 ? <line x1={Math.min(...measuredXs)} x2={Math.max(...measuredXs)} y1={cy} y2={cy} stroke="var(--wf-line)" /> : null}
+              {measuredXs.length > 1 ? <line x1={least(measuredXs)} x2={greatest(measuredXs)} y1={cy} y2={cy} stroke="var(--wf-line)" /> : null}
               {rowAnnotations.map((a, i) => {
                 const from = xs[a.from];
                 const to = xs[a.to ?? a.from];

@@ -42,7 +42,8 @@ function observedLabels({ edge, node, count, cases, total, locale }: LoopReading
 /** One self-loop overlay per follows edge from a node to itself, in edge order. */
 export function followsSelfLoops(graph: FlowGraph, options: FollowsSelfLoopOptions = {}): Overlay[] {
   const locale = options.locale ?? "en";
-  const maxCount = Math.max(1, ...graph.edges.filter((e) => e.kind === "follows").map((e) => metric(e, "count", 0)));
+  let maxCount = 1;
+  for (const e of graph.edges) if (e.kind === "follows") maxCount = Math.max(maxCount, metric(e, "count", 0));
   const nodes = new Map(graph.nodes.map((node) => [node.id, node]));
   return graph.edges
     .filter((edge) => edge.kind === "follows" && edge.source === edge.target)

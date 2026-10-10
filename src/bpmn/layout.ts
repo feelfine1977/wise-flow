@@ -117,8 +117,13 @@ export async function layoutBpmn(graph: FlowGraph, options: BpmnLayoutOptions = 
 
   const nodes: Record<string, Box> = {};
   const groups: Record<string, Box> = {};
-  const rowHeight = Math.max(80, ...Object.values(elk.nodes).map((b) => b.height)) + rowGap;
-  const minX = Math.min(...Object.values(elk.nodes).map((b) => b.x));
+  let tallest = 80;
+  let minX = Infinity;
+  for (const b of Object.values(elk.nodes)) {
+    tallest = Math.max(tallest, b.height);
+    minX = Math.min(minX, b.x);
+  }
+  const rowHeight = tallest + rowGap;
   const x0 = labelWidth * 2 + poolPadding;
   let contentRight = 0;
   const { slots, end } = stackLanes(graph, model, 0, 0, (_lane, laneMembers, y) => {

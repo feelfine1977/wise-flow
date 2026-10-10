@@ -250,7 +250,8 @@ function shortest(idx: GraphIndex, a: string, b: string, maxCount: number): { no
  */
 export function pathBetween(graph: FlowGraph, a: string, b: string): PathBetween {
   const idx = indexGraph(graph);
-  const maxCount = Math.max(0, ...graph.edges.map((e) => metric(e, "count", 0)));
+  let maxCount = 0;
+  for (const e of graph.edges) maxCount = Math.max(maxCount, metric(e, "count", 0));
   const directFor = (from: string, to: string) => (idx.outgoing.get(from) ?? [])
     .filter((e) => e.target === to && e.kind !== "constraint")
     .sort((x, y) => pathStrength(y, maxCount) - pathStrength(x, maxCount) || byId(x, y))[0];

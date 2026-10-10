@@ -17,6 +17,24 @@ export default tseslint.config(
     },
   },
   {
+    // Each spread element is one call argument; engines limit their number, so a graph-sized array overflows the stack.
+    // Only array literals without spreads of their own may be spread into Math.max and Math.min.
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "CallExpression[callee.object.name='Math'][callee.property.name=/^(max|min)$/] > SpreadElement.arguments:matches([argument.type!='ArrayExpression'], :has(ArrayExpression > SpreadElement))",
+          message: "Spreading an array into Math.max or Math.min fails on large inputs; reduce over it in a loop.",
+        },
+        {
+          selector: "CallExpression[callee.property.name='apply'][callee.object.object.name='Math'][callee.object.property.name=/^(max|min)$/]",
+          message: "Applying Math.max or Math.min to an array fails on large inputs; reduce over it in a loop.",
+        },
+      ],
+    },
+  },
+  {
     files: ["stories/**/*.tsx"],
     rules: { "react-hooks/rules-of-hooks": "off" },
   },
