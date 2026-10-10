@@ -166,6 +166,29 @@ describe("abstract", () => {
     expect(raw.edges.length).toBeLessThanOrEqual(connected.edges.length);
   });
 
+  it("measures self-loops against the maximum or the raw total of the other follows edges", () => {
+    const loops: FlowGraph = {
+      nodes: [{ id: "a", kind: "activity", label: "A" }, { id: "b", kind: "activity", label: "B" }, { id: "c", kind: "activity", label: "C" }],
+      edges: [
+        { id: "ab", source: "a", target: "b", kind: "follows", metrics: { count: 60 } },
+        { id: "ba", source: "b", target: "a", kind: "follows", metrics: { count: -20 } },
+        { id: "aa", source: "a", target: "a", kind: "follows", metrics: { count: 15 } },
+        { id: "bb", source: "b", target: "b", kind: "follows", metrics: { count: 80 } },
+        { id: "cc", source: "c", target: "c", kind: "follows" },
+      ],
+    };
+    const loopsKept = (relativeTo: "max" | "total", minEdgeShare: number) =>
+      abstract(loops, { relativeTo, minEdgeShare, keepConnected: false })
+        .edges.filter((e) => e.source === e.target)
+        .map((e) => e.id);
+    // max: 15 / 60 = 0.25; 80 / 60 is capped at 1; a loop without a metric counts 1.
+    expect(loopsKept("max", 0.25)).toEqual(["aa", "bb", "cc"]);
+    expect(loopsKept("max", 0.26)).toEqual(["bb", "cc"]);
+    // total: the negative count is summed as it is, 15 / (60 - 20) = 0.375.
+    expect(loopsKept("total", 0.375)).toEqual(["aa", "bb", "cc"]);
+    expect(loopsKept("total", 0.38)).toEqual(["bb", "cc"]);
+  });
+
   it("removes weak activities but never events, gateways or kept ids", () => {
     const g = abstract(globalScene, { minNodeShare: 0.5, keep: ["change_currency"] });
     expect(g.nodes.find((n) => n.id === "change_currency")).toBeDefined();
