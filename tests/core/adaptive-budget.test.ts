@@ -213,4 +213,25 @@ describe("adaptive edge budget in the Canvas renderer", () => {
     for (let k = 0; k < 6; k++) renderer.draw();
     expect(clock).not.toHaveBeenCalled();
   });
+
+  it("reads no clock once its host turns an adaptive budget fixed", () => {
+    let now = 0;
+    const clock = vi.fn(() => (now += SLOW));
+    const { renderer } = rendererOf(n, clock);
+    expect(pan(renderer, 6, false)).toEqual(times(6, 2000));
+    expect(clock).toHaveBeenCalled();
+    for (const edgeBudget of [3000, "all"] as const) {
+      renderer.drawOptions = { ...renderer.drawOptions, edgeBudget };
+      clock.mockClear();
+      renderer.beginGesture();
+      for (let k = 0; k < 6; k++) {
+        renderer.panBy(1, 0);
+        renderer.draw();
+      }
+      renderer.endGesture();
+      renderer.draw();
+      expect(clock).not.toHaveBeenCalled();
+      expect(renderer.lastDraw!.withheld?.shown).toBe(edgeBudget === "all" ? undefined : 3000);
+    }
+  });
 });
