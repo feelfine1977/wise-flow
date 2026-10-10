@@ -1,14 +1,17 @@
 import { defineConfig } from "vitest/config";
 
+const largeInputs = ["tests/core/graph-size.test.ts"];
+
 export default defineConfig({
   test: {
     projects: [
-      { extends: true, test: { name: "core", include: ["tests/core/**/*.test.ts"], exclude: ["tests/core/graph-size.test.ts"], environment: "node" } },
-      // A million edges take up to about 1.6 GB of heap in one worker; run them after the other files, alone, so
-      // parallel workers do not exhaust the memory of a small machine and kill that worker.
-      { extends: true, test: { name: "core-large", include: ["tests/core/graph-size.test.ts"], environment: "node", sequence: { groupOrder: 1 } } },
+      { extends: true, test: { name: "core", include: ["tests/core/**/*.test.ts"], exclude: [...largeInputs], environment: "node" } },
+      // Holds a million-edge scene (about 1.9 GB per fork with coverage): run alone, after the others.
+      { extends: true, test: { name: "large", include: largeInputs, environment: "node", sequence: { groupOrder: 1 }, maxWorkers: 1 } },
       { extends: true, test: { name: "react", include: ["tests/react/**/*.test.tsx"], environment: "jsdom", setupFiles: ["tests/react/setup.ts"] } },
     ],
+    // Hosted runners have two to four cores; more forks than that only multiply the memory a run needs.
+    maxWorkers: 4,
     testTimeout: 30000,
     hookTimeout: 30000,
     allowOnly: !process.env.CI,

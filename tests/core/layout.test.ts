@@ -48,24 +48,28 @@ describe("layout", () => {
 });
 
 describe("layoutUnion", () => {
-  // In-process ELK on the full union is the slowest layout in the suite. Compute it
-  // once, and without the default time limit, after which a slow host would lay out
-  // a second time without stage partitions.
+  // ELK runs on the calling thread here and needs seconds for the dense global scene
+  // (44 nodes, 656 follows edges between them), so the union for ELK takes its frequent edges.
+  // All nodes stay; the vendor scene adds edges the abstraction left out.
+  const frequent = abstract(globalScene, { minEdgeShare: 0.03 });
   let elkUnion: ReturnType<typeof layoutUnion> | undefined;
-  const unionWithElk = () => (elkUnion ??= layoutUnion([globalScene, vendorScene], { engine: "elk", timeoutMs: 120000 }));
+  const unionWithElk = () => (elkUnion ??= layoutUnion([frequent, vendorScene], { engine: "elk" }));
 
   it("yields identical positions for shared nodes across filtered scenes", async () => {
     const union = await unionWithElk();
-    const a = filterPositions(union, globalScene);
+    const a = filterPositions(union, frequent);
     const b = filterPositions(union, vendorScene);
-    expect(coversGraph(a, globalScene)).toBe(true);
+    expect(coversGraph(a, frequent)).toBe(true);
     expect(coversGraph(b, vendorScene)).toBe(true);
     const shared = vendorScene.nodes.map((n) => n.id).filter((id) => a.nodes[id]);
     expect(shared.length).toBe(vendorScene.nodes.length);
     for (const id of shared) expect(b.nodes[id]).toEqual(a.nodes[id]);
-    for (const e of vendorScene.edges) if (union.edges[e.id]) expect(b.edges[e.id]).toEqual(a.edges[e.id]);
+    const own = vendorScene.edges.filter((e) => e.source !== e.target && !a.edges[e.id]);
+    expect(own.length).toBeGreaterThan(0);
+    for (const e of own) expect(b.edges[e.id]?.points.length, `${e.id} has no route`).toBeGreaterThan(1);
+    for (const e of vendorScene.edges) if (a.edges[e.id]) expect(b.edges[e.id]).toEqual(a.edges[e.id]);
     expect(b.bounds.width).toBeLessThanOrEqual(a.bounds.width + 1e-6);
-  }, 120000);
+  });
 
   it("also holds for abstracted scenes of the same union", async () => {
     const union = await layoutUnion([globalScene, vendorScene], { engine: "dagre" });
@@ -81,7 +85,7 @@ describe("layoutUnion", () => {
     const alone = await layout(vendorScene, { engine: "elk" });
     const moved = vendorScene.nodes.filter((n) => alone.nodes[n.id].x !== union.nodes[n.id].x || alone.nodes[n.id].y !== union.nodes[n.id].y);
     expect(moved.length).toBeGreaterThan(0);
-  }, 120000);
+  });
 
   it("builds the union by id with the first definition winning", () => {
     const u = unionGraph([vendorScene, globalScene]);
