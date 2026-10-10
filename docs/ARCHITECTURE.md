@@ -125,11 +125,13 @@ from each newly joined part at distance 0; it searches a node again only
 when a newly joined part is nearer to it. On the cyclic and many-component
 graphs of the tests the work grows like (nodes + edges) · log nodes; a
 removed node near many components that are joined one after another, each
-slightly nearer to it, is searched once per such join. Ties are broken by
-id: of equally near nodes of other components the one with the smallest id
-is joined first, a node on equally cheap paths is entered by the edge with
-the smallest id, and a touched component joins by the smallest id among
-its cheapest direct edges. With unique ids the result therefore does not
+slightly nearer to it, is searched once per such join, so on such graphs the
+work can still grow with the number of joins times the number of edges, as
+it did on every graph up to 0.3.5. Ties are broken by id: of equally near
+nodes of other components the one with the smallest id is joined first, a
+node on equally cheap paths is entered by the edge with the smallest id,
+and a touched component joins by the smallest id among its cheapest direct
+edges. With unique ids the result therefore does not
 depend on the input order. Each join costs what the search per join of
 0.3.5 would have found; where it broke a tie differently, later joins and
 so the total may differ in either direction. The committed fixtures are
