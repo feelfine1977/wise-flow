@@ -93,16 +93,24 @@ const SCENES: Scene[] = [
   },
   { name: "timeline table", story: "trace-timeline--table" },
   { name: "canvas", story: "canvas--p-2-p-on-canvas", map: true },
+  {
+    name: "bpmn",
+    story: "bpmn--overlays-on-model",
+    act: async (page) => {
+      await expect(page.locator('[data-bpmn-status="ready"]')).toBeVisible({ timeout: 60_000 });
+      await page.waitForTimeout(500);
+    },
+  },
 ];
 
-/** Each element as its tag, classes and id, with the values of its computed style in the order of `PROPERTIES`. */
+/** Each element as its tag, classes and id, with the values of its computed style in the order of `PROPERTIES` (bpmn-js names its markers at random). */
 async function computedStyles(page: Page, properties: string[]): Promise<[string, string][]> {
   return page.evaluate((properties) => {
     const root = document.querySelector("#storybook-root")!;
     return [...root.querySelectorAll("*")].map((element) => {
       const style = getComputedStyle(element);
       const name = `${element.tagName.toLowerCase()}${[...element.classList].filter((c) => c.startsWith("wf-") || c.startsWith("react-flow__")).map((c) => `.${c}`).join("")}${element.getAttribute("data-id") ? `[${element.getAttribute("data-id")}]` : ""}`;
-      return [name, properties.map((p) => style.getPropertyValue(p)).join("; ")] as [string, string];
+      return [name, properties.map((p) => style.getPropertyValue(p).replace(/#marker-[a-z0-9]+/, "#marker")).join("; ")] as [string, string];
     });
   }, properties);
 }
