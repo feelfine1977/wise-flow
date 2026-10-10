@@ -50,7 +50,8 @@ function orderOf(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style">) {
 /** The edges a budget draws of those in view (all when omitted); undefined when it withholds none. */
 export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style">, budget: EdgeBudget | undefined, protection: EdgeProtection = {}, inView?: readonly number[]): EdgeSelection | undefined {
   const total = inView ? inView.length : scene.edgeMarks.length;
-  if (budget === undefined || budget === "all" || total <= budget) return undefined;
+  // Not a number (NaN) withholds nothing, as "all" does.
+  if (budget === undefined || budget === "all" || !(total > budget)) return undefined;
   const { rank, marked } = orderOf(scene);
   const selected = new Set(protection.selection?.edges);
   const drawn = new Set<number>();

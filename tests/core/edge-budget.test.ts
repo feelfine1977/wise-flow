@@ -41,6 +41,7 @@ describe("edge budget", () => {
     expect(budgetEdges(scene, "all")).toBeUndefined();
     expect(budgetEdges(scene, undefined)).toBeUndefined();
     expect(budgetEdges(scene, 7)).toBeUndefined();
+    expect(budgetEdges(scene, Number.NaN)).toBeUndefined();
     expect(budgetEdges(scene, 3, {}, [0, 2, 6])).toBeUndefined();
     expect(budgetEdges(scene, 0, {}, [])).toBeUndefined();
   });

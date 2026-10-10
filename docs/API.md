@@ -1326,8 +1326,8 @@ focus of paths in effect (`mapEmphasis(...).bright.edges` while
 names). The edges a selection of activities merely brightens are not
 protected.
 
-`budgetEdges` returns undefined when the budget is `"all"` or undefined, or
-when it withholds nothing (no more edges in view than the budget, or every
+`budgetEdges` returns undefined when the budget is `"all"`, undefined or
+not a number (`NaN`), or when it withholds nothing (no more edges in view than the budget, or every
 edge protected); otherwise the positions in `scene.edgeMarks` of the edges
 drawn, how many that is (`shown`) and how many were in view (`total`). The
 edges in view are `inView` (positions in `scene.edgeMarks`), or every edge
