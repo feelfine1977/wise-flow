@@ -39,9 +39,9 @@ read what it resolves and do not decide it again.
 | Scene (`core/scene.ts`) | `buildScene(graph, positions, options)` → `FlowScene` | activity references, lane bands, scales, the overlays to show in canonical order with the follows self-loops, level-of-detail rules, overlay geometry, the marks and the legend, resolved once (§2.6) | `toSVG`, `prepareScene` (Canvas, `toPNG`), `ProcessMap`, `BpmnView` (`bpmn/scene.ts` over the registry's boxes) |
 | Overlay marks (`core/overlay-marks.ts`) | `FlowScene.marks`, `OverlayMark` | per placed overlay: box or path, fill, stroke, dash, arrowhead, texts, layer, zoom threshold, whether it is on the map (§2.5) | SVG export, Canvas drawing, React nodes and `OverlayLayer`, BPMN projection |
 | Node and edge marks (`core/element-marks.ts`) | `FlowScene.nodeMarks`, `FlowScene.edgeMarks`, `truncateText` | outline, fill, border, band, texts and their level of detail; edge route, colour, dash, count label (§2.5) | SVG export, Canvas drawing, React node and edge components |
-| Edge budget (`core/edge-budget.ts`) | `budgetEdges(scene, budget, protection, inView)` → `EdgeSelection`; `edgeBudgetAdapter(clock)` (internal) | which edges in view a budget draws: protected edges (an overlay mark on them, selected, at the keyboard position, on a highlighted path), then weight, then id; the adaptive budget's step, moved by the timed frames of gestures and only at rest (§4) | `drawScene` and `CanvasRenderer` (Canvas), `useFlowElements` (React Flow) |
+| Edge budget (`core/edge-budget.ts`) | `budgetEdges(scene, budget, protection, inView)` → `EdgeSelection`; `edgeBudgetAdapter(clock)` (internal) | which edges in view a budget draws: protected edges (an overlay mark on them, selected, at the keyboard position, on a highlighted path), then weight, then id; or exactly the edges a map reported (`ShownEdges`); the adaptive budget's step, moved by the timed frames of gestures and only at rest (§4) | `drawScene` and `CanvasRenderer` (Canvas, `toPNG`), `useFlowElements` (React Flow), `toSVG` |
 | Mark SVG (`core/mark-svg.ts`) | `markSvg`, `svgMarkup` | the SVG elements of a mark | SVG export, React map, BPMN view |
-| Legend and figure frame (`core/figure.ts`) | `sceneLegend`, `legendLayout`, `figureFrame` | legend rows and heights, the exported figure's frame (§2.6) | `toSVG`, `toPNG`, Canvas `drawLegend`, `<Legend/>` |
+| Legend and figure frame (`core/figure.ts`) | `sceneLegend`, `legendLayout`, `figureFrame` | legend rows and heights, the exported figure's frame and the note on withheld edges in it (§2.6) | `toSVG`, `toPNG`, Canvas `drawLegend`, `<Legend/>` |
 | Design tokens (`core/tokens.ts`) | `designTokens` and its parts, `patternTwin`, `tokenVariables` | colours, palettes, fonts, node and mark sizes, the arrowhead rule, pattern twins; `tokens.css` is checked against it (§2.4) | marks, SVG export, Canvas `readTokens`, `tokens.css` |
 | Graph index and positions (`core/model.ts`, `core/layout.ts`) | `indexGraph`, `createPositions` | lookups, adjacency, group ancestors, nested members, labels; positions whose bounds always match their contents (§2.1, §2.3) | selection, filters, paths, lanes, layout, every renderer |
 | Layout cache (`core/layout.ts`, `core/layout-key.ts`) | `layout`, `createLayoutScope`, `cacheKey`, `clearLayoutCache`, `signal` | layouts keyed by their own inputs, bounded per scope, released on `dispose`; a layout runs while somebody waits for it; ELK and Dagre workers started on demand and terminated when their layout is aborted, timed out or replaced (§2.3) | `ProcessMap`, `useStableLayout`, `layoutBpmn` |
@@ -240,8 +240,11 @@ overlay kinds present and the map-level chips);
 and overlay glyphs, deterministic output. `toPNG` (in `canvas/`) draws the
 same scene, presets and legend into a bitmap. The legend's rows and their
 heights (`legendLayout`) and the figure frame (`figureFrame`: header, map,
-legend column, activity key, output size) are measured once in the core;
-both exports and `<Legend/>` list the same rows.
+legend column, note on withheld edges, activity key, output size) are
+measured once in the core; both exports and `<Legend/>` list the same rows.
+With an edge budget, or the edges a map reported through `onEdgesShown`,
+both exports draw the edges `budgetEdges` keeps and write the map's note
+into the figure.
 
 ### 2.7 Views
 `buildViews(graph, views)` lays the base graph out once and resolves named

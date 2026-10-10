@@ -81,6 +81,10 @@ describe("toSVG on the committed fixtures", () => {
     expect(Object.fromEntries(Object.entries(variants).map(([name, v]) => [name, sha(toSVG({ ...v.scene(), selfLoops: false }, v.options))]))).toEqual(before);
   });
 
+  it("matches the recorded output with the edge budget at all", () => {
+    expect(Object.fromEntries(Object.entries(variants).map(([name, v]) => [name, sha(toSVG({ ...v.scene(), selfLoops: false }, { ...v.options, edgeBudget: "all" }))]))).toEqual(before);
+  });
+
   it("shows every follows self-loop by default (declared change)", () => {
     expect(loops(global)).toHaveLength(3);
     expect(loops(vendor)).toHaveLength(1);

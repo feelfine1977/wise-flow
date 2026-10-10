@@ -1,6 +1,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { type Box, type EdgeBudget, type HitItem, type Locale, type XY, formatCount, t } from "../core/index.js";
+import { type Box, type EdgeBudget, type HitItem, type Locale, type ShownEdges, type XY, formatCount, t } from "../core/index.js";
 import { type CanvasTokens, CanvasRenderer, type DrawState, type PreparedScene, readTokens } from "../canvas/index.js";
+import { useEdgesShown } from "./hooks.js";
 
 export interface CanvasMapProps {
   scene: PreparedScene | undefined;
@@ -24,6 +25,8 @@ export interface CanvasMapProps {
   clock?: () => number;
   /** Called with the note once its numbers have settled, for a live region. */
   onAnnounce?: (text: string) => void;
+  /** Called when the edges drawn change: while the budget withholds some, with those drawn (for `toSVG` and `toPNG`); undefined once every edge is drawn again. */
+  onEdgesShown?: (shown: ShownEdges | undefined) => void;
   className?: string;
   children?: React.ReactNode;
 }
@@ -64,7 +67,7 @@ export function EdgeNote({ withheld, locale, onAnnounce }: { withheld?: { shown:
  * focus, dimming) comes from the parent; keyboard handling stays there.
  */
 export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function CanvasMap(
-  { scene, state, locale = "en", fitKey, fitView = true, describe, onHover, onClick, onContextMenu, onViewportChange, descendants, edgeBudget = "adaptive", clock, onAnnounce, className, children },
+  { scene, state, locale = "en", fitKey, fitView = true, describe, onHover, onClick, onContextMenu, onViewportChange, descendants, edgeBudget = "adaptive", clock, onAnnounce, onEdgesShown, className, children },
   ref,
 ) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -84,6 +87,7 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
   const [ready, setReady] = useState(false);
   const [withheld, setWithheld] = useState<{ shown: number; total: number }>();
   const withheldKey = useRef("");
+  const reportShown = useEdgesShown(onEdgesShown);
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
@@ -92,6 +96,7 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
     const renderer = new CanvasRenderer(canvas, { tokens: readTokens(host), clock });
     renderer.onViewportChange = (v) => onViewportChange?.(v);
     renderer.onDraw = ({ withheld: w }) => {
+      reportShown(w, renderer.getScene()?.edgeMarks ?? []);
       const key = w ? `${w.shown}/${w.total}` : "";
       if (key === withheldKey.current) return;
       withheldKey.current = key;

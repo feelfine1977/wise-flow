@@ -2,7 +2,7 @@
  * PNG export: the scene drawn with the canvas routines into an offscreen
  * canvas, in the same figure frame and with the same legend as `toSVG`.
  */
-import { type FigurePreset, type Scene, figureFrame, figureMetrics, formatCount, t } from "../core/index.js";
+import { type EdgeBudget, type FigurePreset, type Scene, type ShownEdges, budgetEdges, figureFrame, figureMetrics, formatCount, t } from "../core/index.js";
 import { type DrawContext, drawLegend, drawScene } from "./draw.js";
 import { prepareScene } from "./scene.js";
 import { type CanvasTokens, defaultTokens } from "./tokens.js";
@@ -34,6 +34,8 @@ export interface PngOptions {
   createCanvas?: (width: number, height: number) => CanvasLike;
   /** Show the scene context line under the title. Default true. */
   context?: boolean;
+  /** The edges drawn, as in `toSVG`: those a map reported, or a budget. Default every edge. */
+  edgeBudget?: EdgeBudget | ShownEdges;
 }
 
 export interface PngCanvas {
@@ -63,7 +65,8 @@ export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
   const tokens: CanvasTokens = { ...defaultTokens, ...(options.tokens ?? {}) };
   const locale = scene.locale ?? "en";
   const prepared = prepareScene(scene.graph, scene.positions, { style: scene.style, overlays: scene.overlays, locale, lanes: scene.lanes, selfLoops: scene.selfLoops, activityLabels: scene.activityLabels, lodBySize: false });
-  const frame = figureFrame(prepared, { title: !!scene.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: options.width });
+  const { edgeBudget } = options;
+  const frame = figureFrame(prepared, { title: !!scene.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: options.width, withheld: budgetEdges(prepared, edgeBudget) });
   const { padding: pad, width: totalW, outWidth: cssWidth, outHeight: cssHeight } = frame;
   const k = totalW > 0 ? cssWidth / totalW : 1;
   const scale = options.scale ?? Math.max(2, typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1);
@@ -80,6 +83,7 @@ export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
     cull: false,
     background: options.background ?? tokens.paper,
     createCanvas: (w, h) => create(w, h),
+    edgeBudget,
   });
   ctx.save();
   ctx.scale(k, k);
@@ -112,11 +116,12 @@ export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
     ctx.globalAlpha = 1;
     drawLegend(ctx, prepared, x, y, width, tokens, { createCanvas: (w, h) => create(w, h) });
   }
-  if (frame.key.lines.length) {
+  if (frame.note || frame.key.lines.length) {
     ctx.fillStyle = tokens.ink;
     ctx.font = `11px ${tokens.font}`;
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
+    if (frame.note) ctx.fillText(frame.note.text, frame.note.x, frame.note.y);
     frame.key.lines.forEach((line, i) => ctx.fillText(line, pad, frame.key.y + i * figureMetrics.keyLine));
   }
   ctx.restore();

@@ -2,6 +2,7 @@
  * Deterministic SVG export of a scene with an embedded legend and figure presets.
  */
 import type { ActivityLabelOptions } from "./activity-labels.js";
+import { type EdgeBudget, type EdgeSelection, type ShownEdges, budgetEdges } from "./edge-budget.js";
 import { type ElementText, fitText, truncateText } from "./element-marks.js";
 import { type FigurePreset, type LegendLayout, figureFrame, figureMetrics, legendMetrics } from "./figure.js";
 import { type Locale, formatCompact, formatCount, formatNumber, formatShare } from "./format.js";
@@ -45,6 +46,13 @@ export interface ExportOptions {
   overlayGeometry?: OverlayGeometryOptions;
   /** Show the scene context line (label, cases, events) under the title. */
   context?: boolean;
+  /**
+   * The edges drawn: those a map reported through `onEdgesShown`, or a budget
+   * (`budgetEdges`, protecting the edges with an overlay mark on them). While
+   * edges are withheld a note under the map says how many are shown. Default
+   * every edge.
+   */
+  edgeBudget?: EdgeBudget | ShownEdges;
 }
 
 const esc = (s: unknown): string =>
@@ -58,6 +66,7 @@ interface Ctx {
   /** Zoom at which the level of detail is decided. */
   lodZoom: number;
   bands: Map<string, LaneBand>;
+  withheld?: EdgeSelection;
 }
 
 function rect(b: Box, attrs: string): string {
@@ -99,7 +108,8 @@ function shownTexts(ctx: Ctx, texts: ElementText[]): ElementText[] {
 
 function drawEdges(ctx: Ctx): string {
   const out: string[] = [];
-  for (const m of [...ctx.scene.edgeMarks].sort(byId)) {
+  const { withheld } = ctx;
+  for (const m of ctx.scene.edgeMarks.filter((_, i) => !withheld || withheld.drawn.has(i)).sort(byId)) {
     const dash = m.dash ? ` stroke-dasharray="${m.dash.join(" ")}"` : "";
     const d = m.points.map((p, i) => `${i === 0 ? "M" : "L"}${num(p.x)} ${num(p.y)}`).join("");
     out.push(`<g class="wf-edge" data-id="${esc(m.id)}"><path d="${d}" fill="none" stroke="${m.color}" stroke-width="${num(m.width)}" stroke-linejoin="round"${dash} marker-end="url(#wf-arrow)"/>`);
@@ -224,8 +234,9 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
   const { locale } = scene;
   const font = options.fontFamily ?? fontTokens.family;
   const lodZoom = options.lodZoom ?? 1;
-  const ctx: Ctx = { scene, locale, lod: lodAt(lodZoom, scene.lod), lodZoom, bands: new Map(scene.bands.map((b) => [b.id, b])) };
-  const frame = figureFrame(scene, { title: !!given.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: options.width });
+  const withheld = budgetEdges(scene, options.edgeBudget);
+  const ctx: Ctx = { scene, locale, lod: lodAt(lodZoom, scene.lod), lodZoom, bands: new Map(scene.bands.map((b) => [b.id, b])), withheld };
+  const frame = figureFrame(scene, { title: !!given.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: options.width, withheld });
   const { padding: pad, width: totalW, height: totalH, outWidth: outW, outHeight: outH } = frame;
 
   const parts: string[] = [];
@@ -262,6 +273,7 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
     parts.push(`<g transform="translate(${num(x - rule.x)} ${num(y - rule.top)})">${drawLegend(ctx, width, layout)}</g>`);
     parts.push(`</g>`);
   }
+  if (frame.note) parts.push(text(frame.note.x, frame.note.y, frame.note.text, `class="wf-edge-note" font-size="${figureMetrics.noteSize}" fill="${fixedColors.ink}"`));
   if (frame.key.lines.length) {
     parts.push(`<g class="wf-activity-key" aria-label="Activity key">`);
     frame.key.lines.forEach((line, i) => parts.push(text(pad, frame.key.y + i * figureMetrics.keyLine, line, `font-size="11" fill="${fixedColors.ink}"`)));

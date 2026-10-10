@@ -131,6 +131,7 @@
     "SelectMode",
     "Selection",
     "SelectionShape",
+    "ShownEdges",
     "SliceClause",
     "StringKey",
     "StyleSpec",

@@ -4,11 +4,12 @@
  * the activity key sit in an exported figure.
  */
 import { type ActivityLabelOptions, activityKeyLines } from "./activity-labels.js";
-import type { Locale } from "./format.js";
+import { estimateTextWidth } from "./element-marks.js";
+import { type Locale, formatCount } from "./format.js";
 import type { Box } from "./layout.js";
 import { type FlowGraph, type Overlay, MAP_TARGET } from "./model.js";
 import type { LegendItem } from "./style.js";
-import type { StringKey } from "./strings.js";
+import { type StringKey, t } from "./strings.js";
 
 export type FigurePreset = "single-column" | "double-column" | "slide" | "none";
 
@@ -128,6 +129,10 @@ export const figureMetrics = {
   contextHeight: 18,
   contextBaseline: 44,
   keyLine: 16,
+  /** The row of the note on withheld edges, and its baseline in it. */
+  noteRow: 16,
+  noteBaseline: 12,
+  noteSize: 11,
 } as const;
 
 export interface FigureFrameOptions {
@@ -141,6 +146,8 @@ export interface FigureFrameOptions {
   preset?: FigurePreset;
   /** Output width; overrides the preset. */
   width?: number;
+  /** Edges the figure withholds: a note under the map states how many it shows. */
+  withheld?: { shown: number; total: number };
 }
 
 /** Where everything sits in an exported figure, in figure units (the view box). */
@@ -159,6 +166,8 @@ export interface FigureFrame {
     /** The vertical rule left of the legend. */
     rule: { x: number; top: number; bottom: number };
   };
+  /** The note on withheld edges and its baseline's start, under the map and the legend. */
+  note?: { text: string; x: number; y: number };
   /** The activity key's lines and the baseline of the first; lines are `figureMetrics.keyLine` apart. */
   key: { lines: string[]; y: number };
   width: number;
@@ -187,10 +196,15 @@ export function figureFrame(scene: FramedScene, options: FigureFrameOptions = {}
   const content = scene.bounds;
   const mapW = content.width + 2 * pad;
   const mapH = content.height + 2 * pad;
-  const width = mapW + column;
-  const keyY = Math.max(mapH, (layout?.height ?? 0) + 2 * pad) + header;
+  const { withheld } = options;
+  const { locale } = scene;
+  const text = withheld && t(locale, "map.edges.withheld", { shown: formatCount(withheld.shown, locale), total: formatCount(withheld.total, locale) });
+  // Widened to fit the note.
+  const width = Math.max(mapW + column, text ? estimateTextWidth(text, { size: f.noteSize }) + 2 * pad : 0);
+  const below = Math.max(mapH, (layout?.height ?? 0) + 2 * pad) + header;
+  const keyY = below + (text ? f.noteRow : 0);
   const lines = activityKeyLines(scene.graph, scene.activityLabels, width - 2 * pad, scene.locale);
-  const height = keyY + (lines.length ? lines.length * f.keyLine + 2 * pad : 0);
+  const height = keyY + (lines.length ? lines.length * f.keyLine + 2 * pad : text ? pad : 0);
   const outWidth = options.width ?? (options.preset && options.preset !== "none" ? FIGURE_WIDTHS[options.preset] : width);
   return {
     padding: pad,
@@ -201,8 +215,9 @@ export function figureFrame(scene: FramedScene, options: FigureFrameOptions = {}
       x: mapW + f.legendInset,
       y: header + pad,
       width: legendMetrics.width,
-      rule: { x: mapW, top: header + pad, bottom: height - pad },
+      rule: { x: mapW, top: header + pad, bottom: (text ? below : height) - pad },
     },
+    note: text ? { text, x: pad, y: below + f.noteBaseline } : undefined,
     key: { lines, y: keyY + pad },
     width,
     height,
