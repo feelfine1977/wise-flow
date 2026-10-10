@@ -14,8 +14,9 @@ export function workflowViolations(text) {
   if (Object.hasOwn(workflow.on ?? {}, 'pull_request_target')) errors.push('Do not execute repository code with pull_request_target');
   for (const [id, job] of Object.entries(workflow.jobs ?? {})) {
     if (!(job['timeout-minutes'] > 0)) errors.push(`${id}: missing job timeout`);
-    for (const step of job.steps ?? []) {
+    for (const [index, step] of (job.steps ?? []).entries()) {
       if (step.uses && !/^[^@]+@[a-f0-9]{40}$/.test(step.uses)) errors.push(`${id}: external actions must use full commit SHAs`);
+      else if (step.uses && !/^\s*v\d+(?:\.\d+)*\s*$/.test(parsed.getIn(['jobs', id, 'steps', index, 'uses'], true)?.comment ?? '')) errors.push(`${id}: pinned actions need a version comment`);
       if (step['continue-on-error']) errors.push(`${id}: test steps must not ignore failures`);
       if (/--update-snapshots(?:[= ]all)?(?:\s|$)/.test(step.run ?? '')) errors.push(`${id}: CI cannot approve visual baselines`);
     }
