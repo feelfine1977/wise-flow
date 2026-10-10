@@ -243,7 +243,11 @@ function ProcessMapInner(props: ProcessMapProps) {
     setFit({ key: fit.hold ? fit.key : laidKey, laid: laidKey, count: fit.count, anchor: fit.hold ? fit.anchor : undefined });
   }
   const fitKey = fit.key;
-  const userMove = () => void (moved.current = true);
+  // A fit React Flow still holds queued would replace the view the user chose at its next node update.
+  const userMove = () => {
+    moved.current = true;
+    flowStore.setState({ fitViewQueued: false });
+  };
   const { anchor } = fit;
   useLayoutEffect(() => {
     const box = anchor && positions?.nodes[anchor.id];
