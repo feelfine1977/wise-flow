@@ -2,10 +2,10 @@
  * Drawing routines of the canvas renderer. They take the retained scene, a
  * viewport and the interaction state and issue plain 2D context calls, so
  * that they run on a screen canvas, an offscreen canvas (PNG export) and on
- * a recording stub in tests. Elements outside the viewport are skipped
- * through the scene's R-tree when the scene is large.
+ * a recording stub in tests. When the scene is large, only the elements the
+ * scene's R-tree finds in the viewport are read, in the order of a full draw.
  */
-import { type Arrowhead, type Box, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type Selection, arrowheadExtent, arrowheadTokens, fitChars, fitLead, fixedColors, formatCompact, formatNumber, formatShare, hatchTokens, legendLayout, legendMetrics, lodAt, markArrowhead, patternTokens, patternTwin, t, truncateText } from "../core/index.js";
+import { type Arrowhead, type Box, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type Selection, arrowheadExtent, arrowheadTokens, fitChars, fitLead, fixedColors, formatCompact, formatNumber, formatShare, hatchTokens, legendLayout, legendMetrics, lodAt, markArrowhead, patternTokens, patternTwin, t, truncateText } from "../core/index.js";
 import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene.js";
 import { type CanvasTokens, defaultTokens } from "./tokens.js";
 
@@ -471,6 +471,13 @@ function drawMark(ctx: DrawContext, scene: PreparedScene, m: OverlayMark, tokens
   for (const tx of m.texts) drawText(ctx, scene, tx, paintOf(m, tx.paint, tokens, hovered), tokens, (s) => fitChars(s, tx.maxWidth));
 }
 
+const RANK: Record<HitItem["kind"], number> = { group: 0, overlay: 1, edge: 2, node: 3 };
+const drawingOrder = (a: HitItem, b: HitItem) => RANK[a.kind] - RANK[b.kind] || (a.index ?? -1) - (b.index ?? -1);
+const groupId = (g: SceneGroup) => g.group.id;
+const markId = (m: OverlayMark) => m.id;
+const edgeId = (e: SceneEdge) => e.edge.id;
+const nodeId = (n: SceneNode) => n.node.id;
+
 /**
  * Draw the scene into a context for a viewport. Returns what was drawn so
  * that callers (and tests) can check the culling.
@@ -491,55 +498,55 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
   ctx.translate(view.x, view.y);
   ctx.scale(view.zoom, view.zoom);
 
-  let nodeIds: Set<string> | undefined;
-  let edgeIds: Set<string> | undefined;
-  let shapeIds: Set<string> | undefined;
-  if (cull) {
-    nodeIds = new Set();
-    edgeIds = new Set();
-    shapeIds = new Set();
-    for (const it of scene.hit.within(visibleBox(view))) {
-      if (it.kind === "node") nodeIds.add(it.id);
-      else if (it.kind === "edge") edgeIds.add(it.id);
-      else if (it.kind === "overlay" && it.shapeId) shapeIds.add(it.shapeId);
+  // Culled: what the R-tree finds in the view, in drawing order.
+  const found = cull ? scene.hit.within(visibleBox(view)).sort(drawingOrder) : undefined;
+  const each = <T>(list: readonly T[], kind: HitItem["kind"], idOf: (item: T) => string, draw: (item: T) => void) => {
+    if (!found) {
+      for (const item of list) draw(item);
+      return;
     }
-  }
+    // An edge has an item per segment; a replaced list is checked by id.
+    let last = -1;
+    for (const it of found) {
+      if (it.kind !== kind || it.index === undefined || it.index === last) continue;
+      last = it.index;
+      const item = list[it.index];
+      if (item !== undefined && idOf(item) === (it.shapeId ?? it.id)) draw(item);
+    }
+  };
 
-  for (const g of scene.groups) drawGroup(ctx, g, tokens, state.selection.groups.includes(g.group.id));
+  each(scene.groups, "group", groupId, (g) => drawGroup(ctx, g, tokens, state.selection.groups.includes(g.group.id)));
   let shapes = 0;
-  const marks = (layer: OverlayMark["layer"]) => {
-    for (const m of scene.marks) {
-      if (m.layer !== layer || !m.inMap || lodZoom < m.minZoom || (shapeIds && !shapeIds.has(m.id))) continue;
+  const marks = (layer: OverlayMark["layer"]) =>
+    each(scene.marks, "overlay", markId, (m) => {
+      if (m.layer !== layer || !m.inMap || lodZoom < m.minZoom) return;
       // Marks below the edges cover whole elements and are not highlighted on hover.
       drawMark(ctx, scene, m, tokens, layer === "above" && state.hovered === m.id, options);
       shapes++;
-    }
-  };
+    });
   marks("below");
 
   let edges = 0;
-  for (const e of scene.edges) {
-    if (edgeIds && !edgeIds.has(e.edge.id)) continue;
+  each(scene.edges, "edge", edgeId, (e) => {
     const id = e.edge.id;
     const highlighted = state.selection.edges.includes(id) || state.hovered === id;
     const dimmed = !!state.bright && !state.bright.edges.has(id);
     drawEdge(ctx, e, tokens, highlighted, dimmed);
     edges++;
-  }
+  });
 
   let nodes = 0;
-  for (const n of scene.nodes) {
-    if (nodeIds && !nodeIds.has(n.node.id)) continue;
+  each(scene.nodes, "node", nodeId, (n) => {
     drawNode(ctx, scene, n, tokens, state, lod, options);
     nodes++;
-  }
+  });
 
   marks("above");
 
-  for (const e of scene.edges) {
-    if ((edgeIds && !edgeIds.has(e.edge.id)) || (state.bright && !state.bright.edges.has(e.edge.id))) continue;
+  each(scene.edges, "edge", edgeId, (e) => {
+    if (state.bright && !state.bright.edges.has(e.edge.id)) return;
     for (const tx of e.mark.texts) if (!tx.lod || lod[tx.lod]) drawText(ctx, scene, tx, paintOf(e.mark, tx.paint, tokens), tokens);
-  }
+  });
   ctx.restore();
   return { nodes, edges, shapes, culled: cull };
 }

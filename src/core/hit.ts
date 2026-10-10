@@ -19,6 +19,12 @@ export interface HitItem {
   segment?: [XY, XY];
   /** Overlay shape id. */
   shapeId?: string;
+  /**
+   * Position of the element in the list it is drawn from (groups, nodes,
+   * edges or overlay shapes), when the index was built with one; a drawing
+   * reads the elements an area query finds in this order.
+   */
+  index?: number;
 }
 
 const PRIORITY: Record<HitKind, number> = { overlay: 0, node: 1, edge: 2, group: 3 };
@@ -41,15 +47,15 @@ function area(it: HitItem): number {
 export class HitIndex {
   private tree = new RBush<HitItem>();
 
-  /** Build an index from a layout (nodes, groups, edge routes) and optional overlay geometry. */
-  static fromScene(positions: Positions, geometry?: OverlayGeometry, edgeTolerance = 4): HitIndex {
+  /** Build an index from a layout (nodes, groups, edge routes), optional overlay geometry and each element's `index` (by shape id for overlays). */
+  static fromScene(positions: Positions, geometry?: OverlayGeometry, edgeTolerance = 4, indexOf?: (kind: HitKind, id: string) => number | undefined): HitIndex {
     const index = new HitIndex();
     const items: HitItem[] = [];
-    for (const [id, b] of Object.entries(positions.groups)) items.push(boxItem(id, "group", b));
-    for (const [id, b] of Object.entries(positions.nodes)) items.push(boxItem(id, "node", b));
-    for (const [id, r] of Object.entries(positions.edges)) items.push(...edgeItems(id, r, edgeTolerance));
+    for (const [id, b] of Object.entries(positions.groups)) items.push(boxItem(id, "group", b, indexOf?.("group", id)));
+    for (const [id, b] of Object.entries(positions.nodes)) items.push(boxItem(id, "node", b, indexOf?.("node", id)));
+    for (const [id, r] of Object.entries(positions.edges)) items.push(...edgeItems(id, r, edgeTolerance, indexOf?.("edge", id)));
     for (const s of geometry?.shapes ?? []) {
-      items.push({ ...boxItem(s.overlay.target, "overlay", s), shapeId: s.id });
+      items.push({ ...boxItem(s.overlay.target, "overlay", s, indexOf?.("overlay", s.id)), shapeId: s.id });
     }
     index.load(items);
     return index;
@@ -88,11 +94,11 @@ export class HitIndex {
   }
 }
 
-function boxItem(id: string, kind: HitKind, b: Box): HitItem {
-  return { id, kind, minX: b.x, minY: b.y, maxX: b.x + b.width, maxY: b.y + b.height };
+function boxItem(id: string, kind: HitKind, b: Box, index: number | undefined): HitItem {
+  return { id, kind, minX: b.x, minY: b.y, maxX: b.x + b.width, maxY: b.y + b.height, index };
 }
 
-function edgeItems(id: string, route: EdgeRoute, tolerance: number): HitItem[] {
+function edgeItems(id: string, route: EdgeRoute, tolerance: number, index: number | undefined): HitItem[] {
   const out: HitItem[] = [];
   for (let i = 0; i + 1 < route.points.length; i++) {
     const a = route.points[i];
@@ -105,6 +111,7 @@ function edgeItems(id: string, route: EdgeRoute, tolerance: number): HitItem[] {
       maxX: Math.max(a.x, b.x) + tolerance,
       maxY: Math.max(a.y, b.y) + tolerance,
       segment: route.points.length === 2 ? (route.points as [XY, XY]) : [a, b],
+      index,
     });
   }
   return out;
