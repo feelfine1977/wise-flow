@@ -104,7 +104,8 @@ export function activityNodeSize(node: FlowNode, options: ActivityLabelOptions):
   // IDs get a fixed title row even when called before the reference inventory exists.
   const nameRows = options.mode === "ids" ? 1 : wrapActivityText(activityLabel(node, options), width - 32).length;
   // Reserve the chosen metric even when the checkbox is off.
-  const countRows = Math.max(1, ...(["en", "de"] as const).map((locale) => wrapActivityText(activityNodeCounts(node, options, locale), width - 32, 12).length));
+  const countRowsIn = (locale: Locale) => wrapActivityText(activityNodeCounts(node, options, locale), width - 32, 12).length;
+  const countRows = Math.max(1, countRowsIn("en"), countRowsIn("de"));
   return { width, height: 20 + nameRows * 18 + countRows * 16 };
 }
 

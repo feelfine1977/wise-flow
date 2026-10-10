@@ -116,11 +116,17 @@ export function unionBoxes(boxes: readonly Box[]): Box {
 
 function pointsBounds(points: XY[]): Box | null {
   if (!points.length) return null;
-  const xs = points.map((p) => p.x);
-  const ys = points.map((p) => p.y);
-  const x = Math.min(...xs);
-  const y = Math.min(...ys);
-  return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
+  let x = Infinity;
+  let y = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  for (const p of points) {
+    x = Math.min(x, p.x);
+    y = Math.min(y, p.y);
+    x1 = Math.max(x1, p.x);
+    y1 = Math.max(y1, p.y);
+  }
+  return { x, y, width: x1 - x, height: y1 - y };
 }
 
 /** Bounds of nodes, groups and edge routes together. */

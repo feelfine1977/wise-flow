@@ -125,7 +125,7 @@ export function FlowComparison({ cohorts, noun = "cases", onSelect }: FlowCompar
     return [...labels].map(([key, label]) => {
       const cells = indexed.map((cohort) => cellFor(cohort, cohort[mode].get(key)));
       const known = cells.flatMap((cell) => cell.percent === null ? [] : [cell.percent]);
-      const range = known.length >= 2 ? Math.max(...known) - Math.min(...known) : -1;
+      const range = known.length >= 2 ? known.reduce((m, v) => Math.max(m, v), -Infinity) - known.reduce((m, v) => Math.min(m, v), Infinity) : -1;
       return { key, label, cells, range };
     }).sort((a, b) => b.range - a.range || a.label.localeCompare(b.label));
   }, [indexed, mode]);
