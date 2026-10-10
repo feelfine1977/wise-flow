@@ -117,6 +117,9 @@ export interface PrepareOptions {
   selfLoops?: boolean;
 }
 
+/** The overlay shapes of the elements without any. */
+const NO_SHAPES: OverlayShape[] = Object.freeze([]) as unknown as OverlayShape[];
+
 /** Positions and overlay extents together; an empty box adds nothing. */
 function sceneBounds(positions: Box, overlays: Box | undefined): Box {
   const extents = [positions, ...(overlays ? [overlays] : [])].filter((b) => b.width > 0 || b.height > 0);
@@ -167,11 +170,12 @@ export function retainScene(scene: FlowScene): PreparedScene {
     groups.push({ group: g, box, color: scales.categorical(g.id).color, tint: tint && tintColor(tint.overlay), band: bandIndex.get(g.id), chips: shapes.filter((s) => s.kind === "chip") });
   }
 
-  const shapesOf = (id: string) => shapesByTarget.get(id) ?? [];
+  const shapesOf = (id: string) => shapesByTarget.get(id) ?? NO_SHAPES;
   const nodes: SceneNode[] = scene.nodeMarks.map((mark) => {
     const n = mark.node;
     const labels = n.kind === "activity" ? activityLabels : undefined;
     const shapes = shapesOf(n.id);
+    const badges = shapes.filter((s) => s.kind === "badge");
     return {
       node: n,
       box: mark.box,
@@ -179,10 +183,11 @@ export function retainScene(scene: FlowScene): PreparedScene {
       pattern: mark.pattern,
       label: labels ? activityLabel(n, labels) : n.label,
       activityLines: labels ? activityLabelLines(n, labels, mark.box.width, locale) : undefined,
-      meta: labels ? (labels.showCounts === false ? undefined : activityNodeCounts(n, labels, locale)) : nodeCount(n, locale),
+      // The count the mark writes, not formatted again.
+      meta: labels ? (labels.showCounts === false ? undefined : activityNodeCounts(n, labels, locale)) : (mark.texts.find((t) => t.role === "count")?.text ?? nodeCount(n, locale)),
       hatched: shapes.some((s) => s.kind === "hatch"),
       reconnected: mark.reconnected,
-      badges: shapes.filter((s) => s.kind === "badge"),
+      badges: badges.length ? badges : NO_SHAPES,
       end: n.kind === "event" && hasTag(n, "end"),
       glyph: n.kind === "gateway" ? gatewayGlyph(n) : undefined,
       mark,

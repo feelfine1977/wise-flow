@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type FlowGraph, buildScene, createPositions } from "../../src/index";
+import { prepareScene } from "../../src/canvas/index";
 
 /**
  * Two of each: start events, activities, re-added activities; follows edges
@@ -67,5 +68,35 @@ describe("what the elements of a scene share", () => {
     expect(edge("r1-r2").dash).toBe(edge("a1-a2").dash);
     for (const id of ["a1-r1", "a1-a2"]) expect(Object.isFrozen(edge(id).dash)).toBe(true);
     expect(edge("s1-a1").dash).toBeUndefined();
+  });
+
+  it("gives retained nodes without badges one frozen empty list and reads their count from the mark", () => {
+    const prepared = prepareScene(graph, positions, { overlays: [{ kind: "badge", target: "a1", payload: { constraintId: "presence", value: 0.5 } }] });
+    const retained = (id: string) => prepared.nodeById.get(id)!;
+    expect(retained("a1").badges.map((s) => s.overlay.target)).toEqual(["a1"]);
+    const none = retained("a2").badges;
+    expect(none).toEqual([]);
+    expect(Object.isFrozen(none)).toBe(true);
+    for (const id of ["s1", "s2", "r1", "r2"]) expect(retained(id).badges).toBe(none);
+    // The activities' cases are the count their marks write; an event's cases are not written on the map.
+    expect(retained("a1").meta).toBe("7");
+    expect(retained("a1").mark.texts.map((t) => t.text)).toEqual(["A1", "7"]);
+    expect(retained("s2").meta).toBe("9");
+    expect(retained("s2").mark.texts.map((t) => t.role)).toEqual(["label"]);
+    expect(retained("r1").meta).toBeUndefined();
+  });
+
+  it("indexes a straight edge by its route and a bent edge by a segment per leg", () => {
+    const prepared = prepareScene(graph, positions);
+    const items = prepared.hit.within(prepared.bounds).filter((it) => it.kind === "edge");
+    const legs = (id: string) => items.filter((it) => it.id === id).sort((a, b) => a.minX - b.minX);
+    for (const id of ["s1-a1", "s2-a2", "a1-r1", "a2-r2", "r1-r2"]) {
+      expect(legs(id)).toHaveLength(1);
+      expect(legs(id)[0].segment).toBe(prepared.edgeById.get(id)!.points);
+    }
+    expect(legs("a1-a2").map((it) => it.segment)).toEqual([
+      [route[0], route[1]],
+      [route[1], route[2]],
+    ]);
   });
 });
