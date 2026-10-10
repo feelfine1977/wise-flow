@@ -118,9 +118,12 @@ per join, not for the total: which of two equally near components joins
 first can change what later joins cost.
 
 Up to 0.3.5 every join searched again from the whole joined component.
-Equally near nodes left that search in the order they had entered it, which
-followed the input order of nodes and edges, and a node kept the first path
-that reached it. Now one search grows the joined component and continues
+Equally near nodes left that search in the order they had entered it, and a
+node kept the first path that reached it. The search took the joined nodes
+in an order that followed the input order and each node's edges by cost,
+then edge id, so on some graphs the choice depended on the input order and
+on others it was fixed by the edge ids, and the id rule below may then
+choose differently. Now one search grows the joined component and continues
 from each newly joined part at distance 0; it searches a node again only
 when a newly joined part is nearer to it. On the cyclic and many-component
 graphs of the tests the work grows like (nodes + edges) · log nodes; a
