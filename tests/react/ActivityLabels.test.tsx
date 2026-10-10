@@ -90,7 +90,11 @@ describe("resolved layout dimensions", () => {
     expect(result.current.status).toBe("ready");
     expect(result.current.positions).toBe(initial);
     rerender({ options: ids });
-    await waitFor(() => expect(result.current.positions?.nodes.price.width).toBe(140));
+    // The provisional positions carry the new sizes at once; the layout follows.
+    expect(result.current).toMatchObject({ status: "pending", provisional: true });
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    expect(result.current.positions?.nodes.price.width).toBe(140);
+    expect(result.current.positions?.engine).toBe("dagre");
     const compact = result.current.positions;
     rerender({ options: { ...ids, showCounts: true } });
     await act(async () => { await Promise.resolve(); });

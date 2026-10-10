@@ -25,6 +25,8 @@ export interface CanvasMapProps {
 export interface CanvasMapHandle {
   centerOn(id: string, zoom?: number): void;
   fit(): void;
+  /** True when the view changed since the map was last fitted. */
+  moved(): boolean;
   zoomBy(factor: number): void;
   /** Box of a node or group relative to the map body. */
   screenBox(id: string): Box | undefined;
@@ -52,6 +54,7 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
   const [dragging, setDragging] = useState(false);
   const [overHit, setOverHit] = useState(false);
   const fitted = useRef<string | undefined>(undefined);
+  const fittedView = useRef<unknown>(undefined);
   const [ready, setReady] = useState(false);
 
   useLayoutEffect(() => {
@@ -96,6 +99,7 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
     if (scene && fitView && ready && fitted.current !== fitKey) {
       fitted.current = fitKey;
       r.fit();
+      fittedView.current = r.getViewport();
     }
   }, [scene, fitKey, fitView, ready]);
 
@@ -114,6 +118,9 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
       },
       fit() {
         rendererRef.current?.fit();
+      },
+      moved() {
+        return !!fittedView.current && rendererRef.current?.getViewport() !== fittedView.current;
       },
       zoomBy(factor) {
         rendererRef.current?.zoomBy(factor);

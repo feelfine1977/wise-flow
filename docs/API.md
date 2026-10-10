@@ -156,7 +156,7 @@ export interface Box { x: number; y: number; width: number; height: number }
 export interface EdgeRoute { points: { x: number; y: number }[]; labelX?: number; labelY?: number }
 export interface Positions {
   nodes: Record<string, Box>; groups: Record<string, Box>; edges: Record<string, EdgeRoute>;
-  bounds: Box; engine: "elk" | "dagre" | "di" | "given"; direction: "RIGHT" | "DOWN" | "LEFT" | "UP";
+  bounds: Box; engine: "elk" | "dagre" | "di" | "given" | "provisional"; direction: "RIGHT" | "DOWN" | "LEFT" | "UP";
 }
 export interface LayoutOptions {
   engine?: "elk" | "dagre" | "auto";   // auto (default): ELK, Dagre on failure or timeout
@@ -402,6 +402,9 @@ export function AbstractionControls(props), Legend(props), OverlayLayer(props);
 export interface LegendProps { scales: Scales; overlays?: Overlay[]; locale?: Locale; chips?: ReactNode;
   legend?: SceneLegend }   // the scene's legend; without it the rows follow from `scales` and `overlays`
 export function useFlowGraph(g, o?), useStableLayout(scenes, o?), useOverlays(items, o?), usePrefersReducedMotion();
+export type LayoutStatus = "idle" | "pending" | "ready" | "error";
+export interface StableLayout { positions: Positions | undefined; status: LayoutStatus; error?: Error;
+  provisional: boolean }   // true while `positions` are shown until the layout arrives (status "pending")
 export { nodeTypes, edgeTypes, describeNode, describeEdge, describeGroup, describeMap };
 export function midpoint(points: XY[]): XY;   // routeMidpoint
 // Node and edge data carry the scene's marks; without one the components resolve it from the other fields.
@@ -447,6 +450,38 @@ all of them, and the table view shows 100 rows per page with a search field
 (`TableAlternative` with `pageSize`). At or below the limit nothing changes.
 New strings `map.described.bounded`, `table.search`, `table.rows`,
 `table.previous` and `table.next` in English and German.
+
+First scene: a map without `positions` draws at once, before its layout
+finishes. It shows a finished layout of the same inputs when its layout scope
+holds one (returning to an earlier abstraction level); otherwise, after a
+change, the earlier positions of the activities still present, each new node
+keeping the offset a provisional arrangement gives it from a placed
+neighbour; otherwise a provisional arrangement computed on the calling thread
+in time linear in nodes plus edges: nodes in longest-path ranks along the
+flow direction, each rank ordered by one barycentre pass, groups as boxes
+around their members (top-level stages in their order), straight edges.
+These positions carry `engine: "provisional"` (`LayoutEngine` gained the
+value). While they are shown the map
+is fully interactive, a status panel says "Arranging the map…" (string
+`map.arranging`, English and German), the map's description ends with the
+same sentence and `data-layout-status` is `"pending"`. When the layout
+arrives it replaces them once: the nodes move into place over 300 ms, or at
+once when the user prefers reduced motion; `data-layout-status` turns
+`"ready"` once they are in place. Selection, the keyboard position and the
+input focus stay. The view is fitted to the layout as before, unless it was
+moved since it was last fitted (or `fitView` is false): then its zoom stays
+and the node nearest the centre of the view stays where it is on screen.
+Given positions that cover the graph are drawn as given, without motion;
+positions from `useStableLayout` are treated as above while they are
+provisional.
+
+`useStableLayout(scenes, options)` returns `positions` from the first render:
+a finished layout of the same inputs (status `"ready"`), or provisional
+positions as above with `provisional: true` and status `"pending"`; when the
+layout arrives, `positions` are replaced once by it (`"ready"`,
+`provisional: false`). Without scenes the status is `"idle"`; a failed layout
+gives `"error"` with `positions` undefined, as before. Until this release
+`positions` held the previous result (or nothing) while a layout was pending.
 
 Stylesheets: `@wise/flow/tokens.css` (design tokens, light and dark),
 `@wise/flow/style.css` (components) and `@xyflow/react/dist/style.css`.
@@ -905,7 +940,8 @@ export function PathList(props: { graph; focus: Focus; paths?: FlowPaths; locale
 export function FilterChips(props: { filter?: Filter | FilterClause[]; preview?; locale?; labelOf?; onFilterChange?; onAnnounce?; clearable?; className? }): JSX.Element;
 export function CanvasMap(props: { scene: PreparedScene | undefined; state: DrawState; locale?; fitKey?; fitView?; describe?; onHover?; onClick?;
   onContextMenu?; onViewportChange?; descendants?; className?; children? } & { ref?: Ref<CanvasMapHandle> }): JSX.Element;
-export interface CanvasMapHandle { centerOn(id, zoom?); fit(); zoomBy(factor); screenBox(id): Box | undefined; renderer(): CanvasRenderer | null }
+export interface CanvasMapHandle { centerOn(id, zoom?); fit(); zoomBy(factor); screenBox(id): Box | undefined; renderer(): CanvasRenderer | null;
+  moved(): boolean }   // true when the view changed since the map was last fitted
 ```
 
 `<CanvasMap/>` (and `<ProcessMap renderer="canvas"/>`) follows the theme:

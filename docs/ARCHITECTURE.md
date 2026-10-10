@@ -44,6 +44,7 @@ read what it resolves and do not decide it again.
 | Design tokens (`core/tokens.ts`) | `designTokens` and its parts, `patternTwin`, `tokenVariables` | colours, palettes, fonts, node and mark sizes, the arrowhead rule, pattern twins; `tokens.css` is checked against it (§2.4) | marks, SVG export, Canvas `readTokens`, `tokens.css` |
 | Graph index and positions (`core/model.ts`, `core/layout.ts`) | `indexGraph`, `createPositions` | lookups, adjacency, group ancestors, nested members, labels; positions whose bounds always match their contents (§2.1, §2.3) | selection, filters, paths, lanes, layout, every renderer |
 | Layout cache (`core/layout.ts`, `core/layout-key.ts`) | `layout`, `createLayoutScope`, `cacheKey`, `clearLayoutCache` | layouts keyed by their own inputs, bounded per scope, released on `dispose`; ELK workers started and terminated on demand (§2.3) | `ProcessMap`, `useStableLayout`, `layoutBpmn` |
+| Provisional arrangement (`core/provisional.ts`) | `provisionalLayout`, `reusePositions` (internal) | what a map shows until its layout arrives: a linear-time layered arrangement, or earlier positions of the nodes still present (§2.3) | `useStableLayout` (`ProcessMap`) |
 | Lane model (`core/lanes.ts`) | `laneModel`, `stackLanes`, `spanLanes`, `laneRoutes`, `laneBands` | which groups are lanes, each node's lane, stacking, pool and parent boxes, edges across lanes (§2.8) | map bands (`ProcessMap`, Canvas, SVG), `layoutBpmn` |
 | Map controller (`core/map-controller.ts`) | `mapStep(state, event, context)` → next state, sentence, intents | selection, focus of paths, hover, keyboard position, actions menu and the live region's sentence (§2.8) | `useMapController` (`ProcessMap`, React Flow and Canvas pointer input via `map-pointer.ts`), `<ContextMenu/>`, `<TableAlternative/>`, `BpmnView` |
 | Id resolver (`bpmn/ids.ts`) | `createIdResolver`, `renameToActivities` | which FlowGraph, BPMN and activity ids name one element (§5) | `importBpmn`, `exportBpmn`, `applyMapping`, `BpmnView` |
@@ -121,6 +122,14 @@ workers on demand and terminates each once no scope and no running layout
 uses it. The map lays out the *abstracted* graph (not the full
 directly-follows graph), because hundreds of weak edges degrade layered
 layouts; each map's scope makes returning to a previous abstraction level free.
+**First scene**: until a layout arrives, `useStableLayout` returns a finished
+layout of the same inputs from its scope, or `reusePositions` (the earlier
+positions of the nodes still present, new nodes at the offset a provisional
+arrangement gives them from a placed neighbour), or `provisionalLayout`:
+longest-path ranks along the flow inside each group and on the map, one
+barycentre pass per rank, each group one box in its parent's rank (top-level
+stages in their order), straight edges; its steps are linear in nodes plus
+edges. These positions carry `engine: "provisional"`.
 
 ### 2.4 Style
 `buildScales` builds d3 scales from metric ranges: edge width ← count
@@ -258,7 +267,11 @@ an arrow key extends the selection; Escape; Home, End) with
 description of the map and a polite live region that announces the
 selection, the menu and the result of every action; `TableAlternative`
 lists the same activities, paths and overlays as rows. Reduced motion is
-respected. The actions menu (`ContextMenu`, `role="menu"`, accelerator
+respected. Before its layout arrives the map draws the provisional positions
+(§2.3), interactive and marked "arranging" in a status panel and its
+description; the layout then moves in over a short time (`useArrival`, at
+once with reduced motion), keeping selection and focus, and the view is fitted
+again unless the user moved it, in which case the node at its centre stays. The actions menu (`ContextMenu`, `role="menu"`, accelerator
 letters, focus returned to the map) opens on a right click or Enter; a
 focus shows the paths of an activity with `PathList` at the side (the map
 area shrinks and is fitted again); `FilterChips` sit above the map;

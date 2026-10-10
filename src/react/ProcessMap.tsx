@@ -7,11 +7,12 @@ import {
   ReactFlowProvider,
   useNodesInitialized,
   useReactFlow,
+  useStoreApi,
   useViewport,
   type OnNodesChange,
 } from "@xyflow/react";
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { type AbstractOptions, type ElementRef, type FlowGraph, type XY, activityNodeSize, activityReferences, coversGraph, defaultStyle, formatCount, lodAt, t } from "../core/index.js";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type AbstractOptions, type ElementRef, type FlowGraph, type Positions, type XY, activityNodeSize, activityReferences, coversGraph, defaultStyle, formatCount, lodAt, t } from "../core/index.js";
 import { type MapContext, mapEmphasis, menuHeading } from "../core/map-controller.js";
 import { ActivityTooltip } from "./ActivityTooltip.js";
 import { AbstractionControls } from "./AbstractionControls.js";
@@ -21,7 +22,7 @@ import { type MapScreen, useMapController } from "./controller.js";
 import { describeMap } from "./describe.js";
 import { edgeTypes } from "./edges.js";
 import { FilterChips } from "./FilterChips.js";
-import { useFlowGraph, useMapScene, usePrefersReducedMotion, useStableLayout } from "./hooks.js";
+import { useArrival, useFlowGraph, useMapScene, usePrefersReducedMotion, useStableLayout } from "./hooks.js";
 import { Legend } from "./Legend.js";
 import { useMenuActions } from "./map-actions.js";
 import { useCanvasElements, useElementDescriptions, useFlowElements } from "./map-elements.js";
@@ -38,6 +39,35 @@ const DEFAULT_DESCRIBED_LIMIT = 500;
 const TABLE_PAGE_SIZE = 100;
 
 const NO_MOVES: Readonly<Record<string, XY>> = {};
+
+interface View {
+  x: number;
+  y: number;
+  zoom: number;
+}
+
+/** The node drawn nearest the centre of a view, with its centre and the view. */
+interface Anchor {
+  id: string;
+  centre: XY;
+  view: View;
+}
+
+const centreOf = (b: { x: number; y: number; width: number; height: number }): XY => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
+
+function anchorAt(drawn: Positions | undefined, view: View & { width: number; height: number }): Anchor | undefined {
+  const middle = { x: (view.width / 2 - view.x) / view.zoom, y: (view.height / 2 - view.y) / view.zoom };
+  let anchor: Anchor | undefined;
+  let nearest = Infinity;
+  for (const [id, box] of Object.entries(drawn?.nodes ?? {})) {
+    const centre = centreOf(box);
+    const d = (centre.x - middle.x) ** 2 + (centre.y - middle.y) ** 2;
+    if (d >= nearest) continue;
+    nearest = d;
+    anchor = { id, centre, view: { x: view.x, y: view.y, zoom: view.zoom } };
+  }
+  return anchor;
+}
 
 /** Inner component; needs the React Flow provider for viewport hooks. */
 function ProcessMapInner(props: ProcessMapProps) {
@@ -98,10 +128,16 @@ function ProcessMapInner(props: ProcessMapProps) {
   // (and move nodes into role lanes) afterwards.
   const needsOwnLayout = !givenPositions || !coversGraph(givenPositions, shown);
   const own = useStableLayout(needsOwnLayout ? shown : undefined, sizedLayoutOptions);
+  // A provisional arrangement is drawn until the layout arrives (given positions from
+  // `useStableLayout` say so too); the layout then moves into its place.
+  const provisional = needsOwnLayout ? own.provisional : givenPositions?.engine === "provisional";
+  const reducedMotion = usePrefersReducedMotion();
+  const arrival = useArrival(needsOwnLayout ? own.positions : givenPositions, provisional, reducedMotion);
+  const arranging = provisional || arrival.moving;
   const [manual, setManual] = useState<{ key: ProcessMapProps["layoutResetKey"]; points: Record<string, XY> }>({ key: layoutResetKey, points: {} });
   // Graph overlays and the given ones; the scene keeps those it can place and adds the follows self-loops.
   const sceneOverlays = useMemo(() => (extraOverlays ? [...(shown.overlays ?? []), ...extraOverlays] : undefined), [shown, extraOverlays]);
-  const { scene, positions, laidPositions } = useMapScene(shown, needsOwnLayout ? own.positions : givenPositions, manual.key === layoutResetKey ? manual.points : NO_MOVES, {
+  const { scene, positions, laidPositions } = useMapScene(shown, arrival.positions, manual.key === layoutResetKey ? manual.points : NO_MOVES, {
     overlays: sceneOverlays, style, locale, lanes, activityLabels, selfLoops, lod: props.lod,
   });
   const { scales, overlays, geometry } = scene;
@@ -129,8 +165,8 @@ function ProcessMapInner(props: ProcessMapProps) {
   // The focus of paths in effect and what stays bright: the controller's.
   const { focus, focusShown, bright } = useMemo(() => mapEmphasis({ selection, focus: explicitFocus }, shown), [selection, explicitFocus, shown]);
 
-  const reducedMotion = usePrefersReducedMotion();
   const rf = useReactFlow();
+  const flowStore = useStoreApi();
   const { zoom: rfZoom, x: rfX, y: rfY } = useViewport();
   const [canvasViewport, setCanvasViewport] = useState({ x: 0, y: 0, zoom: 1 });
   const zoom = useCanvas ? canvasViewport.zoom : rfZoom;
@@ -179,14 +215,51 @@ function ProcessMapInner(props: ProcessMapProps) {
 
   // Fit the view when a new layout arrives: once right after the nodes render and
   // once more after React Flow has measured them (a fit before measurement is a no-op).
+  // A layout that replaces a provisional arrangement is fitted too, unless the user moved
+  // the view since it was fitted (or `fitView` is off): then the zoom stays and so does the
+  // node at the centre of the view while the layout moves in.
   const nodesInitialized = useNodesInitialized();
   const showPaths = pathList && !!focus && focusShown && view === "map";
-  const fitPositions = laidPositions;
-  const fitKey = fitPositions ? `${fitPositions.engine}:${Object.keys(fitPositions.nodes).length}:${Math.round(fitPositions.bounds.width)}:${Math.round(fitPositions.bounds.height)}:${lanes}:${showPaths ? "side" : "full"}` : "";
+  const laidKey = laidPositions ? `${laidPositions.engine}:${Object.keys(laidPositions.nodes).length}:${Math.round(laidPositions.bounds.width)}:${Math.round(laidPositions.bounds.height)}:${lanes}:${showPaths ? "side" : "full"}` : "";
+  // The user moved the React Flow view since it was last fitted (the Canvas map knows this itself).
+  const moved = useRef(false);
+  const drawn = useRef(positions);
+  useLayoutEffect(() => void (drawn.current = positions), [positions]);
+  const [fit, setFit] = useState<{ key: string; laid: string; count: number; anchor?: Anchor; hold?: boolean }>({ key: laidKey, laid: laidKey, count: 0 });
+  if (fit.count !== arrival.count) {
+    const r = canvasRef.current?.renderer();
+    const { transform: [x, y, zoom], width, height } = flowStore.getState();
+    const rect = r?.canvas.getBoundingClientRect();
+    const current = useCanvas ? r && { ...r.getViewport(), width: rect!.width, height: rect!.height } : { x, y, zoom, width, height };
+    const keep = !fitView || (useCanvas ? canvasRef.current?.moved() : moved.current);
+    const anchor = current && keep ? anchorAt(drawn.current, current) : undefined;
+    setFit({ ...fit, count: arrival.count, anchor, hold: !!anchor });
+  } else if (!arrival.moving && fit.laid !== laidKey) {
+    setFit({ key: fit.hold ? fit.key : laidKey, laid: laidKey, count: fit.count, anchor: fit.hold ? fit.anchor : undefined });
+  }
+  const fitKey = fit.key;
+  const userMove = () => void (moved.current = true);
+  const { anchor } = fit;
+  useLayoutEffect(() => {
+    const box = anchor && positions?.nodes[anchor.id];
+    if (!anchor || !box) return;
+    const { centre, view: v } = anchor;
+    const next = { x: v.x + (centre.x - centreOf(box).x) * v.zoom, y: v.y + (centre.y - centreOf(box).y) * v.zoom, zoom: v.zoom };
+    if (useCanvas) {
+      canvasRef.current?.renderer()?.setViewport(next);
+      return;
+    }
+    // A fit React Flow still holds queued would run on the moved nodes and replace this view.
+    flowStore.setState({ fitViewQueued: false });
+    void rf.setViewport(next);
+  }, [anchor, arrival.positions]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!fitView || !positions || useCanvas) return;
+    if (!fitView || !positions || useCanvas || anchor) return;
     const options = { padding: 0.08, duration: reducedMotion ? 0 : 200 };
-    const handles = [50, 400].map((ms) => window.setTimeout(() => void rf.fitView(options), ms));
+    const handles = [50, 400].map((ms) => window.setTimeout(() => {
+      moved.current = false;
+      void rf.fitView(options);
+    }, ms));
     return () => handles.forEach((h) => window.clearTimeout(h));
   }, [fitKey, fitView, nodesInitialized, useCanvas]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -207,6 +280,7 @@ function ProcessMapInner(props: ProcessMapProps) {
         return;
       }
       const current = rf.getViewport().zoom;
+      moved.current = true;
       rf.setCenter(box.x + box.width / 2, box.y + box.height / 2, { zoom: current, duration: reducedMotion ? 0 : 150 });
     },
     [positions, rf, reducedMotion, useCanvas],
@@ -249,7 +323,6 @@ function ProcessMapInner(props: ProcessMapProps) {
     .filter(Boolean)
     .join(" ");
   const hasStages = (baseGraph.groups ?? []).some((g) => g.kind === "stage") || !!abstraction.collapse;
-  const layoutPending = needsOwnLayout && own.status === "pending";
   const showFilters = props.filters !== undefined || props.onFilterChange !== undefined;
   const activeDescendant = focused ? (index.edges.has(focused) ? `wf-edge-${focused}` : `wf-node-${focused}`) : undefined;
 
@@ -278,9 +351,9 @@ function ProcessMapInner(props: ProcessMapProps) {
     <Legend scales={scales} legend={scene.legend} locale={locale} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} />) : undefined} />
   ) : null;
   const controlsElement = controls ? <AbstractionControls value={abstraction} onChange={setAbstraction} locale={locale} hasStages={hasStages} view={view} onViewChange={setView} /> : null;
-  const statusElement = layoutPending ? (
+  const statusElement = arranging ? (
     <div className="wf-panel" role="status">
-      …
+      {t(locale, "map.arranging")}
     </div>
   ) : own.status === "error" ? (
     <div className="wf-panel" role="alert">
@@ -302,7 +375,7 @@ function ProcessMapInner(props: ProcessMapProps) {
       onFocusCapture={(event) => void dispatch({ type: "focusIn", id: (event.target as HTMLElement).closest?.(".react-flow__node")?.getAttribute("data-id") ?? undefined })}
       onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) dispatch({ type: "focusOut" }); }}
       data-activity-labels={activityLabels?.mode}
-      data-layout-status={needsOwnLayout ? own.status : "given"}
+      data-layout-status={arranging ? "pending" : needsOwnLayout ? own.status : "given"}
       data-engine={positions?.engine}
       data-renderer={view === "table" ? "table" : useCanvas ? "canvas" : "svg"}
       data-lanes={lanes}
@@ -312,6 +385,7 @@ function ProcessMapInner(props: ProcessMapProps) {
         {description}
         {useCanvas ? ` ${t(locale, "map.renderer.canvas", { nodes: shown.nodes.length, edges: shown.edges.length })}` : ""}
         {bounded ? ` ${bounded}` : ""}
+        {arranging ? ` ${t(locale, "map.arranging")}` : ""}
       </p>
       <p id={liveId} className="wf-sr-only" aria-live="polite" data-testid="wf-live">
         {controller.live}
@@ -361,6 +435,7 @@ function ProcessMapInner(props: ProcessMapProps) {
                 elementsSelectable
                 selectNodesOnDrag={false}
                 {...flowHandlers}
+                onMoveStart={(event) => event && userMove()}
                 minZoom={0.05}
                 maxZoom={3}
                 panOnScroll
@@ -375,7 +450,7 @@ function ProcessMapInner(props: ProcessMapProps) {
               >
                 <Background gap={24} size={1} />
                 <MarkDefs />
-                <Controls showInteractive={false} />
+                <Controls showInteractive={false} onZoomIn={userMove} onZoomOut={userMove} onFitView={() => void (moved.current = false)} />
                 {minimap ? <MiniMap pannable zoomable nodeStrokeWidth={2} /> : null}
                 {positions ? (
                   <OverlayLayer
