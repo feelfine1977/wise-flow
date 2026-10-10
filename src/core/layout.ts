@@ -27,8 +27,11 @@ export interface EdgeRoute {
   labelY?: number;
 }
 
-/** `di` marks positions read from BPMN diagram interchange, `given` positions supplied by the caller. */
-export type LayoutEngine = "elk" | "dagre" | "di" | "given";
+/**
+ * `di` marks positions read from BPMN diagram interchange, `given` positions supplied by the caller,
+ * `provisional` an arrangement shown until the layout engine's result arrives.
+ */
+export type LayoutEngine = "elk" | "dagre" | "di" | "given" | "provisional";
 export type LayoutDirection = "RIGHT" | "DOWN" | "LEFT" | "UP";
 
 /**
@@ -87,9 +90,9 @@ export function defaultNodeSize(node: FlowNode): NodeSize {
   return DEFAULT_SIZES[node.kind] ?? DEFAULT_SIZES.activity;
 }
 
-const GROUP_PADDING = { top: 44, left: 20, bottom: 20, right: 20 };
+export const GROUP_PADDING = { top: 44, left: 20, bottom: 20, right: 20 };
 
-function sizeOf(node: FlowNode, o: LayoutOptions): NodeSize {
+export function sizeOf(node: FlowNode, o: LayoutOptions): NodeSize {
   if (!o.nodeSize) return defaultNodeSize(node);
   return typeof o.nodeSize === "function" ? o.nodeSize(node) : o.nodeSize;
 }
@@ -414,6 +417,8 @@ interface EngineHolder {
 
 /** Layouts by caller key; the caller owns them. */
 const cache = new Map<string, Promise<Positions>>();
+/** The positions of finished layouts, by their promise. */
+const settled = new WeakMap<Promise<Positions>, Positions>();
 /** Counts global clears; a scope from an earlier generation forgets its layouts. */
 let generation = 0;
 
@@ -431,10 +436,14 @@ export function clearLayoutCache(key?: string): void {
 function remember(entries: Map<string, Promise<Positions>>, key: string, make: () => Promise<Positions>): Promise<Positions> {
   let pending = entries.get(key);
   entries.delete(key);
-  pending ??= make().catch((err) => {
-    if (entries.get(key) === pending) entries.delete(key);
-    throw err;
-  });
+  if (!pending) {
+    const made = make().catch((err) => {
+      if (entries.get(key) === made) entries.delete(key);
+      throw err;
+    });
+    made.then((positions) => settled.set(made, positions), () => undefined);
+    pending = made;
+  }
   entries.set(key, pending);
   return pending;
 }
@@ -496,6 +505,18 @@ export interface LayoutScope {
   dispose(): void;
 }
 
+/** Finished layouts of each scope for given inputs, without computing anything. */
+const finished = new WeakMap<LayoutScope, (graph: FlowGraph, options: LayoutOptions) => Positions | undefined>();
+
+/**
+ * The positions a scope (or, with `cacheKey`, the caller-keyed cache) already
+ * holds for these inputs once their layout has finished; nothing is computed.
+ */
+export function knownLayout(scope: LayoutScope, graph: FlowGraph, options: LayoutOptions = {}): Positions | undefined {
+  const pending = options.cacheKey ? cache.get(options.cacheKey) : undefined;
+  return pending ? settled.get(pending) : finished.get(scope)?.(graph, options);
+}
+
 /** Layouts keyed by the graph's nodes with resolved sizes, edges, groups and options; see `LayoutScope`. */
 export function createLayoutScope(scopeOptions: LayoutScopeOptions = {}): LayoutScope {
   const maxEntries = Math.max(1, scopeOptions.maxEntries ?? 8);
@@ -539,6 +560,12 @@ export function createLayoutScope(scopeOptions: LayoutScopeOptions = {}): Layout
       held.clear();
     },
   };
+  finished.set(scope, (graph, options) => {
+    if (options.cacheKey) return undefined;
+    forgetIfCleared();
+    const pending = entries.get(layoutInputKey(graph, options));
+    return pending && settled.get(pending);
+  });
   return scope;
 }
 
