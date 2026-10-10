@@ -5,7 +5,7 @@
  * a recording stub in tests. When the scene is large, only the elements the
  * scene's R-tree finds in the viewport are read, in the order of a full draw.
  */
-import { type Arrowhead, type Box, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type Selection, arrowheadExtent, arrowheadTokens, fitChars, fitLead, fixedColors, formatCompact, formatNumber, formatShare, hatchTokens, legendLayout, legendMetrics, lodAt, markArrowhead, patternTokens, patternTwin, t, truncateText } from "../core/index.js";
+import { type Arrowhead, type Box, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type Selection, arrowheadExtent, arrowheadTokens, fitChars, fitLead, fixedColors, formatCompact, formatNumber, formatShare, hatchTokens, legendLayout, legendMetrics, budgetEdges, lodAt, markArrowhead, patternTokens, patternTwin, t, truncateText } from "../core/index.js";
 import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene.js";
 import { type CanvasTokens, defaultTokens } from "./tokens.js";
 
@@ -58,6 +58,8 @@ export interface DrawState {
   focused?: string | null;
   /** When present, nodes and edges outside these sets are dimmed. */
   bright?: { nodes: Set<string>; edges: Set<string> };
+  /** Edges on a highlighted path; drawn under any edge budget. */
+  highlighted?: ReadonlySet<string>;
 }
 
 export interface DrawOptions {
@@ -70,6 +72,8 @@ export interface DrawOptions {
   lodZoom?: number;
   /** Factory for pattern tiles; `document.createElement("canvas")` when available. */
   createCanvas?: (width: number, height: number) => { getContext(kind: "2d"): unknown } | null;
+  /** How many of the edges in view are drawn (`budgetEdges`). Default `"all"`. */
+  edgeBudget?: EdgeBudget;
 }
 
 export const emptyState: DrawState = { selection: { nodes: [], edges: [], groups: [] } };
@@ -482,7 +486,7 @@ const nodeId = (n: SceneNode) => n.node.id;
  * Draw the scene into a context for a viewport. Returns what was drawn so
  * that callers (and tests) can check the culling.
  */
-export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, state: DrawState = emptyState, options: DrawOptions = {}): { nodes: number; edges: number; shapes: number; culled: boolean } {
+export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, state: DrawState = emptyState, options: DrawOptions = {}): { nodes: number; edges: number; shapes: number; culled: boolean; withheld?: EdgeSelection } {
   const tokens = options.tokens ?? defaultTokens;
   const lodZoom = options.lodZoom ?? view.zoom;
   const lod = lodAt(lodZoom, scene.lod);
@@ -501,9 +505,9 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
   // Culled: what the R-tree finds in the view, in drawing order. An index built without positions walks the lists.
   let found = cull ? scene.hit.within(visibleBox(view)).sort(drawingOrder) : undefined;
   if (found?.some((it) => it.index === undefined)) found = undefined;
-  const each = <T>(list: readonly T[], kind: HitItem["kind"], idOf: (item: T) => string, draw: (item: T) => void) => {
+  const each = <T>(list: readonly T[], kind: HitItem["kind"], idOf: (item: T) => string, draw: (item: T, index: number) => void) => {
     if (!found) {
-      for (const item of list) draw(item);
+      list.forEach(draw);
       return;
     }
     // An edge has an item per segment; a replaced list is checked by id.
@@ -512,9 +516,16 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
       if (it.kind !== kind || it.index === undefined || it.index === last) continue;
       last = it.index;
       const item = list[it.index];
-      if (item !== undefined && idOf(item) === (it.shapeId ?? it.id)) draw(item);
+      if (item !== undefined && idOf(item) === (it.shapeId ?? it.id)) draw(item, it.index);
     }
   };
+  // The edges in view the budget withholds are left out, with their labels.
+  let withheld: EdgeSelection | undefined;
+  if (options.edgeBudget !== undefined && options.edgeBudget !== "all") {
+    const inView: number[] = [];
+    if (found) each(scene.edges, "edge", edgeId, (_, i) => inView.push(i));
+    withheld = budgetEdges(scene, options.edgeBudget, state, found && inView);
+  }
 
   each(scene.groups, "group", groupId, (g) => drawGroup(ctx, g, tokens, state.selection.groups.includes(g.group.id)));
   let shapes = 0;
@@ -528,7 +539,8 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
   marks("below");
 
   let edges = 0;
-  each(scene.edges, "edge", edgeId, (e) => {
+  each(scene.edges, "edge", edgeId, (e, i) => {
+    if (withheld && !withheld.drawn.has(i)) return;
     const id = e.edge.id;
     const highlighted = state.selection.edges.includes(id) || state.hovered === id;
     const dimmed = !!state.bright && !state.bright.edges.has(id);
@@ -544,12 +556,12 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
 
   marks("above");
 
-  each(scene.edges, "edge", edgeId, (e) => {
-    if (state.bright && !state.bright.edges.has(e.edge.id)) return;
+  each(scene.edges, "edge", edgeId, (e, i) => {
+    if ((withheld && !withheld.drawn.has(i)) || (state.bright && !state.bright.edges.has(e.edge.id))) return;
     for (const tx of e.mark.texts) if (!tx.lod || lod[tx.lod]) drawText(ctx, scene, tx, paintOf(e.mark, tx.paint, tokens), tokens);
   });
   ctx.restore();
-  return { nodes, edges, shapes, culled: cull };
+  return { nodes, edges, shapes, culled: cull, ...(withheld && { withheld }) };
 }
 
 /**

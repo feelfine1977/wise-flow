@@ -6,7 +6,7 @@
  */
 import { MarkerType } from "@xyflow/react";
 import { useCallback, useMemo } from "react";
-import { type ActivityLabelOptions, type ElementRef, type FlowGraph, type FlowScene, type GraphIndex, type HitItem, type Locale, type Overlay, type OverlayMark, type Positions, type Selection, arrowheadTokens, describeOverlay, indexGraph } from "../core/index.js";
+import { type ActivityLabelOptions, type EdgeBudget, type ElementRef, type FlowGraph, type FlowScene, type GraphIndex, type HitItem, type Locale, type Overlay, type OverlayMark, type Positions, type Selection, arrowheadTokens, budgetEdges, describeOverlay, indexGraph } from "../core/index.js";
 import type { DrawState, PreparedScene } from "../canvas/index.js";
 import { retainScene } from "../canvas/scene.js";
 import { describeIndexedEdge } from "../core/describe.js";
@@ -69,11 +69,14 @@ interface FlowInput {
   locale: Locale;
   activityLabels: ActivityLabelOptions | undefined;
   nodesDraggable: boolean;
+  edgeBudget?: EdgeBudget;
+  /** Edges on a highlighted path. */
+  highlighted?: ReadonlySet<string>;
 }
 
 /** React Flow nodes (groups first, as parents) and edges, and the overlay marks drawn between elements. */
 export function useFlowElements(input: FlowInput) {
-  const { enabled, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, nodesDraggable } = input;
+  const { enabled, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, nodesDraggable, edgeBudget, highlighted } = input;
   const { overlaysByTarget, groupIndex, memberCount, describeElement, index } = descriptions;
   const { scales } = scene;
   const bands = useMemo(() => new Map(scene.bands.map((b) => [b.id, b])), [scene.bands]);
@@ -179,9 +182,11 @@ export function useFlowElements(input: FlowInput) {
     return out;
   }, [positions, enabled, shown, scene, overlaysByTarget, covers, carried, scales, selection, hovered, focused, locale, bright, bands, groupIndex, memberCount, activityLabels, describeElement, nodesDraggable]);
 
+  // Every edge of the scene is in view of React Flow.
+  const withheld = useMemo(() => (enabled ? budgetEdges(scene, edgeBudget, { selection, focused, highlighted }) : undefined), [enabled, scene, edgeBudget, selection, focused, highlighted]);
   const rfEdges = useMemo<WfEdge[]>(() => {
     if (!positions || !enabled) return [];
-    return scene.edgeMarks.map((mark) => {
+    return (withheld ? scene.edgeMarks.filter((_, i) => withheld.drawn.has(i)) : scene.edgeMarks).map((mark) => {
       const e = mark.edge;
       const description = describeIndexedEdge(e, index, locale);
       return {
@@ -208,8 +213,8 @@ export function useFlowElements(input: FlowInput) {
         },
       };
     });
-  }, [positions, enabled, scene, index, selection, hovered, focused, locale, bright]);
-  return { nodes: rfNodes, edges: rfEdges, between };
+  }, [positions, enabled, scene, index, selection, hovered, focused, locale, bright, withheld]);
+  return { nodes: rfNodes, edges: rfEdges, between, withheld };
 }
 
 interface CanvasInput {
@@ -225,6 +230,8 @@ interface CanvasInput {
   bright: Bright;
   locale: Locale;
   activityLabels: ActivityLabelOptions | undefined;
+  /** Edges on a highlighted path. */
+  highlighted?: ReadonlySet<string>;
   /** Activities plus groups above which the element list holds only the neighbourhood of the keyboard position. */
   limit?: number;
 }
@@ -272,10 +279,10 @@ function firstInReadingOrder(graph: FlowGraph, positions: Positions | undefined)
 
 /** The Canvas map's retained scene, its draw state, its element list and its tooltip texts. */
 export function useCanvasElements(input: CanvasInput) {
-  const { enabled, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, limit = Infinity } = input;
+  const { enabled, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, highlighted, limit = Infinity } = input;
   const { describeElement, index } = descriptions;
   const canvasScene = useMemo<PreparedScene | undefined>(() => (enabled && positions ? retainScene(scene) : undefined), [enabled, positions, scene]);
-  const canvasState = useMemo<DrawState>(() => ({ selection, hovered, focused, bright }), [selection, hovered, focused, bright]);
+  const canvasState = useMemo<DrawState>(() => ({ selection, hovered, focused, bright, highlighted }), [selection, hovered, focused, bright, highlighted]);
   const bounded = enabled && shown.nodes.length + (shown.groups?.length ?? 0) > limit;
   // Above the limit the list follows the keyboard: its element, else the activity it starts from.
   const home = useMemo(() => (bounded ? firstInReadingOrder(shown, positions) : undefined), [bounded, shown, positions]);

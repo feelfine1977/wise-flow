@@ -982,6 +982,14 @@
   bottom: 10px;
   right: 10px;
 }
+.wf-overlay-panel--bottom-center {
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.wf-edge-note {
+  white-space: nowrap;
+}
 .wf-zoom {
   display: flex;
   flex-direction: column;

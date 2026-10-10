@@ -376,6 +376,15 @@ export type {
 } from "./scene.js";
 
 export {
+  budgetEdges,
+} from "./edge-budget.js";
+export type {
+  EdgeBudget,
+  EdgeProtection,
+  EdgeSelection,
+} from "./edge-budget.js";
+
+export {
   overlayColor,
   tintColor,
   arcWidth,

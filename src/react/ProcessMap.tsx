@@ -16,7 +16,7 @@ import { type AbstractOptions, type ElementRef, type FlowGraph, type Positions, 
 import { type MapContext, mapEmphasis, menuHeading } from "../core/map-controller.js";
 import { ActivityTooltip } from "./ActivityTooltip.js";
 import { AbstractionControls } from "./AbstractionControls.js";
-import { CanvasMap, type CanvasMapHandle } from "./CanvasMap.js";
+import { CanvasMap, type CanvasMapHandle, EdgeNote } from "./CanvasMap.js";
 import { MenuView } from "./ContextMenu.js";
 import { type MapScreen, useMapController } from "./controller.js";
 import { describeMap } from "./describe.js";
@@ -96,6 +96,7 @@ function ProcessMapInner(props: ProcessMapProps) {
     layoutResetKey,
     canvasThreshold = DEFAULT_CANVAS_THRESHOLD,
     describedLimit = DEFAULT_DESCRIBED_LIMIT,
+    edgeBudget,
     children,
   } = props;
 
@@ -166,6 +167,8 @@ function ProcessMapInner(props: ProcessMapProps) {
   const tooltipId = useId();
   // The focus of paths in effect and what stays bright: the controller's.
   const { focus, focusShown, bright } = useMemo(() => mapEmphasis({ selection, focus: explicitFocus }, shown), [selection, explicitFocus, shown]);
+  // The edges of a focus of paths stay drawn under the edge budget.
+  const highlighted = focusShown ? bright?.edges : undefined;
 
   const rf = useReactFlow();
   const flowStore = useStoreApi();
@@ -203,8 +206,8 @@ function ProcessMapInner(props: ProcessMapProps) {
   );
 
   // React Flow nodes and edges, or the Canvas scene, its state and the elements listed for assistive technology.
-  const flow = useFlowElements({ enabled: !useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, nodesDraggable });
-  const canvas = useCanvasElements({ enabled: useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, limit: describedLimit });
+  const flow = useFlowElements({ enabled: !useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, nodesDraggable, edgeBudget, highlighted });
+  const canvas = useCanvasElements({ enabled: useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, highlighted, limit: describedLimit });
   const largeTable = shown.nodes.length + (shown.groups?.length ?? 0) > describedLimit;
   // A bounded element list says so, with the totals the table view lists.
   const bounded = canvas.bounded ? t(locale, "map.described.bounded", { nodes: formatCount(shown.nodes.length, locale), edges: formatCount(shown.edges.length, locale) }) : undefined;
@@ -413,6 +416,8 @@ function ProcessMapInner(props: ProcessMapProps) {
                 {...canvasHandlers}
                 onViewportChange={setCanvasViewport}
                 descendants={canvas.descendants}
+                edgeBudget={edgeBudget}
+                onAnnounce={announce}
               >
                 {controlsElement ? <div className="wf-overlay-panel wf-overlay-panel--top-left">{controlsElement}</div> : null}
                 {legendElement ? <div className="wf-overlay-panel wf-overlay-panel--bottom-right">{legendElement}</div> : null}
@@ -467,6 +472,11 @@ function ProcessMapInner(props: ProcessMapProps) {
                 {controlsElement ? <Panel position="top-left">{controlsElement}</Panel> : null}
                 {legendElement ? <Panel position="bottom-right">{legendElement}</Panel> : null}
                 {statusElement ? <Panel position="top-right">{statusElement}</Panel> : null}
+                {flow.withheld ? (
+                  <Panel position="bottom-center">
+                    <EdgeNote withheld={flow.withheld} locale={locale} onAnnounce={announce} />
+                  </Panel>
+                ) : null}
                 {children}
               </ReactFlow>
             </div>

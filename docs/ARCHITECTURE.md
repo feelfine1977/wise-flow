@@ -39,6 +39,7 @@ read what it resolves and do not decide it again.
 | Scene (`core/scene.ts`) | `buildScene(graph, positions, options)` → `FlowScene` | activity references, lane bands, scales, the overlays to show in canonical order with the follows self-loops, level-of-detail rules, overlay geometry, the marks and the legend, resolved once (§2.6) | `toSVG`, `prepareScene` (Canvas, `toPNG`), `ProcessMap`, `BpmnView` (`bpmn/scene.ts` over the registry's boxes) |
 | Overlay marks (`core/overlay-marks.ts`) | `FlowScene.marks`, `OverlayMark` | per placed overlay: box or path, fill, stroke, dash, arrowhead, texts, layer, zoom threshold, whether it is on the map (§2.5) | SVG export, Canvas drawing, React nodes and `OverlayLayer`, BPMN projection |
 | Node and edge marks (`core/element-marks.ts`) | `FlowScene.nodeMarks`, `FlowScene.edgeMarks`, `truncateText` | outline, fill, border, band, texts and their level of detail; edge route, colour, dash, count label (§2.5) | SVG export, Canvas drawing, React node and edge components |
+| Edge budget (`core/edge-budget.ts`) | `budgetEdges(scene, budget, protection, inView)` → `EdgeSelection` | which edges in view a budget draws: protected edges (an overlay mark on them, selected, at the keyboard position, on a highlighted path), then weight, then id (§4) | `drawScene` (Canvas), `useFlowElements` (React Flow) |
 | Mark SVG (`core/mark-svg.ts`) | `markSvg`, `svgMarkup` | the SVG elements of a mark | SVG export, React map, BPMN view |
 | Legend and figure frame (`core/figure.ts`) | `sceneLegend`, `legendLayout`, `figureFrame` | legend rows and heights, the exported figure's frame (§2.6) | `toSVG`, `toPNG`, Canvas `drawLegend`, `<Legend/>` |
 | Design tokens (`core/tokens.ts`) | `designTokens` and its parts, `patternTwin`, `tokenVariables` | colours, palettes, fonts, node and mark sizes, the arrowhead rule, pattern twins; `tokens.css` is checked against it (§2.4) | marks, SVG export, Canvas `readTokens`, `tokens.css` |
@@ -324,7 +325,10 @@ context calls for a viewport (groups and bands, edges with arrowheads, nodes
 with pattern twins, the overlay marks, edge labels), decides the level of
 detail from the zoom and, above 1,500 elements, draws only what the R-tree
 finds inside the viewport, reading each element by its position in the
-scene's lists so that a draw costs what the view holds; `CanvasRenderer` owns the canvas, the viewport and the
+scene's lists so that a draw costs what the view holds. With an edge
+budget it draws only the edges in view that the core's `budgetEdges` keeps
+(protected ones, then the heaviest), the same rule the React Flow map
+applies to all its edges, and the map says how many it shows; `CanvasRenderer` owns the canvas, the viewport and the
 interaction state and redraws on animation frames; `CanvasMap` adds the
 pointer handling (drag to pan, wheel, Ctrl or Cmd with the wheel and pinch
 to zoom, hover through the R-tree with a tooltip, click, right click), a
