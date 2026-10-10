@@ -493,25 +493,19 @@ function reconnect(
     hasIn.add(e.target);
   };
   for (const e of edges) note(e);
-  const originalIn = new Set<string>();
-  const originalOut = new Set<string>();
-  for (const e of original.edges) {
-    if (e.source === e.target) continue;
-    originalOut.add(e.source);
-    originalIn.add(e.target);
-  }
-  const needsIn = (id: string) => keptIds.has(id) && !hasIn.has(id) && originalIn.has(id) && !isStructuralNode(originalIdx.nodes.get(id)!);
-  const needsOut = (id: string) => keptIds.has(id) && !hasOut.has(id) && originalOut.has(id) && !isStructuralNode(originalIdx.nodes.get(id)!);
+  // Asked only about the ends of candidates, which are original edges between two
+  // different nodes, so the original had an incoming or outgoing edge there.
+  const needsIn = (id: string) => keptIds.has(id) && !hasIn.has(id) && !isStructuralNode(originalIdx.nodes.get(id)!);
+  const needsOut = (id: string) => keptIds.has(id) && !hasOut.has(id) && !isStructuralNode(originalIdx.nodes.get(id)!);
   const candidates = original.edges.filter((e) => e.source !== e.target && nodeIds.has(e.source) && nodeIds.has(e.target) && !edgeIds.has(e.id));
   // Each step takes the candidate that closes the most needs, then the strongest, then
   // the smallest id, then the first. Scores only fall as needs close, so candidates wait
   // in a heap under the score they had when queued and are requeued when it has fallen.
-  const ids = candidates.map((e) => e.id);
-  const strength = ids.map((id) => edgeStrength.get(id) ?? 1);
+  const strength = candidates.map((e) => edgeStrength.get(e.id) ?? 1);
   const rank = new Array<number>(candidates.length);
   candidates
     .map((_, i) => i)
-    .sort((a, b) => strength[b] - strength[a] || (ids[a] < ids[b] ? -1 : ids[a] > ids[b] ? 1 : 0) || a - b)
+    .sort((a, b) => strength[b] - strength[a] || byId(candidates[a], candidates[b]) || a - b)
     .forEach((i, r) => (rank[i] = r));
   const scoreOf = (e: FlowEdge) => (needsOut(e.source) ? 1 : 0) + (needsIn(e.target) ? 1 : 0);
   const queued = new MinHeap<{ index: number; score: number }>();
@@ -522,8 +516,8 @@ function reconnect(
   });
   while (queued.size) {
     const { index, score: was } = queued.pop()!;
-    if (edgeIds.has(ids[index])) continue;
     const e = candidates[index];
+    if (edgeIds.has(e.id)) continue;
     const score = scoreOf(e);
     if (score === 0) continue;
     if (score < was) {
