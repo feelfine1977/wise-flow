@@ -35,6 +35,11 @@ element) for the import tests and the "overlays on a model" story; one
 task id equals a fixture activity id, the labels match fixture labels, and
 "Approve Invoice" has no counterpart, so the mapping shows all three cases.
 
+`p2p_small.ts` — a small synthetic purchase-to-pay graph of 1,000 cases
+(seven activities in four stages, the paths between them and a self-loop),
+which the overlay catalogue and the parity stories draw; its activities'
+shares of all cases are round (100 %, 12 %, 90 %, 6 %, 85 %, 4 %, 78 %).
+
 `text-measures.ts` — a text measure other than the core's estimate (0.7 em
 per character), which the parity stories give to the map and the browser
 lane to the exports by name.
