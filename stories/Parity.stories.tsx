@@ -1,10 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { useEffect, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { constraintItems, globalScene } from "../fixtures/bpic2019";
 import { p2pStages, withSceneMetrics } from "../fixtures/p2p_stages";
 import { liteFromStages } from "../src/bpmn/index";
 import { textMeasures } from "../fixtures/text-measures";
 import { type ActivityLabelOptions, type FlowGraph, type LaneMode, type Locale, type Overlay, type Positions, type Theme, abstract, activityNodeSize, constraintOverlays, defaultTheme, layout, overlaysFor } from "../src/index";
+import { useFlowTheme } from "../src/react/index";
 import { ProcessMap } from "./maps";
 import { catalogueGraph, examples, rawKinds } from "./Overlays.stories";
 
@@ -36,6 +37,9 @@ export interface ParityScene {
   measure?: string;
   positions: Positions;
 }
+
+/** CSS variables a host sets on the map's container; the map is given no theme, and the scene is written in the theme the container's variables resolve to. */
+type HostVariables = Record<`--wf-${string}`, string>;
 
 const global = abstract(globalScene, { minEdgeShare: 0.03, minNodeShare: 0.01 });
 
@@ -69,7 +73,10 @@ const secondTheme: Theme = {
 };
 const stages = abstract(globalScene, { collapse: "all" });
 
-const scenes: Record<string, () => Omit<ParityScene, "positions">> = {
+/** Only the paper, the ink, the focus colour and the font, in three CSS syntaxes. */
+const hostVariables: HostVariables = { "--wf-paper": "#fdf6e3", "--wf-ink": "darkslategray", "--wf-focus": "rebeccapurple", "--wf-font": "Georgia, serif" };
+
+const scenes: Record<string, () => Omit<ParityScene, "positions"> & { variables?: HostVariables }> = {
   small: () => ({
     graph: catalogueGraph,
     overlays: [...Object.values(examples).flatMap((e) => constraintOverlays(e.description, e.stats, { graph: catalogueGraph })), ...rawKinds],
@@ -80,12 +87,15 @@ const scenes: Record<string, () => Omit<ParityScene, "positions">> = {
   roleLanes: () => ({ graph: liteFromStages(withSceneMetrics(p2pStages, globalScene), { lanes: "role" }), overlays: [], lanes: "roles" }),
   kinds: () => ({ graph: kinds, overlays: [] }),
   secondTheme: () => ({ ...scenes.small(), theme: secondTheme }),
+  hostVariables: () => ({ ...scenes.small(), variables: hostVariables }),
   names: () => ({ graph: global, overlays: overlaysFor(constraintItems(), { graph: global }), activityLabels: { mode: "names", references: {} } }),
   namesGerman: () => ({ graph: global, overlays: overlaysFor(constraintItems(), { graph: global }), activityLabels: { mode: "names", references: {} }, locale: "de", measure: "wide" }),
 };
 
 function Parity({ name }: { name: string }) {
-  const [scene, setScene] = useState<ParityScene>();
+  const [scene, setScene] = useState<ParityScene & { variables?: HostVariables }>();
+  const container = useRef<HTMLDivElement>(null);
+  const look = useFlowTheme(container);
   useEffect(() => {
     let live = true;
     const given = scenes[name]();
@@ -96,28 +106,34 @@ function Parity({ name }: { name: string }) {
       live = false;
     };
   }, [name]);
-  if (!scene) return null;
+  const variables = useMemo(() => scenes[name]().variables, [name]);
+  // The scene is written once the container's variables are read.
+  const written = scene && (variables ? look.theme !== defaultTheme && { ...scene, variables: undefined, theme: look.theme } : scene);
   return (
-    <div style={{ height: "100vh", width: "100vw" }}>
-      <script type="application/json" data-testid="wf-parity-scene">
-        {JSON.stringify(scene)}
-      </script>
-      <ProcessMap
-        graph={scene.graph}
-        positions={scene.positions}
-        overlays={scene.overlays}
-        lanes={scene.lanes}
-        theme={scene.theme}
-        activityLabels={scene.activityLabels}
-        locale={scene.locale}
-        textMeasure={textMeasures[scene.measure ?? "estimate"]}
-        renderer="svg"
-        fitView={false}
-        controls={false}
-        legend={false}
-        contextMenu={false}
-        pathList={false}
-      />
+    <div ref={container} style={{ height: "100vh", width: "100vw", ...(variables as CSSProperties) }}>
+      {written ? (
+        <script type="application/json" data-testid="wf-parity-scene">
+          {JSON.stringify(written)}
+        </script>
+      ) : null}
+      {scene ? (
+        <ProcessMap
+          graph={scene.graph}
+          positions={scene.positions}
+          overlays={scene.overlays}
+          lanes={scene.lanes}
+          theme={scene.theme}
+          activityLabels={scene.activityLabels}
+          locale={scene.locale}
+          textMeasure={textMeasures[scene.measure ?? "estimate"]}
+          renderer="svg"
+          fitView={false}
+          controls={false}
+          legend={false}
+          contextMenu={false}
+          pathList={false}
+        />
+      ) : null}
     </div>
   );
 }
@@ -129,5 +145,25 @@ export const Stages: StoryObj = { name: "BPIC stages", render: () => <Parity nam
 export const RoleLanes: StoryObj = { name: "role lanes", render: () => <Parity name="roleLanes" /> };
 export const ElementKinds: StoryObj = { name: "element kinds", render: () => <Parity name="kinds" /> };
 export const SecondTheme: StoryObj = { name: "small P2P in a second theme", render: () => <Parity name="secondTheme" /> };
+export const HostVariables: StoryObj = { name: "small P2P under a host's CSS variables", render: () => <Parity name="hostVariables" /> };
+
+/** The interactive map and the Canvas map side by side under the host's variables, with no theme, each with the activity selected. */
+function LiveMaps() {
+  const [positions, setPositions] = useState<Positions>();
+  useEffect(() => void layout(kinds, { engine: "dagre" }).then(setPositions), []);
+  const selection = { nodes: ["check"], edges: [], groups: [] };
+  return (
+    <div style={{ display: "flex", height: "100vh", width: "100vw", ...(hostVariables as CSSProperties) }}>
+      {positions
+        ? (["svg", "canvas"] as const).map((renderer) => (
+            <div key={renderer} style={{ flex: "1 1 0", minWidth: 0 }}>
+              <ProcessMap graph={kinds} positions={positions} renderer={renderer} selection={selection} fitView={false} controls={false} legend={false} contextMenu={false} pathList={false} />
+            </div>
+          ))
+        : null}
+    </div>
+  );
+}
+export const HostVariablesLive: StoryObj = { name: "element kinds under a host's CSS variables, live in the DOM and on the Canvas", render: () => <LiveMaps /> };
 export const Names: StoryObj = { name: "BPIC global with activity names", render: () => <Parity name="names" /> };
 export const NamesGerman: StoryObj = { name: "BPIC global with activity names in German, measured wide", render: () => <Parity name="namesGerman" /> };

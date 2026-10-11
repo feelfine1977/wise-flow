@@ -14,7 +14,7 @@ import type { MarkFill, MarkPaint, MarkText } from "./overlay-marks.js";
 import type { PatternId, Scales } from "./style.js";
 import { type TextMeasure, estimateTextWidth, truncateText } from "./text.js";
 import { type Theme, defaultTheme } from "./theme.js";
-import { dashTokens, dimensionTokens, opacityTokens } from "./tokens.js";
+import { dashTokens, dimensionTokens } from "./tokens.js";
 
 /** Point at half of a polyline's length. */
 export function routeMidpoint(points: readonly XY[]): XY {
@@ -306,7 +306,7 @@ export interface GroupMark {
 
 /** What one group looks like in its box: a tinted box with a dashed outline, or a band outlined between the bands with a rule along its start. */
 export function groupMark(group: FlowGroup, box: Box, options: { color: string; pattern: PatternId; band?: LaneBand; theme?: Theme }): GroupMark {
-  const { stroke, text, radius } = options.theme ?? defaultTheme;
+  const { stroke, text, radius, opacity } = options.theme ?? defaultTheme;
   const band = options.band;
   // Bands along the flow are outlined between each other, left and right, and ruled along the top; bands across it above and below, ruled along the left.
   const main = band?.axis === "main";
@@ -319,7 +319,7 @@ export function groupMark(group: FlowGroup, box: Box, options: { color: string; 
     pattern: options.pattern,
     band,
     radius: band ? 0 : radius.large,
-    fill: { paint: "value", opacity: band ? (band.index % 2 ? opacityTokens.bandOddFill : opacityTokens.bandFill) : opacityTokens.groupFill },
+    fill: { paint: "value", opacity: band ? (band.index % 2 ? opacity.bandOddFill : opacity.bandFill) : opacity.groupFill },
     stroke: band ? { paint: "line", width: 1, sides: main ? ["left", "right"] : ["top", "bottom"] } : { paint: "value", width: stroke.group, dash: [...dashTokens.group] },
     rule: band && { paint: "value", width: stroke.band, side: main ? "top" : "left" },
     texts: [ink(group.label, box.x + 12, box.y + 22, text.groupLabel.size, { role: "label", baseline: "alphabetic", weight: text.groupLabel.weight })],

@@ -15,7 +15,7 @@ One story file per component, rendered with the design tokens of
 | `Views.stories.tsx` | four views of one map (Finance, Logistics, Compliance, Automation; tabs and grid), small multiples |
 | `TableAlternative.stories.tsx` | vendor scene as tables, map in table view |
 | `TraceTimeline.stories.tsx` | absolute time, aligned at goods receipt, table alternative |
-| `Parity.stories.tsx` | the committed fixtures (small P2P with every overlay kind, BPIC global, the same in stage bands, BPIC stages, role lanes), one node of every kind, the small P2P map in a second theme, and BPIC global with activity names in English (estimate) and in German (measured 0.7 em per character), at zoom 1 with Dagre positions, the scene (and its theme) written beside the map as JSON for the browser lane's parity test |
+| `Parity.stories.tsx` | the committed fixtures (small P2P with every overlay kind, BPIC global, the same in stage bands, BPIC stages, role lanes), one node of every kind, the small P2P map in a second theme, the small P2P map under four CSS variables of a host on its container (the theme they resolve to written with the scene), and BPIC global with activity names in English (estimate) and in German (measured 0.7 em per character), at zoom 1 with Dagre positions, the scene (and its theme) written beside the map as JSON for the browser lane's parity test |
 
 Stories take `ProcessMap` and `ViewSwitcher` from `maps.tsx`, which passes
 them a fixed edge budget (`"all"`, unless a story passes a number), so that

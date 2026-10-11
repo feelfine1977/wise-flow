@@ -111,6 +111,9 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
   const style = options.style ?? defaultStyle;
   const theme = options.theme ?? defaultTheme;
   const scheme = options.scheme ?? "light";
+  const colors = themeColors(theme, scheme);
+  // The marks draw the neutral and the constraint colour of the scheme; every other paint they name by role.
+  const marked = scheme === "light" ? theme : { ...theme, color: colors };
   const measure = options.textMeasure ?? estimateTextWidth;
   const laid = laneBands(graph, givenPositions, { lanes: options.lanes ?? "none" });
   const positions = options.moved ? repositionNodes(graph, laid.positions, options.moved) : laid.positions;
@@ -119,10 +122,10 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
   const rules = { ...(style.lod ?? {}), ...(options.lod ?? {}) };
   const lod = options.lodBySize ? lodForSize(graph.nodes.length, rules) : { ...defaultLod, ...rules };
   const geometry = placeOverlays(overlays, positions, { ...(options.overlayGeometry ?? {}), lod }, groupTitles(graph.groups ?? [], positions), measure, theme.text);
-  const marks = overlayMarks(geometry.shapes, locale, theme, measure);
-  const scales = buildScales(graph, style, theme);
-  const nodes = nodeMarks(graph, positions, scales, { locale, activityLabels, theme, measure });
-  const edges = edgeMarks(graph, positions, scales, locale, theme);
+  const marks = overlayMarks(geometry.shapes, locale, marked, measure);
+  const scales = buildScales(graph, style, marked);
+  const nodes = nodeMarks(graph, positions, scales, { locale, activityLabels, theme: marked, measure });
+  const edges = edgeMarks(graph, positions, scales, locale, marked);
   return {
     graph,
     positions,
@@ -132,7 +135,7 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
     style,
     theme,
     scheme,
-    colors: themeColors(theme, scheme),
+    colors,
     textMeasure: measure,
     scales,
     overlays,
@@ -141,7 +144,7 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
     marks,
     nodeMarks: nodes,
     edgeMarks: edges,
-    groupMarks: groupMarks(graph, positions, laid.bands, scales, theme),
+    groupMarks: groupMarks(graph, positions, laid.bands, scales, marked),
     legend: legendOfScene({ scales, marks, nodeMarks: nodes, edgeMarks: edges, locale }),
     bounds: unionBoxes([positions.bounds, ...marks.filter((m) => m.inMap).map((m) => m.box)]),
   };

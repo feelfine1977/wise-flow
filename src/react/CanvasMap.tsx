@@ -1,8 +1,10 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { type Box, type EdgeBudget, type HitItem, type Locale, type ShownEdges, type XY, formatCount, t } from "../core/index.js";
-import { type CanvasTokens, CanvasRenderer, type DrawState, type PreparedScene, readTokens } from "../canvas/index.js";
+import { type Box, type EdgeBudget, type HitItem, type Locale, type ShownEdges, type ThemeSetting, type XY, formatCount, t, themeColors } from "../core/index.js";
+import { CanvasRenderer, type DrawState, type PreparedScene } from "../canvas/index.js";
+import { sceneTokens } from "../canvas/tokens.js";
 import { useEdgesShown } from "./hooks.js";
 import { part } from "./parts.js";
+import { useFlowTheme } from "./theme.js";
 
 export interface CanvasMapProps {
   scene: PreparedScene | undefined;
@@ -28,6 +30,12 @@ export interface CanvasMapProps {
   onAnnounce?: (text: string) => void;
   /** Called when the edges drawn change: while the budget withholds some, with those drawn (for `toSVG` and `toPNG`); undefined once every edge is drawn again. */
   onEdgesShown?: (shown: ShownEdges | undefined) => void;
+  /**
+   * The colours and font the map is drawn in: a preset's name or changes over
+   * a preset, over the `--wf-*` CSS variables of the map's element, set there
+   * or inherited (`useFlowTheme`). Sizes, radii and strokes are the scene's.
+   */
+  theme?: ThemeSetting;
   className?: string;
   children?: React.ReactNode;
 }
@@ -68,7 +76,7 @@ export function EdgeNote({ withheld, locale, onAnnounce }: { withheld?: { shown:
  * focus, dimming) comes from the parent; keyboard handling stays there.
  */
 export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function CanvasMap(
-  { scene, state, locale = "en", fitKey, fitView = true, describe, onHover, onClick, onContextMenu, onViewportChange, descendants, edgeBudget = "adaptive", clock, onAnnounce, onEdgesShown, className, children },
+  { scene, state, locale = "en", fitKey, fitView = true, describe, onHover, onClick, onContextMenu, onViewportChange, descendants, edgeBudget = "adaptive", clock, onAnnounce, onEdgesShown, theme, className, children },
   ref,
 ) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -89,12 +97,15 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
   const [withheld, setWithheld] = useState<{ shown: number; total: number }>();
   const withheldKey = useRef("");
   const reportShown = useEdgesShown(onEdgesShown);
+  // The colours and the font follow the theme, the host's CSS variables and the colour scheme.
+  const look = useFlowTheme(hostRef, theme);
+  const tokens = useMemo(() => sceneTokens({ theme: look.theme, colors: themeColors(look.theme, look.scheme) }), [look]);
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
     const host = hostRef.current;
     if (!canvas || !host) return;
-    const renderer = new CanvasRenderer(canvas, { tokens: readTokens(host), clock });
+    const renderer = new CanvasRenderer(canvas, { tokens, clock });
     renderer.onViewportChange = (v) => onViewportChange?.(v);
     renderer.onDraw = ({ withheld: w }) => {
       reportShown(w, renderer.getScene()?.edgeMarks ?? []);
@@ -112,19 +123,7 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
     resize();
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(resize) : undefined;
     ro?.observe(host);
-    // Follow the theme: its CSS variables change with the attributes of the host or an
-    // ancestor (a theme class or `data-theme`) or with the system's colour scheme.
-    const retheme = () => {
-      const next = readTokens(host);
-      if ((Object.keys(next) as (keyof CanvasTokens)[]).some((k) => next[k] !== renderer.tokens[k])) renderer.setTokens(next);
-    };
-    const mo = typeof MutationObserver !== "undefined" ? new MutationObserver(retheme) : undefined;
-    for (let el: Element | null = host; el; el = el.parentElement) mo?.observe(el, { attributes: true, attributeFilter: ["class", "style", "data-theme"] });
-    const scheme = typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia("(prefers-color-scheme: dark)") : undefined;
-    scheme?.addEventListener?.("change", retheme);
     return () => {
-      mo?.disconnect();
-      scheme?.removeEventListener?.("change", retheme);
       ro?.disconnect();
       clearTimeout(wheeling.current);
       renderer.dispose();
@@ -146,6 +145,11 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
   useEffect(() => {
     rendererRef.current?.setState(state);
   }, [state]);
+
+  useEffect(() => {
+    const r = rendererRef.current;
+    if (r && r.tokens !== tokens) r.setTokens(tokens);
+  }, [tokens]);
 
   useEffect(() => {
     const r = rendererRef.current;

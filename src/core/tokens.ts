@@ -360,6 +360,9 @@ export const patternTokens = {
   dotOpacity: 0.7,
 } as const;
 
+/** How pattern twins are drawn: `patternTokens`, or a theme's `pattern`. */
+export type PatternLook = { readonly [K in keyof typeof patternTokens]: number };
+
 /** Shape of a pattern twin in its tile: lines from (x1, y1) to (x2, y2) and dot centres. */
 interface PatternShape {
   size: number;
@@ -395,6 +398,37 @@ export function patternTwin(pattern: PatternId): PatternShape {
  */
 export const hatchTokens = { size: 8, width: 2, domPeriod: 7 } as const;
 
+/**
+ * The smallest text and stroke a look may draw, in points at the figure's
+ * output size (one layout unit is one CSS pixel, 0.75 pt). The default look's
+ * are the smallest it draws: the trace timeline's marks at 8 px and the
+ * outline of the legend's ramp at 0.5 px.
+ */
+export const minimumTokens = { text: 6, stroke: 0.375 } as const;
+
+/**
+ * What the print theme changes in the table: white paper and surfaces, no
+ * tints, a pattern twin on every categorical colour (seven colours, seven
+ * patterns, none solid) drawn opaque, ramps whose palest stop has 3 : 1 on the
+ * paper (three greys, three oranges, three blues), and no text under 7 pt and
+ * no stroke under 0.75 pt. It has no dark scheme.
+ */
+export const printTokens = {
+  color: { paper: "#ffffff", surface: "#ffffff" },
+  palette: {
+    neutral: ["#8c8c8c", "#5c5c5c", "#2b2b2b"],
+    shortfall: ["#e6550d", "#a63603", "#5a1c03"],
+    performance: ["#3a7bbf", "#08519c", "#08306b"],
+    categorical: ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00", "#F0E442"],
+  },
+  patterns: ["diagonal", "dots", "crosshatch", "horizontal", "vertical", "diagonal-reverse", "grid"],
+  pattern: { strokeOpacity: 1, dotOpacity: 1 },
+  text: { nodeCount: { size: 10 }, eventLabel: { size: 10 }, attribution: { size: 10 }, legendKey: { size: 10 }, timelineMark: { size: 10 } },
+  stroke: { legendGradient: 1 },
+  opacity: { tint: 0, groupFill: 0, bandFill: 0, bandOddFill: 0 },
+  minimum: { text: 7, stroke: 0.75 },
+} as const satisfies Record<string, unknown> & { patterns: readonly PatternId[] };
+
 /** The table as one object. */
 export const designTokens = {
   color: colorTokens,
@@ -415,6 +449,8 @@ export const designTokens = {
   arrowhead: arrowheadTokens,
   pattern: patternTokens,
   hatch: hatchTokens,
+  minimum: minimumTokens,
+  print: printTokens,
 } as const;
 
 /** Colours with a CSS variable: the ones a stylesheet or the Canvas renderer reads. */

@@ -1,15 +1,16 @@
 /**
  * Metric-to-style scales, colour-blind-safe palettes with pattern twins,
- * contrast helpers and level-of-detail rules.
+ * contrast helpers, the check of a theme's contrasts and sizes, and
+ * level-of-detail rules.
  */
 import { scaleLinear, scaleLog, scaleSqrt } from "d3-scale";
 import { hatchSvg, patternTwinSvg, svgMarkup } from "./mark-svg.js";
 import { type FlowEdge, type FlowGraph, type FlowNode, metric } from "./model.js";
 import type { StringKey } from "./strings.js";
-import { type Theme, type ThemePalettes, defaultTheme } from "./theme.js";
-import { type PatternId, PATTERNS, colorTokens, paletteTokens, strokeTokens } from "./tokens.js";
+import { type ColorScheme, type Theme, type ThemePalettes, colorChannels, defaultTheme, themeColors } from "./theme.js";
+import { type ColorToken, type PatternId, type PatternLook, PATTERNS, colorTokens, paletteTokens, strokeTokens } from "./tokens.js";
 
-export { type PatternId, PATTERNS } from "./tokens.js";
+export { type PatternId, type PatternLook, PATTERNS } from "./tokens.js";
 
 /** The palettes of the token table (`paletteTokens`). */
 export const palettes = paletteTokens;
@@ -74,15 +75,16 @@ export function interpolatePalette(stops: readonly string[], t: number): string 
   return rgbToHex([a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f]);
 }
 
-function relativeLuminance(hex: string): number {
-  const [r, g, b] = hexToRgb(hex).map((v) => {
+/** WCAG relative luminance of a literal colour (`colorChannels`) or of hex digits without `#`; NaN for anything else. */
+function relativeLuminance(color: string): number {
+  const [r, g, b] = (colorChannels(color) ?? colorChannels(`#${color}`) ?? [NaN, NaN, NaN]).slice(0, 3).map((v) => {
     const s = v / 255;
     return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
   });
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-/** WCAG contrast ratio between two colours. */
+/** WCAG contrast ratio between two literal colours; NaN when one is not a colour. */
 export function contrastRatio(a: string, b: string): number {
   const la = relativeLuminance(a);
   const lb = relativeLuminance(b);
@@ -95,6 +97,85 @@ export function contrastText(background: string): string {
   return contrastRatio(background, fixedColors.inkStrong) >= contrastRatio(background, fixedColors.paper)
     ? fixedColors.inkStrong
     : fixedColors.paper;
+}
+
+/** Something of a theme that falls short of what `checkTheme` asks. */
+export interface ThemeDeviation {
+  /**
+   * `text`: text against its ground under 4.5 : 1. `line`: a line against the
+   * paper under 3 : 1. `rampOrder`: the path ramp not monotonic in luminance.
+   * `rampStart`: its low end against the paper under 3 : 1. `textSize`,
+   * `strokeWidth`: a table entry under the theme's minimum. `color`: a colour
+   * that is not a literal.
+   */
+  kind: "text" | "line" | "rampOrder" | "rampStart" | "textSize" | "strokeWidth" | "color";
+  /** The scheme of a contrast or of the ramp. */
+  scheme?: ColorScheme;
+  /** What was measured: `ink on paper`, `lineStrong on paper`, `palette.neutral`, `text.nodeCount`, `stroke.legendGradient`, `dark.paper`. */
+  subject: string;
+  /** The contrast ratio (two decimals), the size or width in pt, or the colour. */
+  value: number | string;
+  /** What it must reach. */
+  minimum?: number;
+}
+
+/** Text and the grounds it is drawn on. */
+const TEXT: [ColorToken, ColorToken][] = [["ink", "paper"], ["inkMuted", "paper"], ["ink", "surface"], ["inkMuted", "surface"], ["onFocus", "focus"]];
+/**
+ * Lines that carry meaning: outlines that stand out, paths without a measure,
+ * focus and selection. `line` is left out: it draws hairlines and tracks
+ * whose meaning a label or a neighbour carries too.
+ */
+const LINES: ColorToken[] = ["lineStrong", "neutral", "focus"];
+const TEXT_CONTRAST = 4.5;
+const LINE_CONTRAST = 3;
+/** Points per layout unit (a CSS pixel). */
+const PT = 0.75;
+
+const twoDecimals = (n: number) => Math.round(n * 100) / 100;
+
+/** A colour as it is drawn over a ground (itself over white): a translucent colour mixed with the ground by its alpha. */
+function over(color: string, ground?: string): string {
+  const c = colorChannels(color);
+  if (!c || c[3] >= 1) return color;
+  const g = colorChannels(ground ? over(ground) : "#ffffff") ?? [255, 255, 255];
+  return `rgb(${c.slice(0, 3).map((v, i) => Math.round(v * c[3] + g[i] * (1 - c[3]))).join(" ")})`;
+}
+
+/**
+ * What of a theme falls short, in both schemes: text against its ground at
+ * least 4.5 : 1, lines against the paper at least 3 : 1, the path ramp
+ * (`palette.neutral`) monotonic in luminance with its low end at least 3 : 1
+ * against the paper, no text size or stroke width of the tables under the
+ * theme's `minimum`, and every colour a literal. A translucent colour is
+ * measured as drawn over its ground. Empty when nothing does.
+ */
+export function checkTheme(theme: Theme): ThemeDeviation[] {
+  const out: ThemeDeviation[] = [];
+  for (const table of ["color", "dark"] as const) {
+    for (const [role, value] of Object.entries(theme[table])) if (value !== undefined && !colorChannels(value)) out.push({ kind: "color", subject: `${table}.${role}`, value });
+  }
+  const ramp = theme.palette.neutral;
+  const steps = ramp.slice(1).map((c, i) => Math.sign(relativeLuminance(c) - relativeLuminance(ramp[i])));
+  if (steps.some((s) => s !== steps[0] || !s)) out.push({ kind: "rampOrder", subject: "palette.neutral", value: ramp.join(" ") });
+  for (const scheme of ["light", "dark"] as const) {
+    const c = themeColors(theme, scheme);
+    const check = (kind: "text" | "line" | "rampStart", subject: string, a: string, b: string, minimum: number) => {
+      const r = contrastRatio(over(a, b), over(b));
+      if (r < minimum) out.push({ kind, scheme, subject, value: twoDecimals(r), minimum });
+    };
+    for (const [text, ground] of TEXT) check("text", `${text} on ${ground}`, c[text], c[ground], TEXT_CONTRAST);
+    for (const line of LINES) check("line", `${line} on paper`, c[line], c.paper, LINE_CONTRAST);
+    if (ramp.length) check("rampStart", "palette.neutral", ramp[0], c.paper, LINE_CONTRAST);
+  }
+  for (const [role, style] of Object.entries(theme.text)) {
+    const size = (style as { size?: number | string }).size;
+    if (typeof size === "number" && size * PT < theme.minimum.text) out.push({ kind: "textSize", subject: `text.${role}`, value: size * PT, minimum: theme.minimum.text });
+  }
+  for (const [role, width] of Object.entries(theme.stroke)) {
+    if (width * PT < theme.minimum.stroke) out.push({ kind: "strokeWidth", subject: `stroke.${role}`, value: width * PT, minimum: theme.minimum.stroke });
+  }
+  return out;
 }
 
 /** Stable 32-bit FNV-1a hash of a string. */
@@ -254,7 +335,7 @@ export function colorOn(value: number, palette: PaletteName, domain: number[], t
 function categoricalEntry(key: string, theme: Theme): CategoricalEntry {
   const colors = theme.palette.categorical;
   const index = hashKey(key) % colors.length;
-  return { key, color: colors[index], pattern: PATTERNS[index % PATTERNS.length], index };
+  return { key, color: colors[index], pattern: theme.patterns[index % theme.patterns.length], index };
 }
 
 /** Build the scales of a graph for a style specification in a theme's palettes; deterministic for the same input. */
@@ -390,7 +471,7 @@ function symmetricDomain(values: number[]): number[] {
   return [-m, 0, m];
 }
 
-/** SVG pattern definitions for the pattern twins and the out-of-scope hatching, usable in exports and in the DOM. */
-export function patternDefs(prefix = "wf-pattern", ink: string = fixedColors.ink, outOfScope: string = fixedColors.outOfScope): string {
-  return [...PATTERNS.map((p) => patternTwinSvg(`${prefix}-${p}`, p, ink)), hatchSvg(`${prefix}-outofscope`, outOfScope)].map(svgMarkup).join("");
+/** SVG pattern definitions for the pattern twins (drawn as `look` says) and the out-of-scope hatching, usable in exports and in the DOM. */
+export function patternDefs(prefix = "wf-pattern", ink: string = fixedColors.ink, outOfScope: string = fixedColors.outOfScope, look?: PatternLook): string {
+  return [...PATTERNS.map((p) => patternTwinSvg(`${prefix}-${p}`, p, ink, look)), hatchSvg(`${prefix}-outofscope`, outOfScope)].map(svgMarkup).join("");
 }

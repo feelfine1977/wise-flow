@@ -5,7 +5,7 @@
  */
 import type { MarkPaint, MarkText, OverlayMark } from "./overlay-marks.js";
 import { truncateText } from "./text.js";
-import { type Arrowhead, type PatternId, arrowheadExtent, hatchTokens, patternTokens, patternTwin, strokeTokens, textTokens } from "./tokens.js";
+import { type Arrowhead, type PatternId, type PatternLook, arrowheadExtent, hatchTokens, patternTokens, patternTwin, strokeTokens, textTokens } from "./tokens.js";
 
 /** An SVG element: tag, attributes in order, and child elements or text. */
 export interface SvgElement {
@@ -90,16 +90,16 @@ export function arrowMarker(id: string, a: Arrowhead): SvgElement {
   };
 }
 
-/** Tile of a pattern twin (`patternTwin`) in the ink colour. */
-export function patternTwinSvg(id: string, pattern: PatternId, ink: string): SvgElement {
+/** Tile of a pattern twin (`patternTwin`) in the ink colour, drawn as `look` says (a theme's `pattern`). */
+export function patternTwinSvg(id: string, pattern: PatternId, ink: string, look: PatternLook = patternTokens): SvgElement {
   const shape = patternTwin(pattern);
   const children: SvgElement[] = [];
   if (shape.lines.length) {
     const d = shape.lines.map(([x1, y1, x2, y2]) => `M${num(x1)} ${num(y1)}L${num(x2)} ${num(y2)}`).join("");
-    children.push({ tag: "path", attrs: [["d", d], ["stroke", ink], ["stroke-width", String(patternTokens.strokeWidth)], ["stroke-opacity", String(patternTokens.strokeOpacity)]], children: [] });
+    children.push({ tag: "path", attrs: [["d", d], ["stroke", ink], ["stroke-width", String(look.strokeWidth)], ["stroke-opacity", String(look.strokeOpacity)]], children: [] });
   }
   for (const [cx, cy] of shape.dots) {
-    children.push({ tag: "circle", attrs: [["cx", num(cx)], ["cy", num(cy)], ["r", String(patternTokens.dotRadius)], ["fill", ink], ["fill-opacity", String(patternTokens.dotOpacity)]], children: [] });
+    children.push({ tag: "circle", attrs: [["cx", num(cx)], ["cy", num(cy)], ["r", String(look.dotRadius)], ["fill", ink], ["fill-opacity", String(look.dotOpacity)]], children: [] });
   }
   return { tag: "pattern", attrs: [["id", id], ["width", String(shape.size)], ["height", String(shape.size)], ["patternUnits", "userSpaceOnUse"]], children };
 }

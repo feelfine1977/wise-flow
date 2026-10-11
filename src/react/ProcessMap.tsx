@@ -13,8 +13,9 @@ import {
   type OnNodesChange,
 } from "@xyflow/react";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { type AbstractOptions, type ElementRef, type FlowGraph, type Positions, type XY, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, defaultStyle, defaultTheme, dimensionTokens, formatCount, lodAt, spaceTokens, strokeTokens, t } from "../core/index.js";
+import { type AbstractOptions, type ElementRef, type FlowGraph, type Positions, type XY, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, defaultStyle, dimensionTokens, formatCount, lodAt, spaceTokens, strokeTokens, t } from "../core/index.js";
 import { type MapContext, mapEmphasis, menuHeading } from "../core/map-controller.js";
+import { markedThemeKey, themeStyle } from "../core/theme.js";
 import { ActivityTooltip } from "./ActivityTooltip.js";
 import { AbstractionControls } from "./AbstractionControls.js";
 import { CanvasMap, type CanvasMapHandle, EdgeNote } from "./CanvasMap.js";
@@ -29,11 +30,13 @@ import { useMenuActions } from "./map-actions.js";
 import { useCanvasElements, useElementDescriptions, useFlowElements, useTextMeasure } from "./map-elements.js";
 import { GROUP_PREFIX, canvasPointer, flowPointer, overlayPointer } from "./map-pointer.js";
 import { MarkDefs, MarkFigure } from "./marks.js";
+import { PatternTheme } from "./patterns.js";
 import { nodeTypes } from "./nodes.js";
 import { OverlayLayer } from "./OverlayLayer.js";
 import { part } from "./parts.js";
 import { PathList } from "./PathList.js";
 import { TableAlternative } from "./TableAlternative.js";
+import { type Written, useTheme } from "./theme.js";
 import { type ProcessMapProps, type Selection, type WfEdge, type WfGroupNode, type WfNode } from "./types.js";
 
 const DEFAULT_CANVAS_THRESHOLD = 2000;
@@ -105,7 +108,20 @@ function ProcessMapInner(props: ProcessMapProps) {
   const activityLabels = useMemo(() => props.activityLabels ? {
     ...props.activityLabels, references: activityReferences(graph, props.activityLabels.references),
   } : undefined, [graph, props.activityLabels]);
-  const textMeasure = useTextMeasure(props.textMeasure, (props.theme ?? defaultTheme).font.family);
+  // The theme: the setting over the CSS variables of the map's element (its own and those it inherits) over the preset,
+  // in the page's scheme. Given a setting, the map writes the theme's variables on its element, and sets them aside
+  // while it reads the element's. The scene is built again only when the marks change; colours are painted from the theme,
+  // and its font reaches the scene through the text measure.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const written = useRef<Written | undefined>(undefined);
+  const look = useTheme(containerRef, props.theme, written);
+  const markedKey = useMemo(() => markedThemeKey(look.theme, look.scheme), [look]);
+  const markedTheme = useMemo(() => look.theme, [markedKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const themed = useMemo(() => (props.theme !== undefined ? themeStyle(look.theme, look.scheme) : undefined), [props.theme !== undefined, look]); // eslint-disable-line react-hooks/exhaustive-deps
+  written.current = themed && { names: Object.keys(themed), own: containerStyle as Record<string, unknown> | undefined };
+  // The pattern twins of the activities and the legend are drawn in the theme's ink, as its \`pattern\` says.
+  const patternTheme = useMemo(() => ({ ink: look.theme.color.ink, look: look.theme.pattern }), [look.theme]);
+  const textMeasure = useTextMeasure(props.textMeasure, look.theme.font.family);
   const sizedLayoutOptions = useMemo(() => activityLabels && !layoutOptions?.nodeSize ? {
     ...layoutOptions, nodeSize: (node: FlowGraph["nodes"][number]) => activityNodeSize(node, activityLabels, textMeasure),
   } : layoutOptions, [layoutOptions, activityLabels, textMeasure]);
@@ -147,7 +163,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   // Graph overlays and the given ones; the scene keeps those it can place and adds the follows self-loops.
   const sceneOverlays = useMemo(() => (extraOverlays ? [...(shown.overlays ?? []), ...extraOverlays] : undefined), [shown, extraOverlays]);
   const { scene, positions, laidPositions } = useMapScene(shown, arrival.positions, manual.key === layoutResetKey ? manual.points : NO_MOVES, {
-    overlays: sceneOverlays, style, locale, lanes, activityLabels, selfLoops, lod: props.lod, theme: props.theme, textMeasure,
+    overlays: sceneOverlays, style, locale, lanes, activityLabels, selfLoops, lod: props.lod, theme: markedTheme, scheme: look.scheme, textMeasure,
   });
   const { scales, overlays, geometry } = scene;
   // One index of the shown graph: every description, label and lookup by id reads it.
@@ -183,7 +199,6 @@ function ProcessMapInner(props: ProcessMapProps) {
   const zoom = useCanvas ? canvasViewport.zoom : rfZoom;
   const lod = lodAt(zoom, scene.lod);
   const bodyRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<CanvasMapHandle>(null);
 
   // Actions menu
@@ -387,11 +402,11 @@ function ProcessMapInner(props: ProcessMapProps) {
     </div>
   ) : null;
 
-  return (
+  const map = (
     <div
       ref={containerRef}
       className={`wf-process-map ${lodClasses}${showPaths ? " wf-process-map--side" : ""}${className ? ` ${className}` : ""}`}
-      style={{ width: "100%", height: "100%", ...containerStyle }}
+      style={{ width: "100%", height: "100%", ...containerStyle, ...themed }}
       role="group"
       {...part("map")}
       aria-label={ariaLabel ?? t(locale, "map.description", { nodes: shown.nodes.length, edges: shown.edges.length, groups: shown.groups?.length ?? 0 })}
@@ -441,6 +456,7 @@ function ProcessMapInner(props: ProcessMapProps) {
                 edgeBudget={edgeBudget}
                 onAnnounce={announce}
                 onEdgesShown={tellShown}
+                theme={look.theme}
               >
                 {controlsElement ? <div className="wf-overlay-panel wf-overlay-panel--top-left">{controlsElement}</div> : null}
                 {legendElement ? <div className="wf-overlay-panel wf-overlay-panel--bottom-right">{legendElement}</div> : null}
@@ -511,6 +527,7 @@ function ProcessMapInner(props: ProcessMapProps) {
       </div>
     </div>
   );
+  return <PatternTheme.Provider value={patternTheme}>{map}</PatternTheme.Provider>;
 }
 
 /**

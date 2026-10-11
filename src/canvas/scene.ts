@@ -9,7 +9,7 @@ import {
   type ColorScheme,
   type GroupMark,
   type TextMeasure,
-  type Theme,
+  type ThemeSetting,
   activityLabel,
   activityLabelLines,
   activityNodeCounts,
@@ -38,6 +38,7 @@ import {
   gatewayGlyph,
   groupMarks,
   hasTag,
+  resolveTheme,
   nodeCount,
   tintColor,
   unionBoxes,
@@ -123,8 +124,8 @@ export interface PrepareOptions {
   overlayGeometry?: OverlayGeometryOptions;
   /** Self-loop follows edges become self-loop overlays. Default true. */
   selfLoops?: boolean;
-  /** The theme the marks are resolved in. Default `defaultTheme`. */
-  theme?: Theme;
+  /** The theme the marks are resolved in: a preset's name or changes over a preset (`resolveTheme`). Default the `default` preset. */
+  theme?: ThemeSetting;
   /** The colour scheme of the theme. Default `light`. */
   scheme?: ColorScheme;
   /** What the texts are measured by (`FlowSceneOptions.textMeasure`): the Canvas draws the lines the scene fitted. Default `estimateTextWidth`. */
@@ -161,7 +162,7 @@ export function prepareScene(graph: FlowGraph, givenPositions: Positions, option
     lod: options.lod,
     lodBySize: options.lodBySize !== false,
     overlayGeometry: options.overlayGeometry,
-    theme: options.theme,
+    theme: resolveTheme(options.theme),
     scheme: options.scheme,
     textMeasure: options.textMeasure,
   });

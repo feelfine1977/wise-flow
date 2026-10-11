@@ -6,7 +6,7 @@
  * a recording stub in tests. When the scene is large, only the elements the
  * scene's R-tree finds in the viewport are read, in the order of a full draw.
  */
-import { type Arrowhead, type Box, type BoxSide, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type Selection, type ShownEdges, type TextMeasure, type Theme, arrowheadExtent, arrowheadTokens, dimensionTokens, fixedColors, hatchTokens, legendLayout, legendMetrics, budgetEdges, defaultTheme, estimateTextWidth, lodAt, markArrowhead, opacityTokens, patternTokens, patternTwin } from "../core/index.js";
+import { type Arrowhead, type Box, type BoxSide, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type PatternLook, type Selection, type ShownEdges, type TextMeasure, type Theme, arrowheadExtent, arrowheadTokens, dimensionTokens, fixedColors, hatchTokens, legendLayout, legendMetrics, budgetEdges, defaultTheme, estimateTextWidth, lodAt, markArrowhead, patternTwin } from "../core/index.js";
 import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene.js";
 import { type CanvasTokens, sceneTokens } from "./tokens.js";
 
@@ -221,11 +221,11 @@ function cacheOf(ctx: DrawContext): Map<string, CanvasPattern | null> {
   return cache;
 }
 
-/** Tile of a pattern twin (`patternTwin`) in the ink colour. */
-function patternFor(ctx: DrawContext, pattern: PatternId, ink: string, options: DrawOptions): CanvasPattern | null {
+/** Tile of a pattern twin (`patternTwin`) in the ink colour, drawn as `look` says (the theme's `pattern`). */
+function patternFor(ctx: DrawContext, pattern: PatternId, ink: string, look: PatternLook, options: DrawOptions): CanvasPattern | null {
   if (pattern === "solid" || !ctx.createPattern) return null;
   const cache = cacheOf(ctx);
-  const key = `${pattern}:${ink}`;
+  const key = `${pattern}:${ink}:${Object.values(look)}`;
   if (cache.has(key)) return cache.get(key)!;
   const shape = patternTwin(pattern);
   const tile = tileFactory(options)?.(shape.size, shape.size);
@@ -236,9 +236,9 @@ function patternFor(ctx: DrawContext, pattern: PatternId, ink: string, options: 
   }
   tc.strokeStyle = ink;
   tc.fillStyle = ink;
-  tc.lineWidth = patternTokens.strokeWidth;
+  tc.lineWidth = look.strokeWidth;
   if (shape.lines.length) {
-    tc.globalAlpha = patternTokens.strokeOpacity;
+    tc.globalAlpha = look.strokeOpacity;
     tc.beginPath();
     for (const [x1, y1, x2, y2] of shape.lines) {
       tc.moveTo(x1, y1);
@@ -247,11 +247,11 @@ function patternFor(ctx: DrawContext, pattern: PatternId, ink: string, options: 
     tc.stroke();
   }
   if (shape.dots.length) {
-    tc.globalAlpha = patternTokens.dotOpacity;
+    tc.globalAlpha = look.dotOpacity;
     tc.beginPath();
     for (const [cx, cy] of shape.dots) {
-      tc.moveTo(cx + patternTokens.dotRadius, cy);
-      tc.arc(cx, cy, patternTokens.dotRadius, 0, 2 * Math.PI);
+      tc.moveTo(cx + look.dotRadius, cy);
+      tc.arc(cx, cy, look.dotRadius, 0, 2 * Math.PI);
     }
     tc.fill();
   }
@@ -366,7 +366,7 @@ function drawEdge(ctx: DrawContext, e: SceneEdge, tokens: CanvasTokens, theme: T
   const m = e.mark;
   const pts = m.points;
   if (pts.length < 2) return;
-  ctx.globalAlpha = dimmed ? opacityTokens.dimmedPath : 1;
+  ctx.globalAlpha = dimmed ? theme.opacity.dimmedPath : 1;
   const color = highlighted ? tokens.focus : m.color;
   ctx.strokeStyle = color;
   ctx.lineWidth = highlighted ? Math.max(m.width, theme.stroke.canvasPathHighlight) : m.width;
@@ -393,7 +393,7 @@ function drawNode(ctx: DrawContext, scene: PreparedScene, n: SceneNode, tokens: 
   const focused = state.focused === id;
   const hovered = state.hovered === id;
   const dimmed = !n.activityLines && !!state.bright && !state.bright.nodes.has(id);
-  ctx.globalAlpha = dimmed ? opacityTokens.dimmed : 1;
+  ctx.globalAlpha = dimmed ? scene.theme.opacity.dimmed : 1;
   ctx.setLineDash(m.stroke.dash ?? []);
   const cx = b.x + b.width / 2;
   const cy = b.y + b.height / 2;
@@ -421,7 +421,7 @@ function drawNode(ctx: DrawContext, scene: PreparedScene, n: SceneNode, tokens: 
   if (m.band) {
     ctx.fillStyle = m.color;
     ctx.fillRect(b.x, b.y, m.band, b.height);
-    const pattern = patternFor(ctx, m.pattern, tokens.ink, options);
+    const pattern = patternFor(ctx, m.pattern, tokens.ink, scene.theme.pattern, options);
     if (pattern) {
       ctx.fillStyle = pattern;
       ctx.fillRect(b.x, b.y, m.band, b.height);
@@ -653,7 +653,7 @@ export function drawLegend(ctx: DrawContext, scene: PreparedScene, x: number, y:
         const ey = cy + i * legendMetrics.entry;
         ctx.fillStyle = e.color;
         ctx.fillRect(x, ey, swatchWidth, swatchHeight);
-        const pattern = patternFor(ctx, e.pattern, tokens.ink, options);
+        const pattern = patternFor(ctx, e.pattern, tokens.ink, scene.theme.pattern, options);
         if (pattern) {
           ctx.fillStyle = pattern;
           ctx.fillRect(x, ey, swatchWidth, swatchHeight);

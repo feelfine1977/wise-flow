@@ -16,8 +16,8 @@ import { type FlowScene, buildScene } from "./scene.js";
 import { type StyleSpec, lodAt, patternDefs } from "./style.js";
 import { t } from "./strings.js";
 import type { TextMeasure } from "./text.js";
-import type { ColorScheme, Theme } from "./theme.js";
-import { type ColorToken, arrowheadTokens, dimensionTokens, opacityTokens } from "./tokens.js";
+import { type ColorScheme, type ThemeSetting, resolveTheme } from "./theme.js";
+import { type ColorToken, arrowheadTokens, dimensionTokens } from "./tokens.js";
 
 export interface Scene {
   activityLabels?: ActivityLabelOptions;
@@ -55,8 +55,8 @@ export interface ExportOptions {
    * every edge.
    */
   edgeBudget?: EdgeBudget | ShownEdges;
-  /** The theme the figure is drawn in. Default `defaultTheme`. */
-  theme?: Theme;
+  /** The theme the figure is drawn in: a preset's name or changes over a preset (`resolveTheme`). Default the `default` preset. */
+  theme?: ThemeSetting;
   /** The colour scheme of the theme. Default `light`. */
   scheme?: ColorScheme;
   /** What the figure's texts are measured by (see `FlowSceneOptions.textMeasure`). Default `estimateTextWidth`. */
@@ -253,7 +253,7 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
     activityLabels: given.activityLabels,
     selfLoops: given.selfLoops,
     overlayGeometry: options.overlayGeometry,
-    theme: options.theme,
+    theme: resolveTheme(options.theme),
     scheme: options.scheme,
     textMeasure: options.textMeasure,
   });
@@ -269,7 +269,7 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
   parts.push(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${num(outW)}" height="${num(outH)}" viewBox="0 0 ${num(totalW)} ${num(totalH)}" font-family="${esc(font)}" role="img" aria-label="${esc(given.title ?? t(locale, "map.description", { nodes: scene.graph.nodes.length, edges: scene.graph.edges.length, groups: scene.graph.groups?.length ?? 0 }))}">`,
   );
-  parts.push(`<defs>${patternDefs("wf-pattern", colors.ink, colors.outOfScope)}`);
+  parts.push(`<defs>${patternDefs("wf-pattern", colors.ink, colors.outOfScope, theme.pattern)}`);
   parts.push(svgMarkup(arrowMarker("wf-arrow", arrowheadTokens.edge)));
   parts.push(svgMarkup(arrowMarker("wf-overlay-arrow", markArrowhead(overlayArrow))));
   parts.push(`</defs>`);
@@ -295,7 +295,7 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
   if (frame.legend) {
     const { rule, x, y, width, layout } = frame.legend;
     parts.push(`<g class="wf-legend" transform="translate(${num(rule.x)} ${num(rule.top)})">`);
-    parts.push(`<path d="M0 0V${num(rule.bottom - rule.top)}" stroke="${colors.neutral}" stroke-opacity="${opacityTokens.legendRule}"/>`);
+    parts.push(`<path d="M0 0V${num(rule.bottom - rule.top)}" stroke="${colors.neutral}" stroke-opacity="${theme.opacity.legendRule}"/>`);
     parts.push(`<g transform="translate(${num(x - rule.x)} ${num(y - rule.top)})">${drawLegend(ctx, width, layout)}</g>`);
     parts.push(`</g>`);
   }

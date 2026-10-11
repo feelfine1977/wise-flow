@@ -103,12 +103,12 @@ export function overlayColor(overlay: Overlay, theme: Theme = defaultTheme): str
 /** Opacity of a tint over its element. */
 export const TINT_OPACITY = opacityTokens.tint;
 
-/** The value colour at `TINT_OPACITY` as CSS; none without a value. */
+/** The value colour at the theme's tint opacity (`TINT_OPACITY` in the default theme) as CSS; none without a value. */
 export function tintColor(overlay: Overlay, theme: Theme = defaultTheme): string | undefined {
   const v = overlay.payload?.value;
   if (typeof v !== "number" || !Number.isFinite(v)) return undefined;
   const [r, g, b] = hexToRgb(overlayColor(overlay, theme));
-  return `rgba(${r}, ${g}, ${b}, ${TINT_OPACITY})`;
+  return `rgba(${r}, ${g}, ${b}, ${theme.opacity.tint})`;
 }
 
 /** Stroke width of an arc: the theme's `arc` stroke (2) plus `arcCoverage` (8) times its coverage (default 1). */
@@ -156,7 +156,7 @@ export function overlayMarks(shapes: OverlayShape[], locale: Locale = "en", them
 }
 
 function overlayMark(s: OverlayShape, locale: Locale, theme: Theme, measure: TextMeasure): OverlayMark {
-  const { text: textTokens, radius: radiusTokens, stroke: strokeTokens } = theme;
+  const { text: textTokens, radius: radiusTokens, stroke: strokeTokens, opacity } = theme;
   const o = s.overlay;
   const p = o.payload ?? {};
   const color = overlayColor(o, theme);
@@ -180,15 +180,15 @@ function overlayMark(s: OverlayShape, locale: Locale, theme: Theme, measure: Tex
   const halo = (text: string, x: number, y: number, size: number, anchor: MarkText["anchor"]): MarkText => ({ text, x, y, size, anchor, baseline: "alphabetic", paint: "ink", halo: true });
   switch (s.kind) {
     case "tint":
-      return { ...mark, radius: radiusTokens.tint, fill: { paint: "value", opacity: TINT_OPACITY } };
+      return { ...mark, radius: radiusTokens.tint, fill: { paint: "value", opacity: opacity.tint } };
     case "hatch":
-      return { ...mark, radius: radiusTokens.hatch, fill: { paint: "outOfScope", pattern: "outOfScope", opacity: opacityTokens.hatch } };
+      return { ...mark, radius: radiusTokens.hatch, fill: { paint: "outOfScope", pattern: "outOfScope", opacity: opacity.hatch } };
     case "arc": {
       const label = arcLabel(o, locale);
       return {
         ...mark,
         path: s.path,
-        stroke: { paint: "value", width: arcWidth(o, theme), opacity: opacityTokens.arc, ...(p.reverse ? { dash: [...dashTokens.reverseArc] } : {}) },
+        stroke: { paint: "value", width: arcWidth(o, theme), opacity: opacity.arc, ...(p.reverse ? { dash: [...dashTokens.reverseArc] } : {}) },
         arrow: overlayArrow,
         texts: s.labelX !== undefined && s.labelY !== undefined ? [halo(label, s.labelX, s.labelY, textTokens.arcLabel.size, "middle")] : [],
       };

@@ -100,6 +100,7 @@ export {
 } from "./style.js";
 export type {
   PatternId,
+  PatternLook,
   ChannelSpec,
   ColorSpec,
   LodRules,
@@ -141,13 +142,20 @@ export type {
 } from "./tokens.js";
 export {
   defaultTheme,
+  printTheme,
+  themePresets,
+  resolveTheme,
   themeColors,
 } from "./theme.js";
 export type {
   Theme,
   ThemePalettes,
+  ThemePreset,
+  ThemeOverrides,
+  ThemeSetting,
   ColorScheme,
 } from "./theme.js";
+export { checkTheme, type ThemeDeviation } from "./style.js";
 
 export {
   constraintOverlays,
