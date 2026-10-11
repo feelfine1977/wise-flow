@@ -8,7 +8,9 @@ import { MUTATION_KINDS, type MutationKind, mutate } from "../support/bpmn-files
 import { caseCount, caseLabel, createRandom, seeds } from "../support/random";
 
 // Every import settles within this time or the case fails; a large file takes about
-// 150 ms here, so the bound only catches a hang, also under coverage.
+// 150 ms here, so the bound only catches a hang, also under coverage. The race catches
+// an import that never settles; most of the work runs without yielding, so a slow one
+// is caught by its measured time (an endless loop only by the run's own timeout).
 const BOUND_MS = 10_000;
 
 type Outcome = { imported: BpmnImport; ms: number } | { rejected: unknown; ms: number } | { hung: true; ms: number };
@@ -73,6 +75,7 @@ describe("importBpmn on mutated files", () => {
       if (xml === fixture.xml) row.unchanged++;
       row.ms += outcome.ms;
       expect("hung" in outcome, label).toBe(false);
+      expect(outcome.ms, label).toBeLessThan(BOUND_MS);
       if ("rejected" in outcome) {
         expect(isDocumentedRejection(outcome.rejected), `${label}: ${String(outcome.rejected)}`).toBe(true);
         row.rejected++;
@@ -103,6 +106,7 @@ describe("importBpmn on mutated files", () => {
     const copies = Array.from({ length: count }, (_, i) => `<bpmn:task id="copy${i}" name="Copy ${i}"/><bpmn:sequenceFlow id="cf${i}" sourceRef="copy${i}" targetRef="${i + 1 < count ? `copy${i + 1}` : "Task_CreatePO"}"/>`).join("");
     const outcome = await settle(small.replace('<bpmn:task id="Task_CreatePO"', `${copies}<bpmn:task id="Task_CreatePO"`));
     expect("imported" in outcome).toBe(true);
+    expect(outcome.ms).toBeLessThan(BOUND_MS);
     if (!("imported" in outcome)) return;
     expect(outcome.imported.warnings).toEqual([]);
     expect(outcome.imported.graph.nodes.length).toBe(12 + count);
