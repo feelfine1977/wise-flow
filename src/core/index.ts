@@ -25,6 +25,7 @@ export type {
   FlowPaths,
   AbstractionMeta,
   FlowMeta,
+  ModelOutline,
   FlowGraph,
   GraphIndex,
   GraphIssue,
@@ -89,6 +90,7 @@ export {
   lodAt,
   lodForSize,
   buildScales,
+  orderedCategorical,
   themePalette,
   patternDefs,
   PATTERNS,
@@ -200,6 +202,7 @@ export {
   formatHours,
   formatDays,
   formatCompact,
+  formatPathCount,
 } from "./format.js";
 export type {
   Locale,
@@ -210,6 +213,26 @@ export {
   metricLabel,
   strings,
 } from "./strings.js";
+
+export {
+  metricRegistry,
+  metricEntry,
+  metricKind,
+  metricName,
+  metricUnit,
+  metricBasis,
+  formatMetricValue,
+  elementMetric,
+  metricLabelOf,
+  metricMeanNote,
+  channelTitle,
+} from "./metrics.js";
+export type {
+  MetricBasis,
+  MetricKind,
+  MetricEntry,
+  MetricFormatOptions,
+} from "./metrics.js";
 export type {
   StringKey,
 } from "./strings.js";
@@ -452,6 +475,7 @@ export {
   legendItemHeight,
   legendLayout,
   figureFrame,
+  figureCaption,
   FIGURE_WIDTHS,
   legendMetrics,
   figureMetrics,

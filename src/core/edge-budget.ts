@@ -41,8 +41,9 @@ function orderOf(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style">) {
   const marks = scene.edgeMarks;
   let known = orders.get(marks);
   if (known) return known;
+  // The width's metric; cases where a path gives them, else its transitions, as the width reads them.
   const name = scene.style.edgeWidth?.metric ?? "count";
-  const weight = marks.map((m) => metric(m.edge, name, -Infinity));
+  const weight = marks.map((m) => metric(m.edge, name, name === "cases" ? metric(m.edge, "count", -Infinity) : -Infinity));
   const sorted = marks.map((_, i) => i).sort((a, b) => weight[b] - weight[a] || (marks[a].id < marks[b].id ? -1 : 1));
   const rank = new Int32Array(marks.length);
   sorted.forEach((i, at) => (rank[i] = at));

@@ -36,7 +36,13 @@ import { fileURLToPath } from "node:url";
  * 13 or 15px at 400 to 600, and the hovered and right-clicked activity is
  * "Record Invoice Receipt", since the legend now covers "Clear Invoice" at the
  * fitted view. Tables, the timeline, the Canvas map and the BPMN view have
- * their elements as before, in the new font and text sizes. Geometry
+ * their elements as before, in the new font and text sizes. They were recorded
+ * once more when the legend became a key and the numbers honest: the legends
+ * (a line naming the measure, the stages flowing side by side by their labels,
+ * the keys in a row that wraps, one per badge glyph and for the start and the
+ * end), the paths' stroke widths, now their cases, and the colours of the
+ * stages Purchase order, Invoice and Payment wherever they are painted changed.
+ * Geometry
  * that depends on the fonts of the machine (widths, heights, positions) is left
  * out, so the record holds on every operating system.
  */

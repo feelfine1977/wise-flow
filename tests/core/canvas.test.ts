@@ -247,7 +247,7 @@ describe("activity label Canvas and PNG rendering", () => {
     expect(key).toContain("A02 — Change Quantity. 1,107 items · 2,198 events.");
     expect(pngContext.texts).toContain("↻ 13 transitions");
     expect(png.height).toBeGreaterThan(p.bounds.height);
-    expect(pngContext.texts).not.toContain("1.1k items");
+    expect(pngContext.texts).not.toContain("1,107 items");
     const hidden = recordingContext();
     toPNGCanvas({ graph: g, positions: p, activityLabels: options, overlays: [], selfLoops: false }, {
       legend: false, scale: 1,

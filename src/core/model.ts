@@ -2,6 +2,7 @@
  * Graph model shared by every renderer. Mirrors `#/components/schemas/FlowGraph`
  * of the workbench API: ids are opaque and stable, numbers arrive pre-aggregated.
  */
+import type { MetricBasis } from "./metrics.js";
 
 export type NodeKind = "activity" | "stage" | "gateway" | "event" | "note";
 export type EdgeKind = "follows" | "constraint" | "flow";
@@ -17,6 +18,11 @@ export interface FlowNode {
   /** Group (lane, stage or pool) the node belongs to. */
   group?: string;
   metrics?: Metrics;
+  /**
+   * The metrics whose values are not exact: a lower bound or a mean of merged
+   * elements (`collapseGroups` marks them). A metric without an entry is exact.
+   */
+  metricBasis?: Partial<Record<string, MetricBasis>>;
   tags?: string[];
 }
 
@@ -26,6 +32,8 @@ export interface FlowEdge {
   source: string;
   target: string;
   metrics?: Metrics;
+  /** The metrics whose values are a lower bound or a mean of merged paths (see `FlowNode.metricBasis`). */
+  metricBasis?: Partial<Record<string, MetricBasis>>;
   tags?: string[];
   payload?: unknown;
 }
@@ -130,7 +138,19 @@ export interface AbstractionMeta {
  */
 export interface FlowMeta {
   abstraction?: number | AbstractionMeta;
+  /** The model before any abstraction; `abstract` records it. */
+  model?: ModelOutline;
   [key: string]: unknown;
+}
+
+/** The model a graph was abstracted from: what a figure's caption reports and the order stage colours follow. */
+export interface ModelOutline {
+  /** How many activities it has, a collapsed stage's members included. */
+  activities?: number;
+  /** How many paths (follows edges between two different nodes) it has; unknown for a graph already collapsed. */
+  paths?: number;
+  /** Its groups' ids in their order, which categorical colours are assigned in (see `StyleSpec.stages`). */
+  groups?: string[];
 }
 
 export interface FlowGraph {

@@ -95,6 +95,9 @@ export function resolveViews(base: FlowGraph, views: ViewSpec[], positions: Posi
   const nodeValues = (name: string): number[] => graphs.flatMap((g) => g.nodes.map((n) => metric(n, name, NaN)));
   const isShare = (name: string) => /share/i.test(name);
 
+  // Paths count cases, or transitions where no view gives cases for them (as `buildScales` decides for one graph).
+  const measured = (name: string) => edgeValues(name).some(Number.isFinite);
+  const widthMetric = (name: string) => (name === "cases" && !measured("cases") && measured("count") ? "count" : name);
   const widthDomain = (spec: ChannelSpec): [number, number] => {
     if (spec.domain) return spec.domain;
     const key = `edgeWidth:${spec.metric}`;
@@ -129,7 +132,7 @@ export function resolveViews(base: FlowGraph, views: ViewSpec[], positions: Posi
     const style: StyleSpec = share
       ? {
           ...spec,
-          edgeWidth: spec.edgeWidth ? { ...spec.edgeWidth, domain: widthDomain(spec.edgeWidth) } : undefined,
+          edgeWidth: spec.edgeWidth ? { ...spec.edgeWidth, metric: widthMetric(spec.edgeWidth.metric), domain: widthDomain({ ...spec.edgeWidth, metric: widthMetric(spec.edgeWidth.metric) }) } : undefined,
           edgeColor: spec.edgeColor ? { ...spec.edgeColor, domain: colorDomain("edgeColor", spec.edgeColor) } : undefined,
           nodeColor: spec.nodeColor ? { ...spec.nodeColor, domain: colorDomain("nodeColor", spec.nodeColor) } : undefined,
         }

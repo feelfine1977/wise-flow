@@ -144,14 +144,20 @@ function exported(fixture: Fixture, scene: Partial<Scene>, options: PngOptions):
  * drawn: a hovered node keeps its fill and is outlined in the ink, the
  * selection ring is 2 wide, its inner edge on the element, and a selected
  * group and a highlighted path are 2 wide.
+ * Recorded once more when the legend became a key and the numbers honest:
+ * the map's recordings hold as many calls as before, and only the stage
+ * colours (Purchase order, Invoice and Payment, as in the SVG export), the
+ * paths' widths (their cases) and the written numbers and the labels before
+ * them changed; in `toPNG` the legend's calls, the pattern twins of those
+ * stages, the caption line under the map and the figure's height changed too.
  */
 const before = {
-  mapGlobalStages: "9012b61416028aa0553df8b50ad90330ee5485cab93490c7fd06b51b865f7e06",
-  mapVendorIds: "ab603f02a764674d989396205aeeacd615b43be54687d89d850c3d3f1be82e1d",
-  mapUnfiltered: "599db51a265ab5b4e1751eb6a2e2585754b93d1128d3319d3866118ad6218263",
-  pngGlobalTitle: "e565ee6a0811652ccdd685b0cdd8ec7bd3001f356700e745b44e316274ca4ef0",
-  pngVendorIds: "a1553c432b95e4e2c0745f083de3a0c545c4df26c5ffc5441293ba986c13e253",
-  pngUnfilteredGerman: "f2f2b4cc0b8c75a8a70033986ca899f966946a3fc47552d4e3f9b68b4daf27ff",
+  mapGlobalStages: "73e7bdbcf27f56808b46e2ecebebf2729d328b95a89a4fde20c1c720325c4df9",
+  mapVendorIds: "7f1a4a1a334de266f658e122b81ced9fc3bdbc8e14abe6a494459ba99d3e1b2e",
+  mapUnfiltered: "08f12397dfda38e2c72ad96529350b494b4d4610fd23e8a8b2c3cd2b9e486a50",
+  pngGlobalTitle: "378b19019faf6523c89ad6b0aad6c211da07905092736fbdbe8fa7f34570bb4a",
+  pngVendorIds: "5eae33f17d2200d35cb741f3488f01ace7e3244fdd0487ad6b3ee6f080d7d4ba",
+  pngUnfilteredGerman: "ba212d3e17fb275aad08bab3046e3b5827559ce0e44367ceff88a8dcb37d4105",
 };
 
 /**
@@ -174,12 +180,14 @@ const before = {
  * 64 high activities moved the groups, so the strips of the global, the
  * unfiltered and the vendor fixture were moved to cut every group again and
  * to hold arcs.
+ * Recorded once more when the legend became a key and the numbers honest:
+ * stage colours, path widths and written numbers changed, as above.
  */
 const culledBefore = {
-  culledGlobal: "2719c973f3455299542ccac1dba4cdc693f812660a13afce0c728ad83949acdd",
-  culledGlobalStages: "390b5250d3eb0a93f859a98aca578839f9f7bad43e05282ccb78a2e7540ecbce",
-  culledVendorIds: "ee7021e221c380b5187ea87818ddd26a8205b39e70a57a1f082d7a2beef89b10",
-  culledUnfiltered: "3f44b82a83564fa7daaf54e8e511f88c3324e3087e62b43840348b5d19351d04",
+  culledGlobal: "8ac8126534dd7fafea6ff96c7869b5d9c1aedba9ffe3269c0933e3c027f36f03",
+  culledGlobalStages: "511398f6eb493cdd74c86925972312b6050385a7007b04c8fef29627991303ed",
+  culledVendorIds: "16ff243ca72af4bcefcd054b837db6ff381e4f8d1a51fd3b81c26e2d6b03945b",
+  culledUnfiltered: "2e1d99227704ab7f713c227d78e504bf1911c6811588249102ac2cd2397b3111",
 };
 
 describe("Canvas drawing on the committed fixtures", () => {

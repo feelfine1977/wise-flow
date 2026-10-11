@@ -38,7 +38,7 @@ describe("activity presentation", () => {
   it("keeps node subtitles to distinct items and reports both exact measures in descriptions", () => {
     expect(activityLabel(graph.nodes[0], names)).toBe("Change Price");
     expect(activityLabel(graph.nodes[1], ids)).toBe("A02");
-    expect(activityNodeCounts(graph.nodes[1], names)).toBe("1.1k items");
+    expect(activityNodeCounts(graph.nodes[1], names)).toBe("1,107 items");
     expect(activityCounts(graph.nodes[1], names, "en", true)).toBe("1,107 items · 2,198 events");
     expect(activityDescription(graph.nodes[1], { ...ids, showCounts: false })).toContain("Change Quantity. 1,107 items · 2,198 events");
     const missing: FlowNode = { id: "none", label: "Missing", kind: "activity" };

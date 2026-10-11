@@ -77,12 +77,16 @@ describe("arcs that cross no other activity", () => {
    * outlined 1 wide, and badge, chip and self-loop texts are 11 px with weights
    * of 600 (10 px, 700). In the SVG of both, activities are cards and groups
    * solid hairlines.
+   * Both SVGs were recorded again when the legend became a key and the numbers
+   * honest, paths being labelled with their cases: compared element by element
+   * only the paths changed. None of them has a count: they are not evaluated,
+   * drawn in the line colour and labelled "–".
    */
   const recorded = {
     kindsMarks: "e1d1e08f328d3f4ff005f1bac10de158cf4291fafe7caef5f9efec97ac96eadf",
-    kindsSvg: "b9edc5620d6d147ef99d1f33503a48a8ac3b1f19064a0ed70701cb79d7b47bfe",
+    kindsSvg: "358513f4129512847de7cb82ad7886aaa1e414f77c9d038fc2e947214370f2de",
     rowsMarks: "e96c088a2c77eb0aab68e807e8d8f733d3ddc156cde9b25f66d8a4a0356fe408",
-    rowsSvg: "a2097b42ac2335f4d25790be1c0cc307be1786559c1f66dc33ee6c0a507718d6",
+    rowsSvg: "874973d0f18d376fe60227d23227dd299518e85fd251224f009173d418edcc7c",
   };
 
   it("keep the marks they had", () => {

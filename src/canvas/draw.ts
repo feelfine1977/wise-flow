@@ -618,36 +618,37 @@ export function drawLegend(ctx: DrawContext, scene: PreparedScene, x: number, y:
     ctx.fillText(s, tx, ty);
   };
   write(legendTitle, scene.legend.title, x, y + 14);
+  const m = legendMetrics;
   let keys = false;
-  for (const { row, y: top, texts } of layout.rows) {
-    const cy = y + top + legendMetrics.itemTitle;
+  for (const { row, y: top, lines, texts } of layout.rows) {
+    const cy = y + top + lines.length * m.itemTitle;
     if (row.kind === "key" || row.kind === "chip") {
       if (!keys) ctx.fillStyle = tokens.ink;
       keys = true;
       if (row.kind === "key") {
         write(legendValue, row.glyph, x, y + top + 10);
-        write(legendKey, texts[0], x + 22, y + top + 10);
+        texts.forEach((line, i) => write(legendKey, line, x + 22, y + top + 10 + i * m.key));
       } else {
         write(legendChip, texts[0], x, y + top + 10);
-        write(legendKey, texts[1], x, y + top + legendMetrics.chipLabel + 10);
+        write(legendKey, texts[1], x, y + top + m.chipLabel + 10);
       }
       continue;
     }
     ctx.fillStyle = tokens.ink;
-    write(legendItem, row.title, x, y + top + 11);
+    lines.forEach((line, i) => write(legendItem, line, x, y + top + 11 + i * m.itemTitle));
     if (row.kind === "width") {
       ctx.strokeStyle = tokens.neutral;
       ctx.setLineDash([]);
       for (const [i, s] of row.samples.entries()) {
         ctx.lineWidth = s.width;
         ctx.beginPath();
-        ctx.moveTo(x + (i * width) / 2, cy + 6);
-        ctx.lineTo(x + (i * width) / 2 + sample, cy + 6);
+        ctx.moveTo(x, cy + i * m.entry + 6);
+        ctx.lineTo(x + sample, cy + i * m.entry + 6);
         ctx.stroke();
       }
       ctx.fillStyle = tokens.ink;
       ctx.font = fontOf(legendValue, tokens.font);
-      for (const [i, s] of row.samples.entries()) ctx.fillText(s.text, x + (i * width) / 2 + 46, cy + 10);
+      for (const [i, s] of row.samples.entries()) ctx.fillText(s.text, x + 46, cy + i * m.entry + 10);
     } else if (row.kind === "ramp") {
       if (ctx.createLinearGradient) {
         const grad = ctx.createLinearGradient(x, 0, x + width - 10, 0);
@@ -665,9 +666,9 @@ export function drawLegend(ctx: DrawContext, scene: PreparedScene, x: number, y:
         ctx.fillText(v, x + ((width - 10) * (aligns[i] === "left" ? 0 : aligns[i] === "center" ? 1 : 2)) / 2, cy + 22);
       });
       ctx.textAlign = "left";
-    } else {
+    } else if (row.kind === "swatches") {
       row.entries.forEach((e, i) => {
-        const ey = cy + i * legendMetrics.entry;
+        const ey = cy + i * m.entry;
         ctx.fillStyle = e.color;
         ctx.fillRect(x, ey, swatchWidth, swatchHeight);
         const pattern = patternFor(ctx, e.pattern, tokens.ink, scene.theme.pattern, options);

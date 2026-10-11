@@ -80,14 +80,14 @@ const hueDistance = (a: string, b: string) => {
   return Math.min(d, 360 - d);
 };
 
-/** Paths with a count: follows edges and sequence flows. */
-const counted = (scene: FlowScene) => scene.edgeMarks.filter((m) => (m.kind === "follows" || m.kind === "flow") && Number.isFinite(m.edge.metrics?.count));
+/** Paths with a count of the scene's path metric (cases, transitions where a graph gives no cases): follows edges and sequence flows. */
+const counted = (scene: FlowScene) => scene.edgeMarks.filter((m) => (m.kind === "follows" || m.kind === "flow") && Number.isFinite(m.edge.metrics?.[scene.scales.pathMetric]));
 
 describe("paths in the default style", () => {
   for (const scheme of SCHEMES) {
     it(`are grey, at least 3 : 1 on the paper, and stand out more with more cases (${scheme})`, () => {
       for (const [name, scene] of scenes({ scheme })) {
-        const paths = counted(scene).sort((a, b) => a.edge.metrics!.count - b.edge.metrics!.count);
+        const paths = counted(scene).sort((a, b) => a.edge.metrics![scene.scales.pathMetric] - b.edge.metrics![scene.scales.pathMetric]);
         if (!paths.length) continue;
         const contrast = paths.map((m) => contrastRatio(m.color, scene.colors.paper));
         expect(Math.min(...contrast), name).toBeGreaterThanOrEqual(3);

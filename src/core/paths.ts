@@ -6,6 +6,7 @@
  */
 import { type FlowEdge, type FlowGraph, type FlowPath, type FlowPaths, type GraphIndex, byId, hasTag, indexGraph, metric } from "./model.js";
 import { RECONNECTED_TAG } from "./aggregate.js";
+import { metricBasis } from "./metrics.js";
 
 /** One row of the path list; every number is optional because payloads differ. */
 export interface PathRow {
@@ -22,6 +23,8 @@ export interface PathRow {
   violationShare?: number;
   /** The path was re-added by the abstraction to keep the map connected. */
   reconnected?: boolean;
+  /** The values that are a lower bound or a mean of merged paths (the edge's `metricBasis`). */
+  metricBasis?: FlowEdge["metricBasis"];
 }
 
 export interface ActivityPaths {
@@ -81,6 +84,7 @@ function rowOf(e: FlowEdge): PathRow {
     p90LagHours: num(e.metrics?.p90LagHours),
     violationShare: num(e.metrics?.violationShare),
     reconnected: hasTag(e, RECONNECTED_TAG) || undefined,
+    metricBasis: e.metricBasis,
   };
 }
 
@@ -106,9 +110,11 @@ function sortRows(rows: PathRow[], options: PathsOptions, idx: GraphIndex, focus
   return [...rows].sort(compare(options.sort ?? "count", options.ascending ?? (options.sort === "label"), labelOf, focus));
 }
 
+/** Rows without a share take their cases over the focus's, else their count over the total; never from cases that are lower bounds. */
 function fillShare(rows: PathRow[], focusCases: number | undefined, total: number): PathRow[] {
   return rows.map((r) => {
     if (r.share !== undefined) return r;
+    if (r.cases !== undefined && r.metricBasis?.cases) return r;
     if (r.cases !== undefined && focusCases) return { ...r, share: r.cases / focusCases };
     if (r.count !== undefined && total > 0) return { ...r, share: r.count / total };
     return r;
@@ -123,7 +129,9 @@ function fillShare(rows: PathRow[], focusCases: number | undefined, total: numbe
  */
 export function pathsFor(graph: FlowGraph, focus: string, options: PathsOptions = {}): ActivityPaths {
   const idx = indexGraph(graph);
-  const focusCases = num(idx.nodes.get(focus)?.metrics?.cases);
+  const focusNode = idx.nodes.get(focus);
+  // A collapsed stage's cases are a lower bound: no share is taken of them.
+  const focusCases = metricBasis(focusNode, "cases") ? undefined : num(focusNode?.metrics?.cases);
   const payload = options.paths ?? graph.paths;
   const payloadFocus = options.paths?.focus ?? graph.paths?.focus ?? graph.focus ?? (typeof graph.meta?.focus === "string" ? graph.meta.focus : undefined);
   const usePayload = !!payload && (payloadFocus === undefined || payloadFocus === focus);

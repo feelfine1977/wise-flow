@@ -32,12 +32,19 @@ export function formatNumber(value: number, decimals = 1, locale: Locale = "en")
   return sign + grouped + (frac !== undefined ? SEP[locale].decimal + frac : "");
 }
 
-/** Share in [0, 1] as a percentage: 0.2258 → "23 %". Values under 1 % keep one decimal. */
+/**
+ * Share in [0, 1] as a percentage: 0.2258 → "23 %". Values under 1 % keep one
+ * decimal (0.004 → "0.4 %"); a value that is not zero never reads "0 %": under
+ * 0.05 % it reads "<0.1 %".
+ */
 export function formatShare(value: number, locale: Locale = "en"): string {
   if (!Number.isFinite(value)) return "–";
-  const pct = value * 100;
-  const decimals = Math.abs(pct) > 0 && Math.abs(pct) < 1 ? 1 : 0;
-  return `${formatNumber(pct, decimals, locale)} %`;
+  const pct = Math.abs(value * 100);
+  const sign = value < 0 && pct >= 0.05 ? "-" : "";
+  if (pct > 0 && pct < 0.05) return `${value < 0 ? ">-" : "<"}${formatNumber(0.1, 1, locale)} %`;
+  // One decimal while the rounded value stays under 1 %.
+  const decimals = pct > 0 && Math.round(pct * 10) < 10 ? 1 : 0;
+  return `${sign}${formatNumber(pct, decimals, locale)} %`;
 }
 
 /** Signed share: +0.05 → "+5 %". */
@@ -52,15 +59,33 @@ export function formatHours(hours: number, locale: Locale = "en"): string {
   if (!Number.isFinite(hours)) return "–";
   const abs = Math.abs(hours);
   const sign = hours < 0 ? "−" : "";
-  if (abs < 1) return `${sign}${formatNumber(abs * 60, 0, locale)} min`;
-  if (abs < 48) return `${sign}${formatNumber(abs, abs < 10 ? 1 : 0, locale)} h`;
+  // Minutes while they round under an hour, hours while they round under 48.
+  if (Math.round(abs * 60) < 60) return `${sign}${formatNumber(abs * 60, 0, locale)} min`;
+  if (abs < 47.5) return `${sign}${formatNumber(abs, abs < 9.95 ? 1 : 0, locale)} h`;
   const days = abs / 24;
-  return `${sign}${formatNumber(days, days < 10 ? 1 : 0, locale)} d`;
+  // One decimal while the days round under ten.
+  return `${sign}${formatNumber(days, days < 9.95 ? 1 : 0, locale)} d`;
 }
 
 /** Duration given in days. */
 export function formatDays(days: number, locale: Locale = "en"): string {
   return formatHours(days * 24, locale);
+}
+
+/**
+ * A path's count: grouped in full up to 99,999, then in thousands ("113k")
+ * and millions with one decimal under ten ("1.2M", "12M"); never "1.0k".
+ */
+export function formatPathCount(value: number, locale: Locale = "en"): string {
+  if (!Number.isFinite(value)) return "–";
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  if (Math.round(abs) < 1e5) return formatCount(value, locale);
+  const thousands = Math.round(abs / 1e3);
+  if (thousands < 1e3) return `${sign}${formatCount(thousands, locale)}k`;
+  const millions = abs / 1e6;
+  const tenths = Math.round(millions * 10);
+  return `${sign}${tenths < 100 && tenths % 10 ? formatNumber(millions, 1, locale) : formatCount(millions, locale)}M`;
 }
 
 /** Compact count for badges: 1234 → "1.2k", 1234567 → "1.2M". */

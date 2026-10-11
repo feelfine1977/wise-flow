@@ -108,7 +108,9 @@ describe("Canvas overlay marks", () => {
       { op: "fill", path: expect.stringContaining("A490,8,12"), color: "#ffffff", alpha: 1 },
       { op: "stroke", path: expect.stringContaining("A490,8,12"), color: "#b84a00", alpha: 1, width: 1, dash: [] },
     ]);
-    const texts = ops.filter((o) => o.op === "fillText" && !cards.includes(o.text ?? "") && !o.text?.startsWith("Stage"));
+    // The paths a → b and b → c carry no count: they are not evaluated and labelled "–" at their middles.
+    expect(ops.filter((o) => o.op === "fillText" && o.text === "–" && o.at?.[1] === 16).map((o) => o.at)).toEqual([[150, 16], [350, 16]]);
+    const texts = ops.filter((o) => o.op === "fillText" && !cards.includes(o.text ?? "") && o.text !== "–" && !o.text?.startsWith("Stage"));
     expect(texts.map(({ text, at, color, font: f, align, baseline }) => ({ text, at, color, font: f, align, baseline }))).toEqual([
       // The arcs' labels in the middles of their pills.
       { text: "late 25 %", at: [250, -65.5], color: "#b84a00", font: font("11px"), align: "center", baseline: "middle" },
@@ -122,7 +124,7 @@ describe("Canvas overlay marks", () => {
       { text: "Late", at: [462.4, 8.5], color: "#1f1f1f", font: font("11px"), align: "left", baseline: "middle" },
     ]);
     // Labels beside lines carry a paper halo; labels in pills need none.
-    expect(ops.filter((o) => o.op === "strokeText").map((o) => [o.text, o.color, o.width])).toEqual([["↻ 75 %", "#ffffff", 2]]);
+    expect(ops.filter((o) => o.op === "strokeText" && o.text !== "–").map((o) => [o.text, o.color, o.width])).toEqual([["↻ 75 %", "#ffffff", 2]]);
   });
 
   it("draws a chip's gauge and its label in bold before the text", () => {
@@ -139,7 +141,7 @@ describe("Canvas overlay marks", () => {
       { op: "fillRect", path: "R388.97,4,2,8", color: "#1f1f1f", alpha: 1 },
     ]);
     // The lead in bold, the text after its measured width (9 characters × 6 in this context).
-    const texts = ops.filter((o) => o.op === "fillText" && !cards.includes(o.text ?? "") && !o.text?.startsWith("Stage"));
+    const texts = ops.filter((o) => o.op === "fillText" && !cards.includes(o.text ?? "") && o.text !== "–" && !o.text?.startsWith("Stage"));
     expect(texts.map(({ text, at, font: f }) => ({ text, at, font: f }))).toEqual([
       { text: "◔", at: [350.9, 8.5], font: font("11px") },
       { text: "Touches: ", at: [409.3, 8.5], font: font("600 11px") },
@@ -302,7 +304,7 @@ describe("Canvas node and edge marks", () => {
       name("Re-added", [416, 116.05]),
       ...number("–", "· –", 416, 130.35, 426.05),
       // Edge counts with a halo, 4 above the middle of the route; the flow edge carries its count too.
-      text("1.2k", [68, 16], "11px", "center", "alphabetic"),
+      text("1,234", [68, 16], "11px", "center", "alphabetic"),
       text("12", [300, 16], "11px", "center", "alphabetic"),
       text("3", [500, 74], "11px", "center", "alphabetic"),
     ]);

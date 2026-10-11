@@ -362,6 +362,10 @@
   outline-offset: var(--wf-space-1);
 }
 
+.wf-legend__measure {
+  margin: 0 0 var(--wf-space-3);
+  font-size: var(--wf-text-legend-item);
+}
 .wf-legend dl {
   margin: 0;
   display: grid;
@@ -415,6 +419,16 @@
   width: var(--wf-size-legend-sample);
   background: var(--wf-neutral);
   border-radius: var(--wf-radius-swatch);
+}
+/* The stages and the keys flow side by side where they fit; each is one entry or row of the legend. */
+.wf-legend__cats,
+.wf-legend__keys {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--wf-space-5);
+}
+.wf-legend__cats dt {
+  flex-basis: 100%;
 }
 .wf-legend__glyph {
   display: inline-block;

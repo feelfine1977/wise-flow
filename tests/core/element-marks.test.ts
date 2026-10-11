@@ -107,7 +107,7 @@ describe("edge marks", () => {
     const count = (t: string, x: number, y: number) => text({ role: "count", text: t, x, y, size: 11, anchor: "middle", baseline: "alphabetic", halo: true, lod: "edgeLabels" });
     expect(scene.edgeMarks.map(strip)).toEqual([
       // The label sits 4 above the middle of the route.
-      { id: "start->a", kind: "follows", points: positions.edges["start->a"].points, color: neutral, width: 1, reconnected: false, texts: [count("1.2k", 68, 16)] },
+      { id: "start->a", kind: "follows", points: positions.edges["start->a"].points, color: neutral, width: 1, reconnected: false, texts: [count("1,234", 68, 16)] },
       // Without a route: a straight line between the two boxes; flow edges carry their count too.
       { id: "a->g", kind: "flow", points: [{ x: 280, y: 20 }, { x: 320, y: 20 }], color: neutral, width: 1, reconnected: false, texts: [count("12", 300, 16)] },
       // Constraint edges: in the accent, solid; without a count no label.

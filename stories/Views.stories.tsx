@@ -34,7 +34,7 @@ export const views: ViewSpec[] = [
     label: "Logistics",
     description: "Median lag on paths and median time to the next event on activities (blue); lag constraints as arcs.",
     style: {
-      edgeWidth: { metric: "count", scale: "sqrt", range: [1, 8] },
+      edgeWidth: { metric: "cases", scale: "sqrt", range: [1, 8] },
       edgeColor: { metric: "medianLagHours", palette: "sequentialBlue" },
       nodeColor: { metric: "medianNextHours", palette: "sequentialBlue" },
     },
@@ -51,7 +51,7 @@ export const views: ViewSpec[] = [
     label: "Automation",
     description: "Events per case on activities (rework and touches, orange); singularity constraints with repeat shares.",
     style: {
-      edgeWidth: { metric: "count", scale: "sqrt", range: [1, 8] },
+      edgeWidth: { metric: "cases", scale: "sqrt", range: [1, 8] },
       edgeColor: { metric: "share" },
       nodeColor: { metric: "eventsPerCase", palette: "sequential" },
     },

@@ -8,3 +8,15 @@ export function collapsedActivityIds(graph: FlowGraph, id: string): string[] | u
   return Array.isArray(ids) && ids.every((value) => typeof value === "string") ? ids : undefined;
 }
 
+
+/** The activities a graph shows, a collapsed stage's members included, and whether it has a collapsed stage. */
+export function shownActivityIds(graph: FlowGraph): { ids: Set<string>; collapsed: boolean } {
+  const ids = new Set<string>();
+  let collapsed = false;
+  for (const n of graph.nodes) {
+    const members = n.kind === "stage" ? collapsedActivityIds(graph, n.id) : undefined;
+    if (members) collapsed = true;
+    for (const id of members ?? (n.kind === "activity" ? [n.id] : [])) ids.add(id);
+  }
+  return { ids, collapsed };
+}

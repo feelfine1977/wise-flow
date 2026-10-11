@@ -9,7 +9,7 @@ const views: ViewSpec[] = [
   {
     id: "logistics",
     label: "Logistics",
-    style: { edgeWidth: { metric: "count", scale: "sqrt", range: [1, 8] }, edgeColor: { metric: "medianLagHours", palette: "sequentialBlue" }, nodeColor: { metric: "medianNextHours", palette: "sequentialBlue" } },
+    style: { edgeWidth: { metric: "cases", scale: "sqrt", range: [1, 8] }, edgeColor: { metric: "medianLagHours", palette: "sequentialBlue" }, nodeColor: { metric: "medianNextHours", palette: "sequentialBlue" } },
     overlays: overlaysFor(items.filter((it) => it.description.type === "lag"), { graph: base }),
   },
   { id: "compliance", label: "Compliance", overlays: overlaysFor(items.filter((it) => it.description.type === "precedence" || it.description.type === "exclusion"), { graph: base }) },
@@ -43,8 +43,8 @@ describe("views", () => {
     expect(finance.style.edgeWidth?.domain).toEqual(compliance.style.edgeWidth?.domain);
     expect(finance.style.edgeWidth?.domain).toEqual(logistics.style.edgeWidth?.domain);
     expect(finance.scales.domains.edgeWidth).toEqual(compliance.scales.domains.edgeWidth);
-    // The default style colours paths by the count too: colour and width share the count's domain.
-    expect(finance.style.edgeColor?.metric).toBe("count");
+    // The default style colours paths by the cases too: colour and width share the cases' domain.
+    expect(finance.style.edgeColor?.metric).toBe("cases");
     expect(finance.style.edgeColor?.domain).toEqual(finance.style.edgeWidth?.domain);
     expect(logistics.style.edgeColor?.metric).toBe("medianLagHours");
     expect(logistics.scales.domains.edgeColor).toEqual(set.domains["edgeColor:medianLagHours"]);

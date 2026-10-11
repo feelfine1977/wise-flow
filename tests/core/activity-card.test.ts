@@ -91,7 +91,8 @@ describe("an activity's card", () => {
 
   it("carries the stage's colour only in its band: no outline, fill or cue of a card is in a stage colour", () => {
     const stageColors = new Set(cards(scene).map((m) => m.color));
-    expect(stageColors.size).toBe(3);
+    // Stages take distinct colours: the stages of the small P2P are four.
+    expect(stageColors.size).toBe(smallP2P.groups!.length);
     for (const m of cards(scene)) {
       expect([m.fill, m.stroke.paint, m.cue?.stripe?.paint, m.cue?.foot?.paint, m.band]).toEqual(["paper", "lineStrong", "cueStripe", "cueFoot", 8]);
       for (const t of m.texts) expect(["ink", "inkMuted"]).toContain(t.paint);

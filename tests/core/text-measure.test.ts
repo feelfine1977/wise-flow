@@ -174,17 +174,19 @@ describe("a scene built with a text measure", () => {
     expect(estimated.texts[1].text).toBe("13 %");
   });
 
-  it("shortens the legend's texts and widens the figure for its note by it", () => {
+  it("wraps the legend's keys and widens the figure for its note by it", () => {
     const badge: Overlay = { kind: "badge", target: "a", payload: { glyph: "●", value: 0.2 } };
     const scene = buildScene(elements.graph, elements.positions, { ...options, overlays: [badge] });
-    // 164 at 11 px: thirteen characters and the ellipsis; by the estimate (6.05 each) twenty-six and the ellipsis.
+    // 164 at 11 px: thirteen characters a line, so four lines; by the estimate (6.05 each) twenty-seven, so two.
     const key = legendLayout(scene.legend, { measure: scene.textMeasure }).rows.find((r) => r.row.kind === "key" && r.row.key === "badge")!;
-    expect(key.texts).toEqual(["Constraint ba…"]);
-    expect(legendLayout(scene.legend).rows.find((r) => r.row.kind === "key" && r.row.key === "badge")!.texts).toEqual(["Constraint badge with shor…"]);
-    expect(toSVG({ graph: elements.graph, positions: elements.positions, overlays: [badge], style: elements.style, selfLoops: false }, { textMeasure: em })).toContain(">Constraint ba…</text>");
+    expect(key.texts).toEqual(["Constraint", "badge with", "shortfall", "share"]);
+    expect(legendLayout(scene.legend).rows.find((r) => r.row.kind === "key" && r.row.key === "badge")!.texts).toEqual(["Constraint badge with", "shortfall share"]);
+    const svg = toSVG({ graph: elements.graph, positions: elements.positions, overlays: [badge], style: elements.style, selfLoops: false }, { textMeasure: em });
+    expect(svg).toContain(">Constraint</text>");
+    expect(svg).toContain(">badge with</text>");
     const canvas = recording();
     drawLegend(canvas.ctx, prepareScene(elements.graph, elements.positions, { ...options, overlays: [badge] }), 0, 0, 188);
-    expect(canvas.texts).toContain("Constraint ba…");
+    expect(canvas.texts).toEqual(expect.arrayContaining(["Constraint", "badge with", "shortfall", "share"]));
     // "Showing 1 of 6 flows" at 11 px is 20 × 11 wide, wider than a map of one 50 wide node.
     const one: FlowGraph = { nodes: [{ id: "x", kind: "activity", label: "X" }], edges: [] };
     const box = { x: 0, y: 0, width: 50, height: 40 };

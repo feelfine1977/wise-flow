@@ -107,16 +107,30 @@ const observed: Variant = {
  * self-loop courses, tints, hatching, the legend's rows and the figure's size
  * are the same. Recorded together with the deviations in the one accent,
  * since both changed the same overlay marks.
+ * Recorded once more when the legend became a key and the numbers honest;
+ * compared element by element, only these changed, and every overlay group
+ * is the same: paths are as wide as their cases (they were as wide as their
+ * transitions; most move by under 0.05, the two paths between Record Goods
+ * Receipt and Record Service Entry Sheet from 3.75 to 1.98) and labelled with
+ * them in full up to 99,999, then "112k" (they read "31k", "1.0k"); activity
+ * counts and observed self-loop labels are grouped in full ("234,479" where it
+ * read "234k"), so the labels before them leave more room, and three labels are
+ * cut one to three characters shorter; the stages Purchase order, Invoice and
+ * Payment take other colours with their pattern twins (Purchase order shared
+ * grey with Requisition); the legend names the measure, the metric and the
+ * unit, writes three width samples, a key per badge glyph and the start and
+ * end; and a caption line under the map gives the label, cases, period and
+ * how much of the model is shown, which makes the figure 40 taller.
  */
 
 const before: Record<string, string> = {
-  overlays: "cf809a800870133ccaeef23d93bfe3429553ed54ea68a8cdc515264858a60def",
-  stagesGerman: "b9e098516fc2a3ad0b30b3b64af2286dd6c3f20ad504a6b575b9f3c58101f9dd",
-  vendor: "0b5a778a13398b05031e81274e20d9f84fcde753c0e0cfe22a6da6a4a338a87a",
-  unfiltered: "7a7cddbe2e674db92bd4d98301f008b3574cd802509d532003e69ccb80222ba4",
-  plain: "16e287bf1fa0dcff2f257effc7e0c0ba183999996cba2b8ee1d37318aa080f8b",
+  overlays: "b6fac0716e7471d469e24fc463457f80b2b5244cf3593d4a0daab88ea34f2269",
+  stagesGerman: "b24f53f6a0a0c9b710c2be984345474ece574ca53959a099ad92938f4942e642",
+  vendor: "7efe7b57bf497a816f14e4f008b88d7a552cb5cb7b4c4c5b376d2389f8ffb04c",
+  unfiltered: "61f9ffe82bda19099a73600467439f9e4e7d378db1ede8cdb2cf9dbf19e66fed",
+  plain: "11a615b3cd476459c3d6cd413dcb44ada256d026cf6e9f8b0b1d22e70f161a13",
 };
-const beforeObserved = "a2f2affa6d2c2f0c6b2fad85330b7eec76227463baf51389eae3d764c2bfcbc7";
+const beforeObserved = "34da5785a3dafa123646d524aa2b318b7b8664562e12156f5208f8ffbe930d3a";
 
 describe("toSVG on the committed fixtures", () => {
   it("matches the recorded output once follows self-loops are hidden", () => {
