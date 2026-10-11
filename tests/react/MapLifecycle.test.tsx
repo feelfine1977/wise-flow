@@ -96,7 +96,8 @@ function count(stats: Record<string, number>, what: string, by = 1): void {
 
 function newModel(seed: number): Model {
   return {
-    rng: createRandom(seed),
+    // `schedule` draws the kinds and times from a stream of the same seed; a fork keeps the operations' choices independent of them.
+    rng: createRandom(seed).fork(),
     pool: graphPool(seed),
     mounted: false,
     strict: false,

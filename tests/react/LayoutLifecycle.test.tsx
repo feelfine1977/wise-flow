@@ -250,7 +250,8 @@ function newModel(seed: number, hookScopes: LayoutScope[]): Model {
   const variants = variantsOf(engine);
   return {
     seed,
-    rng: createRandom(seed),
+    // `schedule` draws the kinds and times from a stream of the same seed; a fork keeps the operations' choices independent of them.
+    rng: createRandom(seed).fork(),
     pool,
     variants,
     engine,
