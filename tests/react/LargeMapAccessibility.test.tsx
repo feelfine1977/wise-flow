@@ -267,4 +267,23 @@ describe("the table alternative of a large map", () => {
     expect(within(all).getAllByRole("row")).toHaveLength(401);
     expect(view.queryByRole("searchbox")).toBeNull();
   });
+
+  it("leaves the keys of the map's table view to the table: its search field and its rows", () => {
+    const { graph, positions } = seeded(600);
+    const onAction = vi.fn();
+    const onFilterChange = vi.fn();
+    const onSelect = vi.fn();
+    render(<ProcessMap graph={graph} positions={positions} view="table" controls={false} legend={false} onAction={onAction} onFilterChange={onFilterChange} onSelect={onSelect} />);
+    // Typed into the search field, a space, the arrows, Home and End stay the field's (a prevented key types nothing).
+    const search = screen.getByRole("searchbox");
+    for (const key of [" ", "ArrowLeft", "ArrowRight", "Home", "End"]) expect(fireEvent.keyDown(search, { key }), key).toBe(true);
+    // Enter on a row selects it, Enter again deselects it, and no action of a menu the table view does not show runs.
+    const row = within(screen.getAllByRole("table")[0]).getAllByRole("row")[1];
+    fireEvent.keyDown(row, { key: "Enter" });
+    fireEvent.keyDown(row, { key: "Enter" });
+    fireEvent.keyDown(row, { key: "Enter" });
+    expect(onSelect.mock.calls.map(([s]) => s.nodes)).toEqual([["n0"], [], ["n0"]]);
+    expect(onAction).not.toHaveBeenCalled();
+    expect(onFilterChange).not.toHaveBeenCalled();
+  });
 });

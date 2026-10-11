@@ -520,7 +520,9 @@ as long as they cover the graph. Follows self-loops become self-loop
 overlays. Keyboard: arrow keys move focus between activities, Alt with an
 arrow key along the paths, Space selects, Enter opens the actions menu
 (selects when `contextMenu` is false), Shift with an arrow key extends the
-selection, Escape clears, Home and End jump. `aria-activedescendant`
+selection, Escape clears, Home and End jump. In the table view the keys are
+the table's (its rows, search field and pages); only Escape from a row
+clears the selection there, as on the map. `aria-activedescendant`
 points at the focused node; every node, edge and group carries an
 `aria-label`; the map has a visually hidden description and a polite live
 region. `renderer: "auto"` draws on the Canvas renderer above
