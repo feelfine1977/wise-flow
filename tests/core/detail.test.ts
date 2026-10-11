@@ -217,6 +217,19 @@ describe("detail shares", () => {
       ],
     };
     expect(abstract(choice, byShares(0.4, 0)).edges.filter((e) => hasTag(e, INDIRECT_TAG)).map((e) => [e.id, e.payload])).toEqual([["start->late:indirect", { hiddenActivities: 2, via: ["m1", "m2"] }]]);
+    // Every way into "late" passes w (1 case), so of them the one with the fewest steps stands: through b
+    // (20 cases), not through a1 to a3 (60 to 40), though up to x (25) that way's rarest is the more frequent.
+    const steps: FlowGraph = {
+      nodes: [
+        ...graph.nodes.filter((n) => ["start", "busy", "late", "end"].includes(n.id)),
+        ...([["a1", 60], ["a2", 50], ["a3", 40], ["b", 20], ["u", 30], ["x", 25], ["w", 1]] as const).map(([id, cases]) => ({ id, kind: "activity" as const, label: id, metrics: { cases } })),
+      ],
+      edges: [
+        ...graph.edges.filter((e) => ["start->busy", "busy->end", "late->end"].includes(e.id)),
+        ...[["start", "w"], ["w", "x"], ["x", "a3"], ["a3", "a2"], ["a2", "a1"], ["a1", "u"], ["x", "b"], ["b", "u"], ["u", "late"]].map(([source, target]) => ({ id: `${source}->${target}`, kind: "follows" as const, source, target, metrics: { count: 1 } })),
+      ],
+    };
+    expect(abstract(steps, byShares(2 / 9, 0)).edges.filter((e) => hasTag(e, INDIRECT_TAG)).map((e) => [e.id, e.payload])).toEqual([["start->late:indirect", { hiddenActivities: 4, via: ["w", "x", "b", "u"] }]]);
   });
 
   it("state in meta what is shown, as computed from the graph", () => {

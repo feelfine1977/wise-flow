@@ -96,8 +96,8 @@ const within = (share: number, n: number) => Math.min(n, Math.max(0, Math.ceil(M
  * The anchoring way of `v` (`back`: into it, otherwise out of it): its
  * strongest path from (to) a more frequent node or a start (an end), then id;
  * without one, the way through less frequent nodes whose rarest node is the
- * most frequent possible, then the fewest steps, then the smallest ids. The
- * way's nodes and edges run in the direction of the paths.
+ * most frequent possible, then the fewest steps, then the smallest path ids
+ * from `v` on. The way's nodes and edges run in the direction of the paths.
  */
 function anchorWay(v: string, back: boolean, rank: Map<string, number>, near: Map<string, FlowEdge[]>, terminal: (id: string) => boolean, strength: (e: FlowEdge) => number): Way | undefined {
   const other = (e: FlowEdge) => (back ? e.source : e.target);
@@ -105,15 +105,32 @@ function anchorWay(v: string, back: boolean, rank: Map<string, number>, near: Ma
   let best: FlowEdge | undefined;
   for (const e of near.get(v)!) if (anchoring(other(e)) && (!best || strength(e) > strength(best))) best = e;
   if (best) return back ? { nodes: [best.source, v], edges: [best] } : { nodes: [v, best.target], edges: [best] };
-  // Ordered by the rarest node passed, then by steps: a key of rarity · (n + 1) + steps.
-  const scale = rank.size + 1;
-  const key = new Map<string, number>([[v, 0]]);
-  const via = new Map<string, FlowEdge>();
+  // The rarest node a way must pass at the least: a search keyed by the rarest node passed so far.
+  const rarest = new Map<string, number>([[v, 0]]);
   const heap = new MinHeap<string>();
   heap.push(0, v, v);
-  for (let top = heap.pop(); top; top = heap.pop()) {
+  let limit: number | undefined;
+  for (let top = heap.pop(); top && limit === undefined; top = heap.pop()) {
     const { key: k, value: at } = top;
-    if (k > key.get(at)!) continue;
+    if (k > rarest.get(at)!) continue;
+    if (at !== v && anchoring(at)) limit = k;
+    else {
+      for (const e of near.get(at)!) {
+        const next = other(e);
+        const nk = anchoring(next) ? k : Math.max(k, rank.get(next)!);
+        if (next !== v && !(rarest.get(next)! <= nk)) {
+          rarest.set(next, nk);
+          heap.push(nk, next, next);
+        }
+      }
+    }
+  }
+  if (limit === undefined) return undefined;
+  // Of the ways through nodes no rarer than that, the fewest steps, then the smallest path ids from v on.
+  const via = new Map<string, FlowEdge>();
+  const queue = [v];
+  for (let i = 0; i < queue.length; i++) {
+    const at = queue[i];
     if (at !== v && anchoring(at)) {
       const nodes = [at];
       const edges: FlowEdge[] = [];
@@ -125,17 +142,11 @@ function anchorWay(v: string, back: boolean, rank: Map<string, number>, near: Ma
       }
       return back ? { nodes, edges } : { nodes: nodes.reverse(), edges: edges.reverse() };
     }
-    const rarest = Math.floor(k / scale);
     for (const e of near.get(at)!) {
       const next = other(e);
-      if (next === v) continue;
-      const nk = (anchoring(next) ? rarest : Math.max(rarest, rank.get(next)!)) * scale + (k % scale) + 1;
-      const old = key.get(next);
-      if (old === undefined || nk < old) {
-        key.set(next, nk);
-        via.set(next, e);
-        heap.push(nk, next, next);
-      } else if (nk === old && e.id < via.get(next)!.id) via.set(next, e);
+      if (next === v || via.has(next) || (!anchoring(next) && rank.get(next)! > limit)) continue;
+      via.set(next, e);
+      queue.push(next);
     }
   }
   return undefined;

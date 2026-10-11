@@ -151,7 +151,9 @@ at every share, a path when both its ends are.
 Every node has an anchoring way in (from a start or a node of lower rank)
 and out (to an end or a node of lower rank): its strongest direct path, else
 the way through nodes of higher rank that minimises the highest rank on it,
-then the steps, then ids (a search keyed by rarity · (n + 1) + steps). For
+then the steps, then path ids (a search keyed by the highest rank passed
+finds that rank; a breadth-first search through nodes of no higher rank, its
+paths in id order, then the way). For
 each shown activity, and for each shown node where such a way stops, the
 ways are followed through anchoring nodes that are not shown to the first
 shown one; the walk is split at shown nodes into paths of the graph (shown,

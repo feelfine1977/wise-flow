@@ -249,7 +249,7 @@ edges, groups and overlays, with `meta.shown` added.
   self-loop is never an anchor). An activity without such a path is
   anchored by the way through less frequent activities whose rarest activity
   is the most frequent possible (then the fewest steps, then the smallest
-  ids). A shown activity keeps its anchoring ways; where an anchoring node is
+  path ids from the activity on). A shown activity keeps its anchoring ways; where an anchoring node is
   not shown (only when the activity is shown for a protected mark or
   `keep`), its own anchoring ways follow, up to the first shown node. A path
   on these ways between two shown nodes is shown, tagged `anchor` when it is
