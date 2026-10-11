@@ -81,6 +81,8 @@ interface Model {
   request: number;
   /** Where the nodes were drawn when a request first reached `ready`. */
   readyBoxes: Map<number, string>;
+  /** The status a request first settled at, ready or error. */
+  settledAs: Map<number, string>;
   replies: (Reply | undefined)[];
   fails: Set<string>;
   timeouts: Map<string, number>;
@@ -108,6 +110,7 @@ function newModel(seed: number): Model {
     focus: undefined,
     request: 0,
     readyBoxes: new Map(),
+    settledAs: new Map(),
     replies: [undefined],
     fails: new Set(),
     timeouts: new Map(),
@@ -322,6 +325,10 @@ function check(m: Model, before: Snapshot, op: Op): string[] {
       const drawn = [...container.querySelectorAll(".react-flow__node")];
       const drawnIds = drawn.map((e) => e.getAttribute("data-id") ?? "").sort();
       const wantIds = [...graph.nodes.map((n) => n.id), ...(graph.groups ?? []).map((g) => groupNodeId(g.id))].sort();
+      // A request that settled stays as it settled: no layout after its error or timeout, no error or pending after its layout.
+      const settledAs = m.settledAs.get(m.request);
+      if (settledAs !== undefined && status !== settledAs) bad.push(`replaced once: request ${m.request} went from ${settledAs} to ${status}`);
+      else if (status === "ready" || status === "error") m.settledAs.set(m.request, status);
       if (status === "error") {
         const error = container.querySelector("[role='alert']")?.textContent ?? "";
         if (!error) bad.push("error: the map reports an error but shows no alert");
@@ -349,7 +356,7 @@ function check(m: Model, before: Snapshot, op: Op): string[] {
             m.readyBoxes.set(m.request, where);
             if (!interaction(op) && (before.selected || before.active)) count(m.stats, "arrivals with a selection or keyboard position to keep");
           } else if (first !== where) bad.push(`replaced once: request ${m.request} was drawn at ${first} when it became ready and now at ${where}`);
-        } else if (m.readyBoxes.has(m.request)) bad.push(`replaced once: request ${m.request} went back to ${status} after it was ready`);
+        }
       }
     }
   }

@@ -631,13 +631,15 @@ function check(m: Model, op?: Op, posted?: Map<string, number>): string[] {
     (runs.get(key) ?? runs.set(key, []).get(key)!).push(entry);
   }
   for (const [key, entries] of runs) {
-    let settled = false;
+    let settled: StableLayout | undefined;
     const finished = new Set<Positions>();
     for (const { result } of entries) {
       if (result.status === "pending") {
-        if (settled) bad.push(`replaced once: request ${key} went back to pending after it was ${entries.find((e) => e.result.status !== "pending")?.result.status}`);
+        if (settled) bad.push(`replaced once: request ${key} went back to pending after it was ${settled.status}`);
       } else {
-        settled = true;
+        // A request that settled stays as it settled: no layout after its error or timeout, no error after its layout.
+        if (settled && (result.status !== settled.status || result.error !== settled.error)) bad.push(`replaced once: request ${key} went from ${settled.status} to ${result.status}`);
+        settled ??= result;
         if (result.status === "ready" && result.positions) finished.add(result.positions);
       }
     }
