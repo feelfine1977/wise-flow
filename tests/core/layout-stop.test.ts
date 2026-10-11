@@ -230,6 +230,22 @@ describe("stopping a layout", () => {
     scope.dispose();
   });
 
+  it("answers a request for a finished layout even when a newer request follows in the same turn", async () => {
+    const scope = createLayoutScope();
+    const first = scope.layout(pair, viaWorker);
+    (await running()).answer();
+    const done = await first;
+    // The pair's layout is known: asked for again and replaced at once, it has nothing left to stop.
+    const again = scope.layout(pair, viaWorker);
+    const next = scope.layout(trio, viaWorker);
+    await expect(again).resolves.toBe(done);
+    const worker = await running();
+    await vi.waitFor(() => expect(worker.layouts).toHaveLength(2));
+    worker.answer();
+    expect((await next).nodes.c.x).toBe(200);
+    scope.dispose();
+  });
+
   it("rejects at once for an ELK instance the caller supplies, which cannot be interrupted", async () => {
     const terminateWorker = vi.fn();
     const elk = { layout: () => new Promise<ElkNode>(() => undefined), terminateWorker } as unknown as ELK;
