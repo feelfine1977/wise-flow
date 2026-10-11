@@ -17,8 +17,10 @@ share is an ordinary observed path with its count, tagged `anchor`
 edge tagged `indirect` (`INDIRECT_TAG`) without a count stands for it, with
 `payload.hiddenActivities` and `payload.via`. Moving either share towards
 more detail removes no element but an indirect path whose activities come
-into view. Self-loops enter by the paths share only, ranked by their count
-also when it passes every other path's; stages are collapsed
+into view. An activity or path no metric measured, and a flow edge, is
+not removed by the shares (a path is shown when both its ends are), as no
+threshold removes it. Self-loops enter by the paths share only, ranked by
+their count also when it passes every other path's; stages are collapsed
 first. Given a share, `minNodeShare`, `minEdgeShare` and `keepConnected`
 are not read; a host that passes only thresholds gets the same nodes,
 edges, groups and overlays as before on a graph that is not a comparison.

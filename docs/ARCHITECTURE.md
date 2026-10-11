@@ -140,11 +140,14 @@ the DOM map and the Canvas map; `buildViews` passes its views' marks.
 **Detail shares** (`core/detail.ts`). Given `activityDetail` or
 `pathDetail`, `abstract` selects by detail instead of thresholds. Nodes are
 ranked once: events and gateways first by id, then activities by strength
-(cases), events, id. The activity share shows a prefix of that rank, rounded
-up, at least one, extended over a tie of cases and events. Paths (follows and
-flow edges) are ranked by strength, then id, over the whole graph (a
-self-loop's strength not capped at 1, so that paths rank by count); the paths
-share shows the paths whose rank lies within it and whose ends are shown.
+(cases), events, id. The activity share shows a prefix of the measured
+activities in that rank, rounded up, at least one, extended over a tie of
+cases and events. Measured paths (follows edges) are ranked by strength, then
+id, over the whole graph (a self-loop's strength not capped at 1, so that
+paths rank by count); the paths share shows the paths whose rank lies within
+it and whose ends are shown. What no metric measured, as thresholds have it
+(an activity or note without one, a path without one, a flow edge), is shown
+at every share, a path when both its ends are.
 Every node has an anchoring way in (from a start or a node of lower rank)
 and out (to an end or a node of lower rank): its strongest direct path, else
 the way through nodes of higher rank that minimises the highest rank on it,

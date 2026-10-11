@@ -229,13 +229,16 @@ overlays, with `meta.shown` added.
   replaces cases). A share `p` shows the `p` most frequent share by rank,
   rounded up and at least one; activities with equal cases and events enter
   together, so a position never cuts inside a tie. Events and gateways are
-  always shown.
+  always shown, and so is an activity no metric measured (a note too); it
+  does not count in the share.
 - **Paths** are ranked once over the whole graph by count, then id
   (`edgeMetric` replaces count). A path whose rank lies within the share
   `pathDetail` is shown when both its ends are; its rank is its place in the
   whole graph, so a path does not disappear when more activities are shown.
   Self-loops enter through the paths share only, ranked by their count also
-  when it passes every other path's. Constraint edges are shown
+  when it passes every other path's. A path no metric measured, and a flow
+  edge (which no threshold removes either), is shown whenever both its ends
+  are and does not count in the share. Constraint edges are shown
   between shown nodes.
 - **The guarantee.** At every pair of shares every shown activity lies on a
   directed way from a start event to an end event that uses shown paths only.

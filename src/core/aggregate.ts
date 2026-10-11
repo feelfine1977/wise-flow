@@ -369,6 +369,8 @@ export interface Thresholded {
   nodeStrength: Map<string, number>;
   /** The strength of every measured path before a self-loop's is capped at 1, so that paths rank by count. */
   edgeRank: Map<string, number>;
+  /** The activities and paths no metric measured (flow edges among them), which no threshold removes. */
+  unmeasured: Set<string>;
   /** The marks after the collapse: the graph's own, then those given beside it. */
   marks: Overlay[];
   /** The nodes and paths protected marks sit on, the ends of such paths included. */
@@ -385,16 +387,15 @@ export interface Thresholded {
 const sideA = (candidates: string[]) => candidates.map((c) => `a_${c}`);
 
 /**
- * The relative strength of every element as `strengths` gives it; of a comparison
- * the larger of side b's and side a's (`a_<metric>`), each relative to its own side.
- * An element neither side measured gets `unmeasured`.
+ * The relative strength of every measured element as `strengths` gives it; of a
+ * comparison the larger of side b's and side a's (`a_<metric>`), each relative to
+ * its own side. An element neither side measured has no entry.
  */
-function strengthsOf<T extends { id: string; metrics?: Metrics }>(items: T[], candidates: string[], relativeTo: "max" | "total", comparison: boolean, unmeasured = 1): Map<string, number> {
+function strengthsOf<T extends { id: string; metrics?: Metrics }>(items: T[], candidates: string[], relativeTo: "max" | "total", comparison: boolean): Map<string, number> {
   const out = new Map<string, number>();
   for (const side of comparison ? [candidates, sideA(candidates)] : [candidates]) {
     for (const [id, v] of measuredStrengths(items, side, relativeTo)) out.set(id, Math.max(out.get(id) ?? 0, v));
   }
-  for (const it of items) if (!out.has(it.id)) out.set(it.id, unmeasured);
   return out;
 }
 
@@ -424,9 +425,10 @@ export function thresholded(graph: FlowGraph, options: AbstractOptions = {}): Th
       if (v !== undefined) edgeRank.set(e.id, Math.max(edgeRank.get(e.id) ?? 0, v));
     }
   }
-  const edgeStrength = new Map(base.edges.map((e) => [e.id, Math.min(1, edgeRank.get(e.id) ?? 1)]));
   const scalable = base.nodes.filter((n) => !isStructuralNode(n));
   const nodeStrength = strengthsOf(scalable, nodeCandidates, relativeTo, comparison);
+  const unmeasured = new Set([...base.edges.filter((e) => !edgeRank.has(e.id)), ...scalable.filter((n) => !nodeStrength.has(n.id))].map((el) => el.id));
+  const edgeStrength = new Map(base.edges.map((e) => [e.id, Math.min(1, edgeRank.get(e.id) ?? 1)]));
   for (const n of base.nodes) if (!nodeStrength.has(n.id)) nodeStrength.set(n.id, 1);
 
   // A path brings its ends.
@@ -446,7 +448,7 @@ export function thresholded(graph: FlowGraph, options: AbstractOptions = {}): Th
       keptIds.has(e.target) &&
       (e.kind !== "follows" || required.has(e.id) || (edgeStrength.get(e.id) ?? 1) >= minEdgeShare),
   );
-  return { base, nodes, edges, edgeStrength, nodeStrength, edgeRank, marks, protectedIds, keepIds, required, comparison };
+  return { base, nodes, edges, edgeStrength, nodeStrength, edgeRank, unmeasured, marks, protectedIds, keepIds, required, comparison };
 }
 
 const tagged = <T extends FlowNode | FlowEdge>(el: T): T => ({ ...el, tags: [...new Set([...(el.tags ?? []), RECONNECTED_TAG])] });
@@ -642,14 +644,14 @@ export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowG
   const { minEdgeShare = 0, minNodeShare = 0, keepConnected = true, collapse = false, relativeTo = "max" } = options;
   const byDetail = options.activityDetail !== undefined || options.pathDetail !== undefined;
   const kept = thresholded(graph, options);
-  const { base, nodeStrength, edgeStrength, edgeRank, required, keepIds, protectedIds, comparison } = kept;
+  const { base, nodeStrength, edgeStrength, edgeRank, unmeasured, required, keepIds, protectedIds, comparison } = kept;
   let { nodes, edges } = kept;
   const meta: Partial<ShownMeta> = {};
   // Whether an element would be shown without the protected marks.
   let passes: (id: string) => boolean;
   if (byDetail) {
-    const nodeEvents = strengthsOf(base.nodes.filter((n) => !isStructuralNode(n)), ["events"], relativeTo, comparison, 0);
-    const s = selectByDetail({ base, nodeStrength, nodeEvents, edgeStrength: edgeRank, activityDetail: options.activityDetail ?? 1, pathDetail: options.pathDetail ?? 1, required });
+    const nodeEvents = strengthsOf(base.nodes.filter((n) => !isStructuralNode(n)), ["events"], relativeTo, comparison);
+    const s = selectByDetail({ base, nodeStrength, nodeEvents, edgeStrength: edgeRank, unmeasured, activityDetail: options.activityDetail ?? 1, pathDetail: options.pathDetail ?? 1, required });
     ({ nodes, edges } = s);
     passes = (id) => s.byShare.has(id) || s.frequent.has(id) || s.anchors.has(id) || keepIds.has(id);
     const shownIds = new Set(edges.map((e) => e.id));

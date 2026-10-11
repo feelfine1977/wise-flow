@@ -267,6 +267,39 @@ describe("detail shares", () => {
     expect(two.meta?.shown?.strongestNotShown).toBeUndefined();
   });
 
+  it("never remove an activity, a note or a path nobody measured, nor a flow edge, as thresholds do not", () => {
+    const graph: FlowGraph = {
+      nodes: [
+        { id: "start", kind: "event", label: "Start", tags: ["start"] },
+        { id: "busy", kind: "activity", label: "Busy", metrics: { cases: 100, events: 120 } },
+        { id: "next", kind: "activity", label: "Next", metrics: { cases: 50, events: 50 } },
+        { id: "plain", kind: "activity", label: "Plain" },
+        { id: "note", kind: "note", label: "A note" },
+        { id: "end", kind: "event", label: "End", tags: ["end"] },
+      ],
+      edges: [
+        { id: "start->busy", kind: "follows", source: "start", target: "busy", metrics: { count: 100 } },
+        { id: "busy->next", kind: "follows", source: "busy", target: "next", metrics: { count: 50 } },
+        { id: "next->end", kind: "follows", source: "next", target: "end", metrics: { count: 50 } },
+        { id: "busy->end", kind: "follows", source: "busy", target: "end", metrics: { count: 50 } },
+        { id: "start->plain", kind: "follows", source: "start", target: "plain" },
+        { id: "plain->end", kind: "flow", source: "plain", target: "end", metrics: { count: 1 } },
+        { id: "next->plain", kind: "follows", source: "next", target: "plain" },
+      ],
+    };
+    // The share takes one of the two measured activities; "plain", the note and the paths without a measure stay.
+    const lowest = abstract(graph, byShares(0, 0));
+    expect(ids(lowest.nodes)).toEqual(["busy", "end", "note", "plain", "start"]);
+    expect(ids(lowest.edges)).toEqual(["busy->end", "plain->end", "start->busy", "start->plain"]);
+    expect(ids(lowest.edges.filter((e) => hasTag(e, ANCHOR_TAG)))).toEqual(["busy->end", "start->busy"]);
+    expect(lowest.meta?.shown).toMatchObject({ activities: { shown: 2, of: 3 }, anchorsOnly: 2, strongestNotShown: 50 });
+    expect(lowest.meta?.shown?.weakestByFrequency).toBeUndefined();
+    const loose = abstract(graph, { minNodeShare: 1, minEdgeShare: 1, keepConnected: false });
+    expect(ids(lowest.nodes)).toEqual(ids(loose.nodes));
+    // The unmeasured path from "next" enters with "next", as the measured share brings it in.
+    expect(ids(abstract(graph, byShares(1, 0)).edges)).toContain("next->plain");
+  });
+
   it("win over thresholds given with them", () => {
     const both = abstract(globalScene, { activityDetail: 0.5, pathDetail: 0.1, minNodeShare: 0.9, minEdgeShare: 0.9, keepConnected: false });
     expect(both).toEqual(abstract(globalScene, byShares(0.5, 0.1)));

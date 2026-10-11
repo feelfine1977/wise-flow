@@ -58,9 +58,11 @@ export interface DetailInput {
   base: FlowGraph;
   /** Relative strength of every node and edge, 1 where nothing was measured; a self-loop's may pass 1. */
   nodeStrength: Map<string, number>;
-  /** The second key of the activities' rank: their events, relative. */
+  /** The second key of the activities' rank: their events, relative, where measured. */
   nodeEvents: Map<string, number>;
   edgeStrength: Map<string, number>;
+  /** The activities and paths nothing measured: shown at every share, a path when both its ends are. */
+  unmeasured: Set<string>;
   activityDetail: number;
   pathDetail: number;
   /** Node and path ids shown at every share (protected marks, `keep`), a path's ends among them. */
@@ -71,14 +73,14 @@ export interface DetailSelection {
   /** The shown nodes and edges in the base graph's order, then the indirect paths by id. */
   nodes: FlowNode[];
   edges: FlowEdge[];
-  /** The nodes the activity share shows, events and gateways included. */
+  /** The nodes the activity share shows, events, gateways and activities nothing measured included. */
   byShare: Set<string>;
-  /** The paths shown by frequency, and the anchor paths. */
+  /** The paths shown by frequency (with every one nothing measured), and the anchor paths. */
   frequent: Set<string>;
   anchors: Set<string>;
   /** For every anchor-only path, by id, the activities, stages and gateways it keeps on a way. */
   keeps: Record<string, string[]>;
-  /** The paths in their rank, strongest first. */
+  /** The measured paths in their rank, strongest first. */
   ranked: FlowEdge[];
 }
 
@@ -148,21 +150,24 @@ function anchorWay(v: string, back: boolean, rank: Map<string, number>, near: Ma
  * one indirect path.
  */
 export function selectByDetail(input: DetailInput): DetailSelection {
-  const { base, nodeStrength, nodeEvents, edgeStrength, required } = input;
+  const { base, nodeStrength, edgeStrength, unmeasured, required } = input;
+  const nodeEvents = (n: FlowNode) => input.nodeEvents.get(n.id) ?? 0;
   const nodeById = new Map(base.nodes.map((n) => [n.id, n]));
   const strengthOf = (e: FlowEdge) => edgeStrength.get(e.id) ?? 1;
-  const ordered = base.nodes.filter((n) => !isStructuralNode(n)).sort((a, b) => nodeStrength.get(b.id)! - nodeStrength.get(a.id)! || nodeEvents.get(b.id)! - nodeEvents.get(a.id)! || byId(a, b));
+  const ordered = base.nodes.filter((n) => !isStructuralNode(n)).sort((a, b) => nodeStrength.get(b.id)! - nodeStrength.get(a.id)! || nodeEvents(b) - nodeEvents(a) || byId(a, b));
   const rank = new Map([...base.nodes.filter(isStructuralNode).sort(byId), ...ordered].map((n, i) => [n.id, i]));
-  let count = ordered.length ? Math.max(1, within(input.activityDetail, ordered.length)) : 0;
-  const tied = (a: FlowNode, b: FlowNode) => nodeStrength.get(a.id) === nodeStrength.get(b.id) && nodeEvents.get(a.id) === nodeEvents.get(b.id);
-  while (count < ordered.length && tied(ordered[count], ordered[count - 1])) count++;
-  const byShare = new Set([...base.nodes.filter(isStructuralNode), ...ordered.slice(0, count)].map((n) => n.id));
+  // The share counts the measured activities; an activity nothing measured is always shown.
+  const measured = ordered.filter((n) => !unmeasured.has(n.id));
+  let count = measured.length ? Math.max(1, within(input.activityDetail, measured.length)) : 0;
+  const tied = (a: FlowNode, b: FlowNode) => nodeStrength.get(a.id) === nodeStrength.get(b.id) && nodeEvents(a) === nodeEvents(b);
+  while (count < measured.length && tied(measured[count], measured[count - 1])) count++;
+  const byShare = new Set([...base.nodes.filter((n) => isStructuralNode(n) || unmeasured.has(n.id)), ...measured.slice(0, count)].map((n) => n.id));
   const shown = new Set(byShare);
   for (const id of required) if (nodeById.has(id)) shown.add(id);
 
   const paths = base.edges.filter((e) => e.kind !== "constraint" && nodeById.has(e.source) && nodeById.has(e.target));
-  const ranked = [...paths].sort((a, b) => strengthOf(b) - strengthOf(a) || byId(a, b));
-  const frequent = new Set(ranked.slice(0, within(input.pathDetail, ranked.length)).map((e) => e.id));
+  const ranked = paths.filter((e) => !unmeasured.has(e.id)).sort((a, b) => strengthOf(b) - strengthOf(a) || byId(a, b));
+  const frequent = new Set([...unmeasured, ...ranked.slice(0, within(input.pathDetail, ranked.length)).map((e) => e.id)]);
 
   const into = new Map<string, FlowEdge[]>(base.nodes.map((n) => [n.id, []]));
   const out = new Map<string, FlowEdge[]>(base.nodes.map((n) => [n.id, []]));
