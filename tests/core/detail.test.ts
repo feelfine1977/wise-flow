@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { constraintItems, globalScene, vendorScene } from "../../fixtures/bpic2019";
 import { liteFromGraph } from "../../src/bpmn/headless";
-import { ANCHOR_TAG, INDIRECT_TAG, type AbstractOptions, type FlowEdge, type FlowGraph, type FlowNode, type Overlay, abstract, buildScene, buildViews, collapseGroups, diff, hasTag, layout, overlaysFor } from "../../src/index";
+import { ANCHOR_TAG, INDIRECT_TAG, type AbstractOptions, type FlowEdge, type FlowGraph, type FlowNode, type Overlay, abstract, buildScene, buildViews, collapseGroups, diff, hasTag, layout, overlaysFor, toSVG } from "../../src/index";
 import { detailGraph, offWays, seeded, shuffled, wayThrough, wayThroughHidden } from "./detail-cases";
 
 const isActivity = (n: FlowNode) => n.kind === "activity" || n.kind === "stage";
@@ -679,6 +679,18 @@ describe("protected marks", () => {
     expect(beside.overlays).toEqual([]);
     expect(beside.meta?.shown).toEqual(inside.meta?.shown);
     expect(abstract(rareGraph([]), byShares(0, 0, { marks: [badge] })).meta?.shown?.marksNotShown).toEqual(["badge:r:0"]);
+  });
+
+  it("export the same marks whether they are given beside the graph or inside it", async () => {
+    // At the lowest shares "b" is not shown: its mark is not drawn, the protected one on "r" is.
+    const marks: Overlay[] = [{ ...badge, protected: true }, { kind: "badge", target: "b", payload: { text: "plain mark" } }];
+    const inside = abstract(rareGraph(marks), byShares(0, 0));
+    const beside = abstract(rareGraph([]), byShares(0, 0, { marks }));
+    const positions = await layout(inside, { engine: "dagre" });
+    const svg = toSVG({ graph: inside, positions });
+    expect(toSVG({ graph: beside, positions, overlays: marks })).toBe(svg);
+    expect(buildScene(beside, positions, { overlays: marks }).marks.map((m) => m.id)).toEqual(buildScene(inside, positions).marks.map((m) => m.id));
+    expect(buildScene(inside, positions).marks.map((m) => m.overlay.target)).toEqual(["r"]);
   });
 
   it("count on the whole log the marks whose element is not shown, and keep a protected one at every share", () => {
