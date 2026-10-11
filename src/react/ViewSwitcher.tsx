@@ -1,5 +1,6 @@
 import { type CSSProperties, useId, useMemo, useRef, useState } from "react";
 import { type EdgeBudget, type FlowScene, type Locale, type LodRules, type ThemeSetting, type ViewSet, buildScene, filterPositions, legendOfScene, t } from "../core/index.js";
+import { markedThemeKey } from "../core/theme.js";
 import { Legend } from "./Legend.js";
 import { PatternTheme } from "./patterns.js";
 import { ProcessMap } from "./ProcessMap.js";
@@ -66,6 +67,8 @@ export function ViewSwitcher({ views, mode: modeProp, onModeChange, activeView, 
   const { theme: look, scheme } = useFlowTheme(root, theme);
   const patternTheme = useMemo(() => ({ ink: look.color.ink, look: look.pattern }), [look]);
   // One legend per distinct style, of what the maps of its views draw: the first view's scales and a key for a kind any of them draws.
+  // Built again only when what the marks are built from changes, as the maps' scenes.
+  const markedKey = useMemo(() => markedThemeKey(look, scheme), [look, scheme]);
   const legends = useMemo(() => {
     const byStyle = new Map<string, FlowScene[]>();
     for (const v of views.views) {
@@ -73,7 +76,7 @@ export function ViewSwitcher({ views, mode: modeProp, onModeChange, activeView, 
       byStyle.set(key, [...(byStyle.get(key) ?? []), buildScene(v.graph, filterPositions(views.positions, v.graph), { overlays: v.overlays, style: v.style, locale, theme: look, scheme })]);
     }
     return [...byStyle.values()].map((scenes) => legendOfScene({ scales: scenes[0].scales, locale, marks: scenes.flatMap((s) => s.marks), nodeMarks: scenes.flatMap((s) => s.nodeMarks), edgeMarks: scenes.flatMap((s) => s.edgeMarks) }));
-  }, [views, locale, look, scheme]);
+  }, [views, locale, markedKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div ref={root} className={`wf-views${className ? ` ${className}` : ""}`} style={containerStyle} data-mode={mode}>

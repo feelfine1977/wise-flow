@@ -297,6 +297,31 @@ describe("the theme of a map", () => {
     expect(layouts.mock.calls.length).toBe(laid);
   });
 
+  it("repaints the DOM map, its pattern twins and the switcher's legends when a colour variable changes, without a new scene", async () => {
+    const positions = await layout(vendor, { engine: "dagre" });
+    document.head.appendChild(rules);
+    rules.textContent = ".inked, .inked * { --wf-ink: #123456; } .sized, .sized * { --wf-stroke-node: 3px; }";
+    const views = resolveViews(vendor, [{ id: "a", label: "A" }, { id: "b", label: "B" }], positions);
+    const view = render(
+      <div className="host">
+        <ProcessMap graph={vendor} positions={positions} renderer="svg" controls={false} />
+        <ViewSwitcher views={views} mode="grid" edgeBudget="all" />
+      </div>,
+    );
+    const host = view.container.firstElementChild as HTMLElement;
+    const inks = () => new Set([...view.container.querySelectorAll(".wf-node__band pattern > path, .wf-legend__swatch pattern > path")].map((p) => p.getAttribute("stroke")));
+    await waitFor(() => expect(inks()).toEqual(new Set(["#1f1f1f"])));
+    const built = vi.mocked(buildScene).mock.calls.length;
+    act(() => host.classList.add("inked"));
+    await waitFor(() => expect(inks()).toEqual(new Set(["#123456"])));
+    expect(vi.mocked(buildScene).mock.calls.length).toBe(built);
+    expect(layouts).not.toHaveBeenCalled();
+    // A size builds the scene of each of the three maps once, and the switcher's two legends, one per view of the one style.
+    act(() => host.classList.add("sized"));
+    await waitFor(() => expect(vi.mocked(buildScene).mock.calls.length).toBe(built + 3 + 2));
+    expect(layouts).not.toHaveBeenCalled();
+  });
+
   it("draws the pattern twins of the DOM map and of the switcher's legends in the theme's ink, as the theme says", async () => {
     const positions = await layout(vendor, { engine: "dagre" });
     document.head.appendChild(rules);
@@ -338,4 +363,5 @@ describe("the theme of a map", () => {
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls[0][1]).toContainEqual({ kind: "text", scheme: "light", subject: "inkMuted on paper", value: 2.81, minimum: 4.5 });
   });
+
 });
