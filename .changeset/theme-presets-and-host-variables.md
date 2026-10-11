@@ -36,7 +36,8 @@ variables, and the exports take it too.
   page: the setting over the `--wf-*` variables of the element (every part of
   a theme has one; values `tokens.css` sets are left out) over the preset, in
   the scheme `tokens.css` draws in, with any CSS colour turned into a literal,
-  following attribute changes and the system's scheme. Colours read in the
+  following attribute changes and the system's scheme; opaque palette stops
+  of the setting become hex. Colours read in the
   dark scheme are the theme's `dark` roles. It returns `{ theme, scheme }`
   (`FlowTheme`), which an export takes to draw what the map draws.
 - `<ProcessMap theme>` takes a `ThemeSetting` (it took a `Theme`) and reads

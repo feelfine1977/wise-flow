@@ -1797,7 +1797,8 @@ element (set on it or on its container), then the preset. `useFlowTheme` resolve
 - **Colours** in any CSS syntax (a name, `hsl()`, `oklch()`, `color-mix()`,
   …) become the literal the browser paints, read back from one pixel of a
   canvas: `#rrggbb`, or `rgba()` when translucent. The same holds for the
-  colours of a `theme` object. So the Canvas map and an export draw literals.
+  colours of a `theme` object; its opaque palette stops become `#rrggbb`. So
+  the Canvas map and an export draw literals.
 - **Scheme.** The scheme is the one `tokens.css` draws in: `data-theme` on the
   document's root, otherwise `prefers-color-scheme`. Colours read in the dark
   scheme are the theme's `dark` roles: an export, which draws the light

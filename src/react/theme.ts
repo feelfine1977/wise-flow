@@ -51,11 +51,19 @@ export function cssColor(css: string): string | undefined {
   return a === 255 ? hex : `rgba(${r}, ${g}, ${b}, ${Math.round((a / 255) * 100) / 100})`;
 }
 
-/** The setting with its colours turned into literals. */
+/** A palette stop as hex, which palettes are interpolated from: an opaque colour as `#rrggbb`; anything else as it is. */
+function hexStop(css: string): string {
+  const literal = cssColor(css);
+  const channels = literal && !/^#([\da-f]{3}){1,2}$/i.test(literal) ? colorChannels(literal) : undefined;
+  if (!channels || channels[3] !== 1) return literal ?? css;
+  return `#${channels.slice(0, 3).map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")}`;
+}
+
+/** The setting with its colours turned into literals and its palette stops into hex. */
 function literalSetting(setting: ThemeSetting | undefined): ThemeSetting | undefined {
   if (typeof setting !== "object") return setting;
   const literal = (roles: Readonly<Record<string, string | undefined>> | undefined) => roles && Object.fromEntries(Object.entries(roles).map(([role, value]) => [role, value === undefined ? value : cssColor(value)]));
-  const palette = setting.palette && Object.fromEntries(Object.entries(setting.palette).map(([name, stops]) => [name, stops?.map((s) => cssColor(s) ?? s)]));
+  const palette = setting.palette && Object.fromEntries(Object.entries(setting.palette).map(([name, stops]) => [name, stops?.map(hexStop)]));
   return { ...setting, color: literal(setting.color), dark: literal(setting.dark), palette };
 }
 

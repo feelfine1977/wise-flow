@@ -23,7 +23,7 @@ vi.mock("../../src/core/layout.js", async (importOriginal) => {
 
 const { buildScene } = await import("../../src/core/scene.js");
 const { vendorScene } = await import("../../fixtures/bpic2019");
-const { abstract, toSVG, layout } = await import("../../src/index");
+const { abstract, defaultTheme, toSVG, layout } = await import("../../src/index");
 const { CanvasMap, ProcessMap, emptySelection, useFlowTheme } = await import("../../src/react/index");
 const { prepareScene } = await import("../../src/canvas/index");
 const { cssColor } = await import("../../src/react/theme");
@@ -93,6 +93,13 @@ describe("a colour written in any CSS syntax", () => {
     expect(cssColor("oklch(0.97 0.02 90)")).toBe("#fdf6e3");
     expect(cssColor("color-mix(in srgb, #0072b2 50%, transparent)")).toBe("rgba(0, 114, 178, 0.5)");
     expect(cssColor("not a colour")).toBeUndefined();
+
+    // Palettes are interpolated from hex stops: an opaque stop in any syntax becomes `#rrggbb`, a translucent one leaves the palette out.
+    const stops = (categorical: string[]) => resolved({ palette: { categorical } })().theme.palette.categorical;
+    expect(stops(["rgb(0, 114, 178)", "oklch(0.97 0.02 90)", "#abc"])).toEqual(["#0072b2", "#fdf6e3", "#abc"]);
+    cleanup();
+    expect(stops(["#0072b2", "color-mix(in srgb, #0072b2 50%, transparent)"])).toEqual([...defaultTheme.palette.categorical]);
+    cleanup();
 
     // Through the variables of a host: the export draws the literal.
     document.head.appendChild(rules);
