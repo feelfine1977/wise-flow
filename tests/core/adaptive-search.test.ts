@@ -3,6 +3,7 @@ import { type FlowEdge, type FlowGraph, type FlowNode, createPositions } from ".
 import { CanvasRenderer, type DrawContext, prepareScene } from "../../src/canvas/index";
 import { edgeBudgetAdapter } from "../../src/core/edge-budget";
 import { type Random, caseCount, caseLabel, createRandom, seeds } from "../support/random";
+import { shrinkList } from "../support/shrink";
 
 // ---------------------------------------------------------------------------
 // The adaptive budget as docs/API.md describes it, written here from its words and shared with
@@ -71,6 +72,9 @@ function referenceBudget() {
 
 type FrameClass = "fast" | "neutral" | "slow";
 const CLASSES: readonly FrameClass[] = ["fast", "neutral", "slow"];
+/** What a trace's frames lean to: one class, any, or a class of its own for each burst. */
+type Bias = FrameClass | "mixed" | "turning";
+const BIASES: readonly Bias[] = [...CLASSES, "mixed", "turning"];
 
 /** A frame time of the class: below 8.35 ms, from 8.35 to 16.7 ms (the boundaries count as neither), above 16.7 ms. */
 function frameMs(rng: Random, kind: FrameClass): number {
@@ -89,6 +93,9 @@ function someMs(rng: Random, bias: FrameClass | "mixed"): number {
   return frameMs(rng, bias === "mixed" || !rng.chance(0.85) ? rng.pick(CLASSES) : bias);
 }
 
+/** The class a burst of frames leans to. A turning trace picks one per burst, so that one gesture holds a run of five slow frames and then one of five fast frames, or the reverse. */
+const burstOf = (rng: Random, bias: Bias): FrameClass | "mixed" => (bias === "turning" ? rng.pick(CLASSES) : bias);
+
 type Step = { kind: "start" } | { kind: "end" } | { kind: "frame"; ms: number } | { kind: "view"; total: number; kept: number };
 
 // Views: edge counts around the steps, and protected edges below half the smallest step. Above that the
@@ -101,17 +108,26 @@ const view = (rng: Random) => {
   return { total, kept: Math.min(total, rng.chance(0.5) ? 0 : rng.int(0, 200)) };
 };
 
-function traceOf(seed: number): { steps: Step[]; total: number; kept: number; bias: FrameClass | "mixed" } {
+interface Trace {
+  steps: Step[];
+  total: number;
+  kept: number;
+  bias: Bias;
+}
+
+function traceOf(seed: number): Trace {
   const rng = createRandom(seed);
-  const bias = rng.pick([...CLASSES, "mixed"] as const);
+  const bias = rng.pick(BIASES);
   const { total, kept } = view(rng);
   const steps: Step[] = [];
   const length = rng.int(1, 60);
   let open = 0;
   while (steps.length < length) {
     const kind = rng.weighted([["start", 2], ["end", 2], ["frames", 8], ["view", 1]] as const);
-    if (kind === "frames") for (let k = rng.int(1, 8); k > 0; k--) steps.push({ kind: "frame", ms: someMs(rng, bias) });
-    else if (kind === "view") steps.push({ kind: "view", ...view(rng) });
+    if (kind === "frames") {
+      const burst = burstOf(rng, bias);
+      for (let k = rng.int(1, 8); k > 0; k--) steps.push({ kind: "frame", ms: someMs(rng, burst) });
+    } else if (kind === "view") steps.push({ kind: "view", ...view(rng) });
     else {
       steps.push({ kind });
       open = kind === "start" ? open + 1 : Math.max(0, open - 1);
@@ -119,7 +135,7 @@ function traceOf(seed: number): { steps: Step[]; total: number; kept: number; bi
   }
   // Every gesture ends, so that each decision is observed; a frame at rest then draws the budget it left.
   for (; open > 0; open--) steps.push({ kind: "end" });
-  steps.push({ kind: "frame", ms: someMs(rng, bias) });
+  steps.push({ kind: "frame", ms: someMs(rng, burstOf(rng, bias)) });
   return { steps, total, kept, bias };
 }
 
@@ -128,47 +144,62 @@ const TIMEOUT = 30_000 * caseCount(1);
 
 const isStep = (budget: number) => Number.isInteger(Math.log2(budget / SMALLEST)) && budget >= SMALLEST;
 
+/** The first step at which the adapter parts from the reference: a move on a frame, a move of more than one step, another budget, a clock read outside a timed frame. */
+function traceProblem(trace: Trace): string | undefined {
+  let ms = 0;
+  let reads = 0;
+  // Two reads per timed frame, 0 and then the frame's length, so that a frame lasts exactly `ms`.
+  const clock = () => (reads++ % 2 ? ms : 0);
+  const adapter = edgeBudgetAdapter(clock);
+  const ref = referenceBudget();
+  let { total, kept } = trace;
+  if (adapter.budget !== FIRST) return `starts at ${adapter.budget} instead of ${FIRST}`;
+  for (const [i, step] of trace.steps.entries()) {
+    const at = `step ${i} ${JSON.stringify(step)}`;
+    const before: number = adapter.budget;
+    if (step.kind === "start") {
+      adapter.start();
+      ref.start();
+    } else if (step.kind === "end") {
+      const movedRef = ref.end();
+      const moved = adapter.end();
+      if (moved !== movedRef) return `${at}: end() says ${moved}, the reference ${movedRef}`;
+      // One step at most, and only as the last gesture ends.
+      if (movedRef ? adapter.budget !== before / 2 && adapter.budget !== before * 2 : adapter.budget !== before) return `${at}: the budget went from ${before} to ${adapter.budget}`;
+    } else if (step.kind === "frame") {
+      const timed = ref.open;
+      const readsBefore = reads;
+      let drewWith: number | undefined;
+      ms = step.ms;
+      adapter.frame((budget) => {
+        drewWith = budget;
+        return { shown: draws(budget, total, kept), total };
+      });
+      ref.frame(step.ms, total, kept);
+      if (drewWith !== before) return `${at}: the frame drew with ${drewWith} instead of ${before}`;
+      if (adapter.budget !== before) return `${at}: the budget moved on a frame, from ${before} to ${adapter.budget}`;
+      if (reads - readsBefore !== (timed ? 2 : 0)) return `${at}: the clock was read ${reads - readsBefore} times instead of ${timed ? 2 : 0}`;
+    } else {
+      ({ total, kept } = step);
+    }
+    if (adapter.budget !== ref.budget) return `${at}: the budget is ${adapter.budget}, the reference's ${ref.budget}`;
+    if (!isStep(adapter.budget)) return `${at}: the budget ${adapter.budget} is not a step`;
+  }
+  return undefined;
+}
+
+/** The fewest steps of a failing trace that still fail, and their problem. */
+function smallestTrace(trace: Trace): string {
+  const steps = shrinkList(trace.steps, (some) => traceProblem({ ...trace, steps: some }) !== undefined);
+  return `smallest failing trace (${steps.length} of ${trace.steps.length} steps; ${trace.total} edges in view, ${trace.kept} protected):\n${JSON.stringify(steps)}\n→ ${traceProblem({ ...trace, steps })}`;
+}
+
 describe("the adaptive budget against the documented rules, on random traces", () => {
   it("moves as the reference does, never on a frame, by one step at the end of the last gesture, and reads the clock only for the frames of a gesture", () => {
     for (const seed of seeds(caseCount(300))) {
       const trace = traceOf(seed);
-      let ms = 0;
-      let reads = 0;
-      // Two reads per timed frame, 0 and then the frame's length, so that a frame lasts exactly `ms`.
-      const clock = () => (reads++ % 2 ? ms : 0);
-      const adapter = edgeBudgetAdapter(clock);
-      const ref = referenceBudget();
-      let { total, kept } = trace;
-      expect(adapter.budget, caseLabel(seed)).toBe(FIRST);
-      trace.steps.forEach((step, i) => {
-        const label = caseLabel(seed, `${trace.bias}, step ${i} ${JSON.stringify(step)}`);
-        const before = adapter.budget;
-        if (step.kind === "start") {
-          adapter.start();
-          ref.start();
-        } else if (step.kind === "end") {
-          const movedRef = ref.end();
-          expect(adapter.end(), label).toBe(movedRef);
-          // One step at most, and only as the last gesture ends.
-          if (movedRef) expect([before / 2, before * 2], label).toContain(adapter.budget);
-          else expect(adapter.budget, label).toBe(before);
-        } else if (step.kind === "frame") {
-          const timed = ref.open;
-          const readsBefore = reads;
-          ms = step.ms;
-          adapter.frame((budget) => {
-            expect(budget, label).toBe(before);
-            return { shown: draws(budget, total, kept), total };
-          });
-          ref.frame(step.ms, total, kept);
-          expect(adapter.budget, label).toBe(before);
-          expect(reads - readsBefore, label).toBe(timed ? 2 : 0);
-        } else {
-          ({ total, kept } = step);
-        }
-        expect(adapter.budget, label).toBe(ref.budget);
-        expect(isStep(adapter.budget), label).toBe(true);
-      });
+      const problem = traceProblem(trace);
+      if (problem !== undefined) expect(problem, `${caseLabel(seed, trace.bias)}: ${problem}\n${smallestTrace(trace)}`).toBeUndefined();
     }
   }, TIMEOUT);
 
@@ -246,14 +277,15 @@ type HostStep = { kind: "begin" } | { kind: "end" } | { kind: "frame"; ms: numbe
 /** The budget the map starts with and what the host then does. */
 function hostTraceOf(seed: number, n: number): { budget: Budget; steps: HostStep[] } {
   const rng = createRandom(seed);
-  const bias = rng.pick([...CLASSES, "mixed"] as const);
+  const bias = rng.pick(BIASES);
   const fixed = () => rng.weighted<Budget>([[rng.pick([0, 300, 700, 1500, 3000]), 2], ["all", 1]]);
   const budget = rng.chance(0.7) ? "adaptive" : fixed();
   const steps: HostStep[] = [];
   const length = rng.int(1, 18);
   const ids = Array.from({ length: n }, (_, k) => `h->t${k + 1}`);
   const frames = (count: number) => {
-    for (let k = count; k > 0; k--) steps.push({ kind: "frame", ms: someMs(rng, bias) });
+    const burst = burstOf(rng, bias);
+    for (let k = count; k > 0; k--) steps.push({ kind: "frame", ms: someMs(rng, burst) });
   };
   let open = 0;
   while (steps.length < length) {
@@ -287,57 +319,68 @@ function hostTraceOf(seed: number, n: number): { budget: Budget; steps: HostStep
   return { budget, steps };
 }
 
+/** The first frame the renderer draws otherwise than the reference says, or with a clock read it should not make. */
+function hostProblem(n: number, first: Budget, steps: readonly HostStep[]): string | undefined {
+  const { scene, at } = sceneOf(n);
+  let nextMs = 0;
+  let reads = 0;
+  // Two reads per timed frame, 0 and then the frame's length: the frame lasts exactly `nextMs`.
+  const clock = () => (reads++ % 2 ? nextMs : 0);
+  const canvas = { width: 0, height: 0, style: {}, getContext: () => quiet } as unknown as HTMLCanvasElement;
+  const renderer = new CanvasRenderer(canvas, { devicePixelRatio: 1, draw: { edgeBudget: first, cull: false }, clock });
+  renderer.setScene(scene);
+  renderer.resize(800, 600);
+  renderer.fit();
+  const ref = referenceBudget();
+  let budget: Budget = first;
+  let selected: string[] = [];
+  try {
+    for (const [i, step] of steps.entries()) {
+      const where = `step ${i} ${JSON.stringify(step)}`;
+      if (step.kind === "begin") {
+        renderer.beginGesture();
+        ref.start();
+      } else if (step.kind === "end") {
+        renderer.endGesture();
+        ref.end();
+      } else if (step.kind === "select") {
+        selected = step.edges;
+        renderer.setState({ selection: { nodes: [], edges: selected, groups: [] } });
+      } else if (step.kind === "budget") {
+        budget = step.budget;
+        renderer.drawOptions = { ...renderer.drawOptions, edgeBudget: budget };
+      } else {
+        const timed = budget === "adaptive" && ref.open;
+        const readsBefore = reads;
+        nextMs = step.ms;
+        renderer.draw();
+        if (budget === "adaptive") ref.frame(step.ms, n, selected.length);
+        if (reads - readsBefore !== (timed ? 2 : 0)) return `${where}: the clock was read ${reads - readsBefore} times instead of ${timed ? 2 : 0}`;
+        const wanted = budget === "adaptive" ? ref.budget : budget;
+        const shown = wanted === "all" ? n : draws(wanted, n, selected.length);
+        const withheld = renderer.lastDraw!.withheld;
+        const drew = withheld ? `${withheld.shown} of ${withheld.total}` : "every edge";
+        if (shown === n ? withheld : !withheld || withheld.shown !== shown || withheld.total !== n) return `${where}: drew ${drew} instead of ${shown === n ? "every edge" : `${shown} of ${n}`}`;
+        const lost = withheld && selected.find((id) => !withheld.drawn.has(at.get(id)!));
+        if (lost) return `${where}: withheld the selected edge ${lost}`;
+      }
+    }
+  } finally {
+    renderer.dispose();
+  }
+  return undefined;
+}
+
 describe("the Canvas renderer on random traces of gestures, frames, selections and budget changes", () => {
   it("draws every frame with the reference's budget, keeps the selected edges, counts gestures whatever the budget is, and reads the clock only for the timed frames of an adaptive budget", () => {
     for (const seed of seeds(caseCount(300))) {
       const n = createRandom(seed + 42).pick(SIZES);
-      const { scene, at } = sceneOf(n);
       const { budget: first, steps } = hostTraceOf(seed, n);
-      let nextMs = 0;
-      let reads = 0;
-      // Two reads per timed frame, 0 and then the frame's length: the frame lasts exactly `nextMs`.
-      const clock = () => (reads++ % 2 ? nextMs : 0);
-      const canvas = { width: 0, height: 0, style: {}, getContext: () => quiet } as unknown as HTMLCanvasElement;
-      const renderer = new CanvasRenderer(canvas, { devicePixelRatio: 1, draw: { edgeBudget: first, cull: false }, clock });
-      renderer.setScene(scene);
-      renderer.resize(800, 600);
-      renderer.fit();
-      const ref = referenceBudget();
-      let budget: Budget = first;
-      let selected: string[] = [];
-      const selectedAt = () => selected.map((id) => at.get(id)!);
-      steps.forEach((step, i) => {
-        const label = caseLabel(seed, `hub ${n}, step ${i} ${JSON.stringify(step)}`);
-        if (step.kind === "begin") {
-          renderer.beginGesture();
-          ref.start();
-        } else if (step.kind === "end") {
-          renderer.endGesture();
-          ref.end();
-        } else if (step.kind === "select") {
-          selected = step.edges;
-          renderer.setState({ selection: { nodes: [], edges: selected, groups: [] } });
-        } else if (step.kind === "budget") {
-          budget = step.budget;
-          renderer.drawOptions = { ...renderer.drawOptions, edgeBudget: budget };
-        } else {
-          const timed = budget === "adaptive" && ref.open;
-          const readsBefore = reads;
-          nextMs = step.ms;
-          renderer.draw();
-          if (budget === "adaptive") ref.frame(step.ms, n, selected.length);
-          expect(reads - readsBefore, label).toBe(timed ? 2 : 0);
-          const step_ = budget === "adaptive" ? ref.budget : budget;
-          const shown = step_ === "all" ? n : draws(step_, n, selected.length);
-          const withheld = renderer.lastDraw!.withheld;
-          if (shown === n) expect(withheld, label).toBeUndefined();
-          else {
-            expect(withheld && { shown: withheld.shown, total: withheld.total }, label).toEqual({ shown, total: n });
-            for (const k of selectedAt()) expect(withheld!.drawn.has(k), `${label}: selected edge ${scene.edgeMarks[k].id}`).toBe(true);
-          }
-        }
-      });
-      renderer.dispose();
+      const problem = hostProblem(n, first, steps);
+      if (problem === undefined) continue;
+      const small = shrinkList(steps, (some) => hostProblem(n, first, some) !== undefined);
+      const smallest = `smallest failing trace (${small.length} of ${steps.length} steps; hub ${n}, starting budget ${first}):\n${JSON.stringify(small)}\n→ ${hostProblem(n, first, small)}`;
+      expect(problem, `${caseLabel(seed, `hub ${n}`)}: ${problem}\n${smallest}`).toBeUndefined();
     }
   }, TIMEOUT);
 });
