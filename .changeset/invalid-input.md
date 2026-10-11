@@ -47,3 +47,7 @@ as one with the empty id; it threw a `TypeError` before.
 
 `repositionNodes` (and `buildScene` with `moved`) routes an edge without an
 id like any other; it threw a `TypeError` before.
+
+`arcWidth` takes a coverage that is not a finite number as the default, 1:
+`NaN` gave a width of `NaN`, which reached the arc's stroke in every
+renderer, and `-Infinity` gave 2.

@@ -112,7 +112,7 @@ export function tintColor(overlay: Overlay): string | undefined {
 /** Stroke width of an arc: 2 plus 8 times its coverage (default 1). */
 export function arcWidth(overlay: Overlay): number {
   const c = overlay.payload?.coverage;
-  return 2 + 8 * (typeof c === "number" ? Math.max(0, Math.min(1, c)) : 1);
+  return 2 + 8 * (Number.isFinite(c) ? Math.max(0, Math.min(1, c!)) : 1);
 }
 
 /** Arrowhead of arcs and self-loops: a triangle `size` long and wide, its tip `overhang` × `size` beyond the path (`arrowheadTokens.overlay`). */

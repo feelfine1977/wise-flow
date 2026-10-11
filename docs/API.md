@@ -1456,7 +1456,7 @@ export interface OverlayMark { id: string; kind: OverlayKind; overlay: Overlay; 
 export function overlayMarks(shapes: OverlayShape[], locale?: Locale): OverlayMark[];
 export function overlayColor(o: Overlay): string;           // value on the sequential palette, neutral without one
 export function tintColor(o: Overlay): string | undefined;  // the same colour at TINT_OPACITY, as CSS rgba()
-export function arcWidth(o: Overlay): number;               // 2 + 8 × coverage (default 1)
+export function arcWidth(o: Overlay): number;               // 2 + 8 × coverage in [0, 1] (default 1, also for a coverage that is not a finite number)
 export const TINT_OPACITY: number;                          // 0.18
 export const overlayArrow: { size: number; overhang: number }; // 12, tip 0.1 × size beyond the path (`arrowheadTokens.overlay`)
 export const chipLayout: { padding: 8; glyph: 12.4; gauge: 46; gaugeWidth: 40; gaugeHeight: 6; char: 6.2 };
