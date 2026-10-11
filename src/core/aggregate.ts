@@ -50,6 +50,9 @@ function firstMetric(el: { metrics?: Metrics }, candidates: string[]): number | 
   return undefined;
 }
 
+/** Summed in ascending order, which no input order changes. */
+const total = (values: number[]) => values.sort((a, b) => a - b).reduce((sum, v) => sum + v, 0);
+
 /**
  * Relative strength in [0, 1] of every element, computed from the first available
  * metric. Elements without a metric get strength 1 so that thresholds never remove
@@ -61,13 +64,14 @@ export function strengths<T extends { id: string; metrics?: Metrics }>(
   relativeTo: "max" | "total" = "max",
 ): Map<string, number> {
   const values = new Map<string, number>();
-  let denominator = 0;
+  let max = 0;
   for (const it of items) {
     const v = firstMetric(it, candidates);
     if (v === undefined) continue;
     values.set(it.id, Math.max(0, v));
-    denominator = relativeTo === "max" ? Math.max(denominator, v) : denominator + Math.max(0, v);
+    max = Math.max(max, v);
   }
+  const denominator = relativeTo === "max" ? max : total([...values.values()]);
   const out = new Map<string, number>();
   for (const it of items) {
     const v = values.get(it.id);
@@ -624,13 +628,8 @@ export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowG
 
 /** The maximum or the total of the follows edges' metric, which self-loops are measured against. */
 function loopStrengthDenominator(follows: FlowEdge[], candidates: string[], relativeTo: "max" | "total"): number {
-  let denominator = 0;
-  for (const f of follows) {
-    const fv = firstMetric(f, candidates);
-    if (fv === undefined) continue;
-    denominator = relativeTo === "max" ? Math.max(denominator, fv) : denominator + fv;
-  }
-  return denominator;
+  const values = follows.map((f) => firstMetric(f, candidates)).filter((v): v is number => v !== undefined);
+  return relativeTo === "max" ? values.reduce((m, v) => Math.max(m, v), 0) : total(values);
 }
 
 function strengthOfLoop(e: FlowEdge, denominator: number, candidates: string[]): number {

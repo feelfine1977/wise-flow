@@ -364,3 +364,36 @@ describe("diff", () => {
     expect(validateGraph(d).filter((i) => i.level === "error")).toEqual([]);
   });
 });
+
+/** Every order of the items. */
+function orders<T>(items: T[]): T[][] {
+  if (items.length <= 1) return [items];
+  return items.flatMap((item, i) => orders([...items.slice(0, i), ...items.slice(i + 1)]).map((rest) => [item, ...rest]));
+}
+
+describe("abstract: input order", () => {
+  it("measures strength relative to a total that does not depend on the input order", () => {
+    // Shares of 1/10, 2/10 and 3/10 sum to 6/10, so c, c->d and the loop d->d have strength
+    // exactly 1/2 relative to the total; in floating point the sum depends on the order of adding.
+    const nodes: FlowNode[] = [
+      { id: "a", kind: "activity", label: "A", metrics: { share: 0.1 } },
+      { id: "b", kind: "activity", label: "B", metrics: { share: 0.2 } },
+      { id: "c", kind: "activity", label: "C", metrics: { share: 0.3 } },
+      { id: "d", kind: "activity", label: "D" },
+    ];
+    const edges: FlowEdge[] = [
+      { id: "a->b", kind: "follows", source: "a", target: "b", metrics: { share: 0.1 } },
+      { id: "b->c", kind: "follows", source: "b", target: "c", metrics: { share: 0.2 } },
+      { id: "c->d", kind: "follows", source: "c", target: "d", metrics: { share: 0.3 } },
+      { id: "d->d", kind: "follows", source: "d", target: "d", metrics: { share: 0.3 } },
+    ];
+    const results = new Set<string>();
+    for (const nodeOrder of orders(nodes)) {
+      for (const edgeOrder of orders(edges)) {
+        const g = abstract({ nodes: nodeOrder, edges: edgeOrder }, { relativeTo: "total", minEdgeShare: 0.5, minNodeShare: 0.5, keepConnected: false });
+        results.add(JSON.stringify([g.nodes.map((n) => n.id).sort(), g.edges.map((e) => e.id).sort()]));
+      }
+    }
+    expect([...results]).toHaveLength(1);
+  });
+});
