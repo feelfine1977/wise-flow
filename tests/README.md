@@ -46,10 +46,12 @@ for (const seed of seeds(caseCount(20))) {
   (`WISE_DEEP=3` runs a hundred and fifty times as many). Each searching test
   is run in deep mode at least once before it is merged, and its deep run is
   recorded with the seed range, the number of cases, the duration and the result.
-- `seeds(count)` are the seeds, `1 … count` by default and `WISE_SEED … ` when
-  set. Every assertion names its seed through `caseLabel(seed, detail)`, so the
-  failure prints `seed 17 (step 3); replay with WISE_SEED=17`. To reproduce one
-  case, run the test with `WISE_SEED=17` and the case count of one:
+- `seeds(count)` are the seeds, `1 … count` by default and `count` seeds from
+  `WISE_SEED` on when it is set. Every assertion names its seed through
+  `caseLabel(seed, detail)`, so the failure prints
+  `seed 17 (step 3); replay with WISE_SEED=17`. To reproduce it, run the test
+  with `WISE_SEED=17`: the failing case is the first one drawn, and the test
+  stops at its assertion:
 
   ```sh
   WISE_SEED=17 npx vitest run tests/core/<file>.test.ts -t "<test name>"

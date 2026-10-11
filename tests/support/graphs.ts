@@ -304,7 +304,7 @@ export function labelOf(flavour: LabelFlavour, i: number, rng: Random): string {
   }
 }
 
-/** `layered` with every node, group and overlay text labelled in the flavour. */
+/** `stages` with every node and group labelled in the flavour. */
 export function labelled(flavour: LabelFlavour): GraphFamily {
   return (size, seed, options = {}) => {
     const g = stages(size, seed, options);
@@ -548,7 +548,7 @@ export const unknownKinds: InvalidFamily = (size, seed) => {
   };
 };
 
-/** Every invalid family by name; the metric families are what the ticket flags, the structural ones what a backend may also send. */
+/** Every invalid family by name: metric values that are missing or not a count, and broken structure a backend may send. */
 export const invalidFamilies = {
   missingMetrics,
   zeroMetrics,

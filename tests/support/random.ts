@@ -109,8 +109,8 @@ export function caseCount(base: number): number {
 
 /**
  * The seeds a searching test runs, `count` of them from a start seed: 1 by default,
- * `WISE_SEED` when set, so that one failing seed is replayed on its own with
- * `WISE_SEED=<seed>` and the case count of one.
+ * `WISE_SEED` when set, so that `WISE_SEED=<seed>` replays a failing seed as the
+ * first case of the run.
  */
 export function seeds(count: number, start = firstSeed()): number[] {
   return Array.from({ length: count }, (_, i) => start + i);
