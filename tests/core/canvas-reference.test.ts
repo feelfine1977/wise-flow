@@ -528,14 +528,24 @@ describe("the work of a culled draw", () => {
       const ink = inkContext();
       const stats = drawScene(ink.ctx, watch(watched, ink.begin), view, state, { cull: true });
       const groups = drawn(ink.visits).filter((v) => v.list === "groups").map((v) => v.id);
-      return { candidates, reads: reads.count, stats, groups };
+      const plain = reads.count;
+      // Under an edge budget: the first draw ranks the scene's edges once and keeps the ranking, the next reads as many as without.
+      drawScene(inkContext().ctx, watched, view, state, { cull: true, edgeBudget: 10 });
+      reads.count = 0;
+      const budgeted = drawScene(inkContext().ctx, watched, view, state, { cull: true, edgeBudget: 10 });
+      return { candidates, reads: plain, stats, groups, budgetReads: reads.count, budgeted };
     });
     // Nodes: columns 4–7 × rows 4–6; edges: between boxes, four horizontal per row and three vertical per column.
     for (const r of results) {
       expect(r.stats).toMatchObject({ culled: true, nodes: 12, edges: 24 });
       expect(r.groups).toEqual(["r4", "r5", "r6", "r7"]);
       expect(r.reads).toBeLessThanOrEqual(2 * r.candidates);
+      // Ten of the 24 edges in view, the selected and the hovered one among them.
+      expect(r.budgeted).toMatchObject({ culled: true, nodes: 12, edges: 10, withheld: { shown: 10, total: 24 } });
+      // The edges in view are read once more to list them for the budget, and their marks once to rank them.
+      expect(r.budgetReads).toBeLessThanOrEqual(3 * r.candidates);
     }
+    expect(results.map((r) => r.budgetReads)).toEqual([results[0].budgetReads, results[0].budgetReads, results[0].budgetReads]);
     expect(results.map((r) => r.candidates)).toEqual([results[0].candidates, results[0].candidates, results[0].candidates]);
     expect(results.map((r) => r.reads)).toEqual([results[0].reads, results[0].reads, results[0].reads]);
     expect(results.map((r) => r.stats)).toEqual([results[0].stats, results[0].stats, results[0].stats]);
