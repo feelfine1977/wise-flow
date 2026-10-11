@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { constraintItems, globalScene, vendorScene } from "../../fixtures/bpic2019";
 import { liteFromGraph } from "../../src/bpmn/headless";
 import { ANCHOR_TAG, INDIRECT_TAG, type AbstractOptions, type FlowEdge, type FlowGraph, type FlowNode, type Overlay, abstract, buildViews, collapseGroups, diff, hasTag, layout, overlaysFor } from "../../src/index";
-import { detailGraph, offWays, seeded, shuffled, wayThroughHidden } from "./detail-cases";
+import { detailGraph, offWays, seeded, shuffled, wayThrough, wayThroughHidden } from "./detail-cases";
 
 const isActivity = (n: FlowNode) => n.kind === "activity" || n.kind === "stage";
 const ids = (elements: { id: string }[]) => elements.map((el) => el.id).sort();
@@ -174,7 +174,7 @@ describe("detail shares", () => {
       for (const collapse of [false, "all"] as const) {
         const activities = (collapse ? collapseGroups(graph, "all") : graph).nodes.filter(isActivity).length;
         for (let k = 0; k <= activities; k++) {
-          for (const p of [0, 0.25, 1]) {
+          for (const p of PATH_SHARES) {
             const result = abstract(graph, byShares(k / activities, p, { collapse }));
             expect(offWays(result), `seed ${seed} ${collapse} ${k}/${activities} ${p}`).toEqual([]);
             expectHonestPaths(collapse ? collapseGroups(graph, "all") : graph, result, `seed ${seed} ${collapse} ${k} ${p}`);
@@ -205,6 +205,9 @@ describe("detail shares", () => {
         for (const e of less.edges.filter((x) => !edges.has(x.id))) {
           expect(hasTag(e, INDIRECT_TAG), `${name} ${a1}/${p1} → ${a2}/${p2}: ${e.id}`).toBe(true);
           expect((e.payload as { via: string[] }).via.some((id) => nodes.has(id)), `${name}: ${e.id}`).toBe(true);
+          // Replaced by the paths it stood for: a way between its ends through activities that came into view.
+          const cameIntoView = new Set(more.nodes.filter((n) => !less.nodes.some((m) => m.id === n.id)).map((n) => n.id));
+          expect(wayThrough(more, e.source, e.target, cameIntoView), `${name}: ${e.id} replaced`).toBe(true);
           replaced++;
         }
       }

@@ -115,3 +115,20 @@ export function wayThroughHidden(graph: FlowGraph, source: string, target: strin
   }
   return false;
 }
+
+/** Whether the graph has a way from `source` to `target` through at least one node, all of them in `inner`. */
+export function wayThrough(graph: FlowGraph, source: string, target: string, inner: Set<string>): boolean {
+  const reached = new Set<string>();
+  const queue = [source];
+  while (queue.length) {
+    const at = queue.shift()!;
+    for (const e of graph.edges) {
+      if (!isPath(e) || e.source !== at || e.source === e.target) continue;
+      if (e.target === target && at !== source) return true;
+      if (!inner.has(e.target) || reached.has(e.target)) continue;
+      reached.add(e.target);
+      queue.push(e.target);
+    }
+  }
+  return false;
+}
