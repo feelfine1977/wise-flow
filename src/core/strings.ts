@@ -333,7 +333,7 @@ const de: Record<StringKey, string> = {
   "metric.mean.medianNextHours": "Zeit bis zum nächsten Ereignis, Mittel der Mediane",
   "unit.count": "Anzahl",
   "unit.shareOfCases": "% der Fälle",
-  "unit.duration": "min, h, T",
+  "unit.duration": "min, h, d",
   "measure.frequency": "Häufigkeit",
   "measure.shortfall": "Erwartungslücke",
   "measure.performance": "Durchlaufzeit",

@@ -34,7 +34,7 @@ The legend is a key and the numbers say what they are.
 - **Numbers.** Activities, lists and tooltips are grouped in full ("1,000",
   where the map wrote "1.0k"); paths in full up to 99,999, then "113k",
   "1.2M" (`formatPathCount`, new); a share that is not zero never reads
-  "0 %" ("<0.1 %"); minutes round into hours at 60 and hours into days at 48.
+  "0 %" ("<0.1 %"); minutes round into hours at 60, hours into days at 48 and days into whole days at 10 (never "10.0 d").
 - **Stage colours** follow stage order: `StyleSpec.stages` (new) holds the
   host's full stage list; without it the order `abstract` records of the
   unfiltered graph (`meta.model.groups`), then the graph's. Each stage takes

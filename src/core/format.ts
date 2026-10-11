@@ -63,7 +63,8 @@ export function formatHours(hours: number, locale: Locale = "en"): string {
   if (Math.round(abs * 60) < 60) return `${sign}${formatNumber(abs * 60, 0, locale)} min`;
   if (abs < 47.5) return `${sign}${formatNumber(abs, abs < 9.95 ? 1 : 0, locale)} h`;
   const days = abs / 24;
-  return `${sign}${formatNumber(days, days < 10 ? 1 : 0, locale)} d`;
+  // One decimal while the days round under ten.
+  return `${sign}${formatNumber(days, days < 9.95 ? 1 : 0, locale)} d`;
 }
 
 /** Duration given in days. */

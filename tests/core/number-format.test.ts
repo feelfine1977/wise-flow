@@ -55,6 +55,10 @@ describe("number formats", () => {
     expect(formatHours(48)).toBe("2.0 d");
     expect(formatHours(112.8)).toBe("4.7 d");
     expect(formatHours(400)).toBe("17 d");
+    // 9.996 days round to ten: whole days from there, as hours are from 9.95 h.
+    expect(formatHours(239.9)).toBe("10 d");
+    expect(formatHours(9.96)).toBe("10 h");
+    expect(formatHours(238.7, "de")).toBe("9,9 d");
     expect(formatMetricValue("medianLagHours", 288)).toBe("12 d");
   });
 
@@ -90,7 +94,7 @@ describe("number formats", () => {
     expect([metricName("cases"), metricUnit("cases")]).toEqual(["cases", "count"]);
     expect([metricName("count", "de"), metricUnit("count", "de")]).toEqual(["Übergänge", "Anzahl"]);
     expect([metricName("violationShare"), metricUnit("violationShare")]).toEqual(["expectation shortfall", "% of cases"]);
-    expect([metricName("medianLagHours", "de"), metricUnit("medianLagHours", "de")]).toEqual(["Median-Wartezeit", "min, h, T"]);
+    expect([metricName("medianLagHours", "de"), metricUnit("medianLagHours", "de")]).toEqual(["Median-Wartezeit", "min, h, d"]);
     expect([metricName("delta_violationShare"), metricUnit("delta_violationShare")]).toEqual(["difference expectation shortfall", "% of cases"]);
     expect(formatMetricValue("delta_violationShare", 0.05)).toBe("+5 %");
     expect([metricName("score"), metricUnit("score")]).toEqual(["score", ""]);
