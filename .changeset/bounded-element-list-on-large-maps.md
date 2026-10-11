@@ -13,6 +13,10 @@ search field, whichever renderer draws the map. `<TableAlternative/>` takes
 `pageSize` for this: one page per table with previous and next buttons, a
 status line naming the rows shown, a search field over all tables, and
 `aria-rowcount`/`aria-rowindex`. At or below the limit, and without
-`pageSize`, the DOM is unchanged. New strings
+`pageSize`, the DOM is unchanged. In the map's table view the keys are the
+table's (its rows, search field and pages); only Escape from a row clears the
+selection, as on the map. Before, the map's keyboard routes also took them:
+the arrows, Home and End moved its hidden keyboard position and Space
+toggled its selection. New strings
 `map.described.bounded`, `table.search`, `table.rows`, `table.previous` and
 `table.next` in English and German.
