@@ -63,3 +63,8 @@ second gets `:1` after the id. Both got one id before, so the graph failed
 
 `focusHighlight` reads a focus that is not a pair as one id, also when a node
 came without an id; it threw a `TypeError` before.
+
+`routeSequenceFlows` (and with it `repositionNodes` and the BPMN layout)
+leaves a box with a number that is not finite out of the routing, as if it
+were missing. Such a box could keep the search going until the route outgrew
+an array: a `RangeError` after seconds of work and gigabytes of memory.

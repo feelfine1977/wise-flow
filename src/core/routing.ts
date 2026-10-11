@@ -1,5 +1,5 @@
 /** Orthogonal visibility-grid routing after swimlane placement. */
-import { straightRoute, type Box, type EdgeRoute, type Positions, type XY, createPositions } from "./layout.js";
+import { straightRoute, type Box, type EdgeRoute, type Positions, type XY, createPositions, finiteBox } from "./layout.js";
 import type { FlowGraph } from "./model.js";
 
 type Port = { point: XY; outside: XY; direction: number };
@@ -85,7 +85,9 @@ function simplify(points: XY[]): XY[] {
  * prefer short routes with few bends and discourage shared tracks/crossings.
  * Crossings remain possible in non-planar diagrams; they are not junctions.
  */
-export function routeSequenceFlows(graph: FlowGraph, nodes: Record<string, Box>, options: { allowOverlap?: boolean } = {}): Record<string, EdgeRoute> {
+export function routeSequenceFlows(graph: FlowGraph, given: Record<string, Box>, options: { allowOverlap?: boolean } = {}): Record<string, EdgeRoute> {
+  // A box with a number that is not finite is left out as if missing: no search can end on it.
+  const nodes = Object.fromEntries(Object.entries(given).filter(([, b]) => finiteBox(b)));
   const boxes = Object.values(nodes);
   if (!boxes.length) return {};
   for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { layout, repositionNodes, type Box, type FlowGraph, type Positions, type XY } from "../../src/index";
+import { layout, repositionNodes, routeSequenceFlows, type Box, type FlowGraph, type Positions, type XY } from "../../src/index";
 import raw from "../fixtures/o2c-observed.json";
 
 const graph = raw as unknown as FlowGraph;
@@ -71,6 +71,18 @@ describe("repositioning malformed input", () => {
     expect(moved.nodes.a).toEqual({ x: 0, y: 200, width: 180, height: 60 });
     expect(moved.nodes.b).toEqual(boxes.b);
     expect(Object.keys(moved.edges).sort()).toEqual(["e1", "undefined"]);
+  });
+
+  it("leaves a box with a number that is not finite out of routing instead of searching without end", () => {
+    // Shrunk from a search: the box of n3 is -Infinity high; the search ran in a loop until the route outgrew an array.
+    const graph: FlowGraph = {
+      nodes: ["n0", "n2", "n3"].map((id) => ({ id, kind: "activity" as const, label: id })),
+      edges: [{ id: "n3->n2", kind: "follows", source: "n3", target: "n2" }, { id: "n0->n2", kind: "follows", source: "n0", target: "n2" }],
+    };
+    const nodes: Record<string, Box> = { n0: { x: 40, y: 40, width: 180, height: 48 }, n2: { x: 480, y: 0, width: 180, height: 48 }, n3: { x: 0, y: 100, width: 180, height: -Infinity } };
+    const routes = routeSequenceFlows(graph, nodes, { allowOverlap: true });
+    expect(Object.keys(routes)).toEqual(["n0->n2"]);
+    expect(routes["n0->n2"].points.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))).toBe(true);
   });
 });
 

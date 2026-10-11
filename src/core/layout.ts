@@ -181,7 +181,7 @@ export function createPositions(contents: PositionsContents, engine: LayoutEngin
   return { nodes, groups, edges, bounds: positionsBounds(contents), engine, direction };
 }
 
-const finiteBox = (b: Box | undefined): b is Box => !!b && Number.isFinite(b.x) && Number.isFinite(b.y) && Number.isFinite(b.width) && Number.isFinite(b.height);
+export const finiteBox = (b: Box | undefined): b is Box => !!b && Number.isFinite(b.x) && Number.isFinite(b.y) && Number.isFinite(b.width) && Number.isFinite(b.height);
 
 /** Positions without the boxes and routes holding a number that is not finite; the same object when there is none. */
 export function finitePositions(p: Positions): Positions {

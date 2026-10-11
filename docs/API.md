@@ -1757,7 +1757,10 @@ carry a routing cost. Return connections remain present. This is a readable
 heuristic, not an optimal or crossing-free graph layout. Crossing lines do not
 create a junction. Row gaps default to 56 units and lane padding to 48 units.
 Overlapping or otherwise unroutable supplied geometry raises a descriptive
-error instead of silently drawing a connection through a task.
+error instead of silently drawing a connection through a task. A box with a
+number that is not finite is left out of the routing as if it were missing,
+so its edges get no route; up to 0.3.5 such a box could keep the search
+going until its route outgrew an array (a `RangeError` after seconds).
 
 `BpmnView.navigation` defaults to `controls`. Hosts with their own Map/Model/Table
 switch can pass `controls={false} navigation` to keep zoom, whole-model fit and
