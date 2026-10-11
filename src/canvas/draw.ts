@@ -5,7 +5,7 @@
  * a recording stub in tests. When the scene is large, only the elements the
  * scene's R-tree finds in the viewport are read, in the order of a full draw.
  */
-import { type Arrowhead, type Box, type BoxSide, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type Selection, type ShownEdges, type Theme, arrowheadExtent, arrowheadTokens, dimensionTokens, fitChars, fitLead, fixedColors, formatCompact, formatNumber, formatShare, hatchTokens, legendLayout, legendMetrics, budgetEdges, lodAt, markArrowhead, opacityTokens, patternTokens, patternTwin, t, truncateText } from "../core/index.js";
+import { type Arrowhead, type Box, type BoxSide, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type Selection, type ShownEdges, type Theme, arrowheadExtent, arrowheadTokens, dimensionTokens, fitChars, fitLead, fixedColors, formatCompact, formatNumber, formatShare, hatchTokens, legendLayout, legendMetrics, budgetEdges, lodAt, markArrowhead, patternTokens, patternTwin, t, truncateText } from "../core/index.js";
 import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene.js";
 import { type CanvasTokens, sceneTokens } from "./tokens.js";
 
@@ -355,7 +355,7 @@ function drawEdge(ctx: DrawContext, e: SceneEdge, tokens: CanvasTokens, theme: T
   const m = e.mark;
   const pts = m.points;
   if (pts.length < 2) return;
-  ctx.globalAlpha = dimmed ? opacityTokens.dimmedPath : 1;
+  ctx.globalAlpha = dimmed ? theme.opacity.dimmedPath : 1;
   const color = highlighted ? tokens.focus : m.color;
   ctx.strokeStyle = color;
   ctx.lineWidth = highlighted ? Math.max(m.width, theme.stroke.canvasPathHighlight) : m.width;
@@ -382,7 +382,7 @@ function drawNode(ctx: DrawContext, scene: PreparedScene, n: SceneNode, tokens: 
   const focused = state.focused === id;
   const hovered = state.hovered === id;
   const dimmed = !n.activityLines && !!state.bright && !state.bright.nodes.has(id);
-  ctx.globalAlpha = dimmed ? opacityTokens.dimmed : 1;
+  ctx.globalAlpha = dimmed ? scene.theme.opacity.dimmed : 1;
   ctx.setLineDash(m.stroke.dash ?? []);
   const cx = b.x + b.width / 2;
   const cy = b.y + b.height / 2;

@@ -18,7 +18,8 @@ variables, and the exports take it too.
 - `Theme` gains `patterns` (the pattern twin of each categorical colour),
   `opacity` (the opacity table; the tints are `tint`, `groupFill`, `bandFill`,
   `bandOddFill`) and `minimum` (the smallest text and stroke, in pt). The
-  marks, `tintColor` and the categorical scale read them; in the default
+  marks, `tintColor`, the categorical scale, the Canvas map's dimming and the
+  exports' legend rule read them; in the default
   theme they are the table's values, so nothing draws differently.
 - `checkTheme(theme)` returns as `ThemeDeviation`s what falls short in either
   scheme: text contrast under 4.5 : 1, line contrast under 3 : 1, a path ramp

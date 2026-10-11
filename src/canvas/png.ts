@@ -2,7 +2,7 @@
  * PNG export: the scene drawn with the canvas routines into an offscreen
  * canvas, in the same figure frame and with the same legend as `toSVG`.
  */
-import { type ColorScheme, type EdgeBudget, type FigurePreset, type Scene, type ShownEdges, type ThemeSetting, budgetEdges, figureFrame, figureMetrics, formatCount, opacityTokens, t } from "../core/index.js";
+import { type ColorScheme, type EdgeBudget, type FigurePreset, type Scene, type ShownEdges, type ThemeSetting, budgetEdges, figureFrame, figureMetrics, formatCount, t } from "../core/index.js";
 import { type DrawContext, drawLegend, drawScene, fontOf } from "./draw.js";
 import { prepareScene } from "./scene.js";
 import { type CanvasTokens, sceneTokens } from "./tokens.js";
@@ -112,7 +112,7 @@ export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
   if (frame.legend) {
     const { rule, x, y, width } = frame.legend;
     ctx.strokeStyle = tokens.neutral;
-    ctx.globalAlpha = opacityTokens.legendRule;
+    ctx.globalAlpha = prepared.theme.opacity.legendRule;
     ctx.lineWidth = 1;
     ctx.setLineDash([]);
     ctx.beginPath();

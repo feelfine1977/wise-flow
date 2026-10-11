@@ -198,6 +198,20 @@ describe("the exports in a theme", () => {
     for (const svg of [light, toSVG({ graph, positions }, { theme: "print" })]) for (const word of ["var(", "oklch(", "color-mix("]) expect(svg).not.toContain(word);
   });
 
+  it("draw the theme's opacities: the legend's rule in the exports, dimmed elements on the Canvas", () => {
+    const theme = resolveTheme({ opacity: { legendRule: 0.8, dimmed: 0.2, dimmedPath: 0.1 } });
+    const scene = { graph: kinds.graph, positions: kinds.positions, overlays: kinds.overlays };
+    expect(toSVG(scene)).toContain('stroke-opacity="0.4"/>');
+    expect(toSVG(scene, { theme })).toContain('stroke-opacity="0.8"/>');
+    const png = recording();
+    toPNGCanvas(scene, { theme, scale: 1, createCanvas: () => ({ width: 0, height: 0, getContext: () => png.ctx }) });
+    expect(png.log).toContain("globalAlpha=0.8");
+    const { ctx, log } = recording();
+    const bright = { nodes: new Set<string>(), edges: new Set<string>() };
+    drawScene(ctx, prepareScene(graph, positions, { theme, lodBySize: false }), { x: 0, y: 0, zoom: 1, width: 900, height: 200 }, { selection: { nodes: [], edges: [], groups: [] }, bright }, { cull: false });
+    expect([log.includes("globalAlpha=0.2"), log.includes("globalAlpha=0.1")]).toEqual([true, true]);
+  });
+
   it("draw the scheme's neutral into the paths", () => {
     const { ctx, log } = recording();
     const theme = resolveTheme(undefined, { dark: { neutral: "#777777" } });

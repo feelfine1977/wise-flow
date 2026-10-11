@@ -16,7 +16,7 @@ import { type FlowScene, buildScene } from "./scene.js";
 import { type StyleSpec, lodAt, patternDefs } from "./style.js";
 import { t } from "./strings.js";
 import { type ColorScheme, type ThemeSetting, resolveTheme } from "./theme.js";
-import { type ColorToken, arrowheadTokens, dimensionTokens, opacityTokens } from "./tokens.js";
+import { type ColorToken, arrowheadTokens, dimensionTokens } from "./tokens.js";
 
 export interface Scene {
   activityLabels?: ActivityLabelOptions;
@@ -294,7 +294,7 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
   if (frame.legend) {
     const { rule, x, y, width, layout } = frame.legend;
     parts.push(`<g class="wf-legend" transform="translate(${num(rule.x)} ${num(rule.top)})">`);
-    parts.push(`<path d="M0 0V${num(rule.bottom - rule.top)}" stroke="${colors.neutral}" stroke-opacity="${opacityTokens.legendRule}"/>`);
+    parts.push(`<path d="M0 0V${num(rule.bottom - rule.top)}" stroke="${colors.neutral}" stroke-opacity="${theme.opacity.legendRule}"/>`);
     parts.push(`<g transform="translate(${num(x - rule.x)} ${num(y - rule.top)})">${drawLegend(ctx, width, layout)}</g>`);
     parts.push(`</g>`);
   }
