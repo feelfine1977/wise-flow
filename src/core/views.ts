@@ -6,7 +6,7 @@
 import { type AbstractOptions, abstract } from "./aggregate.js";
 import { type LayoutOptions, type Positions, filterPositions, layout } from "./layout.js";
 import { type FlowGraph, type Metrics, type Overlay, metric } from "./model.js";
-import { type ChannelSpec, type ColorSpec, type Scales, type StyleSpec, buildScales, defaultStyle } from "./style.js";
+import { type ChannelSpec, type ColorSpec, type Scales, type StyleSpec, buildScales, defaultStyle, pathScaleMax } from "./style.js";
 
 /** What one view encodes. Metrics are merged over the base graph's metrics by id. */
 export interface ViewSpec {
@@ -84,8 +84,10 @@ function extent(values: number[]): [number, number] | undefined {
 /**
  * Resolve views on known positions: every view gets its graph (base metrics
  * merged with its own), its overlays and scales. With shared scales the domain
- * of a metric on a channel is the extent of that metric over all views, so the
- * same colour or width means the same number in every view.
+ * of a metric on a colour channel is the extent of that metric over all views,
+ * and every view's width scale runs from 0 to the strongest path of any view
+ * before abstraction (`ChannelSpec.max`), so the same colour or width means the
+ * same number in every view.
  */
 export function resolveViews(base: FlowGraph, views: ViewSpec[], positions: Positions, options: Pick<BuildViewsOptions, "shareScales"> = {}): ViewSet {
   const share = options.shareScales ?? true;
@@ -98,14 +100,12 @@ export function resolveViews(base: FlowGraph, views: ViewSpec[], positions: Posi
   // Paths count cases, or transitions where no view gives cases for them (as `buildScales` decides for one graph).
   const measured = (name: string) => edgeValues(name).some(Number.isFinite);
   const widthMetric = (name: string) => (name === "cases" && !measured("cases") && measured("count") ? "count" : name);
-  const widthDomain = (spec: ChannelSpec): [number, number] => {
-    if (spec.domain) return spec.domain;
+  // The width scales of all views run from 0 to one upper end: the strongest path of any of them before abstraction.
+  const widthMax = (spec: ChannelSpec): number => {
+    if (spec.max !== undefined) return spec.max;
     const key = `edgeWidth:${spec.metric}`;
-    if (!domains[key]) {
-      const ext = extent(edgeValues(spec.metric)) ?? [0, 1];
-      domains[key] = ext[0] === ext[1] ? [0, ext[1] || 1] : ext;
-    }
-    return domains[key] as [number, number];
+    if (!domains[key]) domains[key] = [0, graphs.reduce((m, g) => Math.max(m, pathScaleMax(g, spec.metric) ?? 0), 0) || 1];
+    return domains[key][1];
   };
   const colorDomain = (channel: "edgeColor" | "nodeColor", spec: ColorSpec): number[] | undefined => {
     if (!spec.metric) return undefined;
@@ -132,7 +132,7 @@ export function resolveViews(base: FlowGraph, views: ViewSpec[], positions: Posi
     const style: StyleSpec = share
       ? {
           ...spec,
-          edgeWidth: spec.edgeWidth ? { ...spec.edgeWidth, metric: widthMetric(spec.edgeWidth.metric), domain: widthDomain({ ...spec.edgeWidth, metric: widthMetric(spec.edgeWidth.metric) }) } : undefined,
+          edgeWidth: spec.edgeWidth ? { ...spec.edgeWidth, metric: widthMetric(spec.edgeWidth.metric), ...(!spec.edgeWidth.domain && { max: widthMax({ ...spec.edgeWidth, metric: widthMetric(spec.edgeWidth.metric) }) }) } : undefined,
           edgeColor: spec.edgeColor ? { ...spec.edgeColor, domain: colorDomain("edgeColor", spec.edgeColor) } : undefined,
           nodeColor: spec.nodeColor ? { ...spec.nodeColor, domain: colorDomain("nodeColor", spec.nodeColor) } : undefined,
         }

@@ -29,7 +29,11 @@ export function Legend({ scales, overlays = [], locale = "en", chips, legend }: 
               <div key={i}>
                 <dt>{row.title}</dt>
                 <dd className="wf-legend__width">
-                  {row.samples.map((s, j) => [<span key={j} style={{ height: s.width }} />, ` ${s.text}`])}
+                  {row.samples.map((s, j) => (
+                    <span key={j} className="wf-legend__sample">
+                      <span className="wf-legend__stroke" style={{ height: s.width }} /> {s.text}
+                    </span>
+                  ))}
                 </dd>
               </div>
             );

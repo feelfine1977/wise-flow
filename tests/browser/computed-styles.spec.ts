@@ -42,6 +42,11 @@ import { fileURLToPath } from "node:url";
  * the keys in a row that wraps, one per badge glyph and for the start and the
  * end), the paths' stroke widths, now their cases, and the colours of the
  * stages Purchase order, Invoice and Payment wherever they are painted changed.
+ * They were recorded once more when path width took one scale per graph: only
+ * the paths' stroke widths changed, and the legend's width samples, each a
+ * stroke span with its value inside a span of its own
+ * (`span.wf-legend__sample`, `span.wf-legend__stroke`), so that the samples
+ * wrap whole and keep their length.
  * Geometry
  * that depends on the fonts of the machine (widths, heights, positions) is left
  * out, so the record holds on every operating system.

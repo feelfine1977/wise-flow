@@ -121,16 +121,24 @@ const observed: Variant = {
  * unit, writes three width samples, a key per badge glyph and the start and
  * end; and a caption line under the map gives the label, cases, period and
  * how much of the model is shown, which makes the figure 40 taller.
+ * Recorded once more when path width took one scale per graph: compared group
+ * by group, every node, group and overlay group is the same, and an edge group
+ * differs only in its path's `stroke-width` (the square root from 0 to the
+ * strongest path of the log, 194,821 cases, onto 0 to 8, never under 1); the
+ * legend's width row names the scale "scale of the whole graph" on a second
+ * line and writes "≤ 3,044 (thinnest)", "62,000" and "195k" at 1,
+ * 4.51 and 8 (it wrote the shown paths' ends and middle), so the rows below it
+ * and the figure's height move 16.
  */
 
 const before: Record<string, string> = {
-  overlays: "b6fac0716e7471d469e24fc463457f80b2b5244cf3593d4a0daab88ea34f2269",
-  stagesGerman: "b24f53f6a0a0c9b710c2be984345474ece574ca53959a099ad92938f4942e642",
-  vendor: "7efe7b57bf497a816f14e4f008b88d7a552cb5cb7b4c4c5b376d2389f8ffb04c",
-  unfiltered: "61f9ffe82bda19099a73600467439f9e4e7d378db1ede8cdb2cf9dbf19e66fed",
-  plain: "11a615b3cd476459c3d6cd413dcb44ada256d026cf6e9f8b0b1d22e70f161a13",
+  overlays: "9dc0cbcc27fa9f3f287172c8498e4b7de8ff6c0f2f7657129ed61bdce19bd7d1",
+  stagesGerman: "8c0e356e7f25bbd3af9f1d317080c4271ac2b45b14eff3ce3980d26ff0f02c63",
+  vendor: "ffab4c6c199f9140c40e29410605886e33698de3b09aff8edcc26a651af1139b",
+  unfiltered: "af589475b0096992d849b27efdb0fb092a213d3c2176c57e61b390d78e394615",
+  plain: "3bddd9b9a55a57d0b2ee7304ccd67f3aaa934afb538579d6bf102a07a587913e",
 };
-const beforeObserved = "34da5785a3dafa123646d524aa2b318b7b8664562e12156f5208f8ffbe930d3a";
+const beforeObserved = "fb81115b3458fdc57d5853788febf6d66675bc5f18e198deb2b4ba3fc90bc94e";
 
 describe("toSVG on the committed fixtures", () => {
   it("matches the recorded output once follows self-loops are hidden", () => {

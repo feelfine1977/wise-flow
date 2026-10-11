@@ -25,7 +25,8 @@ export interface Overlay { kind: OverlayKind; target: string; payload?: OverlayP
 export interface FlowGraph { nodes: FlowNode[]; edges: FlowEdge[]; groups?: FlowGroup[];
   overlays?: Overlay[]; meta?: FlowMeta; focus?: string; paths?: FlowPaths; }   // focus, paths: 0.3
 export interface FlowMeta { abstraction?: number | AbstractionMeta; model?: ModelOutline; [key: string]: unknown }
-export interface ModelOutline { activities?: number; paths?: number; groups?: string[] }   // the model before abstraction
+export interface ModelOutline { activities?: number; paths?: number; groups?: string[];   // the model before abstraction
+  pathMax?: Record<string, number> }   // the largest value of each metric over its paths: the upper end of the path width's scale
 export interface AbstractionMeta { minEdgeShare?: number; minNodeShare?: number; keepConnected?: boolean;
   collapse?: string[] | "all" }
 
@@ -310,7 +311,11 @@ the layout rejects with `LayoutUnavailableError` instead of freezing the page.
 ```ts
 export interface StyleSpec { edgeWidth?: ChannelSpec; edgeColor?: ColorSpec; nodeColor?: ColorSpec; lod?: Partial<LodRules>;
   stages?: readonly string[] }   // the host's full stage list in stage order: categorical colours follow it
-export const defaultStyle: StyleSpec;   // width and colour ← cases (sqrt; 1–8 px, the neutral ramp; transitions where paths give no cases), nodes by group
+export interface ChannelSpec { metric: string; scale?: "linear" | "sqrt" | "log";
+  max?: number;                   // the upper end of the width's scale, which runs from 0 to it; default the graph's strongest path before abstraction
+  domain?: [number, number];      // values the range is stretched over instead (the lower end at the thinnest line)
+  range?: [number, number] }      // the thinnest line and the width of the upper end; default the theme's pathMin and pathMax, 1 and 8
+export const defaultStyle: StyleSpec;   // width and colour ← cases (width: sqrt from 0 to the graph's strongest path onto 0–8 px, never under 1; colour: the neutral ramp; transitions where paths give no cases), nodes by group
 export const shortfallStyle: StyleSpec; // width ← cases, colour ← violationShare on the shortfall palette (the default up to 0.3)
 export const diffStyle: StyleSpec;      // width ← cases, colour ← delta_violationShare on the diverging palette
 export function buildScales(g: FlowGraph, spec?: StyleSpec, theme?: Theme): Scales;   // in the theme's palettes, default `defaultTheme`
@@ -322,7 +327,8 @@ export interface CategoricalEntry { key: string; color: string; pattern: Pattern
 export function orderedCategorical(keys: Iterable<string>, theme?: Theme): Map<string, CategoricalEntry>;
 export type LegendItem =   // `title` is a string key for `t` (it was typed `string`)
   | { kind: "width"; title: StringKey; metric: string; domain: [number, number]; range: [number, number];
-      samples?: { value: number; width: number }[];   // the domain's ends and a count near the middle width
+      samples?: { value: number; width: number; floor?: boolean }[];   // the thinnest line (floor) with the largest value it stands for, a count near the middle width, the upper end
+      scale?: "graph" | "shared";                     // from 0 to the graph's strongest path, or to the style's `max`; none with a `domain`
       transitionsOnly?: boolean }                     // the paths give only transition counts
   | { kind: "sequential" | "diverging"; title: StringKey; metric: string; domain: number[]; stops: readonly string[] }
   | { kind: "categorical"; title: StringKey; entries: CategoricalEntry[] };
@@ -362,9 +368,32 @@ keep working and are the theme's `shortfall` and `performance`. Data colours
 are read from the theme the scales are built in, so a theme with other
 palettes colours paths, activities and groups by them.
 
+**One width scale per graph.** A path's width depends on its value alone:
+a square-root scale from 0 to the strongest path of the graph the map is
+given, before any abstraction, onto 0 to 8 (`range[1]`), rounded to
+hundredths, and a path whose width rounds under the thinnest line (`range[0]`,
+1) is drawn at it. `abstract` records the largest value of each metric over the
+paths of the graph before it (`meta.model.pathMax`, kept from an earlier
+abstraction, as the rest of `meta.model`), and the scales read the upper end
+from there, else from the graph's own paths. So moving the map's sliders,
+focusing or collapsing stages does not change the width of a path that stays;
+a collapsed stage's merged path is read on the same scale (its cases are the
+largest of the merged paths', a summed count above the upper end is drawn at
+8). A host gives several maps one scale with `edgeWidth.max`, the upper end
+(`{ ...defaultStyle, edgeWidth: { ...defaultStyle.edgeWidth, max: 250000 } }`);
+`resolveViews` gives its views the strongest path of any of them. A `domain`
+keeps the former reading: the range stretched over its values. The legend's
+width row says whose scale it is ("Path width: cases (count) · scale of the
+whole graph", "· scale shared by the maps" with `max`) and shows the same three
+samples at every setting: the thinnest line with the counts it stands for
+("≤ 3,044 (thinnest)", German "≤ 3.044 (dünnste)"), a count
+near the middle width, and the upper end. Up to 0.3 the scale ran from the
+weakest to the strongest path shown, so a path changed its width when a slider
+moved (`pathScaleMax`, the upper end a graph gives, is internal).
+
 **Paths by cases.** In the default style a path's colour and its width both
-mean its count: the width on a square-root scale from 1 to 8, the colour on
-the same square-root scale along the theme's `neutral` ramp (`ColorSpec.scale:
+mean its count: the width on the graph's square-root scale above, the colour
+on a square-root scale over the paths' values along the theme's `neutral` ramp (`ColorSpec.scale:
 "sqrt"`; `"linear"`, the default, runs evenly over the domain). The ramp is a
 grey that gets darker with more cases in the light scheme (`#8c8c8c` to
 `#141414`) and brighter with more cases in the dark scheme (`#6e737d` to
@@ -788,8 +817,10 @@ a lag performance, a difference difference; the unit is `Scales.pathMetric`;
 the cases are `meta.cases`, left out when unknown). Then the scales, each
 titled "channel: metric (unit)" from the metric registry ("Path width: cases
 (count)", "Path colour: expectation shortfall (% of cases)", "Activity colour:
-stage"): path width with three sample strokes and their values (the domain's
-ends and a count near the middle width, written as paths are), a colour ramp
+stage"): path width with three sample strokes and their values (the thinnest
+line with the counts it stands for, a count near the middle width and the
+graph's strongest path, written as paths are; see "One width scale per
+graph"), a colour ramp
 with its values, the stages as swatches with their labels and pattern twins.
 Where the paths give only transitions, the path row says so ("Path width:
 transitions (count) · paths count transitions; no case counts given"). Then
@@ -1154,10 +1185,14 @@ export function viewsSharePositions(set: ViewSet): boolean;
 
 Every view renders the same graph (ids, elements, positions) with its own
 metrics (merged over the base graph's by id), overlays and style. With
-`shareScales` (default) the domain of a metric on a channel is its extent
-over all views, so equal colours and widths mean equal numbers across the
-views; the filled-in domains are returned in `views[i].style` and
-`domains` (`"edgeWidth:count"`, `"edgeColor:medianLagHours"`, …).
+`shareScales` (default) the domain of a metric on a colour channel is its
+extent over all views, and every view's width runs from 0 to one upper end,
+the strongest path of any view before abstraction (`edgeWidth.max`, unless the
+view's style gives a `max` or a `domain`), so equal colours and widths mean
+equal numbers across the views; the filled-in domains and upper ends are
+returned in `views[i].style` and `domains` (`"edgeWidth:count"` as `[0,
+max]`, `"edgeColor:medianLagHours"`, …). Up to 0.3 the views shared the
+width's `domain`, the extent of its values.
 
 ## BPMN (`@wise/flow/bpmn`, 0.2)
 

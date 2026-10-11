@@ -197,7 +197,10 @@ edges. These positions carry `engine: "provisional"`.
 
 ### 2.4 Style
 `buildScales` builds d3 scales from metric ranges: edge width ← count
-(square root), edge and node colour ← a chosen metric on colour-blind-safe
+(square root from 0 to the strongest path of the graph before abstraction,
+which `abstract` records in `meta.model.pathMax`, or to an upper end the host
+gives, never under the thinnest line; so a path keeps its width when the
+sliders move), edge and node colour ← a chosen metric on colour-blind-safe
 sequential (single hue), diverging (purple–orange) and categorical
 (Okabe–Ito without orange and vermilion) palettes. The default style colours
 a path by its cases too, on the same square-root scale along the theme's grey
@@ -352,8 +355,9 @@ into the figure.
 ### 2.7 Views
 `buildViews(graph, views)` lays the base graph out once and resolves named
 views on it: every view carries its own metrics (merged over the base by
-id), overlays and style. The domain of a metric on a channel is computed
-over all views, so the same colour or width means the same number in
+id), overlays and style. The domain of a metric on a colour channel is
+computed over all views, and every width runs to the strongest path of any of
+them, so the same colour or width means the same number in
 Finance, Logistics, Compliance and Automation alike; the filled-in domains
 are returned with each view's style. `<ViewSwitcher/>` renders the views
 as tabs or as small multiples with a shared selection.

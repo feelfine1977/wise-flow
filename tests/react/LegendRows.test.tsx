@@ -122,11 +122,11 @@ describe("the legends of SVG, Canvas and React", () => {
     expect(unconnected.edges.some((e) => e.tags?.includes("reconnected"))).toBe(false);
     expect(keysOf(legends.unconnected.legend)).toEqual(["↻", "○", "◉"]);
     // The measure with its unit and what the shares are of (the 251,734 cases of the log), then each scale's metric and unit.
-    expect(legends.plain.react.texts.slice(0, 3)).toEqual(["Legend", "Frequency · cases · share of 251,734 cases", "Path width: cases (count)"]);
+    expect(legends.plain.react.texts.slice(0, 3)).toEqual(["Legend", "Frequency · cases · share of 251,734 cases", "Path width: cases (count) · scale of the whole graph"]);
     expect(legends.plain.react.texts.slice(-8)).toEqual(["↻", "Repeated execution", "┄", "Not directly observed (re-added)", "○", "Start of the process", "◉", "End of the process"]);
     expect(legends.unconnected.react.texts.slice(-6)).toEqual(["↻", "Repeated execution", "○", "Start of the process", "◉", "End of the process"]);
     expect(legends.vendorGerman.svg.texts[0]).toBe("Legende");
-    expect(legends.vendorGerman.react.texts).toEqual(expect.arrayContaining(["Pfadbreite: Fälle (Anzahl)", "Pfadfarbe: Fälle (Anzahl)", "Aktivitätsfarbe: Phase", "Prozessbeginn", "Prozessende"]));
+    expect(legends.vendorGerman.react.texts).toEqual(expect.arrayContaining(["Pfadbreite: Fälle (Anzahl) · Skala des ganzen Graphen", "Pfadfarbe: Fälle (Anzahl)", "Aktivitätsfarbe: Phase", "Prozessbeginn", "Prozessende"]));
     // Three width samples, written as paths are.
     expect(legends.plain.legend.rows.find((r) => r.kind === "width")).toMatchObject({ samples: [{}, {}, {}] });
   });

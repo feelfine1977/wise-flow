@@ -116,12 +116,12 @@ describe("legendOfScene", () => {
 
   it("names the measure, the metric and the unit of every scale, and says when paths count transitions", () => {
     const titles = (g: FlowGraph, locale: "en" | "de" = "en") => buildScene(g, at, { selfLoops: false, locale }).legend.rows.map((r) => (r.kind === "measure" ? r.text : "title" in r ? r.title : r.kind));
-    // The paths give only transitions: the width reads them and its row says so.
-    expect(titles(graph)).toEqual(["Frequency · transitions", "Path width: transitions (count) · paths count transitions; no case counts given", "Path colour: transitions (count)"]);
+    // The paths give only transitions: the width reads them and its row says so, after naming the scale the graph's.
+    expect(titles(graph)).toEqual(["Frequency · transitions", "Path width: transitions (count) · scale of the whole graph · paths count transitions; no case counts given", "Path colour: transitions (count)"]);
     // With cases on the paths and the cases of the log, as the activities count them.
     const cased: FlowGraph = { ...graph, edges: [{ ...graph.edges[0], metrics: { count: 6, cases: 5 } }], meta: { cases: 1000 } };
-    expect(titles(cased)).toEqual(["Frequency · cases · share of 1,000 cases", "Path width: cases (count)", "Path colour: cases (count)"]);
-    expect(titles(cased, "de")).toEqual(["Häufigkeit · Fälle · Anteil an 1.000 Fällen", "Pfadbreite: Fälle (Anzahl)", "Pfadfarbe: Fälle (Anzahl)"]);
+    expect(titles(cased)).toEqual(["Frequency · cases · share of 1,000 cases", "Path width: cases (count) · scale of the whole graph", "Path colour: cases (count)"]);
+    expect(titles(cased, "de")).toEqual(["Häufigkeit · Fälle · Anteil an 1.000 Fällen", "Pfadbreite: Fälle (Anzahl) · Skala des ganzen Graphen", "Pfadfarbe: Fälle (Anzahl)"]);
     // Colour by the median lag, in minutes, hours and days.
     const lag = buildScene(cased, at, { selfLoops: false, style: { edgeWidth: { metric: "cases" }, edgeColor: { metric: "medianLagHours", palette: "sequentialBlue", domain: [0.5, 72] } } }).legend.rows;
     expect(lag[0]).toEqual({ kind: "measure", text: "Performance · cases · share of 1,000 cases" });
@@ -131,16 +131,18 @@ describe("legendOfScene", () => {
     expect(buildScene(staged, at, { selfLoops: false }).legend.rows.find((r) => r.kind === "swatches")).toMatchObject({ title: "Activity colour: stage", entries: [{ text: "G" }] });
   });
 
-  it("writes three width samples: the ends of the domain and a count near the middle width", () => {
+  it("writes three width samples: the thinnest line with the counts it stands for, a count near the middle width and the strongest path", () => {
     const wide: FlowGraph = { ...graph, edges: [
       { id: "a->b", kind: "follows", source: "a", target: "b", metrics: { cases: 38 } },
       { id: "b->a", kind: "follows", source: "b", target: "a", metrics: { cases: 113_000 } },
     ] };
-    const row = buildScene(wide, at, { selfLoops: false }).legend.rows.find((r) => r.kind === "width");
-    // √v halfway between √38 and √113,000 (widths 1 to 8, the middle 4.5): ((6.164 + 336.155) / 2)² = 29,301, so 29,000,
-    // drawn at the width it has: √29,000 = 170.29 lies (170.29 − 6.164) / 329.991 = 0.4974 of the way, 1 + 7 × 0.4974 = 4.48.
+    const scene = buildScene(wide, at, { selfLoops: false });
+    // From 0 to 113,000 onto 0 to 8 by the square root: the thinnest line 1 stands for counts up to 113,000 / 64 = 1,765.6, the
+    // middle width 4.5 for 113,000 × (4.5 / 8)² = 35,754, so 36,000, drawn at √(36,000 / 113,000) × 8 = 4.52.
     // Paths are written in full up to 99,999, then in thousands.
-    expect(row).toEqual({ kind: "width", title: "Path width: cases (count)", samples: [{ width: 1, text: "38" }, { width: 4.48, text: "29,000" }, { width: 8, text: "113k" }] });
+    expect(scene.legend.rows.find((r) => r.kind === "width")).toEqual({ kind: "width", title: "Path width: cases (count) · scale of the whole graph", samples: [{ width: 1, text: "≤ 1,765 (thinnest)" }, { width: 4.52, text: "36,000" }, { width: 8, text: "113k" }] });
+    // 38 cases would be √(38 / 113,000) × 8 = 0.15 wide: drawn at the thinnest line.
+    expect(scene.edgeMarks.map((m) => m.width)).toEqual([1, 8]);
   });
 
   it("lists no key for an overlay that is not drawn", () => {
@@ -351,7 +353,7 @@ describe("the caption of an export", () => {
     expect(figureCaption(collapseGroups(g, ["s"]))).toBe("6 of 9 activities shown");
     // Collapsed before the abstraction: the model is the 42 activities in the stages; its paths are not known.
     const collapsedFirst = abstract(collapseGroups(globalScene, "all"));
-    expect(collapsedFirst.meta?.model).toEqual({ activities: 42, groups: [] });
+    expect(collapsedFirst.meta?.model).toEqual({ activities: 42, groups: [], pathMax: expect.any(Object) });
     expect(figureCaption(collapsedFirst)).toBe("All purchase order items · 251,734 cases · 1948-01-26 – 2020-04-09 · 42 of 42 activities shown");
   });
 

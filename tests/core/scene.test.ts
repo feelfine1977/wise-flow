@@ -179,17 +179,23 @@ describe("buildScene", () => {
 
   it("builds the scales over the follows edges", () => {
     const scene = buildScene(graph, positions);
-    // The width reads cases, as the activities count: 8, 4 and 2; the colour reads them too, on the same scale.
-    expect(scene.scales.domains.edgeWidth).toEqual([2, 8]);
+    // The width reads cases, as the activities count: 8, 4 and 2, on a scale from 0 to the strongest; the colour reads them over their extent.
+    expect(scene.scales.domains.edgeWidth).toEqual([0, 8]);
     expect(scene.scales.domains.edgeColor).toEqual([2, 8]);
     expect(scene.scales.edgeWidth(graph.edges[0])).toBe(8);
-    // √4 lies (2 − √2) / (√8 − √2) = 0.414 of the way from √2 to √8: 1 + 7 × 0.414 = 3.9.
-    expect(scene.scales.edgeWidth(graph.edges[1])).toBe(3.9);
+    // √(4 / 8) × 8 = 5.66.
+    expect(scene.scales.edgeWidth(graph.edges[1])).toBe(5.66);
     // Transitions, when asked for: 9, 4 and 6.
-    expect(buildScene(graph, positions, { style: { edgeWidth: { metric: "count" } } }).scales.domains.edgeWidth).toEqual([4, 9]);
+    expect(buildScene(graph, positions, { style: { edgeWidth: { metric: "count" } } }).scales.domains.edgeWidth).toEqual([0, 9]);
+    // Linear from 0 onto 0 to 4, never under the thinnest line of 2: 8 → 4, 4 → 2, 2 → 1, so 2.
     const linear = buildScene(graph, positions, { style: { edgeWidth: { metric: "cases", scale: "linear", range: [2, 4] } } });
-    expect(linear.scales.domains.edgeWidth).toEqual([2, 8]);
-    expect(linear.scales.edgeWidth(graph.edges[0])).toBe(4);
+    expect(linear.scales.domains.edgeWidth).toEqual([0, 8]);
+    expect(graph.edges.map((e) => linear.scales.edgeWidth(e))).toEqual([4, 2, 2]);
+    // A domain stretches the range over its values as given.
+    const stretched = buildScene(graph, positions, { style: { edgeWidth: { metric: "cases", scale: "linear", domain: [2, 8], range: [2, 4] } } });
+    expect(graph.edges.map((e) => stretched.scales.edgeWidth(e))).toEqual([4, 2.67, 2]);
+    expect(stretched.legend.items.find((i) => i.kind === "width")).toMatchObject({ samples: [{ value: 2, width: 2 }, { value: 5, width: 3 }, { value: 8, width: 4 }] });
+    expect(stretched.legend.items.find((i) => i.kind === "width")).not.toHaveProperty("scale");
   });
 
   it("merges level-of-detail rules and tightens them by size only on request", () => {

@@ -150,14 +150,18 @@ function exported(fixture: Fixture, scene: Partial<Scene>, options: PngOptions):
  * paths' widths (their cases) and the written numbers and the labels before
  * them changed; in `toPNG` the legend's calls, the pattern twins of those
  * stages, the caption line under the map and the figure's height changed too.
+ * Recorded once more when path width took one scale per graph: the map's
+ * recordings hold as many calls as before and differ only in the paths'
+ * `lineWidth` (as in the SVG export); the legend's width row writes its title
+ * on two lines and the three samples of the graph's scale.
  */
 const before = {
-  mapGlobalStages: "73e7bdbcf27f56808b46e2ecebebf2729d328b95a89a4fde20c1c720325c4df9",
-  mapVendorIds: "7f1a4a1a334de266f658e122b81ced9fc3bdbc8e14abe6a494459ba99d3e1b2e",
-  mapUnfiltered: "08f12397dfda38e2c72ad96529350b494b4d4610fd23e8a8b2c3cd2b9e486a50",
-  pngGlobalTitle: "378b19019faf6523c89ad6b0aad6c211da07905092736fbdbe8fa7f34570bb4a",
-  pngVendorIds: "5eae33f17d2200d35cb741f3488f01ace7e3244fdd0487ad6b3ee6f080d7d4ba",
-  pngUnfilteredGerman: "ba212d3e17fb275aad08bab3046e3b5827559ce0e44367ceff88a8dcb37d4105",
+  mapGlobalStages: "222fb614184378813ac6f531af8e7ae4166d91c7ed281310c8928c35395076be",
+  mapVendorIds: "85d5f54a64cc540aca750e989786e8b5d411e8ed7f525d941055a45ea4af1a67",
+  mapUnfiltered: "4970338d2ffe59a71ac7dc6b3b43531de59449db2a89716c1554523f0eda1e2f",
+  pngGlobalTitle: "595b4d01da472923eb1fc6403f1216d9a03a2ccee336f777d63ccb186b4945e6",
+  pngVendorIds: "981874cbd7e6fa40619e72d7a265c2fe2d80c5f6f0d63f5ca55b95c275b24833",
+  pngUnfilteredGerman: "309c7d9ed9ea1bc32d4ebc8181651e9ba70c626f4c1d31922863fa3aac34f83e",
 };
 
 /**
@@ -182,12 +186,14 @@ const before = {
  * to hold arcs.
  * Recorded once more when the legend became a key and the numbers honest:
  * stage colours, path widths and written numbers changed, as above.
+ * Recorded once more when path width took one scale per graph: only the
+ * paths' widths changed, as above.
  */
 const culledBefore = {
-  culledGlobal: "8ac8126534dd7fafea6ff96c7869b5d9c1aedba9ffe3269c0933e3c027f36f03",
-  culledGlobalStages: "511398f6eb493cdd74c86925972312b6050385a7007b04c8fef29627991303ed",
-  culledVendorIds: "16ff243ca72af4bcefcd054b837db6ff381e4f8d1a51fd3b81c26e2d6b03945b",
-  culledUnfiltered: "2e1d99227704ab7f713c227d78e504bf1911c6811588249102ac2cd2397b3111",
+  culledGlobal: "b07bdbf5681b4d2ecde27b6f1dab98ef61c407518c589d8d3dbdeb05981f0660",
+  culledGlobalStages: "daec6daf0e8237e0fb89e2eda29021e1861d49f4366f3287cc90f442cd66b7a4",
+  culledVendorIds: "388d5885aa59095ef88249838dffec35dae291bbd2b495a3161bffd4951bdb15",
+  culledUnfiltered: "dd519f6009bf0c8c79b0152b14ec64a71f6df10063935ee499c954790a8c1361",
 };
 
 describe("Canvas drawing on the committed fixtures", () => {
