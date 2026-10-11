@@ -64,7 +64,16 @@ export function useStableLayout(scenes: FlowGraph | FlowGraph[] | undefined, opt
   // Size callbacks count by the dimensions they return, so equivalent callbacks do not restart layout.
   const inputs = union ? layoutInputKey(union, options ?? {}) : undefined;
   const [scope] = useState(createLayoutScope);
-  useEffect(() => () => scope.dispose(), [scope]);
+  // Released on unmount; mounted again before the task ends (StrictMode), the scope keeps its layouts and the
+  // layout that is running is joined again rather than started twice.
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      queueMicrotask(() => mounted.current || scope.dispose());
+    };
+  }, [scope]);
   const shown = useRef<Positions>(undefined);
   // What a request shows until its layout arrives.
   const request = useMemo(() => {

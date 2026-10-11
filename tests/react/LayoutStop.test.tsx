@@ -160,7 +160,7 @@ describe("a map mounted twice by StrictMode", () => {
     );
     const map = container.querySelector(".wf-process-map")!;
     await waitFor(() => expect(map.getAttribute("data-layout-status")).toBe("ready"));
-    // The remount started the layout again; the first job's worker is stopped or kept idle, never both alive.
+    // The remount joins the layout the first mount started: one worker, one layout.
     const created = AnsweringWorker.created;
     expect(created.filter((w) => !w.terminated)).toHaveLength(1);
     expect(created.reduce((n, w) => n + w.layouts, 0)).toBe(1);
@@ -179,5 +179,30 @@ describe("a map mounted twice by StrictMode", () => {
     expect(AnsweringWorker.created).toBe(created);
     unmount();
     await waitFor(() => expect(created.every((w) => w.terminated)).toBe(true));
+  });
+
+  it("joins the layout it started when it is mounted again in the same task, instead of laying out twice", async () => {
+    // An engine that is called at once, unlike a worker that loads first: the layout of the first mount has
+    // begun when StrictMode mounts the map again, and the second mount waits for that one.
+    const runs: string[] = [];
+    const elk = {
+      layout: (graph: ElkNode) => {
+        runs.push((graph.children ?? []).map((c) => c.id).join(","));
+        return new Promise<ElkNode>((resolve) => setTimeout(() => resolve({ ...graph, children: (graph.children ?? []).map((child, i) => ({ ...child, x: 100 * i, y: 0 })) }), 5));
+      },
+    } as unknown as ELK;
+    const { container, unmount } = render(
+      <StrictMode>
+        <div style={{ width: 800, height: 600 }}>
+          <ProcessMap graph={chain} layout={{ engine: "elk", elk }} fitView={false} />
+        </div>
+      </StrictMode>,
+    );
+    const map = container.querySelector(".wf-process-map")!;
+    await waitFor(() => expect(map.getAttribute("data-layout-status")).toBe("ready"));
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 20)));
+    expect(runs).toEqual(["a,b,c"]);
+    expect(translate(container, "c")).toEqual({ x: 200, y: 0 });
+    unmount();
   });
 });
