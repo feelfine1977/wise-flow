@@ -19,6 +19,7 @@ input order of the edges, and with it the targets of their overlays and
 `meta.collapsedEdgeTargets`.
 
 The sums and weighted means of a collapsed stage and of a merged edge are
-taken over the members in id order. They were taken in the input order, so a
-fractional metric such as `violationShare` could differ in its last digit
-between two orders of the same input.
+taken over the members in id order, and a stage's `internalCount` sums its
+internal transitions in ascending order. They were taken in the input order,
+so a fractional metric such as `violationShare`, or a fractional `count`,
+could differ in its last digit between two orders of the same input.

@@ -456,6 +456,16 @@ describe("abstract: input order", () => {
     }
     expect([...shown]).toHaveLength(1);
   });
+
+  it("counts the transitions inside a collapsed stage the same way whatever the input order", () => {
+    // Counts of 1/10, 2/10 and 3/10 inside s: 0.1 + 0.2 + 0.3 and 0.3 + 0.2 + 0.1 differ in floating point.
+    const nodes: FlowNode[] = ["a", "b", "d"].map((id) => ({ id, kind: "activity", label: id, group: "s" }));
+    const edges: FlowEdge[] = [["a", "b"], ["b", "d"], ["d", "a"]].map(([source, target], i) => ({ id: `${source}->${target}`, kind: "follows", source, target, metrics: { count: (i + 1) / 10 } }));
+    const counted = new Set<number>();
+    for (const edgeOrder of orders(edges)) counted.add(collapseGroups({ nodes, edges: edgeOrder, groups: [{ id: "s", kind: "stage", label: "S" }] }, ["s"]).nodes[0].metrics!.internalCount);
+    expect([...counted]).toHaveLength(1);
+    expect([...counted][0]).toBeCloseTo(0.6, 12);
+  });
 });
 
 describe("abstract: collapsed metrics", () => {

@@ -183,13 +183,14 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
 
   const merged = new Map<string, FlowEdge[]>();
   const edgeTarget = new Map<string, string>();
-  const internal = new Map<string, number>();
+  const internal = new Map<string, number[]>();
   const order: string[] = [];
   for (const e of graph.edges) {
     const s = nodeTarget.get(e.source) ?? e.source;
     const t = nodeTarget.get(e.target) ?? e.target;
     if (s === t && nodeTarget.has(e.source) && nodeTarget.has(e.target)) {
-      internal.set(s, (internal.get(s) ?? 0) + metric(e, "count", 1));
+      if (!internal.has(s)) internal.set(s, []);
+      internal.get(s)!.push(metric(e, "count", 1));
       edgeTarget.set(e.id, s);
       continue;
     }
@@ -232,7 +233,7 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
   });
   for (const n of nodes) {
     const c = internal.get(n.id);
-    if (c !== undefined) n.metrics = { ...(n.metrics ?? {}), internalCount: c };
+    if (c) n.metrics = { ...(n.metrics ?? {}), internalCount: total(c) };
   }
 
   const targetOf = (id: string) => nodeTarget.get(id) ?? rootOf(id) ?? edgeTarget.get(id) ?? id;
