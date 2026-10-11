@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { gzipSync } from 'node:zlib';
 import { tmpdir } from 'node:os';
@@ -50,7 +50,8 @@ writeFileSync(metadataPath, JSON.stringify(metadata, null, 2) + '\n');
 writeFileSync(join(consumer, 'package.json'), JSON.stringify({ private: true, type: 'module', dependencies: { '@wise/flow': `file:${tarball}`, react: reactVersion, 'react-dom': reactVersion }, devDependencies: { typescript: version('typescript'), vite: version('vite'), '@types/react': reactTypes, '@types/react-dom': reactDomTypes } }, null, 2));
 run('npm', ['install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund'], consumer);
 run('npm', ['ci', '--ignore-scripts', '--no-audit', '--no-fund'], consumer);
-cpSync(join(consumer, 'package-lock.json'), join(artifactDir, 'consumer-package-lock.json'));
+// copyFileSync, not cpSync: on some mounted file systems cpSync leaves a copy that cannot be read or replaced.
+copyFileSync(join(consumer, 'package-lock.json'), join(artifactDir, 'consumer-package-lock.json'));
 assert.equal(lstatSync(join(consumer, 'node_modules/@wise/flow')).isSymbolicLink(), false);
 run(process.execPath, ['--experimental-loader', './deny-react.mjs', 'core.mjs'], consumer);
 run(process.execPath, ['bpmn.mjs'], consumer);
