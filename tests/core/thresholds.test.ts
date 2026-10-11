@@ -378,6 +378,21 @@ describe("the open findings, pinned", () => {
     const covering = checkReading({ fitted: full, full, expect: { graph, abstraction: graph, rung: rungOf(0, false, false), locale: "en" } }).filter((f) => f.property.startsWith("label covers"));
     expect(covering.map((f) => [f.detail, findingOf(f, graph, graph, places)])).toEqual([['arc label "⇐ 47 %" of arc:a4->a0:1 covers a4', "arc label without a place"]]);
   });
+
+  it("tells an arc label on a path's count from the open finding of path counts", () => {
+    // Arc labels keep clear of the counts: one on a count is a fault where its arc had a free place, the rule's fallback where not.
+    const graph: FlowGraph = { nodes: [], edges: [] };
+    const failure = (property: Failure["property"], detail: string): Failure => ({ property, detail, boxes: [] });
+    const onCount = failure("label covers label", 'arc label "⇐ 52 %" of arc:b->a:1 covers path label "110k" of b->a');
+    const countOn = failure("label covers label", 'path label "2" of a->b covers arc label "⇐ 26 %" of arc:b->a:1');
+    expect(findingOf(onCount, graph, graph, new Map([["arc:b->a:1", true]]))).toBeUndefined();
+    expect(findingOf(countOn, graph, graph, new Map([["arc:b->a:1", true]]))).toBeUndefined();
+    expect(findingOf(onCount, graph, graph, new Map([["arc:b->a:1", false]]))).toBe("arc label without a place");
+    // Counts among themselves, on a card or on a badge have no place of their own.
+    expect(findingOf(failure("label covers label", 'path label "40" of a->b covers path label "20" of b->a'), graph, graph)).toBe("path counts");
+    expect(findingOf(failure("label covers card", 'path label "851k" of a->b covers a'), graph, graph)).toBe("path counts");
+    expect(findingOf(failure("label covers label", 'path label "8" of a->b covers badge badge:a:0'), graph, graph)).toBe("path counts");
+  });
 });
 
 /** A reading that draws exactly a graph's nodes and paths, nothing else. */
