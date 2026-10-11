@@ -1427,7 +1427,7 @@ export class CanvasRenderer { constructor(canvas: HTMLCanvasElement, o?: { token
   onViewportChange?: (v: Viewport) => void; lastDraw?: { nodes; edges; shapes; culled; withheld?; ms };
   onDraw?: (stats: { nodes; edges; shapes; culled; withheld?; ms }) => void }   // called after every draw
 export interface CanvasTokens { font; paper; surface; ink; inkMuted; line; lineStrong; cueStripe?; cueFoot?; focus; selection; neutral; outOfScope }
-// cueStripe and cueFoot: the frequency cue's colours; the default theme's where tokens a host builds leave them out
+// cueStripe and cueFoot: the frequency cue's colours; drawScene takes the scene's, in its scheme, where tokens a host builds leave them out
 export const defaultTokens: CanvasTokens;   // from the token table (`colorTokens`, `fontTokens`); without `tokens` a draw takes the scene's colours and font
 export function readTokens(element: Element | null | undefined, overrides?: Partial<CanvasTokens>): CanvasTokens;   // from the CSS variables (`cssVariable(key)`), as they are; <CanvasMap/> reads them with useFlowTheme instead
 export interface PngOptions { preset?: FigurePreset; width?; scale?; background?; legend?; padding?; lodZoom?; tokens?; createCanvas?; context?;

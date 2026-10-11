@@ -8,7 +8,7 @@
  */
 import { type Arrowhead, type Box, type BoxSide, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type PatternLook, type Selection, type ShownEdges, type TextMeasure, type Theme, arrowheadExtent, arrowheadTokens, dimensionTokens, fixedColors, hatchTokens, legendLayout, legendMetrics, budgetEdges, defaultTheme, estimateTextWidth, lodAt, markArrowhead, patternTwin } from "../core/index.js";
 import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene.js";
-import { type CanvasTokens, defaultTokens, sceneTokens } from "./tokens.js";
+import { type CanvasTokens, sceneTokens } from "./tokens.js";
 
 /** The subset of the 2D context the renderer uses (stubbed in Node tests). */
 export interface DrawContext {
@@ -463,7 +463,7 @@ function drawNode(ctx: DrawContext, scene: PreparedScene, n: SceneNode, tokens: 
 function paintOf(mark: { color: string; onColor?: string }, paint: MarkPaint, tokens: CanvasTokens, hovered = false): string {
   if (paint === "value") return hovered ? tokens.focus : mark.color;
   if (paint === "onValue") return hovered ? fixedColors.paper : (mark.onColor ?? mark.color);
-  return tokens[paint] ?? defaultTokens[paint]!;
+  return tokens[paint]!;
 }
 
 function drawMark(ctx: DrawContext, scene: PreparedScene, m: OverlayMark, tokens: CanvasTokens, hovered: boolean, options: DrawOptions) {
@@ -511,7 +511,9 @@ const nodeId = (n: SceneNode) => n.node.id;
  * that callers (and tests) can check the culling.
  */
 export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, state: DrawState = emptyState, options: DrawOptions = {}): { nodes: number; edges: number; shapes: number; culled: boolean; withheld?: EdgeSelection } {
-  const tokens = options.tokens ?? sceneTokens(scene);
+  // Tokens a host built without the frequency cue's colours take the scene's, in its scheme.
+  const given = options.tokens;
+  const tokens = given ? { ...given, cueStripe: given.cueStripe ?? scene.colors.cueStripe, cueFoot: given.cueFoot ?? scene.colors.cueFoot } : sceneTokens(scene);
   const lodZoom = options.lodZoom ?? view.zoom;
   const lod = lodAt(lodZoom, scene.lod);
   const cull = options.cull ?? scene.size > CULL_ABOVE;

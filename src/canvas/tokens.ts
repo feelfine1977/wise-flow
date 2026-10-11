@@ -14,7 +14,7 @@ export interface CanvasTokens {
   inkMuted: string;
   line: string;
   lineStrong: string;
-  /** The frequency cue's stripe and foot; the default theme's when not given. */
+  /** The frequency cue's stripe and foot; the scene's, in its scheme, when not given. */
   cueStripe?: string;
   cueFoot?: string;
   focus: string;

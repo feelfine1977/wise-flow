@@ -263,6 +263,21 @@ describe("Canvas node and edge marks", () => {
     ]);
   });
 
+  it("takes the cue's colours of the scene's scheme where a host's tokens leave them out", () => {
+    // A host's dark tokens from before the cue: the light stripe (#e6e8ec) would hold light ink.
+    const scene = prepareScene({ ...elements.graph, meta: { cases: 2468 } }, elements.positions, { style: elements.style, selfLoops: false, lodBySize: false, scheme: "dark" });
+    const { cueStripe: _stripe, cueFoot: _foot, ...host } = { ...defaultTokens, paper: "#16181d", ink: "#ececec" };
+    const cue = (tokens: typeof defaultTokens) => {
+      const { ctx, ops } = drawingContext();
+      drawScene(ctx, scene, { x: 0, y: 0, zoom: 1, width: 1000, height: 600 }, undefined, { cull: false, tokens });
+      return ops.filter((o) => o.op === "fillRect" && /^R108,(1|36),85.5,/.test(o.path!)).map((o) => o.color);
+    };
+    // The dark scheme's stripe and foot.
+    expect(cue(host)).toEqual(["#2c3038", "#8f96a3"]);
+    // Tokens that give them are drawn as given.
+    expect(cue({ ...host, cueStripe: "#101010", cueFoot: "#f0f0f0" })).toEqual(["#101010", "#f0f0f0"]);
+  });
+
   it("writes every node's and edge's texts where its mark puts them", () => {
     const text = (t: string, at: [number, number], f: string, align = "left", baseline = "middle", color = "#1f1f1f") => ({ text: t, at, color, font: font(f), align, baseline });
     const name = (t: string, at: [number, number], weight = "500") => text(t, at, `${weight} 13px`, "left", "alphabetic");
