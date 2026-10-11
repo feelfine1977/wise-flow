@@ -73,9 +73,9 @@ describe("one width scale per graph", () => {
     // 194,821 × (4.5/8)² = 61,642, so 62,000 with two significant digits, drawn at √(62,000 / 194,821) × 8 = 4.51.
     expect(rows[0]).toEqual({
       kind: "width",
-      title: "Path width: cases (count) · scale of the whole graph",
+      title: "Path width: cases (count) · whole graph",
       samples: [
-        { width: 1, text: "≤ 3,044 (thinnest)" },
+        { width: 1, text: "≤ 3,044" },
         { width: 4.51, text: "62,000" },
         { width: 8, text: "195k" },
       ],
@@ -101,9 +101,9 @@ describe("one width scale per graph", () => {
     const scene = buildScene(graph, scenes.get(key("default", false))!.positions, { selfLoops: false, locale: "de" });
     expect(widthRow(scene)).toEqual({
       kind: "width",
-      title: "Pfadbreite: Fälle (Anzahl) · Skala des ganzen Graphen",
+      title: "Pfadbreite: Fälle (Anzahl) · ganzer Graph",
       samples: [
-        { width: 1, text: "≤ 3.044 (dünnste)" },
+        { width: 1, text: "≤ 3.044" },
         { width: 4.51, text: "62.000" },
         { width: 8, text: "195k" },
       ],
@@ -124,7 +124,7 @@ describe("one width scale per graph", () => {
     // √(1 / 6,400) × 8 = 0.1 and √(100 / 6,400) × 8 = 1: both at the thinnest line; the floor takes counts up to 6,400 / 64 = 100.
     expect(scene.edgeMarks.map((m) => [m.id, m.width])).toEqual([["ab", 8], ["bc", 1], ["ac", 1]]);
     // The middle width 4.5 is 6,400 × (4.5/8)² = 2,025, so 2,000, drawn at √(2,000 / 6,400) × 8 = 4.47.
-    expect(widthRow(scene)?.samples).toEqual([{ width: 1, text: "≤ 100 (thinnest)" }, { width: 4.47, text: "2,000" }, { width: 8, text: "6,400" }]);
+    expect(widthRow(scene)?.samples).toEqual([{ width: 1, text: "≤ 100" }, { width: 4.47, text: "2,000" }, { width: 8, text: "6,400" }]);
   });
 });
 
@@ -144,7 +144,7 @@ describe("the scale's upper end given by the host", () => {
     for (const m of b.edgeMarks.filter((m) => m.kind === "follows")) expect(m.width).toBe(expected(m.edge.metrics!.cases!, 200_000));
     // The legend says the scale is shared and shows the same entry on both maps.
     expect(widthRow(a)).toEqual(widthRow(b));
-    expect(widthRow(a)?.title).toBe("Path width: cases (count) · scale shared by the maps");
+    expect(widthRow(a)?.title).toBe("Path width: cases (count) · shared scale");
     expect(widthRow(a)?.samples.at(-1)).toEqual({ width: 8, text: "200k" });
   });
 

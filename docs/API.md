@@ -383,11 +383,12 @@ largest of the merged paths', a summed count above the upper end is drawn at
 (`{ ...defaultStyle, edgeWidth: { ...defaultStyle.edgeWidth, max: 250000 } }`);
 `resolveViews` gives its views the strongest path of any of them. A `domain`
 keeps the former reading: the range stretched over its values. The legend's
-width row says whose scale it is ("Path width: cases (count) · scale of the
-whole graph", "· scale shared by the maps" with `max`) and shows the same three
-samples at every setting: the thinnest line with the counts it stands for
-("≤ 3,044 (thinnest)", German "≤ 3.044 (dünnste)"), a count
-near the middle width, and the upper end. Up to 0.3 the scale ran from the
+width row says whose scale it is ("Path width: cases (count) · whole
+graph", German "· ganzer Graph"; "· shared scale" with `max`) and shows the
+same three samples at every setting: the thinnest line with the counts it
+stands for ("≤ 3,044", every path up to 3,044 cases is drawn at it), a count
+near the middle width, and the upper end. The row keeps the panel's two lines
+(title and samples) at 260 wide. Up to 0.3 the scale ran from the
 weakest to the strongest path shown, so a path changed its width when a slider
 moved (`pathScaleMax`, the upper end a graph gives, is internal).
 

@@ -18,10 +18,9 @@ Path width has one scale per graph, every path shows its direction, and chips ke
   extent of the values); a `domain` keeps its former reading, the range
   stretched over its values.
 - **Legend.** The width row names the scale ("Path width: cases (count) ·
-  scale of the whole graph", or "scale shared by the maps") and shows the same
-  three samples at every setting: the thinnest line with the counts it stands
-  for ("≤ 3,044 (thinnest)"), a count near the middle width and the
-  strongest path. The width `LegendItem` gains `scale` and its samples
+  whole graph", or "· shared scale") and shows the same three samples at
+  every setting: the thinnest line with the counts it stands for ("≤ 3,044"),
+  a count near the middle width and the strongest path. The width `LegendItem` gains `scale` and its samples
   `floor`.
 - **Every path shows its direction.** A path ends in a head that grows with
   its line: 4 times the path's width where that is more than the rule's 12

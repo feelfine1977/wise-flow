@@ -161,14 +161,16 @@ function exported(fixture: Fixture, scene: Partial<Scene>, options: PngOptions):
  * where it was. Recorded once more when paths against the reading direction
  * began to run below the flow: only the calls of the backward paths (their
  * points, heads and labels, as in the SVG export) and, in `toPNG`, the
- * figure's size and the caption's place changed.
+ * figure's size and the caption's place changed. Recorded once more when the
+ * legend's width row took shorter words (as in the SVG export): only those
+ * two texts changed.
  */
 const before = {
-  mapGlobalStages: "5f4201488d92038aa0b8c52a8b148f29a35e24ce6a80cb50d7e31d770ab8f50e",
-  mapVendorIds: "8836838e834a311cf21ac5aa26f899e5c77e7af189d0a12d4f5c1f86fb919b23",
-  mapUnfiltered: "663f83401cf000cec8bdcbbb9dc47dbca109f686f0327b2693df02d67c20db90",
-  pngGlobalTitle: "50d2c3381add1e1eebb1b385e5a09370cb827cbaccd01c61a98ddc2b40cd809f",
-  pngVendorIds: "13b2ff02b35059fdb4b615bebd441d7a173bc4a363af96555cfd29f95f36a661",
+  mapGlobalStages: "4d70decb4520e59f1a10a032611432d406ce1b409f8d9d03554ec3bdb9a2efd2",
+  mapVendorIds: "07d774d42b584c749d7d9132ba3e1eec5865aab2da10ba7f38993be036d44de2",
+  mapUnfiltered: "e6a492337c82a44152a63a7bb5b95239b7388297335b2d74dadcf932b599c223",
+  pngGlobalTitle: "bd63b600819c8cb1a70a878c600025d2366f3b37b03f37b12b3ab2d8c3fb6871",
+  pngVendorIds: "86cc5e853bb0e41385ce1b06c835d88418636a7d442a1d4fafb3f0847e7d7104",
   pngUnfilteredGerman: "021831f2334b458db1bc2d5fb9936a164fffab76a1f6c9794ce6f14fd3a92ca8",
 };
 

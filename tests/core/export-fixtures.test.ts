@@ -145,16 +145,20 @@ const observed: Variant = {
  * map grew by the lowest of their lines (40.28; not with stage bands, which
  * reach below it), is that much taller with its caption and legend rule.
  * No path of these fixtures runs both ways without one of them backward.
+ * Recorded once more when the legend's width row took shorter words, so
+ * that the live map's panel keeps it on two lines: only the texts "whole
+ * graph" (it read "scale of the whole graph") and "≤ 3,044" (it read "≤ 3,044
+ * (thinnest)") changed.
  */
 
 const before: Record<string, string> = {
-  overlays: "65f0ca57abbfbc51e342b9d53dda5bafc3da7b9aa99b9307833044125193e102",
-  stagesGerman: "5a713a200ea965c0766416f969ac16421a884537e6ad04841308be2a9de5b112",
+  overlays: "370ea9d2f36f75f231f7ea9856f24c8c30d19a7173451b065f1f1397c63989ad",
+  stagesGerman: "51672ef73ffb3cbe46de2aef8b11ed6594bc32ea4467e84f24d8e83bec385168",
   vendor: "42b0e99980ad3b8d13fc4f3b2b42c3ed4c137022b63a166aa0330fddb789e5d5",
-  unfiltered: "770efe758c1df1cb9b6ca6f1939eee92bb08c4bd2f7f141f54adb99106da0c51",
-  plain: "5f40a5d91fe03b0e8234e0acb1b4c819e900aadff2230d150bb3793b1ba5f7ea",
+  unfiltered: "d0a054163330e7d0f118981aef4f4f7a9c1a67c18dce0e363477c9bcdd394c6a",
+  plain: "2920ba1ebe834de63f37f3d67f44ed24f738cf49c50b8724b4552c8dd07a89ad",
 };
-const beforeObserved = "59b1e1aa5debed8521911e8f9a99dfd3d6e6f1586dae2f9b671d514ed5fd7ba7";
+const beforeObserved = "ece257718a15a45141944b3de23d9afdea74802037d7f3ab65f12e7977b50134";
 
 describe("toSVG on the committed fixtures", () => {
   it("matches the recorded output once follows self-loops are hidden", () => {

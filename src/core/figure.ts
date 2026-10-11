@@ -116,7 +116,7 @@ function legendOf(items: LegendItem[], keys: LegendKey[], chips: Overlay[], loca
   for (const item of items) {
     if (item.kind === "width") {
       const samples: { value: number; width: number; floor?: boolean }[] = item.samples ?? [0, 1].map((i) => ({ value: item.domain[i], width: item.range[i] }));
-      // "Path width: cases (count) · scale of the whole graph", the thinnest line "≤ 3,044 (thinnest)".
+      // "Path width: cases (count) · whole graph", the thinnest line "≤ 3,044".
       const title = [channelTitle(item.title, item.metric, locale), ...(item.scale ? [t(locale, item.scale === "shared" ? "legend.widthShared" : "legend.widthScale")] : []), ...(item.transitionsOnly ? [t(locale, "legend.transitionsOnly")] : [])].join(" · ");
       const value = (v: number) => formatMetricValue(item.metric, v, locale, { path: true });
       rows.push({ kind: "width", title, samples: samples.map((s) => ({ width: s.width, text: s.floor ? t(locale, "legend.widthFloor", { value: value(s.value) }) : value(s.value) })) });
