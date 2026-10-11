@@ -15,7 +15,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CanvasRenderer, prepareScene, readTokens } from "../../src/canvas/index";
-import { exportBpmn } from "../../src/bpmn/headless";
+import { exportBpmn, importBpmn } from "../../src/bpmn/headless";
 import { type Locale, emptySelection } from "../../src/index";
 import { BpmnView } from "../../src/bpmn/index";
 import { createBpmnView } from "../../src/react/BpmnView";
@@ -54,14 +54,15 @@ function recordingCanvas(): unknown[][] {
 }
 
 /**
- * What may be logged: React's key warnings where the graph has an id twice or an element without one (in the
- * findings), and, around the public view, bpmn-js failing on jsdom's missing SVG geometry (not the library's).
+ * What may be logged: React's key warnings where the graph, or the file shown (`twice`), has an id twice or an
+ * element without one (in the findings), and, around the public view, bpmn-js failing on jsdom's missing SVG
+ * geometry (not the library's).
  */
-function logged(c: MalformedCase, bpmnJs = false): () => string[] {
+function logged(c: MalformedCase, bpmnJs = false): (twice?: boolean) => string[] {
   const out: string[] = [];
   vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => void out.push(args.map(String).join(" ").slice(0, 300)));
   const keys = c.issues.some((i) => i.message.startsWith("duplicate")) || [...c.graph.nodes, ...c.graph.edges].some((e) => e.id === undefined || e.id === "");
-  return () => out.filter((m) => !(keys && /^Each child in a list should have a unique "key" prop|^Encountered two children with the same key/.test(m)) && !(bpmnJs && /^unhandled error in event listener TypeError: Cannot read properties of undefined \(reading 'baseVal'\)/.test(m)));
+  return (twice = false) => out.filter((m) => !((keys || twice) && /^Each child in a list should have a unique "key" prop|^Encountered two children with the same key/.test(m)) && !(bpmnJs && /^unhandled error in event listener TypeError: Cannot read properties of undefined \(reading 'baseVal'\)/.test(m)));
 }
 
 const viewers = memoryViewers();
@@ -144,6 +145,8 @@ describe("malformed input at the Canvas map and renderer and the BPMN view", () 
       const errors = logged(c, true);
       const exported = await exportBpmn(c.graph, { positions: c.positions, layout: { engine: "dagre" } }).catch(() => undefined);
       const xml = exported && c.rng.chance() ? exported.xml : mutate(exported?.xml ?? fixture, c.rng).xml;
+      // A mutated file may name one flow id on two elements: its graph has an id twice, as validation reports.
+      const twice = (await importBpmn(xml, { positions: false }).catch(() => undefined))?.warnings.some((w) => w.startsWith("duplicate")) ?? false;
       const ids = [...c.graph.nodes.map((n) => n.id), "gone", junkString(c.rng)];
       const props = {
         overlays: c.rng.chance() ? c.graph.overlays : [{ kind: "badge" as const, target: "gone" }],
@@ -167,7 +170,10 @@ describe("malformed input at the Canvas map and renderer and the BPMN view", () 
       });
       cleanup();
       vi.restoreAllMocks();
-      must(errors().length === 0, c, () => `logged: ${errors()[0]}`);
+      must(errors(twice).length === 0, c, () => `logged: ${errors(twice)[0]}`);
+      // An unmounted view leaves no viewer alive; the list is emptied so that a deep run does not keep every viewer.
+      must(viewers.instances.every((v) => v.destroyed), c, () => "a viewer outlived its view");
+      viewers.instances.length = 0;
     }
     expect(calls.ranAtLeast(["BpmnView"], CASES.length)).toEqual([]);
     expect(calls.unknown({}), "plain errors").toEqual([]);

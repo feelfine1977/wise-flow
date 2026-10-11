@@ -436,9 +436,11 @@ changes the public behaviour here.
    for the owner, not proposed here.)
 5. **React keys.** Every component that lists elements logs React's key
    warning for two elements with one id (which validation reports) or an
-   element without an id (finding 3); so do `TraceTimeline` for two traces
-   with one case id and `FlowComparison` for two cohorts with one id, which
-   are not documented as invalid. Rendering is otherwise intact.
+   element without an id (finding 3), also `BpmnView` for a file that names
+   one flow id on two elements (`importBpmn` warns `duplicate node id`; found
+   by the deep run, seed 4987); so do `TraceTimeline` for two traces with one
+   case id and `FlowComparison` for two cohorts with one id, which are not
+   documented as invalid. Rendering is otherwise intact.
    *Proposal:* document that ids, case ids and cohort ids are unique and that
    a graph validation rejects is drawn as far as it goes; key repeated ids
    apart (id and position) only if the owner wants the warnings gone.
