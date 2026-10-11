@@ -1124,9 +1124,9 @@ cases relative to the activity's cases. A group focus stands for its
 members, nested groups included (paths crossing the outer boundary). `pathBetween` is the shortest, then
 strongest path (Dijkstra on hops with a small penalty for weak paths, so
 the result is deterministic) and the reverse path when one exists.
-`focusHighlight` reads a focus that is not a pair as one id, also the
-missing id of a node a backend sent without one; up to 0.3.5 such a focus
-threw a `TypeError`.
+`focusHighlight` and `<PathList/>` read a focus that is not a pair as one
+id, also the missing id of a node a backend sent without one; up to 0.3.5
+such a focus threw a `TypeError`.
 
 ### Filters
 

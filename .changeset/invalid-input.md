@@ -61,8 +61,8 @@ flow, say) two flow ids where a gateway takes the place of an end: the
 second gets `:1` after the id. Both got one id before, so the graph failed
 `validateGraph` and its BPMN export lost a flow.
 
-`focusHighlight` reads a focus that is not a pair as one id, also when a node
-came without an id; it threw a `TypeError` before.
+`focusHighlight` and `<PathList/>` read a focus that is not a pair as one
+id, also when a node came without an id; they threw a `TypeError` before.
 
 `routeSequenceFlows` (and with it `repositionNodes` and the BPMN layout)
 leaves a box with a number that is not finite out of the routing, as if it
