@@ -4,7 +4,7 @@
  * `readTokens` picks the live values of those variables up from an element so
  * that the canvas follows the application's theme.
  */
-import { colorTokens, cssVariable, fontTokens } from "../core/index.js";
+import { type FlowScene, colorTokens, cssVariable, fontTokens } from "../core/index.js";
 
 export interface CanvasTokens {
   font: string;
@@ -35,6 +35,13 @@ export const defaultTokens: CanvasTokens = {
 };
 
 const KEYS = Object.keys(defaultTokens) as (keyof CanvasTokens)[];
+
+/** The tokens a scene is drawn with: its theme's font and its colours in its scheme. */
+export function sceneTokens(scene: Pick<FlowScene, "theme" | "colors">): CanvasTokens {
+  const out = { font: scene.theme.font.family } as CanvasTokens;
+  for (const key of KEYS) if (key !== "font") out[key] = scene.colors[key];
+  return out;
+}
 
 /** Tokens from the computed style of an element; missing variables keep their defaults. */
 export function readTokens(element: Element | null | undefined, overrides: Partial<CanvasTokens> = {}): CanvasTokens {

@@ -71,6 +71,11 @@ function segmentMeets(a: XY, b: XY, it: Item, r: number): boolean {
   return t0 <= t1;
 }
 
+/** Where the chips inside a box are placed from: their right end 8 in from its right edge, the first 6 below its top. */
+export function chipAnchor(box: Box): XY {
+  return { x: box.x + box.width - 8, y: box.y + 6 };
+}
+
 /**
  * Where the renderers write each group's title: 12 in from the left edge of its
  * box, on a baseline 22 below its top, at 14 px (about 0.6 em per character).

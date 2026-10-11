@@ -6,6 +6,9 @@
  */
 import {
   type ActivityLabelOptions,
+  type ColorScheme,
+  type GroupMark,
+  type Theme,
   activityLabel,
   activityLabelLines,
   activityNodeCounts,
@@ -32,6 +35,7 @@ import {
   buildScene,
   followsSelfLoops,
   gatewayGlyph,
+  groupMarks,
   hasTag,
   nodeCount,
   tintColor,
@@ -74,6 +78,8 @@ export interface SceneGroup {
   tint?: string;
   band?: LaneBand;
   chips: OverlayShape[];
+  /** What the group looks like; the drawing reads it. */
+  mark: GroupMark;
 }
 
 /**
@@ -116,6 +122,10 @@ export interface PrepareOptions {
   overlayGeometry?: OverlayGeometryOptions;
   /** Self-loop follows edges become self-loop overlays. Default true. */
   selfLoops?: boolean;
+  /** The theme the marks are resolved in. Default `defaultTheme`. */
+  theme?: Theme;
+  /** The colour scheme of the theme. Default `light`. */
+  scheme?: ColorScheme;
 }
 
 /** The overlay shapes of the elements without any. */
@@ -148,28 +158,25 @@ export function prepareScene(graph: FlowGraph, givenPositions: Positions, option
     lod: options.lod,
     lodBySize: options.lodBySize !== false,
     overlayGeometry: options.overlayGeometry,
+    theme: options.theme,
+    scheme: options.scheme,
   });
-  return retainScene(options.bands ? { ...scene, bands: options.bands } : scene);
+  return retainScene(options.bands ? { ...scene, bands: options.bands, groupMarks: groupMarks(graph, scene.positions, options.bands, scene.scales, scene.theme) } : scene);
 }
 
 /** Retained geometry for a scene the core has built (`buildScene`). */
 export function retainScene(scene: FlowScene): PreparedScene {
-  const { graph, positions, bands, scales, locale, geometry, marks, activityLabels } = scene;
+  const { positions, locale, geometry, marks, activityLabels, theme } = scene;
   const shapesByTarget = new Map<string, OverlayShape[]>();
   for (const s of geometry.shapes) {
     if (!shapesByTarget.has(s.overlay.target)) shapesByTarget.set(s.overlay.target, []);
     shapesByTarget.get(s.overlay.target)!.push(s);
   }
-  const bandIndex = new Map(bands.map((b) => [b.id, b]));
-
-  const groups: SceneGroup[] = [];
-  for (const g of graph.groups ?? []) {
-    const box = positions.groups[g.id];
-    if (!box) continue;
-    const shapes = shapesByTarget.get(g.id) ?? [];
+  const groups: SceneGroup[] = scene.groupMarks.map((mark) => {
+    const shapes = shapesByTarget.get(mark.id) ?? [];
     const tint = shapes.find((s) => s.kind === "tint");
-    groups.push({ group: g, box, color: scales.categorical(g.id).color, tint: tint && tintColor(tint.overlay), band: bandIndex.get(g.id), chips: shapes.filter((s) => s.kind === "chip") });
-  }
+    return { group: mark.group, box: mark.box, color: mark.color, tint: tint && tintColor(tint.overlay, theme), band: mark.band, chips: shapes.filter((s) => s.kind === "chip"), mark };
+  });
 
   const shapesOf = (id: string) => shapesByTarget.get(id) ?? NO_SHAPES;
   const nodes: SceneNode[] = scene.nodeMarks.map((mark) => {

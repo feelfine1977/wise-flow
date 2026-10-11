@@ -2,11 +2,11 @@
  * The scene every renderer reads: a graph with its positions resolved once
  * into activity references, lane bands, scales, the overlays to show in their
  * canonical order, level-of-detail rules, overlay geometry and the marks
- * that say what every node, edge and overlay looks like, and what the legend
- * lists.
+ * that say what every node, edge, group and overlay looks like in the theme
+ * and colour scheme, and what the legend lists.
  */
 import { type ActivityLabelOptions, activityReferences } from "./activity-labels.js";
-import { type EdgeMark, type NodeMark, edgeMarks, nodeMarks } from "./element-marks.js";
+import { type EdgeMark, type GroupMark, type NodeMark, edgeMarks, groupMarks, nodeMarks } from "./element-marks.js";
 import { type SceneLegend, sceneLegend } from "./figure.js";
 import type { Locale } from "./format.js";
 import { type Box, type Positions, type XY, unionBoxes } from "./layout.js";
@@ -18,6 +18,8 @@ import { type OverlayMark, overlayMarks } from "./overlay-marks.js";
 import { canonicalOverlays } from "./overlays.js";
 import { repositionNodes } from "./routing.js";
 import { type LodRules, type Scales, type StyleSpec, buildScales, defaultLod, defaultStyle, lodForSize } from "./style.js";
+import { type ColorScheme, type Theme, defaultTheme, themeColors } from "./theme.js";
+import type { ColorToken } from "./tokens.js";
 
 export interface FlowSceneOptions {
   /** Overlays to show. Default `graph.overlays`. */
@@ -42,6 +44,10 @@ export interface FlowSceneOptions {
    */
   lodBySize?: boolean;
   overlayGeometry?: OverlayGeometryOptions;
+  /** What the marks are drawn in: paints, palettes, fonts, text styles, radii and strokes. Default `defaultTheme`. */
+  theme?: Theme;
+  /** The colour scheme the theme's colour roles are resolved in. Default `light`. */
+  scheme?: ColorScheme;
 }
 
 export interface FlowScene {
@@ -53,6 +59,11 @@ export interface FlowScene {
   activityLabels?: ActivityLabelOptions;
   locale: Locale;
   style: StyleSpec;
+  /** The theme the marks were resolved in. */
+  theme: Theme;
+  scheme: ColorScheme;
+  /** The colour of every paint role (`MarkPaint` names one) in the scene's scheme. */
+  colors: Readonly<Record<ColorToken, string>>;
   scales: Scales;
   /**
    * Overlays whose target (or, for arcs, both endpoints) is a node, a group or
@@ -68,6 +79,8 @@ export interface FlowScene {
   nodeMarks: NodeMark[];
   /** What each edge between two placed nodes looks like, in the graph's order; not the edges from a node to itself. */
   edgeMarks: EdgeMark[];
+  /** What each placed group looks like, in the graph's order. */
+  groupMarks: GroupMark[];
   /** What the legend lists: the scales in use, the overlay kinds present and the map-level chips. */
   legend: SceneLegend;
   /** Union of the positions' bounds and the marks drawn on the map. */
@@ -85,6 +98,8 @@ function shownOverlays(graph: FlowGraph, given: Overlay[], options: FlowSceneOpt
 export function buildScene(graph: FlowGraph, givenPositions: Positions, options: FlowSceneOptions = {}): FlowScene {
   const locale = options.locale ?? "en";
   const style = options.style ?? defaultStyle;
+  const theme = options.theme ?? defaultTheme;
+  const scheme = options.scheme ?? "light";
   const laid = laneBands(graph, givenPositions, { lanes: options.lanes ?? "none" });
   const positions = options.moved ? repositionNodes(graph, laid.positions, options.moved) : laid.positions;
   const activityLabels = options.activityLabels ? { ...options.activityLabels, references: activityReferences(graph, options.activityLabels.references) } : undefined;
@@ -92,8 +107,8 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
   const rules = { ...(style.lod ?? {}), ...(options.lod ?? {}) };
   const lod = options.lodBySize ? lodForSize(graph.nodes.length, rules) : { ...defaultLod, ...rules };
   const geometry = placeOverlays(overlays, positions, { ...(options.overlayGeometry ?? {}), lod }, groupTitles(graph.groups ?? [], positions));
-  const marks = overlayMarks(geometry.shapes, locale);
-  const scales = buildScales(graph, style);
+  const marks = overlayMarks(geometry.shapes, locale, theme);
+  const scales = buildScales(graph, style, theme);
   return {
     graph,
     positions,
@@ -101,13 +116,17 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
     activityLabels,
     locale,
     style,
+    theme,
+    scheme,
+    colors: themeColors(theme, scheme),
     scales,
     overlays,
     lod,
     geometry,
     marks,
-    nodeMarks: nodeMarks(graph, positions, scales, { locale, activityLabels }),
-    edgeMarks: edgeMarks(graph, positions, scales, locale),
+    nodeMarks: nodeMarks(graph, positions, scales, { locale, activityLabels, theme }),
+    edgeMarks: edgeMarks(graph, positions, scales, locale, theme),
+    groupMarks: groupMarks(graph, positions, laid.bands, scales, theme),
     legend: sceneLegend(scales.legend, overlays),
     bounds: unionBoxes([positions.bounds, ...marks.filter((m) => m.inMap).map((m) => m.box)]),
   };
