@@ -252,7 +252,9 @@ Stopping. A layout runs while somebody waits for it. `signal` stops waiting:
 the promise rejects with the signal's reason (an `AbortError` unless another
 reason is given), and once nobody else waits for the same layout (the same
 `cacheKey`, or the same inputs in a scope) its worker is terminated and
-nothing it sends afterwards is read; an aborted layout is not kept. A request
+nothing it sends afterwards is read; an aborted layout is not kept, except one
+whose answer was already being read when its last waiter left: it finished, so
+it is kept like any other and the next request for its inputs is free. A request
 to a scope replaces the scope's earlier request: if that one is still
 running, its promise rejects with an `AbortError` ("A newer layout request
 replaced this one."), and its worker is terminated unless another caller
