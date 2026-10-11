@@ -105,14 +105,16 @@ describe("edge marks", () => {
 
   it("resolves one mark per edge between placed nodes with route, colour, dash and count label", () => {
     const count = (t: string, x: number, y: number) => text({ role: "count", text: t, x, y, size: 11, anchor: "middle", baseline: "alphabetic", halo: true, lod: "edgeLabels" });
+    // Every path here is 1 wide and ends in the rule's head of 12.
+    const arrow = { size: 12, box: 20, length: 5, width: 8, overhang: 3.75, outline: 1, perWidth: 4 };
     expect(scene.edgeMarks.map(strip)).toEqual([
       // The label sits 4 above the middle of the route.
-      { id: "start->a", kind: "follows", points: positions.edges["start->a"].points, color: neutral, width: 1, reconnected: false, texts: [count("1,234", 68, 16)] },
+      { id: "start->a", kind: "follows", points: positions.edges["start->a"].points, color: neutral, width: 1, arrow, reconnected: false, texts: [count("1,234", 68, 16)] },
       // Without a route: a straight line between the two boxes; flow edges carry their count too.
-      { id: "a->g", kind: "flow", points: [{ x: 280, y: 20 }, { x: 320, y: 20 }], color: neutral, width: 1, reconnected: false, texts: [count("12", 300, 16)] },
+      { id: "a->g", kind: "flow", points: [{ x: 280, y: 20 }, { x: 320, y: 20 }], color: neutral, width: 1, arrow, reconnected: false, texts: [count("12", 300, 16)] },
       // Constraint edges: in the accent, solid; without a count no label.
-      { id: "g->s", kind: "constraint", points: positions.edges["g->s"].points, color: "#b84a00", width: 1, reconnected: false, texts: [] },
-      { id: "s->r", kind: "follows", points: positions.edges["s->r"].points, color: neutral, width: 1, dash: [6, 5], reconnected: true, texts: [count("3", 500, 74)] },
+      { id: "g->s", kind: "constraint", points: positions.edges["g->s"].points, color: "#b84a00", width: 1, arrow, reconnected: false, texts: [] },
+      { id: "s->r", kind: "follows", points: positions.edges["s->r"].points, color: neutral, width: 1, arrow, dash: [6, 5], reconnected: true, texts: [count("3", 500, 74)] },
     ]);
   });
 

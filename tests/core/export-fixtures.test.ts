@@ -129,16 +129,24 @@ const observed: Variant = {
  * line and writes "≤ 3,044 (thinnest)", "62,000" and "195k" at 1,
  * 4.51 and 8 (it wrote the shown paths' ends and middle), so the rows below it
  * and the figure's height move 16.
+ * Recorded once more when paths began to end in a head that grows with the
+ * line: compared group by group, an edge group differs only in its path's
+ * `d`, whose last point moved back along the last segment by the head's
+ * overhang (2.25 for the heads of 12, up to 6 for the 8 wide path), and its
+ * `marker-end`, the marker of its head's size; the definitions hold the rule's
+ * head with its triangle 2.25 beyond the line's end and one marker per larger
+ * head (`wf-arrow-<size>`, 4 times the path's width rounded up). Everything
+ * else is the same.
  */
 
 const before: Record<string, string> = {
-  overlays: "9dc0cbcc27fa9f3f287172c8498e4b7de8ff6c0f2f7657129ed61bdce19bd7d1",
-  stagesGerman: "8c0e356e7f25bbd3af9f1d317080c4271ac2b45b14eff3ce3980d26ff0f02c63",
-  vendor: "ffab4c6c199f9140c40e29410605886e33698de3b09aff8edcc26a651af1139b",
-  unfiltered: "af589475b0096992d849b27efdb0fb092a213d3c2176c57e61b390d78e394615",
-  plain: "3bddd9b9a55a57d0b2ee7304ccd67f3aaa934afb538579d6bf102a07a587913e",
+  overlays: "37e17b8d11b7aa7587a67ea16bee4f1397170521d919131b9ee51f86900a9abe",
+  stagesGerman: "9b70c7893a4a22bcb08c9df56bf357fa6c150a87a186d66de9fc6b51aabb1571",
+  vendor: "a1d5acbacb1e5c39c370627584f65e62b4c341be6187003ae5da185233b06eda",
+  unfiltered: "dd0ab5b1e0a9ca96b12ec263bba5761dad5f1b8cbe83864f12f6f092098f8704",
+  plain: "7593df57c901d6d4e54b44f7bb3fe482082f7af9e21235e9fabb38fa1a70e483",
 };
-const beforeObserved = "fb81115b3458fdc57d5853788febf6d66675bc5f18e198deb2b4ba3fc90bc94e";
+const beforeObserved = "cd000ec8bd501dd8831717c8d2e315979813e8d8e8a97b239e6a023a0de750ac";
 
 describe("toSVG on the committed fixtures", () => {
   it("matches the recorded output once follows self-loops are hidden", () => {

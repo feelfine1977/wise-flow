@@ -350,8 +350,9 @@ export const textSizeTokens = {
  * The arrowhead rule: a closed triangle `length` long and `width` wide whose
  * tip lies `overhang` beyond the end of its path, outlined with a stroke of
  * `outline` in its own colour (0: none). These four are in a view box of
- * `box` units drawn at `size` user units, independent of the stroke width of
- * the path.
+ * `box` units drawn at `size` user units. With `perWidth` the size grows with
+ * the path it ends, to `perWidth` times its width (see `pathArrowhead`);
+ * without it the size does not depend on the path.
  */
 export interface Arrowhead {
   size: number;
@@ -360,16 +361,20 @@ export interface Arrowhead {
   width: number;
   overhang: number;
   outline: number;
+  perWidth?: number;
 }
 
 /**
- * Arrowheads of the live map. Edges: the closed arrow of its edges, the
- * triangle (−5, ±4) with an outline of 1 in a view box of 20 drawn at 12, so
- * 3 long, 4.8 wide and outlined by 0.6. Overlays: arcs and self-loops, a
+ * Arrowheads of the maps. Edges: a closed arrow, the triangle (−5, ±4) with
+ * an outline of 1 in a view box of 20, drawn at 12 (3 long, 4.8 wide and
+ * outlined by 0.6) and at 4 times the path's width where that is more, so
+ * that the head stays 1.8 times as wide as its line; the line ends three
+ * quarters of the head's length before its tip, inside the head, so that no
+ * line wider than the tip shows past it. Overlays: arcs and self-loops, a
  * triangle 12 long and wide with its tip 1.2 beyond the path.
  */
 export const arrowheadTokens = {
-  edge: { size: 12, box: 20, length: 5, width: 8, overhang: 0, outline: 1 },
+  edge: { size: 12, box: 20, length: 5, width: 8, overhang: 3.75, outline: 1, perWidth: 4 },
   overlay: { size: 12, box: 10, length: 10, width: 10, overhang: 1, outline: 0 },
 } as const satisfies Record<string, Arrowhead>;
 

@@ -152,7 +152,7 @@ describe("Canvas overlay marks", () => {
   it("paints the arcs above the edges and below the nodes and their badges, on the map and in toPNG", () => {
     // What each call paints: the edges a → b and b → c, the two arcs, the three nodes' outlines and the two badges.
     const parts: [string, string][] = [
-      ["edge", "M100,20 L200,20"], ["edge", "M300,20 L400,20"],
+      ["edge", "M100,20 L197.75,20"], ["edge", "M300,20 L397.75,20"],
       ["arc", "M50,0 C50,-88,450,-88,450,0"], ["arc", "M450,40 C450,142,50,142,50,40"],
       ["node", "M4,0 L96,0"], ["node", "M204,0 L296,0"], ["node", "M404,0 L496,0"],
       ["badge", "M42.55,-20"], ["badge", "M242.55,-20"],
@@ -308,8 +308,8 @@ describe("Canvas node and edge marks", () => {
       text("12", [300, 16], "11px", "center", "alphabetic"),
       text("3", [500, 74], "11px", "center", "alphabetic"),
     ]);
-    // The constraint edge in the accent, solid.
-    expect(startingAt(drawElements(), "M364,20")).toEqual([{ op: "stroke", path: "M364,20 L382,20 L382,28 L400,28", color: "#b84a00", alpha: 1, width: 1, dash: [] }]);
+    // The constraint edge in the accent, solid, its line ending 2.25 before the route inside its head.
+    expect(startingAt(drawElements(), "M364,20")).toEqual([{ op: "stroke", path: "M364,20 L382,20 L382,28 L397.75,28", color: "#b84a00", alpha: 1, width: 1, dash: [] }]);
   });
 
   it("keeps the gateway's glyph and the note's label when zoomed out", () => {
@@ -336,7 +336,7 @@ describe("Canvas node and edge marks", () => {
     expect(texts).toContain("From the mark");
     expect(texts).not.toContain("Check invoice");
     expect(texts).toContain("99");
-    expect(startingAt(ops, "M280,30")).toEqual([{ op: "stroke", path: "M280,30 L320,30", color: "#123456", alpha: 1, width: 1, dash: [] }]);
+    expect(startingAt(ops, "M280,30")).toEqual([{ op: "stroke", path: "M280,30 L317.75,30", color: "#123456", alpha: 1, width: 1, dash: [] }]);
   });
 
   it("outlines a hovered card in the ink and a selected or focused one in the focus colour, and keeps its fill", () => {

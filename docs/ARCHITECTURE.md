@@ -455,7 +455,7 @@ area shrinks and is fitted again); `FilterChips` sit above the map;
 `prepareScene` builds on the core scene (graph, positions, scales,
 overlays, lane bands, level of detail, overlay geometry and marks) and adds
 retained geometry with the R-tree of the core; `drawScene` issues plain 2D
-context calls for a viewport (groups and bands from their marks, tints, edges with arrowheads,
+context calls for a viewport (groups and bands from their marks, tints, edges with arrowheads that grow with the line,
 arcs, nodes with pattern twins, the other overlay marks, edge labels), decides the level of
 detail from the zoom and, above 1,500 elements, draws only what the R-tree
 finds inside the viewport, reading each element by its position in the

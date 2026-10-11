@@ -192,14 +192,15 @@ describe("toSVG node and edge marks", () => {
   });
 
   it("draws every edge kind from its mark", () => {
+    // Each line ends 2.25 before its route, inside its head of 12, whose tip lies on the route's end.
     const path = (d: string, color: string, dash = "") => `<path d="${d}" fill="none" stroke="${color}" stroke-width="1" stroke-linejoin="round"${dash} marker-end="url(#wf-arrow)"/>`;
     expect(groups(draw(), "edge")).toEqual([
       // A flow edge carries its count, as on the map; without a route it runs straight between the boxes.
-      `<g class="wf-edge" data-id="a-&gt;g">${path("M280 20L320 20", "#8c8c8c")}<text x="300" y="16" font-size="11" text-anchor="middle" ${halo}>12</text></g>`,
+      `<g class="wf-edge" data-id="a-&gt;g">${path("M280 20L317.75 20", "#8c8c8c")}<text x="300" y="16" font-size="11" text-anchor="middle" ${halo}>12</text></g>`,
       // A constraint edge in the accent, solid: only the re-added path is dashed.
-      `<g class="wf-edge" data-id="g-&gt;s">${path("M364 20L382 20L382 28L400 28", "#b84a00")}</g>`,
-      `<g class="wf-edge" data-id="s-&gt;r">${path("M500 56L500 100", "#8c8c8c", ' stroke-dasharray="6 5"')}<text x="500" y="74" font-size="11" text-anchor="middle" ${halo}>3</text></g>`,
-      `<g class="wf-edge" data-id="start-&gt;a">${path("M36 20L100 20", "#8c8c8c")}<text x="68" y="16" font-size="11" text-anchor="middle" ${halo}>1,234</text></g>`,
+      `<g class="wf-edge" data-id="g-&gt;s">${path("M364 20L382 20L382 28L397.75 28", "#b84a00")}</g>`,
+      `<g class="wf-edge" data-id="s-&gt;r">${path("M500 56L500 97.75", "#8c8c8c", ' stroke-dasharray="6 5"')}<text x="500" y="74" font-size="11" text-anchor="middle" ${halo}>3</text></g>`,
+      `<g class="wf-edge" data-id="start-&gt;a">${path("M36 20L97.75 20", "#8c8c8c")}<text x="68" y="16" font-size="11" text-anchor="middle" ${halo}>1,234</text></g>`,
     ]);
   });
 

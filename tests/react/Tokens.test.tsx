@@ -82,28 +82,25 @@ describe("design tokens across the renderers", () => {
         <ProcessMap graph={graph} positions={positions} style={style} renderer="svg" controls={false} legend={false} fitView={false} selfLoops={false} contextMenu={false} pathList={false} />
       </div>,
     );
-    await waitFor(() => expect(container.querySelector("marker.react-flow__arrowhead")).not.toBeNull());
-    // React Flow's marker: the polyline in a view box scaled to the marker's width, its reference at the origin.
-    const marker = container.querySelector("marker.react-flow__arrowhead")!;
-    const [bx, by, bw] = marker.getAttribute("viewBox")!.split(" ").map(Number);
-    const k = Number(marker.getAttribute("markerWidth")) / bw;
-    expect([bx + 0, by + 0, Number(marker.getAttribute("refX")), Number(marker.getAttribute("refY")), marker.getAttribute("markerUnits")]).toEqual([-10, -10, 0, 0, "userSpaceOnUse"]);
-    const polyline = marker.querySelector("polyline")!;
-    const map = {
-      points: polyline.getAttribute("points")!.split(" ").slice(0, 3).map((pt) => pt.split(",").map((v) => r(Number(v) * k))),
-      outline: r(Number((polyline as SVGElement).style.strokeWidth || 1) * k),
+    await waitFor(() => expect(container.querySelector("marker#wf-edge-arrow-12")).not.toBeNull());
+    // The map's marker, in user units with its reference at the end of the line: the triangle relative to it.
+    const triangle = (marker: Element) => {
+      const path = marker.querySelector("path")!;
+      return { points: [...path.getAttribute("d")!.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map((m) => [r(Number(m[1])), r(Number(m[2]))]), outline: r(Number(path.getAttribute("stroke-width"))) };
     };
-    // Hand-derived: (−5, ±4) and the tip at 0 at 12 / 20, outlined by 1 × 12 / 20.
-    expect(map).toEqual({ points: [[-3, -2.4], [0, 0], [-3, 2.4]], outline: 0.6 });
+    const marker = container.querySelector("marker#wf-edge-arrow-12")!;
+    expect([marker.getAttribute("refX"), marker.getAttribute("refY"), marker.getAttribute("markerUnits")]).toEqual(["0", "0", "userSpaceOnUse"]);
+    const map = triangle(marker);
+    // Hand-derived: (−5, ±4) and the tip at 0 at 12 / 20, outlined by 1 × 12 / 20, the tip 2.25 beyond the line's end.
+    expect(map).toEqual({ points: [[2.25, 0], [-0.75, 2.4], [-0.75, -2.4]], outline: 0.6 });
 
     const sorted = (t: { points: number[][]; outline: number }) => ({ ...t, points: [...t.points].sort((a, b) => a[0] - b[0] || a[1] - b[1]) });
 
     const svg = toSVG({ graph, positions, style }, { legend: false });
-    const d = svg.match(/<marker id="wf-arrow"[^>]*><path d="([^"]*)"[^>]*stroke-width="([\d.]+)"/)!;
-    const exported = { points: [...d[1].matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])]), outline: Number(d[2]) };
-    expect(sorted(exported)).toEqual(sorted(map));
+    const exported = new DOMParser().parseFromString(svg, "image/svg+xml").querySelector("marker#wf-arrow")!;
+    expect(sorted(triangle(exported))).toEqual(sorted(map));
 
-    // Canvas: the triangle at the end of start → a, which ends at (100, 20) heading right.
+    // Canvas: the triangle at the end of start → a, whose route ends at (100, 20) heading right, the tip there: 2.25 beyond the line's end.
     const fills: { path: number[][]; outline?: number }[] = [];
     let path: number[][] = [];
     const ctx = new Proxy({ measureText: (t: string) => ({ width: t.length * 6 }) } as Record<string, unknown>, {
@@ -112,6 +109,6 @@ describe("design tokens across the renderers", () => {
     }) as unknown as DrawContext;
     drawScene(ctx, prepareScene(graph, positions, { style, selfLoops: false, lodBySize: false }), { x: 0, y: 0, zoom: 1, width: 1000, height: 600 }, undefined, { cull: false });
     const arrow = fills.find((f) => f.path.length === 3 && f.path[0][0] === 100 && f.path[0][1] === 20)!;
-    expect(sorted({ points: arrow.path.map(([x, y]) => [r(x - 100), r(y - 20)]), outline: arrow.outline! })).toEqual(sorted(map));
+    expect(sorted({ points: arrow.path.map(([x, y]) => [r(x - 100 + 2.25), r(y - 20)]), outline: arrow.outline! })).toEqual(sorted(map));
   });
 });

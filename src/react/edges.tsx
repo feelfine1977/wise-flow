@@ -1,6 +1,6 @@
 import { BaseEdge, type EdgeProps } from "@xyflow/react";
 import { memo } from "react";
-import { type EdgeMark, type XY, edgeMark, routeMidpoint, strokeTokens } from "../core/index.js";
+import { type EdgeMark, type XY, edgeMark, lineEnd, routeMidpoint, strokeTokens } from "../core/index.js";
 import { part } from "./parts.js";
 import type { FollowsEdgeData, WfEdge } from "./types.js";
 
@@ -35,7 +35,8 @@ const Follows = memo(function Follows(props: EdgeProps<WfEdge>) {
       style={{ ["--wf-edge-color" as string]: mark.color, ["--wf-edge-width" as string]: data.focused ? Math.max(mark.width, strokeTokens.pathFocus) : mark.width, ["--wf-edge-dash" as string]: mark.dash?.join(" ") }}
     >
       <title>{data.description}</title>
-      <BaseEdge id={id} path={polyline(mark.points)} markerEnd={markerEnd} interactionWidth={strokeTokens.pathHit} {...part("edge-path")} />
+      {/* The line ends inside its head, whose tip lies on the route's end. */}
+      <BaseEdge id={id} path={polyline([...mark.points.slice(0, -1), lineEnd(mark.points, mark.arrow)])} markerEnd={markerEnd} interactionWidth={strokeTokens.pathHit} {...part("edge-path")} />
       {label ? (
         <text className="wf-edge-label wf-lod-edge-labels" {...part("edge-label")} x={label.x} y={label.y} textAnchor="middle">
           {label.text}

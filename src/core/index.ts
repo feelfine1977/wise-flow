@@ -456,6 +456,8 @@ export {
   edgeMark,
   nodeMarks,
   edgeMarks,
+  pathArrowhead,
+  lineEnd,
   groupMark,
   groupMarks,
   edgeColor,

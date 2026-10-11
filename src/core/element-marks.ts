@@ -15,7 +15,7 @@ import type { MarkFill, MarkPaint, MarkText } from "./overlay-marks.js";
 import type { PatternId, Scales } from "./style.js";
 import { type TextMeasure, estimateTextWidth, truncateText, wrapLines } from "./text.js";
 import { type Theme, defaultTheme } from "./theme.js";
-import { dashTokens, dimensionTokens } from "./tokens.js";
+import { type Arrowhead, arrowheadExtent, arrowheadTokens, dashTokens, dimensionTokens } from "./tokens.js";
 
 /** Point at half of a polyline's length. */
 export function routeMidpoint(points: readonly XY[]): XY {
@@ -109,10 +109,12 @@ export interface EdgeMark {
   id: string;
   kind: EdgeKind;
   edge: FlowEdge;
-  /** The routed points, or a straight line between the two boxes. */
+  /** The routed points, or a straight line between the two boxes: the head's tip lies on the last; the line ends before it (`lineEnd`). */
   points: XY[];
   color: string;
   width: number;
+  /** The arrowhead at the end, as wide as the line needs (`pathArrowhead`). */
+  arrow: Arrowhead;
   dash?: number[];
   /** The count label at `edgeLabelPoint`, where the edge has a count; "–" on a path not evaluated. */
   texts: ElementText[];
@@ -291,6 +293,35 @@ function cue(box: Box, stroke: number, share: number | undefined, theme: Theme):
 }
 
 const RECONNECTED_EDGE_DASH = Object.freeze(dashTokens.reconnectedPath);
+const heads = new Map<number, Arrowhead>();
+
+/**
+ * The arrowhead of a path `width` wide: the rule's size, or `perWidth` times
+ * the width rounded up where that is more (`arrowheadTokens.edge`: 12, so a
+ * path 8 wide ends in a head of 32, 14.4 wide with its outline). One frozen
+ * head per size.
+ */
+export function pathArrowhead(width: number, rule: Arrowhead = arrowheadTokens.edge): Arrowhead {
+  const size = Math.max(rule.size, Math.ceil((rule.perWidth ?? 0) * width));
+  if (rule !== arrowheadTokens.edge) return { ...rule, size };
+  let head = heads.get(size);
+  if (!head) heads.set(size, (head = Object.freeze({ ...rule, size })));
+  return head;
+}
+
+/**
+ * Where the line of a route ends under its arrowhead: the route's last point
+ * moved back along its last segment by the head's overhang (no further than
+ * that segment's start), so that the head's tip lies on the route's end.
+ */
+export function lineEnd(points: readonly XY[], arrow: Arrowhead): XY {
+  const end = points[points.length - 1];
+  const from = points[points.length - 2];
+  const length = from ? Math.hypot(end.x - from.x, end.y - from.y) : 0;
+  if (!length) return end;
+  const back = Math.min(length, arrowheadExtent(arrow).tip) / length;
+  return { x: end.x - (end.x - from.x) * back, y: end.y - (end.y - from.y) * back };
+}
 const NO_TEXTS: ElementText[] = Object.freeze([]) as unknown as ElementText[];
 
 /**
@@ -314,6 +345,7 @@ export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string;
     points,
     color: options.color,
     width: options.width,
+    arrow: pathArrowhead(options.width),
     dash: (reconnected ? RECONNECTED_EDGE_DASH : undefined) as number[] | undefined,
     texts: label
       ? [{ text: label, x: at.x, y: at.y, size: (options.theme ?? defaultTheme).text.pathLabel.size, anchor: "middle", baseline: "alphabetic", paint: "ink", halo: true, role: "count", lod: "edgeLabels" }]

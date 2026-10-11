@@ -23,3 +23,12 @@ Path width has one scale per graph.
   for ("≤ 3,044 (thinnest)"), a count near the middle width and the
   strongest path. The width `LegendItem` gains `scale` and its samples
   `floor`.
+- **Every path shows its direction.** A path ends in a head that grows with
+  its line: 4 times the path's width where that is more than the rule's 12
+  (`Arrowhead.perWidth`), so it is at least 1.8 times as wide as the line at
+  every width; the line ends inside the head and the tip lies on the route's
+  end (`arrowheadTokens.edge.overhang` 3.75, was 0). New: `EdgeMark.arrow`,
+  `pathArrowhead`, `lineEnd`. The SVG export defines `wf-arrow-<size>` for each
+  larger head; the React Flow map defines its heads with the export's
+  `arrowMarker` (`wf-edge-arrow-<size>`) instead of React Flow's
+  `MarkerType.ArrowClosed`.

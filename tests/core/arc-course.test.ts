@@ -81,12 +81,17 @@ describe("arcs that cross no other activity", () => {
    * honest, paths being labelled with their cases: compared element by element
    * only the paths changed. None of them has a count: they are not evaluated,
    * drawn in the line colour and labelled "–".
+   * Both SVGs were recorded again when paths began to end in a head that
+   * grows with the line: compared element by element only the paths' lines
+   * changed, each ending 2.25 before its route inside its head of 12, whose
+   * marker's triangle now lies 2.25 beyond the end of the line; the marks keep
+   * their digests.
    */
   const recorded = {
     kindsMarks: "e1d1e08f328d3f4ff005f1bac10de158cf4291fafe7caef5f9efec97ac96eadf",
-    kindsSvg: "358513f4129512847de7cb82ad7886aaa1e414f77c9d038fc2e947214370f2de",
+    kindsSvg: "6f471ea0a2f710d223443ada05d7837cfdbd77bc7badb3d176a151ac0a035202",
     rowsMarks: "e96c088a2c77eb0aab68e807e8d8f733d3ddc156cde9b25f66d8a4a0356fe408",
-    rowsSvg: "874973d0f18d376fe60227d23227dd299518e85fd251224f009173d418edcc7c",
+    rowsSvg: "300ecc6fea8196351006eabe9ea516d8f2637b8f7fa2a522a5e243196724aebe",
   };
 
   it("keep the marks they had", () => {

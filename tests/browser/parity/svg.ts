@@ -162,6 +162,12 @@ export function readSvg(svg: string, markIds: string[]): Drawing {
   const out: Drawing = new Map();
   const all = [...walk(parseSvg(svg))];
   const filters = new Map(all.filter((e) => e.tag === "filter" && e.attrs.id).map((e) => [e.attrs.id, e]));
+  const markers = new Map(all.filter((e) => e.tag === "marker" && e.attrs.id).map((e) => [e.attrs.id, e]));
+  // A path's head: its marker, as wide as the marker is high (the triangle and its outline across the path).
+  const head = (shape: El) => {
+    const marker = markers.get(/url\(#([^)]+)\)/.exec(shape.attrs["marker-end"] ?? "")?.[1] ?? "");
+    return marker ? `yes ${num(Number(marker.attrs.markerHeight))}` : "no";
+  };
   const map = all.find((e) => hasClass(e, "wf-map"));
   if (!map) throw new Error("the export has no map");
   let mark = 0;
@@ -178,7 +184,7 @@ export function readSvg(svg: string, markIds: string[]): Drawing {
       }
       out.set(`group:${g.attrs["data-id"]}`, { box: boxOf(shape), props, texts });
     } else if (hasClass(g, "wf-edge")) {
-      const props = { fill: fillOf(shape), ...outline(shape), join: shape.attrs["stroke-linejoin"] ?? "miter", arrow: shape.attrs["marker-end"] ? "yes" : "no" };
+      const props = { fill: fillOf(shape), ...outline(shape), join: shape.attrs["stroke-linejoin"] ?? "miter", arrow: head(shape) };
       out.set(`edge:${g.attrs["data-id"]}`, { box: boxOf(shape), props, texts });
     } else if (hasClass(g, "wf-node")) {
       // The band and the frequency cue's stripe and foot are rectangles of their own classes.

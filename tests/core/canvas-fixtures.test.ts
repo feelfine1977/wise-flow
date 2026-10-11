@@ -154,14 +154,19 @@ function exported(fixture: Fixture, scene: Partial<Scene>, options: PngOptions):
  * recordings hold as many calls as before and differ only in the paths'
  * `lineWidth` (as in the SVG export); the legend's width row writes its title
  * on two lines and the three samples of the graph's scale.
+ * Recorded once more when paths began to end in a head that grows with the
+ * line: the recordings hold as many calls as before; only each path's last
+ * `lineTo`, which ends the line inside its head, and the base and outline
+ * width of the heads that grew with their path changed; every head's tip is
+ * where it was.
  */
 const before = {
-  mapGlobalStages: "222fb614184378813ac6f531af8e7ae4166d91c7ed281310c8928c35395076be",
-  mapVendorIds: "85d5f54a64cc540aca750e989786e8b5d411e8ed7f525d941055a45ea4af1a67",
-  mapUnfiltered: "4970338d2ffe59a71ac7dc6b3b43531de59449db2a89716c1554523f0eda1e2f",
-  pngGlobalTitle: "595b4d01da472923eb1fc6403f1216d9a03a2ccee336f777d63ccb186b4945e6",
-  pngVendorIds: "981874cbd7e6fa40619e72d7a265c2fe2d80c5f6f0d63f5ca55b95c275b24833",
-  pngUnfilteredGerman: "309c7d9ed9ea1bc32d4ebc8181651e9ba70c626f4c1d31922863fa3aac34f83e",
+  mapGlobalStages: "aae8c1699ee83cbef18cc69d2d2904d7a8a89b81a0e7a65af7367a95b0c02c1a",
+  mapVendorIds: "d8244b185bde09a54d4f2a6d975dcc3bf6c9b009637218868aa6f82f0792e258",
+  mapUnfiltered: "ff203b70534f875dfb7d7df8cf7f17d2b61d8cce76097f839877d9e50ea1fa91",
+  pngGlobalTitle: "6ceabec4241f3ce5d8c8f0ed493ac9379011917e6a866ffecbf89e4989c88525",
+  pngVendorIds: "69c0a5d82073ff64b931714b64beb77f975c8aff0ea08687ce82bfbb1041ae6d",
+  pngUnfilteredGerman: "fc06e160be54ec8b55e0a2ae4794731450ce58d59635e01bc9b5b44f176a8f3c",
 };
 
 /**
@@ -187,13 +192,14 @@ const before = {
  * Recorded once more when the legend became a key and the numbers honest:
  * stage colours, path widths and written numbers changed, as above.
  * Recorded once more when path width took one scale per graph: only the
- * paths' widths changed, as above.
+ * paths' widths changed, as above. Recorded once more when paths began to end
+ * in a head that grows with the line, as above.
  */
 const culledBefore = {
-  culledGlobal: "b07bdbf5681b4d2ecde27b6f1dab98ef61c407518c589d8d3dbdeb05981f0660",
-  culledGlobalStages: "daec6daf0e8237e0fb89e2eda29021e1861d49f4366f3287cc90f442cd66b7a4",
-  culledVendorIds: "388d5885aa59095ef88249838dffec35dae291bbd2b495a3161bffd4951bdb15",
-  culledUnfiltered: "dd519f6009bf0c8c79b0152b14ec64a71f6df10063935ee499c954790a8c1361",
+  culledGlobal: "f9ccb1641a5dfed39e607891588f81ed5ae52b7c3605b0f14af09bbfc851d036",
+  culledGlobalStages: "ae4336f3de55d2e322847918c0ce27731258ab9ab2f40346cb9e1cb1f655e053",
+  culledVendorIds: "928c3b1f8d781016f462dc2c31a07e851368b167a67f9b27dd43afce727061cb",
+  culledUnfiltered: "617224a2f30c4bb547ffd8299b5887c0cc0aa90aa360d9a195a5af4c69853a6f",
 };
 
 describe("Canvas drawing on the committed fixtures", () => {

@@ -452,7 +452,8 @@ export const dimensionTokens: { band: 8; mapMinHeight; viewMapMinHeight; handle;
   legendSwatchWidth; legendSwatchHeight; legendSample; legendSampleExport; legendGlyph; legendGradient; searchMinWidth; tableSwatch;
   tooltipMaxWidth; canvasTooltipMaxWidth; activityTooltipMaxWidth; bpmnTableTop; watermarkClearance; sideList; menuMinWidth;
   menuMaxWidth; filterChipMinHeight; zoomButtonWidth; zoomButtonHeight; backgroundGap; cueFoot: 3; eventLabel: 96 };
-export interface Arrowhead { size; box; length; width; overhang; outline }
+export interface Arrowhead { size; box; length; width; overhang; outline;
+  perWidth? }   // the size grows to perWidth times the width of the path it ends
 export const arrowheadTokens: { edge: Arrowhead; overlay: Arrowhead };
 export function arrowheadExtent(a: Arrowhead): { length; half; tip; outline };  // in user units
 export type PatternId; export const PATTERNS: PatternId[];          // also exported from the style module, as before
@@ -512,10 +513,20 @@ name in `activityName` (a stage's in `stageLabel`), its cases in
 card"); the two stay in the table, deprecated, so that themes which set them
 keep type-checking.
 
-The arrowhead rule is the live map's: an edge ends in a closed triangle 3
-long and 4.8 wide, outlined by 0.6 in its colour, its tip on the route's
-end, in user units (`MarkerType.ArrowClosed` at 12 in React Flow, the
-`wf-arrow` marker in SVG, the same triangle in Canvas); arcs and self-loops
+The arrowhead rule is the maps': an edge ends in a closed triangle, at 12 3
+long and 4.8 wide, outlined by 0.6 in its colour, in user units; a path wider
+than 3 ends in a head 4 times its width (`perWidth`, rounded up: a path 8 wide
+in a head of 32, 8 long and 14.4 wide with its outline), so the head is at
+least 1.8 times as wide as its line at every width. The line ends three
+quarters of the head's length before the tip (`overhang` 3.75 of 20), inside
+the head, and the tip lies on the route's end: `pathArrowhead(width)` gives
+the head of a path (`EdgeMark.arrow`), `lineEnd(points, arrow)` where its line
+ends. The SVG export defines the marker `wf-arrow` for the head of 12 and
+`wf-arrow-<size>` for each larger head it draws; the React Flow map defines
+`wf-edge-arrow-<size>` with the same `arrowMarker` (it used React Flow's
+`MarkerType.ArrowClosed` at 12); the Canvas map and the PNG export draw the
+same triangle. Up to 0.3 every edge ended in the head of 12 with its tip on
+the end of the line, so a path wider than about 4 showed no head; arcs and self-loops
 end in a triangle 12 long and wide whose tip lies 1.2 beyond the path. A
 pattern twin is a 6-unit tile drawn by `patternDefs` (SVG), the Canvas band
 and `<PatternSwatch/>` (React) from `patternTwin`.
@@ -1877,7 +1888,10 @@ export interface NodeMark { id: string; kind: NodeKind; node: FlowNode; box: Box
   color: string; pattern: PatternId; fill: MarkPaint; stroke: { paint: MarkPaint; width: number; dash?: number[] }; band?: number;
   cue?: NodeCue; texts: ElementText[]; reconnected: boolean; outOfScope: boolean; title?: string }
 export interface EdgeMark { id: string; kind: EdgeKind; edge: FlowEdge; points: XY[]; color: string; width: number; dash?: number[];
+  arrow: Arrowhead;                // the head at the route's end (`pathArrowhead(width)`); the line ends at `lineEnd(points, arrow)`
   texts: ElementText[]; reconnected: boolean }
+export function pathArrowhead(width: number, rule?: Arrowhead): Arrowhead;   // the rule's size, or perWidth × width rounded up where more
+export function lineEnd(points: readonly XY[], arrow: Arrowhead): XY;        // the route's end moved back by the head's overhang
 export type BoxSide = "top" | "right" | "bottom" | "left";
 export interface GroupMark { id: string; kind: GroupKind; group: FlowGroup; box: Box; color: string; pattern: PatternId; band?: LaneBand;
   radius: number; fill: MarkFill; stroke: { paint: MarkPaint; width: number; dash?: number[]; sides?: BoxSide[] };

@@ -46,7 +46,13 @@ import { fileURLToPath } from "node:url";
  * the paths' stroke widths changed, and the legend's width samples, each a
  * stroke span with its value inside a span of its own
  * (`span.wf-legend__sample`, `span.wf-legend__stroke`), so that the samples
- * wrap whole and keep their length.
+ * wrap whole and keep their length. They were recorded once more when paths
+ * began to end in a head that grows with the line: a path's `marker-end` is
+ * the map's marker of its head's size (`#wf-edge-arrow-12`, …) in the map's
+ * definitions (`svg.wf-mark-defs`, a `defs` with a `marker` and its `path`
+ * per size), where it was one of React Flow's markers per colour
+ * (`svg.react-flow__marker`, `marker.react-flow__arrowhead` and its
+ * `polyline`); every other element is the same.
  * Geometry
  * that depends on the fonts of the machine (widths, heights, positions) is left
  * out, so the record holds on every operating system.

@@ -41,7 +41,7 @@ outline paint and width, dash, fill, radius, shadow, colour band, a card's
 frequency cue (the paint and the length, to the pixel, of its stripe and its
 foot), band rule and each text's string, size, weight and paint with the SVG
 export's, and for paths
-their line join and arrowhead, for arcs and self-loops their arrowhead and for
+their line join and arrowhead with its width (the head grows with the line), for arcs and self-loops their arrowhead and for
 a mark with a label pill the pill's box, fill, outline and radius. Every
 difference is listed in `browser/parity/expected.json` by renderer, element
 kind, property and the two values, with its fixtures and number of elements; a
