@@ -625,7 +625,8 @@ a server). With activity labels the map sizes the boxes by the same measure
 (`activityNodeSize`). Pass one measure for the life of a map, since a new one
 lays the activity boxes out again, and the same measure to `toSVG` and `toPNG`
 for the map's lines in the exports. `<ViewSwitcher/>`'s grid shows, per
-distinct style, the legend of what that view's map draws.
+distinct style, one legend: the scales of its first view and a key for each
+kind of mark that any of its views' maps draws.
 
 `describeMap` names the activity and path thresholds when `meta.abstraction`
 is the object `abstract` records; a server's numeric threshold share is not

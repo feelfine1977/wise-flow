@@ -50,9 +50,9 @@ PNG export render these rows; `LegendLayout.rows` gives each row's top and
 the texts an export writes, shortened by the scene's measure
 (`legendLayout(legend, { measure, width, text })`). `sceneLegend` takes an
 optional locale and keeps listing the overlay kinds given and re-added paths;
-`LegendProps.scales` is optional. `<ViewSwitcher/>`'s grid shows the legend of
-what each distinct style's map draws, so follows self-loops now have their key
-there.
+`LegendProps.scales` is optional. `<ViewSwitcher/>`'s grid shows, per
+distinct style, the legend of what the maps of that style's views draw, so
+follows self-loops now have their key there.
 
 Deprecated: `fitChars` (the mark texts arrive fitted; use `truncateText`) and
 `PreparedScene.labelCache` (nothing fills it); `chipLayout.char` is read by
