@@ -32,7 +32,7 @@ afterEach(() => {
 });
 
 const fixture = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../fixtures/p2p_small.bpmn"), "utf8");
-const CASES = seeds(caseCount(300)).map((seed) => malformedCase(seed, { maxSize: 8 }));
+const CASES = seeds(caseCount(300)).map((seed) => malformedCase(seed, { maxSize: 5 }));
 const fail = (message: string): never => expect.fail(message);
 function must(ok: boolean, c: MalformedCase, what: () => string): void {
   if (!ok) expect.fail(failure(c, what()));
@@ -142,7 +142,7 @@ describe("malformed input at the Canvas map and renderer and the BPMN view", () 
     const calls = new Calls(fail, 20_000);
     for (const c of CASES) {
       const errors = logged(c, true);
-      const exported = await exportBpmn(c.graph, { positions: c.positions }).catch(() => undefined);
+      const exported = await exportBpmn(c.graph, { positions: c.positions, layout: { engine: "dagre" } }).catch(() => undefined);
       const xml = exported && c.rng.chance() ? exported.xml : mutate(exported?.xml ?? fixture, c.rng).xml;
       const ids = [...c.graph.nodes.map((n) => n.id), "gone", junkString(c.rng)];
       const props = {

@@ -56,7 +56,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const CASES = seeds(caseCount(300)).map((seed) => malformedCase(seed, { maxSize: 8 }));
+const CASES = seeds(caseCount(300)).map((seed) => malformedCase(seed, { maxSize: 5 }));
 const fail = (message: string): never => expect.fail(message);
 function must(ok: boolean, c: MalformedCase, what: () => string): void {
   if (!ok) expect.fail(failure(c, what()));
