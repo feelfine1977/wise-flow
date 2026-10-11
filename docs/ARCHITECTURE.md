@@ -247,9 +247,10 @@ any CSS colour into a literal (one pixel of a canvas), takes the scheme
 scheme. Colours read in the dark scheme are the `dark` roles, so an export in
 the light scheme does not inherit them. The map builds its scene from what
 of the theme the marks are built from (`markedThemeKey`), so a change of a
-colour or the font repaints the DOM map (through the variables) and the
-Canvas map (its tokens) without a new scene; a change of a size builds the
-scene once; neither lays out again. Given a `theme`, the map writes the
+colour repaints the DOM map (through the variables) and the Canvas map (its
+tokens) without a new scene; a change of a size builds the scene once;
+neither lays out again. The default text measure is in the theme's font,
+so a change of the font builds the scene once. Given a `theme`, the map writes the
 theme's variables that the stylesheet reads on its element, and gives its
 pattern twins the theme's ink and pattern look. `checkTheme`
 reports contrasts (a translucent colour over its ground), the path ramp,

@@ -693,14 +693,16 @@ Labels arrive shortened and names wrapped by the scene's text measure, and the
 components write them as they are; the stylesheet adds no ellipsis of its own
 (a font wider than the measure is clipped at the box), and the full name stays
 in the node's description. The map's measure is `textMeasure`, by default the
-browser's: `canvasTextMeasure` in the theme's font, created again once the
-page's fonts have loaded, and the estimate where there is no 2D canvas (jsdom,
-a server). With activity labels the map sizes the boxes by the same measure
-(`activityNodeSize`). Pass one measure for the life of a map, since a new one
+browser's: `canvasTextMeasure` in the theme's font (the font the map's
+`theme` and its `--wf-font` variable resolve to), created again once the
+page's fonts have loaded or the font changes, and the estimate where there is
+no 2D canvas (jsdom, a server). With activity labels the map sizes the boxes
+by the same measure (`activityNodeSize`). Pass one measure for the life of a map, since a new one
 lays the activity boxes out again, and the same measure to `toSVG` and `toPNG`
 for the map's lines in the exports. `<ViewSwitcher/>`'s grid shows, per
 distinct style, one legend: the scales of its first view and a key for each
-kind of mark that any of its views' maps draws.
+kind of mark that any of its views' maps draws, built in the switcher's
+`theme` and the page's scheme.
 
 `describeMap` names the activity and path thresholds when `meta.abstraction`
 is the object `abstract` records; a server's numeric threshold share is not
@@ -1911,9 +1913,11 @@ element (set on it or on its container), then the preset. `useFlowTheme` resolve
   and an export then draws the preset's light colour for it.
 - **Changes.** The hook follows the `class`, `style` and `data-theme`
   attributes of the container and its ancestors and the system's colour
-  scheme. A change of a colour or a font repaints the DOM map and the Canvas
-  map without a new layout and without building the scene again; a change of
-  a size, radius, stroke, opacity, of the scheme, or of the neutral and the
+  scheme. A change of a colour repaints the DOM map and the Canvas map
+  without a new layout and without building the scene again. A change of
+  the font does too given a `textMeasure`; the default measure is made
+  again in the new font, as is any new measure. A change of a size,
+  radius, stroke, opacity, of the scheme, or of the neutral and the
   constraint colour (which the marks draw in) builds the scene once, without
   a new layout.
 - **The DOM map** paints with the variables it inherits. Given a `theme`, the

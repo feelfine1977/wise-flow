@@ -62,11 +62,12 @@ function recorder() {
     fillText(text: string) {
       texts.push({ text, fill: ctx.fillStyle });
     },
-    measureText: (text: string) => ({ width: text.length * 6 }),
+    // 6 per character, 12 in a font named Wide.
+    measureText: (text: string) => ({ width: text.length * (ctx.font.includes("Wide") ? 12 : 6) }),
   };
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => ctx as unknown as CanvasRenderingContext2D);
   // The label is shortened to the room before its count by the scene's measure, the estimate's or the stub's.
-  return { label: () => texts.filter((t) => t.text.startsWith("Record Goods Rec")).map((t) => t.fill), strokes: () => strokes };
+  return { label: () => texts.filter((t) => t.text.startsWith("Record Goods Rec")).map((t) => t.fill), texts: () => texts.map((t) => t.text), strokes: () => strokes };
 }
 
 /** Renders `useFlowTheme` on an element of class `host` and reports what it resolves. */
@@ -177,6 +178,30 @@ describe("the theme of a map", () => {
     expect(vi.mocked(buildScene).mock.calls.length).toBe(built + 1);
     expect(layouts.mock.calls.length).toBe(laid);
     expect([outlined(2), label()]).toEqual([0, ["#123456"]]);
+  });
+
+  it("measures the texts in the font of the host's variables, and measures them again when it changes, without a layout", async () => {
+    const { texts } = recorder();
+    const positions = await layout(vendor, { engine: "dagre" });
+    document.head.appendChild(rules);
+    rules.textContent = ".wide, .wide * { --wf-font: Wide; }";
+    const view = render(
+      <div className="host" style={{ width: 1200, height: 800 }}>
+        <ProcessMap graph={vendor} positions={positions} renderer="canvas" edgeBudget="all" controls={false} legend={false} />
+      </div>,
+    );
+    const host = view.container.firstElementChild as HTMLElement;
+    // At 6 per character "Record Invoice Recei…" (126) fits before its count "318" (18) and "Record Invoice Receip…" (132) does not,
+    // so the label has 126 to 131 and "Record Goods Receipt" (120) is written in full.
+    await waitFor(() => expect(texts()).toContain("Record Goods Receipt"));
+    const built = vi.mocked(buildScene).mock.calls.length;
+    const laid = layouts.mock.calls.length;
+    // At 12 per character the count "323" takes 36, 18 more, leaving 108 to 113: "Record G…" (108), not "Record Go…" (120).
+    act(() => host.classList.add("wide"));
+    await waitFor(() => expect(texts()).toContain("Record G…"));
+    expect(texts()).not.toContain("Record Goods Receipt");
+    expect(vi.mocked(buildScene).mock.calls.length).toBe(built + 1);
+    expect(layouts.mock.calls.length).toBe(laid);
   });
 
   it("writes a given theme's colours on the map's element, and repaints a change of them without a new scene", async () => {

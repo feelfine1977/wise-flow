@@ -52,10 +52,12 @@ variables, and the exports take it too.
   pattern twins, and the legends of a `<ViewSwitcher/>` grid, are drawn in
   the theme's ink (of the light scheme) and pattern look. Inside the map,
   the Canvas map draws the map's theme: a variable set on `.wf-canvas-map`
-  alone no longer reaches it; set it on the map or its container. A change of a colour or
-  the font repaints the DOM map and the Canvas map without a new scene; a
-  change of a size builds the scene once; neither lays the map out again.
-  `<CanvasMap/>` and `<ViewSwitcher/>` take `theme`. `<CanvasMap/>` reads its
-  colours and font through `useFlowTheme` on its element, no longer through
-  `readTokens`; `readTokens` itself is
-  unchanged.
+  alone no longer reaches it; set it on the map or its container. A change
+  of a colour repaints the DOM map and the Canvas map without a new scene;
+  a change of a size builds the scene once; neither lays the map out again.
+  The map's default text measure measures in the theme's font, the host's
+  `--wf-font` included, so a change of the font measures the texts again
+  and builds the scene once. `<CanvasMap/>` and `<ViewSwitcher/>` take
+  `theme`. `<CanvasMap/>` reads its colours and font through
+  `useFlowTheme` on its element, no longer through `readTokens`;
+  `readTokens` itself is unchanged.
