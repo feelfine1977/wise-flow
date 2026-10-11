@@ -156,10 +156,17 @@ strongest direct edges, then by the cheapest paths through removed nodes,
 then by one edge per activity that lost all incoming or all outgoing paths;
 re-added elements are tagged `reconnected`. Of equally cheap reconnecting
 paths the one chosen depends on ids only, not on the input order
-([Architecture §2.2](ARCHITECTURE.md#22-aggregation)). A collapsed group becomes a
+([Architecture §2.2](ARCHITECTURE.md#22-aggregation)), and a strength relative to
+the total divides by a sum taken in ascending order, which no input order
+changes. A collapsed group becomes a
 `stage` node with the group's id; counts are summed, `cases` and `share`
-are maxima, other metrics weighted means, internal transitions land in
-`internalCount`.
+are maxima, other metrics weighted means over the members that carry them
+(plain means where none has a weight; summed in id order, so that no input
+order changes them), internal transitions land in `internalCount`
+(summed in ascending order). Edges of one kind between the same two shown
+nodes merge into one, named `source->target`, or `source->target:kind:n`
+where that id is taken; merged edges take their names in the order of their
+smallest original id, not of the input.
 
 `diff(a, b)` (baseline `a`, slice `b`) carries `b`'s metrics under their own
 names, `a`'s under `a_<metric>` and `b − a` under `delta_<metric>`; elements

@@ -50,6 +50,9 @@ function firstMetric(el: { metrics?: Metrics }, candidates: string[]): number | 
   return undefined;
 }
 
+/** Summed in ascending order, which no input order changes. */
+const total = (values: number[]) => values.sort((a, b) => a - b).reduce((sum, v) => sum + v, 0);
+
 /**
  * Relative strength in [0, 1] of every element, computed from the first available
  * metric. Elements without a metric get strength 1 so that thresholds never remove
@@ -61,13 +64,14 @@ export function strengths<T extends { id: string; metrics?: Metrics }>(
   relativeTo: "max" | "total" = "max",
 ): Map<string, number> {
   const values = new Map<string, number>();
-  let denominator = 0;
+  let max = 0;
   for (const it of items) {
     const v = firstMetric(it, candidates);
     if (v === undefined) continue;
     values.set(it.id, Math.max(0, v));
-    denominator = relativeTo === "max" ? Math.max(denominator, v) : denominator + Math.max(0, v);
+    max = Math.max(max, v);
   }
+  const denominator = relativeTo === "max" ? max : total([...values.values()]);
   const out = new Map<string, number>();
   for (const it of items) {
     const v = values.get(it.id);
@@ -76,32 +80,33 @@ export function strengths<T extends { id: string; metrics?: Metrics }>(
   return out;
 }
 
-function sumMetrics(items: { metrics?: Metrics }[], weightKey: string[]): Metrics {
+function sumMetrics(unordered: { id: string; metrics?: Metrics }[], weightKey: string[]): Metrics {
+  const items = [...unordered].sort(byId);
   const SUM = new Set(["events", "count", "starts", "ends", "violations", "internalCount"]);
   const MAX = new Set(["cases", "share"]);
   const names = new Set<string>();
-  for (const it of items) for (const k of Object.keys(it.metrics ?? {})) names.add(k);
+  for (const it of unordered) for (const k of Object.keys(it.metrics ?? {})) names.add(k);
   const out: Metrics = {};
   for (const name of names) {
     let sum = 0;
     let max = -Infinity;
     let weighted = 0;
     let weightSum = 0;
-    let any = false;
+    let carriers = 0;
     for (const it of items) {
       const v = it.metrics?.[name];
       if (typeof v !== "number" || !Number.isFinite(v)) continue;
-      any = true;
+      carriers++;
       sum += v;
       max = Math.max(max, v);
       const w = firstMetric(it, weightKey) ?? 1;
       weighted += v * w;
       weightSum += w;
     }
-    if (!any) continue;
+    if (!carriers) continue;
     if (SUM.has(name)) out[name] = sum;
     else if (MAX.has(name)) out[name] = max;
-    else out[name] = weightSum > 0 ? weighted / weightSum : sum / items.length;
+    else out[name] = weightSum > 0 ? weighted / weightSum : sum / carriers;
   }
   return out;
 }
@@ -178,13 +183,14 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
 
   const merged = new Map<string, FlowEdge[]>();
   const edgeTarget = new Map<string, string>();
-  const internal = new Map<string, number>();
+  const internal = new Map<string, number[]>();
   const order: string[] = [];
   for (const e of graph.edges) {
     const s = nodeTarget.get(e.source) ?? e.source;
     const t = nodeTarget.get(e.target) ?? e.target;
     if (s === t && nodeTarget.has(e.source) && nodeTarget.has(e.target)) {
-      internal.set(s, (internal.get(s) ?? 0) + metric(e, "count", 1));
+      if (!internal.has(s)) internal.set(s, []);
+      internal.get(s)!.push(metric(e, "count", 1));
       edgeTarget.set(e.id, s);
       continue;
     }
@@ -197,6 +203,16 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
   }
   // Keep singleton ids unchanged and reserve node/group ids to avoid ambiguous targets.
   const usedIds = new Set([...nodes.map((n) => n.id), ...(graph.groups ?? []).map((g) => g.id), ...[...merged.values()].filter((list) => list.length === 1).map((list) => list[0].id)]);
+  // Merged edges are named in the order of their smallest original id.
+  const smallest = (key: string) => merged.get(key)!.map((e) => e.id).sort()[0];
+  const mergedIds = new Map<string, string>();
+  for (const key of order.filter((k) => merged.get(k)!.length > 1).sort((a, b) => (smallest(a) < smallest(b) ? -1 : 1))) {
+    const { source, target, kind } = merged.get(key)![0];
+    let id = `${source}->${target}`;
+    for (let suffix = 1; usedIds.has(id); suffix++) id = `${source}->${target}:${kind}:${suffix}`;
+    usedIds.add(id);
+    mergedIds.set(key, id);
+  }
   const edges: FlowEdge[] = order.map((key) => {
     const list = merged.get(key)!;
     if (list.length === 1) {
@@ -204,10 +220,7 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
       return list[0];
     }
     const first = list[0];
-    const baseId = `${first.source}->${first.target}`;
-    let id = baseId;
-    for (let suffix = 1; usedIds.has(id); suffix++) id = `${baseId}:${first.kind}:${suffix}`;
-    usedIds.add(id);
+    const id = mergedIds.get(key)!;
     for (const edge of list) edgeTarget.set(edge.id, id);
     return {
       id,
@@ -220,7 +233,7 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
   });
   for (const n of nodes) {
     const c = internal.get(n.id);
-    if (c !== undefined) n.metrics = { ...(n.metrics ?? {}), internalCount: c };
+    if (c) n.metrics = { ...(n.metrics ?? {}), internalCount: total(c) };
   }
 
   const targetOf = (id: string) => nodeTarget.get(id) ?? rootOf(id) ?? edgeTarget.get(id) ?? id;
@@ -624,13 +637,8 @@ export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowG
 
 /** The maximum or the total of the follows edges' metric, which self-loops are measured against. */
 function loopStrengthDenominator(follows: FlowEdge[], candidates: string[], relativeTo: "max" | "total"): number {
-  let denominator = 0;
-  for (const f of follows) {
-    const fv = firstMetric(f, candidates);
-    if (fv === undefined) continue;
-    denominator = relativeTo === "max" ? Math.max(denominator, fv) : denominator + fv;
-  }
-  return denominator;
+  const values = follows.map((f) => firstMetric(f, candidates)).filter((v): v is number => v !== undefined);
+  return relativeTo === "max" ? values.reduce((m, v) => Math.max(m, v), 0) : total(values);
 }
 
 function strengthOfLoop(e: FlowEdge, denominator: number, candidates: string[]): number {
