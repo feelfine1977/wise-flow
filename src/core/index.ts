@@ -468,10 +468,14 @@ export {
   edgeMark,
   nodeMarks,
   edgeMarks,
+  pathArrowhead,
+  lineEnd,
   groupMark,
   groupMarks,
   edgeColor,
 } from "./element-marks.js";
+export { pathCourses } from "./courses.js";
+export type { CourseLabel, PathCourses } from "./courses.js";
 export type {
   ElementText,
   NodeCue,

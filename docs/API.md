@@ -25,7 +25,8 @@ export interface Overlay { kind: OverlayKind; target: string; payload?: OverlayP
 export interface FlowGraph { nodes: FlowNode[]; edges: FlowEdge[]; groups?: FlowGroup[];
   overlays?: Overlay[]; meta?: FlowMeta; focus?: string; paths?: FlowPaths; }   // focus, paths: 0.3
 export interface FlowMeta { abstraction?: number | AbstractionMeta; model?: ModelOutline; [key: string]: unknown }
-export interface ModelOutline { activities?: number; paths?: number; groups?: string[] }   // the model before abstraction
+export interface ModelOutline { activities?: number; paths?: number; groups?: string[];   // the model before abstraction
+  pathMax?: Record<string, number> }   // the largest value of each metric over its paths: the upper end of the path width's scale
 export interface AbstractionMeta { minEdgeShare?: number; minNodeShare?: number; keepConnected?: boolean;
   collapse?: string[] | "all" }
 
@@ -310,7 +311,11 @@ the layout rejects with `LayoutUnavailableError` instead of freezing the page.
 ```ts
 export interface StyleSpec { edgeWidth?: ChannelSpec; edgeColor?: ColorSpec; nodeColor?: ColorSpec; lod?: Partial<LodRules>;
   stages?: readonly string[] }   // the host's full stage list in stage order: categorical colours follow it
-export const defaultStyle: StyleSpec;   // width and colour ← cases (sqrt; 1–8 px, the neutral ramp; transitions where paths give no cases), nodes by group
+export interface ChannelSpec { metric: string; scale?: "linear" | "sqrt" | "log";
+  max?: number;                   // the upper end of the width's scale, which runs from 0 to it; default the graph's strongest path before abstraction
+  domain?: [number, number];      // values the range is stretched over instead (the lower end at the thinnest line)
+  range?: [number, number] }      // the thinnest line and the width of the upper end; default the theme's pathMin and pathMax, 1 and 8
+export const defaultStyle: StyleSpec;   // width and colour ← cases (width: sqrt from 0 to the graph's strongest path onto 0–8 px, never under 1; colour: the neutral ramp; transitions where paths give no cases), nodes by group
 export const shortfallStyle: StyleSpec; // width ← cases, colour ← violationShare on the shortfall palette (the default up to 0.3)
 export const diffStyle: StyleSpec;      // width ← cases, colour ← delta_violationShare on the diverging palette
 export function buildScales(g: FlowGraph, spec?: StyleSpec, theme?: Theme): Scales;   // in the theme's palettes, default `defaultTheme`
@@ -322,7 +327,8 @@ export interface CategoricalEntry { key: string; color: string; pattern: Pattern
 export function orderedCategorical(keys: Iterable<string>, theme?: Theme): Map<string, CategoricalEntry>;
 export type LegendItem =   // `title` is a string key for `t` (it was typed `string`)
   | { kind: "width"; title: StringKey; metric: string; domain: [number, number]; range: [number, number];
-      samples?: { value: number; width: number }[];   // the domain's ends and a count near the middle width
+      samples?: { value: number; width: number; floor?: boolean }[];   // the thinnest line (floor) with the largest value it stands for, a count near the middle width, the upper end
+      scale?: "graph" | "shared";                     // from 0 to the graph's strongest path, or to the style's `max`; none with a `domain`
       transitionsOnly?: boolean }                     // the paths give only transition counts
   | { kind: "sequential" | "diverging"; title: StringKey; metric: string; domain: number[]; stops: readonly string[] }
   | { kind: "categorical"; title: StringKey; entries: CategoricalEntry[] };
@@ -362,9 +368,34 @@ keep working and are the theme's `shortfall` and `performance`. Data colours
 are read from the theme the scales are built in, so a theme with other
 palettes colours paths, activities and groups by them.
 
+**One width scale per graph.** A path's width depends on its value alone:
+a square-root scale from 0 to the strongest path of the graph the map is
+given, before any abstraction, onto 0 to 8 (`range[1]`), rounded to
+hundredths, and a path whose width rounds under the thinnest line (`range[0]`,
+1) is drawn at it. `abstract` records the largest value of each metric over the
+paths of the graph before it (`meta.model.pathMax`, kept from an earlier
+abstraction, as the rest of `meta.model`), and the scales read the upper end
+from there, else from the graph's own paths. So moving the map's sliders,
+focusing or collapsing stages does not change the width of a path that stays;
+a collapsed stage's merged path is read on the same scale (its cases are the
+largest of the merged paths', a summed count above the upper end is drawn at
+8). A host gives several maps one scale with `edgeWidth.max`, the upper end
+(`{ ...defaultStyle, edgeWidth: { ...defaultStyle.edgeWidth, max: 250000 } }`);
+`resolveViews` gives its views the strongest path of any of them, its own
+metrics included. A `domain`
+keeps the former reading: the range stretched over its values. The legend's
+width row says whose scale it is ("Path width: cases (count) · whole
+graph", German "· ganzer Graph"; "· shared scale" with `max`) and shows the
+same three samples at every setting: the thinnest line with the counts it
+stands for ("≤ 3,044", every path up to 3,044 cases is drawn at it), a count
+near the middle width, and the upper end. The row keeps the panel's two lines
+(title and samples) at 260 wide. Up to 0.3 the scale ran from the
+weakest to the strongest path shown, so a path changed its width when a slider
+moved (`pathScaleMax`, the upper end a graph gives, is internal).
+
 **Paths by cases.** In the default style a path's colour and its width both
-mean its count: the width on a square-root scale from 1 to 8, the colour on
-the same square-root scale along the theme's `neutral` ramp (`ColorSpec.scale:
+mean its count: the width on the graph's square-root scale above, the colour
+on a square-root scale over the paths' values along the theme's `neutral` ramp (`ColorSpec.scale:
 "sqrt"`; `"linear"`, the default, runs evenly over the domain). The ramp is a
 grey that gets darker with more cases in the light scheme (`#8c8c8c` to
 `#141414`) and brighter with more cases in the dark scheme (`#6e737d` to
@@ -425,7 +456,8 @@ export const dimensionTokens: { band: 8; mapMinHeight; viewMapMinHeight; handle;
   legendSwatchWidth; legendSwatchHeight; legendSample; legendSampleExport; legendGlyph; legendGradient; searchMinWidth; tableSwatch;
   tooltipMaxWidth; canvasTooltipMaxWidth; activityTooltipMaxWidth; bpmnTableTop; watermarkClearance; sideList; menuMinWidth;
   menuMaxWidth; filterChipMinHeight; zoomButtonWidth; zoomButtonHeight; backgroundGap; cueFoot: 3; eventLabel: 96 };
-export interface Arrowhead { size; box; length; width; overhang; outline }
+export interface Arrowhead { size; box; length; width; overhang; outline;
+  perWidth? }   // the size grows to perWidth times the width of the path it ends
 export const arrowheadTokens: { edge: Arrowhead; overlay: Arrowhead };
 export function arrowheadExtent(a: Arrowhead): { length; half; tip; outline };  // in user units
 export type PatternId; export const PATTERNS: PatternId[];          // also exported from the style module, as before
@@ -487,10 +519,20 @@ name in `activityName` (a stage's in `stageLabel`), its cases in
 card"); the two stay in the table, deprecated, so that themes which set them
 keep type-checking.
 
-The arrowhead rule is the live map's: an edge ends in a closed triangle 3
-long and 4.8 wide, outlined by 0.6 in its colour, its tip on the route's
-end, in user units (`MarkerType.ArrowClosed` at 12 in React Flow, the
-`wf-arrow` marker in SVG, the same triangle in Canvas); arcs and self-loops
+The arrowhead rule is the maps': an edge ends in a closed triangle, at 12 3
+long and 4.8 wide, outlined by 0.6 in its colour, in user units; a path wider
+than 3 ends in a head 4 times its width (`perWidth`, rounded up: a path 8 wide
+in a head of 32, 8 long and 14.4 wide with its outline), so the head is at
+least 1.8 times as wide as its line at every width. The line ends three
+quarters of the head's length before the tip (`overhang` 3.75 of 20), inside
+the head, and the tip lies on the route's end: `pathArrowhead(width)` gives
+the head of a path (`EdgeMark.arrow`), `lineEnd(points, arrow)` where its line
+ends. The SVG export defines the marker `wf-arrow` for the head of 12 and
+`wf-arrow-<size>` for each larger head it draws; the React Flow map defines
+`wf-edge-arrow-<size>` with the same `arrowMarker` (it used React Flow's
+`MarkerType.ArrowClosed` at 12); the Canvas map and the PNG export draw the
+same triangle. Up to 0.3 every edge ended in the head of 12 with its tip on
+the end of the line, so a path wider than about 4 showed no head; arcs and self-loops
 end in a triangle 12 long and wide whose tip lies 1.2 beyond the path. A
 pattern twin is a 6-unit tile drawn by `patternDefs` (SVG), the Canvas band
 and `<PatternSwatch/>` (React) from `patternTwin`.
@@ -710,6 +752,19 @@ self-loop it carries. The labels' boxes are measured in the language they
 are written in, `OverlayGeometryOptions.locale` (default `en`; `buildScene`
 passes the scene's locale).
 
+A chip of a group (a measure that belongs to a stage) is placed after the
+badges and the self-loops: in the group's title row, ending at its chip
+anchor, where it covers nothing there; otherwise above the group or below
+it, 4 clear of it, ending at its right edge or starting at its left, a row
+of 28 further out each time (four rows on either side). It takes the first
+place that covers no activity, group title, badge, self-loop or other chip and
+crosses the fewest paths (the scene's paths, in their courses; `overlayGeometry`
+alone knows no paths), and where every place covers something the first that covers
+fewest. Arc labels, placed after it, keep clear of it. Up to 0.3 a group's
+chips were stacked downwards from the chip anchor, over the group's title
+and its activities where those lay there. Map-level chips sit above the map,
+as before.
+
 An arc keeps clear of the activities between its ends where it can. Its
 default course runs above the map from the tops of its ends (below from the
 bottoms for a reverse arc) at a height of 22 % of its span, at least 40,
@@ -795,8 +850,10 @@ a lag performance, a difference difference; the unit is `Scales.pathMetric`;
 the cases are `meta.cases`, left out when unknown). Then the scales, each
 titled "channel: metric (unit)" from the metric registry ("Path width: cases
 (count)", "Path colour: expectation shortfall (% of cases)", "Activity colour:
-stage"): path width with three sample strokes and their values (the domain's
-ends and a count near the middle width, written as paths are), a colour ramp
+stage"): path width with three sample strokes and their values (the thinnest
+line with the counts it stands for, a count near the middle width and the
+graph's strongest path, written as paths are; see "One width scale per
+graph"), a colour ramp
 with its values, the stages as swatches with their labels and pattern twins.
 Where the paths give only transitions, the path row says so ("Path width:
 transitions (count) · paths count transitions; no case counts given"). Then
@@ -1169,10 +1226,15 @@ export function viewsSharePositions(set: ViewSet): boolean;
 
 Every view renders the same graph (ids, elements, positions) with its own
 metrics (merged over the base graph's by id), overlays and style. With
-`shareScales` (default) the domain of a metric on a channel is its extent
-over all views, so equal colours and widths mean equal numbers across the
-views; the filled-in domains are returned in `views[i].style` and
-`domains` (`"edgeWidth:count"`, `"edgeColor:medianLagHours"`, …).
+`shareScales` (default) the domain of a metric on a colour channel is its
+extent over all views, and every view's width runs from 0 to one upper end,
+the strongest path of any view before abstraction, or of a view's own merged
+metrics where they give more (`edgeWidth.max`, unless the view's style gives a
+`max` or a `domain`), so equal colours and widths mean
+equal numbers across the views; the filled-in domains and upper ends are
+returned in `views[i].style` and `domains` (`"edgeWidth:count"` as `[0,
+max]`, `"edgeColor:medianLagHours"`, …). Up to 0.3 the views shared the
+width's `domain`, the extent of its values.
 
 ## BPMN (`@wise/flow/bpmn`, 0.2)
 
@@ -1862,17 +1924,26 @@ export interface NodeMark { id: string; kind: NodeKind; node: FlowNode; box: Box
   color: string; pattern: PatternId; fill: MarkPaint; stroke: { paint: MarkPaint; width: number; dash?: number[] }; band?: number;
   cue?: NodeCue; texts: ElementText[]; reconnected: boolean; outOfScope: boolean; title?: string; opacity?: number }
 export interface EdgeMark { id: string; kind: EdgeKind; edge: FlowEdge; points: XY[]; color: string; width: number; dash?: number[];
+  arrow: Arrowhead;                // the head at the route's end (`pathArrowhead(width)`); the line ends at `lineEnd(points, arrow)`
+  backward?: boolean;              // a path against the reading direction, drawn below the flow it returns over
   texts: ElementText[]; reconnected: boolean; notEvaluated?: boolean; opacity?: number }   // opacity: line, arrowhead and label
+export interface CourseLabel { at: XY; side: XY }   // a label beside `at` on its course, on the side the unit vector `side` points to
+export interface PathCourses { positions: Positions; backward: ReadonlySet<string>; labels: ReadonlyMap<string, CourseLabel> }
+export function pathCourses(g: FlowGraph, p: Positions, o: { width: (e: FlowEdge) => number; bands?: ReadonlySet<string> }): PathCourses;
+export function pathArrowhead(width: number, rule?: Arrowhead): Arrowhead;   // the rule's size, or perWidth × width rounded up where more
+export function lineEnd(points: readonly XY[], arrow: Arrowhead): XY;        // the route's end moved back by the head's overhang
 export type BoxSide = "top" | "right" | "bottom" | "left";
 export interface GroupMark { id: string; kind: GroupKind; group: FlowGroup; box: Box; color: string; pattern: PatternId; band?: LaneBand;
   radius: number; fill: MarkFill; stroke: { paint: MarkPaint; width: number; dash?: number[]; sides?: BoxSide[] };
   rule?: { paint: MarkPaint; width: number; side: BoxSide }; texts: ElementText[]; chipAnchor: XY; opacity?: number }
 export function nodeMark(n: FlowNode, box: Box, o: { color: string; pattern: PatternId; locale?: Locale; total?: number; outOfScope?: boolean;
   activityLabels?: ActivityLabelOptions; theme?: Theme; measure?: TextMeasure }): NodeMark;   // total: the log's cases
-export function edgeMark(e: FlowEdge, points: XY[], o: { color: string; width: number; locale?: Locale; theme?: Theme }): EdgeMark;
+export function edgeMark(e: FlowEdge, points: XY[], o: { color: string; width: number; locale?: Locale; theme?: Theme;
+  label?: CourseLabel; backward?: boolean }): EdgeMark;   // label: the count beside the course instead of 4 above its middle
 export function groupMark(g: FlowGroup, box: Box, o: { color: string; pattern: PatternId; band?: LaneBand; theme?: Theme }): GroupMark;
 export function nodeMarks(g: FlowGraph, p: Positions, scales: Scales, o?: { locale?; activityLabels?; theme?; measure?; outOfScope?: ReadonlySet<string> }): NodeMark[];
-export function edgeMarks(g: FlowGraph, p: Positions, scales: Scales, locale?: Locale, theme?: Theme): EdgeMark[];
+export function edgeMarks(g: FlowGraph, p: Positions, scales: Scales, locale?: Locale, theme?: Theme,
+  courses?: Pick<PathCourses, "labels" | "backward">): EdgeMark[];
 export function groupMarks(g: FlowGraph, p: Positions, bands: readonly LaneBand[], scales: Scales, theme?: Theme): GroupMark[];
 export function edgeColor(e: FlowEdge, scales: Scales, theme?: Theme): string;      // constraint edges in the theme's accent
 export function gatewayGlyph(n: FlowNode): string;                  // + (and), ○ (or), × otherwise
@@ -1881,6 +1952,32 @@ export function edgePoints(p: Positions, e: FlowEdge): XY[] | undefined;      //
 export function routeMidpoint(points: readonly XY[]): XY;           // half of the polyline's length
 export function edgeLabelPoint(points: readonly XY[]): XY;          // 4 above the route's midpoint
 ```
+
+**The direction of every path.** `buildScene` gives the paths (follows edges
+between two different nodes) courses of their own where a layout draws them
+as something else (`pathCourses`; the scene's `positions.edges` hold them, so
+the hit index and the culling follow them too):
+
+- A path whose target's middle lies before its source's start in the reading
+  direction runs against it. It leaves its source from the side away from the
+  flow (below it for a flow to the right or the left, right of it for a flow
+  down or up), runs as its own line 20 below the lowest node and group of the
+  stretch it returns over (groups drawn as bands are not in its way) and
+  enters its target from that side, so that its head points against the flow.
+  Several over one stretch lie 6 apart besides their half widths, shorter
+  ones nearer the flow; the ends of several on one node are spread along its
+  side; where a box lies below a node, the line first steps aside into the
+  gap beside the node's column. Its mark says `backward`, and its count is
+  written above the middle of its line. A layout draws such a path as a frame
+  around the groups between its ends (ELK) or along the flow (Dagre).
+- Two paths in opposite directions between the same two nodes, neither of
+  them backward, are each moved half their width and 2 to their own right,
+  so that they run side by side, each with its head, and each count is
+  written beside its own line (`anchor` "start" or "end" beside a line across
+  the flow).
+
+Above 5,000 paths the layout's routes are kept. A map's bounds, and so an
+export's figure, include the lines below the flow.
 
 `buildScene` resolves a graph and its positions once into what a renderer
 draws: activity references for every activity, lane bands and the positions
@@ -1997,8 +2094,8 @@ at 0.02), outlined in the line colour 1 wide on the two sides between bands
 and ruled 2 wide in its colour along the side it starts at (`rule`: top or
 left). Its title is written 12 in from the left on a baseline 22 below the
 top, at 13 semibold in the muted ink, and `chipAnchor` is where its chips are
-placed from: their right end 8 in from the right edge, the first 6 below the
-top. The SVG export, the Canvas map, the PNG export and `<ProcessMap/>` draw
+placed from: their right end 8 in from the right edge, 6 below the top, where
+that covers nothing (see the overlay geometry). The SVG export, the Canvas map, the PNG export and `<ProcessMap/>` draw
 these marks; the Canvas scene's `SceneGroup.mark` is the group's mark.
 
 `toSVG` draws this scene. Since this change it draws follows self-loops by

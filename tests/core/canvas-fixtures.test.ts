@@ -150,14 +150,28 @@ function exported(fixture: Fixture, scene: Partial<Scene>, options: PngOptions):
  * paths' widths (their cases) and the written numbers and the labels before
  * them changed; in `toPNG` the legend's calls, the pattern twins of those
  * stages, the caption line under the map and the figure's height changed too.
+ * Recorded once more when path width took one scale per graph: the map's
+ * recordings hold as many calls as before and differ only in the paths'
+ * `lineWidth` (as in the SVG export); the legend's width row writes its title
+ * on two lines and the three samples of the graph's scale.
+ * Recorded once more when paths began to end in a head that grows with the
+ * line: the recordings hold as many calls as before; only each path's last
+ * `lineTo`, which ends the line inside its head, and the base and outline
+ * width of the heads that grew with their path changed; every head's tip is
+ * where it was. Recorded once more when paths against the reading direction
+ * began to run below the flow: only the calls of the backward paths (their
+ * points, heads and labels, as in the SVG export) and, in `toPNG`, the
+ * figure's size and the caption's place changed. Recorded once more when the
+ * legend's width row took shorter words (as in the SVG export): only those
+ * two texts changed.
  */
 const before = {
-  mapGlobalStages: "73e7bdbcf27f56808b46e2ecebebf2729d328b95a89a4fde20c1c720325c4df9",
-  mapVendorIds: "7f1a4a1a334de266f658e122b81ced9fc3bdbc8e14abe6a494459ba99d3e1b2e",
-  mapUnfiltered: "08f12397dfda38e2c72ad96529350b494b4d4610fd23e8a8b2c3cd2b9e486a50",
-  pngGlobalTitle: "378b19019faf6523c89ad6b0aad6c211da07905092736fbdbe8fa7f34570bb4a",
-  pngVendorIds: "5eae33f17d2200d35cb741f3488f01ace7e3244fdd0487ad6b3ee6f080d7d4ba",
-  pngUnfilteredGerman: "ba212d3e17fb275aad08bab3046e3b5827559ce0e44367ceff88a8dcb37d4105",
+  mapGlobalStages: "4d70decb4520e59f1a10a032611432d406ce1b409f8d9d03554ec3bdb9a2efd2",
+  mapVendorIds: "07d774d42b584c749d7d9132ba3e1eec5865aab2da10ba7f38993be036d44de2",
+  mapUnfiltered: "e6a492337c82a44152a63a7bb5b95239b7388297335b2d74dadcf932b599c223",
+  pngGlobalTitle: "bd63b600819c8cb1a70a878c600025d2366f3b37b03f37b12b3ab2d8c3fb6871",
+  pngVendorIds: "86cc5e853bb0e41385ce1b06c835d88418636a7d442a1d4fafb3f0847e7d7104",
+  pngUnfilteredGerman: "021831f2334b458db1bc2d5fb9936a164fffab76a1f6c9794ce6f14fd3a92ca8",
 };
 
 /**
@@ -182,12 +196,17 @@ const before = {
  * to hold arcs.
  * Recorded once more when the legend became a key and the numbers honest:
  * stage colours, path widths and written numbers changed, as above.
+ * Recorded once more when path width took one scale per graph: only the
+ * paths' widths changed, as above. Recorded once more when paths began to end
+ * in a head that grows with the line, as above. Recorded once more, for
+ * the strips that hold backward paths, when those began to run below the
+ * flow, as above.
  */
 const culledBefore = {
-  culledGlobal: "8ac8126534dd7fafea6ff96c7869b5d9c1aedba9ffe3269c0933e3c027f36f03",
-  culledGlobalStages: "511398f6eb493cdd74c86925972312b6050385a7007b04c8fef29627991303ed",
-  culledVendorIds: "16ff243ca72af4bcefcd054b837db6ff381e4f8d1a51fd3b81c26e2d6b03945b",
-  culledUnfiltered: "2e1d99227704ab7f713c227d78e504bf1911c6811588249102ac2cd2397b3111",
+  culledGlobal: "65890723ecce4bed284865e0c2a459f7c29b2341fe5b7c4af13e590091dc0215",
+  culledGlobalStages: "ae4336f3de55d2e322847918c0ce27731258ab9ab2f40346cb9e1cb1f655e053",
+  culledVendorIds: "928c3b1f8d781016f462dc2c31a07e851368b167a67f9b27dd43afce727061cb",
+  culledUnfiltered: "ef3e3e2ed006fd1697e679b3f8b086d8a3adab05a4f07f14c9c28ed52fc94220",
 };
 
 describe("Canvas drawing on the committed fixtures", () => {

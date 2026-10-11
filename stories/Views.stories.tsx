@@ -82,7 +82,7 @@ export const FourViews: StoryObj = {
       };
     }, [specs]);
     if (!set) return <p style={{ fontFamily: "var(--wf-font)", padding: 12 }}>…</p>;
-    const sameWidth = set.views.every((v) => v.style.edgeWidth?.domain?.join() === set.views[0].style.edgeWidth?.domain?.join());
+    const sameWidth = set.views.every((v) => v.style.edgeWidth?.max !== undefined && v.style.edgeWidth.max === set.views[0].style.edgeWidth?.max);
     return (
       <div style={{ height: "100vh", width: "100vw" }} data-testid="views" data-shared-width={sameWidth}>
         <ViewSwitcher views={set} mode={mode} onModeChange={setMode} selection={selection} onSelect={setSelection} />

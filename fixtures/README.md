@@ -40,6 +40,12 @@ task id equals a fixture activity id, the labels match fixture labels, and
 which the overlay catalogue and the parity stories draw; its activities'
 shares of all cases are round (100 %, 12 %, 90 %, 6 %, 85 %, 4 %, 78 %).
 
+`path-direction.ts` — small graphs for what the committed scenes do not
+hold: two paths in opposite directions between the same activities
+(`oppositePaths`), a path back across two stages (`backAcrossStages`) and a
+stage with a long name and a chip of a measure that belongs to it
+(`stageChip`, `stageChipOverlays`).
+
 `text-measures.ts` — a text measure other than the core's estimate (0.7 em
 per character), which the parity stories give to the map and the browser
 lane to the exports by name.

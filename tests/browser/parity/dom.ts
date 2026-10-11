@@ -20,9 +20,10 @@ export interface DomElement {
   cue?: { color: string; width: number };
   cueFoot?: { color: string; width: number };
   rule?: { color: string; width: number };
-  /** A path's corners and whether it ends in an arrowhead. */
+  /** A path's corners and whether it ends in an arrowhead; a path's head as wide as its marker is high. */
   join?: string;
   arrow?: boolean;
+  arrowWidth?: number;
   /** The pill a mark's label is written in. */
   pill?: { box: Box; fill: string; stroke: string; width: number; radius: number };
   texts: { text: string; size: number; weight: number; color: string }[];
@@ -176,6 +177,7 @@ export function readDomInPage(tints: { id: string; target: string }[]): DomEleme
       outline: { color: cs.stroke, width: parseFloat(cs.strokeWidth), style: cs.strokeDasharray, opacity: Number(cs.strokeOpacity), sides: "" },
       join: cs.strokeLinejoin,
       arrow: !!path.getAttribute("marker-end"),
+      arrowWidth: Number(document.getElementById(/url\('?#([^')]+)'?\)/.exec(path.getAttribute("marker-end") ?? "")?.[1] ?? "")?.getAttribute("markerHeight") ?? NaN),
       texts: textsOf(g, "title"),
     });
   }
@@ -242,7 +244,8 @@ export function readDom(elements: DomElement[], kinds: Map<string, string>): Dra
       props.cueFoot = cue(e.cueFoot && paint(e.cueFoot.color), e.cueFoot?.width);
     }
     if (kind.startsWith("edge:")) props.join = e.join ?? "none";
-    if (kind.startsWith("edge:") || kind === "mark:arc" || kind === "mark:selfLoop") props.arrow = e.arrow ? "yes" : "no";
+    if (kind === "mark:arc" || kind === "mark:selfLoop") props.arrow = e.arrow ? "yes" : "no";
+    if (kind.startsWith("edge:")) props.arrow = e.arrow ? `yes ${num(e.arrowWidth ?? NaN)}` : "no";
     if (e.pill) props.pill = pillOf(e.pill.box, paint(e.pill.fill), { paint: paint(e.pill.stroke), width: e.pill.width }, e.pill.radius);
     if (kind.endsWith(":band")) {
       props.outlineSides = o?.sides ?? "none";

@@ -98,7 +98,7 @@ describe("paths in the default style", () => {
     });
   }
 
-  it("take their colour from the count on the same square-root scale as their width", () => {
+  it("take their colour from the count on a square-root scale over the paths and their width from the graph's square-root scale from 0", () => {
     // Counts 100 and 400 on a domain 100 … 900: the square roots 10, 20 and 30 put 400 half-way along the ramp.
     const graph: FlowGraph = {
       nodes: ["a", "b", "c", "d"].map((id) => ({ id, kind: "activity", label: id })),
@@ -113,14 +113,14 @@ describe("paths in the default style", () => {
     const light = buildScene(graph, positions);
     // The light ramp #8c8c8c #6b6b6b #4d4d4d #2e2e2e #141414: its ends and its middle stop.
     expect(light.edgeMarks.map((m) => m.color)).toEqual(["#8c8c8c", "#4d4d4d", "#141414"]);
-    // Widths 1 to 8 on the same scale: 1 + 7 × 0.5.
-    expect(light.edgeMarks.map((m) => m.width)).toEqual([1, 4.5, 8]);
+    // Widths from 0 to the strongest path onto 0 to 8: √(100 / 900) × 8 = 2.67, √(400 / 900) × 8 = 5.33 and 8.
+    expect(light.edgeMarks.map((m) => m.width)).toEqual([2.67, 5.33, 8]);
     // The dark ramp #6e737d #8d929b #adb1b8 #cfd2d6 #f2f3f5 runs from dim to bright.
     expect(buildScene(graph, positions, { scheme: "dark" }).edgeMarks.map((m) => m.color)).toEqual(["#6e737d", "#adb1b8", "#f2f3f5"]);
     // The shortfall colouring is a style away: violation share 0.5 on the shortfall ramp is #fd8d3c.
     const short = { ...graph, edges: graph.edges.map((e) => ({ ...e, metrics: { ...e.metrics, violationShare: 0.5 } })) };
     expect(buildScene(short, positions, { style: shortfallStyle }).edgeMarks.map((m) => m.color)).toEqual(["#fd8d3c", "#fd8d3c", "#fd8d3c"]);
-    expect(buildScene(short, positions, { style: shortfallStyle }).edgeMarks.map((m) => m.width)).toEqual([1, 4.5, 8]);
+    expect(buildScene(short, positions, { style: shortfallStyle }).edgeMarks.map((m) => m.width)).toEqual([2.67, 5.33, 8]);
   });
 });
 

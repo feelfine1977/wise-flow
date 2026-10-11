@@ -5,7 +5,7 @@
  */
 import { useStore } from "@xyflow/react";
 import { createElement, type ReactNode } from "react";
-import { type MarkPaint, type MarkSvgOptions, type OverlayMark, type SvgElement, MAP_TARGET, arrowMarker, createPositions, hatchSvg, hatchTokens, hexToRgb, markArrowhead, markSvg, overlayArrow, overlayGeometry, overlayMarks } from "../core/index.js";
+import { type Arrowhead, type MarkPaint, type MarkSvgOptions, type OverlayMark, type SvgElement, MAP_TARGET, arrowMarker, createPositions, hatchSvg, hatchTokens, hexToRgb, markArrowhead, markSvg, overlayArrow, overlayGeometry, overlayMarks } from "../core/index.js";
 import type { Overlay } from "../core/index.js";
 
 const TOKENS: Record<Exclude<MarkPaint, "value" | "onValue" | `#${string}`>, string> = {
@@ -148,11 +148,12 @@ export function ElementMarks({ marks, origin }: { marks: OverlayMark[]; origin: 
   );
 }
 
-/** The marker and pattern that `ElementMarks` refer to; rendered once by the map. */
-export function MarkDefs() {
+/** The marker and pattern that `ElementMarks` refer to, and the heads of the map's edges by their ids; rendered once by the map. */
+export function MarkDefs({ arrows = [] }: { arrows?: readonly [string, Arrowhead][] }) {
   return (
     <svg className="wf-mark-defs" width={0} height={0} aria-hidden="true">
       {svgReact(markDefs(MARK_IDS))}
+      {arrows.length ? svgReact({ tag: "defs", attrs: [], children: arrows.map(([id, a]) => arrowMarker(id, a)) }) : null}
     </svg>
   );
 }

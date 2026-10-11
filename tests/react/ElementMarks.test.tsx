@@ -44,8 +44,9 @@ describe("React Flow nodes and edges from their marks", () => {
   it("draws edges along the scene's route, straight between the boxes where none is given, with the count at the label point", async () => {
     const { edge } = await map();
     const path = (id: string) => edge(id).querySelector("path.react-flow__edge-path")!.getAttribute("d");
-    expect(path("a->g")).toBe("M280 20L320 20");
-    expect(path("g->s")).toBe("M364 20L382 20L382 28L400 28");
+    // Each line ends 2.25 before its route, inside its head of 12.
+    expect(path("a->g")).toBe("M280 20L317.75 20");
+    expect(path("g->s")).toBe("M364 20L382 20L382 28L397.75 28");
     const label = edge("a->g").querySelector(".wf-edge-label")!;
     expect([label.textContent, label.getAttribute("x"), label.getAttribute("y")]).toEqual(["12", "300", "16"]);
     expect(edge("g->s").querySelector(".wf-edge-label")).toBeNull();
@@ -92,7 +93,7 @@ describe("React Flow node and edge components", () => {
     expect(texts(container.querySelector("#wf-node-a")!)).toEqual(["From the mark", "42", "· 7 %"]);
     expect(container.querySelector("#wf-node-g .wf-node__label")!.textContent).toBe("◇");
     // The edge runs along the mark's points, not between the handles, its count 4 above their middle.
-    expect(container.querySelector("g.wf-edge path.react-flow__edge-path")!.getAttribute("d")).toBe("M10 10L110 10");
+    expect(container.querySelector("g.wf-edge path.react-flow__edge-path")!.getAttribute("d")).toBe("M10 10L107.75 10");
     const label = container.querySelector("g.wf-edge .wf-edge-label")!;
     expect([label.textContent, label.getAttribute("x"), label.getAttribute("y")]).toEqual(["99", "60", "6"]);
   });

@@ -61,8 +61,10 @@ describe("the parity readers", () => {
     expect(drawn.get("node:start")).toMatchObject({ box: { x: 0, y: 6, width: 36, height: 36 }, props: { outline: "#1f1f1f", outlineWidth: "1", radius: "18", cue: "none", cueFoot: "none" } });
     expect(drawn.get("node:end")!.props.outlineWidth).toBe("2");
     expect(drawn.get("group:g")).toMatchObject({ box: { x: 80, y: -40, width: 520, height: 120 }, props: { fill: "none", outline: "#cfd4dc", dash: "none", outlineWidth: "1", radius: "8" } });
-    // An edge's box is its route's: from the right of `a` to the left of `b` at their middle; rounded corners and an arrowhead.
-    expect(drawn.get("edge:a->b")).toMatchObject({ box: { x: 280, y: 24, width: 120, height: 0 }, props: { join: "round", arrow: "yes", dash: "none" } });
+    // An edge's box is its line's: from the right of `a` towards the left of `b` at their middle. The path is √(5 / 10) × 8 =
+    // 5.66 wide, so its head is ⌈4 × 5.66⌉ = 23: 9 × 23 / 20 = 10.35 wide with its outline, and the line ends 3.75 × 23 / 20 =
+    // 4.31 before the route inside it; rounded corners.
+    expect(drawn.get("edge:a->b")).toMatchObject({ box: { x: 280, y: 24, width: 115.69, height: 0 }, props: { join: "round", arrow: "yes 10.35", dash: "none" } });
     // The arc from the top of `a` to the top of `b`, 300 apart, 66 high: its pill "late 35 % of 820" (16 characters of
     // 0.55 × 11 and 6 on either side, 108.8 wide, 18 tall) centred on its middle (340, -49.5), in the accent on paper.
     expect(drawn.get("mark:arc:a->b:0")).toMatchObject({ props: { outline: "#b84a00@0.9", outlineWidth: "1", dash: "none", arrow: "yes", pill: "285.6,-58.5,108.8,18 #ffffff #b84a00 1 r9" } });
@@ -136,9 +138,11 @@ describe("the parity readers", () => {
       ["canvas", "mark:arc", "pill", "285.6,-58.5,108.8,18 #ffffff #b84a00 1 r9", "285.6,-58.5,108.8,18 #ffffff #b84a00 2 r9", 1],
     ]);
     // An export whose paths have sharp corners and no arrowhead.
-    const sharp = readSvg(toSVG({ graph, positions, overlays }).replace(/ stroke-linejoin="round" marker-end="url\(#wf-arrow\)"/g, ""), exportedMarks(scene));
+    const sharp = readSvg(toSVG({ graph, positions, overlays }).replace(/ stroke-linejoin="round" marker-end="url\(#wf-arrow(-\d+)?\)"/g, ""), exportedMarks(scene));
     expect(differences([{ name: "small", kinds, svg: sharp, others: { canvas: canvas() } }]).map((d) => [d.kind, d.property, d.svg, d.other, d.elements])).toEqual([
-      ["edge:follows", "arrow", "no", "yes", 3],
+      // Two paths 5.66 wide end in heads 10.35 wide, the path 8 wide in one 14.4 wide.
+      ["edge:follows", "arrow", "no", "yes 10.35", 2],
+      ["edge:follows", "arrow", "no", "yes 14.4", 1],
       ["edge:follows", "join", "miter", "round", 3],
     ]);
   });

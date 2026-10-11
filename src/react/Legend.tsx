@@ -52,7 +52,7 @@ export function Legend({ scales, overlays = [], locale = "en", chips, legend, ex
         {expanded ? <h3>{title}</h3> : <p className="wf-legend__measure">{measure?.kind === "measure" ? measure.text : title}</p>}
         {!expanded && width?.kind === "width" ? (
           <span className="wf-legend__width" aria-hidden="true">
-            {width.samples.map((s, j) => <span key={j} style={{ height: s.width }} />)}
+            {width.samples.map((s, j) => <span key={j} className="wf-legend__stroke" style={{ height: s.width }} />)}
           </span>
         ) : null}
         <Button icon={expanded ? "collapse" : "expand"} label={t(locale, expanded ? "legend.collapse" : "legend.expand")} aria-expanded={expanded} aria-controls={expanded ? keyId : undefined} onClick={toggle} />
@@ -72,7 +72,11 @@ export function Legend({ scales, overlays = [], locale = "en", chips, legend, ex
                   <div key={i}>
                     <dt>{row.title}</dt>
                     <dd className="wf-legend__width">
-                      {row.samples.map((s, j) => [<span key={j} style={{ height: s.width }} />, ` ${s.text}`])}
+                      {row.samples.map((s, j) => (
+                        <span key={j} className="wf-legend__sample">
+                          <span className="wf-legend__stroke" style={{ height: s.width }} /> {s.text}
+                        </span>
+                      ))}
                     </dd>
                   </div>
                 );

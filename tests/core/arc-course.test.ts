@@ -81,12 +81,22 @@ describe("arcs that cross no other activity", () => {
    * honest, paths being labelled with their cases: compared element by element
    * only the paths changed. None of them has a count: they are not evaluated,
    * drawn in the line colour and labelled "–".
+   * Both SVGs were recorded again when paths began to end in a head that
+   * grows with the line: compared element by element only the paths' lines
+   * changed, each ending 2.25 before its route inside its head of 12, whose
+   * marker's triangle now lies 2.25 beyond the end of the line; the marks keep
+   * their digests.
+   * The overlay kinds' marks and SVG were recorded again when a group's chips
+   * began to keep clear of activities, titles, badges, self-loops and other
+   * chips: compared mark by mark only the chip of stage s2 moved, from its
+   * title row over C (442, −4) to below the stage (450, 54); the rows keep
+   * their digests.
    */
   const recorded = {
-    kindsMarks: "e1d1e08f328d3f4ff005f1bac10de158cf4291fafe7caef5f9efec97ac96eadf",
-    kindsSvg: "358513f4129512847de7cb82ad7886aaa1e414f77c9d038fc2e947214370f2de",
+    kindsMarks: "92f313412330544a8996cf549e95ec33819daf95fe965c50e01339c4c2638a70",
+    kindsSvg: "61b5130d198250ee01a4df6909f2a55408b06d8b6252492cd4528b18900e4aed",
     rowsMarks: "e96c088a2c77eb0aab68e807e8d8f733d3ddc156cde9b25f66d8a4a0356fe408",
-    rowsSvg: "874973d0f18d376fe60227d23227dd299518e85fd251224f009173d418edcc7c",
+    rowsSvg: "300ecc6fea8196351006eabe9ea516d8f2637b8f7fa2a522a5e243196724aebe",
   };
 
   it("keep the marks they had", () => {

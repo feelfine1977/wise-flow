@@ -18,7 +18,7 @@
 │                          │        viewer · bpmn-js · moddle   │
 ├──────────────────────────┴─────────────────────────────────┤
 │ core/    model · aggregate · layout · lanes · routing ·     │
-│          scene · overlays · overlay-geometry ·              │
+│          courses · scene · overlays · overlay-geometry ·    │
 │          overlay-marks · element-marks · mark-svg · figure ·│
 │          text · tokens · theme · style · hit · export ·     │
 │          views · selection · map-controller · actions ·     │
@@ -41,6 +41,7 @@ read what it resolves and do not decide it again.
 | Scene (`core/scene.ts`) | `buildScene(graph, positions, options)` → `FlowScene` | activity references, lane bands, scales, the overlays to show in canonical order with the follows self-loops, level-of-detail rules, overlay geometry, the marks and the legend, resolved once in a theme and colour scheme (§2.4, §2.6) | `toSVG`, `prepareScene` (Canvas, `toPNG`), `ProcessMap`, `BpmnView` (`bpmn/scene.ts` over the registry's boxes) |
 | Overlay marks (`core/overlay-marks.ts`) | `FlowScene.marks`, `OverlayMark` | per placed overlay: box or path, fill, stroke, dash, arrowhead, texts, layer, zoom threshold, whether it is on the map (§2.5) | SVG export, Canvas drawing, React nodes and `OverlayLayer`, BPMN projection |
 | Node, edge and group marks (`core/element-marks.ts`) | `FlowScene.nodeMarks`, `FlowScene.edgeMarks`, `FlowScene.groupMarks` | outline, fill, border, band, texts and their level of detail; an activity's or a stage's card: its name on up to two lines, its number line (cases and their share of the log's), its frequency cue and whether it is out of scope; edge route, colour, dash, count label; a group's tint, outline, band sides and rule, title and chip anchor (§2.5) | SVG export, Canvas drawing, React node, edge and group components |
+| Path courses (`core/courses.ts`) | `pathCourses(graph, positions, { width, bands })` → `PathCourses` | the course of a path against the reading direction (its own line below the flow it returns over, entering its target from below) and of two opposite paths (side by side), and where their labels go (§2.5) | `buildScene`, whose positions and edge marks carry them to every renderer, the hit index and the culling |
 | Text measure (`core/text.ts`) | `TextMeasure`, `estimateTextWidth`, `truncateText`, `wrapText`; `buildScene(…, { textMeasure })`; `canvasTextMeasure` (Canvas) | how wide a text is, where it is shortened and how it wraps: node labels, chip texts and their boxes, activity names and boxes, the legend's texts, the figure's note and activity key, measured once when the scene is built (§2.5) | the mark builders, the overlay geometry, the legend layout and the figure frame; the renderers write the fitted texts |
 | Theme (`core/theme.ts`, `checkTheme` in `core/style.ts`) | `Theme`, `defaultTheme`, `printTheme`, `resolveTheme`, `themeColors`, `checkTheme`; `buildScene(…, { theme, scheme })` | what the marks are drawn in: colour roles with the dark scheme's changes, the data palettes and the pattern twins' order and look, fonts, text, radius, stroke, opacity and spacing tables, the place of the frequency cue, density, the smallest text and stroke, rules (none in the presets); the presets (`defaultTheme` is the token table, `printTheme` its `printTokens` over it); a setting as changes over a preset over the host's CSS variables; the CSS variable of every part; what of a theme falls short (§2.4) | the scene and its mark builders and scales; through the scene the SVG export, Canvas drawing, PNG export and React components; `useFlowTheme` (React), which reads the variables |
 | Rules (`core/rules.ts`) | `ThemeRule`, `stateStyle`, `markInState`; `checkTheme` | which rules of a theme apply (the others reported), what they set on an element by part, kind, tag and state in their order with a state's rules last, and the paints, widths, dashes, radii and opacities they resolve to; for the interactive states, what the maps draw over a mark (§2.4) | the node, edge, group and overlay mark builders; `drawScene` (Canvas); the React map's elements |
@@ -201,7 +202,10 @@ edges. These positions carry `engine: "provisional"`.
 
 ### 2.4 Style
 `buildScales` builds d3 scales from metric ranges: edge width ← count
-(square root), edge and node colour ← a chosen metric on colour-blind-safe
+(square root from 0 to the strongest path of the graph before abstraction,
+which `abstract` records in `meta.model.pathMax`, or to an upper end the host
+gives, never under the thinnest line; so a path keeps its width when the
+sliders move), edge and node colour ← a chosen metric on colour-blind-safe
 sequential (single hue), diverging (purple–orange) and categorical
 (Okabe–Ito without orange and vermilion) palettes. The default style colours
 a path by its cases too, on the same square-root scale along the theme's grey
@@ -305,7 +309,9 @@ and its statistics to overlays with formatted readings. Renderers draw
 overlays; the core computes their geometry (badges as pills in a row wholly
 above the node, cubic arcs above the map and reverse arcs below it, each at the
 height or on the side that crosses the fewest other activities, self-loops at
-the corner, chips inside groups, and then the labels: a self-loop's label
+the corner, a group's chips in its title row or in rows above and below it
+where they cover no activity, title, badge, self-loop or other chip and
+cross the fewest paths, and then the labels: a self-loop's label
 and an arc's pill where they cover no activity, badge, chip, other label or
 group title) within a declared margin
 around the layout, and their visibility by zoom level. Overlays are drawn in a
@@ -323,8 +329,10 @@ activity's or a stage's card (a neutral outline, the stage once as the band,
 the name on up to two lines, the cases and their share of the log's cases,
 and the frequency cue as a stripe and a foot as long as the share, placed as
 the theme's `frequencyCue` says; the layout reserves the card's size once), an
-edge's route (straight between the boxes where none is given), colour, dash
-and count label at one label point. Groups have marks as well: a box group's
+edge's route (straight between the boxes where none is given; a path against
+the reading direction as its own line below the flow it returns over, two
+opposite paths side by side: `pathCourses`), colour, dash, an arrowhead that
+grows with its width, and count label at one label point. Groups have marks as well: a box group's
 outline (a solid hairline, untinted unless the theme's `groupFill` says
 otherwise) and muted title, a band's tint, its outline on the two sides
 between bands and its rule along the side it starts at, and where a group's
@@ -372,8 +380,9 @@ into the figure.
 ### 2.7 Views
 `buildViews(graph, views)` lays the base graph out once and resolves named
 views on it: every view carries its own metrics (merged over the base by
-id), overlays and style. The domain of a metric on a channel is computed
-over all views, so the same colour or width means the same number in
+id), overlays and style. The domain of a metric on a colour channel is
+computed over all views, and every width runs to the strongest path of any of
+them, so the same colour or width means the same number in
 Finance, Logistics, Compliance and Automation alike; the filled-in domains
 are returned with each view's style. `<ViewSwitcher/>` renders the views
 as tabs or as small multiples with a shared selection.
@@ -479,7 +488,7 @@ area shrinks and is fitted again); `FilterChips` sit above the map;
 `prepareScene` builds on the core scene (graph, positions, scales,
 overlays, lane bands, level of detail, overlay geometry and marks) and adds
 retained geometry with the R-tree of the core; `drawScene` issues plain 2D
-context calls for a viewport (groups and bands from their marks, tints, edges with arrowheads,
+context calls for a viewport (groups and bands from their marks, tints, edges with arrowheads that grow with the line,
 arcs, nodes with pattern twins, the other overlay marks, edge labels), decides the level of
 detail from the zoom and, above 1,500 elements, draws only what the R-tree
 finds inside the viewport, reading each element by its position in the

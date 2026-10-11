@@ -121,16 +121,44 @@ const observed: Variant = {
  * unit, writes three width samples, a key per badge glyph and the start and
  * end; and a caption line under the map gives the label, cases, period and
  * how much of the model is shown, which makes the figure 40 taller.
+ * Recorded once more when path width took one scale per graph: compared group
+ * by group, every node, group and overlay group is the same, and an edge group
+ * differs only in its path's `stroke-width` (the square root from 0 to the
+ * strongest path of the log, 194,821 cases, onto 0 to 8, never under 1); the
+ * legend's width row names the scale "scale of the whole graph" on a second
+ * line and writes "≤ 3,044 (thinnest)", "62,000" and "195k" at 1,
+ * 4.51 and 8 (it wrote the shown paths' ends and middle), so the rows below it
+ * and the figure's height move 16.
+ * Recorded once more when paths began to end in a head that grows with the
+ * line: compared group by group, an edge group differs only in its path's
+ * `d`, whose last point moved back along the last segment by the head's
+ * overhang (2.25 for the heads of 12, up to 6 for the 8 wide path), and its
+ * `marker-end`, the marker of its head's size; the definitions hold the rule's
+ * head with its triangle 2.25 beyond the line's end and one marker per larger
+ * head (`wf-arrow-<size>`, 4 times the path's width rounded up). Everything
+ * else is the same.
+ * Recorded once more when paths against the reading direction began to run
+ * below the flow they return over: compared group by group, only the edge
+ * groups of the backward paths differ (three of the global fixture, back to
+ * Record Goods Receipt; one of the vendor's, Clear Invoice → Record Invoice
+ * Receipt), in their course and their label's place, and the figure, whose
+ * map grew by the lowest of their lines (40.28; not with stage bands, which
+ * reach below it), is that much taller with its caption and legend rule.
+ * No path of these fixtures runs both ways without one of them backward.
+ * Recorded once more when the legend's width row took shorter words, so
+ * that the live map's panel keeps it on two lines: only the texts "whole
+ * graph" (it read "scale of the whole graph") and "≤ 3,044" (it read "≤ 3,044
+ * (thinnest)") changed.
  */
 
 const before: Record<string, string> = {
-  overlays: "b6fac0716e7471d469e24fc463457f80b2b5244cf3593d4a0daab88ea34f2269",
-  stagesGerman: "b24f53f6a0a0c9b710c2be984345474ece574ca53959a099ad92938f4942e642",
-  vendor: "7efe7b57bf497a816f14e4f008b88d7a552cb5cb7b4c4c5b376d2389f8ffb04c",
-  unfiltered: "61f9ffe82bda19099a73600467439f9e4e7d378db1ede8cdb2cf9dbf19e66fed",
-  plain: "11a615b3cd476459c3d6cd413dcb44ada256d026cf6e9f8b0b1d22e70f161a13",
+  overlays: "370ea9d2f36f75f231f7ea9856f24c8c30d19a7173451b065f1f1397c63989ad",
+  stagesGerman: "51672ef73ffb3cbe46de2aef8b11ed6594bc32ea4467e84f24d8e83bec385168",
+  vendor: "42b0e99980ad3b8d13fc4f3b2b42c3ed4c137022b63a166aa0330fddb789e5d5",
+  unfiltered: "d0a054163330e7d0f118981aef4f4f7a9c1a67c18dce0e363477c9bcdd394c6a",
+  plain: "2920ba1ebe834de63f37f3d67f44ed24f738cf49c50b8724b4552c8dd07a89ad",
 };
-const beforeObserved = "34da5785a3dafa123646d524aa2b318b7b8664562e12156f5208f8ffbe930d3a";
+const beforeObserved = "ece257718a15a45141944b3de23d9afdea74802037d7f3ab65f12e7977b50134";
 
 describe("toSVG on the committed fixtures", () => {
   it("matches the recorded output once follows self-loops are hidden", () => {

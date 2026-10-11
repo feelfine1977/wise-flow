@@ -26,7 +26,7 @@ import { FilterChips } from "./FilterChips.js";
 import { useArrival, useEdgesShown, useEdgesShownAcross, useFlowGraph, useMapScene, usePrefersReducedMotion, useStableLayout } from "./hooks.js";
 import { Legend } from "./Legend.js";
 import { useMenuActions } from "./map-actions.js";
-import { useCanvasElements, useElementDescriptions, useFlowElements, useTextMeasure } from "./map-elements.js";
+import { edgeArrowId, useCanvasElements, useElementDescriptions, useFlowElements, useTextMeasure } from "./map-elements.js";
 import { GROUP_PREFIX, canvasPointer, flowPointer, overlayPointer } from "./map-pointer.js";
 import { MarkDefs, MarkFigure } from "./marks.js";
 import { PatternTheme } from "./patterns.js";
@@ -517,7 +517,7 @@ function ProcessMapInner(props: ProcessMapProps) {
                 defaultEdgeOptions={{ type: "follows" }}
               >
                 {backgroundGrid ? <Background gap={dimensionTokens.backgroundGap} size={1} /> : null}
-                <MarkDefs />
+                <MarkDefs arrows={flow.arrows.map((a) => [edgeArrowId(a), a] as const)} />
                 <Panel position="bottom-left">
                   <ZoomControl
                     zoom={rfZoom}

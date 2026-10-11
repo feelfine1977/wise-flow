@@ -151,6 +151,12 @@ export interface ModelOutline {
   paths?: number;
   /** Its groups' ids in their order, which categorical colours are assigned in (see `StyleSpec.stages`). */
   groups?: string[];
+  /**
+   * The largest value of each metric over its paths (follows and sequence
+   * flow edges): the upper end of the path width's scale, so that a path keeps
+   * its width whatever is abstracted away (see `ChannelSpec.max`).
+   */
+  pathMax?: Record<string, number>;
 }
 
 export interface FlowGraph {

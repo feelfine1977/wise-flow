@@ -115,9 +115,11 @@ function legendOf(items: LegendItem[], keys: LegendKey[], chips: Overlay[], loca
   const rows: LegendRow[] = items.length ? [{ kind: "measure", text: measureText(items, context, locale) }] : [];
   for (const item of items) {
     if (item.kind === "width") {
-      const samples = item.samples ?? [0, 1].map((i) => ({ value: item.domain[i], width: item.range[i] }));
-      const title = channelTitle(item.title, item.metric, locale);
-      rows.push({ kind: "width", title: item.transitionsOnly ? `${title} · ${t(locale, "legend.transitionsOnly")}` : title, samples: samples.map((s) => ({ width: s.width, text: formatMetricValue(item.metric, s.value, locale, { path: true }) })) });
+      const samples: { value: number; width: number; floor?: boolean }[] = item.samples ?? [0, 1].map((i) => ({ value: item.domain[i], width: item.range[i] }));
+      // "Path width: cases (count) · whole graph", the thinnest line "≤ 3,044".
+      const title = [channelTitle(item.title, item.metric, locale), ...(item.scale ? [t(locale, item.scale === "shared" ? "legend.widthShared" : "legend.widthScale")] : []), ...(item.transitionsOnly ? [t(locale, "legend.transitionsOnly")] : [])].join(" · ");
+      const value = (v: number) => formatMetricValue(item.metric, v, locale, { path: true });
+      rows.push({ kind: "width", title, samples: samples.map((s) => ({ width: s.width, text: s.floor ? t(locale, "legend.widthFloor", { value: value(s.value) }) : value(s.value) })) });
     } else if (item.kind === "categorical") {
       const channel = t(locale, item.title);
       rows.push({ kind: "swatches", title: item.entries.some((e) => e.label !== undefined) ? t(locale, "legend.channelBare", { channel, metric: t(locale, "legend.stage") }) : channel, entries: item.entries.map((e) => ({ text: e.label ?? e.key, color: e.color, pattern: e.pattern })) });

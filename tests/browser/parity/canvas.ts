@@ -201,7 +201,14 @@ export function readOps(kind: string, ops: Op[]): Drawn | undefined {
   // A path's corners and its arrowhead: a triangle filled after it.
   const others = drawn.filter((o) => !same(o.shape, first.shape));
   if (kind.startsWith("edge:")) props.join = stroke?.join ?? "none";
-  if (kind.startsWith("edge:") || kind === "mark:arc" || kind === "mark:selfLoop") props.arrow = others.some((o) => o.op === "fill" && !o.shape.arcs.length && o.shape.points.length === 3) ? "yes" : "no";
+  const head = others.find((o) => o.op === "fill" && !o.shape.arcs.length && o.shape.points.length === 3);
+  if (kind === "mark:arc" || kind === "mark:selfLoop") props.arrow = head ? "yes" : "no";
+  if (kind.startsWith("edge:")) {
+    // A path's head: the triangle's base, between its second and third point, widened by its outline.
+    const [, [x1, y1], [x2, y2]] = head?.shape.points ?? [[0, 0], [0, 0], [0, 0]];
+    const outlined = others.find((o) => o.op === "stroke" && head && same(o.shape, head.shape));
+    props.arrow = head ? `yes ${num(Math.hypot(x1 - x2, y1 - y2) + (outlined?.width ?? 0))}` : "no";
+  }
   // The pill a label is written in: a rounded box, filled and outlined (a chip's gauge track is only filled).
   const rounded = kind.startsWith("mark:") ? others.filter((o) => o.shape.arcs.length) : [];
   const outlined = rounded.find((o) => o.op === "stroke");

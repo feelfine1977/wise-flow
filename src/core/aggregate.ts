@@ -652,12 +652,21 @@ export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowG
 /**
  * A graph's outline as the model: its activities (a collapsed stage's
  * members included), its paths (not known once a stage is collapsed: merged
- * paths are not the model's) and its groups' order.
+ * paths are not the model's), its groups' order and the largest value of
+ * each metric over its paths.
  */
 function modelOutline(graph: FlowGraph): ModelOutline {
   const { ids, collapsed } = shownActivityIds(graph);
   const paths = collapsed ? undefined : graph.edges.filter((e) => e.kind === "follows" && e.source !== e.target).length;
-  return { activities: ids.size, ...(paths !== undefined && { paths }), groups: (graph.groups ?? []).map((g) => g.id) };
+  const pathMax: Record<string, number> = {};
+  for (const e of graph.edges) {
+    if (e.kind === "constraint") continue;
+    for (const name in e.metrics) {
+      const v = e.metrics[name];
+      if (Number.isFinite(v) && !(v <= pathMax[name])) pathMax[name] = v;
+    }
+  }
+  return { activities: ids.size, ...(paths !== undefined && { paths }), groups: (graph.groups ?? []).map((g) => g.id), pathMax };
 }
 
 /** The maximum or the total of the follows edges' metric, which self-loops are measured against. */

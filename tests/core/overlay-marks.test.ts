@@ -38,7 +38,7 @@ describe("overlay marks", () => {
         pill: { box: { x: 222.825, y: 107.5, width: 54.35, height: 18 }, radius: 9, fill: { paint: "paper" }, stroke: { paint: "value", width: 1 } },
         texts: [{ text: "⇐ 100 %", x: 250, y: 117, size: 11, anchor: "middle", baseline: "middle", paint: "value", halo: false }],
       },
-      // The label right of the corner, clear of the chip in s2 (442–502); the box reaches its end (506 + 6 × 5.5).
+      // The label right of the corner; the box reaches its end (506 + 6 × 5.5).
       {
         ...base, id: "selfLoop:c:4", kind: "selfLoop", box: { x: 480, y: -23, width: 62.3, height: 37 }, minZoom: defaultLod.selfLoops,
         path: "M482 0 C482 -28 528 12 500 12", stroke: { paint: "value", width: 2 }, arrow: { size: 12, overhang: 0.1 },
@@ -63,12 +63,14 @@ describe("overlay marks", () => {
         texts: [{ text: "Scope", x: -2, y: -157.5, size: 11, anchor: "start", baseline: "middle", paint: "ink", halo: false, maxWidth: 44 }],
       },
       {
-        ...base, id: "chip:s2:8", kind: "chip", box: { x: 442, y: -4, width: 60, height: 24 }, minZoom: defaultLod.chips, title: "Late",
+        // In s2's title row from the right it would cover C, above s2 from its right C's self-loop, from its left B's badge:
+        // below s2 from its right, 4 under it (510 − 60, 50 + 4).
+        ...base, id: "chip:s2:8", kind: "chip", box: { x: 450, y: 54, width: 60, height: 24 }, minZoom: defaultLod.chips, title: "Late",
         radius: 12, fill: { paint: "paper" }, stroke: { paint: "value", width: 1 },
         // The glyph, then the text 2 characters (12.4 px) further.
         texts: [
-          { text: "◔", x: 450, y: 8.5, size: 11, anchor: "start", baseline: "middle", paint: "ink", halo: false },
-          { text: "Late", x: 462.4, y: 8.5, size: 11, anchor: "start", baseline: "middle", paint: "ink", halo: false, maxWidth: 31.6 },
+          { text: "◔", x: 458, y: 66.5, size: 11, anchor: "start", baseline: "middle", paint: "ink", halo: false },
+          { text: "Late", x: 470.4, y: 66.5, size: 11, anchor: "start", baseline: "middle", paint: "ink", halo: false, maxWidth: 31.6 },
         ],
       },
     ]);
@@ -82,22 +84,22 @@ describe("overlay marks", () => {
     const marks = ["s2", "s1"].map((target) => buildScene(graph, positions, { overlays: chips, selfLoops: false, locale: "de" }).marks.find((m) => m.overlay.target === target)!);
     const r = (n: number) => Math.round(n * 100) / 100;
     const rounded = <T,>(o: T): T => JSON.parse(JSON.stringify(o), (_, v) => (typeof v === "number" ? r(v) : v));
-    // 16 px padding, 12.4 px glyph, 46 px gauge and "Touches: 2.1 ⌀" (14 characters of 6.05 by the estimate at 11 px): 159.1 wide,
-    // right-aligned 8 px inside s2 (190 + 320 − 8 − 159.1) and 6 px below its top.
+    // 16 px padding, 12.4 px glyph, 46 px gauge and "Touches: 2.1 ⌀" (14 characters of 6.05 by the estimate at 11 px): 159.1 wide.
+    // In s2's title row it would cover C: above s2, ending at its right (190 + 320 − 159.1), 4 above it (−10 − 24 − 4).
     expect(rounded(marks[0])).toMatchObject({
-      box: { x: 342.9, y: -4, width: 159.1, height: 24 },
+      box: { x: 350.9, y: -38, width: 159.1, height: 24 },
       color: "#b84a00",
       title: "Touches — 2.1 ⌀",
       texts: [
-        { text: "◔", x: 350.9, y: 8.5 },
-        { lead: "Touches: ", text: "2.1 ⌀", x: 409.3, y: 8.5, maxWidth: 84.7 },
+        { text: "◔", x: 358.9, y: -25.5 },
+        { lead: "Touches: ", text: "2.1 ⌀", x: 417.3, y: -25.5, maxWidth: 84.7 },
       ],
       // The scale runs to threshold + width (3): the mean fills 2.1 / 3, the tick sits at 2 / 3.
-      gauge: { x: 363.3, y: 5, width: 40, height: 6, value: 0.7, threshold: 0.67 },
+      gauge: { x: 371.3, y: -29, width: 40, height: 6, value: 0.7, threshold: 0.67 },
     });
-    // Without a text the chip shows its share after the label, in the scene's locale: 16 + 10 × 6.05 = 76.5 wide,
-    // right-aligned in s1 (−10 + 120 − 8 − 76.5).
-    expect(rounded(marks[1])).toMatchObject({ box: { x: 25.5, y: -4, width: 76.5, height: 24 }, texts: [{ lead: "Late: ", text: "25 %", x: 33.5 }] });
+    // Without a text the chip shows its share after the label, in the scene's locale: 16 + 10 × 6.05 = 76.5 wide. In s1's title
+    // row it would cover A and the title: above s1, ending at its right (−10 + 120 − 76.5).
+    expect(rounded(marks[1])).toMatchObject({ box: { x: 33.5, y: -38, width: 76.5, height: 24 }, texts: [{ lead: "Late: ", text: "25 %", x: 41.5 }] });
     expect(marks[1].gauge).toBeUndefined();
   });
 

@@ -36,16 +36,19 @@ describe("views", () => {
     expect(withGiven.positions.nodes).toEqual(given.nodes);
   });
 
-  it("shares colour and width domains across views with the same metric", async () => {
+  it("shares colour domains and the width's upper end across views with the same metric", async () => {
     const positions = await layout(base, { engine: "dagre" });
     const set = resolveViews(base, views, positions);
     const [finance, logistics, compliance, automation] = set.views;
-    expect(finance.style.edgeWidth?.domain).toEqual(compliance.style.edgeWidth?.domain);
-    expect(finance.style.edgeWidth?.domain).toEqual(logistics.style.edgeWidth?.domain);
+    // The width runs from 0 to the strongest path of the whole log, 194,821 cases, before the base was abstracted.
+    expect(finance.style.edgeWidth?.max).toBe(194_821);
+    expect(compliance.style.edgeWidth?.max).toBe(194_821);
+    expect(logistics.style.edgeWidth?.max).toBe(194_821);
+    expect(finance.scales.domains.edgeWidth).toEqual([0, 194_821]);
     expect(finance.scales.domains.edgeWidth).toEqual(compliance.scales.domains.edgeWidth);
-    // The default style colours paths by the cases too: colour and width share the cases' domain.
+    // The default style colours paths by the cases too, over their extent in the views.
     expect(finance.style.edgeColor?.metric).toBe("cases");
-    expect(finance.style.edgeColor?.domain).toEqual(finance.style.edgeWidth?.domain);
+    expect(finance.style.edgeColor?.domain).toEqual(set.domains["edgeColor:cases"]);
     expect(logistics.style.edgeColor?.metric).toBe("medianLagHours");
     expect(logistics.scales.domains.edgeColor).toEqual(set.domains["edgeColor:medianLagHours"]);
     // The automation view doubles `events`; its node domain covers the doubled values.

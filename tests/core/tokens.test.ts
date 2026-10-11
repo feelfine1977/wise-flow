@@ -3,7 +3,10 @@ import {
   type PatternId,
   DEFAULT_SIZES,
   PATTERNS,
+  arrowheadExtent,
   arrowheadTokens,
+  lineEnd,
+  pathArrowhead,
   colorTokens,
   fixedColors,
   fontTokens,
@@ -95,9 +98,20 @@ describe("the token table", () => {
 describe("the arrowhead rule", () => {
   const svg = toSVG({ graph: elements.graph, positions: elements.positions, style: elements.style }, { legend: false });
 
-  it("ends edges in the map's closed arrow: 3 long, 4.8 wide, outlined by 0.6, the tip on the path's end", () => {
-    expect(arrowheadTokens.edge).toEqual({ size: 12, box: 20, length: 5, width: 8, overhang: 0, outline: 1 });
-    expect(markerTriangle(svg, "wf-arrow")).toEqual({ points: [[0, 0], [-3, 2.4], [-3, -2.4]], outline: 0.6, units: "userSpaceOnUse" });
+  it("ends edges in the map's closed arrow: 3 long, 4.8 wide, outlined by 0.6, the tip 2.25 beyond the end of the line", () => {
+    expect(arrowheadTokens.edge).toEqual({ size: 12, box: 20, length: 5, width: 8, overhang: 3.75, outline: 1, perWidth: 4 });
+    // 3.75 of the view box of 20 at 12 is 2.25: the line ends three quarters of the head's length before its tip.
+    expect(markerTriangle(svg, "wf-arrow")).toEqual({ points: [[2.25, 0], [-0.75, 2.4], [-0.75, -2.4]], outline: 0.6, units: "userSpaceOnUse" });
+  });
+
+  it("grows with the path: 4 times its width, rounded up, where that is more than 12", () => {
+    expect([0.5, 1, 3, 3.01, 4.51, 8].map((w) => pathArrowhead(w).size)).toEqual([12, 12, 12, 13, 19, 32]);
+    expect(pathArrowhead(8)).toBe(pathArrowhead(8));
+    // At 32 the head is 8 long and 12.8 wide, outlined by 1.6, its tip 6 beyond the line's end.
+    expect(arrowheadExtent(pathArrowhead(8))).toEqual({ length: 8, half: 6.4, tip: 6, outline: 1.6 });
+    // The line ends that far before the route's end, along the last segment, no further back than its start.
+    expect(lineEnd([{ x: 0, y: 0 }, { x: 100, y: 0 }], pathArrowhead(8))).toEqual({ x: 94, y: 0 });
+    expect(lineEnd([{ x: 0, y: 0 }, { x: 0, y: 4 }], pathArrowhead(8))).toEqual({ x: 0, y: 0 });
   });
 
   it("ends arcs and self-loops in a triangle 12 long and wide, the tip 1.2 beyond the path's end", () => {

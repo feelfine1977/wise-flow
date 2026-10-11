@@ -106,7 +106,11 @@ export function groupTitles(groups: readonly FlowGroup[], positions: Positions):
  * pills in a row wholly above the node from its top-right corner (left of a
  * self-loop), arcs as cubic curves above (or, for reverse arcs, below) the map,
  * self-loops at the top-right corner, hatch and tint over the element's box,
- * chips inside groups. An arc takes another height or side only where that
+ * a group's chips in its title's row from the right or, where that covers
+ * something, in rows above and below the group, from its right or its left,
+ * where they cover no activity, title, badge, self-loop or other chip and cross the
+ * fewest paths (`routes`), else where they cover fewest; map-level chips above
+ * the map. An arc takes another height or side only where that
  * crosses fewer other nodes. The labels are placed last: an arc's pill sits on
  * the arc nearest its middle where it covers no node, badge, chip, self-loop
  * label, earlier arc label or title. Shapes never extend beyond
@@ -121,6 +125,8 @@ export function placeOverlays(
   /** What labels and chips are measured by, in the styles the marks draw them in. */
   measure: TextMeasure = estimateTextWidth,
   fonts: LabelFonts = textTokens,
+  /** The paths' courses, which chips keep clear of where they can. */
+  routes: readonly (readonly XY[])[] = [],
 ): OverlayGeometry {
   const lod = { ...defaultLod, ...(options.lod ?? {}) };
   const locale = options.locale ?? "en";
@@ -140,10 +146,10 @@ export function placeOverlays(
     return { x, y, width: Math.min(b.width, limit.width), height: Math.min(b.height, limit.height) };
   };
   const placed: (OverlayShape | undefined)[] = [];
-  // Where the next badge on a node ends on the right, and how many chips a group holds so far.
+  // Where the next badge on a node ends on the right, and how many map-level chips there are so far.
   const badgeEnd = new Map<string, number>();
   const arcCount = new Map<string, number>();
-  const chipCount = new Map<string, number>();
+  let mapChips = 0;
   const boxOf = (id: string): Box | undefined => positions.nodes[id] ?? positions.groups[id];
   const looped = new Set(ordered.filter((o) => o.kind === "selfLoop").map((o) => o.target));
   // The nodes in an R-tree, built for the first arc; the labels on the map placed so far.
@@ -153,6 +159,7 @@ export function placeOverlays(
   const labels: Box[] = [];
   const arcs: number[] = [];
   const loops: number[] = [];
+  const chips: { id: string; index: number; width: number }[] = [];
 
   ordered.forEach((o, index) => {
     const id = `${o.kind}:${o.target}:${index}`;
@@ -194,24 +201,48 @@ export function placeOverlays(
       case "chip": {
         const width = chipWidth(o, measure, fonts);
         if (o.target === MAP_TARGET) {
-          const slot = chipCount.get(MAP_TARGET) ?? 0;
-          chipCount.set(MAP_TARGET, slot + 1);
-          const b = clampBox({ x: positions.bounds.x, y: positions.bounds.y - margin + 4 + slot * (chipH + 4), width, height: chipH });
+          const b = clampBox({ x: positions.bounds.x, y: positions.bounds.y - margin + 4 + mapChips++ * (chipH + 4), width, height: chipH });
           placed[index] = { id, overlay: o, kind: o.kind, ...b, minZoom: lod.chips };
           return;
         }
-        const box = boxOf(o.target);
-        if (!box) return;
-        const slot = chipCount.get(o.target) ?? 0;
-        chipCount.set(o.target, slot + 1);
-        const at = chipAnchor(box);
-        const b = clampBox({ x: at.x - width, y: at.y + slot * (chipH + 4), width, height: chipH });
-        labels.push(b);
-        placed[index] = { id, overlay: o, kind: o.kind, ...b, minZoom: lod.chips };
+        if (boxOf(o.target)) chips.push({ id, index, width });
         return;
       }
     }
   });
+
+  // The paths' segments, which a chip keeps clear of where it can.
+  const segments = new RBush<Item & { a: XY; b: XY }>().load(
+    routes.flatMap((points, r) => points.slice(1).map((b, i) => {
+      const a = points[i];
+      return { id: `${r}`, a, b, minX: Math.min(a.x, b.x), minY: Math.min(a.y, b.y), maxX: Math.max(a.x, b.x), maxY: Math.max(a.y, b.y) };
+    })),
+  );
+
+  // A group's chips: in its title's row from the right, else above or below the group, from its right or its left, a row
+  // further out each time, where it covers no activity, title, badge, self-loop or other chip, and the fewest paths; else
+  // where it covers fewest of those.
+  for (const { id, index, width } of chips) {
+    const o = ordered[index];
+    const box = boxOf(o.target)!;
+    const at = chipAnchor(box);
+    const step = chipH + 4;
+    const rows = [0, 1, 2, 3].flatMap((k) => [box.y - step * (k + 1), box.y + box.height + 4 + step * k]);
+    const candidates = [{ x: at.x - width, y: at.y }, ...rows.flatMap((y) => [{ x: box.x + box.width - width, y }, { x: box.x, y }])].map((p) => clampBox({ ...p, width, height: chipH }));
+    let best = candidates[0];
+    let least = Infinity;
+    for (const r of candidates) {
+      // What it covers counts a thousand times a path it crosses.
+      const covered = within(r).length + [...labels, ...titles, ...loops.map((i) => placed[i]!)].filter((b) => meets(b, r)).length;
+      if (covered * 1000 >= least) continue;
+      const area = { id: "", minX: r.x, minY: r.y, maxX: r.x + r.width, maxY: r.y + r.height };
+      const cost = covered * 1000 + Math.min(999, segments.search(area).filter((s) => segmentMeets(s.a, s.b, area, 0)).length);
+      if (cost < least) [best, least] = [r, cost];
+      if (!least) break;
+    }
+    labels.push(best);
+    placed[index] = { id, overlay: o, kind: o.kind, ...best, minZoom: lod.chips };
+  }
 
   /** Of the boxes, the first that covers no node, label or title; otherwise the one that covers fewest. */
   const clearest = (boxes: Box[]): Box => {

@@ -4,9 +4,8 @@
  * and the element list for assistive technology; and the descriptions both
  * read. Rendering only: the interaction state comes from the controller.
  */
-import { MarkerType } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { type ActivityLabelOptions, type EdgeBudget, type ElementRef, type FlowGraph, type FlowScene, type GraphIndex, type HitItem, type Locale, type Overlay, type OverlayMark, type Positions, type Selection, type TextMeasure, arrowheadTokens, budgetEdges, describeOverlay, indexGraph, markInState, stateStyle, zTokens } from "../core/index.js";
+import { type ActivityLabelOptions, type Arrowhead, type EdgeBudget, type ElementRef, type FlowGraph, type FlowScene, type GraphIndex, type HitItem, type Locale, type Overlay, type OverlayMark, type Positions, type Selection, type TextMeasure, budgetEdges, describeOverlay, indexGraph, markInState, stateStyle, zTokens } from "../core/index.js";
 import { type DrawState, type PreparedScene, canvasTextMeasure } from "../canvas/index.js";
 import { retainScene } from "../canvas/scene.js";
 import { describeIndexedEdge } from "../core/describe.js";
@@ -92,6 +91,9 @@ interface FlowInput {
   /** Edges on a highlighted path. */
   highlighted?: ReadonlySet<string>;
 }
+
+/** The id of the marker of an edge's arrowhead in the map (`MarkDefs`), by its size. */
+export const edgeArrowId = (a: Arrowhead) => `wf-edge-arrow-${a.size}`;
 
 /** React Flow nodes (groups first, as parents) and edges, and the overlay marks drawn between elements. */
 export function useFlowElements(input: FlowInput) {
@@ -225,7 +227,8 @@ export function useFlowElements(input: FlowInput) {
         target: e.target,
         selected: selection.edges.includes(e.id),
         ariaLabel: description,
-        markerEnd: { type: MarkerType.ArrowClosed, color: state?.stroke ?? mark.color, width: arrowheadTokens.edge.size, height: arrowheadTokens.edge.size, markerUnits: "userSpaceOnUse" },
+        // The head the map defines for its size (`MarkDefs`), as the SVG export does; it takes the colour of the path's stroke.
+        markerEnd: edgeArrowId(mark.arrow),
         zIndex: hovered === e.id || focused === e.id ? zTokens.pathHovered : 0,
         data: {
           edge: e,
@@ -245,7 +248,9 @@ export function useFlowElements(input: FlowInput) {
     });
   }, [positions, enabled, scene, index, selection, hovered, focused, locale, bright, withheld]);
   const shownBetween = useMemo(() => between.map(inHover), [between, inHover]);
-  return { nodes: rfNodes, edges: rfEdges, between: shownBetween, withheld };
+  // The heads the edges end in, one per size.
+  const arrows = useMemo(() => [...new Map(rfEdges.map((e) => [e.data!.mark!.arrow.size, e.data!.mark!.arrow])).values()].sort((a, b) => a.size - b.size), [rfEdges]);
+  return { nodes: rfNodes, edges: rfEdges, between: shownBetween, withheld, arrows };
 }
 
 interface CanvasInput {

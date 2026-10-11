@@ -211,7 +211,17 @@ export function hashKey(key: string): number {
 export interface ChannelSpec {
   metric: string;
   scale?: "linear" | "sqrt" | "log";
+  /** Values the range is stretched over instead of the scale from 0 to `max`: the lower end at the range's start, the upper at its end. */
   domain?: [number, number];
+  /**
+   * The upper end of a path width's scale, which runs from 0 to it, so that
+   * the width depends on a path's value alone. Give several maps the same one
+   * to compare them (`resolveViews` gives its views theirs). Default the
+   * strongest path of the graph before any abstraction (`meta.model.pathMax`,
+   * which `abstract` records), else of the graph.
+   */
+  max?: number;
+  /** The thinnest line, which every path whose width rounds under it is drawn at, and the width of the upper end. */
   range?: [number, number];
 }
 
@@ -329,8 +339,14 @@ export type LegendItem =
       metric: string;
       domain: [number, number];
       range: [number, number];
-      /** Three values with the widths the scale draws them at: the domain's ends and a value near the middle width. */
-      samples?: { value: number; width: number }[];
+      /**
+       * Three values with the widths the scale draws them at: the thinnest
+       * line with the largest value drawn at it (`floor`), a value near the
+       * middle width and the upper end; with a `domain`, its ends and the middle.
+       */
+      samples?: { value: number; width: number; floor?: boolean }[];
+      /** The scale runs from 0 to the strongest path of the graph (`graph`) or to the upper end the style gives (`shared`); none with a `domain`. */
+      scale?: "graph" | "shared";
       /** The paths count transitions: the graph gives no cases for them. */
       transitionsOnly?: boolean;
     }
@@ -430,6 +446,17 @@ function roundish(v: number): number {
   return Math.round(v / step) * step;
 }
 
+/**
+ * The upper end of a graph's path width scale for a metric: the largest value
+ * over the paths of the graph before any abstraction (`meta.model.pathMax`),
+ * else over its own paths (follows and sequence flow edges); none without one.
+ */
+export function pathScaleMax(graph: FlowGraph, name: string): number | undefined {
+  const recorded = graph.meta?.model?.pathMax?.[name];
+  if (Number.isFinite(recorded)) return recorded;
+  return extentOf(graph.edges.filter((e) => e.kind !== "constraint").map((e) => metric(e, name, NaN)))?.[1];
+}
+
 /** Build the scales of a graph for a style specification in a theme's palettes; deterministic for the same input. */
 export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, theme: Theme = defaultTheme): Scales {
   const domains: Scales["domains"] = {};
@@ -447,34 +474,46 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
   const order = orderedCategorical([...(spec.stages ?? []), ...(graph.meta?.model?.groups ?? []), ...(graph.groups ?? []).map((g) => g.id), ...graph.nodes.flatMap((n) => keyOf(n) ?? [])], theme);
   const categorical = (key: string) => order.get(key) ?? categoricalEntry(key, theme);
 
-  // Edge width
+  // Edge width: one scale per graph, from 0 to its strongest path before abstraction, or over a given domain.
   const widthSpec = spec.edgeWidth && { ...spec.edgeWidth, metric: resolved(spec.edgeWidth.metric) };
   const pathMetric = widthSpec && metricKind(widthSpec.metric) === "count" ? widthSpec.metric : resolved("cases");
   const notEvaluated = (e: FlowEdge) => e.kind === "follows" && !Number.isFinite(metric(e, pathMetric, NaN));
   let widthFn: (e: FlowEdge) => number = () => theme.stroke.path;
-  let samples: { value: number; width: number }[] | undefined;
-  const measured = widthSpec && (widthSpec.domain ?? extentOf(follows.map((e) => metric(e, widthSpec.metric, NaN))));
+  let samples: { value: number; width: number; floor?: boolean }[] | undefined;
+  const upper = widthSpec && (widthSpec.max ?? pathScaleMax(graph, widthSpec.metric));
+  const kind = widthSpec?.scale ?? "sqrt";
+  const measured = widthSpec && (widthSpec.domain ?? (upper === undefined ? undefined : ([kind === "log" ? 1 : 0, upper] as [number, number])));
   if (widthSpec) {
     const domain = measured ?? [0, 1];
     const safeDomain: [number, number] = domain[0] === domain[1] ? [0, domain[1] || 1] : domain;
     const range = widthSpec.range ?? [theme.stroke.pathMin, theme.stroke.pathMax];
-    const kind = widthSpec.scale ?? "sqrt";
+    // From 0 the scale runs onto 0 and every width that rounds under the thinnest line is drawn at it; a domain is stretched onto the range.
+    const floor = widthSpec.domain || kind === "log" ? -Infinity : range[0];
+    const onto: [number, number] = floor === -Infinity ? range : [0, range[1]];
     const s =
       kind === "log"
-        ? scaleLog().domain([Math.max(1e-9, safeDomain[0]), Math.max(1e-9, safeDomain[1])]).range(range).clamp(true)
+        ? scaleLog().domain([Math.max(1e-9, safeDomain[0]), Math.max(1e-9, safeDomain[1])]).range(onto).clamp(true)
         : kind === "linear"
-          ? scaleLinear().domain(safeDomain).range(range).clamp(true)
-          : scaleSqrt().domain(safeDomain).range(range).clamp(true);
+          ? scaleLinear().domain(safeDomain).range(onto).clamp(true)
+          : scaleSqrt().domain(safeDomain).range(onto).clamp(true);
     domains.edgeWidth = safeDomain;
-    const at = (v: number) => Number(s(kind === "log" ? Math.max(1e-9, v) : v).toFixed(2));
+    const at = (v: number) => Math.max(floor, Number(s(kind === "log" ? Math.max(1e-9, v) : v).toFixed(2)));
     widthFn = (e) => {
       const v = e.metrics?.[widthSpec.metric];
       if (typeof v !== "number" || !Number.isFinite(v)) return range[0];
       return at(v);
     };
+    const count = metricKind(widthSpec.metric) === "count";
     const middle = Number(s.invert((range[0] + range[1]) / 2));
     // A count near the middle width, with two significant digits; another metric as it is.
-    samples = [safeDomain[0], metricKind(widthSpec.metric) === "count" ? roundish(middle) : middle, safeDomain[1]].map((value) => ({ value, width: at(value) }));
+    const near = count ? roundish(middle) : middle;
+    if (floor === -Infinity) {
+      samples = [safeDomain[0], near, safeDomain[1]].map((value) => ({ value, width: at(value) }));
+    } else {
+      // The largest value the thinnest line stands for, where a value is drawn at it.
+      const lowest = count ? Math.floor(Number(s.invert(floor))) : Number(s.invert(floor));
+      samples = [...(lowest > 0 ? [{ value: lowest, width: at(lowest), floor: true }] : []), { value: near, width: at(near) }, { value: safeDomain[1], width: at(safeDomain[1]) }];
+    }
   }
 
   // Edge colour
@@ -534,7 +573,8 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
   const legend: LegendItem[] = [];
   // A width with nothing measured has no samples to show.
   if (widthSpec && domains.edgeWidth && measured) {
-    legend.push({ kind: "width", title: "legend.edgeWidth", metric: widthSpec.metric, domain: domains.edgeWidth, range: widthSpec.range ?? [theme.stroke.pathMin, theme.stroke.pathMax], samples, ...(widthSpec.metric === "count" && transitionsOnly && { transitionsOnly }) });
+    const scale = widthSpec.domain || kind === "log" ? undefined : widthSpec.max === undefined ? "graph" : "shared";
+    legend.push({ kind: "width", title: "legend.edgeWidth", metric: widthSpec.metric, domain: domains.edgeWidth, range: widthSpec.range ?? [theme.stroke.pathMin, theme.stroke.pathMax], samples, ...(scale && { scale }), ...(widthSpec.metric === "count" && transitionsOnly && { transitionsOnly }) });
   }
   if (edgeSpec?.metric && domains.edgeColor) {
     const palette = edgeSpec.palette ?? "sequential";
