@@ -149,12 +149,12 @@ function outline(text, fileName) {
     ts.forEachChild(node, (child) => visit(child, depth + 1, name ? [...names, name] : names));
   };
   ts.forEachChild(source, (child) => visit(child, 0, []));
-  return { source, nodes };
+  return nodes;
 }
 
 /** The paths of every node of a text, as `documentation` names the nodes comments are attached to. */
 export function pathsIn(text, fileName) {
-  return new Set(outline(text, fileName).nodes.map((entry) => entry.path));
+  return new Set(outline(text, fileName).map((entry) => entry.path));
 }
 
 /**
@@ -166,7 +166,7 @@ export function pathsIn(text, fileName) {
  * declaration emitter changes for members.
  */
 export function documentation(text, fileName) {
-  const { nodes } = outline(text, fileName);
+  const nodes = outline(text, fileName);
   const following = nodes.filter((entry) => entry.node.kind >= ts.SyntaxKind.FirstNode).sort((a, b) => a.start - b.start || b.depth - a.depth);
   const docs = new Map();
   const counts = new Map();
