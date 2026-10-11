@@ -60,3 +60,6 @@ and reads an `any` group without `clauses` as an empty group; both threw a
 flow, say) two flow ids where a gateway takes the place of an end: the
 second gets `:1` after the id. Both got one id before, so the graph failed
 `validateGraph` and its BPMN export lost a flow.
+
+`focusHighlight` reads a focus that is not a pair as one id, also when a node
+came without an id; it threw a `TypeError` before.
