@@ -39,6 +39,32 @@ describe("model", () => {
     ]);
   });
 
+  it("reports every group on a cycle of group parents as an error, and no group that only leads into one", () => {
+    const node = (id: string, group: string) => ({ id, kind: "activity" as const, label: id, group });
+    // g1 inside g2 and g2 inside g1; g3 inside g1 (its chain enters the cycle); s is its own parent; ok1 ⊂ ok2 ⊂ ok3 is sound.
+    const g: FlowGraph = {
+      nodes: [node("a", "g1"), node("b", "g3"), node("c", "s"), node("d", "ok1")],
+      edges: [],
+      groups: [
+        { id: "g1", kind: "stage", label: "G1", parent: "g2" },
+        { id: "g2", kind: "stage", label: "G2", parent: "g1" },
+        { id: "g3", kind: "lane", label: "G3", parent: "g1" },
+        { id: "s", kind: "lane", label: "S", parent: "s" },
+        { id: "ok1", kind: "lane", label: "OK1", parent: "ok2" },
+        { id: "ok2", kind: "lane", label: "OK2", parent: "ok3" },
+        { id: "ok3", kind: "pool", label: "OK3" },
+      ],
+    };
+    expect(validateGraph(g)).toEqual([
+      { level: "error", message: "group parent cycle", id: "g1" },
+      { level: "error", message: "group parent cycle", id: "g2" },
+      { level: "error", message: "group parent cycle", id: "s" },
+    ]);
+    // A cycle of three, entered from the middle of the list.
+    const three: FlowGraph = { nodes: [], edges: [], groups: [{ id: "x", kind: "stage", label: "X", parent: "y" }, { id: "z", kind: "stage", label: "Z", parent: "x" }, { id: "y", kind: "stage", label: "Y", parent: "z" }] };
+    expect(validateGraph(three).map((i) => [i.message, i.id])).toEqual([["group parent cycle", "x"], ["group parent cycle", "z"], ["group parent cycle", "y"]]);
+  });
+
   it("indexes adjacency and members", () => {
     const idx = indexGraph(globalScene);
     expect(idx.nodes.size).toBe(globalScene.nodes.length);

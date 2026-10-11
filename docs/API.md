@@ -46,6 +46,16 @@ threshold share (a number; `0` means nothing was removed) or, on a graph
 returned by `abstract`, the thresholds the library applied. `meta.abstraction`
 was `unknown` before; code that reads it as either form keeps compiling.
 
+`validateGraph` is structural. It reports as errors duplicate node, edge and
+group ids, an edge whose source or target names no node, a group parent that
+names no group, and a cycle of group parents: every group whose chain of
+parents returns to it (two groups inside each other, a group that is its own
+parent) is reported once, as `group parent cycle`; a group that only lies
+inside such a cycle is not. It reports as warnings a node group that names no
+group and an overlay whose target names no node, edge or group. Up to 0.3.5 a
+cycle of group parents passed validation; `collapseGroups(g, "all")` then
+collapsed nothing and `layout` rejected with the engine's plain error.
+
 `validateGateways` checks the pairing of parallel gateways in any graph with
 gateways, generated or imported: a parallel split (a `gateway` node tagged
 `and` with several outgoing flows) has a partner when its branches end, one
