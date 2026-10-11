@@ -2,6 +2,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffec
 import { type Box, type EdgeBudget, type HitItem, type Locale, type ShownEdges, type XY, formatCount, t } from "../core/index.js";
 import { type CanvasTokens, CanvasRenderer, type DrawState, type PreparedScene, readTokens } from "../canvas/index.js";
 import { useEdgesShown } from "./hooks.js";
+import { part } from "./parts.js";
 
 export interface CanvasMapProps {
   scene: PreparedScene | undefined;
@@ -53,7 +54,7 @@ export function EdgeNote({ withheld, locale, onAnnounce }: { withheld?: { shown:
     return () => clearTimeout(timer);
   }, [text, onAnnounce]);
   return text ? (
-    <div className="wf-panel wf-edge-note" role="note" data-testid="wf-edge-note">
+    <div className="wf-panel wf-edge-note" {...part("status")} role="note" data-testid="wf-edge-note">
       {text}
     </div>
   ) : null;
@@ -312,7 +313,7 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
       <canvas ref={canvasRef} aria-hidden="true" />
       {listed}
       {tooltip ? (
-        <div className="wf-canvas-map__tooltip" role="tooltip" style={{ left: tooltip.x, top: tooltip.y }}>
+        <div className="wf-canvas-map__tooltip" {...part("tooltip")} role="tooltip" style={{ left: tooltip.x, top: tooltip.y }}>
           {tooltip.text}
         </div>
       ) : null}
@@ -322,7 +323,7 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
         </div>
       ) : null}
       <div className="wf-overlay-panel wf-overlay-panel--bottom-left">
-        <div className="wf-panel wf-zoom" role="group" aria-label={t(locale, "map.fit")}>
+        <div className="wf-panel wf-zoom" {...part("controls")} role="group" aria-label={t(locale, "map.fit")}>
           <button type="button" className="wf-button" aria-label={t(locale, "map.zoomIn")} onClick={() => rendererRef.current?.zoomBy(ZOOM_STEP)}>
             +
           </button>

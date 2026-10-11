@@ -1,4 +1,10 @@
-/* Component styles of @wise/flow/react. Requires tokens.css and @xyflow/react/dist/style.css. */
+/*
+ * Component styles of @wise/flow/react. Requires tokens.css. The build ships them
+ * twice: `style.css` puts React Flow's stylesheet and these rules into the cascade
+ * layer `wf` (React Flow's in its sublayer `wf.react-flow`), so that any unlayered
+ * rule of the host wins; `style.unlayered.css` holds these rules without a layer,
+ * to be loaded after @xyflow/react/dist/style.css, for pages with an unlayered reset.
+ */
 
 .wf-process-map {
   position: relative;
@@ -19,9 +25,26 @@
 .wf-process-map .react-flow__edge-path {
   stroke-linejoin: round;
 }
-.wf-process-map .react-flow__edge.selected .react-flow__edge-path,
-.wf-process-map .react-flow__edge:focus .react-flow__edge-path {
-  stroke: var(--wf-focus);
+/*
+ * Edges: the scene's colour, width and dash arrive as variables on the edge; React
+ * Flow's rules for the path read its own variables, set here from them. A selected,
+ * hovered or focused path is drawn in the focus colour.
+ */
+.wf-edge {
+  --xy-edge-stroke: var(--wf-edge-color);
+  --xy-edge-stroke-selected: var(--xy-edge-stroke);
+  --xy-edge-stroke-width: var(--wf-edge-width);
+}
+.wf-edge[data-wf-state~="selected"],
+.wf-edge--hovered,
+.wf-edge--focused {
+  --xy-edge-stroke: var(--wf-focus);
+}
+.wf-edge .react-flow__edge-path {
+  stroke-dasharray: var(--wf-edge-dash, none);
+}
+.wf-edge--dimmed .react-flow__edge-path {
+  opacity: 0.25;
 }
 .wf-process-map .react-flow__node {
   cursor: pointer;
@@ -200,6 +223,30 @@
 }
 .wf-mark {
   display: block;
+}
+/* Paints of the theme on marks, one class per property and token, so that a host rule overrides them. */
+.wf-fill-ink { fill: var(--wf-ink); }
+.wf-fill-ink-muted { fill: var(--wf-ink-muted); }
+.wf-fill-paper { fill: var(--wf-paper); }
+.wf-fill-surface { fill: var(--wf-surface); }
+.wf-fill-line { fill: var(--wf-line); }
+.wf-fill-out-of-scope { fill: var(--wf-out-of-scope); }
+.wf-fill-focus { fill: var(--wf-focus); }
+.wf-stroke-ink { stroke: var(--wf-ink); }
+.wf-stroke-ink-muted { stroke: var(--wf-ink-muted); }
+.wf-stroke-paper { stroke: var(--wf-paper); }
+.wf-stroke-surface { stroke: var(--wf-surface); }
+.wf-stroke-line { stroke: var(--wf-line); }
+.wf-stroke-out-of-scope { stroke: var(--wf-out-of-scope); }
+.wf-stroke-focus { stroke: var(--wf-focus); }
+/* Badges extend left from the top-right corner of their element. */
+.wf-badges {
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+.wf-mark-defs {
+  position: absolute;
 }
 /* Marks an element carries are drawn from its border-box corner: the surface spans the border. */
 .wf-marks {
@@ -701,11 +748,6 @@
 }
 .wf-group--band.wf-group--tinted {
   background: var(--wf-tint, transparent);
-}
-
-/* Focused path (keyboard) */
-.wf-edge--focused .react-flow__edge-path {
-  stroke: var(--wf-focus);
 }
 
 /* Actions menu */

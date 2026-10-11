@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { part } from "./parts.js";
 import {
   type ActivityPaths,
   type FlowGraph,
@@ -189,7 +190,7 @@ export function PathList({ graph, focus, paths, locale = "en", selection, onSele
     const activity: ActivityPaths = pathsFor(graph, focus, { paths });
     const title = t(locale, "paths.title", { label: labelOf(focus) });
     return (
-      <section className={`wf-paths wf-table${className ? ` ${className}` : ""}`} aria-label={title} data-source={activity.source}>
+      <section className={`wf-paths wf-table${className ? ` ${className}` : ""}`} {...part("path-list")} aria-label={title} data-source={activity.source}>
         <header className="wf-paths__header">
           <h3>{title}</h3>
           {onClose ? (
@@ -212,7 +213,7 @@ export function PathList({ graph, focus, paths, locale = "en", selection, onSele
   const title = t(locale, "paths.titlePair", { a: labelOf(a), b: labelOf(b) });
   const step = (r: PathRow) => `${labelOf(r.from)} → ${labelOf(r.to)}`;
   return (
-    <section className={`wf-paths wf-table${className ? ` ${className}` : ""}`} aria-label={title} data-source="graph" data-found={between.found}>
+    <section className={`wf-paths wf-table${className ? ` ${className}` : ""}`} {...part("path-list")} aria-label={title} data-source="graph" data-found={between.found}>
       <header className="wf-paths__header">
         <h3>{title}</h3>
         {onClose ? (

@@ -148,7 +148,9 @@ test("the map and its panels draw the computed styles they drew before", async (
       return [line.slice(0, cut), expected.styles[Number(line.slice(cut + 1))]];
     });
     const after = actual[scene.name];
-    expect(after.map(([element]) => element), `${scene.name}: the elements`).toEqual(before.map(([element]) => element));
+    // The classes that carry the paints of marks name no element.
+    const named = (element: string) => element.replace(/\.wf-(fill|stroke)-[a-z-]+/g, "");
+    expect(after.map(([element]) => named(element)), `${scene.name}: the elements`).toEqual(before.map(([element]) => element));
     const changed = after.flatMap(([element, style], i) => {
       if (style === before[i][1]) return [];
       const was = before[i][1].split("; ");

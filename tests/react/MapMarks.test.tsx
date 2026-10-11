@@ -153,22 +153,24 @@ describe("Badges", () => {
   });
 });
 
-const TOKENS: Record<string, string> = { "var(--wf-ink)": "#1f1f1f", "var(--wf-paper)": "#ffffff", "var(--wf-line)": "#cfd4dc", "var(--wf-out-of-scope)": "#b0b0b0" };
+const TOKENS: Record<string, string> = { ink: "#1f1f1f", paper: "#ffffff", line: "#cfd4dc", "out-of-scope": "#b0b0b0" };
 const IDS: Record<string, string> = { "url(#wf-arc-arrow)": "url(#wf-overlay-arrow)", "url(#wf-mark-arrow)": "url(#wf-overlay-arrow)", "url(#wf-mark-outofscope)": "url(#wf-pattern-outofscope)" };
-const DOM_ONLY = new Set(["data-overlay-id", "data-constraint", "pointer-events", "style"]);
+const DOM_ONLY = new Set(["data-overlay-id", "data-constraint", "pointer-events", "data-wf-part", "data-wf-kind", "data-wf-state"]);
 
 /**
  * An element as tag, attributes and children, with the DOM's paints and ids
- * read as the SVG export writes them: token variables (in the style) as the
- * fixed colours, and the export's marker and pattern ids.
+ * read as the SVG export writes them: the classes of token paints
+ * (`wf-fill-ink`) as the fixed colours, and the export's marker and pattern ids.
  */
 function tree(e: Element): unknown {
   const attrs: Record<string, string> = {};
   for (const a of Array.from(e.attributes)) if (!DOM_ONLY.has(a.name)) attrs[a.name] = IDS[a.value] ?? a.value;
-  const style = (e as SVGElement).style;
-  for (const name of ["fill", "stroke"]) {
-    const value = style?.getPropertyValue(name);
-    if (value) attrs[name] = TOKENS[value] ?? value;
-  }
+  const classes = (attrs.class ?? "").split(" ").filter((c) => {
+    const paint = c.match(/^wf-(fill|stroke)-(.+)$/);
+    if (paint) attrs[paint[1]] = TOKENS[paint[2]] ?? paint[2];
+    return c && !paint;
+  });
+  if (classes.length) attrs.class = classes.join(" ");
+  else delete attrs.class;
   return { tag: e.tagName, attrs, children: Array.from(e.childNodes).map((c) => (c.nodeType === 3 ? c.textContent : tree(c as Element))) };
 }

@@ -1,6 +1,6 @@
 /**
  * Overlay marks in the DOM: the SVG elements of `markSvg` with paints that
- * follow the theme's CSS tokens. The React map and the BPMN view both draw
+ * follow the theme's CSS tokens through classes a host rule can override. The React map and the BPMN view both draw
  * through this module, so a new overlay kind needs no change in either.
  */
 import { useStore } from "@xyflow/react";
@@ -40,7 +40,8 @@ export function markDefs(ids: MarkIds): SvgElement {
   return { tag: "defs", attrs: [], children: [arrowMarker(ids.arrow, markArrowhead(overlayArrow)), hatchSvg(ids.pattern, TOKENS.outOfScope)] };
 }
 
-// CSS variables are not valid in presentation attributes; they go into the style.
+// CSS variables are not valid in presentation attributes. In the React map a paint of the theme
+// becomes a class (`wf-fill-ink` for `fill: var(--wf-ink)`); the BPMN view's DOM gets it as a style.
 const isVariable = (value: string) => value.startsWith("var(");
 const camel = (name: string) => (name === "class" ? "className" : name.startsWith("data-") ? name : name.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase()));
 
@@ -48,12 +49,12 @@ const camel = (name: string) => (name === "class" ? "className" : name.startsWit
 export function svgReact(e: SvgElement | string, key?: number | string, extra: Record<string, unknown> = {}): ReactNode {
   if (typeof e === "string") return e;
   const props: Record<string, unknown> = { key };
-  const style: Record<string, string> = {};
+  const paints: string[] = [];
   for (const [name, value] of e.attrs) {
-    if (isVariable(value)) style[camel(name)] = value;
+    if (isVariable(value)) paints.push(`wf-${name}-${value.slice(9, -1)}`);
     else props[camel(name)] = value;
   }
-  if (Object.keys(style).length) props.style = style;
+  if (paints.length) props.className = [props.className, ...paints].filter(Boolean).join(" ");
   return createElement(e.tag, { ...props, ...extra }, ...e.children.map((c, i) => svgReact(c, i)));
 }
 
@@ -76,7 +77,8 @@ export function svgDom(e: SvgElement | string, doc: Document): Node {
 export function domMark(m: OverlayMark, ids: MarkIds, hovered = false): SvgElement {
   const g = markSvg(m, domMarkOptions(ids, hovered));
   const constraint = m.overlay.payload?.constraintId;
-  g.attrs.push(["data-overlay-id", m.id], ["pointer-events", m.path !== undefined ? "stroke" : m.texts.length ? "visiblePainted" : "none"]);
+  g.attrs.push(["data-overlay-id", m.id], ["pointer-events", m.path !== undefined ? "stroke" : m.texts.length ? "visiblePainted" : "none"], ["data-wf-part", "mark"], ["data-wf-kind", m.kind]);
+  if (hovered) g.attrs.push(["data-wf-state", "hovered"]);
   if (constraint) g.attrs.push(["data-constraint", String(constraint)]);
   return g;
 }
@@ -128,7 +130,7 @@ export function ElementMarks({ marks, origin }: { marks: OverlayMark[]; origin: 
 /** The marker and pattern that `ElementMarks` refer to; rendered once by the map. */
 export function MarkDefs() {
   return (
-    <svg className="wf-mark-defs" width={0} height={0} style={{ position: "absolute" }} aria-hidden="true">
+    <svg className="wf-mark-defs" width={0} height={0} aria-hidden="true">
       {svgReact(markDefs(MARK_IDS))}
     </svg>
   );

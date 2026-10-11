@@ -1,6 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { type Locale, type MenuAction, type MenuGroup, type StringKey, MENU_GROUP_ORDER, t } from "../core/index.js";
 import { firstEntry, menuKey } from "../core/map-controller.js";
+import { part } from "./parts.js";
 
 export interface ContextMenuProps {
   /** Position inside the positioned container (CSS pixels). */
@@ -112,6 +113,7 @@ export function MenuView({ x, y, title, subtitle, note, actions, locale = "en", 
       ref={ref}
       className={`wf-menu${className ? ` ${className}` : ""}`}
       role="menu"
+      {...part("menu")}
       aria-labelledby={`${id}-title`}
       style={{ left: position.left, top: position.top }}
       onKeyDown={onKeyDown}
@@ -134,6 +136,7 @@ export function MenuView({ x, y, title, subtitle, note, actions, locale = "en", 
               key={`${a.id}-${i}`}
               type="button"
               role="menuitem"
+              {...part("menu-item", undefined, [i === active && "focused"])}
               className={`wf-menu__item${i === active ? " wf-menu__item--active" : ""}`}
               tabIndex={i === active ? 0 : -1}
               aria-disabled={a.disabled || undefined}

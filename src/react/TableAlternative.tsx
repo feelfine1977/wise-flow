@@ -3,6 +3,7 @@ import { type ElementRef, type FlowGraph, type Locale, type Overlay, type Scales
 import { clickSelection } from "../core/map-controller.js";
 import { formatMetric, metricColumns, metricLabel } from "./describe.js";
 import type { Selection } from "./types.js";
+import { part } from "./parts.js";
 
 export interface TableAlternativeProps {
   graph: FlowGraph;
@@ -91,7 +92,7 @@ export function TableAlternative({ graph, overlays, scales, locale = "en", selec
   const shows = (name: TableName) => tables.includes(name);
 
   return (
-    <div className={`wf-table${className ? ` ${className}` : ""}`}>
+    <div className={`wf-table${className ? ` ${className}` : ""}`} {...part("table")}>
       {pageSize !== undefined ? <input type="search" className="wf-table__search" aria-label={t(locale, "table.search")} value={query} onChange={(e) => setQuery(e.target.value)} /> : null}
       {shows("nodes") ? (
         <table {...nodePage.table}>
@@ -116,7 +117,7 @@ export function TableAlternative({ graph, overlays, scales, locale = "en", selec
               </tr>
             ) : null}
             {nodePage.rows.map((n, i) => (
-              <tr key={n.id} {...nodePage.row(i)} className={selection?.nodes.includes(n.id) ? "wf-row--selected" : undefined} onClick={(e) => choose({ kind: "node", id: n.id }, e)} tabIndex={onSelect ? 0 : undefined} onKeyDown={(e) => e.key === "Enter" && choose({ kind: "node", id: n.id }, e)}>
+              <tr key={n.id} {...nodePage.row(i)} className={selection?.nodes.includes(n.id) ? "wf-row--selected" : undefined} {...part("table-row", undefined, [selection?.nodes.includes(n.id) && "selected"])} onClick={(e) => choose({ kind: "node", id: n.id }, e)} tabIndex={onSelect ? 0 : undefined} onKeyDown={(e) => e.key === "Enter" && choose({ kind: "node", id: n.id }, e)}>
                 <th scope="row">
                   <span className="wf-swatch" style={{ background: sc.nodeColor(n) }} aria-hidden="true" />
                   {n.label}
@@ -158,7 +159,7 @@ export function TableAlternative({ graph, overlays, scales, locale = "en", selec
               </tr>
             ) : null}
             {edgePage.rows.map((e, i) => (
-              <tr key={e.id} {...edgePage.row(i)} className={selection?.edges.includes(e.id) ? "wf-row--selected" : undefined} onClick={(ev) => choose({ kind: "edge", id: e.id }, ev)} tabIndex={onSelect ? 0 : undefined} onKeyDown={(ev) => ev.key === "Enter" && choose({ kind: "edge", id: e.id }, ev)}>
+              <tr key={e.id} {...edgePage.row(i)} className={selection?.edges.includes(e.id) ? "wf-row--selected" : undefined} {...part("table-row", undefined, [selection?.edges.includes(e.id) && "selected"])} onClick={(ev) => choose({ kind: "edge", id: e.id }, ev)} tabIndex={onSelect ? 0 : undefined} onKeyDown={(ev) => ev.key === "Enter" && choose({ kind: "edge", id: e.id }, ev)}>
                 <th scope="row">{labelOf.get(e.source) ?? e.source}</th>
                 <td>{labelOf.get(e.target) ?? e.target}</td>
                 <td>{kindLabel(e.kind)}</td>

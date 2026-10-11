@@ -31,6 +31,7 @@ import { GROUP_PREFIX, canvasPointer, flowPointer, overlayPointer } from "./map-
 import { MarkDefs, MarkFigure } from "./marks.js";
 import { nodeTypes } from "./nodes.js";
 import { OverlayLayer } from "./OverlayLayer.js";
+import { part } from "./parts.js";
 import { PathList } from "./PathList.js";
 import { TableAlternative } from "./TableAlternative.js";
 import { type ProcessMapProps, type Selection, type WfEdge, type WfGroupNode, type WfNode } from "./types.js";
@@ -330,6 +331,9 @@ function ProcessMapInner(props: ProcessMapProps) {
     return { x: point.x + 12, y: point.y + height / 2 + 8, above: point.y - height / 2 - 8 };
   }, [elementScreenPoint, useCanvas, positions, rfZoom, rfX, rfY, canvasViewport]);
 
+  // React Flow's zoom controls take no attributes of their own.
+  useEffect(() => void containerRef.current?.querySelector(".react-flow__controls")?.setAttribute("data-wf-part", "controls"));
+
   const descId = useId();
   const liveId = useId();
   const description = useMemo(() => describeMap(shown, overlays, locale), [shown, overlays, locale]);
@@ -373,11 +377,11 @@ function ProcessMapInner(props: ProcessMapProps) {
   ) : null;
   const controlsElement = controls ? <AbstractionControls value={abstraction} onChange={setAbstraction} locale={locale} hasStages={hasStages} view={view} onViewChange={setView} /> : null;
   const statusElement = notice ? (
-    <div className="wf-panel" role="status">
+    <div className="wf-panel" {...part("status")} role="status">
       {notice}
     </div>
   ) : own.status === "error" ? (
-    <div className="wf-panel" role="alert">
+    <div className="wf-panel" {...part("status")} role="alert">
       {own.error?.message}
     </div>
   ) : null;
@@ -388,6 +392,7 @@ function ProcessMapInner(props: ProcessMapProps) {
       className={`wf-process-map ${lodClasses}${showPaths ? " wf-process-map--side" : ""}${className ? ` ${className}` : ""}`}
       style={{ width: "100%", height: "100%", ...containerStyle }}
       role="group"
+      {...part("map")}
       aria-label={ariaLabel ?? t(locale, "map.description", { nodes: shown.nodes.length, edges: shown.edges.length, groups: shown.groups?.length ?? 0 })}
       aria-describedby={descId}
       aria-activedescendant={activeDescendant}
