@@ -1518,7 +1518,11 @@ is on it (`focused`), or when it lies on a highlighted path: the edges of the
 focus of paths in effect (`mapEmphasis(...).bright.edges` while
 `focusShown`, which includes the pair of activities a selection of two
 names). The edges a selection of activities merely brightens are not
-protected.
+protected. So Alt with an arrow key can move onto a path the budget
+withholds: it is drawn while the keyboard is on it, in place of the last
+edge of the order while the protected edges fit in the budget (the note's
+numbers stay) and beyond it otherwise (the note counts one more), and it is
+withheld again once the keyboard moves on.
 
 `budgetEdges` returns undefined when the budget is `"all"`, undefined, null or
 not a number (`NaN`), or when it withholds nothing (no more edges in view than the budget, or every

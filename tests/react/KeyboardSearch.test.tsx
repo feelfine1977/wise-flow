@@ -142,17 +142,20 @@ interface Walk {
   context: MapContext;
 }
 
-/** Apply an event and what the map does for its intents: open the menu where it asked, report a chosen action as done. */
-function press(walk: Walk, event: MapEvent): void {
+/** Apply an event and what the map does for its intents: open the menu where it asked, report a chosen action as done. Returns the sentences for the live region. */
+function press(walk: Walk, event: MapEvent): string[] {
   const queue: MapEvent[] = [event];
+  const said: string[] = [];
   while (queue.length) {
     const step = mapStep(walk.state, queue.shift()!, walk.context);
     walk.state = step.state;
+    if (step.announcement !== undefined) said.push(step.announcement);
     for (const intent of step.intents) {
       if (intent.kind === "menu") queue.push({ type: "openMenu", element: intent.element, at: { x: 0, y: 0 } });
       if (intent.kind === "run") queue.push({ type: "actionDone", action: intent.action });
     }
   }
+  return said;
 }
 
 /** A random key: on the map the moves, the modified arrows, selection, Enter for the menu and Escape; in the menu its own keys. */
@@ -276,8 +279,11 @@ describe("random walks over random maps", () => {
         for (let s = 0; s < length; s++) {
           const before = w.state;
           const event = randomKey(rng, before.menu !== null);
-          press(w, event);
-          checkStep(map, before, event, w.state, () => caseLabel(seed, `${map.name}, walk ${walk}, step ${s}`));
+          const said = press(w, event);
+          const label = () => caseLabel(seed, `${map.name}, walk ${walk}, step ${s}`);
+          checkStep(map, before, event, w.state, label);
+          // What the live region says is a sentence: no placeholder, no missing value, one full stop at its end.
+          for (const text of said) must(text.trim().length > 0 && !/\{\w+\}|undefined|NaN|\.\.$/.test(text), () => `${label()}: says ${JSON.stringify(text)}`);
         }
       }
     }
