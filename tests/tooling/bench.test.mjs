@@ -37,6 +37,11 @@ test('runs five trials after a warm-up in full mode and fewer in quick mode', ()
   assert.deepEqual(settings({}), { mode: 'full', trials: 5, warmup: 1 });
   assert.deepEqual(settings({ quick: true }), { mode: 'quick', trials: 2, warmup: 1 });
   assert.deepEqual(settings({ trials: '9', warmup: '2' }), { mode: 'full', trials: 9, warmup: 2 });
+  assert.deepEqual(settings({ quick: true, warmup: '0' }), { mode: 'quick', trials: 2, warmup: 0 });
+  // A count that is not a whole number, or no trial at all, would print a table without numbers.
+  for (const [trials, warmup] of [['abc', undefined], ['0', undefined], ['2.5', undefined], [undefined, '-1'], [undefined, 'x']]) {
+    assert.throws(() => settings({ trials, warmup }), /takes a whole number/, `${trials} ${warmup}`);
+  }
 });
 
 test('measures every case the benchmark promises, in both modes', () => {

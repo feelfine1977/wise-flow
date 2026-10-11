@@ -2,7 +2,12 @@
 
 /** Mode, trials and warm-up runs per measurement: five trials in full mode, two in quick mode, one warm-up. */
 export function settings({ quick = false, trials, warmup } = {}) {
-  return { mode: quick ? 'quick' : 'full', trials: Number(trials ?? (quick ? 2 : 5)), warmup: Number(warmup ?? 1) };
+  const count = (given, fallback, least, option) => {
+    const value = Number(given ?? fallback);
+    if (!Number.isInteger(value) || value < least) throw new Error(`${option} takes a whole number from ${least}, not "${given}"`);
+    return value;
+  };
+  return { mode: quick ? 'quick' : 'full', trials: count(trials, quick ? 2 : 5, 1, '--trials'), warmup: count(warmup, 1, 0, '--warmup') };
 }
 
 const thousands = new Intl.NumberFormat('en-US');
