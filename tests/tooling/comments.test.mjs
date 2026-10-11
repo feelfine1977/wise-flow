@@ -5,7 +5,7 @@ import { SourceMap } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { checkComments, codeOf, commentsIn, documentation, documentationDifferences, emitLibrary, filesIn, unlistedComments } from '../../scripts/check-comments.mjs';
+import { buildConfigs, checkComments, codeOf, commentsIn, documentation, documentationDifferences, emitLibrary, filesIn, unlistedComments } from '../../scripts/check-comments.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 let dist;
@@ -53,6 +53,13 @@ test('the source map of a JavaScript file and the map of a declaration file lead
     assert.equal(resolve(dirname(join(dist, file)), entry.originalSource), join(root, 'src/core/layout.ts'), file);
     assert.deepEqual({ line: entry.originalLine, column: entry.originalColumn }, source, file);
   }
+});
+
+test('the library is emitted with the configs the build script compiles', () => {
+  assert.deepEqual(buildConfigs(), ['tsconfig.build.json', 'tsconfig.types.json']);
+  assert.deepEqual(buildConfigs('node a.mjs && tsc -p one.json && tsc -p two.json && node b.mjs'), ['one.json', 'two.json']);
+  assert.throws(() => buildConfigs('node a.mjs && node b.mjs'), /no "tsc -p <config>" step/);
+  assert.throws(() => buildConfigs('tsc -p one.json --outDir out'), /compiles with "tsc -p one.json --outDir out"/);
 });
 
 test('comments are found before, between and after tokens, and never inside strings, templates or regular expressions', () => {

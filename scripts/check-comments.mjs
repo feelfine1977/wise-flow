@@ -15,9 +15,21 @@ const tsc = createRequire(import.meta.url).resolve('typescript/bin/tsc');
  */
 export const notices = [/^\/\/# sourceMappingURL=[\w.-]+\.js\.map$/];
 
+/** The configs `npm run build` compiles, in order, read from its `tsc -p <config>` steps. */
+export function buildConfigs(script = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).scripts.build) {
+  const steps = script.split('&&').map((step) => step.trim());
+  const configs = steps.filter((step) => /^tsc\b/.test(step)).map((step) => {
+    const match = /^tsc -p (\S+)$/.exec(step);
+    if (!match) throw new Error(`The build compiles with "${step}"; expected "tsc -p <config>"`);
+    return match[1];
+  });
+  if (configs.length === 0) throw new Error('The build runs no "tsc -p <config>" step');
+  return configs;
+}
+
 /** Builds the library's JavaScript and declarations into `outDir` the way `npm run build` does. */
 export function emitLibrary(outDir) {
-  for (const config of ['tsconfig.build.json', 'tsconfig.types.json']) execFileSync(process.execPath, [tsc, '-p', resolve(root, config), '--outDir', outDir], { cwd: root, stdio: 'inherit' });
+  for (const config of buildConfigs()) execFileSync(process.execPath, [tsc, '-p', resolve(root, config), '--outDir', outDir], { cwd: root, stdio: 'inherit' });
 }
 
 /** Every file under `dir` whose name ends with `suffix`, relative to `dir`, sorted. */
