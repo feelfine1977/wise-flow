@@ -187,6 +187,28 @@ describe("the sliders' readouts", () => {
     await waitFor(() => expect([...container.querySelectorAll("output")].map((o) => o.textContent)).toEqual(["4 of 4", "4 of 4"]));
   });
 
+  it("count the paths of the graph, not an indirect path that stands for hidden activities", async () => {
+    // At two activities of four, "late" is entered through "rarer" and "rare", both hidden: one indirect path and three paths of the graph.
+    const hidden: FlowGraph = {
+      nodes: [
+        { id: "start", kind: "event", label: "Start", tags: ["start"] },
+        { id: "busy", kind: "activity", label: "Busy", metrics: { cases: 100 } },
+        { id: "late", kind: "activity", label: "Late", metrics: { cases: 90 } },
+        { id: "rare", kind: "activity", label: "Rare", metrics: { cases: 5 } },
+        { id: "rarer", kind: "activity", label: "Rarer", metrics: { cases: 3 } },
+        { id: "end", kind: "event", label: "End", tags: ["end"] },
+      ],
+      edges: ([["start", "busy", 100], ["busy", "end", 100], ["start", "rarer", 3], ["rarer", "rare", 3], ["rare", "late", 5], ["late", "end", 90]] as const).map(([source, target, count]) => ({ id: `${source}->${target}`, kind: "follows" as const, source, target, metrics: { count } })),
+    };
+    const positions = await layout(hidden, { engine: "dagre" });
+    const { container } = render(
+      <div style={{ width: 800, height: 600 }}>
+        <ProcessMap graph={hidden} positions={positions} abstraction={{ activityDetail: 0.5, pathDetail: 0 }} legend={false} fitView={false} />
+      </div>,
+    );
+    await waitFor(() => expect([...container.querySelectorAll("output")].map((o) => o.textContent)).toEqual(["2 of 4", "3 of 6"]));
+  });
+
   it("are in German too", async () => {
     const { container } = await map("svg", "de", { minNodeShare: 0.1, minEdgeShare: 0.2 });
     expect([...container.querySelectorAll("output")].map((o) => o.textContent)).toEqual(["3 von 4", "2 von 4"]);

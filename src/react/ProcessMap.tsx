@@ -12,7 +12,7 @@ import {
   type OnNodesChange,
 } from "@xyflow/react";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { type AbstractOptions, type ElementRef, type FlowGraph, type Insets, type Positions, type XY, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, defaultStyle, dimensionTokens, fitViewport, formatCount, lodAt, spaceTokens, strokeTokens, t, themeColors } from "../core/index.js";
+import { type AbstractOptions, type ElementRef, type FlowGraph, type Insets, type Positions, type XY, INDIRECT_TAG, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, defaultStyle, dimensionTokens, fitViewport, formatCount, hasTag, lodAt, spaceTokens, strokeTokens, t, themeColors } from "../core/index.js";
 import { type MapContext, mapEmphasis, menuHeading } from "../core/map-controller.js";
 import { markedThemeKey, themeStyle } from "../core/theme.js";
 import { ActivityTooltip } from "./ActivityTooltip.js";
@@ -408,7 +408,8 @@ function ProcessMapInner(props: ProcessMapProps) {
   // What the sliders keep: the activities (and stages) and paths of the shown graph, of the graph before the thresholds.
   const kept = useMemo(() => {
     const shownNode = (n: FlowGraph["nodes"][number]) => n.kind === "activity" || n.kind === "stage";
-    const path = (e: FlowGraph["edges"][number]) => e.kind === "follows";
+    // An indirect path stands for activities not shown; it is not a path of the graph.
+    const path = (e: FlowGraph["edges"][number]) => e.kind === "follows" && !hasTag(e, INDIRECT_TAG);
     return {
       activities: { shown: shown.nodes.filter(shownNode).length, total: baseGraph.nodes.filter(shownNode).length },
       paths: { shown: shown.edges.filter(path).length, total: baseGraph.edges.filter(path).length },
