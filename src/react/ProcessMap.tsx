@@ -13,7 +13,7 @@ import {
   type OnNodesChange,
 } from "@xyflow/react";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { type AbstractOptions, type ElementRef, type FlowGraph, type Positions, type XY, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, defaultStyle, dimensionTokens, formatCount, lodAt, spaceTokens, strokeTokens, t } from "../core/index.js";
+import { type AbstractOptions, type ElementRef, type FlowGraph, type Positions, type XY, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, defaultStyle, defaultTheme, dimensionTokens, formatCount, lodAt, spaceTokens, strokeTokens, t } from "../core/index.js";
 import { type MapContext, mapEmphasis, menuHeading } from "../core/map-controller.js";
 import { ActivityTooltip } from "./ActivityTooltip.js";
 import { AbstractionControls } from "./AbstractionControls.js";
@@ -26,7 +26,7 @@ import { FilterChips } from "./FilterChips.js";
 import { useArrival, useEdgesShown, useEdgesShownAcross, useFlowGraph, useMapScene, usePrefersReducedMotion, useStableLayout } from "./hooks.js";
 import { Legend } from "./Legend.js";
 import { useMenuActions } from "./map-actions.js";
-import { useCanvasElements, useElementDescriptions, useFlowElements } from "./map-elements.js";
+import { useCanvasElements, useElementDescriptions, useFlowElements, useTextMeasure } from "./map-elements.js";
 import { GROUP_PREFIX, canvasPointer, flowPointer, overlayPointer } from "./map-pointer.js";
 import { MarkDefs, MarkFigure } from "./marks.js";
 import { nodeTypes } from "./nodes.js";
@@ -105,9 +105,10 @@ function ProcessMapInner(props: ProcessMapProps) {
   const activityLabels = useMemo(() => props.activityLabels ? {
     ...props.activityLabels, references: activityReferences(graph, props.activityLabels.references),
   } : undefined, [graph, props.activityLabels]);
+  const textMeasure = useTextMeasure(props.textMeasure, (props.theme ?? defaultTheme).font.family);
   const sizedLayoutOptions = useMemo(() => activityLabels && !layoutOptions?.nodeSize ? {
-    ...layoutOptions, nodeSize: (node: FlowGraph["nodes"][number]) => activityNodeSize(node, activityLabels),
-  } : layoutOptions, [layoutOptions, activityLabels]);
+    ...layoutOptions, nodeSize: (node: FlowGraph["nodes"][number]) => activityNodeSize(node, activityLabels, textMeasure),
+  } : layoutOptions, [layoutOptions, activityLabels, textMeasure]);
 
   // Selection, focus of paths, abstraction and view (each controlled or internal), keyboard position,
   // hover, the actions menu and the live region: the core's map controller.
@@ -146,7 +147,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   // Graph overlays and the given ones; the scene keeps those it can place and adds the follows self-loops.
   const sceneOverlays = useMemo(() => (extraOverlays ? [...(shown.overlays ?? []), ...extraOverlays] : undefined), [shown, extraOverlays]);
   const { scene, positions, laidPositions } = useMapScene(shown, arrival.positions, manual.key === layoutResetKey ? manual.points : NO_MOVES, {
-    overlays: sceneOverlays, style, locale, lanes, activityLabels, selfLoops, lod: props.lod, theme: props.theme,
+    overlays: sceneOverlays, style, locale, lanes, activityLabels, selfLoops, lod: props.lod, theme: props.theme, textMeasure,
   });
   const { scales, overlays, geometry } = scene;
   // One index of the shown graph: every description, label and lookup by id reads it.

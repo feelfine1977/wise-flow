@@ -51,7 +51,8 @@ describe("React Flow nodes and edges from their marks", () => {
   it("shortens labels by the core rule and keeps the full name in the description", async () => {
     const long = { ...graph, nodes: graph.nodes.map((n) => (n.id === "a" ? { ...n, label: "Change Approval for Purchase Order" } : n)) };
     const { node } = await map(long);
-    expect(node("a").querySelector(".wf-node__label")!.textContent).toBe("Change Approval for Pu…");
+    // Without a 2D canvas the map measures by the estimate: 126.2 beside the count, 18 characters and the ellipsis.
+    expect(node("a").querySelector(".wf-node__label")!.textContent).toBe("Change Approval fo…");
     expect(node("a").getAttribute("title")).toContain("Change Approval for Purchase Order");
   });
 });

@@ -389,9 +389,19 @@ export type {
   OverlayMark,
 } from "./overlay-marks.js";
 
+export type {
+  TextMeasure,
+} from "./text.js";
+export {
+  estimateTextWidth,
+  truncateText,
+  wrapText,
+  fitText,
+  fitLead,
+} from "./text.js";
+
 export {
   fitChars,
-  fitLead,
   markSvg,
   arrowMarker,
   patternTwinSvg,
@@ -404,8 +414,6 @@ export type {
 } from "./mark-svg.js";
 
 export {
-  truncateText,
-  fitText,
   routeMidpoint,
   edgeLabelPoint,
   edgePoints,
@@ -418,10 +426,8 @@ export {
   groupMark,
   groupMarks,
   edgeColor,
-  estimateTextWidth,
 } from "./element-marks.js";
 export type {
-  TextMeasure,
   ElementText,
   NodeMark,
   EdgeMark,
@@ -431,6 +437,7 @@ export type {
 
 export {
   sceneLegend,
+  legendOfScene,
   legendItemHeight,
   legendLayout,
   figureFrame,
@@ -442,6 +449,8 @@ export type {
   FigurePreset,
   LegendKeyKind,
   LegendKey,
+  LegendRow,
+  LegendSource,
   SceneLegend,
   LegendLayout,
   FigureFrameOptions,

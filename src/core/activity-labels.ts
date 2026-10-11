@@ -1,6 +1,7 @@
 import { type Locale, formatCompact, formatCount } from "./format.js";
 import { type NodeSize, defaultNodeSize } from "./layout.js";
 import { type FlowGraph, type FlowNode, metric } from "./model.js";
+import { type TextMeasure, estimateTextWidth, wrapText } from "./text.js";
 import { textTokens } from "./tokens.js";
 
 const { activityName: nameText, activityNumber: numberText } = textTokens;
@@ -43,35 +44,9 @@ export function activityLabel(node: FlowNode, options: ActivityLabelOptions): st
   return (options.mode === "ids" ? ownValue(options.references, node.id) : ownValue(options.names, node.id)) || node.label;
 }
 
-/** Conservative deterministic wrapping shared by live renderers and headless exports. */
-export function wrapActivityText(value: string, width: number, fontSize: number = nameText.size): string[] {
-  // Deliberately generous advances for the default sans-serif stack; wide scripts
-  // reserve a full em. No browser font measurement or viewport-dependent wrapping.
-  const advance = (char: string) => fontSize * ((char.codePointAt(0) ?? 0) <= 0x2ff ? 0.7 : 1);
-  const limit = Math.max(fontSize, width);
-  // Joined from characters: a line appended to char by char is kept as a chain of strings.
-  const lines: string[] = [];
-  let line: string[] = [];
-  let used = 0;
-  const end = () => {
-    lines.push(line.join(""));
-    line = [];
-    used = 0;
-  };
-  for (const word of value.trim().split(/\s+/u)) {
-    const chars = Array.from(word);
-    const wordWidth = chars.reduce((total, char) => total + advance(char), 0);
-    if (line.length && used + advance(" ") + wordWidth > limit) end();
-    if (line.length) { line.push(" "); used += advance(" "); }
-    for (const char of chars) {
-      const size = advance(char);
-      if (line.length && used + size > limit) end();
-      line.push(char);
-      used += size;
-    }
-  }
-  if (line.length) end();
-  return lines.length === 1 && lines[0] === value ? [value] : lines.length ? lines : [""];
+/** Lines of an activity's name or counts, wrapped by the text measure (`wrapText`). */
+export function wrapActivityText(value: string, width: number, fontSize: number = nameText.size, measure: TextMeasure = estimateTextWidth): string[] {
+  return wrapText(value, width, { size: fontSize }, measure);
 }
 
 /** One chosen node metric: distinct cases/items, never event frequency. */
@@ -95,29 +70,29 @@ export function activityDescription(node: FlowNode, options: ActivityLabelOption
   return [reference ? `${reference} — ` : "", node.label, ". ", activityCounts(node, options, locale, true), "."].join("");
 }
 
-export function activityLabelLines(node: FlowNode, options: ActivityLabelOptions, width: number, locale: Locale = "en") {
+export function activityLabelLines(node: FlowNode, options: ActivityLabelOptions, width: number, locale: Locale = "en", measure: TextMeasure = estimateTextWidth) {
   return {
-    name: wrapActivityText(activityLabel(node, options), width - 32),
-    counts: wrapActivityText(activityNodeCounts(node, options, locale), width - 32, numberText.size),
+    name: wrapActivityText(activityLabel(node, options), width - 32, nameText.size, measure),
+    counts: wrapActivityText(activityNodeCounts(node, options, locale), width - 32, numberText.size, measure),
   };
 }
 
-/** Call before layout. Hover/focus/count visibility never affect these dimensions. */
-export function activityNodeSize(node: FlowNode, options: ActivityLabelOptions): NodeSize {
+/** Call before layout, with the text measure of the scene. Hover/focus/count visibility never affect these dimensions. */
+export function activityNodeSize(node: FlowNode, options: ActivityLabelOptions, measure: TextMeasure = estimateTextWidth): NodeSize {
   if (node.kind !== "activity") return defaultNodeSize(node);
   const width = options.mode === "ids" ? 140 : 280;
   // IDs get a fixed title row even when called before the reference inventory exists.
-  const nameRows = options.mode === "ids" ? 1 : wrapActivityText(activityLabel(node, options), width - 32).length;
+  const nameRows = options.mode === "ids" ? 1 : wrapActivityText(activityLabel(node, options), width - 32, nameText.size, measure).length;
   // Reserve the chosen metric even when the checkbox is off.
-  const countRowsIn = (locale: Locale) => wrapActivityText(activityNodeCounts(node, options, locale), width - 32, numberText.size).length;
+  const countRowsIn = (locale: Locale) => wrapActivityText(activityNodeCounts(node, options, locale), width - 32, numberText.size, measure).length;
   const countRows = Math.max(1, countRowsIn("en"), countRowsIn("de"));
   return { width, height: 20 + nameRows * nameText.lineHeight + countRows * numberText.lineHeight };
 }
 
 /** Visible canonical key, independent of the optional colour/constraint legend. */
-export function activityKeyLines(graph: FlowGraph, options: ActivityLabelOptions | undefined, width: number, locale: Locale = "en"): string[] {
+export function activityKeyLines(graph: FlowGraph, options: ActivityLabelOptions | undefined, width: number, locale: Locale = "en", measure: TextMeasure = estimateTextWidth): string[] {
   if (!options) return [];
   const nodes = graph.nodes.filter((n) => n.kind === "activity");
   if (!nodes.length) return [];
-  return ["Activity key — exact counts", ...nodes.sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0).flatMap((node) => wrapActivityText(activityDescription(node, options, locale), width, textTokens.figureText.size))];
+  return ["Activity key — exact counts", ...nodes.sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0).flatMap((node) => wrapActivityText(activityDescription(node, options, locale), width, textTokens.figureText.size, measure))];
 }

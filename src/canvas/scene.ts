@@ -8,6 +8,7 @@ import {
   type ActivityLabelOptions,
   type ColorScheme,
   type GroupMark,
+  type TextMeasure,
   type Theme,
   activityLabel,
   activityLabelLines,
@@ -100,7 +101,7 @@ export interface PreparedScene extends FlowScene {
   edgeById: Map<string, SceneEdge>;
   groupById: Map<string, SceneGroup>;
   shapeById: Map<string, OverlayShape>;
-  /** Cache of truncated labels per width, filled by the drawing routines. */
+  /** @deprecated Texts arrive fitted by the scene's text measure and nothing fills this cache; read the marks' texts. Removed in the next major version. */
   labelCache: Map<string, string>;
 }
 
@@ -126,6 +127,8 @@ export interface PrepareOptions {
   theme?: Theme;
   /** The colour scheme of the theme. Default `light`. */
   scheme?: ColorScheme;
+  /** What the texts are measured by (`FlowSceneOptions.textMeasure`): the Canvas draws the lines the scene fitted. Default `estimateTextWidth`. */
+  textMeasure?: TextMeasure;
 }
 
 /** The overlay shapes of the elements without any. */
@@ -160,13 +163,14 @@ export function prepareScene(graph: FlowGraph, givenPositions: Positions, option
     overlayGeometry: options.overlayGeometry,
     theme: options.theme,
     scheme: options.scheme,
+    textMeasure: options.textMeasure,
   });
   return retainScene(options.bands ? { ...scene, bands: options.bands, groupMarks: groupMarks(graph, scene.positions, options.bands, scene.scales, scene.theme) } : scene);
 }
 
 /** Retained geometry for a scene the core has built (`buildScene`). */
 export function retainScene(scene: FlowScene): PreparedScene {
-  const { positions, locale, geometry, marks, activityLabels, theme } = scene;
+  const { positions, locale, geometry, marks, activityLabels, theme, textMeasure } = scene;
   const shapesByTarget = new Map<string, OverlayShape[]>();
   for (const s of geometry.shapes) {
     if (!shapesByTarget.has(s.overlay.target)) shapesByTarget.set(s.overlay.target, []);
@@ -190,7 +194,7 @@ export function retainScene(scene: FlowScene): PreparedScene {
       color: mark.color,
       pattern: mark.pattern,
       label: labels ? activityLabel(n, labels) : n.label,
-      activityLines: labels ? activityLabelLines(n, labels, mark.box.width, locale) : undefined,
+      activityLines: labels ? activityLabelLines(n, labels, mark.box.width, locale, textMeasure) : undefined,
       // The count the mark writes, not formatted again.
       meta: labels ? (labels.showCounts === false ? undefined : activityNodeCounts(n, labels, locale)) : (mark.texts.find((t) => t.role === "count")?.text ?? nodeCount(n, locale)),
       hatched: shapes.some((s) => s.kind === "hatch"),

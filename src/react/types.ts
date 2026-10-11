@@ -32,6 +32,7 @@ import type {
   Selection,
   ShownEdges,
   StyleSpec,
+  TextMeasure,
   Theme,
 } from "../core/index.js";
 import { emptySelection } from "../core/index.js";
@@ -120,6 +121,15 @@ export interface ProcessMapProps {
    * colour roles are drawn through the CSS variables of `tokens.css`.
    */
   theme?: Theme;
+  /**
+   * What the map's texts are measured by: labels are shortened, activity names
+   * wrapped and boxes sized by it, in the DOM and on the Canvas alike. Default
+   * the browser's (`canvasTextMeasure` in the theme's font, created again once
+   * the page's fonts have loaded), the estimate (`estimateTextWidth`) where
+   * there is no 2D canvas. Pass the same measure to `toSVG` and `toPNG` for
+   * the same lines in the exports, and keep one measure for the life of a map.
+   */
+  textMeasure?: TextMeasure;
   /** Controlled abstraction options. */
   abstraction?: AbstractOptions;
   defaultAbstraction?: AbstractOptions;

@@ -1,6 +1,6 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { memo } from "react";
-import { type ElementText, type GroupMark, type LayoutDirection, type NodeMark, type Overlay, type SvgElement, colorTokens, defaultNodeSize, fitText, groupMark, hasTag, nodeMark } from "../core/index.js";
+import { type ElementText, type GroupMark, type LayoutDirection, type NodeMark, type Overlay, type SvgElement, colorTokens, defaultNodeSize, groupMark, hasTag, nodeMark } from "../core/index.js";
 import { ElementMarks, MARK_IDS, MarkFigure, mapMark, marksAtOrigin, paintCss, svgReact } from "./marks.js";
 import { part } from "./parts.js";
 import { PatternSwatch } from "./patterns.js";
@@ -106,10 +106,10 @@ function covered(mark: NodeMark, data: ActivityNodeData): Record<string, string>
 
 const lodClass = (t: ElementText) => (t.lod === "labels" ? " wf-lod-labels" : t.lod === "edgeLabels" ? " wf-lod-edge-labels" : "");
 
-/** The mark's text of one role, shortened by the core rule, with its level-of-detail class. */
+/** The mark's text of one role, as the scene fitted it, with its level-of-detail class. */
 function Text({ mark, role, className, hidden }: { mark: NodeMark; role: ElementText["role"]; className: string; hidden?: boolean }) {
   const t = mark.texts.find((x) => x.role === role);
-  return t ? <span className={`${className}${lodClass(t)}`} style={textLook(t, mark)} {...part(role === "count" ? "node-count" : "node-label")} aria-hidden={hidden || undefined}>{fitText(t)}</span> : null;
+  return t ? <span className={`${className}${lodClass(t)}`} style={textLook(t, mark)} {...part(role === "count" ? "node-count" : "node-label")} aria-hidden={hidden || undefined}>{t.text}</span> : null;
 }
 
 /** The lines of an activity's name or counts, written in the first line's style. */

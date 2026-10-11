@@ -117,15 +117,24 @@ function exported(fixture: Fixture, scene: Partial<Scene>, options: PngOptions):
  * the vendor fixture two and one; in the unfiltered one, one label), so only
  * the arcs' calls changed. Recorded once more when the start event took the
  * interactive map's outline: only its stroke's width changed, 2 where it was
- * 1.5.
+ * 1.5. Recorded once more when the drawing began to write the texts the
+ * scene's measure fitted instead of measuring them with the context: node
+ * labels and legend rows are cut by the estimate, no longer by this context's
+ * 6 px per character, and chip texts by the estimate instead of 6.2 px per
+ * character, and activity and stage labels leave the room the interactive map
+ * gives them (inside the outline, before the count on their line). Recorded
+ * again with a context that measures by the estimate, every recording here and
+ * every culled one holds the same calls as before but written texts: that chip's
+ * text keeps three more characters ("Manual touches in the order stag…", where
+ * it was "… s…"), and thirteen labels are cut shorter, as in the SVG export.
  */
 const before = {
-  mapGlobalStages: "e6874a03e252c02c08d83c6e6cd7f8f6112d9a94187c53c9281c36c8dec6389f",
-  mapVendorIds: "9059a4d2e577769f678425aa87515be387fefa21af8ee3d19587bc8f25014f67",
-  mapUnfiltered: "64083b98b2d865e00418a3575355a5eb27051b87414e0da46734e49887044f97",
-  pngGlobalTitle: "6ac08a82e0d24305ce0a8473ead80fc5f950687876dc3f3d257cfd2f7bb7a5f2",
-  pngVendorIds: "8e4de611f0743ecf8544f55714bffc738700162c50b80cdb77c93d3242ed3a9d",
-  pngUnfilteredGerman: "7cf1aa2ad56e9459d44953970156247ff7a85b0d08954e605c59dd93088bcb16",
+  mapGlobalStages: "d76e93bad8a63a57a8fcceaff31a7f4dd7beb53c41264c6ab7b8080e2a963d49",
+  mapVendorIds: "8875a2eda7732d28910672b13161ae68586279383539a328867670ea4e77cc60",
+  mapUnfiltered: "97ce3dbff21175509f842a29fd38f33d96f5ea8257d08272968da41882f76ada",
+  pngGlobalTitle: "42edde5cfb8e0fbae72e8bffc7f197d6bef6776698c3e0f3ca26106b427fa938",
+  pngVendorIds: "b93ae6dd21d853239fa06f357a9c0b366981de5d1642843af5ad38a7202e5a76",
+  pngUnfilteredGerman: "317d9e42f7fa9fe3ca849559feb07fb648be15acc1f125676a558b763830bdd6",
 };
 
 /**
@@ -137,12 +146,14 @@ const before = {
  * clear of the other activities; only the arcs' calls changed. Recorded once
  * more, for the strips with the start event, when it took the interactive
  * map's outline: only its stroke's width changed, 2 where it was 1.5.
+ * Recorded once more, for the three strips with the labels this changes, when
+ * the drawing began to write the texts the scene's measure fitted (as above).
  */
 const culledBefore = {
-  culledGlobal: "44b4fd9bead6f44da50aae0a2204766d6b994326de3cc9ae683c7be58a6c4ed5",
-  culledGlobalStages: "313cd2232dd20a7ef1c60edaba696d756f05f043591a8b09b49d87114f889379",
+  culledGlobal: "a6a60651617897d2b4f711ee2eeee6211b9222cf7e68d0703f51fa20b95a32b8",
+  culledGlobalStages: "c76a53a11b53f41729f8e9cc0f9c806663dc8c9aaf48bccd9f5215e85b4ff443",
   culledVendorIds: "1152631216a5e5d5a93721de8645abb74c1d9f00b5b8b693515ccf8485bee91a",
-  culledUnfiltered: "182af7a24e8cbb3d9bd3f922a5ad696c880c2c0b4c20788317ad14a64de63ea8",
+  culledUnfiltered: "ba15b9663fd4c666ed9ef5e4a7713c93ec45d7f94c1fa29c26199e33035f09cb",
 };
 
 describe("Canvas drawing on the committed fixtures", () => {

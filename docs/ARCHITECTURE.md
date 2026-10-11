@@ -19,9 +19,9 @@
 │ core/    model · aggregate · layout · lanes · routing ·     │
 │          scene · overlays · overlay-geometry ·              │
 │          overlay-marks · element-marks · mark-svg · figure ·│
-│          tokens · theme · style · hit · export · views ·    │
-│          selection · map-controller · actions · paths ·     │
-│          filters · format · strings                         │
+│          text · tokens · theme · style · hit · export ·     │
+│          views · selection · map-controller · actions ·     │
+│          paths · filters · format · strings                 │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -38,11 +38,12 @@ read what it resolves and do not decide it again.
 | --- | --- | --- | --- |
 | Scene (`core/scene.ts`) | `buildScene(graph, positions, options)` → `FlowScene` | activity references, lane bands, scales, the overlays to show in canonical order with the follows self-loops, level-of-detail rules, overlay geometry, the marks and the legend, resolved once in a theme and colour scheme (§2.4, §2.6) | `toSVG`, `prepareScene` (Canvas, `toPNG`), `ProcessMap`, `BpmnView` (`bpmn/scene.ts` over the registry's boxes) |
 | Overlay marks (`core/overlay-marks.ts`) | `FlowScene.marks`, `OverlayMark` | per placed overlay: box or path, fill, stroke, dash, arrowhead, texts, layer, zoom threshold, whether it is on the map (§2.5) | SVG export, Canvas drawing, React nodes and `OverlayLayer`, BPMN projection |
-| Node, edge and group marks (`core/element-marks.ts`) | `FlowScene.nodeMarks`, `FlowScene.edgeMarks`, `FlowScene.groupMarks`, `truncateText` | outline, fill, border, band, texts and their level of detail; edge route, colour, dash, count label; a group's tint, outline, band sides and rule, title and chip anchor (§2.5) | SVG export, Canvas drawing, React node, edge and group components |
+| Node, edge and group marks (`core/element-marks.ts`) | `FlowScene.nodeMarks`, `FlowScene.edgeMarks`, `FlowScene.groupMarks` | outline, fill, border, band, texts and their level of detail; edge route, colour, dash, count label; a group's tint, outline, band sides and rule, title and chip anchor (§2.5) | SVG export, Canvas drawing, React node, edge and group components |
+| Text measure (`core/text.ts`) | `TextMeasure`, `estimateTextWidth`, `truncateText`, `wrapText`; `buildScene(…, { textMeasure })`; `canvasTextMeasure` (Canvas) | how wide a text is, where it is shortened and how it wraps: node labels, chip texts and their boxes, activity names and boxes, the legend's texts, the figure's note and activity key, measured once when the scene is built (§2.5) | the mark builders, the overlay geometry, the legend layout and the figure frame; the renderers write the fitted texts |
 | Theme (`core/theme.ts`) | `Theme`, `defaultTheme`, `themeColors`; `buildScene(…, { theme, scheme })` | what the marks are drawn in: colour roles with the dark scheme's changes, the data palettes, fonts, text, radius, stroke and spacing tables, density, rules (none yet); `defaultTheme` is the token table (§2.4) | the scene and its mark builders and scales; through the scene the SVG export, Canvas drawing, PNG export and React components |
 | Edge budget (`core/edge-budget.ts`) | `budgetEdges(scene, budget, protection, inView)` → `EdgeSelection`; `edgeBudgetAdapter(clock)` (internal) | which edges in view a budget draws: protected edges (an overlay mark on them, selected, at the keyboard position, on a highlighted path), then weight, then id; or exactly the edges a map reported (`ShownEdges`); the adaptive budget's step, moved by the timed frames of gestures and only at rest (§4) | `drawScene` and `CanvasRenderer` (Canvas, `toPNG`), `useFlowElements` (React Flow), `toSVG` |
 | Mark SVG (`core/mark-svg.ts`) | `markSvg`, `svgMarkup` | the SVG elements of a mark | SVG export, React map, BPMN view |
-| Legend and figure frame (`core/figure.ts`) | `sceneLegend`, `legendLayout`, `figureFrame` | legend rows and heights, the exported figure's frame and the note on withheld edges in it (§2.6) | `toSVG`, `toPNG`, Canvas `drawLegend`, `<Legend/>` |
+| Legend and figure frame (`core/figure.ts`) | `FlowScene.legend` (`legendOfScene`), `LegendRow`, `legendLayout`, `figureFrame` | the legend's typed rows from what the scene draws, their heights and texts at the export's width, the exported figure's frame and the note on withheld edges in it (§2.6) | `toSVG`, `toPNG`, Canvas `drawLegend`, `<Legend/>` |
 | Design tokens (`core/tokens.ts`) | `designTokens` and its parts, `patternTwin`, `tokenVariables` | colours, palettes, fonts, node sizes, the arrowhead rule, pattern twins, and every size, radius, stroke, dash, text size and weight, opacity, spacing step and z-order by role; `tokens.css` is generated from it and checked against it (§2.4) | marks, SVG export, Canvas drawing and `readTokens`, PNG export, React components, `tokens.css` and through it the stylesheet |
 | Graph index and positions (`core/model.ts`, `core/layout.ts`) | `indexGraph`, `createPositions` | lookups, adjacency, group ancestors, nested members, labels; positions whose bounds always match their contents (§2.1, §2.3) | selection, filters, paths, lanes, layout, every renderer |
 | Layout cache (`core/layout.ts`, `core/layout-key.ts`) | `layout`, `createLayoutScope`, `cacheKey`, `clearLayoutCache`, `signal` | layouts keyed by their own inputs, bounded per scope, released on `dispose`; a layout runs while somebody waits for it; ELK and Dagre workers started on demand and terminated when their layout is aborted, timed out or replaced (§2.3) | `ProcessMap`, `useStableLayout`, `layoutBpmn` |
@@ -254,9 +255,23 @@ edge's route (straight between the boxes where none is given), colour, dash
 and count label at one label point. Groups have marks as well: a box group's
 tint, dashed outline and title, a band's tint, its outline on the two sides
 between bands and its rule along the side it starts at, and where a group's
-chips are placed from. Node and edge texts are shortened by one
-rule (`truncateText`) with a text measure the renderer injects; SVG, Canvas
-and the React Flow map draw these marks.
+chips are placed from. SVG, Canvas and the React Flow map draw these marks.
+
+**Text measure.** Text is measured once, when the scene is built, by one
+`TextMeasure` (`buildScene(…, { textMeasure })`): node labels and chip texts
+are shortened to their width (`truncateText`), activity names and counts
+wrapped (`wrapText`; `activityNodeSize` sizes their boxes before layout with
+the same measure), chips sized, and the legend's texts, the figure's note and
+its activity key measured. The marks carry what is drawn, and the four
+renderers write it as it is: none measures again and the stylesheet adds no
+ellipsis, so with one measure the DOM map, the Canvas map and both exports
+show the same lines. The scene's default, `estimateTextWidth`, needs no DOM
+(0.55 em per character, a full em for wide scripts); `canvasTextMeasure`
+(Canvas) measures with the font and is the live map's default. A label leaves
+the room the interactive map gives it, before the count it writes on the
+label's line. The boxes that keep arc labels, group
+titles and badges clear of each other keep their own widths per character:
+they place marks rather than fit text.
 
 ### 2.6 Hit-testing and export
 An R-tree (rbush) over nodes, groups, edge segments and overlay shapes for
@@ -264,15 +279,17 @@ hover and click on Canvas and in exports. `buildScene` resolves graph,
 positions and options once into the scene renderers read (activity
 references, lane bands, scales, the overlays to show with the follows
 self-loops in canonical order, level-of-detail rules, overlay geometry,
-overlay, node, edge and group marks in the theme and colour scheme, and the legend: the scales in use, the
-overlay kinds present and the map-level chips);
+overlay, node, edge and group marks in the theme and colour scheme, and the legend: typed rows for the
+scales of what is drawn, one key per kind of mark drawn and the map-level chips, so a row exists exactly
+when its mark is drawn);
 `toSVG(scene)` draws it with figure presets
 (single column, double column, slide), an embedded legend with the scales
 and overlay glyphs, deterministic output. `toPNG` (in `canvas/`) draws the
 same scene, presets and legend into a bitmap. The legend's rows and their
-heights (`legendLayout`) and the figure frame (`figureFrame`: header, map,
-legend column, note on withheld edges, activity key, output size) are
-measured once in the core; both exports and `<Legend/>` list the same rows.
+heights and texts at the export's width (`legendLayout`) and the figure
+frame (`figureFrame`: header, map, legend column, note on withheld edges,
+activity key, output size) are measured once in the core; both exports,
+the Canvas `drawLegend` and `<Legend/>` render the scene's rows.
 With an edge budget, or the edges a map reported through `onEdgesShown`,
 both exports draw the edges `budgetEdges` keeps and write the map's note
 into the figure.

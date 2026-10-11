@@ -78,6 +78,8 @@
     "LegendKey",
     "LegendKeyKind",
     "LegendLayout",
+    "LegendRow",
+    "LegendSource",
     "Locale",
     "LodRules",
     "MAP_TARGET",
@@ -242,6 +244,7 @@
     "legendItemHeight",
     "legendLayout",
     "legendMetrics",
+    "legendOfScene",
     "lodAt",
     "lodForSize",
     "mapScaleAt",
@@ -319,7 +322,10 @@
     "withFollowsSelfLoops",
     "withObservedSelfLoops",
     "wrapActivityText",
+    "wrapText",
     "zTokens"
   ],
-  "deprecated": []
+  "deprecated": [
+    "fitChars"
+  ]
 }

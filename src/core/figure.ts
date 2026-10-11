@@ -4,12 +4,14 @@
  * the activity key sit in an exported figure.
  */
 import { type ActivityLabelOptions, activityKeyLines } from "./activity-labels.js";
-import { estimateTextWidth } from "./element-marks.js";
-import { type Locale, formatCount } from "./format.js";
+import { type Locale, formatCompact, formatCount, formatNumber, formatShare } from "./format.js";
 import type { Box } from "./layout.js";
 import { type FlowGraph, type Overlay, MAP_TARGET } from "./model.js";
-import type { LegendItem } from "./style.js";
+import type { OverlayMark } from "./overlay-marks.js";
+import type { LegendItem, PatternId } from "./style.js";
 import { type StringKey, t } from "./strings.js";
+import { type TextMeasure, estimateTextWidth, truncateText } from "./text.js";
+import type { Theme } from "./theme.js";
 import { textTokens } from "./tokens.js";
 
 export type FigurePreset = "single-column" | "double-column" | "slide" | "none";
@@ -29,10 +31,27 @@ export interface LegendKey {
   title: StringKey;
 }
 
+/**
+ * One row of the legend, in the words and numbers it shows: a scale (path
+ * width with its two samples, a colour ramp with its values, or category
+ * swatches with their pattern twins), the key of a mark kind drawn, or a
+ * map-level chip.
+ */
+export type LegendRow =
+  | { kind: "width"; title: string; samples: { width: number; text: string }[] }
+  | { kind: "ramp"; title: string; /** Names the ramp's gradient in an SVG document. */ id: string; stops: readonly string[]; /** The domain's values: low, (middle,) high. */ values: string[] }
+  | { kind: "swatches"; title: string; entries: { text: string; color: string; pattern: PatternId }[] }
+  | { kind: "key"; key: LegendKeyKind; glyph: string; text: string }
+  | { kind: "chip"; chip: Overlay; label: string; text: string };
+
 /** What the legend lists, in order: the scales in use, the keys, the map-level chips. */
 export interface SceneLegend {
+  /** The legend's heading. */
+  title: string;
+  /** The rows every legend renders, in order: the scale items, the keys, the chips. */
+  rows: LegendRow[];
   items: LegendItem[];
-  /** The overlay kinds present, then re-added paths, which every map can show. */
+  /** The kinds of the marks drawn that the legend explains. */
   keys: LegendKey[];
   /** Map-level chips, listed under the keys. */
   chips: Overlay[];
@@ -47,18 +66,59 @@ const KEYS: readonly LegendKey[] = [
   { kind: "reconnected", glyph: "┄", title: "legend.reconnected" },
 ];
 
-/** The legend of the given scale items and the overlays a scene shows. */
-export function sceneLegend(items: LegendItem[], overlays: readonly Overlay[]): SceneLegend {
-  const kinds = new Set(overlays.map((o) => o.kind));
-  const present: Record<LegendKeyKind, boolean> = {
-    badge: kinds.has("badge"),
-    arc: kinds.has("arc"),
-    reverse: overlays.some((o) => o.kind === "arc" && !!o.payload?.reverse),
-    selfLoop: kinds.has("selfLoop"),
-    outOfScope: kinds.has("hatch"),
-    reconnected: true,
-  };
-  return { items, keys: KEYS.filter((k) => present[k.kind]), chips: overlays.filter((o) => o.kind === "chip" && o.target === MAP_TARGET) };
+/** The rows of the scale items, the keys of the kinds `present` says are there and the chips, in that order, in a locale. */
+function legendOf(items: LegendItem[], present: (kind: LegendKeyKind) => boolean, chips: Overlay[], locale: Locale): SceneLegend {
+  const keys = KEYS.filter((k) => present(k.kind));
+  const rows: LegendRow[] = items.map((item): LegendRow => {
+    const title = t(locale, item.title);
+    if (item.kind === "width") return { kind: "width", title, samples: [0, 1].map((i) => ({ width: item.range[i], text: formatCompact(item.domain[i], locale) })) };
+    if (item.kind === "categorical") return { kind: "swatches", title, entries: item.entries.map((e) => ({ text: e.key, color: e.color, pattern: e.pattern })) };
+    const value = (v: number) => (/share/i.test(item.metric) ? formatShare(v, locale) : formatNumber(v, 1, locale));
+    const { domain } = item;
+    return { kind: "ramp", title, id: `${item.title.replace(/\W/g, "")}-${item.metric.replace(/\W/g, "")}`, stops: item.stops, values: (domain.length === 3 ? domain : [domain[0], domain[domain.length - 1]]).map(value) };
+  });
+  for (const k of keys) rows.push({ kind: "key", key: k.kind, glyph: k.glyph, text: t(locale, k.title) });
+  for (const chip of chips) {
+    const p = chip.payload ?? {};
+    rows.push({ kind: "chip", chip, label: `${p.glyph ?? ""} ${p.label ?? ""}`.trim(), text: String(p.text ?? "") });
+  }
+  return { title: t(locale, "legend.title"), rows, items, keys, chips };
+}
+
+/** The overlay kind a key explains (reverse-order arcs are arcs). */
+const overlayKind = (k: LegendKeyKind) => (k === "outOfScope" ? "hatch" : k === "reverse" ? "arc" : k);
+
+/**
+ * The legend of the given scale items and overlays: the keys of the overlay
+ * kinds given, then re-added paths, which every map can show. A scene's
+ * legend (`legendOfScene`) lists the marks it draws instead.
+ */
+export function sceneLegend(items: LegendItem[], overlays: readonly Overlay[], locale: Locale = "en"): SceneLegend {
+  const present = (k: LegendKeyKind) => k === "reconnected" || overlays.some((o) => o.kind === overlayKind(k) && (k !== "reverse" || !!o.payload?.reverse));
+  return legendOf(items, present, overlays.filter((o) => o.kind === "chip" && o.target === MAP_TARGET), locale);
+}
+
+/** The parts of a scene its legend is built from. */
+export interface LegendSource {
+  scales: { legend: LegendItem[] };
+  marks: readonly OverlayMark[];
+  nodeMarks: readonly { reconnected: boolean }[];
+  edgeMarks: readonly { reconnected: boolean }[];
+  locale: Locale;
+}
+
+/**
+ * The legend of what a scene draws: the path scales where it draws paths, the
+ * activity colour where it draws nodes, a key for each kind of mark it draws
+ * that the legend explains (and none for a kind it does not draw), and its
+ * map-level chips.
+ */
+export function legendOfScene(scene: LegendSource): SceneLegend {
+  const { marks, nodeMarks, edgeMarks } = scene;
+  const present = (k: LegendKeyKind) =>
+    k === "reconnected" ? nodeMarks.some((m) => m.reconnected) || edgeMarks.some((m) => m.reconnected) : marks.some((m) => m.inMap && m.kind === overlayKind(k) && (k !== "reverse" || !!m.overlay.payload?.reverse));
+  const items = scene.scales.legend.filter((item) => (item.title === "legend.nodeColor" ? nodeMarks : edgeMarks).length > 0);
+  return legendOf(items, present, marks.filter((m) => m.kind === "chip" && !m.inMap).map((m) => m.overlay), scene.locale);
 }
 
 /** Row heights of the legend in a figure; text offsets within a row stay with the renderers. */
@@ -85,35 +145,44 @@ export function legendItemHeight(item: LegendItem): number {
   return m.itemTitle + m.gradient;
 }
 
-/** Where each part of the legend starts, relative to its top. */
+/** Where each row of the legend starts, relative to its top, with its texts shortened to the legend's width. */
 export interface LegendLayout {
+  /**
+   * Each row's top and the texts an export writes for it, shortened by the
+   * measure: a swatch's entries, a key's text, a chip's label and text.
+   */
+  rows: { row: LegendRow; y: number; texts: string[] }[];
   items: { item: LegendItem; y: number }[];
   keys: { key: LegendKey; y: number }[];
   chips: { chip: Overlay; y: number }[];
   height: number;
 }
 
-/** Lay out the legend's rows from the top down: heading, scale items, keys, chips. */
-export function legendLayout(legend: SceneLegend): LegendLayout {
-  const m = legendMetrics;
-  let y = m.heading;
-  const items = legend.items.map((item) => {
-    const at = { item, y };
-    y += legendItemHeight(item);
-    return at;
-  });
-  const keys = legend.keys.map((key) => {
-    const at = { key, y };
-    y += m.key;
-    return at;
-  });
-  if (legend.chips.length) y += m.chipsGap;
-  const chips = legend.chips.map((chip) => {
-    const at = { chip, y };
-    y += m.chipLabel + m.chipText;
-    return at;
-  });
-  return { items, keys, chips, height: y };
+/** Lay out the legend's rows from the top down under its heading, their texts shortened by the measure to `width` (default `legendMetrics.width`) in the theme's legend text styles. */
+export function legendLayout(legend: SceneLegend, options: { measure?: TextMeasure; width?: number; text?: Theme["text"] } = {}): LegendLayout {
+  const { measure = estimateTextWidth, width = legendMetrics.width, text = textTokens } = options;
+  const fit = (s: string, inset: number, font: { size: number; weight?: number }) => truncateText(s, width - inset, font, measure);
+  let y = legendMetrics.heading;
+  const out: LegendLayout = { rows: [], items: [], keys: [], chips: [], height: 0 };
+  for (const row of legend.rows) {
+    if (row.kind === "chip" && !out.chips.length) y += legendMetrics.chipsGap;
+    const at = y;
+    const texts = row.kind === "swatches" ? row.entries.map((e) => fit(e.text, 24, text.legendValue)) : row.kind === "key" ? [fit(row.text, 24, text.legendKey)] : row.kind === "chip" ? [fit(row.label, 4, text.legendChip), fit(row.text, 4, text.legendKey)] : [];
+    out.rows.push({ row, y: at, texts });
+    if (row.kind === "key") {
+      out.keys.push({ key: legend.keys[out.keys.length], y: at });
+      y += legendMetrics.key;
+    } else if (row.kind === "chip") {
+      out.chips.push({ chip: row.chip, y: at });
+      y += legendMetrics.chipLabel + legendMetrics.chipText;
+    } else {
+      const m = legendMetrics;
+      out.items.push({ item: legend.items[out.items.length], y: at });
+      y += m.itemTitle + (row.kind === "width" ? m.widthScale : row.kind === "ramp" ? m.gradient : row.entries.length * m.entry + m.entriesEnd);
+    }
+  }
+  out.height = y;
+  return out;
 }
 
 /** Space between the legend's rule and its rows, and after the rows. */
@@ -185,13 +254,18 @@ export interface FramedScene {
   locale: Locale;
   bounds: Box;
   legend: SceneLegend;
+  /** What the legend's texts, the note and the activity key are measured by. Default `estimateTextWidth`. */
+  textMeasure?: TextMeasure;
+  /** Its legend text styles. Default the token table's. */
+  theme?: Theme;
 }
 
 /** Measure the figure of a scene: header, map, legend column, activity key and output size. */
 export function figureFrame(scene: FramedScene, options: FigureFrameOptions = {}): FigureFrame {
   const f = figureMetrics;
   const pad = options.padding ?? f.padding;
-  const layout = options.legend === false ? undefined : legendLayout(scene.legend);
+  const measure = scene.textMeasure ?? estimateTextWidth;
+  const layout = options.legend === false ? undefined : legendLayout(scene.legend, { measure, text: scene.theme?.text });
   const column = layout ? f.legendColumn : 0;
   const header = options.title ? f.titleHeight + (options.context !== false ? f.contextHeight : 0) : 0;
   const content = scene.bounds;
@@ -201,10 +275,10 @@ export function figureFrame(scene: FramedScene, options: FigureFrameOptions = {}
   const { locale } = scene;
   const text = withheld && t(locale, "map.edges.withheld", { shown: formatCount(withheld.shown, locale), total: formatCount(withheld.total, locale) });
   // Widened to fit the note.
-  const width = Math.max(mapW + column, text ? estimateTextWidth(text, { size: f.noteSize }) + 2 * pad : 0);
+  const width = Math.max(mapW + column, text ? measure(text, { size: f.noteSize }) + 2 * pad : 0);
   const below = Math.max(mapH, (layout?.height ?? 0) + 2 * pad) + header;
   const keyY = below + (text ? f.noteRow : 0);
-  const lines = activityKeyLines(scene.graph, scene.activityLabels, width - 2 * pad, scene.locale);
+  const lines = activityKeyLines(scene.graph, scene.activityLabels, width - 2 * pad, scene.locale, measure);
   const height = keyY + (lines.length ? lines.length * f.keyLine + 2 * pad : text ? pad : 0);
   const outWidth = options.width ?? (options.preset && options.preset !== "none" ? FIGURE_WIDTHS[options.preset] : width);
   return {

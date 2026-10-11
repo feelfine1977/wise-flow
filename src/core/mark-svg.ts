@@ -4,6 +4,7 @@
  * same elements in the DOM.
  */
 import type { MarkPaint, MarkText, OverlayMark } from "./overlay-marks.js";
+import { truncateText } from "./text.js";
 import { type Arrowhead, type PatternId, arrowheadExtent, hatchTokens, patternTokens, patternTwin, strokeTokens, textTokens } from "./tokens.js";
 
 /** An SVG element: tag, attributes in order, and child elements or text. */
@@ -24,23 +25,16 @@ export interface MarkSvgOptions {
 
 const num = (n: number): string => Number(n.toFixed(2)).toString();
 
-/** `text` cut to the characters that fit `maxWidth` at about 6.2 px each, with an ellipsis. */
+/**
+ * `text` shortened to `maxWidth` at a chip's text size by `truncateText`.
+ * @deprecated Mark texts arrive fitted by the scene's text measure; use `truncateText`. Removed in the next major version.
+ */
 export function fitChars(text: string, maxWidth: number | undefined): string {
-  if (maxWidth === undefined) return text;
-  const max = Math.floor((maxWidth + 4) / 6.2);
-  return text.length > max ? `${text.slice(0, Math.max(1, max - 1))}…` : text;
-}
-
-/** A text's lead and remainder after fitting both into its `maxWidth` together. */
-export function fitLead(m: MarkText, fit: (text: string) => string): { lead: string; text: string } {
-  const lead = m.lead ?? "";
-  const whole = fit(lead + m.text);
-  // A cut inside the lead leaves only the (shortened) lead.
-  return whole.length - (whole === lead + m.text ? 0 : 1) < lead.length ? { lead: whole, text: "" } : { lead, text: whole.slice(lead.length) };
+  return maxWidth === undefined ? text : truncateText(text, maxWidth, textTokens.chip);
 }
 
 function textElement(mark: OverlayMark, m: MarkText, o: MarkSvgOptions): SvgElement {
-  const { lead, text } = fitLead(m, (s) => fitChars(s, m.maxWidth));
+  const { lead = "", text } = m;
   // Without a middle baseline in every SVG consumer, about 0.3 em below the middle.
   const y = m.baseline === "middle" ? m.y + 0.3 * m.size : m.y;
   const attrs: [string, string][] = [["x", num(m.x)], ["y", num(y)], ["font-size", String(m.size)]];

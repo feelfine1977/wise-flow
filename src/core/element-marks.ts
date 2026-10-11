@@ -1,7 +1,7 @@
 /**
  * Node and edge marks: what each node and edge looks like, resolved once for
- * every renderer. Texts carry their full value and the width they are limited
- * to; `fitText` shortens them by one rule with the renderer's text measure.
+ * every renderer. Texts carry what is drawn: shortened to the width they are
+ * limited to, or wrapped into lines, by the scene's text measure.
  */
 import { type ActivityLabelOptions, activityDescription, activityLabelLines } from "./activity-labels.js";
 import { type Locale, formatCompact } from "./format.js";
@@ -12,39 +12,9 @@ import { RECONNECTED_TAG } from "./aggregate.js";
 import { chipAnchor } from "./overlay-geometry.js";
 import type { MarkFill, MarkPaint, MarkText } from "./overlay-marks.js";
 import type { PatternId, Scales } from "./style.js";
+import { type TextMeasure, estimateTextWidth, truncateText } from "./text.js";
 import { type Theme, defaultTheme } from "./theme.js";
 import { dashTokens, dimensionTokens, opacityTokens } from "./tokens.js";
-
-/** Width of a text in a font, in the units it is drawn in. */
-export type TextMeasure = (text: string, font: { size: number; weight?: number }) => number;
-
-/**
- * Width of a text without font metrics: 0.55 em per character, about the
- * average advance of the default sans-serif stack.
- */
-export const estimateTextWidth: TextMeasure = (text, font) => Array.from(text).length * 0.55 * font.size;
-
-/**
- * The longest start of `text` that fits `maxWidth` with an ellipsis, at least
- * one character; the text itself when it fits.
- */
-export function truncateText(text: string, maxWidth: number, font: { size: number; weight?: number }, measure: TextMeasure = estimateTextWidth): string {
-  if (measure(text, font) <= maxWidth) return text;
-  const chars = Array.from(text);
-  let lo = 0;
-  let hi = chars.length;
-  while (lo < hi) {
-    const mid = Math.ceil((lo + hi) / 2);
-    if (measure(`${chars.slice(0, mid).join("")}…`, font) <= maxWidth) lo = mid;
-    else hi = mid - 1;
-  }
-  return `${chars.slice(0, Math.max(1, lo)).join("")}…`;
-}
-
-/** The text a renderer draws for a mark text: shortened to its `maxWidth` when it has one. */
-export function fitText(text: MarkText, measure: TextMeasure = estimateTextWidth): string {
-  return text.maxWidth === undefined ? text.text : truncateText(text.text, text.maxWidth, { size: text.size, weight: text.weight }, measure);
-}
 
 /** Point at half of a polyline's length. */
 export function routeMidpoint(points: readonly XY[]): XY {
@@ -139,6 +109,8 @@ interface NodeMarkOptions {
   activityLabels?: ActivityLabelOptions;
   /** The theme the mark's outline, radius and texts are resolved in. Default `defaultTheme`. */
   theme?: Theme;
+  /** What the texts are shortened and wrapped by. Default `estimateTextWidth`. */
+  measure?: TextMeasure;
 }
 
 /** Glyph of a gateway: + for AND, ○ for OR, × otherwise. */
@@ -172,6 +144,12 @@ const ink = (text: string, x: number, y: number, size: number, rest: Partial<Ele
   weight: rest.weight,
 });
 
+/** A text shortened to its `maxWidth` by the measure, in place. */
+function fitted(t: ElementText, measure: TextMeasure): ElementText {
+  if (t.maxWidth !== undefined) t.text = truncateText(t.text, t.maxWidth, t, measure);
+  return t;
+}
+
 const strokes = new Map<string, NodeMark["stroke"]>();
 
 /** One frozen outline per paint, width and dash, shared by the marks that have it. */
@@ -192,6 +170,7 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
   const INSET = 8 * space.unit;
   const INSETS = INSET + 4 * space.unit;
   const locale = options.locale ?? "en";
+  const measure = options.measure ?? estimateTextWidth;
   const reconnected = hasTag(node, RECONNECTED_TAG);
   const cx = box.x + box.width / 2;
   const cy = box.y + box.height / 2;
@@ -214,16 +193,16 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
   const dash = reconnected ? RECONNECTED_DASH : undefined;
   switch (node.kind) {
     case "event":
-      return mark("circle", Math.min(box.width, box.height) / 2, outline("ink", hasTag(node, "end") ? strokeTokens.eventEnd : strokeTokens.eventStart, dash), [ink(node.label, cx, cy, textTokens.eventLabel.size, { role: "label", anchor: "middle", maxWidth: box.width - 4, lod: "labels" })]);
+      return mark("circle", Math.min(box.width, box.height) / 2, outline("ink", hasTag(node, "end") ? strokeTokens.eventEnd : strokeTokens.eventStart, dash), [fitted(ink(node.label, cx, cy, textTokens.eventLabel.size, { role: "label", anchor: "middle", maxWidth: box.width - 4, lod: "labels" }), measure)]);
     case "gateway":
       return mark("diamond", 0, outline("ink", strokeTokens.gateway, dash), [ink(gatewayGlyph(node), cx, cy + 1, textTokens.gatewayGlyph.size, { role: "glyph", weight: textTokens.gatewayGlyph.weight, anchor: "middle" })]);
     case "note":
-      return mark("box", radiusTokens.node, outline("value", strokeTokens.note, NOTE_DASH), [ink(node.label, box.x + INSET, cy, textTokens.noteLabel.size, { role: "label", maxWidth: box.width - INSETS })], "surface");
+      return mark("box", radiusTokens.node, outline("value", strokeTokens.note, NOTE_DASH), [fitted(ink(node.label, box.x + INSET, cy, textTokens.noteLabel.size, { role: "label", maxWidth: box.width - INSETS }), measure)], "surface");
     default: {
       const stroke = outline("value", node.kind === "stage" ? strokeTokens.stage : strokeTokens.node, dash);
       const labels = node.kind === "activity" ? options.activityLabels : undefined;
       if (labels) {
-        const lines = activityLabelLines(node, labels, box.width, locale);
+        const lines = activityLabelLines(node, labels, box.width, locale, measure);
         const counts = labels.showCounts === false ? [] : lines.counts;
         const left = (text: string, size: number, y: number, role: ElementText["role"]) => ink(text, box.x + INSET, y, size, { role, baseline: "alphabetic" });
         const { activityName: nameText, activityNumber: numberText } = textTokens;
@@ -231,7 +210,10 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
         return mark("box", radiusTokens.node, stroke, names.concat(counts.map((line, i) => left(line, numberText.size, box.y + 24 + lines.name.length * nameText.lineHeight + i * numberText.lineHeight, "countLine"))), "paper", dimensionTokens.band, activityDescription(node, labels, locale));
       }
       const count = nodeCount(node, locale);
-      const label = ink(node.label, box.x + INSET, cy, textTokens.nodeLabel.size, { role: "label", maxWidth: box.width - INSETS, lod: "labels", weight: node.kind === "stage" ? textTokens.stageLabel.weight : undefined });
+      // The room the interactive map gives the label: inside the padding and a solid outline (a dashed one is
+      // drawn over the box), and before the count, which it writes after the label on its line.
+      const room = box.width - INSETS - (dash ? 0 : 2 * stroke.width) - (count ? measure(count, textTokens.nodeCount) + 3 * space.unit : 0);
+      const label = fitted(ink(node.label, box.x + INSET, cy, textTokens.nodeLabel.size, { role: "label", maxWidth: room, lod: "labels", weight: node.kind === "stage" ? textTokens.stageLabel.weight : undefined }), measure);
       return mark("box", radiusTokens.node, stroke, count ? [label, ink(count, box.x + box.width - 6, box.y + box.height - 5, textTokens.nodeCount.size, { role: "count", anchor: "end", baseline: "alphabetic", paint: "inkMuted", lod: "labels" })] : [label], "paper", dimensionTokens.band);
     }
   }
@@ -269,11 +251,11 @@ function shareCounts<M extends { texts: ElementText[] }>(marks: M[]): M[] {
 }
 
 /** One mark per node with a box, in the graph's order. */
-export function nodeMarks(graph: FlowGraph, positions: Positions, scales: Scales, options: { locale?: Locale; activityLabels?: ActivityLabelOptions; theme?: Theme } = {}): NodeMark[] {
+export function nodeMarks(graph: FlowGraph, positions: Positions, scales: Scales, options: { locale?: Locale; activityLabels?: ActivityLabelOptions; theme?: Theme; measure?: TextMeasure } = {}): NodeMark[] {
   return shareCounts(
     graph.nodes.flatMap((n) => {
       const box = positions.nodes[n.id];
-      return box ? [nodeMark(n, box, { color: scales.nodeColor(n), pattern: scales.nodePattern(n), locale: options.locale, activityLabels: options.activityLabels, theme: options.theme })] : [];
+      return box ? [nodeMark(n, box, { color: scales.nodeColor(n), pattern: scales.nodePattern(n), locale: options.locale, activityLabels: options.activityLabels, theme: options.theme, measure: options.measure })] : [];
     }),
   );
 }
