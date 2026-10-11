@@ -232,6 +232,41 @@ describe("detail shares", () => {
     }
   });
 
+  it("anchor each shown activity of the whole log by its strongest path from and to a more frequent activity, the start or the end", () => {
+    const value = (n: FlowNode, name: string) => n.metrics?.[name] ?? 0;
+    const order = globalScene.nodes.filter(isActivity).sort((a, b) => value(b, "cases") - value(a, "cases") || value(b, "events") - value(a, "events") || (a.id < b.id ? -1 : 1));
+    const place = new Map(order.map((n, i) => [n.id, i]));
+    const event = (id: string, tag: string) => globalScene.nodes.some((n) => n.id === id && n.kind === "event" && n.tags?.includes(tag));
+    // Every activity of the whole log has such a path in and out, so no anchor needs a way through rarer ones.
+    const anchorsOf = new Map<string, string[]>();
+    for (const v of order) {
+      for (const back of [true, false]) {
+        const other = (e: FlowEdge) => (back ? e.source : e.target);
+        const strongest = globalScene.edges
+          .filter((e) => e.source !== e.target && (back ? e.target : e.source) === v.id && (event(other(e), back ? "start" : "end") || place.get(other(e))! < place.get(v.id)!))
+          .sort((a, b) => b.metrics!.count - a.metrics!.count || (a.id < b.id ? -1 : 1))[0];
+        expect(strongest, `${v.id} ${back ? "in" : "out"}`).toBeDefined();
+        anchorsOf.set(strongest.id, [...(anchorsOf.get(strongest.id) ?? []), v.id]);
+      }
+    }
+    const ranked = rankedPaths(globalScene);
+    for (const a of POSITIONS) {
+      for (const p of PATH_SHARES) {
+        const result = abstract(globalScene, byShares(a, p));
+        const shown = rankedActivities(globalScene, a);
+        const within = new Set(ranked.slice(0, Math.ceil(p * ranked.length - 1e-9)).map((e) => e.id));
+        const keeps = Object.fromEntries(
+          [...anchorsOf]
+            .map(([id, kept]) => [id, kept.filter((v) => shown.has(v)).sort()] as const)
+            .filter(([id, kept]) => kept.length && !within.has(id))
+            .sort(([x], [y]) => (x < y ? -1 : 1)),
+        );
+        expect(ids(result.edges.filter((e) => hasTag(e, ANCHOR_TAG))), `${a} ${p}`).toEqual(Object.keys(keeps));
+        expect(result.meta?.shown?.keeps, `${a} ${p}`).toEqual(keeps);
+      }
+    }
+  });
+
   it("let self-loops in through the paths share only", () => {
     const loops = globalScene.edges.filter((e) => e.source === e.target);
     for (const p of PATH_SHARES) {
