@@ -25,7 +25,11 @@ reads what the interactive DOM map drew from computed styles and geometry, and
 draws the scene the story wrote beside the map with the SVG export (parsed),
 the Canvas map (recorded calls, one element at a time) and the PNG export
 (recorded calls of the whole figure, each given to the element that draws the
-same operation). For every node, edge, group and mark it compares the box,
+same operation), in the theme the story wrote with its scene. Three stories
+are drawn a second time in the dark scheme: the map in a page that prefers it,
+the scene resolved in it; one story draws in a second theme (activities outlined
+3 wide with corners of 10, labels at 14). The test checks that the scheme and
+the theme reached what it compares. For every node, edge, group and mark it compares the box,
 outline paint and width, dash, fill, radius, shadow, colour band, band rule and
 each text's string, size, weight and paint with the SVG export's. Every
 difference is listed in `browser/parity/expected.json` by renderer, element
