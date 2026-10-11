@@ -183,10 +183,7 @@ export function createPositions(contents: PositionsContents, engine: LayoutEngin
 
 const finiteBox = (b: Box | undefined): b is Box => !!b && Number.isFinite(b.x) && Number.isFinite(b.y) && Number.isFinite(b.width) && Number.isFinite(b.height);
 
-/**
- * Positions without the boxes and routes that hold a number that is not
- * finite, with the bounds of what is left; the same positions when there is none.
- */
+/** Positions without the boxes and routes holding a number that is not finite; the same object when there is none. */
 export function finitePositions(p: Positions): Positions {
   const keep = <T>(r: Record<string, T>, ok: (v: T) => boolean): Record<string, T> => {
     for (const k in r) if (!ok(r[k])) return Object.fromEntries(Object.entries(r).filter(([, v]) => ok(v)));

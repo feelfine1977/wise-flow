@@ -263,7 +263,7 @@ export function validateGraph(graph: FlowGraph): GraphIssue[] {
       issues.push({ level: "error", message: `group parent not found: ${g.parent}`, id: g.id });
     }
   }
-  // Each chain of parents is walked once; one that reaches a group of its own walk closes a cycle.
+  // A walk up the parents that meets itself closes a cycle.
   const parentOf = new Map((graph.groups ?? []).map((g) => [g.id, g.parent]));
   const walk = new Map<string, number>();
   const cycle = new Set<string>();
