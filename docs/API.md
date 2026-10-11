@@ -561,6 +561,10 @@ references, whatever the name and whether the number line is shown. The
 interactive map sizes the card to its box in the scene, so the layout's box
 is the box every renderer draws.
 
+A stage node's card shows its cases and their share; how many activities it
+holds ("4 activities") is in its description (`describeNode`), which is its
+accessible name and its hover title.
+
 Stage groups are outlined by a solid hairline (`line`, 1 wide) without a
 tint (`opacity.groupFill` 0; a theme that sets it tints them again), their
 title in the muted ink. Start and end events keep their circles (outlined 1

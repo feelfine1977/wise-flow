@@ -35,6 +35,9 @@ export function describeNode(node: FlowNode, overlays: Overlay[], locale: Locale
   }
   const events = metric(node, "events", NaN);
   if (!activityLabels && Number.isFinite(events) && events !== cases) parts.push(`${formatCount(events, locale)} ${t(locale, "metric.events")}`);
+  // A stage node's card shows its cases; how many activities it holds is said here.
+  const members = metric(node, "members", NaN);
+  if (node.kind === "stage" && Number.isFinite(members)) parts.push(`${formatCount(members, locale)} ${t(locale, "metric.members")}`);
   const violation = metric(node, "violationShare", NaN);
   if (Number.isFinite(violation)) parts.push(`${formatShare(violation, locale)} ${t(locale, "metric.violationShare")}`);
   if (hasTag(node, RECONNECTED_TAG)) parts.push(t(locale, "map.reconnected"));

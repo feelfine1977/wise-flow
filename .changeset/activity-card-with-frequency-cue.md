@@ -37,7 +37,8 @@ activity and stage node are 64 high, and `activityNodeSize` reserves the
 card's size once (280 × 64 for names, 140 × 64 for references, whatever the
 name), so maps lay out anew. Stage groups are solid hairlines without a
 tint with a muted title; start and end events write their label below the
-circle, shortened to 96. `textTokens.nodeLabel` and `nodeCount` are no longer
+circle, shortened to 96. A stage node's description (`describeNode`) says how
+many activities it holds, which its card no longer shows. `textTokens.nodeLabel` and `nodeCount` are no longer
 read and are deprecated: use `activityName`, `activityNumber` and
 `activityShare` (a stage's name is `stageLabel`). `--wf-space-7` is gone (no
 rule read it), and `comparisonNote` and `comparisonDenominator` are sizes in

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type FlowGraph, abstract } from "../../src/index.js";
-import { describeMap } from "../../src/react/index.js";
+import { describeMap, describeNode } from "../../src/react/index.js";
 
 const graph: FlowGraph = {
   nodes: [
@@ -21,5 +21,14 @@ describe("describeMap", () => {
     const text = describeMap({ ...graph, meta: { abstraction: 0.2 } }, [], "en");
     expect(text).not.toContain("Abstraction:");
     expect(describeMap({ ...graph, meta: { abstraction: 0 } }, [], "en")).not.toContain("Abstraction:");
+  });
+});
+
+describe("describeNode", () => {
+  it("says how many activities a stage node holds, which its card does not show", () => {
+    const stage = { id: "pay", kind: "stage" as const, label: "Payment", metrics: { members: 4, cases: 1500 } };
+    expect(describeNode(stage, [], "en")).toBe("Payment, stage. 1,500 cases. 4 activities.");
+    expect(describeNode(stage, [], "de")).toBe("Payment, Phase. 1.500 Fälle. 4 Aktivitäten.");
+    expect(describeNode({ id: "a", kind: "activity", label: "A", metrics: { members: 4, cases: 3 } }, [], "en")).toBe("A, activity. 3 cases.");
   });
 });
