@@ -276,24 +276,58 @@ function firstInReadingOrder(graph: FlowGraph, positions: Positions | undefined)
   return first;
 }
 
+/** What the element list is built from. */
+export interface ListInput {
+  shown: FlowGraph;
+  index: GraphIndex;
+  positions: Positions | undefined;
+  /** The element at the keyboard position. */
+  focused: string | null;
+  selection: Selection;
+  /** Activities plus groups above which the list holds only a neighbourhood. */
+  limit: number;
+  /** The node Home goes to, when the caller has it already. */
+  home?: string;
+}
+
+/** The list holds only a neighbourhood: the shown graph has more activities plus groups than the limit. */
+export const listBounded = (shown: FlowGraph, limit: number) => shown.nodes.length + (shown.groups?.length ?? 0) > limit;
+
+/**
+ * The elements listed for assistive technology, the targets of
+ * `aria-activedescendant`: every node and group and the focused edge; above
+ * the limit the neighbourhood of the keyboard position, else of the first
+ * selected node, else of the node Home goes to.
+ */
+export function listedElements({ shown, index, positions, focused, selection, limit, home }: ListInput): ElementRef[] {
+  if (listBounded(shown, limit)) {
+    const centre = [focused, selection.nodes[0], home ?? firstInReadingOrder(shown, positions)].find((id): id is string => id != null && (index.nodes.has(id) || index.edges.has(id)));
+    return centre === undefined ? [] : neighbourhood(index, centre, limit);
+  }
+  const list: ElementRef[] = shown.nodes.map((n) => ({ kind: "node", id: n.id }));
+  for (const g of shown.groups ?? []) list.push({ kind: "group", id: g.id });
+  if (focused && index.edges.has(focused)) list.push({ kind: "edge", id: focused });
+  return list;
+}
+
 /** The Canvas map's retained scene, its draw state, its element list and its tooltip texts. */
 export function useCanvasElements(input: CanvasInput) {
   const { enabled, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, highlighted, limit = Infinity } = input;
   const { describeElement, index } = descriptions;
   const canvasScene = useMemo<PreparedScene | undefined>(() => (enabled && positions ? retainScene(scene) : undefined), [enabled, positions, scene]);
   const canvasState = useMemo<DrawState>(() => ({ selection, hovered, focused, bright, highlighted }), [selection, hovered, focused, bright, highlighted]);
-  const bounded = enabled && shown.nodes.length + (shown.groups?.length ?? 0) > limit;
+  const bounded = enabled && listBounded(shown, limit);
   // Above the limit the list follows the keyboard: its element, else the activity it starts from.
   const home = useMemo(() => (bounded ? firstInReadingOrder(shown, positions) : undefined), [bounded, shown, positions]);
-  const centre = bounded ? [focused, selection.nodes[0], home].find((id): id is string => id != null && (index.nodes.has(id) || index.edges.has(id))) : undefined;
+  // Below the limit the list changes only with the graph and the focused edge.
+  const listFocus = bounded ? focused : focused && index.edges.has(focused) ? focused : null;
+  const listSelection = bounded ? selection.nodes[0] : undefined;
   const canvasDescendants = useMemo(() => {
     if (!enabled) return undefined;
-    if (bounded) return centre === undefined ? [] : neighbourhood(index, centre, limit).map((ref) => ({ ...ref, description: describeElement(ref) }));
-    const list: { id: string; kind: ElementRef["kind"]; description: string }[] = shown.nodes.map((n) => ({ id: n.id, kind: "node" as const, description: describeElement({ kind: "node", id: n.id }) }));
-    for (const g of shown.groups ?? []) list.push({ id: g.id, kind: "group" as const, description: describeElement({ kind: "group", id: g.id }) });
-    if (focused && index.edges.has(focused)) list.push({ id: focused, kind: "edge" as const, description: describeElement({ kind: "edge", id: focused }) });
-    return list;
-  }, [enabled, bounded, centre, limit, shown, index, focused, describeElement]);
+    // Home is known already: the list does not change with positions that move.
+    const refs = listedElements({ shown, index, positions: undefined, focused: listFocus, selection: { nodes: listSelection === undefined ? [] : [listSelection], edges: [], groups: [] }, limit, home });
+    return refs.map((ref) => ({ ...ref, description: describeElement(ref) }));
+  }, [enabled, shown, index, listFocus, listSelection, limit, home, describeElement]);
   const describeHit = useCallback(
     (hit: HitItem): string | undefined => {
       if (activityLabels && hit.kind === "node" && index.nodes.get(hit.id)?.kind === "activity") return undefined;
