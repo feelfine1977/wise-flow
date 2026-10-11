@@ -18,8 +18,12 @@ describe("shrinkList", () => {
     expect(evens).toHaveLength(3);
     expect(evens.every((x) => x % 2 === 0)).toBe(true);
     expect([4, 1, 8, 2, 6, 10].filter((x) => evens.includes(x))).toEqual(evens);
-    expect(shrinkList([1], () => true)).toEqual([1]);
     expect(shrinkList([], () => true)).toEqual([]);
+  });
+
+  it("returns the empty list when the failure needs no element", () => {
+    expect(shrinkList([1], () => true)).toEqual([]);
+    expect(shrinkList([1, 2, 3], () => true)).toEqual([]);
   });
 
   it("treats a predicate that throws as failing", () => {
@@ -95,6 +99,7 @@ describe("shrinkGraph", () => {
     };
     const unknownGroup = shrinkGraph(graph, (g) => g.nodes.some((n) => n.group === "nowhere"));
     expect(unknownGroup.nodes).toEqual([{ id: "a", kind: "activity", label: "A", group: "nowhere" }]);
+    expect(unknownGroup.groups).toEqual([]);
     const unknownParent = shrinkGraph(graph, (g) => g.groups!.some((x) => x.parent === "missing"));
     expect(unknownParent.groups).toEqual([{ id: "orphan", kind: "stage", label: "Orphan", parent: "missing" }]);
   });
@@ -114,6 +119,17 @@ describe("shrinkGraph", () => {
     const small = shrinkGraph(graph, (g) => g.edges.some((e) => e.source === "gone"));
     expect(small.nodes.map((n) => n.id)).toEqual(["c"]);
     expect(small.edges.map((e) => e.id)).toEqual(["gone->c"]);
+  });
+
+  it("drops the last group and the last overlay when the failure needs neither", () => {
+    const graph: FlowGraph = {
+      nodes: [{ id: "a", kind: "activity", label: "A", group: "s" }],
+      edges: [],
+      groups: [{ id: "s", kind: "stage", label: "S" }],
+      overlays: [{ kind: "badge", target: "a", payload: { constraintId: "c" } }],
+    };
+    const small = shrinkGraph(graph, (g) => g.nodes.some((n) => n.id === "a"));
+    expect(small).toEqual({ nodes: [{ id: "a", kind: "activity", label: "A", group: undefined }], edges: [], groups: [], overlays: [] });
   });
 
   it("returns the graph itself when nothing can go", () => {

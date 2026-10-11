@@ -26,10 +26,12 @@ function failing<T>(fails: Fails<T>): Fails<T> {
 /**
  * The smallest subsequence of `items` for which `fails` still holds, by
  * Zeller's ddmin: try each of `n` chunks alone, then each complement, and
- * refine the chunking until no single chunk can go. `items` must fail as given.
+ * refine the chunking until no single chunk can go. The empty list is tried
+ * first, since ddmin alone never goes below one element. `items` must fail as given.
  */
 export function shrinkList<T>(items: readonly T[], fails: Fails<T[]>): T[] {
   const test = failing(fails);
+  if (items.length && test([])) return [];
   let current = [...items];
   let n = 2;
   while (current.length >= 2) {
