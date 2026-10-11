@@ -50,6 +50,7 @@ describe("generated BPMN models in the token game", () => {
       const { model, describe: what } = generatedModel(seed, { source: "stages" });
       const game = playTokens(model, { limit: LIMIT });
       expect(verdict(game), caseLabel(seed, what)).toEqual(sound);
+      expect(validateGraph(model), caseLabel(seed, what)).toEqual([]);
       expect(validateGateways(model), caseLabel(seed, what)).toEqual([]);
       states += game.states;
     }

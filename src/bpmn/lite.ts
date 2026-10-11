@@ -188,6 +188,8 @@ export function liteFromStages(model: StageModel, options: LiteFromStagesOptions
   const end: FlowNode = { id: END_ID, kind: "event", label: options.endLabel ?? "End", group: lastLane, tags: ["end"] };
   nodes.unshift(start);
   nodes.push(end);
+  // A gateway in the lane of its stage's role that no activity has.
+  if (lanes === "role") for (const n of nodes) addGroup(n.group, n.group ?? "");
   if (segments.length === 0) {
     edges.push(flowEdge(START_ID, END_ID));
   } else {

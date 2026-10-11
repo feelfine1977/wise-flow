@@ -69,6 +69,27 @@ describe("liteFromStages", () => {
     expect(() => liteFromStages({ stages: [{ id: "a", activities: ["x", "x"] }] })).toThrow(/duplicate/);
   });
 
+  it("adds the lane of a stage's role that holds only the stage's gateways", () => {
+    // Both activities have roles of their own; the choice's split and join sit in the
+    // stage's role, "approver", which had no lane, so the gateways named a missing group.
+    const model: StageModel = { stages: [{ id: "s", role: "approver", flow: "choice", activities: [{ id: "a", role: "clerk" }, { id: "b", role: "buyer" }] }] };
+    const lite = liteFromStages(model, { lanes: "role" });
+    expect(lite.groups).toEqual([
+      { id: "clerk", kind: "lane", label: "clerk" },
+      { id: "buyer", kind: "lane", label: "buyer" },
+      { id: "approver", kind: "lane", label: "approver" },
+    ]);
+    expect(lite.nodes.map((n) => [n.id, n.group])).toEqual([
+      ["__start", "clerk"],
+      ["a", "clerk"],
+      ["b", "buyer"],
+      ["gw_s_split", "approver"],
+      ["gw_s_join", "approver"],
+      ["__end", "buyer"],
+    ]);
+    expect(validateGraph(lite)).toEqual([]);
+  });
+
   it("is deterministic", () => {
     expect(liteFromStages(p2pStages)).toEqual(liteFromStages(p2pStages));
   });
