@@ -24,6 +24,76 @@ function rankedActivities(graph: FlowGraph, share: number): Set<string> {
 /** The paths in their rank over the whole graph: count, then id. */
 const rankedPaths = (graph: FlowGraph) => graph.edges.filter((e) => e.kind !== "constraint").sort((a, b) => (b.metrics?.count ?? 0) - (a.metrics?.count ?? 0) || (a.id < b.id ? -1 : 1));
 
+/** Whether a node is shown at an activity share: an event or gateway always, an activity by its rank. */
+const isShownEnd = (graph: FlowGraph, shown: Set<string>, id: string) => shown.has(id) || graph.nodes.some((n) => n.id === id && !isActivity(n));
+
+/**
+ * The anchor-only paths and indirect paths of a graph at a pair of shares, by the rule written out: each
+ * shown activity's strongest path from and to a more frequent activity, an event or a gateway (ties by id,
+ * no self-loop); without one, of the ways through rarer activities to such a node, one whose rarest
+ * activity is the most frequent (tried limit by limit), then with the fewest steps. A way is split at the
+ * shown activities: a step between two shown nodes outside the paths share is an anchor-only path, keeping
+ * the activity; a stretch through hidden ones is an indirect path.
+ */
+function anchorKeeps(graph: FlowGraph): (share: number, pathShare: number) => { keeps: Record<string, string[]>; indirect: string[] } {
+  const value = (n: FlowNode, name: string) => n.metrics?.[name] ?? 0;
+  const order = graph.nodes.filter(isActivity).sort((a, b) => value(b, "cases") - value(a, "cases") || value(b, "events") - value(a, "events") || (a.id < b.id ? -1 : 1));
+  const place = new Map(order.map((n, i) => [n.id, i]));
+  const paths = graph.edges.filter((e) => e.kind !== "constraint" && e.source !== e.target).sort((a, b) => (a.id < b.id ? -1 : 1));
+  const ways = new Map<string, string[][]>();
+  for (const v of order) {
+    const anchoring = (id: string) => !place.has(id) || place.get(id)! < place.get(v.id)!;
+    const list: string[][] = [];
+    for (const back of [true, false]) {
+      const near = (id: string) => paths.filter((e) => (back ? e.target : e.source) === id);
+      const other = (e: FlowEdge) => (back ? e.source : e.target);
+      const strongest = near(v.id).filter((e) => anchoring(other(e))).sort((a, b) => b.metrics!.count - a.metrics!.count || (a.id < b.id ? -1 : 1))[0];
+      let way = strongest && [v.id, other(strongest)];
+      for (let limit = place.get(v.id)! + 1; !way && limit < order.length; limit++) {
+        const from = new Map<string, string>([[v.id, ""]]);
+        const queue = [v.id];
+        for (let i = 0; i < queue.length && !way; i++) {
+          if (queue[i] !== v.id && anchoring(queue[i])) {
+            way = [queue[i]];
+            while (way[0] !== v.id) way.unshift(from.get(way[0])!);
+            continue;
+          }
+          for (const e of near(queue[i])) {
+            const next = other(e);
+            if (from.has(next) || (!anchoring(next) && place.get(next)! > limit)) continue;
+            from.set(next, queue[i]);
+            queue.push(next);
+          }
+        }
+      }
+      expect(way, `${v.id} ${back ? "in" : "out"}`).toBeDefined();
+      list.push(back ? [...way!].reverse() : way!);
+    }
+    ways.set(v.id, list);
+  }
+  const ranked = rankedPaths(graph);
+  return (share, pathShare) => {
+    const shown = rankedActivities(graph, share);
+    const within = new Set(ranked.slice(0, Math.ceil(pathShare * ranked.length - 1e-9)).map((e) => e.id));
+    const keeps = new Map<string, string[]>();
+    const indirect = new Set<string>();
+    for (const v of shown) {
+      for (const way of ways.get(v)!) {
+        const at = way.map((id, i) => i).filter((i) => isShownEnd(graph, shown, way[i]));
+        for (let k = 1; k < at.length; k++) {
+          const [source, target] = [way[at[k - 1]], way[at[k]]];
+          if (at[k] > at[k - 1] + 1) indirect.add(`${source}->${target}:indirect`);
+          else {
+            const e = paths.find((x) => x.source === source && x.target === target)!;
+            if (!within.has(e.id)) keeps.set(e.id, [...(keeps.get(e.id) ?? []), v].sort());
+          }
+        }
+      }
+    }
+    return { keeps: Object.fromEntries([...keeps].sort(([x], [y]) => (x < y ? -1 : 1))), indirect: [...indirect].sort() };
+  };
+}
+
 /** Checks that hold for every result: real paths unchanged but for the anchor tag, indirect paths without a count over a way of the graph. */
 function expectHonestPaths(input: FlowGraph, result: FlowGraph, label: string) {
   const given = new Map(input.edges.map((e) => [e.id, e]));
@@ -234,67 +304,42 @@ describe("detail shares", () => {
 
   it("state in meta what is shown, as computed from the graph", () => {
     for (const graph of [globalScene, vendorScene]) {
+      const anchorsAt = anchorKeeps(graph);
       for (const [a, p] of [[0, 0], [0.2, 0.05], [0.5, 0.25], [0.8, 0.5], [1, 0.1]]) {
         const result = abstract(graph, byShares(a, p));
-        const shown = new Set(result.nodes.map((n) => n.id));
-        const edges = new Set(result.edges.map((e) => e.id));
+        const shown = rankedActivities(graph, a);
         const ranked = rankedPaths(graph);
-        const byFrequency = ranked.slice(0, Math.ceil(p * ranked.length - 1e-9)).filter((e) => shown.has(e.source) && shown.has(e.target));
-        const anchors = result.edges.filter((e) => hasTag(e, ANCHOR_TAG));
-        expect(anchors.every((e) => !byFrequency.includes(graph.edges.find((x) => x.id === e.id)!))).toBe(true);
-        expect(result.edges.filter((e) => !hasTag(e, INDIRECT_TAG))).toHaveLength(byFrequency.length + anchors.length);
+        const byFrequency = ranked.slice(0, Math.ceil(p * ranked.length - 1e-9)).filter((e) => isShownEnd(graph, shown, e.source) && isShownEnd(graph, shown, e.target));
+        const { keeps, indirect } = anchorsAt(a, p);
+        const edges = new Set([...byFrequency.map((e) => e.id), ...Object.keys(keeps)]);
         const expected = {
-          activities: { shown: rankedActivities(graph, a).size, of: graph.nodes.filter(isActivity).length },
-          paths: { shown: byFrequency.length + anchors.length, of: graph.edges.length },
-          anchorsOnly: anchors.length,
-          indirect: result.edges.filter((e) => hasTag(e, INDIRECT_TAG)).length,
+          activities: { shown: shown.size, of: graph.nodes.filter(isActivity).length },
+          paths: { shown: edges.size, of: graph.edges.length },
+          anchorsOnly: Object.keys(keeps).length,
+          keeps,
+          indirect: indirect.length,
           ...(byFrequency.length && { weakestByFrequency: byFrequency.at(-1)!.metrics!.count }),
           ...(ranked.some((e) => !edges.has(e.id)) && { strongestNotShown: ranked.find((e) => !edges.has(e.id))!.metrics!.count }),
           marksNotShown: [],
           forProtected: [],
         };
-        const { keeps, ...rest } = result.meta!.shown!;
-        expect(rest, `${a} ${p}`).toEqual(expected);
-        expect(Object.keys(keeps!).sort()).toEqual(ids(anchors));
-        for (const [edge, kept] of Object.entries(keeps!)) {
-          const e = graph.edges.find((x) => x.id === edge)!;
-          expect(kept.length && kept.every((id) => shown.has(id) && graph.nodes.find((n) => n.id === id)!.kind === "activity"), edge).toBeTruthy();
-        }
+        expect(result.meta?.shown, `${a} ${p}`).toEqual(expected);
+        expect(ids(result.edges), `${a} ${p}`).toEqual([...edges, ...indirect].sort());
       }
     }
   });
 
-  it("anchor each shown activity of the whole log by its strongest path from and to a more frequent activity, the start or the end", () => {
-    const value = (n: FlowNode, name: string) => n.metrics?.[name] ?? 0;
-    const order = globalScene.nodes.filter(isActivity).sort((a, b) => value(b, "cases") - value(a, "cases") || value(b, "events") - value(a, "events") || (a.id < b.id ? -1 : 1));
-    const place = new Map(order.map((n, i) => [n.id, i]));
-    const event = (id: string, tag: string) => globalScene.nodes.some((n) => n.id === id && n.kind === "event" && n.tags?.includes(tag));
-    // Every activity of the whole log has such a path in and out, so no anchor needs a way through rarer ones.
-    const anchorsOf = new Map<string, string[]>();
-    for (const v of order) {
-      for (const back of [true, false]) {
-        const other = (e: FlowEdge) => (back ? e.source : e.target);
-        const strongest = globalScene.edges
-          .filter((e) => e.source !== e.target && (back ? e.target : e.source) === v.id && (event(other(e), back ? "start" : "end") || place.get(other(e))! < place.get(v.id)!))
-          .sort((a, b) => b.metrics!.count - a.metrics!.count || (a.id < b.id ? -1 : 1))[0];
-        expect(strongest, `${v.id} ${back ? "in" : "out"}`).toBeDefined();
-        anchorsOf.set(strongest.id, [...(anchorsOf.get(strongest.id) ?? []), v.id]);
-      }
-    }
-    const ranked = rankedPaths(globalScene);
-    for (const a of POSITIONS) {
-      for (const p of PATH_SHARES) {
-        const result = abstract(globalScene, byShares(a, p));
-        const shown = rankedActivities(globalScene, a);
-        const within = new Set(ranked.slice(0, Math.ceil(p * ranked.length - 1e-9)).map((e) => e.id));
-        const keeps = Object.fromEntries(
-          [...anchorsOf]
-            .map(([id, kept]) => [id, kept.filter((v) => shown.has(v)).sort()] as const)
-            .filter(([id, kept]) => kept.length && !within.has(id))
-            .sort(([x], [y]) => (x < y ? -1 : 1)),
-        );
-        expect(ids(result.edges.filter((e) => hasTag(e, ANCHOR_TAG))), `${a} ${p}`).toEqual(Object.keys(keeps));
-        expect(result.meta?.shown?.keeps, `${a} ${p}`).toEqual(keeps);
+  it("anchor each shown activity of the committed scenes by its strongest path from and to a more frequent activity, the start or the end, or the way through rarer ones", () => {
+    for (const graph of [globalScene, vendorScene]) {
+      const anchorsAt = anchorKeeps(graph);
+      for (const a of POSITIONS) {
+        for (const p of PATH_SHARES) {
+          const result = abstract(graph, byShares(a, p));
+          const { keeps, indirect } = anchorsAt(a, p);
+          expect(ids(result.edges.filter((e) => hasTag(e, ANCHOR_TAG))), `${a} ${p}`).toEqual(Object.keys(keeps));
+          expect(result.meta?.shown?.keeps, `${a} ${p}`).toEqual(keeps);
+          expect(ids(result.edges.filter((e) => hasTag(e, INDIRECT_TAG))), `${a} ${p}`).toEqual(indirect);
+        }
       }
     }
   });
