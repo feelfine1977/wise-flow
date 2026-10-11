@@ -253,9 +253,9 @@ function hatchPattern(ctx: DrawContext, tokens: CanvasTokens, options: DrawOptio
   return out;
 }
 
-/** `truncateText` with the context's measure in its current font, cached per scene. */
+/** `truncateText` with the context's measure in its current font, cached per scene and font (a theme can change the family). */
 function truncate(ctx: DrawContext, scene: PreparedScene, text: string, maxWidth: number, font: { size: number; weight?: number } = { size: 0 }): string {
-  const key = `${font.size} ${font.weight ?? ""} ${text} ${Math.round(maxWidth)}`;
+  const key = `${ctx.font} ${text} ${Math.round(maxWidth)}`;
   const cached = scene.labelCache.get(key);
   if (cached !== undefined) return cached;
   const out = truncateText(text, maxWidth, font, (s) => ctx.measureText(s).width);

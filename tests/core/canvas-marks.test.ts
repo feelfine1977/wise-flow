@@ -279,6 +279,21 @@ describe("Canvas node and edge marks", () => {
     expect(written(drawElements(undefined, 1, long)).find((t) => t.at?.[0] === 116)?.text).toBe("Change Approval for Purch…");
   });
 
+  it("cuts labels again in another font, as after the theme changed the font family", () => {
+    const long = { ...elements.graph, nodes: elements.graph.nodes.map((n) => (n.id === "a" ? { ...n, label: "Change Approval for Purchase Order" } : n)) };
+    const scene = prepareScene(long, elements.positions, { style: elements.style, selfLoops: false, lodBySize: false });
+    const label = (family: string, perCharacter: number) => {
+      const { ctx, ops } = drawingContext();
+      ctx.measureText = (text: string) => ({ width: text.length * (ctx.font.endsWith(family) ? perCharacter : 6) });
+      drawScene(ctx, scene, { x: 0, y: 0, zoom: 1, width: 1000, height: 600 }, undefined, { cull: false, tokens: { ...defaultTokens, font: family } });
+      return written(ops).find((t) => t.at?.[0] === 116)?.text;
+    };
+    // The same scene drawn in a narrow font, then in one twice as wide: of the 156 the label has, 6 per character
+    // leave room for 25 and the ellipsis, 12 per character for 12 and the ellipsis.
+    expect(label("Narrow", 6)).toBe("Change Approval for Purch…");
+    expect(label("Wide", 12)).toBe("Change Appro…");
+  });
+
   it("draws the marks it is given rather than the other node and edge fields", () => {
     const scene = prepareScene(elements.graph, elements.positions, { style: elements.style, selfLoops: false, lodBySize: false });
     const nodes = scene.nodes.map((n) => (n.node.id === "a" ? { ...n, mark: { ...n.mark, texts: [{ ...n.mark.texts[0], text: "From the mark" }] } } : n));
