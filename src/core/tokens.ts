@@ -318,7 +318,7 @@ export const sizeTokens = {
 export const textSizeTokens = {
   label: textTokens.nodeLabel.size,
   glyph: textTokens.gatewayGlyph.size,
-  /** Label inside an event circle and the count of a node. */
+  /** The deprecated count of a node (`nodeCount`); an event's label is `eventLabel`, of the same size. */
   small: textTokens.nodeCount.size,
   note: textTokens.noteLabel.size,
   edgeCount: textTokens.pathLabel.size,

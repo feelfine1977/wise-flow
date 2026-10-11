@@ -42,4 +42,6 @@ many activities it holds, which its card no longer shows. `textTokens.nodeLabel`
 read and are deprecated: use `activityName`, `activityNumber` and
 `activityShare` (a stage's name is `stageLabel`). `--wf-space-7` is gone (no
 rule read it), and `comparisonNote` and `comparisonDenominator` are sizes in
-px.
+px. `minimumTokens` are the smallest of the scales (8.25 pt of text,
+0.75 pt of stroke), and `printTokens` no longer holds `text` or `stroke`
+overrides: every default size is at least print's minimum.
