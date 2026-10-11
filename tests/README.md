@@ -7,10 +7,11 @@ The executable CI contract and release procedure are in [docs/CI.md](../docs/CI.
 | `core/` | Node algorithms, seeded graph invariants, deterministic layout, filters, overlays, Canvas geometry, SVG/BPMN | `npm run test:core` |
 | `support/` | Seeded generators for searching tests: random stream, graph families, positions and viewports, event schedules, shrinking, event logs and their directly-follows graphs, BPMN-lite models, mutated BPMN files; fake layout workers and engines for lifecycle tests; a recording 2D context that says which element inked which canvas pixels | imported by `core/` and `react/` tests |
 | `react/` | jsdom callbacks, keyboard interaction, state replacement and renderer lifecycles | `npm run test:components` |
-| `tooling/` | Negative checks for architecture boundaries, the source lint, workflow policies and artifact budgets | `npm run test:tooling` |
+| `tooling/` | Negative checks for architecture boundaries, the source lint, workflow policies, artifact budgets and the benchmark's report | `npm run test:tooling` |
 | `package/` | Separate consumer of the actual npm tarball; NodeNext types and real browser assets/lifecycle | `npm run test:package` |
 | `browser/` | Production Storybook accessibility and keyboard tests, and the map's paint order in a real browser | `npm run storybook:build` then `npm run test:browser` |
 | `visual/` | Ten behavior checks including six screenshots and the large Canvas scene | `npm run test:visual` |
+| `bench/` | The benchmark: times on large and dense inputs in Node and in Chromium, beside the numbers measured before the repairs and the targets; not a gate | `npm run bench` |
 
 `npm run check` runs lint, typecheck, architecture/workflow guards, tooling tests
 and unit/component coverage. Vitest counts all implementation files and enforces
@@ -114,6 +115,66 @@ skipped, with that reason, unless it is exposed:
 ```sh
 NODE_OPTIONS=--expose-gc npx vitest run tests/react/LayoutSoak.test.tsx tests/core/layout-soak.test.ts
 ```
+
+## Benchmark
+
+`npm run bench` builds the library and times it on large and dense inputs:
+scene preparation of 100,000 to 1,000,000 flows with and without self-loops,
+simplification of the cyclic family at 50,000 and 100,000 activities (default
+options, `keepConnected: false`, and thresholds 0.3/0.2), the Canvas draw per
+frame of a moving view (a sparse 100,000-activity scene, a hub with 50,000 flows
+in view with the default budget and with `"all"`, a fit-all view of 50,000
+activities), the React map's readiness with supplied positions for 1,000 to
+20,000 activities, the first scene and the refined layout of a map without
+positions (sparse and dense, 100 and 500 activities), the time from aborting a
+layout to its terminated worker, and the scene memory retained per activity
+and per flow. It is not part of the gate: the counted-work tests of `core/`
+and `react/` are, and they stay so. The benchmark reports time and fails only
+when a case cannot run.
+
+```sh
+npm run bench                        # full mode: 5 trials after 1 warm-up, about 15–20 minutes
+npm run bench -- --quick             # 2 trials after 1 warm-up, memory at 50,000 and 100,000
+npm run bench -- --only draw. --only map-ready   # cases whose id contains one of the texts
+npm run bench -- --trials 9 --out artifacts/bench-before   # more trials, another directory
+npm run bench -- --loaded "other jobs on the host"         # label the run as measured on a loaded machine
+```
+
+It needs only what the repository installs: Node cases run in a process of
+their own with `--expose-gc` (`bench/node.ts`, bundled by Vite against
+`dist/`), browser cases on a fresh page in the Chromium that Playwright
+installed for the browser tests (`bench/page/`, served from a Vite build), and
+the memory cases through `scripts/scene-memory.mjs`. Nothing of it is in the
+published package.
+
+It writes `artifacts/bench/bench.json` (every sample, the inputs' sizes and
+counts, commit, machine, load average before and after, Node, V8, Chromium and
+Playwright versions, the library's gzipped JavaScript) and
+`artifacts/bench/bench.md`, a table per group. How to read the table:
+
+- **Median, Min, Max** over the trials, after the warm-up. A Canvas trial is a
+  gesture of six frames panned by a pixel each, and every frame is a sample;
+  its time is the renderer's own draw time (`lastDraw.ms`, what the adaptive
+  budget times), without rasterisation, in headless Chromium without a GPU.
+- **Measured on** says what was measured: sizes, how much was in view and how
+  many flows the budget drew, which renderer the map chose, how a layout ended.
+- **Before** is the number measured before the repairs of this line,
+  **During the repairs** one recorded while they were made, both from
+  `bench/reference.json` with their sources and conditions listed below the
+  tables. Most were taken by a harness outside the repository or by single
+  runs, and none on a host known to be idle; compare in kind, not to the
+  millisecond.
+- **Target** is the latency target set for the repairs, with `met` or `not met`
+  for the median where the target is a bound (16.7 ms per frame in motion, the
+  first scene of a dense 500-activity map under 1 s, a 20,000-activity map with
+  positions ready under 500 ms) or asks that preparation completes.
+- A run is labelled **measured on a loaded machine** when `--loaded` says so
+  or the load average reached half the cores. Numbers from a loaded machine
+  show the shape of the costs, not the latency a user sees; rerun on an idle
+  host for that, and compare two runs on the same host by their JSON files.
+
+To compare a change, run the benchmark before and after it with `--out` into
+two directories on the same idle host and the same mode.
 
 ## Strict visual CI and deliberate approval
 
