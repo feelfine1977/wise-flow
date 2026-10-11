@@ -77,6 +77,67 @@ describe("validateGateways", () => {
     expect(validateGateways(g)).toEqual([]);
   });
 
+  it("agrees with the token game on every hand-built model with a wrong parallel gateway", () => {
+    const wrongModels = [
+      // A parallel join behind an exclusive choice: the case waits for the branch not taken.
+      "start>xor1 xor1>a xor1>b a>and1 b>and1 and1>end",
+      // A parallel split merged exclusively: the case passes the merge twice.
+      "start>and1 and1>a and1>b a>xor1 b>xor1 xor1>end",
+      "start>and1 and1>a and1>b a>and2 b>xor1 xor1>and2 xor1>end2 and2>end",
+      "start>and1 and1>a and1>b a>xor1 xor1>and2 xor1>c c>and2 b>and2 and2>end",
+      "start>xor0 xor0>and1 xor0>b and1>a and1>b a>and2 b>and2 and2>end",
+      "start>xor0 xor0>and1 and1>a and1>b a>and2 b>xor1 xor1>and2 xor1>xor0 and2>end",
+      // Three branches into a join of two, the third one merged after it: two tokens on its flow.
+      "start>and1 and1>a and1>b and1>c a>and2 b>and2 and2>xor1 c>xor1 xor1>end",
+      // A parallel join inside an exclusive loop, entered once from outside and once from the loop.
+      "start>and1 and1>a a>and1 a>end",
+    ];
+    for (const flows of wrongModels) {
+      const g = model(flows);
+      const game = playTokens(g);
+      const wrong = game.stuck.length > 0 || game.unsafe.length > 0 || game.trapped.length > 0 || game.dead.length > 0 || !game.completes;
+      expect({ wrong, reported: validateGateways(g).length > 0 }, flows).toEqual({ wrong: true, reported: true });
+    }
+  });
+
+  it("finding: reports sound models whose parallel branches are not nested as blocks", () => {
+    // Each model completes every case without a stuck or unsafe state; the check,
+    // which looks for blocks, reports them as documented.
+    const sound = [
+      // The third branch of a three-way split ends on its own.
+      "start>and1 and1>a and1>b and1>c a>and2 b>and2 c>end2 and2>end",
+      // Two splits feed one join of three.
+      "start>and1 and1>a and1>and2 and2>b and2>c a>and3 b>and3 c>and3 and3>end",
+      // Blocks that cross: a of the inner split joins c of the outer one first.
+      "start>and1 and1>and2 and1>c and2>a and2>b a>and3 c>and3 b>and4 and3>and4 and4>end",
+    ];
+    for (const flows of sound) {
+      const g = model(flows);
+      expect(playTokens(g), flows).toMatchObject({ complete: true, completes: true, stuck: [], unsafe: [], trapped: [], dead: [] });
+      expect(validateGateways(g).length, flows).toBeGreaterThan(0);
+    }
+  });
+
+  it("finding: does not look at wrong models without a wrong parallel gateway", () => {
+    // The token game finds each of these wrong; the check, which looks at the pairing of
+    // parallel gateways only, reports none of them.
+    const cases: [string, keyof Pick<ReturnType<typeof playTokens>, "unsafe" | "trapped" | "dead">][] = [
+      // a has two outgoing flows and no gateway: BPMN takes both, and the merge passes twice.
+      ["start>a a>b a>c b>xor1 c>xor1 xor1>end", "unsafe"],
+      // The start event's two flows are taken both as well.
+      ["start>a start>b a>xor1 b>xor1 xor1>end", "unsafe"],
+      // b and c follow each other for ever once the choice took b.
+      ["start>xor1 xor1>b xor1>end b>c c>b", "trapped"],
+      // No flow leads to d.
+      ["start>a a>end d>end", "dead"],
+    ];
+    for (const [flows, problem] of cases) {
+      const g = model(flows);
+      expect(playTokens(g)[problem].length, flows).toBeGreaterThan(0);
+      expect(validateGateways(g), flows).toEqual([]);
+    }
+  });
+
   it("reports nothing on blocks that are nested, loop inside a branch or repeat as a whole", () => {
     const sound = [
       model("start>and1 and1>and2 and1>c and2>a and2>b a>and3 b>and3 and3>and4 c>and4 and4>end"),
