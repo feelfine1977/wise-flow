@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { type FlowGraph, type LegendItem, type Overlay, type Positions, type SceneLegend, MAP_TARGET, buildScene, figureCaption, figureFrame, legendLayout, legendOfScene, sceneLegend, toSVG } from "../../src/index";
+import { globalScene } from "../../fixtures/bpic2019";
+import { type FlowGraph, type LegendItem, type Overlay, type Positions, type SceneLegend, MAP_TARGET, abstract, buildScene, figureCaption, figureFrame, layout, legendLayout, legendOfScene, sceneLegend, toSVG } from "../../src/index";
 import { type DrawContext, drawLegend, prepareScene, toPNGCanvas } from "../../src/canvas/index";
 
 const width: LegendItem = { kind: "width", title: "legend.edgeWidth", metric: "count", domain: [1, 9], range: [1, 8] };
@@ -314,5 +315,31 @@ describe("the legend in the scene and the exports", () => {
       expect(fills).toContain(`${e.color} 0 ${top + 16 * i} 14 12`);
       if (e.pattern !== "solid") expect(fills).toContain(`pattern-twin 0 ${top + 16 * i} 14 12`);
     });
+  });
+});
+
+describe("the caption of an export", () => {
+  it("states label, cases, period and how much of the model is shown for the whole-log fixture, in SVG and PNG", async () => {
+    const shown = abstract(globalScene, { minEdgeShare: 0.03, minNodeShare: 0.01 });
+    const positions = await layout(shown, { engine: "dagre" });
+    // Counted here from the fixture: its activities and its paths between two different nodes, and those the abstraction keeps.
+    const activities = (g: FlowGraph) => g.nodes.filter((n) => n.kind === "activity").length;
+    const paths = (g: FlowGraph) => g.edges.filter((e) => e.kind === "follows" && e.source !== e.target).length;
+    expect([activities(globalScene), activities(shown), paths(shown)]).toEqual([42, 16, 35]);
+    const caption = `All purchase order items · 251,734 cases · 1948-01-26 – 2020-04-09 · 16 of 42 activities, 35 of ${paths(globalScene)} paths shown`;
+    const svg = toSVG({ graph: shown, positions });
+    const written = [.../<g class="wf-caption">(.*?)<\/g>/.exec(svg)![1].matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map((m) => m[1]);
+    expect(written.join(" ")).toBe(caption);
+    const texts: string[] = [];
+    const ctx = new Proxy({}, { get: (_t, key) => (key === "fillText" ? (s: string) => texts.push(s) : key === "createLinearGradient" || key === "createPattern" ? undefined : () => ({ width: 0 })), set: () => true });
+    toPNGCanvas({ graph: shown, positions }, { scale: 1, createCanvas: (w, h) => ({ width: w, height: h, getContext: () => ctx }) });
+    expect(texts.join(" ")).toContain(written.join(" "));
+  });
+
+  it("invents nothing for a graph without meta", () => {
+    const svg = toSVG({ graph: tiny, positions: tinyAt, title: "Tiny" });
+    expect(svg).not.toContain("wf-caption");
+    // The context line under the title keeps its form; the caption adds nothing to it.
+    expect(svg).not.toContain("activities,");
   });
 });
