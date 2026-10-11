@@ -81,6 +81,41 @@ describe("shrinkGraph", () => {
     expect(small.overlays ?? []).toEqual([]);
   });
 
+  it("keeps a node's unknown group and a group's unknown parent that the failure needs", () => {
+    const graph: FlowGraph = {
+      nodes: [
+        { id: "a", kind: "activity", label: "A", group: "nowhere" },
+        { id: "b", kind: "activity", label: "B", group: "s" },
+      ],
+      edges: [{ id: "a->b", kind: "follows", source: "a", target: "b" }],
+      groups: [
+        { id: "s", kind: "stage", label: "S" },
+        { id: "orphan", kind: "stage", label: "Orphan", parent: "missing" },
+      ],
+    };
+    const unknownGroup = shrinkGraph(graph, (g) => g.nodes.some((n) => n.group === "nowhere"));
+    expect(unknownGroup.nodes).toEqual([{ id: "a", kind: "activity", label: "A", group: "nowhere" }]);
+    const unknownParent = shrinkGraph(graph, (g) => g.groups!.some((x) => x.parent === "missing"));
+    expect(unknownParent.groups).toEqual([{ id: "orphan", kind: "stage", label: "Orphan", parent: "missing" }]);
+  });
+
+  it("keeps an edge whose endpoint was never a node while other nodes go", () => {
+    const graph: FlowGraph = {
+      nodes: [
+        { id: "a", kind: "activity", label: "A" },
+        { id: "b", kind: "activity", label: "B" },
+        { id: "c", kind: "activity", label: "C" },
+      ],
+      edges: [
+        { id: "a->b", kind: "follows", source: "a", target: "b" },
+        { id: "gone->c", kind: "follows", source: "gone", target: "c" },
+      ],
+    };
+    const small = shrinkGraph(graph, (g) => g.edges.some((e) => e.source === "gone"));
+    expect(small.nodes.map((n) => n.id)).toEqual(["c"]);
+    expect(small.edges.map((e) => e.id)).toEqual(["gone->c"]);
+  });
+
   it("returns the graph itself when nothing can go", () => {
     const graph = families.tree(6, 1);
     const small = shrinkGraph(graph, (g) => g.nodes.length === 6 && g.edges.length === 5);

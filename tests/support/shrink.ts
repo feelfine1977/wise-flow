@@ -64,33 +64,42 @@ export function shrinkList<T>(items: readonly T[], fails: Fails<T[]>): T[] {
   return current;
 }
 
-/** The graph restricted to the given nodes: edges keep both endpoints, overlays keep their target, nodes of a dropped group leave it. */
+/**
+ * The graph restricted to the given elements: an edge goes with a removed endpoint, an overlay with
+ * its removed target, and members of a removed group move to its nearest kept ancestor. Only what
+ * was removed counts: a reference that named nothing in `graph` stays as it was.
+ */
 function restrict(graph: FlowGraph, keep: { nodes?: Set<string>; edges?: Set<string>; groups?: Set<string>; overlays?: Set<number> }): FlowGraph {
+  const removed = (all: { id: string }[], kept: { id: string }[]) => {
+    const keptIds = new Set(kept.map((x) => x.id));
+    const allIds = new Set(all.map((x) => x.id));
+    return (id: string | undefined) => id !== undefined && allIds.has(id) && !keptIds.has(id);
+  };
   const nodes = keep.nodes ? graph.nodes.filter((n) => keep.nodes!.has(n.id)) : graph.nodes;
-  const nodeIds = new Set(nodes.map((n) => n.id));
+  const nodeRemoved = removed(graph.nodes, nodes);
   const groups = graph.groups?.filter((g) => !keep.groups || keep.groups.has(g.id));
-  const groupIds = new Set((groups ?? []).map((g) => g.id));
-  const droppedNodes = graph.nodes.length !== nodes.length;
-  const edges = graph.edges.filter((e) => (!keep.edges || keep.edges.has(e.id)) && (!droppedNodes || (nodeIds.has(e.source) && nodeIds.has(e.target))));
-  const edgeIds = new Set(edges.map((e) => e.id));
-  const gone = (id: string) => (graph.nodes.some((n) => n.id === id) && !nodeIds.has(id)) || (graph.edges.some((e) => e.id === id) && !edgeIds.has(id)) || (graph.groups?.some((g) => g.id === id) && !groupIds.has(id));
-  const overlays = graph.overlays?.filter((o, i) => (!keep.overlays || keep.overlays.has(i)) && !gone(o.target));
+  const groupRemoved = removed(graph.groups ?? [], groups ?? []);
+  const edges = graph.edges.filter((e) => (!keep.edges || keep.edges.has(e.id)) && !nodeRemoved(e.source) && !nodeRemoved(e.target));
+  const edgeRemoved = removed(graph.edges, edges);
+  const overlays = graph.overlays?.filter((o, i) => (!keep.overlays || keep.overlays.has(i)) && !nodeRemoved(o.target) && !edgeRemoved(o.target) && !groupRemoved(o.target));
   const parentOf = new Map((graph.groups ?? []).map((g) => [g.id, g.parent]));
   const lift = (id: string | undefined): string | undefined => {
     const seen = new Set<string>();
     let cur = id;
-    while (cur !== undefined && !groupIds.has(cur) && !seen.has(cur)) {
-      seen.add(cur);
-      cur = parentOf.get(cur);
+    while (groupRemoved(cur)) {
+      // A cycle of removed groups has no kept ancestor.
+      if (seen.has(cur!)) return undefined;
+      seen.add(cur!);
+      cur = parentOf.get(cur!);
     }
     return cur;
   };
   const out: FlowGraph = {
     ...graph,
-    nodes: keep.groups ? nodes.map((n) => (n.group !== undefined && !groupIds.has(n.group) ? { ...n, group: lift(n.group) } : n)) : nodes,
+    nodes: nodes.map((n) => (groupRemoved(n.group) ? { ...n, group: lift(n.group) } : n)),
     edges,
   };
-  if (groups) out.groups = keep.groups ? groups.map((g) => (g.parent !== undefined && !groupIds.has(g.parent) ? { ...g, parent: lift(g.parent) } : g)) : groups;
+  if (groups) out.groups = groups.map((g) => (groupRemoved(g.parent) ? { ...g, parent: lift(g.parent) } : g));
   if (overlays) out.overlays = overlays;
   return out;
 }
