@@ -34,3 +34,6 @@ filterPreview>`).
 
 `toSVG` escapes a node's kind in the node's `class` attribute. A kind outside
 `NodeKind` that held a quote could end the attribute and add markup before.
+
+`<Chip/>` renders nothing for an overlay that has no mark on its own (an arc,
+or a kind outside `OverlayKind`); it threw a `TypeError` before.

@@ -120,4 +120,13 @@ describe("map-level chips", () => {
     render(<Chip chip={chip} locale="en" />);
     expect(screen.getByRole("img", { name: "Balance: 12 % over" })).toBeTruthy();
   });
+
+  it("draw nothing for an overlay that has no mark on its own", () => {
+    // An arc needs its two ends and a kind the library does not know has no mark at all.
+    for (const overlay of [{ kind: "arc", target: "a->b", payload: { value: 0.5 } }, { kind: "sparkle", target: "__map", payload: { label: "X" } }] as Overlay[]) {
+      const { container } = render(<Chip chip={overlay} locale="en" />);
+      expect(container.innerHTML, overlay.kind).toBe("");
+      cleanup();
+    }
+  });
 });
