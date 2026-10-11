@@ -5,6 +5,7 @@ import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import ts from 'typescript';
+import { workers } from './check-budgets.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const tsc = createRequire(import.meta.url).resolve('typescript/bin/tsc');
@@ -144,10 +145,10 @@ export function documentationDifferences(before, after) {
   return differences;
 }
 
-/** The layout workers: ELK's and Dagre's code as their packages ship it, with their notices; assets, not emitted modules. */
-export const workers = ['elk-worker.min.js', 'dagre-worker.min.js'];
-
-/** The JavaScript files of `dist` that the compiler emitted, relative to `dist`. */
+/**
+ * The JavaScript files of `dist` that the compiler emitted, relative to `dist`: not the layout
+ * workers, ELK's and Dagre's code as their packages ship it, with their notices.
+ */
 export function emittedJavaScript(dist) {
   return filesIn(dist, '.js').filter((file) => !workers.includes(file));
 }
