@@ -20,10 +20,11 @@ The [architecture](docs/ARCHITECTURE.md), [feature map](docs/FEATURE_MAP.md),
 - Add user-visible text to `src/core/strings.ts` in English and German.
 - The emitted JavaScript carries no comments. A source file that must ship a notice,
   such as a licence or copyright notice, writes it as a `/*! … */` comment at the head of
-  the file, followed by a blank line or by another comment before the first statement:
-  the compiler (TypeScript 5.9.3, `removeComments`) keeps only such a notice and removes
-  one that the first statement follows directly, and every one after code. The comment
-  check fails when an emitted file lacks a notice its source writes.
+  the file, with a line between it and the first statement that is blank or holds a comment
+  other than a notice: the compiler (TypeScript 5.9.3, `removeComments`) keeps only such a
+  notice. It removes one that the first statement follows on the next line or with only
+  notices in between, also when another comment follows it on the same line, and every one
+  after code. The comment check fails when an emitted file lacks a notice its source writes.
 - The BPIC fixture is derived data; rebuild it with `npm run fixture` only when its
   source mapping changes. Ordinary checks use committed public and synthetic fixtures.
 - Review dependency advisories and the exact tarball's provenance before release.

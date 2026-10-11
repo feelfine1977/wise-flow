@@ -15,9 +15,10 @@ const tsc = createRequire(import.meta.url).resolve('typescript/bin/tsc');
  *
  * A source file requires a notice, such as a licence or copyright notice, by writing it as a
  * `/*! … *\/` comment; its emitted file must then carry the same comment. With `removeComments`,
- * TypeScript 5.9.3 keeps such a comment only at the head of the file and only when something other
- * than code comes before the first statement: a blank line, or another comment. It removes a
- * notice that the first statement follows directly, and every notice after code. No source file
+ * TypeScript 5.9.3 keeps such a comment only at the head of the file and only when a line between
+ * it and the first statement is blank or holds a comment other than a notice. It removes a notice
+ * that the first statement follows on the next line or with only notices in between, also when
+ * another comment follows it on the same line, and every notice after code. No source file
  * requires a notice.
  */
 export const notices = [/^\/\/# sourceMappingURL=[\w.-]+\.js\.map$/];

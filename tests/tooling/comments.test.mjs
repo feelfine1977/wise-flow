@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { SourceMap } from 'node:module';
+import { SourceMap, createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
-import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 import { buildConfigs, checkComments, commentsIn, compareBuilds, documentation, documentationDifferences, emitLibrary, filesIn, pathsIn, programOf, unlistedComments } from '../../scripts/check-comments.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -190,11 +190,15 @@ test('removing a documentation comment of a union member or of a parameter from 
   }
 });
 
-/** Compiles source files with the build's configuration of the JavaScript; returns the emitted texts by name. */
+/**
+ * Compiles source files with the build's configuration of the JavaScript, in a package of the
+ * library's module type, which decides what the compiler emits; returns the emitted texts by name.
+ */
 function compile(sources) {
   const project = mkdtempSync(join(tmpdir(), 'wise-flow-notice-'));
   try {
     mkdirSync(join(project, 'src'));
+    writeFileSync(join(project, 'package.json'), JSON.stringify({ type: JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).type }));
     for (const [name, text] of Object.entries(sources)) writeFileSync(join(project, 'src', `${name}.ts`), text);
     writeFileSync(join(project, 'tsconfig.json'), JSON.stringify({ extends: join(root, buildConfigs()[0]), compilerOptions: { rootDir: 'src', outDir: 'dist' }, include: ['src'] }));
     execFileSync(process.execPath, [createRequire(import.meta.url).resolve('typescript/bin/tsc'), '-p', join(project, 'tsconfig.json')], { cwd: project, stdio: 'inherit' });
@@ -210,20 +214,29 @@ const noticeCases = {
   blankLineBeforeCode: `${notice}\n\nexport const a = 1;\n`,
   commentBeforeCode: `${notice}\n// Another comment.\nexport const a = 1;\n`,
   afterCode: `export const a = 1;\n${notice}\nexport const b = 2;\n`,
+  commentOnTheSameLine: `${notice} // Another comment.\nexport const a = 1;\n`,
+  noticeBeforeCode: `${notice}\n/*! Another notice. */\nexport const a = 1;\n`,
 };
 
-test('the compiler keeps a leading notice only when a blank line or another comment comes before the code, and the check requires what a source declares', () => {
+test('the compiler keeps a leading notice only when a line before the code is blank or holds a comment other than a notice, and the check requires what a source declares', () => {
+  assert.equal(ts.version, '5.9.3', 'CONTRIBUTING.md and the doc comment of `notices` name the compiler these cases hold for');
   const { emitted, faults } = compile(noticeCases);
+  assert.equal(emitted.blankLineBeforeCode, `${notice}\nexport const a = 1;\n//# sourceMappingURL=blankLineBeforeCode.js.map`);
   const kept = (text) => commentsIn(text, 'a.js').some((c) => c.text === notice);
   assert.deepEqual(Object.fromEntries(Object.entries(emitted).map(([name, text]) => [name, kept(text)])), {
     directlyBeforeCode: false,
     blankLineBeforeCode: true,
     commentBeforeCode: true,
     afterCode: false,
+    commentOnTheSameLine: false,
+    noticeBeforeCode: false,
   });
   assert.deepEqual(faults, [
     'afterCode.js: lacks the notice its source requires: /*! Copyright notice. */',
+    'commentOnTheSameLine.js: lacks the notice its source requires: /*! Copyright notice. */',
     'directlyBeforeCode.js: lacks the notice its source requires: /*! Copyright notice. */',
+    'noticeBeforeCode.js: lacks the notice its source requires: /*! Copyright notice. */',
+    'noticeBeforeCode.js: lacks the notice its source requires: /*! Another notice. */',
   ]);
   assert.deepEqual(unlistedComments(emitted.blankLineBeforeCode, 'a.js'), [commentsIn(emitted.blankLineBeforeCode, 'a.js')[0]], 'a notice no source requires is not allowed');
 });
