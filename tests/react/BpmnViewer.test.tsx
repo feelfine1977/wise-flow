@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import { act, cleanup, configure, fireEvent, render, waitFor } from "@testing-library/react";
 import { createRef } from "react";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -9,6 +9,9 @@ import { connectBpmnJs } from "../../src/bpmn/bpmn-js";
 import type { ConnectViewer, ViewerEvents } from "../../src/bpmn/viewer";
 import { type BpmnViewHandle, createBpmnView } from "../../src/react/BpmnView";
 import { memoryViewers, registryOf } from "./memory-viewer";
+
+// Imports parse the XML with moddle, which can take longer than the default second while the gate runs every file at once.
+configure({ asyncUtilTimeout: 10000 });
 
 const viewers = memoryViewers();
 const BpmnView = createBpmnView(viewers.connect);

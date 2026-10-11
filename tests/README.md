@@ -8,7 +8,7 @@ The executable CI contract and release procedure are in [docs/CI.md](../docs/CI.
 | `react/` | jsdom callbacks, keyboard interaction, state replacement and renderer lifecycles | `npm run test:components` |
 | `tooling/` | Negative checks for architecture boundaries, the source lint, workflow policies and artifact budgets | `npm run test:tooling` |
 | `package/` | Separate consumer of the actual npm tarball; NodeNext types and real browser assets/lifecycle | `npm run test:package` |
-| `browser/` | Production Storybook accessibility and keyboard tests, and the map's paint order in a real browser | `npm run storybook:build` then `npm run test:browser` |
+| `browser/` | Production Storybook accessibility and keyboard tests, the map's paint order in a real browser, and the parity of the four renderers | `npm run storybook:build` then `npm run test:browser` |
 | `visual/` | Ten behavior checks including six screenshots and the large Canvas scene | `npm run test:visual` |
 
 `npm run check` runs lint, typecheck, architecture/workflow guards, tooling tests
@@ -17,6 +17,28 @@ reviewed floors (the measured values rounded down). It refuses focused `.only`
 tests in CI. Reported coverage is not a claim of semantic completeness; graph
 routes still differ from observed variants and grouped metric approximations
 still require host evidence.
+
+## Parity of the four renderers
+
+`browser/parity.spec.ts` opens each parity story (`stories/Parity.stories.tsx`),
+reads what the interactive DOM map drew from computed styles and geometry, and
+draws the scene the story wrote beside the map with the SVG export (parsed),
+the Canvas map (recorded calls, one element at a time) and the PNG export
+(recorded calls of the whole figure, each given to the element that draws the
+same operation). For every node, edge, group and mark it compares the box,
+outline paint and width, dash, fill, radius, shadow, colour band, band rule and
+each text's string, size, weight and paint with the SVG export's. Every
+difference is listed in `browser/parity/expected.json` by renderer, element
+kind, property and the two values, with its fixtures and number of elements; a
+difference the list lacks fails, and so does an entry that is no longer found or
+found on other elements. A change that removes a difference removes its entry;
+a change that adds one fixes the drawing instead. Set `FLOW_PARITY_FOUND` to a
+file name to write what was found. The readers and the check are tested in Node
+by `core/renderer-parity.test.ts`.
+
+The Canvas recordings measure text with the core's estimate, as the Node tests
+do, so they shorten labels as the SVG export does; a browser's font metrics can
+shorten them differently on a live Canvas map.
 
 ## Strict visual CI and deliberate approval
 
