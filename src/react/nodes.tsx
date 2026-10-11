@@ -157,7 +157,8 @@ const Card = memo(function Card({ id, data, selected }: NodeProps<WfNode>) {
       id={`wf-node-${id}`}
       {...attrs(mark, data, selected, ` wf-node--card${data.activityLabels ? " wf-node--activity-labels" : ""}`)}
       style={{ ...covered(mark, data), width: px(mark.box.width), height: px(mark.box.height) }}
-      title={mark.title ?? data.description}
+      // With activity labels the map shows its own tooltip, so the card has no native one.
+      title={data.activityLabels ? undefined : (mark.title ?? data.description)}
       data-kind={mark.kind}
     >
       {handles(data.direction)}

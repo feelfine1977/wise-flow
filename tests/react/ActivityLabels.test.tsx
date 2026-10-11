@@ -36,6 +36,8 @@ describe("activity label interaction", () => {
     // The card's number line: the cases in full, then their share (none: the graph has no cases of its log).
     const subtitles = Array.from(container.querySelectorAll(".wf-activity-counts"), (n) => Array.from(n.children, (c) => c.textContent));
     expect(subtitles).toEqual([["41", "· –"], ["1,107", "· –"]]);
+    // The map's own tooltip names the activity; the card has no native one beside it.
+    expect(Array.from(container.querySelectorAll(".wf-node--card"), (n) => n.getAttribute("title"))).toEqual([null, null]);
     const before = dimensions(container);
     const trigger = container.querySelector<HTMLElement>('.react-flow__node[data-id="price"]')!;
     fireEvent.mouseEnter(trigger);
