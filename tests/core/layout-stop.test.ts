@@ -33,6 +33,7 @@ class FakeWorker {
   steps = 0;
   dagreRuns = 0;
   layouts: { id: number; graph: ElkNode }[] = [];
+  dagreInputs: DagreInput[] = [];
   private timer: ReturnType<typeof setInterval> | undefined;
   constructor(readonly url: string) {
     FakeWorker.created.push(this);
@@ -43,6 +44,7 @@ class FakeWorker {
   postMessage(message: { id: number; cmd: string; graph?: ElkNode } & DagreInput) {
     if (this.url === dagreUrl) {
       this.dagreRuns++;
+      this.dagreInputs.push(message);
       this.timer ??= setInterval(() => this.steps++, 1);
       if (!FakeWorker.holdDagre) this.send({ output: dagreJob(real, message) });
       return;
@@ -58,6 +60,10 @@ class FakeWorker {
     clearInterval(this.timer);
     this.timer = undefined;
     this.send({ id: this.layouts[k].id, data: place(this.layouts[k].graph) });
+  }
+  /** Answers a held Dagre input, the last one unless told otherwise. */
+  answerDagre(k = this.dagreInputs.length - 1) {
+    this.send({ output: dagreJob(real, this.dagreInputs[k]) });
   }
   /** Answers the last layout with an engine error. */
   fail(k = this.layouts.length - 1) {
@@ -212,6 +218,43 @@ describe("stopping a layout", () => {
     expect((await again).nodes.b.x).toBe(100);
     expect(FakeWorker.created).toHaveLength(1);
     scope.dispose();
+  });
+
+  it("keeps a layout whose answer is being read as its last waiter leaves, instead of laying it out again", async () => {
+    // The answer's reading and the leaving are a few microtasks apart; every distance must give one answer.
+    const options: LayoutOptions = { engine: "dagre", dagreWorkerUrl: dagreUrl };
+    for (let distance = 0; distance <= 8; distance++) {
+      FakeWorker.created = [];
+      FakeWorker.holdDagre = true;
+      const scope = createLayoutScope();
+      try {
+        const stop = new AbortController();
+        const first = scope.layout(pair, { ...options, signal: stop.signal }).then(() => "answered", () => "aborted");
+        await vi.waitFor(() => expect(FakeWorker.created[0]?.dagreRuns).toBe(1));
+        FakeWorker.created[0].answerDagre();
+        for (let i = 0; i < distance; i++) await Promise.resolve();
+        stop.abort();
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        // What the scope knows and what it does for the next request must agree, and the worker is not asked twice.
+        const outcome = await first;
+        const known = knownLayout(scope, pair, options);
+        FakeWorker.holdDagre = false;
+        const again = await scope.layout(pair, options);
+        const runs = FakeWorker.created.reduce((n, w) => n + w.dagreRuns, 0);
+        const where = `the caller left ${distance} microtasks after the answer and was ${outcome}`;
+        // The answer reaches the module a microtask after it is sent: leaving before that stops the layout, which is
+        // not kept; a caller that received the layout leaves it finished, and a finished layout is kept.
+        if (distance === 0) expect(known, where).toBeUndefined();
+        if (outcome === "answered") expect(known, where).toBeDefined();
+        if (known) {
+          expect(again, where).toBe(known);
+          expect(runs, where).toBe(1);
+        } else expect(runs, where).toBe(2);
+      } finally {
+        // Disposed even when an assertion fails, so that the scope's idle worker does not reach the next test.
+        scope.dispose();
+      }
+    }
   });
 
   it("does not stop a finished layout when a newer request replaces it", async () => {

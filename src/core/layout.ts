@@ -619,11 +619,15 @@ export function clearLayoutCache(key?: string): void {
   generation++;
 }
 
-/** The layout kept under `key`, or a new one that is kept unless it fails or is stopped. Hits move to the end. */
+/**
+ * The layout kept under `key`, or a new one that is kept unless it fails or is
+ * stopped. A layout that finished while its last waiter was leaving is kept
+ * too: stopping it then stopped nothing. Hits move to the end.
+ */
 function remember(entries: Map<string, Job>, key: string, make: () => Job): Job {
   let job = entries.get(key);
   entries.delete(key);
-  if (!job || job.stop.signal.aborted) {
+  if (!job || (job.stop.signal.aborted && !settled.has(job))) {
     const made = (job = make());
     made.positions.catch(() => entries.get(key) === made && entries.delete(key));
   }
