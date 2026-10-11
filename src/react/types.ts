@@ -122,8 +122,8 @@ export interface ProcessMapProps {
    * map's element, set there or inherited, which override the preset
    * (`useFlowTheme`). Given, its colours, fonts and the sizes the stylesheet
    * reads are written on the map's element as those variables, over
-   * `containerStyle`, so the panels follow it too, and the variables of the
-   * map's container are read. Default: the `default` preset under the map's
+   * `containerStyle`, so the panels follow it too, and set aside while the
+   * map reads its element's. Default: the `default` preset under the map's
    * variables.
    */
   theme?: ThemeSetting;
