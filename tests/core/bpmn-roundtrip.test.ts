@@ -127,6 +127,31 @@ describe("parallel gateways in a model from the log", () => {
   });
 });
 
+describe("empty labels", () => {
+  it("come back empty instead of as the element's id", async () => {
+    const graph: FlowGraph = {
+      nodes: [
+        { id: "s", kind: "event", label: "", tags: ["start"] },
+        { id: "a", kind: "activity", label: "", tags: ["task"] },
+        { id: "g", kind: "gateway", label: "", tags: ["xor"] },
+        { id: "e", kind: "event", label: "", tags: ["end"] },
+      ],
+      edges: [
+        { id: "f1", kind: "flow", source: "s", target: "a" },
+        { id: "f2", kind: "flow", source: "a", target: "g" },
+        { id: "f3", kind: "flow", source: "g", target: "e" },
+      ],
+    };
+    const back = await importBpmn((await exportBpmn(graph, { layout: { engine: "dagre" } })).xml);
+    expect(back.graph.nodes.map((n) => [n.id, n.label])).toEqual([
+      ["s", ""],
+      ["a", ""],
+      ["g", ""],
+      ["e", ""],
+    ]);
+  });
+});
+
 describe("sequence flows without a route", () => {
   it("are written straight between their shapes, as every renderer draws them", async () => {
     const positions = await layoutBpmn(lite, { engine: "dagre" });
