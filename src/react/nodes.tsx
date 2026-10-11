@@ -1,7 +1,7 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { memo } from "react";
 import { type ElementText, type LayoutDirection, type NodeMark, type Overlay, colorTokens, defaultNodeSize, fitText, hasTag, nodeMark } from "../core/index.js";
-import { ElementMarks, MARK_IDS, MarkFigure, domMark, marksAtOrigin, svgReact } from "./marks.js";
+import { ElementMarks, MARK_IDS, MarkFigure, mapMark, marksAtOrigin, svgReact } from "./marks.js";
 import { part } from "./parts.js";
 import { PatternSwatch } from "./patterns.js";
 import type { ActivityNodeData, WfGroupNode, WfNode } from "./types.js";
@@ -33,7 +33,7 @@ export function Badges({ badges, locale }: { badges: Overlay[]; locale: Activity
   if (!badges.length) return null;
   return (
     <svg className="wf-badges" width={0} height={0} overflow="visible" aria-hidden="true">
-      {marksAtOrigin(badges, locale).map((m) => svgReact(domMark(m, MARK_IDS), m.id))}
+      {marksAtOrigin(badges, locale).map((m) => svgReact(mapMark(m, MARK_IDS), m.id))}
     </svg>
   );
 }

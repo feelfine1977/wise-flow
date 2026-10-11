@@ -1597,7 +1597,7 @@ CSS written against these selectors changes only the interactive DOM map and the
 | `edge` | a path between two nodes (SVG group) | `follows`, `constraint`, `flow` | `selected`, `focused`, `hovered`, `dimmed`, `reconnected` |
 | `edge-path` | the drawn line of a path | | |
 | `edge-label` | the count label of a path | | |
-| `mark` | a deviation mark (SVG group) | `badge`, `chip`, `arc`, `selfLoop`, `hatch` | `hovered` |
+| `mark` | a deviation mark of the map or of a legend (SVG group); a `tint` is the background of its node, and the BPMN diagram's marks carry no attributes | `badge`, `chip`, `arc`, `selfLoop`, `hatch` | `hovered` |
 | `controls` | the zoom controls (React Flow's and the Canvas map's) | | |
 | `abstraction-panel` | the sliders and toggles of `<AbstractionControls/>` | | |
 | `legend` | `<Legend/>` | | |

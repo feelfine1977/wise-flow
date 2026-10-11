@@ -77,9 +77,19 @@ export function svgDom(e: SvgElement | string, doc: Document): Node {
 export function domMark(m: OverlayMark, ids: MarkIds, hovered = false): SvgElement {
   const g = markSvg(m, domMarkOptions(ids, hovered));
   const constraint = m.overlay.payload?.constraintId;
-  g.attrs.push(["data-overlay-id", m.id], ["pointer-events", m.path !== undefined ? "stroke" : m.texts.length ? "visiblePainted" : "none"], ["data-wf-part", "mark"], ["data-wf-kind", m.kind]);
-  if (hovered) g.attrs.push(["data-wf-state", "hovered"]);
+  g.attrs.push(["data-overlay-id", m.id], ["pointer-events", m.path !== undefined ? "stroke" : m.texts.length ? "visiblePainted" : "none"]);
   if (constraint) g.attrs.push(["data-constraint", String(constraint)]);
+  return g;
+}
+
+/**
+ * A mark of the React map and its panels: `domMark` with the data attributes of the styling
+ * contract. The BPMN view's diagram draws `domMark` without them, out of reach of host CSS.
+ */
+export function mapMark(m: OverlayMark, ids: MarkIds, hovered = false): SvgElement {
+  const g = domMark(m, ids, hovered);
+  g.attrs.push(["data-wf-part", "mark"], ["data-wf-kind", m.kind]);
+  if (hovered) g.attrs.push(["data-wf-state", "hovered"]);
   return g;
 }
 
@@ -99,7 +109,7 @@ export function MarkFigure({ mark }: { mark: OverlayMark }) {
   const { x, y, width, height } = mark.box;
   return (
     <svg className="wf-mark" width={width} height={height} viewBox={`${x} ${y} ${width} ${height}`} overflow="visible" aria-hidden="true">
-      {svgReact(domMark(mark, MARK_IDS))}
+      {svgReact(mapMark(mark, MARK_IDS))}
     </svg>
   );
 }
@@ -122,7 +132,7 @@ export function ElementMarks({ marks, origin }: { marks: OverlayMark[]; origin: 
   if (!marks.length) return null;
   return (
     <svg className="wf-marks" overflow="visible" aria-hidden="true">
-      <g transform={`translate(${-origin.x} ${-origin.y})`}>{marks.map((m, i) => (shown[i] === "1" ? svgReact(domMark(m, MARK_IDS), m.id) : null))}</g>
+      <g transform={`translate(${-origin.x} ${-origin.y})`}>{marks.map((m, i) => (shown[i] === "1" ? svgReact(mapMark(m, MARK_IDS), m.id) : null))}</g>
     </svg>
   );
 }
