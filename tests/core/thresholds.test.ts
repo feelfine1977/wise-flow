@@ -217,8 +217,10 @@ describe("how the map reads across thresholds and sizes, on the Canvas drawing",
       const rng = createRandom(seed);
       const scene: LadderScene = rng.chance(0.3) ? rng.pick(committed) : generatedScene(rng.int(1, 40), rng.pick(MAGNITUDES));
       const low = randomSetting(rng);
-      // The higher setting moves one control or both up, and keeps the toggles.
-      const high = { ...low, minNodeShare: Math.min(1, low.minNodeShare + rng.pick([0, 1, 5, 20]) / 100), minEdgeShare: Math.min(1, low.minEdgeShare + rng.pick([0, 1, 5, 20]) / 100) };
+      // The higher setting moves one control or both up, and keeps the toggles; a pair of one setting twice is not a pair.
+      const [node, edge] = rng.pick([["up", 0], [0, "up"], ["up", "up"]] as const).map((c) => (c === "up" ? rng.pick([1, 5, 20]) : 0));
+      const high = { ...low, minNodeShare: Math.min(1, low.minNodeShare + node / 100), minEdgeShare: Math.min(1, low.minEdgeShare + edge / 100) };
+      expect(high, caseLabel(seed, "a pair of two settings")).not.toEqual(low);
       const a = drawn(scene.graph, scene.overlays, low);
       const b = drawn(scene.graph, scene.overlays, high);
       // Only an element added back to keep the map connected may come back higher up, as the architecture says.
