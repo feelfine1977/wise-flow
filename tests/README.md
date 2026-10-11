@@ -28,7 +28,7 @@ shapes by size and seed (chain, layered, tree, cyclic, hub, components, stages,
 lanes, nested, overlaid, and long, German, right-to-left and markup-like
 labels), `invalidFamilies` plant defects and say which; `positionsOf` and
 `viewportOf` in `scenes.ts` arrange a graph (grid, layered, overlapping,
-extreme) and look at it (ordinary, tiny, huge, far away, extreme zoom);
+extreme; routes straight or bent) and look at it (ordinary, tiny, huge, far away, extreme zoom);
 `schedule` and `interleave` in `schedules.ts` give event sequences on a fake
 clock; `oddPositionsOf` places a point-sized, a huge and a twin node, and
 `viewportAtSide` puts a view's edge across an element. `inkContext` and

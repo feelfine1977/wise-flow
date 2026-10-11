@@ -1,19 +1,19 @@
 /**
  * Seeded positions and viewports for a graph. Positions are built by hand
- * here (boxes per node kind, group boxes around their members, straight
- * routes, bounds as the union of everything), not by the layout engines, so
+ * here (boxes per node kind, group boxes around their members, straight or
+ * bent routes, bounds as the union of everything), not by the layout engines, so
  * a test can drive the scene, hit-testing and export with a known arrangement.
  */
 import type { Box, EdgeRoute, FlowGraph, FlowNode, Positions } from "../../src/index";
 import type { View } from "../../src/canvas/index";
-import { createRandom } from "./random";
+import { type Random, createRandom } from "./random";
 
 export type PositionKind = "grid" | "layered" | "overlapping" | "extreme";
 export const POSITION_KINDS: readonly PositionKind[] = ["grid", "layered", "overlapping", "extreme"];
 
 export interface PositionOptions {
-  /** Straight two-point routes from centre to centre for every edge that is not a self-loop. Default false: no routes. */
-  routes?: boolean;
+  /** Routes from centre to centre for every edge that is not a self-loop: straight (`true`), or with one or two right-angled corners (`"bent"`). Default false: no routes. */
+  routes?: boolean | "bent";
 }
 
 /** The box each node kind gets (the library's default node sizes). */
@@ -44,6 +44,16 @@ function union(boxes: Box[]): Box {
     y1 = Math.max(y1, b.y + b.height);
   }
   return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
+}
+
+/** A route from the centre of `s` to the centre of `t`: straight, or (`bent`) through one corner (an L) or two (a Z, its upright drawn from the stream); a segment may have no length. */
+function routeOf(rng: Random, s: Box, t: Box, bent: boolean): EdgeRoute {
+  const a = { x: s.x + s.width / 2, y: s.y + s.height / 2 };
+  const b = { x: t.x + t.width / 2, y: t.y + t.height / 2 };
+  if (!bent) return { points: [a, b] };
+  if (rng.chance()) return { points: [a, { x: b.x, y: a.y }, b] };
+  const mx = a.x + (b.x - a.x) * rng.float(0.2, 0.8);
+  return { points: [a, { x: mx, y: a.y }, { x: mx, y: b.y }, b] };
 }
 
 /**
@@ -150,7 +160,7 @@ export function positionsOf(graph: FlowGraph, kind: PositionKind, seed: number, 
       const s = nodes[e.source];
       const t = nodes[e.target];
       if (!s || !t || e.source === e.target) continue;
-      edges[e.id] = { points: [{ x: s.x + s.width / 2, y: s.y + s.height / 2 }, { x: t.x + t.width / 2, y: t.y + t.height / 2 }] };
+      edges[e.id] = routeOf(rng, s, t, options.routes === "bent");
     }
   }
   const all = [...Object.values(nodes), ...Object.values(groups).filter((b) => b.width > 0 || b.height > 0)];
@@ -251,7 +261,7 @@ export function oddPositionsOf(graph: FlowGraph, seed: number, options: Position
     for (const e of graph.edges) {
       const s = positions.nodes[e.source];
       const t = positions.nodes[e.target];
-      if (s && t && e.source !== e.target) positions.edges[e.id] = { points: [{ x: s.x + s.width / 2, y: s.y + s.height / 2 }, { x: t.x + t.width / 2, y: t.y + t.height / 2 }] };
+      if (s && t && e.source !== e.target) positions.edges[e.id] = routeOf(rng, s, t, options.routes === "bent");
     }
   }
   const all = [...Object.values(positions.nodes), ...Object.values(positions.groups).filter((b) => b.width > 0 || b.height > 0)];

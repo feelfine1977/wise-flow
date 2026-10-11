@@ -189,7 +189,7 @@ function sceneCase(seed: number, size = 40): Case {
   const n = rng.int(1, size);
   const graph = families[family](n, seed, { mixedKinds: rng.chance(0.3) });
   const arrangement = rng.pick(ARRANGEMENTS);
-  const routes = rng.chance(0.6);
+  const routes = rng.pick([false, true, "bent", "bent"] as const);
   const positions = arrangement === "odd" ? oddPositionsOf(graph, seed, { routes }).positions : positionsOf(graph, arrangement, seed, { routes });
   const options: PrepareOptions = {
     locale: rng.pick(["en", "de"]),
@@ -198,7 +198,7 @@ function sceneCase(seed: number, size = 40): Case {
     selfLoops: rng.chance(0.8),
     activityLabels: rng.chance(0.25) ? { mode: rng.pick(["ids", "names"]), references: {} } : undefined,
   };
-  return { scene: prepareScene(graph, positions, options), detail: `${family} ${n} ${arrangement}${routes ? " routed" : ""} ${options.lanes}${options.activityLabels ? ` ${options.activityLabels.mode}` : ""}` };
+  return { scene: prepareScene(graph, positions, options), detail: `${family} ${n} ${arrangement}${routes === "bent" ? " bent" : routes ? " routed" : ""} ${options.lanes}${options.activityLabels ? ` ${options.activityLabels.mode}` : ""}` };
 }
 
 function stateCase(scene: PreparedScene, rng: Random): DrawState {
@@ -467,11 +467,12 @@ describe("the PNG export against the reference", () => {
       const n = rng.int(1, 25);
       const graph = families[family](n, seed, { mixedKinds: rng.chance(0.3) });
       const arrangement = rng.pick(ARRANGEMENTS);
-      const positions = arrangement === "odd" ? oddPositionsOf(graph, seed, { routes: true }).positions : positionsOf(graph, arrangement, seed, { routes: rng.chance(0.6) });
+      const routes = rng.pick([false, true, "bent"] as const);
+      const positions = arrangement === "odd" ? oddPositionsOf(graph, seed, { routes }).positions : positionsOf(graph, arrangement, seed, { routes });
       const input = { graph, positions, overlays: graph.overlays, locale: rng.pick(["en", "de"] as const), lanes: rng.pick(["none", "stages", "roles"] as const), selfLoops: rng.chance(0.8), activityLabels: rng.chance(0.25) ? { mode: rng.pick(["ids", "names"] as const), references: {} } : undefined };
       const budget = rng.chance(0.4) ? rng.int(0, graph.edges.length) : undefined;
       const options = { legend: rng.chance(), scale: 1, lodZoom: rng.pick([1, 0.5, 0.1]), padding: rng.pick([undefined, 0, 24, 60]), edgeBudget: budget };
-      const label = caseLabel(seed, `${family} ${n} ${arrangement}${budget === undefined ? "" : `; budget ${budget}`}; ${JSON.stringify(options)}`);
+      const label = caseLabel(seed, `${family} ${n} ${arrangement}${routes === "bent" ? " bent" : routes ? " routed" : ""}${budget === undefined ? "" : `; budget ${budget}`}; ${JSON.stringify(options)}`);
       // The export prepares its own scene from the input; a direct uncull draw of the same preparation gives the
       // calls of every element, which do not depend on the view: the export's calls must hold them all, in order, as one block.
       const png = inkContext();

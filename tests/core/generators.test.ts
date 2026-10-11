@@ -537,6 +537,33 @@ describe("positions of a graph", () => {
       expect([bad.positions.bounds.x, bad.positions.bounds.width].every(Number.isFinite)).toBe(true);
     }
   });
+
+  it("bent routes run from centre to centre through one or two right-angled corners, drawn from the seed; straight routes are as before", () => {
+    const centre = (b: { x: number; y: number; width: number; height: number }) => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
+    for (const seed of SEEDS) {
+      const g = families.cyclic(30, seed);
+      const label = caseLabel(seed);
+      for (const p of [positionsOf(g, "grid", seed, { routes: "bent" }), oddPositionsOf(g, seed, { routes: "bent" }).positions]) {
+        let corners = 0;
+        for (const e of g.edges) {
+          if (e.source === e.target) {
+            expect(p.edges[e.id], label).toBeUndefined();
+            continue;
+          }
+          const pts = p.edges[e.id].points;
+          expect([3, 4], `${label}: ${e.id}`).toContain(pts.length);
+          expect(pts[0], label).toEqual(centre(p.nodes[e.source]));
+          expect(pts[pts.length - 1], label).toEqual(centre(p.nodes[e.target]));
+          for (let i = 1; i < pts.length; i++) expect(pts[i].x === pts[i - 1].x || pts[i].y === pts[i - 1].y, `${label}: ${e.id} segment ${i} is axis-aligned`).toBe(true);
+          corners += pts.length - 2;
+        }
+        expect(corners, label).toBeGreaterThan(0);
+      }
+      expect(JSON.stringify(positionsOf(g, "grid", seed, { routes: "bent" })), label).toBe(JSON.stringify(positionsOf(g, "grid", seed, { routes: "bent" })));
+      const straight = positionsOf(g, "grid", seed, { routes: true });
+      for (const e of g.edges) if (e.source !== e.target) expect(straight.edges[e.id].points, label).toEqual([centre(straight.nodes[e.source]), centre(straight.nodes[e.target])]);
+    }
+  });
 });
 
 describe("viewports over bounds", () => {
