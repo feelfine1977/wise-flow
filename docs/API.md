@@ -1164,7 +1164,10 @@ and the lane of every node: `roles` takes the top-level lane groups and
 reads `lane:` / `role:` tags (role bands); `nested` takes the leaves of the
 group tree and puts a node of a parent group into its first leaf (BPMN). In
 both, a node without a lane follows its predecessor, then its successor,
-then the first lane. `stackLanes` stacks the lanes across the flow, a
+then the first lane. Groups on a cycle of parents (which `validateGraph`
+reports) have no leaf, so their nodes have no lane of their own; up to 0.3.5
+`laneModel`, `spanLanes` and with them `layoutBpmn` overflowed the stack on
+such a graph. `stackLanes` stacks the lanes across the flow, a
 caller's `place` putting the members and returning each lane's size;
 `spanLanes` gives the groups above the lanes their boxes (`roles`: a pool
 spans its lanes and the lanes without a parent; `nested`: a group spans its

@@ -119,9 +119,9 @@ function nestedLanes(graph: FlowGraph): { lanes: FlowGroup[]; laneOf: Map<string
   };
   walk(undefined);
   const laneIds = new Set(lanes.map((l) => l.id));
+  // Down the first children: a chain of groups is no longer than the list, also on a cycle of parents.
   const firstLeafUnder = (id: string): string | undefined => {
-    if (laneIds.has(id)) return id;
-    for (const g of groups) if (g.parent === id) return firstLeafUnder(g.id);
+    for (let cur: string | undefined = id, n = groups.length; cur !== undefined && n-- >= 0; cur = groups.find((g) => g.parent === cur)?.id) if (laneIds.has(cur)) return cur;
     return undefined;
   };
   return { lanes, laneOf: assign(graph, lanes, (n) => (n.group ? firstLeafUnder(n.group) : undefined)) };
@@ -219,10 +219,14 @@ export function spanLanes(graph: FlowGraph, model: LaneModel, laneBoxes: Readonl
     }
     return spans;
   }
+  // The groups on the way down: a cycle of parents ends where it returns.
+  const path = new Set<string>();
   const boxOf = (id: string): Box | undefined => {
     const own = laneBoxes[id] ?? spans[id];
-    if (own) return own;
+    if (own || path.has(id)) return own;
+    path.add(id);
     const children = all.filter((g) => g.parent === id).map((g) => boxOf(g.id)).filter((b): b is Box => !!b);
+    path.delete(id);
     return children.length ? span(children) : undefined;
   };
   for (const g of all) {
