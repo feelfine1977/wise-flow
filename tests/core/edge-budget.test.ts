@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type FlowEdge, type FlowGraph, type FlowNode, type Overlay, budgetEdges, buildScene, createPositions } from "../../src/index";
+import { type FlowEdge, type FlowGraph, type FlowNode, type Overlay, budgetEdges, buildScene, createPositions, toSVG } from "../../src/index";
 import { CanvasRenderer, type DrawContext, type PreparedScene, drawScene, prepareScene } from "../../src/canvas/index";
 
 /** Activities in a row, 100 apart, each 60 × 40. */
@@ -44,6 +44,12 @@ describe("edge budget", () => {
     expect(budgetEdges(scene, Number.NaN)).toBeUndefined();
     expect(budgetEdges(scene, 3, {}, [0, 2, 6])).toBeUndefined();
     expect(budgetEdges(scene, 0, {}, [])).toBeUndefined();
+    // A host that keeps "no value" as null, as JavaScript state often does, gets every edge too.
+    const none = null as unknown as undefined;
+    expect(budgetEdges(scene, none)).toBeUndefined();
+    const svg = toSVG({ graph: scene.graph, positions: scene.positions, selfLoops: false }, { edgeBudget: none });
+    expect(svg.match(/<g class="wf-edge"/g)).toHaveLength(7);
+    expect(svg).not.toContain("wf-edge-note");
   });
 
   it("chooses among the edges in view only", () => {

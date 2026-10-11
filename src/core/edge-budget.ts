@@ -56,6 +56,8 @@ function orderOf(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style">) {
 /** The edges a budget draws of those in view (all when omitted), or those a map reported; undefined when it withholds none. */
 export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style">, budget: EdgeBudget | ShownEdges | undefined, protection: EdgeProtection = {}, inView?: readonly number[]): EdgeSelection | undefined {
   const total = inView ? inView.length : scene.edgeMarks.length;
+  // No value withholds nothing, also null where a host keeps "no value" so.
+  if (budget === null) return undefined;
   if (typeof budget === "object") {
     const named = new Set(budget.edges);
     const drawn = new Set<number>();
