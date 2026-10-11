@@ -118,7 +118,7 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
   const overlays = canonicalOverlays(shownOverlays(graph, options.overlays ?? graph.overlays ?? [], options, locale));
   const rules = { ...(style.lod ?? {}), ...(options.lod ?? {}) };
   const lod = options.lodBySize ? lodForSize(graph.nodes.length, rules) : { ...defaultLod, ...rules };
-  const geometry = placeOverlays(overlays, positions, { ...(options.overlayGeometry ?? {}), lod }, groupTitles(graph.groups ?? [], positions), { measure, text: theme.text });
+  const geometry = placeOverlays(overlays, positions, { ...(options.overlayGeometry ?? {}), lod }, groupTitles(graph.groups ?? [], positions), measure, theme.text);
   const marks = overlayMarks(geometry.shapes, locale, theme, measure);
   const scales = buildScales(graph, style, theme);
   const nodes = nodeMarks(graph, positions, scales, { locale, activityLabels, theme, measure });
