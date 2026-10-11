@@ -95,8 +95,11 @@ export function coverBackground(marks: OverlayMark[]): string | undefined {
 /** A mark drawn on its own, at the size of its box (map-level chips in the legend). */
 export function MarkFigure({ mark }: { mark: OverlayMark }) {
   const { x, y, width, height } = mark.box;
+  // Drawn on its own (a legend's chip), it says what it shows: its last text with the label before it, whole.
+  const text = mark.texts.at(-1);
+  const name = text ? `${text.lead ?? ""}${text.text}` : mark.title;
   return (
-    <svg className="wf-mark" width={width} height={height} viewBox={`${x} ${y} ${width} ${height}`} overflow="visible" aria-hidden="true">
+    <svg className="wf-mark" width={width} height={height} viewBox={`${x} ${y} ${width} ${height}`} overflow="visible" {...(name ? { role: "img", "aria-label": name } : { "aria-hidden": true })}>
       {svgReact(domMark(mark, MARK_IDS))}
     </svg>
   );

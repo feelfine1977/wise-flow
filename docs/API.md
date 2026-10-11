@@ -638,7 +638,10 @@ the others above the nodes (before, every mark it drew lay above the nodes);
 draws every mark. Custom node types draw `marks` and `origin`. `<Badges/>` and `<Chip/>` now draw SVG from the
 marks the core resolves for the overlays: badges extend left from the
 top-right corner of the element they are placed in, a chip has the size of
-its mark.
+its mark. A chip drawn on its own (`<Chip/>`, the legend's map-level chips) is
+an image named by its label and reading ("Balance: 12 % over"), the words its
+text gave assistive technology before; the marks an element carries are
+described with the element.
 
 ## Contract rules
 
