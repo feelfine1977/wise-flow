@@ -108,7 +108,7 @@ describe("adaptive edge budget", () => {
     // 2,500 protected edges of 5,000 in view: 2,000 draws them and nothing else, and so would 1,000. The documented
     // rule takes no step that draws the same edges; the adapter counts a slow frame that drew more than half its
     // budget, which these did, and steps down to 1,000, then to 500. Whether the rule or the adapter should change
-    // is an open decision; this pins what the adapter does today.
+    // is not decided yet; this test holds what the adapter does today.
     const clock = frameClock();
     const adapter = edgeBudgetAdapter(clock);
     const mostlyProtected = (budget: number) => ({ shown: Math.max(2500, budget), total: 5000 });

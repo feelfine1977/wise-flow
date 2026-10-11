@@ -101,7 +101,7 @@ type Step = { kind: "start" } | { kind: "end" } | { kind: "frame"; ms: number } 
 // Views: edge counts around the steps, and protected edges below half the smallest step. Above that the
 // adapter and the documented rule part: the adapter counts a slow frame that drew more than half its
 // budget, the rule one that drew more than the step below would, and with 2,500 protected edges of 5,000
-// in view these differ (pinned as a finding in adaptive-budget.test.ts). The search stays where they agree.
+// in view these differ (a test in adaptive-budget.test.ts holds the difference). The search stays where they agree.
 const TOTALS = [0, 1, 100, 499, 500, 501, 999, 1000, 1500, 2000, 2001, 3000, 4000, 5000, 7999, 8000, 20_000, 100_000];
 const view = (rng: Random) => {
   const total = rng.pick(TOTALS);
