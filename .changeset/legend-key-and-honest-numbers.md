@@ -50,7 +50,7 @@ The legend is a key and the numbers say what they are.
   and tooltip, `<TableAlternative/>`, `<PathList/>` and both exports print
   "at least 211,379" ("mindestens"), and name an averaged median "lag, mean
   of medians", never a median. Summed counts and a host's own stage numbers
-  print as exact.
+  print as exact. `pathsFor` derives no share from a lower bound.
 - **Caption.** `toSVG` and `toPNG` write a caption line under the figure from
   the graph's `meta`: label, cases, period, filters and how much of the model
   is shown ("16 of 42 activities, 35 of 656 paths shown"; a collapsed

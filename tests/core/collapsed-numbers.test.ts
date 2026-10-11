@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { globalScene } from "../../fixtures/bpic2019";
-import { type FlowGraph, type Positions, buildScene, collapseGroups, createPositions, toSVG } from "../../src/index";
+import { type FlowGraph, type Positions, buildScene, collapseGroups, createPositions, pathsFor, toSVG } from "../../src/index";
 import { describeEdge } from "../../src/core/describe";
 import { prepareScene, toPNGCanvas } from "../../src/canvas/index";
 
@@ -71,6 +71,17 @@ describe("a collapsed stage says what its numbers are", () => {
     expect(describeEdge(merged, collapsed, "de")).toContain("Wartezeit, Mittel der Mediane 15 h");
     // A path that was not merged keeps its median.
     expect(describeEdge(twoCases.edges[0], twoCases, "en")).toContain("median lag 10 h");
+  });
+
+  it("derives no share of a stage's paths from its cases, which are lower bounds", () => {
+    // Without shares on the paths, a path's share would be its cases over the stage's: at least 1 over at least 1 says nothing.
+    const bare = collapseGroups({ ...twoCases, edges: twoCases.edges.map((e) => ({ ...e, metrics: { count: 1, cases: 1 } })) }, ["S"]);
+    expect(pathsFor(bare, "S").outgoing).toEqual([expect.objectContaining({ count: 2, cases: 1, share: undefined, metricBasis: { cases: "atLeast" } })]);
+    // A share the path carries is kept, with its basis.
+    expect(pathsFor(collapsed, "S").outgoing[0]).toMatchObject({ share: 0.5, metricBasis: { share: "atLeast" } });
+    // Exact cases keep the derived share: X's incoming path from A, 1 of X's 2 cases.
+    const plain = { ...twoCases, edges: twoCases.edges.map((e) => ({ ...e, metrics: { count: 1, cases: 1 } })) };
+    expect(pathsFor(plain, "X").incoming.map((r) => r.share)).toEqual([0.5, 0.5]);
   });
 
   it("prints stage Invoice of the whole log as at least 211,379", () => {

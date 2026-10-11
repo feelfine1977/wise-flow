@@ -1310,7 +1310,8 @@ contract's `median_lag` / `violation_share` accepted) when it belongs to
 the focus and computes the rows from the map's follows edges otherwise
 (`source` says which); self-loops are left to the self-loop overlay,
 constraint edges are ignored; `totals` sum the transitions; `share` is
-cases relative to the activity's cases. A group focus stands for its
+cases relative to the activity's cases, and none is derived where either
+is a lower bound (a collapsed stage and its merged paths, `metricBasis`). A group focus stands for its
 members, nested groups included (paths crossing the outer boundary). `pathBetween` is the shortest, then
 strongest path (Dijkstra on hops with a small penalty for weak paths, so
 the result is deterministic) and the reverse path when one exists.
