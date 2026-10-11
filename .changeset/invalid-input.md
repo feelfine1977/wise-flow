@@ -88,3 +88,9 @@ stack reaches, as `importBpmn` does; it overflowed the stack before.
 `describeClause` and `changesCases` read an `any` group without `clauses` as
 an empty group; they threw a `TypeError` before, and with them
 `<FilterChips/>` and `<ProcessMap filters>`.
+
+`layout` with Dagre places nodes whose id names a member of
+`Object.prototype` (`__proto__`, `constructor`, `toString`, …). Dagre keeps
+its graph in plain objects: such an id threw a `TypeError` before, and a node
+called `__proto__` could add properties to `Object.prototype` for the whole
+page.

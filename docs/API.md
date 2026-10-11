@@ -238,8 +238,11 @@ numbers are finite; up to 0.3.5 any box counted, so `<ProcessMap/>` drew
 given positions with `NaN` or an infinity in them instead of laying the graph
 out.
 
-Dagre lays out a node or an edge whose id is the empty string like any
-other, as ELK does; up to 0.3.5 it failed on it with a `TypeError`. A
+Dagre lays out a node or an edge whose id is the empty string, or names a
+member of `Object.prototype` (`__proto__`, `constructor`, `toString`, …),
+like any other, as ELK does. Up to 0.3.5 it failed on such an id with a
+`TypeError`, and a node called `__proto__` could add properties to
+`Object.prototype`, which every object of the page shares. A
 spacing (`spacing.node`, `layer`, `group`) or a node size (given or returned
 by the `nodeSize` callback) that is not a finite number counts as not given:
 the default applies, in both engines and in the provisional arrangement. Up

@@ -71,6 +71,24 @@ describe("layout of empty ids", () => {
   });
 });
 
+describe("layout of ids named like members of Object.prototype", () => {
+  // Dagre keeps its graph in plain objects: such a name read or wrote the prototype every object shares.
+  const members = () => Object.getOwnPropertyNames(Object.prototype).map((k) => [k, Object.getOwnPropertyDescriptor(Object.prototype, k)?.value]);
+
+  it.each(["__proto__", "constructor", "toString", "valueOf", "hasOwnProperty"])("places a node called %s with Dagre and leaves Object.prototype as it was", async (id) => {
+    const before = members();
+    const graph: FlowGraph = {
+      nodes: [{ id, kind: "activity", label: "Odd" }, { id: "b", kind: "activity", label: "B" }],
+      edges: [{ id: `${id}->b`, kind: "follows", source: id, target: "b" }],
+    };
+    const p = await layout(graph, { engine: "dagre" });
+    expect(members()).toEqual(before);
+    // A record cannot hold the key __proto__ as its own; how positions should keep such an id is not decided.
+    if (id !== "__proto__") expect(Object.getOwnPropertyDescriptor(p.nodes, id)?.value).toMatchObject({ width: 180, height: 48 });
+    expect(Object.getOwnPropertyDescriptor(p.edges, `${id}->b`)?.value.points.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
 describe("layout of an edge to a node that is not there", () => {
   it("leaves the edge out with Dagre, and routes the others along finite points", async () => {
     const graph: FlowGraph = {

@@ -517,8 +517,9 @@ interface DagreGraph {
  * Dagre worker runs this function's source as it is.
  */
 export function dagreJob(dagre: { Graph: new (options: object) => DagreGraph; layout(graph: DagreGraph): void }, input: DagreInput): DagreOutput {
-  // Graphlib reads an empty name as none and keeps \x00 and \x01 for itself: such names get \x02 in front.
-  const k = (id: string) => (!id || id < "\x03" ? "\x02" + id : id);
+  // Graphlib reads an empty name as none, keeps \x00 and \x01 for itself and stores names as keys of plain
+  // objects, where a member of Object.prototype reads or writes the prototype: such names get \x02 in front.
+  const k = (id: string) => (!id || id < "\x03" || id in Object.prototype ? "\x02" + id : id);
   const g = new dagre.Graph({ compound: input.compound, multigraph: true });
   g.setGraph(input.graph);
   g.setDefaultEdgeLabel(() => ({}));
