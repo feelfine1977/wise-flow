@@ -1,10 +1,9 @@
 import type { Preview } from "@storybook/react";
-import "@xyflow/react/dist/style.css";
 import "bpmn-js/dist/assets/diagram-js.css";
 import "bpmn-js/dist/assets/bpmn-js.css";
 import "bpmn-js/dist/assets/bpmn-font/css/bpmn.css";
 import "../src/tokens.css";
-import "../src/react/style.css";
+import "./flow.css";
 
 const preview: Preview = {
   parameters: {

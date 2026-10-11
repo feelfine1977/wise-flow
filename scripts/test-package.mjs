@@ -57,7 +57,7 @@ run(process.execPath, ['bpmn.mjs'], consumer);
 writeFileSync(join(consumer, 'tsconfig.json'), JSON.stringify({ compilerOptions: { target: 'ES2022', module: 'NodeNext', moduleResolution: 'NodeNext', strict: true, noEmit: true, skipLibCheck: false, lib: ['ES2022', 'DOM'] }, files: ['types.ts'] }));
 run(process.execPath, ['node_modules/typescript/bin/tsc', '-p', '.'], consumer);
 const installedRequire = createRequire(join(consumer, 'package.json'));
-for (const path of ['tokens.css', 'style.css', 'react-flow.css', 'bpmn.css', 'bpmn/assets/bpmn-font/css/bpmn.css', 'bpmn/assets/bpmn-font/font/bpmn.woff2', 'elk-worker.min.js', 'dagre-worker.min.js']) {
+for (const path of ['tokens.css', 'style.css', 'style.unlayered.css', 'react-flow.css', 'bpmn.css', 'bpmn/assets/bpmn-font/css/bpmn.css', 'bpmn/assets/bpmn-font/font/bpmn.woff2', 'elk-worker.min.js', 'dagre-worker.min.js']) {
   assert.ok(readFileSync(installedRequire.resolve(`@wise/flow/${path}`)).length > 0);
 }
 for (const path of ['LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md', 'dist/licenses/bpmn-js.txt', 'dist/licenses/elkjs.txt', 'dist/licenses/@xyflow-react.txt', 'dist/licenses/@dagrejs-dagre.txt', 'dist/licenses/@dagrejs-graphlib.txt']) assert.ok(existsSync(join(consumer, 'node_modules/@wise/flow', path)));
@@ -85,6 +85,10 @@ try {
   page.setDefaultTimeout(30_000);
   await expect(page.locator('html')).toHaveAttribute('data-worker-layout', 'passed', { timeout: 30_000 });
   await expect(page.locator('.react-flow__node')).toHaveCount(2);
+  // The layered stylesheet alone draws the map: React Flow's base styles, the library's borders, the scene's path colour.
+  assert.deepEqual(await page.locator('[data-wf-part="node"]').first().evaluate(e => [getComputedStyle(e).borderTopWidth, getComputedStyle(e).borderTopStyle]), ['2px', 'solid']);
+  assert.equal(await page.locator('.react-flow__viewport').evaluate(e => getComputedStyle(e).transformOrigin), '0px 0px');
+  assert.notEqual(await page.locator('[data-wf-part="edge-path"]').first().evaluate(e => getComputedStyle(e).stroke), 'rgb(177, 177, 183)');
   await expect(page.locator('[data-bpmn-status="ready"]')).toBeVisible();
   await expect(page.locator('.djs-element[data-element-id="receive"]')).toBeVisible();
   await expect(page.locator('.bjs-powered-by')).toBeVisible();

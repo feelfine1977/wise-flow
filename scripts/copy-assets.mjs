@@ -12,8 +12,13 @@ const copy = (from, to) => {
   copyFileSync(from, target);
 };
 copy(join(root, "src/tokens.css"), "tokens.css");
-copy(join(root, "src/react/style.css"), "style.css");
-copy(join(root, "src/react/style.css"), "react/style.css");
+// The library's rules in the cascade layer `wf`, React Flow's in its sublayer below them, so that
+// any unlayered host rule wins; and the library's rules without a layer, for pages with an unlayered reset.
+const reactFlowCss = readFileSync(join(dependency("@xyflow/react"), "dist/style.css"), "utf8");
+const flowCss = readFileSync(join(root, "src/react/style.css"), "utf8");
+const layered = `@layer wf.react-flow {\n${reactFlowCss}\n}\n@layer wf {\n${flowCss}\n}\n`;
+for (const to of ["style.css", "react/style.css"]) writeFileSync(join(root, "dist", to), layered);
+copy(join(root, "src/react/style.css"), "style.unlayered.css");
 copy(join(dependency("@xyflow/react"), "dist/style.css"), "react-flow.css");
 cpSync(join(dependency("bpmn-js"), "dist/assets"), join(root, "dist/bpmn/assets"), { recursive: true });
 writeFileSync(join(root, "dist/bpmn.css"), [
