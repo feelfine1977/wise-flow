@@ -1,0 +1,88 @@
+{
+  "about": "Numbers measured before the capacity, drawing and layout repairs of October 2026, and the latency targets those repairs were set. The benchmark prints them beside its own measurements. A number is quoted as it was recorded; conditions say where the host's load is known.",
+  "entries": {
+    "prepare.100k": {
+      "target": { "text": "prepares without error", "completes": true, "source": "Latency targets of the repairs (October 2026)", "conditions": "target, not a measurement" }
+    },
+    "prepare.100k.self-loops": {
+      "target": { "text": "prepares without error", "completes": true, "source": "Latency targets of the repairs (October 2026)", "conditions": "target, not a measurement" }
+    },
+    "prepare.500k": {
+      "before": { "text": "throws from about 150,000 flows (Maximum call stack size exceeded)", "source": "Audit of 0.3.5, remeasured on the restructured line before the repairs (October 2026)", "conditions": "harness outside the repository; host and load not recorded" },
+      "target": { "text": "prepares without error", "completes": true, "source": "Latency targets of the repairs (October 2026)", "conditions": "target, not a measurement" }
+    },
+    "prepare.500k.self-loops": {
+      "before": { "text": "throws from about 150,000 flows (Maximum call stack size exceeded)", "source": "Audit of 0.3.5, remeasured on the restructured line before the repairs (October 2026)", "conditions": "harness outside the repository; host and load not recorded" },
+      "target": { "text": "prepares without error", "completes": true, "source": "Latency targets of the repairs (October 2026)", "conditions": "target, not a measurement" }
+    },
+    "prepare.1m": {
+      "before": { "text": "throws from about 150,000 flows (Maximum call stack size exceeded)", "source": "Audit of 0.3.5, remeasured on the restructured line before the repairs (October 2026)", "conditions": "harness outside the repository; host and load not recorded" },
+      "after": { "text": "about 5–6 s", "source": "Test of a million follows edges once preparation stopped spreading arrays into Math.max (October 2026)", "conditions": "one run in the test runner, locally; load not recorded" },
+      "target": { "text": "prepares without error", "completes": true, "source": "Latency targets of the repairs (October 2026)", "conditions": "target, not a measurement" }
+    },
+    "prepare.1m.self-loops": {
+      "before": { "text": "throws from about 150,000 flows (Maximum call stack size exceeded)", "source": "Audit of 0.3.5, remeasured on the restructured line before the repairs (October 2026)", "conditions": "harness outside the repository; host and load not recorded" },
+      "after": { "text": "about 5–6 s (three self-loops)", "source": "Test of a million follows edges once preparation stopped spreading arrays into Math.max (October 2026)", "conditions": "one run in the test runner, locally; load not recorded" },
+      "target": { "text": "prepares without error", "completes": true, "source": "Latency targets of the repairs (October 2026)", "conditions": "target, not a measurement" }
+    },
+    "simplify.100k.default": {
+      "before": { "text": "30 s (a sparse graph: 0.1 s)", "source": "Audit of 0.3.5, remeasured on the restructured line before the repairs (October 2026); cyclic 100,000-activity graph, options not recorded", "conditions": "harness outside the repository; host and load not recorded" },
+      "after": { "text": "1,284–1,572 ms", "source": "Seeded cyclic graph with a self-loop on every activity, after the near-linear reconnection (October 2026)", "conditions": "single runs in the test runner in the sandbox; load not recorded" }
+    },
+    "simplify.100k.thresholds": {
+      "before": { "text": "did not finish within 500 s", "source": "Seeded cyclic graph with a self-loop on every activity, after the loop-strength repair and before the near-linear reconnection (October 2026)", "conditions": "single run in the test runner in the sandbox; load not recorded" },
+      "after": { "text": "2,057–3,520 ms", "source": "Seeded cyclic graph with a self-loop on every activity, after the near-linear reconnection (October 2026)", "conditions": "single runs in the test runner in the sandbox; load not recorded" }
+    },
+    "draw.sparse-100k": {
+      "before": { "text": "25–38 ms per draw (1,000,000 retained primitives, 108 in view)", "source": "Audit of 0.3.5, remeasured on the restructured line before the repairs (October 2026)", "conditions": "harness outside the repository; host and load not recorded" },
+      "target": { "text": "16.7 ms per frame in motion (a million retained primitives: reported, not gated)", "max": 16.7, "source": "Latency targets of the repairs (October 2026)", "conditions": "target, not a measurement" }
+    },
+    "draw.hub-50k.adaptive": {
+      "before": { "text": "about 1 s per draw (no edge budget then)", "source": "Audit of 0.3.5, remeasured on the restructured line before the repairs (October 2026); hub with 50,000 edges in view", "conditions": "harness outside the repository; host and load not recorded" },
+      "target": { "text": "16.7 ms per frame in motion", "max": 16.7, "source": "Latency targets of the repairs (October 2026)", "conditions": "target, not a measurement" }
+    },
+    "draw.hub-50k.all": {
+      "before": { "text": "about 1 s per draw", "source": "Audit of 0.3.5, remeasured on the restructured line before the repairs (October 2026); hub with 50,000 edges in view", "conditions": "harness outside the repository; host and load not recorded" }
+    },
+    "draw.fit-all-50k": {
+      "before": { "text": "about 1 s per draw (50,000 edges in view)", "source": "Cost of 50,000 visible edges in a hub or a fit-all view, recorded before the edge budget (October 2026)", "conditions": "host and load not recorded" },
+      "target": { "text": "16.7 ms per frame in motion", "max": 16.7, "source": "Latency targets of the repairs (October 2026)", "conditions": "target, not a measurement" }
+    },
+    "map-ready.20000": {
+      "before": { "text": "no time recorded; 20,000 hidden described elements", "source": "Audit of 0.3.5, remeasured on the restructured line before the repairs (October 2026)", "conditions": "harness outside the repository; host and load not recorded" },
+      "target": { "text": "under 500 ms", "max": 500, "source": "Latency targets of the repairs (October 2026)", "conditions": "target, not a measurement" }
+    },
+    "first-scene.dense-500": {
+      "before": { "text": "over 10 s (the map was blank until the layout returned)", "source": "Audit of 0.3.5, remeasured on the restructured line before the repairs (October 2026)", "conditions": "harness outside the repository; host and load not recorded" },
+      "target": { "text": "under 1 s", "max": 1000, "source": "Latency targets of the repairs (October 2026)", "conditions": "target, not a measurement" }
+    },
+    "refined-layout.dense-500": {
+      "before": { "text": "over 10 s", "source": "Audit of 0.3.5, remeasured on the restructured line before the repairs (October 2026)", "conditions": "harness outside the repository; host and load not recorded" }
+    },
+    "abort.terminated": {
+      "before": { "text": "never: a timeout or an abort terminated nothing", "source": "Audit of 0.3.5, remeasured on the restructured line before the repairs (October 2026)", "conditions": "by inspection of the layout module, not a timing" }
+    },
+    "memory.per-activity": {
+      "before": { "text": "1,071 B", "source": "scripts/scene-memory.mjs before the scene's retained parts were shared (October 2026); slope from 50,000 to 200,000", "conditions": "sandbox; heap after collection, so load does not change it" },
+      "after": { "text": "743 B", "source": "scripts/scene-memory.mjs after sharing (735 B) and the spatial index of drawing (+8 B) (October 2026)", "conditions": "sandbox; heap after collection" }
+    },
+    "memory.per-flow": {
+      "before": { "text": "699 B", "source": "scripts/scene-memory.mjs before the scene's retained parts were shared (October 2026); slope from 50,000 to 200,000", "conditions": "sandbox; heap after collection, so load does not change it" },
+      "after": { "text": "643 B", "source": "scripts/scene-memory.mjs after sharing (635 B) and the spatial index of drawing (+8 B) (October 2026)", "conditions": "sandbox; heap after collection" }
+    },
+    "memory.scene-500k": {
+      "before": { "text": "867 MB (318 MB before the scene carried marks)", "source": "Audit of 0.3.5, remeasured on the restructured line before the repairs (October 2026); 500,001 activities and 500,000 flows", "conditions": "harness outside the repository; heap, so load does not change it" }
+    }
+  },
+  "notes": [
+    "The audit's numbers were taken by a harness outside the repository whose cases were not recorded. The cases of this benchmark are defined in tests/bench and match them in kind and size, not necessarily in shape.",
+    "No reference number was recorded as taken on an idle host. The figures marked \"sandbox\" come from a shared sandbox whose load was not recorded at the time; treat them as indicative.",
+    "Scene preparation: every activity followed by every other, node boxes on a grid without routes (as the graph-size tests); with self-loops, the first flow of every activity repeats the activity.",
+    "Simplification: the seeded cyclic family of the test generators (a ring, half as many random chords, self-loops on up to a third of the activities), seed 1. The earlier figures used another seeded cyclic graph with a self-loop on every activity.",
+    "Canvas: the renderer's own draw time (CanvasRenderer.lastDraw.ms) on a 1280 × 800 canvas at device pixel ratio 1, during gestures of six frames panned by a pixel; the default budget is the map's adaptive one. Headless Chromium draws without a GPU, and rasterisation after the draw call is not included.",
+    "React map: from render to the end of the first draw (Canvas) or the frame in which React Flow shows its nodes, on a 1280 × 800 map with default props; layered family, grid positions with routes.",
+    "First scene: the map without positions, ELK and Dagre in their workers, reduced motion (the layout replaces the first scene without animation). Sparse is the layered family; dense has 20 flows per activity between random pairs.",
+    "Abort: a layout of the dense 500-activity graph in the ELK worker, aborted 250 ms after the worker started.",
+    "Memory: scripts/scene-memory.mjs (sparse chain with routes, heap after collection), a fresh process per size and trial; per activity and per flow are slopes between two sizes."
+  ]
+}
