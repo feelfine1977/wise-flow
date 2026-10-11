@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { globalScene, vendorScene } from "../../fixtures/bpic2019";
 import { byId } from "../../src/core/model";
@@ -151,7 +152,8 @@ describe("abstract", () => {
   it("keeps random connected graphs connected and monotone", () => {
     // The thresholded part is monotone (a subset at every higher threshold); the
     // reconnection re-adds the strongest paths and one edge per open need, which is
-    // bounded but not a global optimum, so the total may differ by one re-added edge.
+    // bounded but not a global optimum. On these graphs the total grows by at most one
+    // between neighbouring thresholds; on others it can grow by more (pinned below).
     for (let seed = 1; seed <= 40; seed++) {
       const g = randomGraph(seed, 8 + (seed % 30));
       expect(isConnected(g)).toBe(true);
@@ -170,6 +172,26 @@ describe("abstract", () => {
         prevKept = kept;
       }
     }
+  });
+
+  it("can re-add more at a higher threshold than it removes, as the architecture says", () => {
+    // Counts relative to 720 and cases relative to 800. At 0.75 / 0.375 r is removed and s kept;
+    // {m, n} and {s, p, q} join by the direct edge s->n: 5 nodes and 4 edges. At 1 / 0.5 s goes
+    // too and no edge is kept; m->n (cost 1.19) joins m and n, then p is nearest through r
+    // (m->r 1.44 + p->r 1.03 = 2.47, before q at 2.49 through s from n), and q next through s
+    // from p (s->p 1.11 + q->s 1): 6 nodes and 5 edges, two more than below.
+    const graph: FlowGraph = {
+      nodes: activities({ m: 600, n: 400, p: 500, q: 800, s: 350, r: 200 }),
+      edges: follows([["m", "n", 580], ["m", "r", 400], ["s", "n", 370], ["s", "p", 640], ["p", "r", 700], ["q", "s", 720]]),
+    };
+    const lower = abstract(graph, { minEdgeShare: 0.75, minNodeShare: 0.375 });
+    const higher = abstract(graph, { minEdgeShare: 1, minNodeShare: 0.5 });
+    expect(readded(lower)).toEqual(["s->n"]);
+    expect(readded(higher)).toEqual(["m->n", "m->r", "p->r", "q->s", "r", "s", "s->p"]);
+    expect(lower.nodes.length + lower.edges.length).toBe(9);
+    expect(higher.nodes.length + higher.edges.length).toBe(11);
+    const architecture = readFileSync(new URL("../../docs/ARCHITECTURE.md", import.meta.url), "utf8").replace(/\s+/g, " ");
+    expect(architecture).toContain("so the total element count is not monotone: a higher threshold can re-add more than it removes");
   });
 
   it("gives every kept activity an incoming and an outgoing path where the original had one", () => {

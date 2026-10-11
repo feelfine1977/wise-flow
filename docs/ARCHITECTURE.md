@@ -104,8 +104,9 @@ then one edge per activity that lost all incoming or all outgoing paths.
 Re-added elements are tagged `reconnected` and drawn dashed. The thresholded
 part is monotone in the thresholds; the reconnection is bounded (paths
 between components plus one edge per open need) but not a global optimum,
-so the total element count may differ by one re-added edge between
-neighbouring thresholds. `diff(a, b)` returns a graph with `b`'s metrics,
+so the total element count is not monotone: a higher threshold can re-add
+more than it removes, a removed node and two edges, say, where a lower one
+re-added one direct edge. `diff(a, b)` returns a graph with `b`'s metrics,
 `a_<metric>` and `delta_<metric>`, one-sided elements tagged.
 
 **Joining components.** An edge costs a reconnecting path `1 + (1 −
