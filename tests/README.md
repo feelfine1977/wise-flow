@@ -5,9 +5,9 @@ The executable CI contract and release procedure are in [docs/CI.md](../docs/CI.
 | Directory | Purpose | Command |
 | --- | --- | --- |
 | `core/` | Node algorithms, seeded graph invariants, deterministic layout, filters, overlays, Canvas geometry, SVG/BPMN | `npm run test:core` |
-| `support/` | Seeded generators for searching tests: random stream, graph families, positions and viewports, event schedules, shrinking, event logs and their directly-follows graphs, BPMN-lite models, mutated BPMN files; fake layout workers and engines for lifecycle tests; a recording 2D context that says which element inked which canvas pixels | imported by `core/` and `react/` tests |
+| `support/` | Seeded generators for searching tests: random stream, graph families, positions and viewports, event schedules, shrinking, event logs and their directly-follows graphs, BPMN-lite models, mutated BPMN files, malformed input for every public entry point; fake layout workers and engines for lifecycle tests; a recording 2D context that says which element inked which canvas pixels | imported by `core/` and `react/` tests |
 | `react/` | jsdom callbacks, keyboard interaction, state replacement and renderer lifecycles | `npm run test:components` |
-| `tooling/` | Negative checks for architecture boundaries, the source lint, workflow policies and artifact budgets | `npm run test:tooling` |
+| `tooling/` | Negative checks for architecture boundaries, the source lint, workflow policies and artifact budgets; the table of invalid input against the entry points | `npm run test:tooling` |
 | `package/` | Separate consumer of the actual npm tarball; NodeNext types and real browser assets/lifecycle | `npm run test:package` |
 | `browser/` | Production Storybook accessibility and keyboard tests, and the map's paint order in a real browser | `npm run storybook:build` then `npm run test:browser` |
 | `visual/` | Ten behavior checks including six screenshots and the large Canvas scene | `npm run test:visual` |
@@ -89,6 +89,24 @@ for (const seed of seeds(caseCount(20))) {
   however slow, and shares no code with what it checks.
 - A search that finds nothing is a result too: say what was searched, how many
   cases ran, and what kinds of input the generators cannot produce.
+
+Malformed input at every public entry point: `malformedCase(seed)` in
+`malformed.ts` draws one case per seed, its kind in turn: an invalid family
+of `graphs.ts`, a cycle of group parents, an empty or one-activity graph,
+zero cases, very long or markup labels, junk overlays, unknown group kinds or
+junk `meta`, with positions missing, not finite, extreme or none, and a stream
+of junk numbers (`junkNumber` for a host's numbers, `junkValue` for a
+backend's, with strings; `junkCoordinate` for coordinates) and strings.
+`Calls` runs a public function on it: an untyped error (`TypeError`,
+`RangeError`, …) or a call beyond the time bound fails at once with the seed;
+plain errors are counted, and a search fails on one its list of documented or
+known errors does not name. `core/malformed-*.test.ts` and
+`react/Malformed*.test.tsx` call every function and component of the four
+entry points once per case, `caseCount(300)` cases; what each does with
+invalid input, documented and observed, is the table in
+[invalid-input.md](invalid-input.md), which a tooling test keeps complete.
+`react/MarkupSafety.test.tsx` checks that markup in the data stays text in
+every output.
 
 A model-based test drives a lifecycle with random schedules instead of random
 input: `react/LayoutLifecycle.test.tsx` (the hook and the layout module) and

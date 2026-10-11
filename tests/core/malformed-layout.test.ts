@@ -101,11 +101,11 @@ describe("malformed input at the asynchronous core functions", () => {
         buildViews(c.graph, [{ id: "a", label: junkString(c.rng) }, { id: "b", label: "B", overlays: c.graph.overlays }], c.rng.chance() ? { positions: c.positions } : { layout: { ...o, engine: "dagre" }, abstraction: c.rng.chance() ? { minNodeShare: junkNumber(c.rng) } : undefined }),
       );
       if (c.rng.chance(0.05)) clearLayoutCache();
+      calls.call("LayoutUnavailableError", c, () => must(new LayoutUnavailableError(c.rng.chance() ? junkString(c.rng) : undefined).name === "LayoutUnavailableError", c, () => "the error's name"));
       const png = argumentsRecorder();
       await calls.callAsync("toPNG", c, () => toPNG({ graph: c.graph, positions: c.positions }, { legend: c.rng.chance(), scale: 1, createCanvas: (width, height) => ({ width, height, getContext: () => png.ctx, convertToBlob: async () => new Blob([]) }) }));
     }
-    calls.call("LayoutUnavailableError", CASES[0], () => must(new LayoutUnavailableError(junkString(CASES[0].rng)).name === "LayoutUnavailableError", CASES[0], () => "the error's name"));
-    expect(calls.ranAtLeast(["layout", "layoutUnion", "createLayoutScope", "buildViews", "toPNG"], CASES.length)).toEqual([]);
+    expect(calls.ranAtLeast(["layout", "layoutUnion", "createLayoutScope", "buildViews", "toPNG", "LayoutUnavailableError"], CASES.length)).toEqual([]);
     expect(calls.unknown(KNOWN), "plain errors that are not documented").toEqual([]);
     if (process.env.WISE_DEEP) console.info(`plain errors over ${CASES.length} cases:\n${calls.report()}`);
   });
