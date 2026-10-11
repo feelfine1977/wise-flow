@@ -4,6 +4,7 @@
  */
 import RBush from "rbush";
 import type { Box, EdgeRoute, Positions, XY } from "./layout.js";
+import { type OverlayMark, markLayer } from "./overlay-marks.js";
 import type { OverlayGeometry } from "./overlays.js";
 
 type HitKind = "node" | "edge" | "group" | "overlay";
@@ -25,9 +26,25 @@ export interface HitItem {
    * reads the elements an area query finds in this order.
    */
   index?: number;
+  /** The element's box where the bounds reach beyond it (`extentOf`): hit tests read it, area queries the bounds. */
+  box?: Box;
+  /** The layer of an overlay shape, for the order of hits; above the nodes when absent. */
+  layer?: OverlayMark["layer"];
 }
 
-const PRIORITY: Record<HitKind, number> = { overlay: 0, node: 1, edge: 2, group: 3 };
+/** The order of hits: what is painted on top comes first. */
+function rank(it: HitItem): number {
+  switch (it.kind) {
+    case "overlay":
+      return it.layer === "below" ? 4 : it.layer === "between" ? 2 : 0;
+    case "node":
+      return 1;
+    case "edge":
+      return 3;
+    default:
+      return 5;
+  }
+}
 
 function distanceToSegment(p: XY, [a, b]: [XY, XY]): number {
   const dx = b.x - a.x;
@@ -40,23 +57,33 @@ function distanceToSegment(p: XY, [a, b]: [XY, XY]): number {
   return Math.hypot(p.x - cx, p.y - cy);
 }
 
-function area(it: HitItem): number {
-  return (it.maxX - it.minX) * (it.maxY - it.minY);
-}
+const near = (b: Box, x: number, y: number, tolerance: number) => b.x - tolerance <= x && x <= b.x + b.width + tolerance && b.y - tolerance <= y && y <= b.y + b.height + tolerance;
 
 export class HitIndex {
   private tree = new RBush<HitItem>();
 
-  /** Build an index from a layout (nodes, groups, edge routes), optional overlay geometry and each element's `index` (by shape id for overlays). */
-  static fromScene(positions: Positions, geometry?: OverlayGeometry, edgeTolerance = 4, indexOf?: (kind: HitKind, id: string) => number | undefined): HitIndex {
-    const index = new HitIndex();
+  /** `tolerance`: what an edge segment's bounds were grown by, for comparing sizes. */
+  constructor(private tolerance = 4) {}
+
+  /** Build an index from a layout (nodes, groups, edge routes), optional overlay geometry, each element's `index` (by shape id for overlays) and a box each item's bounds also cover (`extentOf`). */
+  static fromScene(positions: Positions, geometry?: OverlayGeometry, edgeTolerance = 4, indexOf?: (kind: HitKind, id: string) => number | undefined, extentOf?: (item: HitItem) => Box | undefined): HitIndex {
+    const index = new HitIndex(edgeTolerance);
     const items: HitItem[] = [];
-    for (const [id, b] of Object.entries(positions.groups)) items.push(boxItem(id, "group", b, indexOf?.("group", id)));
-    for (const [id, b] of Object.entries(positions.nodes)) items.push(boxItem(id, "node", b, indexOf?.("node", id)));
-    for (const [id, r] of Object.entries(positions.edges)) items.push(...edgeItems(id, r, edgeTolerance, indexOf?.("edge", id)));
-    for (const s of geometry?.shapes ?? []) {
-      items.push({ ...boxItem(s.overlay.target, "overlay", s, indexOf?.("overlay", s.id)), shapeId: s.id });
-    }
+    const add = (item: HitItem, box?: Box) => {
+      const e = extentOf?.(item);
+      if (e && (e.x < item.minX || e.y < item.minY || e.x + e.width > item.maxX || e.y + e.height > item.maxY)) {
+        item.box = box;
+        item.minX = Math.min(item.minX, e.x);
+        item.minY = Math.min(item.minY, e.y);
+        item.maxX = Math.max(item.maxX, e.x + e.width);
+        item.maxY = Math.max(item.maxY, e.y + e.height);
+      }
+      items.push(item);
+    };
+    for (const [id, b] of Object.entries(positions.groups)) add(boxItem(id, "group", b, indexOf?.("group", id)), b);
+    for (const [id, b] of Object.entries(positions.nodes)) add(boxItem(id, "node", b, indexOf?.("node", id)), b);
+    for (const [id, r] of Object.entries(positions.edges)) for (const item of edgeItems(id, r, edgeTolerance, indexOf?.("edge", id))) add(item);
+    for (const s of geometry?.shapes ?? []) add({ ...boxItem(s.overlay.target, "overlay", s, indexOf?.("overlay", s.id)), shapeId: s.id, layer: markLayer(s.kind) }, s);
     index.load(items);
     return index;
   }
@@ -76,15 +103,25 @@ export class HitIndex {
     return this;
   }
 
-  /** Items under a point, best first (overlays, nodes, edges, groups; smaller first). */
+  /** An element's size: its box, a segment with the tolerance around it, or the bounds. */
+  private area(it: HitItem): number {
+    if (it.box) return it.box.width * it.box.height;
+    if (it.segment) {
+      const [a, b] = it.segment;
+      return (Math.abs(b.x - a.x) + 2 * this.tolerance) * (Math.abs(b.y - a.y) + 2 * this.tolerance);
+    }
+    return (it.maxX - it.minX) * (it.maxY - it.minY);
+  }
+
+  /** Items within `tolerance` of a point, the one painted on top first (marks above the nodes, nodes, arcs, edges, tints, groups), smaller first, then by id. */
   at(x: number, y: number, tolerance = 4): HitItem[] {
     const hits = this.tree.search({ minX: x - tolerance, minY: y - tolerance, maxX: x + tolerance, maxY: y + tolerance });
     return hits
-      .filter((it) => (it.segment ? distanceToSegment({ x, y }, it.segment) <= tolerance : true))
-      .sort((a, b) => PRIORITY[a.kind] - PRIORITY[b.kind] || area(a) - area(b) || (a.id < b.id ? -1 : 1));
+      .filter((it) => (it.segment ? distanceToSegment({ x, y }, it.segment) <= tolerance : !it.box || near(it.box, x, y, tolerance)))
+      .sort((a, b) => rank(a) - rank(b) || this.area(a) - this.area(b) || (a.id < b.id ? -1 : 1));
   }
 
-  /** Items intersecting a box. */
+  /** Items whose bounds intersect a box. */
   within(box: Box): HitItem[] {
     return this.tree.search({ minX: box.x, minY: box.y, maxX: box.x + box.width, maxY: box.y + box.height });
   }

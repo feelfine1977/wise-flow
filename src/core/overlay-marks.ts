@@ -144,6 +144,11 @@ export function arcLabel(overlay: Overlay, locale: Locale = "en"): string {
   return `${p.glyph ?? ""} ${typeof p.value === "number" && Number.isFinite(p.value) ? formatShare(p.value, locale) : ""}`.trim();
 }
 
+/** The layer a kind of overlay is drawn in: tints below the edges, arcs between the edges and the nodes, the rest above the nodes. */
+export function markLayer(kind: OverlayKind): OverlayMark["layer"] {
+  return kind === "tint" ? "below" : kind === "arc" ? "between" : "above";
+}
+
 /** One mark per shape, in the shapes' order. */
 export function overlayMarks(shapes: OverlayShape[], locale: Locale = "en"): OverlayMark[] {
   return shapes.map((s) => overlayMark(s, locale));
@@ -159,7 +164,7 @@ function overlayMark(s: OverlayShape, locale: Locale): OverlayMark {
     kind: s.kind,
     overlay: o,
     box: { x: s.x, y: s.y, width: s.width, height: s.height },
-    layer: s.kind === "tint" ? "below" : s.kind === "arc" ? "between" : "above",
+    layer: markLayer(s.kind),
     inMap: !(s.kind === "chip" && o.target === MAP_TARGET),
     minZoom: p.observed ? 0 : s.minZoom,
     color,
