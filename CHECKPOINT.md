@@ -28,8 +28,10 @@ What appears: the BPI Challenge 2019 purchase-to-pay log (251,734 purchase
 order items) as a directly-follows map laid out by ELK, with the stage
 groups Requisition → Purchase order → Goods receipt → Invoice → Payment
 from left to right, start and end events, path width and grey shade by
-transition count (darker with more), a legend at the bottom right and
-the abstraction panel at the top left.
+cases (darker with more; the width on one scale for the whole log, from 0 to
+its strongest path), every path ending in a head that grows with its line,
+paths back against the flow as their own lines below it, a legend at the
+bottom right and the abstraction panel at the top left.
 
 Constraint overlays from the fixture statistics, all in the one orange accent:
 
@@ -48,7 +50,8 @@ What to do:
 
 - Move the *Activities* and *Paths* sliders: the map thins out and stays
   connected (re-added paths are dashed); surviving activities do not move
-  while sliding because positions are cached per abstraction level.
+  while sliding because positions are cached per abstraction level, and a
+  path that stays keeps its width; the legend's width row does not change.
 - Press *Show stages*: five stage nodes replace the activities; *Show
   activities* returns.
 - Zoom out with the mouse wheel or the − button: labels, badges, arcs and
