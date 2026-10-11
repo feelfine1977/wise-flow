@@ -62,7 +62,9 @@ export interface AbstractOptions {
   /**
    * The marks drawn beside the graph (its own `overlays` are read anyway): the
    * elements of a protected one are always shown, and `meta.shown` names the
-   * marks not shown. A mark the rule is not given cannot be protected.
+   * marks not shown. A mark the rule is not given cannot be protected. The
+   * result carries the graph's own overlays only; with `collapse`, marks
+   * drawn beside the graph move to their stages with `collapseGroups`.
    */
   marks?: Overlay[];
 }

@@ -3,7 +3,7 @@
  * and overlay sets (for example Finance, Logistics, Compliance, Automation),
  * with colour and width scales shared across the views so that they compare.
  */
-import { type AbstractOptions, abstract } from "./aggregate.js";
+import { type AbstractOptions, abstract, collapseGroups } from "./aggregate.js";
 import { type LayoutOptions, type Positions, filterPositions, layout } from "./layout.js";
 import { type FlowGraph, type Metrics, type Overlay, metric } from "./model.js";
 import { type ChannelSpec, type ColorSpec, type Scales, type StyleSpec, buildScales, defaultStyle, pathScaleMax } from "./style.js";
@@ -150,10 +150,16 @@ export function resolveViews(base: FlowGraph, views: ViewSpec[], positions: Posi
  */
 export async function buildViews(graph: FlowGraph, views: ViewSpec[], options: BuildViewsOptions = {}): Promise<ViewSet> {
   // The abstraction sees the marks every view draws, so that a protected one keeps its element.
-  const marks = [...(options.abstraction?.marks ?? []), ...views.flatMap((v) => v.overlays ?? [])];
+  const drawn = views.flatMap((v) => v.overlays ?? []);
+  const marks = [...(options.abstraction?.marks ?? []), ...drawn];
   const base = options.abstraction ? abstract(graph, marks.length ? { ...options.abstraction, marks } : options.abstraction) : graph;
   const positions = options.positions ? filterPositions(options.positions, base) : await layout(base, options.layout);
-  return resolveViews(base, views, positions, options);
+  // With stages collapsed, the views' marks move to the stage that holds their element, as the graph's own do.
+  const collapse = options.abstraction?.collapse;
+  if (!collapse || !drawn.length) return resolveViews(base, views, positions, options);
+  const moved = collapseGroups({ ...graph, overlays: drawn }, collapse).overlays ?? drawn;
+  let at = 0;
+  return resolveViews(base, views.map((v) => (v.overlays ? { ...v, overlays: moved.slice(at, (at += v.overlays.length)) } : v)), positions, options);
 }
 
 /** True when every view of the set reads its positions from the same boxes (a check for tests and stories). */

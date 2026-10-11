@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { constraintItems, globalScene, vendorScene } from "../../fixtures/bpic2019";
 import { liteFromGraph } from "../../src/bpmn/headless";
-import { ANCHOR_TAG, INDIRECT_TAG, type AbstractOptions, type FlowEdge, type FlowGraph, type FlowNode, type Overlay, abstract, buildViews, collapseGroups, diff, hasTag, layout, overlaysFor } from "../../src/index";
+import { ANCHOR_TAG, INDIRECT_TAG, type AbstractOptions, type FlowEdge, type FlowGraph, type FlowNode, type Overlay, abstract, buildScene, buildViews, collapseGroups, diff, hasTag, layout, overlaysFor } from "../../src/index";
 import { detailGraph, offWays, seeded, shuffled, wayThrough, wayThroughHidden } from "./detail-cases";
 
 const isActivity = (n: FlowNode) => n.kind === "activity" || n.kind === "stage";
@@ -651,6 +651,24 @@ describe("protected marks", () => {
     expect((await buildViews(rareGraph([]), [{ id: "plain", label: "Plain" }], { abstraction: byShares(0, 0), positions })).base.nodes.map((n) => n.id)).not.toContain("r");
     expect(liteFromGraph(rareGraph([marked]), { abstraction: byShares(0, 0) }).nodes.map((n) => n.id)).toContain("r");
     expect(liteFromGraph(rareGraph([badge]), { abstraction: byShares(0, 0) }).nodes.map((n) => n.id)).not.toContain("r");
+  });
+
+  it("move the marks of the views to their stage when stages are collapsed, as those inside the graph", async () => {
+    const staged = (marks: Overlay[]): FlowGraph => ({
+      ...rareGraph(marks),
+      nodes: rareGraph([]).nodes.map((n) => (n.kind === "activity" ? { ...n, group: n.id === "r" ? "g2" : "g1" } : n)),
+      groups: [{ id: "g1", kind: "stage", label: "G1" }, { id: "g2", kind: "stage", label: "G2" }],
+    });
+    const marked = { ...badge, protected: true };
+    const plain = { ...badge, target: "a", payload: { text: "plain" } };
+    const options = byShares(0, 0, { collapse: "all" });
+    const inside = abstract(staged([marked, plain]), options);
+    expect(inside.overlays).toEqual([{ ...marked, target: "g2" }, { ...plain, target: "g1" }]);
+    const positions = await layout(inside, { engine: "dagre" });
+    const set = await buildViews(staged([]), [{ id: "marked", label: "Marked", overlays: [marked, plain] }], { abstraction: options, positions });
+    expect(set.base.nodes).toEqual(inside.nodes);
+    expect(set.views[0].overlays).toEqual(inside.overlays);
+    expect(buildScene(set.views[0].graph, set.positions, { overlays: set.views[0].overlays }).marks).toHaveLength(2);
   });
 
   it("see marks given beside the graph as those inside it", () => {

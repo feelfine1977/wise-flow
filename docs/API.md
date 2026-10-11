@@ -283,7 +283,11 @@ activities of an arc. With stages collapsed it moves to the stage that holds
 its element and is never dropped. A mark that is not protected follows its
 element. `abstract` reads the graph's `overlays` and the `marks` given
 beside it; `<ProcessMap/>` hands it its `overlays` prop with the graph's,
-`buildViews` the marks of its views, `liteFromGraph` the graph's. A mark
+`buildViews` the marks of its views (and, with `collapse`, gives each view
+its marks moved to their stages), `liteFromGraph` the graph's. The result's
+`overlays` are the graph's own: a host that draws marks given in `marks` on
+a collapsed graph moves them with `collapseGroups` (or passes them inside
+the graph, whose marks the result carries on their stages). A mark
 the rule is not given cannot be protected. Which deviations are protected is
 the host's choice.
 
