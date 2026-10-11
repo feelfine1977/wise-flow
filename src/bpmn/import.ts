@@ -127,7 +127,8 @@ export async function importBpmn(xml: string, options: ImportBpmnOptions = {}): 
   const edges: FlowEdge[] = [];
   const groups: FlowGroup[] = [];
   const ids = createIdMap();
-  const elementNode = new Map<string, FlowNode>();
+  // Keyed by element, as references resolve: an element may have no id.
+  const elementNode = new Map<ModdleElement | undefined, FlowNode>();
   const groupById = new Map<string, FlowGroup>();
   const mapping: MappingRow[] = [];
   let processId: string | undefined;
@@ -137,7 +138,7 @@ export async function importBpmn(xml: string, options: ImportBpmnOptions = {}): 
   const idOf = (el: ModdleElement) => (keepIds ? flowIdOf(el) : String(el.id));
 
   // Pools: a participant with a process becomes a pool group.
-  const poolOfProcess = new Map<string, string>();
+  const poolOfProcess = new Map<ModdleElement | undefined, string>();
   for (const root of (rootElement.get("rootElements") as ModdleElement[]) ?? []) {
     if (!isType(root, "bpmn:Collaboration")) continue;
     for (const p of (root.get("participants") as ModdleElement[]) ?? []) {
@@ -146,13 +147,12 @@ export async function importBpmn(xml: string, options: ImportBpmnOptions = {}): 
       groups.push(g);
       groupById.set(gid, g);
       register(String(p.id), gid);
-      const ref = p.get("processRef") as ModdleElement | undefined;
-      if (ref?.id) poolOfProcess.set(String(ref.id), gid);
+      poolOfProcess.set(p.get("processRef") as ModdleElement | undefined, gid);
     }
   }
 
-  const laneOfNode = new Map<string, string>();
-  const readLanes = (laneSet: ModdleElement | undefined, parent: string | undefined) => {
+  const laneOfNode = new Map<ModdleElement, string>();
+  const readLanes = function* (laneSet: ModdleElement | undefined, parent: string | undefined): Nested<[ModdleElement | undefined, string | undefined]> {
     for (const lane of (laneSet?.get("lanes") as ModdleElement[] | undefined) ?? []) {
       const gid = idOf(lane);
       const kind = (wiseAttr(lane, "kind") as FlowGroup["kind"] | undefined) ?? "lane";
@@ -160,31 +160,31 @@ export async function importBpmn(xml: string, options: ImportBpmnOptions = {}): 
       groups.push(g);
       groupById.set(gid, g);
       register(String(lane.id), gid);
-      for (const ref of (lane.get("flowNodeRef") as ModdleElement[] | undefined) ?? []) if (ref?.id) laneOfNode.set(String(ref.id), gid);
-      readLanes(lane.get("childLaneSet") as ModdleElement | undefined, gid);
+      for (const ref of (lane.get("flowNodeRef") as ModdleElement[] | undefined) ?? []) laneOfNode.set(ref, gid);
+      yield [lane.get("childLaneSet") as ModdleElement | undefined, gid];
     }
   };
 
-  const visit = (container: ModdleElement, parentGroup: string | undefined) => {
-    for (const set of (container.get("laneSets") as ModdleElement[] | undefined) ?? []) readLanes(set, parentGroup);
+  const visit = function* (container: ModdleElement, parentGroup: string | undefined): Nested<[ModdleElement, string | undefined]> {
+    for (const set of (container.get("laneSets") as ModdleElement[] | undefined) ?? []) walk(readLanes, set, parentGroup);
     const elements = (container.get("flowElements") as ModdleElement[] | undefined) ?? [];
     for (const el of elements) {
       if (isType(el, "bpmn:SequenceFlow")) continue;
       const expanded = isType(el, "bpmn:SubProcess") && ((el.get("flowElements") as ModdleElement[] | undefined)?.length ?? 0) > 0;
       if (expanded && (options.subProcesses ?? "stage") === "stage") {
         const gid = idOf(el);
-        const g: FlowGroup = { id: gid, kind: "stage", label: (el.get("name") as string | undefined) ?? gid, parent: laneOfNode.get(String(el.id)) ?? parentGroup };
+        const g: FlowGroup = { id: gid, kind: "stage", label: (el.get("name") as string | undefined) ?? gid, parent: laneOfNode.get(el) ?? parentGroup };
         groups.push(g);
         groupById.set(gid, g);
         register(String(el.id), gid);
-        visit(el, gid);
+        yield [el, gid];
         continue;
       }
       const node = nodeOf(el, idOf(el));
       if (!node) continue;
-      node.group = laneOfNode.get(String(el.id)) ?? parentGroup;
+      node.group = laneOfNode.get(el) ?? parentGroup;
       nodes.push(node);
-      elementNode.set(String(el.id), node);
+      elementNode.set(el, node);
       register(String(el.id), node.id);
       if (isType(el, "bpmn:Activity")) {
         mapping.push({ taskId: String(el.id), nodeId: node.id, label: node.label, type: el.$type, lane: node.group });
@@ -196,20 +196,20 @@ export async function importBpmn(xml: string, options: ImportBpmnOptions = {}): 
       if (!node) continue;
       node.group = parentGroup;
       nodes.push(node);
-      elementNode.set(String(el.id), node);
+      elementNode.set(el, node);
       register(String(el.id), node.id);
     }
     for (const el of elements) {
       if (!isType(el, "bpmn:SequenceFlow")) continue;
-      const source = elementNode.get(String((el.get("sourceRef") as ModdleElement | undefined)?.id));
-      const target = elementNode.get(String((el.get("targetRef") as ModdleElement | undefined)?.id));
+      const sourceEl = el.get("sourceRef") as ModdleElement;
+      const source = elementNode.get(sourceEl);
+      const target = elementNode.get(el.get("targetRef") as ModdleElement | undefined);
       if (!source || !target) {
         warnings.push(`sequence flow ${el.id} has an endpoint that is not a flow node`);
         continue;
       }
       const id = idOf(el);
       const derived: string[] = [];
-      const sourceEl = el.get("sourceRef") as ModdleElement;
       if ((sourceEl.get("default") as ModdleElement | undefined)?.id === el.id) derived.push(V.defaultFlow);
       const condition = el.get("conditionExpression") as ModdleElement | undefined;
       if (condition) derived.push(V.conditionalFlow);
@@ -224,8 +224,8 @@ export async function importBpmn(xml: string, options: ImportBpmnOptions = {}): 
     }
     for (const el of (container.get("artifacts") as ModdleElement[] | undefined) ?? []) {
       if (!isType(el, "bpmn:Association")) continue;
-      const source = elementNode.get(String((el.get("sourceRef") as ModdleElement | undefined)?.id));
-      const target = elementNode.get(String((el.get("targetRef") as ModdleElement | undefined)?.id));
+      const source = elementNode.get(el.get("sourceRef") as ModdleElement | undefined);
+      const target = elementNode.get(el.get("targetRef") as ModdleElement | undefined);
       if (!source || !target) continue;
       const id = idOf(el);
       edges.push({ id, kind: "flow", source: source.id, target: target.id, tags: ["association"], payload: { bpmnId: el.id } });
@@ -236,14 +236,14 @@ export async function importBpmn(xml: string, options: ImportBpmnOptions = {}): 
   for (const root of (rootElement.get("rootElements") as ModdleElement[]) ?? []) {
     if (!isType(root, "bpmn:Process")) continue;
     processId ??= String(root.id);
-    visit(root, poolOfProcess.get(String(root.id)));
+    walk(visit, root, poolOfProcess.get(root));
   }
   // Message flows between flow nodes of different pools.
   for (const root of (rootElement.get("rootElements") as ModdleElement[]) ?? []) {
     if (!isType(root, "bpmn:Collaboration")) continue;
     for (const mf of (root.get("messageFlows") as ModdleElement[] | undefined) ?? []) {
-      const source = elementNode.get(String((mf.get("sourceRef") as ModdleElement | undefined)?.id));
-      const target = elementNode.get(String((mf.get("targetRef") as ModdleElement | undefined)?.id));
+      const source = elementNode.get(mf.get("sourceRef") as ModdleElement | undefined);
+      const target = elementNode.get(mf.get("targetRef") as ModdleElement | undefined);
       if (!source || !target) continue;
       const id = idOf(mf);
       edges.push({ id, kind: "flow", source: source.id, target: target.id, tags: ["message"], payload: { bpmnId: mf.id, label: mf.get("name") } });
@@ -266,6 +266,18 @@ export async function importBpmn(xml: string, options: ImportBpmnOptions = {}): 
   const positions = (options.positions ?? true) ? positionsFromDi(rootElement, ids) : undefined;
   const rows = options.activities ? matchActivities(mapping, options.activities, { normalize: options.normalize }) : mapping;
   return { graph, mapping: rows, positions, warnings, ids, processId };
+}
+
+/** A reader that yields its nested calls; `walk` makes them on a stack of its own, as elements may nest deeper than calls. */
+type Nested<A extends unknown[]> = Generator<A, void>;
+
+function walk<A extends unknown[]>(read: (...args: A) => Nested<A>, ...args: A): void {
+  const stack = [read(...args)];
+  while (stack.length) {
+    const step = stack[stack.length - 1].next();
+    if (step.done) stack.pop();
+    else stack.push(read(...step.value));
+  }
 }
 
 function processName(definitions: ModdleElement): string | undefined {

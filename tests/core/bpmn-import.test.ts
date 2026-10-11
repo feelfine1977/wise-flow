@@ -93,3 +93,48 @@ describe("importBpmn", () => {
     expect((mapped.meta?.bpmnIds as Record<string, string>).clear_invoice).toBe("Task_ClearInvoice");
   });
 });
+
+describe("importBpmn on broken files", () => {
+  const NS = 'xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:wise="http://wise-workbench.org/schema/flow"';
+  const file = (process: string, shapes = "") => `<?xml version="1.0" encoding="UTF-8"?>
+<definitions ${NS} id="d"><process id="p">${process}</process>${shapes ? `<bpmndi:BPMNDiagram id="dia"><bpmndi:BPMNPlane id="pl" bpmnElement="p">${shapes}</bpmndi:BPMNPlane></bpmndi:BPMNDiagram>` : ""}</definitions>`;
+
+  it("reads a flow without a source beside an element without an id as a flow without an endpoint", async () => {
+    // Both were looked up under the name "undefined", so the flow found the start event
+    // as its source and the import threw a TypeError reading the source's default flow.
+    const result = await importBpmn(file('<startEvent name="Begin"/><task id="t" name="Work"/><sequenceFlow id="f" targetRef="t"/>'));
+    expect(result.warnings).toEqual(["sequence flow f has an endpoint that is not a flow node"]);
+    expect(result.graph.nodes.map((n) => [n.id, n.label])).toEqual([
+      ["", "Begin"],
+      ["t", "Work"],
+    ]);
+    expect(result.graph.edges).toEqual([]);
+  });
+});
+
+describe("importBpmn on deeply nested files", () => {
+  it("reads sub-processes and lanes nested deeper than a call stack reaches", async () => {
+    // 10,000 levels each: reading them by recursion threw a RangeError.
+    const depth = 10_000;
+    let process = '<task id="deep" name="Deep"/>';
+    for (let i = depth; i > 0; i--) process = `<subProcess id="s${i}">${process}</subProcess>`;
+    let lanes = '<lane id="l0"><flowNodeRef>deep</flowNodeRef></lane>';
+    for (let i = 1; i <= depth; i++) lanes = `<lane id="l${i}"><childLaneSet id="c${i}">${lanes}</childLaneSet></lane>`;
+    const xml = `<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" id="d"><process id="p"><laneSet id="ls">${lanes}</laneSet>${process}<task id="last"/></process></definitions>`;
+    const result = await importBpmn(xml);
+    expect(result.warnings).toEqual([]);
+    expect(result.graph.nodes.map((n) => [n.id, n.group])).toEqual([
+      ["deep", "l0"],
+      ["last", undefined],
+    ]);
+    const groups = new Map(result.graph.groups!.map((g) => [g.id, g]));
+    expect(groups.size).toBe(2 * depth + 1);
+    // Lanes outermost first, each the child of the one around it; sub-processes the same.
+    expect(result.graph.groups!.slice(0, 2).map((g) => [g.id, g.parent])).toEqual([
+      [`l${depth}`, undefined],
+      [`l${depth - 1}`, `l${depth}`],
+    ]);
+    expect(groups.get("s1")).toEqual({ id: "s1", kind: "stage", label: "s1", parent: undefined });
+    expect(groups.get(`s${depth}`)?.parent).toBe(`s${depth - 1}`);
+  });
+});
