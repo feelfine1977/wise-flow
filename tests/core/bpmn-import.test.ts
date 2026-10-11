@@ -98,6 +98,7 @@ describe("importBpmn on broken files", () => {
   const NS = 'xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:wise="http://wise-workbench.org/schema/flow"';
   const file = (process: string, shapes = "") => `<?xml version="1.0" encoding="UTF-8"?>
 <definitions ${NS} id="d"><process id="p">${process}</process>${shapes ? `<bpmndi:BPMNDiagram id="dia"><bpmndi:BPMNPlane id="pl" bpmnElement="p">${shapes}</bpmndi:BPMNPlane></bpmndi:BPMNDiagram>` : ""}</definitions>`;
+  const shape = (id: string, x: string, y = "0", width = "100", height = "80") => `<bpmndi:BPMNShape id="${id}_di" bpmnElement="${id}"><dc:Bounds x="${x}" y="${y}" width="${width}" height="${height}"/></bpmndi:BPMNShape>`;
 
   it("reads a flow without a source beside an element without an id as a flow without an endpoint", async () => {
     // Both were looked up under the name "undefined", so the flow found the start event
@@ -109,6 +110,37 @@ describe("importBpmn on broken files", () => {
       ["t", "Work"],
     ]);
     expect(result.graph.edges).toEqual([]);
+  });
+
+  it("leaves out and reports shapes and routes whose coordinates are not finite numbers", async () => {
+    const result = await importBpmn(
+      file(
+        '<task id="a"/><task id="b"/><task id="c"/><sequenceFlow id="f" sourceRef="a" targetRef="b"/>',
+        shape("a", "abc") + shape("b", "200", "1e400") + shape("c", "400") + '<bpmndi:BPMNEdge id="f_di" bpmnElement="f"><di:waypoint x="100" y="40"/><di:waypoint x="NaN" y="40"/></bpmndi:BPMNEdge>',
+      ),
+    );
+    expect(result.warnings).toEqual(["shape of a has coordinates that are not finite numbers", "shape of b has coordinates that are not finite numbers", "route of f has coordinates that are not finite numbers"]);
+    expect(result.positions?.nodes).toEqual({ c: { x: 400, y: 0, width: 100, height: 80 } });
+    expect(result.positions?.edges).toEqual({});
+    expect(result.positions?.bounds).toEqual({ x: 400, y: 0, width: 100, height: 80 });
+  });
+
+  it("reports and leaves out the positions when the diagram is too large to measure", async () => {
+    // Each box is a finite number, but the distance between them is not.
+    const result = await importBpmn(file('<task id="a"/><task id="b"/>', shape("a", "-1e308") + shape("b", "1e308")));
+    expect(result.warnings).toEqual(["the diagram's extent is not a finite number; its positions are left out"]);
+    expect(result.positions).toBeUndefined();
+    expect(result.graph.nodes.map((n) => n.id)).toEqual(["a", "b"]);
+  });
+
+  it("reports the ids that two elements share as FlowGraph ids", async () => {
+    // Different XML ids, one FlowGraph id: the parser sees nothing wrong.
+    const result = await importBpmn(file('<task id="a" wise:flowId="same"/><task id="b" wise:flowId="same"/><task/><task/>'));
+    expect(validateGraph(result.graph)).toEqual([
+      { level: "error", message: "duplicate node id", id: "same" },
+      { level: "error", message: "duplicate node id", id: "" },
+    ]);
+    expect(result.warnings).toEqual(["duplicate node id: same", "duplicate node id: "]);
   });
 });
 

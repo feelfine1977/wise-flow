@@ -4,7 +4,7 @@
  * sequence flows → flow edges), positions from the diagram interchange, and a
  * task ↔ activity mapping table that the caller fills by id and by label.
  */
-import { type Box, type EdgeRoute, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Metrics, type Positions, createPositions } from "../core/index.js";
+import { type Box, type EdgeRoute, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Metrics, type Positions, createPositions, validateGraph } from "../core/index.js";
 import { type ActivityMapping, type ActivityRenaming, type IdMap, createIdMap, createIdResolver, registerId, renameToActivities } from "./ids.js";
 import { type ModdleElement, createModdle, flowIdOf, isType, tagOfType, wiseAttr } from "./moddle.js";
 import { BPMN_VOCABULARY as V, eventDefinitionTag, eventTags, gatewayTag, importedGatewayLabel } from "./vocabulary.js";
@@ -263,7 +263,9 @@ export async function importBpmn(xml: string, options: ImportBpmnOptions = {}): 
       processId,
     },
   };
-  const positions = (options.positions ?? true) ? positionsFromDi(rootElement, ids) : undefined;
+  // What the validation rejects (two elements with one FlowGraph id) is reported.
+  for (const issue of validateGraph(graph)) warnings.push(`${issue.message}: ${issue.id}`);
+  const positions = (options.positions ?? true) ? positionsFromDi(rootElement, ids, warnings) : undefined;
   const rows = options.activities ? matchActivities(mapping, options.activities, { normalize: options.normalize }) : mapping;
   return { graph, mapping: rows, positions, warnings, ids, processId };
 }
@@ -297,8 +299,12 @@ function processName(definitions: ModdleElement): string | undefined {
   return undefined;
 }
 
-/** Positions of the first BPMNDiagram of the definitions, keyed by FlowGraph ids. */
-export function positionsFromDi(definitions: ModdleElement, ids: IdMap): Positions | undefined {
+/**
+ * Positions of the first BPMNDiagram of the definitions, keyed by FlowGraph ids. Shapes and
+ * routes whose numbers are not finite, or all of a diagram whose extent is not, are left out
+ * and reported in `warnings`.
+ */
+export function positionsFromDi(definitions: ModdleElement, ids: IdMap, warnings: string[] = []): Positions | undefined {
   const diagrams = (definitions.get("diagrams") as ModdleElement[] | undefined) ?? [];
   const plane = diagrams[0]?.get("plane") as ModdleElement | undefined;
   if (!plane) return undefined;
@@ -306,6 +312,7 @@ export function positionsFromDi(definitions: ModdleElement, ids: IdMap): Positio
   const nodes: Record<string, Box> = {};
   const groups: Record<string, Box> = {};
   const edges: Record<string, EdgeRoute> = {};
+  const finite = (...ns: number[]) => ns.every(Number.isFinite);
   for (const p of (plane.get("planeElement") as ModdleElement[] | undefined) ?? []) {
     const target = p.get("bpmnElement") as ModdleElement | undefined;
     if (!target?.id) continue;
@@ -314,16 +321,25 @@ export function positionsFromDi(definitions: ModdleElement, ids: IdMap): Positio
       const b = p.get("bounds") as ModdleElement | undefined;
       if (!b) continue;
       const box: Box = { x: Number(b.get("x")), y: Number(b.get("y")), width: Number(b.get("width")), height: Number(b.get("height")) };
+      if (!finite(box.x, box.y, box.width, box.height, box.x + box.width, box.y + box.height)) {
+        warnings.push(`shape of ${flowId} has coordinates that are not finite numbers`);
+        continue;
+      }
       const isGroup = isType(target, "bpmn:Lane") || isType(target, "bpmn:Participant") || (isType(target, "bpmn:SubProcess") && ((target.get("flowElements") as ModdleElement[] | undefined)?.length ?? 0) > 0);
       if (isGroup) groups[flowId] = box;
       else nodes[flowId] = box;
     } else if (p.$type === "bpmndi:BPMNEdge") {
       const pts = ((p.get("waypoint") as ModdleElement[] | undefined) ?? []).map((w) => ({ x: Number(w.get("x")), y: Number(w.get("y")) }));
-      if (pts.length >= 2) edges[flowId] = { points: pts };
+      if (!pts.every((q) => finite(q.x, q.y))) warnings.push(`route of ${flowId} has coordinates that are not finite numbers`);
+      else if (pts.length >= 2) edges[flowId] = { points: pts };
     }
   }
   if (!Object.keys(nodes).length) return undefined;
-  return createPositions({ nodes, groups, edges }, "di", "RIGHT");
+  const positions = createPositions({ nodes, groups, edges }, "di", "RIGHT");
+  const b = positions.bounds;
+  if (finite(b.x, b.y, b.width, b.height)) return positions;
+  warnings.push("the diagram's extent is not a finite number; its positions are left out");
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------
