@@ -2266,7 +2266,8 @@ in the BPMN view.
 of their size around them, and clamps the zoom; `panelInsets` chooses, for
 each panel over a map, to keep it clear across the area (an inset left or
 right, on its side) or along it (at the top or the bottom), whichever leaves
-the larger zoom, and adds `gap`. By default every fit (when a layout arrives,
+the larger zoom, and adds `gap`; above 12 panels the panels of one corner
+are kept clear together, the same way. By default every fit (when a layout arrives,
 the fit button, `CanvasMapHandle.fit()`, `BpmnViewHandle.fit()`) keeps clear
 of the panels over the map: the abstraction panel, the legend, the zoom
 control, the status and the note on withheld paths, and a host's React Flow

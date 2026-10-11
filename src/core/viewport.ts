@@ -32,6 +32,15 @@ export interface FitOptions {
 }
 
 const NO_INSETS: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
+/** The most panels whose ways of being kept clear are tried one by one (2 ** 12 combinations). */
+const MAX_TRIED = 12;
+
+/** The larger inset of each side of either. */
+const merged = (a: Partial<Insets>, b: Partial<Insets>): Partial<Insets> => {
+  const out = { ...a };
+  for (const [side, value] of Object.entries(b) as [keyof Insets, number][]) out[side] = Math.max(out[side] ?? 0, value);
+  return out;
+};
 
 /**
  * The view that shows `bounds` whole and centred in the area of `width` by
@@ -60,17 +69,28 @@ export function fitViewport(bounds: Box, area: { width: number; height: number }
  * on the side it is nearer (left or right of its centre), or along it, by an
  * inset at the top or the bottom; of all these choices the one with the
  * largest fitted zoom wins (the first of equals: insets along the area before
- * insets across it). `gap` is added to each inset. Panels without a size and
- * choices that leave no room are left out.
+ * insets across it). Above 12 panels, those of one corner are kept clear
+ * together, the same way. `gap` is added to each inset. Panels without a size
+ * and choices that leave no room are left out.
  */
 export function panelInsets(panels: readonly Box[], area: { width: number; height: number }, bounds: Box, options: Omit<FitOptions, "insets"> & { gap?: number } = {}): Insets {
   const { gap = 0, ...fit } = options;
   const shown = panels.filter((p) => p.width > 0 && p.height > 0);
-  const choices = shown.map((p) => {
+  let choices = shown.map((p) => {
     const vertical = p.y + p.height / 2 < area.height / 2 ? { top: p.y + p.height + gap } : { bottom: area.height - p.y + gap };
     const horizontal = p.x + p.width / 2 < area.width / 2 ? { left: p.x + p.width + gap } : { right: area.width - p.x + gap };
     return [vertical, horizontal] as Partial<Insets>[];
   });
+  // More panels than a map carries (a host's own): the panels of a corner are kept clear together, the same way.
+  if (choices.length > MAX_TRIED) {
+    const corners = new Map<string, Partial<Insets>[]>();
+    for (const [v, h] of choices) {
+      const key = `${Object.keys(v)}${Object.keys(h)}`;
+      const [cv, ch] = corners.get(key) ?? [{}, {}];
+      corners.set(key, [merged(cv, v), merged(ch, h)]);
+    }
+    choices = [...corners.values()];
+  }
   let best: Insets = { ...NO_INSETS };
   let bestZoom = -Infinity;
   // Each panel is kept clear one way or the other: 2 ** panels combinations (the maps carry at most a handful).

@@ -66,6 +66,18 @@ describe("the insets that keep a map clear of its panels", () => {
       for (const p of all) expect(meets(p, drawn), `${width} × ${height} under ${JSON.stringify(p)}`).toBe(false);
     }
   });
+  it("keeps a host's many panels clear in time", () => {
+    // Forty panels along the top and the bottom: 2 ** 40 ways to keep each clear are too many to try one by one.
+    const many = Array.from({ length: 40 }, (_, i) => ({ x: 25 * (i % 20) + 2, y: i < 20 ? 0 : 480, width: 20, height: 20 }));
+    const bounds = { x: 0, y: 0, width: 1000, height: 200 };
+    const started = performance.now();
+    const insets = panelInsets(many, area, bounds, { padding: 0, gap: 0 });
+    expect(performance.now() - started).toBeLessThan(1000);
+    // Along the area: below the top row (20) and above the bottom row (500 - 480 = 20) leaves 1000 by 460, zoom 1.
+    expect(insets).toEqual({ top: 20, right: 0, bottom: 20, left: 0 });
+    const drawn = onScreen(bounds, fitViewport(bounds, area, { padding: 0, insets }));
+    for (const p of many) expect(meets(p, drawn)).toBe(false);
+  });
 });
 
 describe("the Canvas renderer's fit", () => {
