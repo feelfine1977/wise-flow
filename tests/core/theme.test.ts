@@ -63,7 +63,7 @@ describe("the theme of a scene", () => {
     expect(svg).toMatch(/^<svg[^>]*><defs>.*<\/defs><rect x="0" y="0" width="[\d.]+" height="[\d.]+" fill="#16181d"\/>/);
     expect(svg).toContain('<rect x="100" y="0" width="180" height="40" rx="6" fill="#16181d" stroke="#8c8c8c" stroke-width="2"/>');
     expect(svg).toContain('fill="#ececec">Check invoice</text>');
-    expect(svg).toContain('fill="#a7adb8">1.2k</text>');
+    expect(svg).toContain('fill="#a7adb8">1,234</text>');
 
     const { ctx, log } = recording();
     drawScene(ctx, prepareScene(graph, positions, { scheme: "dark", lodBySize: false }), at, undefined, { cull: false });

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { type ElementRef, type FlowGraph, type Locale, type Overlay, type Scales, type StringKey, buildScales, defaultStyle, describeOverlay, emptySelection, formatCount, formatShare, t } from "../core/index.js";
+import { type ElementRef, type FlowGraph, type Locale, type Overlay, type Scales, type StringKey, buildScales, defaultStyle, describeOverlay, emptySelection, formatCount, formatShare, metricBasis, t } from "../core/index.js";
 import { clickSelection } from "../core/map-controller.js";
 import { formatMetric, metricColumns, metricLabel } from "./describe.js";
 import type { Selection } from "./types.js";
@@ -126,7 +126,7 @@ export function TableAlternative({ graph, overlays, scales, locale = "en", selec
                 <td>{n.group ? (groupLabel.get(n.group) ?? n.group) : ""}</td>
                 {nodeCols.map((c) => (
                   <td key={c} className="wf-num">
-                    {formatMetric(c, n.metrics?.[c], locale)}
+                    {formatMetric(c, n.metrics?.[c], locale, metricBasis(n, c))}
                   </td>
                 ))}
                 <td>{(n.tags ?? []).join(", ")}</td>
@@ -165,7 +165,7 @@ export function TableAlternative({ graph, overlays, scales, locale = "en", selec
                 <td>{kindLabel(e.kind)}</td>
                 {edgeCols.map((c) => (
                   <td key={c} className="wf-num">
-                    {formatMetric(c, e.metrics?.[c], locale)}
+                    {formatMetric(c, e.metrics?.[c], locale, metricBasis(e, c))}
                   </td>
                 ))}
                 <td>{(e.tags ?? []).join(", ")}</td>

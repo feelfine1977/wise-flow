@@ -108,5 +108,9 @@ export function abstractionCases(): Record<string, AbstractOptions> {
 
 /** A digest of the whole abstraction result, with counts to read a mismatch by. */
 export function abstractionDigest(result: FlowGraph): { nodes: number; edges: number; sha256: string } {
-  return { nodes: result.nodes.length, edges: result.edges.length, sha256: createHash("sha256").update(JSON.stringify(result)).digest("hex") };
+  // The digests were recorded before \`abstract\` wrote the model's size into \`meta.model\` and marked
+  // merged values in \`metricBasis\`; both are left out, so the rest is compared with the record.
+  const { model: _model, ...meta } = result.meta ?? {};
+  const recorded = JSON.stringify(result.meta ? { ...result, meta } : result, (key, value) => (key === "metricBasis" ? undefined : value));
+  return { nodes: result.nodes.length, edges: result.edges.length, sha256: createHash("sha256").update(recorded).digest("hex") };
 }

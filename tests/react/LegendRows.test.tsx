@@ -11,17 +11,22 @@ type Written = { texts: string[]; chips: number };
 
 const unescape = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
 
-/** What a row writes, in order: a scale's title and values or entries, a key's glyph and text, a chip's label and text. */
-function rowTexts(row: LegendRow, fitted?: string[]): string[] {
-  if (row.kind === "width") return [row.title, ...row.samples.map((s) => s.text)];
-  if (row.kind === "ramp") return [row.title, ...row.values];
-  if (row.kind === "swatches") return [row.title, ...(fitted ?? row.entries.map((e) => e.text))];
-  if (row.kind === "key") return [row.glyph, ...(fitted ?? [row.text])];
-  return fitted ?? [row.label, row.text];
+/**
+ * What a row writes, in order: the measure; a scale's title and values or entries; a key's glyph and text; a chip's
+ * label and text. Given what the layout fitted, its title lines and texts instead.
+ */
+function rowTexts(row: LegendRow, fitted?: { lines: string[]; texts: string[] }): string[] {
+  if (row.kind === "measure") return fitted?.lines ?? [row.text];
+  const title = (t: string) => fitted?.lines ?? [t];
+  if (row.kind === "width") return [...title(row.title), ...row.samples.map((s) => s.text)];
+  if (row.kind === "ramp") return [...title(row.title), ...row.values];
+  if (row.kind === "swatches") return [...title(row.title), ...(fitted?.texts ?? row.entries.map((e) => e.text))];
+  if (row.kind === "key") return [row.glyph, ...(fitted?.texts ?? [row.text])];
+  return fitted?.texts ?? [row.label, row.text];
 }
 
-/** The model's texts as an export writes them: shortened to the legend's width by the estimate. */
-const exported = (legend: SceneLegend) => [legend.title, ...legendLayout(legend).rows.flatMap((r) => rowTexts(r.row, r.texts))];
+/** The model's texts as an export writes them: wrapped and shortened to the legend's width by the estimate. */
+const exported = (legend: SceneLegend) => [legend.title, ...legendLayout(legend).rows.flatMap((r) => rowTexts(r.row, r))];
 
 function fromSVG({ graph, positions, overlays, locale }: Fixture): Written {
   const svg = toSVG({ graph, positions, overlays, locale });
@@ -106,18 +111,23 @@ describe("the legends of SVG, Canvas and React", () => {
   });
 
   it("list one key per kind of mark drawn and none for a kind not drawn", () => {
-    // The presets add badges, arcs (some in reverse), hatching and map-level chips;
-    // the follows self-loops are on by default, and the abstraction re-adds paths.
-    expect(keysOf(legends.overlays.legend)).toEqual(["●", "⌒", "⌒┄", "↻", "▨", "┄"]);
+    // The presets add badges of three glyphs (in the order of their first targets: cancel_invoice_receipt ∅,
+    // clear_invoice ≥1, record_invoice_receipt ≤1), arcs (some in reverse), hatching and map-level chips; the follows
+    // self-loops are on by default, the abstraction re-adds paths, and the map starts and ends with events.
+    expect(keysOf(legends.overlays.legend)).toEqual(["∅", "≥1", "≤1", "⌒", "⌒┄", "↻", "▨", "┄", "○", "◉"]);
     expect(legends.overlays.react.chips).toBeGreaterThan(0);
-    expect(keysOf(legends.plain.legend)).toEqual(["↻", "┄"]);
+    expect(keysOf(legends.plain.legend)).toEqual(["↻", "┄", "○", "◉"]);
     expect(legends.plain.react.chips).toBe(0);
     // Without re-added paths there is no key for them.
     expect(unconnected.edges.some((e) => e.tags?.includes("reconnected"))).toBe(false);
-    expect(keysOf(legends.unconnected.legend)).toEqual(["↻"]);
-    expect(legends.plain.react.texts.slice(0, 2)).toEqual(["Legend", "Path width"]);
-    expect(legends.plain.react.texts.slice(-4)).toEqual(["↻", "Repeated execution", "┄", "Re-added path"]);
-    expect(legends.unconnected.react.texts.slice(-2)).toEqual(["↻", "Repeated execution"]);
+    expect(keysOf(legends.unconnected.legend)).toEqual(["↻", "○", "◉"]);
+    // The measure with its unit and what the shares are of (the 251,734 cases of the log), then each scale's metric and unit.
+    expect(legends.plain.react.texts.slice(0, 3)).toEqual(["Legend", "Shortfall · cases · share of 251,734 cases", "Path width: cases (count)"]);
+    expect(legends.plain.react.texts.slice(-8)).toEqual(["↻", "Repeated execution", "┄", "Not directly observed (re-added)", "○", "Start of the process", "◉", "End of the process"]);
+    expect(legends.unconnected.react.texts.slice(-6)).toEqual(["↻", "Repeated execution", "○", "Start of the process", "◉", "End of the process"]);
     expect(legends.vendorGerman.svg.texts[0]).toBe("Legende");
+    expect(legends.vendorGerman.react.texts).toEqual(expect.arrayContaining(["Pfadbreite: Fälle (Anzahl)", "Pfadfarbe: Erwartungslücke (% der Fälle)", "Aktivitätsfarbe: Phase", "Prozessbeginn", "Prozessende"]));
+    // Three width samples, written as paths are.
+    expect(legends.plain.legend.rows.find((r) => r.kind === "width")).toMatchObject({ samples: [{}, {}, {}] });
   });
 });

@@ -140,8 +140,8 @@ describe("SVG, Canvas and React agree on the committed fixtures, with the estima
 
   it("writes what the map shows for each kind", () => {
     const { nodes, edges } = renderers.annotated.svg;
-    // Activities: label and cases; notes: their label, cut to 136 at 6.05 per character.
-    expect(nodes.get("clear_invoice")).toEqual(["Clear Invoice", expect.stringMatching(/^\d+k$/)]);
+    // Activities: label and cases, grouped in full; notes: their label, cut to 136 at 6.05 per character.
+    expect(nodes.get("clear_invoice")).toEqual(["Clear Invoice", expect.stringMatching(/^\d{1,3}(,\d{3})*$/)]);
     expect(nodes.get("note")).toEqual(["Invoices are cleared …"]);
     expect(edges.get("goods->clear")).toEqual([]);
     expect(edges.get("note->clear")).toEqual(["3"]);
@@ -156,10 +156,10 @@ describe("SVG, Canvas and React agree on the committed fixtures, with the estima
     // The note leaves 136 at 11 px: 21 characters of 6.05 and the ellipsis by the estimate, 11 and it at a full em.
     expect(renderers.annotated.react.nodes.get("note")).toEqual(["Invoices are cleared …"]);
     expect(renderers["annotated measured"].react.nodes.get("note")).toEqual(["Invoices ar…"]);
-    // A name wraps at 248 at 14 px: 32 characters of 7.7 by the estimate, 17 at a full em; the cases follow, in the locale.
+    // A name wraps at 248 at 14 px: 32 characters of 7.7 by the estimate, 17 at a full em; the cases follow in full, in the locale.
     const lines = (name: string) => renderers[name].react.nodes.get("change_approval_for_purchase_order");
-    expect(lines("names en")).toEqual(["Change Approval for Purchase", "Order", "4.4k cases"]);
+    expect(lines("names en")).toEqual(["Change Approval for Purchase", "Order", "4,377 cases"]);
     expect(lines("names en measured")?.slice(0, 3)).toEqual(["Change Approval", "for Purchase", "Order"]);
-    expect(lines("names de")).toEqual(["Change Approval for Purchase", "Order", "4,4k cases"]);
+    expect(lines("names de")).toEqual(["Change Approval for Purchase", "Order", "4.377 cases"]);
   });
 });

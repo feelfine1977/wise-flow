@@ -145,7 +145,7 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
     nodeMarks: nodes,
     edgeMarks: edges,
     groupMarks: groupMarks(graph, positions, laid.bands, scales, marked),
-    legend: legendOfScene({ scales, marks, nodeMarks: nodes, edgeMarks: edges, locale }),
+    legend: legendOfScene({ scales, marks, nodeMarks: nodes, edgeMarks: edges, locale, graph }),
     bounds: unionBoxes([positions.bounds, ...marks.filter((m) => m.inMap).map((m) => m.box)]),
   };
 }

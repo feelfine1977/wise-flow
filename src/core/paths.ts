@@ -22,6 +22,8 @@ export interface PathRow {
   violationShare?: number;
   /** The path was re-added by the abstraction to keep the map connected. */
   reconnected?: boolean;
+  /** The values that are a lower bound or a mean of merged paths (the edge's `metricBasis`). */
+  metricBasis?: FlowEdge["metricBasis"];
 }
 
 export interface ActivityPaths {
@@ -81,6 +83,7 @@ function rowOf(e: FlowEdge): PathRow {
     p90LagHours: num(e.metrics?.p90LagHours),
     violationShare: num(e.metrics?.violationShare),
     reconnected: hasTag(e, RECONNECTED_TAG) || undefined,
+    metricBasis: e.metricBasis,
   };
 }
 

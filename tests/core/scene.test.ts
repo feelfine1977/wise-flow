@@ -176,11 +176,14 @@ describe("buildScene", () => {
 
   it("builds the scales over the follows edges", () => {
     const scene = buildScene(graph, positions);
-    // Counts 9, 4 and 6; colour by a share metric reads [0, 1].
-    expect(scene.scales.domains.edgeWidth).toEqual([4, 9]);
+    // The width reads cases, as the activities count: 8, 4 and 2; colour by a share metric reads [0, 1].
+    expect(scene.scales.domains.edgeWidth).toEqual([2, 8]);
     expect(scene.scales.domains.edgeColor).toEqual([0, 1]);
     expect(scene.scales.edgeWidth(graph.edges[0])).toBe(8);
-    expect(scene.scales.edgeWidth(graph.edges[1])).toBe(1);
+    // √4 lies (2 − √2) / (√8 − √2) = 0.414 of the way from √2 to √8: 1 + 7 × 0.414 = 3.9.
+    expect(scene.scales.edgeWidth(graph.edges[1])).toBe(3.9);
+    // Transitions, when asked for: 9, 4 and 6.
+    expect(buildScene(graph, positions, { style: { edgeWidth: { metric: "count" } } }).scales.domains.edgeWidth).toEqual([4, 9]);
     const linear = buildScene(graph, positions, { style: { edgeWidth: { metric: "cases", scale: "linear", range: [2, 4] } } });
     expect(linear.scales.domains.edgeWidth).toEqual([2, 8]);
     expect(linear.scales.edgeWidth(graph.edges[0])).toBe(4);

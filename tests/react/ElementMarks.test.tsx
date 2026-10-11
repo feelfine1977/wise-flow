@@ -31,7 +31,7 @@ describe("React Flow nodes and edges from their marks", () => {
     expect(node("start").querySelector(".wf-node__label")!.className).toBe("wf-node__label wf-lod-labels");
     expect([...node("s").querySelectorAll(".wf-node__label, .wf-node__meta")].map((e) => [e.textContent, e.className])).toEqual([
       ["Payment", "wf-node__label wf-lod-labels"],
-      ["4 · 1.5k", "wf-node__meta wf-lod-labels"],
+      ["4 · 1,500", "wf-node__meta wf-lod-labels"],
     ]);
     expect(node("r").className).toContain("wf-node--reconnected");
     // Without cases the activity shows no count.
@@ -51,8 +51,8 @@ describe("React Flow nodes and edges from their marks", () => {
   it("shortens labels by the core rule and keeps the full name in the description", async () => {
     const long = { ...graph, nodes: graph.nodes.map((n) => (n.id === "a" ? { ...n, label: "Change Approval for Purchase Order" } : n)) };
     const { node } = await map(long);
-    // Without a 2D canvas the map measures by the estimate: 126.2 beside the count, 18 characters and the ellipsis.
-    expect(node("a").querySelector(".wf-node__label")!.textContent).toBe("Change Approval fo…");
+    // Without a 2D canvas the map measures by the estimate: 121.25 beside the count "1,234", 17 characters and the ellipsis.
+    expect(node("a").querySelector(".wf-node__label")!.textContent).toBe("Change Approval f…");
     expect(node("a").getAttribute("title")).toContain("Change Approval for Purchase Order");
   });
 });

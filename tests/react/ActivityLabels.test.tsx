@@ -34,7 +34,7 @@ describe("activity label interaction", () => {
     const labels = Array.from(container.querySelectorAll(".wf-activity-name"), (n) => n.textContent);
     expect(labels).toEqual(["Change Price", "Change Quantity"]);
     const subtitles = Array.from(container.querySelectorAll(".wf-activity-counts"), (n) => n.textContent);
-    expect(subtitles).toEqual(["41 items", "1.1k items"]);
+    expect(subtitles).toEqual(["41 items", "1,107 items"]);
     const before = dimensions(container);
     const trigger = container.querySelector<HTMLElement>('.react-flow__node[data-id="price"]')!;
     fireEvent.mouseEnter(trigger);

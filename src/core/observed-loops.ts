@@ -1,4 +1,4 @@
-import { type Locale, formatCompact, formatCount, formatShare } from "./format.js";
+import { type Locale, formatCount, formatPathCount, formatShare } from "./format.js";
 import { type FlowEdge, type FlowGraph, type FlowNode, type Overlay, type OverlayPayload, metric } from "./model.js";
 
 interface FollowsSelfLoopOptions {
@@ -23,7 +23,7 @@ interface LoopReading {
 
 function plainLabels({ edge, count, cases, total, maxCount, locale }: LoopReading): OverlayPayload {
   const share = Number.isFinite(cases) && Number.isFinite(total) && total > 0 ? cases / total : Number.isFinite(count) ? count / maxCount : undefined;
-  return { label: edge.id, value: share, text: Number.isFinite(count) ? `${formatCompact(count, locale)} ×` : undefined, edgeId: edge.id };
+  return { label: edge.id, value: share, text: Number.isFinite(count) ? `${formatPathCount(count, locale)} ×` : undefined, edgeId: edge.id };
 }
 
 function observedLabels({ edge, node, count, cases, total, locale }: LoopReading, caseLabel: string): OverlayPayload {
@@ -34,7 +34,7 @@ function observedLabels({ edge, node, count, cases, total, locale }: LoopReading
   return {
     edgeId: edge.id, observed: true,
     label: `Observed directly-follows repeat: ${node?.label ?? edge.source}`,
-    displayLabel: measuredCount ? `↻ ${formatCompact(count, locale)} transitions` : "↻ recorded repeat",
+    displayLabel: measuredCount ? `↻ ${formatPathCount(count, locale)} transitions` : "↻ recorded repeat",
     text: `${measuredCount ? `${formatCount(count, locale)} transitions` : "transition count unavailable"} · ${support}${share !== undefined ? ` / ${formatCount(total, locale)} ${caseLabel} with activity (${formatShare(share, locale)})` : ""}`,
   };
 }

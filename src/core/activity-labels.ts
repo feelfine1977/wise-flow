@@ -1,4 +1,4 @@
-import { type Locale, formatCompact, formatCount } from "./format.js";
+import { type Locale, formatCount } from "./format.js";
 import { type NodeSize, defaultNodeSize } from "./layout.js";
 import { type FlowGraph, type FlowNode, metric } from "./model.js";
 import { type TextMeasure, estimateTextWidth, wrapText } from "./text.js";
@@ -49,18 +49,18 @@ export function wrapActivityText(value: string, width: number, fontSize: number 
   return wrapText(value, width, { size: fontSize }, measure);
 }
 
-/** One chosen node metric: distinct cases/items, never event frequency. */
+/** One chosen node metric: distinct cases/items, never event frequency, grouped in full. */
 export function activityNodeCounts(node: FlowNode, options: ActivityLabelOptions, locale: Locale = "en"): string {
   const cases = metric(node, "cases", NaN);
-  return `${Number.isFinite(cases) && cases >= 0 ? formatCompact(cases, locale) : "–"} ${options.caseLabel?.trim() || "cases"}`;
+  return `${Number.isFinite(cases) && cases >= 0 ? formatCount(cases, locale) : "–"} ${options.caseLabel?.trim() || "cases"}`;
 }
 
-/** Both measures for detail surfaces; pass exact=true for tooltips and keys. */
+/** Both measures for detail surfaces, grouped in full; `exact` is kept for callers and changes nothing. */
 export function activityCounts(node: FlowNode, options: ActivityLabelOptions, locale: Locale = "en", exact = false): string {
-  const format = exact ? formatCount : formatCompact;
+  void exact;
   const count = (name: string, unit: string) => {
     const value = metric(node, name, NaN);
-    return Number.isFinite(value) && value >= 0 ? `${format(value, locale)} ${unit}` : `${unit} unavailable`;
+    return Number.isFinite(value) && value >= 0 ? `${formatCount(value, locale)} ${unit}` : `${unit} unavailable`;
   };
   return `${count("cases", options.caseLabel?.trim() || "cases")} · ${count("events", "events")}`;
 }

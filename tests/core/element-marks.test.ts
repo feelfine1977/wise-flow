@@ -26,8 +26,8 @@ describe("node marks", () => {
       {
         ...base, id: "a", kind: "activity", box: positions.nodes.a, shape: "box", radius: 6, stroke: { paint: "value", width: 2 }, band: 8,
         texts: [
-          text({ role: "label", text: "Check invoice", x: 116, y: 20, size: 12, maxWidth: 126.2, lod: "labels" }),
-          text({ role: "count", text: "1.2k", x: 274, y: 35, size: 9, anchor: "end", baseline: "alphabetic", paint: "inkMuted", lod: "labels" }),
+          text({ role: "label", text: "Check invoice", x: 116, y: 20, size: 12, maxWidth: 121.25, lod: "labels" }),
+          text({ role: "count", text: "1,234", x: 274, y: 35, size: 9, anchor: "end", baseline: "alphabetic", paint: "inkMuted", lod: "labels" }),
         ],
       },
       // An AND gateway: a diamond with the glyph + at every zoom, not its label.
@@ -39,8 +39,8 @@ describe("node marks", () => {
       {
         ...base, id: "s", kind: "stage", box: positions.nodes.s, shape: "box", radius: 6, stroke: { paint: "value", width: 3 }, band: 8,
         texts: [
-          text({ role: "label", text: "Payment", x: 416, y: 28, size: 12, weight: 600, maxWidth: 124.4, lod: "labels" }),
-          text({ role: "count", text: "4 · 1.5k", x: 594, y: 51, size: 9, anchor: "end", baseline: "alphabetic", paint: "inkMuted", lod: "labels" }),
+          text({ role: "label", text: "Payment", x: 416, y: 28, size: 12, weight: 600, maxWidth: expect.closeTo(119.45, 9), lod: "labels" }),
+          text({ role: "count", text: "4 · 1,500", x: 594, y: 51, size: 9, anchor: "end", baseline: "alphabetic", paint: "inkMuted", lod: "labels" }),
         ],
       },
       // A note: on the surface colour with a dotted border, no band, its 11 px label at every zoom.
@@ -68,7 +68,7 @@ describe("node marks", () => {
     expect(a.title).toBe("A01 — Check invoice. 1,234 items · events unavailable.");
     expect(a.texts).toEqual([
       text({ role: "nameLine", text: "A01", x: 116, y: 24, size: 14, baseline: "alphabetic" }),
-      text({ role: "countLine", text: "1.2k items", x: 116, y: 42, size: 12, baseline: "alphabetic" }),
+      text({ role: "countLine", text: "1,234 items", x: 116, y: 42, size: 12, baseline: "alphabetic" }),
     ]);
     const hidden = buildScene(graph, positions, { style, activityLabels: { mode: "ids", references: {}, showCounts: false } });
     expect(hidden.nodeMarks.find((m) => m.id === "a")!.texts.map((t) => t.role)).toEqual(["nameLine"]);
@@ -82,7 +82,7 @@ describe("node marks", () => {
     expect(buildScene(or, positions, { style }).nodeMarks.find((m) => m.id === "g")!.texts[0].text).toBe("○");
     expect(buildScene(xor, positions, { style }).nodeMarks.find((m) => m.id === "g")!.texts[0].text).toBe("×");
     const german = buildScene(graph, positions, { style, locale: "de" });
-    expect(german.nodeMarks.find((m) => m.id === "s")!.texts[1].text).toBe("4 · 1,5k");
+    expect(german.nodeMarks.find((m) => m.id === "s")!.texts[1].text).toBe("4 · 1.500");
   });
 });
 
@@ -93,7 +93,7 @@ describe("edge marks", () => {
     const count = (t: string, x: number, y: number) => text({ role: "count", text: t, x, y, size: 10, anchor: "middle", baseline: "alphabetic", halo: true, lod: "edgeLabels" });
     expect(scene.edgeMarks.map(strip)).toEqual([
       // The label sits 4 above the middle of the route.
-      { id: "start->a", kind: "follows", points: positions.edges["start->a"].points, color: neutral, width: 1.5, reconnected: false, texts: [count("1.2k", 68, 16)] },
+      { id: "start->a", kind: "follows", points: positions.edges["start->a"].points, color: neutral, width: 1.5, reconnected: false, texts: [count("1,234", 68, 16)] },
       // Without a route: a straight line between the two boxes; flow edges carry their count too.
       { id: "a->g", kind: "flow", points: [{ x: 280, y: 20 }, { x: 320, y: 20 }], color: neutral, width: 1.5, reconnected: false, texts: [count("12", 300, 16)] },
       // Constraint edges: mechanism blue, dotted; without a count no label.

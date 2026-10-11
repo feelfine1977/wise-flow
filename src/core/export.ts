@@ -61,6 +61,12 @@ export interface ExportOptions {
   scheme?: ColorScheme;
   /** What the figure's texts are measured by (see `FlowSceneOptions.textMeasure`). Default `estimateTextWidth`. */
   textMeasure?: TextMeasure;
+  /**
+   * The caption line under the map and the legend: label, cases, period,
+   * filters and how much of the model is shown, from the graph's `meta`
+   * (`figureCaption`); a part without data is left out. Default true.
+   */
+  caption?: boolean;
 }
 
 const esc = (s: unknown): string =>
@@ -198,27 +204,28 @@ function drawLegend(ctx: Ctx, width: number, layout: LegendLayout): string {
   const { text: textTokens, radius: radiusTokens, stroke: strokeTokens } = ctx.scene.theme;
   const { legendTitle, legendItem, legendValue, legendKey, legendChip } = textTokens;
   const { legendSampleExport: sample, legendGradient: ramp, legendSwatchWidth, legendSwatchHeight } = dimensionTokens;
+  const m = legendMetrics;
   const ink = (role: { size: number; weight?: number }, more = "") => `${fontAttrs(role)}${more} fill="${colors.ink}"`;
   const value = ink(legendValue);
   out.push(text(0, 14, ctx.scene.legend.title, ink(legendTitle)));
-  for (const { row, y, texts } of layout.rows) {
-    const cy = y + legendMetrics.itemTitle;
+  for (const { row, y, lines, texts } of layout.rows) {
+    const cy = y + lines.length * m.itemTitle;
     if (row.kind === "key") {
       out.push(text(0, y + 10, row.glyph, value));
-      out.push(text(22, y + 10, texts[0], ink(legendKey)));
+      texts.forEach((line, i) => out.push(text(22, y + 10 + i * m.key, line, ink(legendKey))));
       continue;
     }
     if (row.kind === "chip") {
       out.push(text(0, y + 10, texts[0], ink(legendChip)));
-      out.push(text(0, y + legendMetrics.chipLabel + 10, texts[1], ink(legendKey)));
+      out.push(text(0, y + m.chipLabel + 10, texts[1], ink(legendKey)));
       continue;
     }
-    out.push(text(0, y + 11, row.title, ink(legendItem)));
+    lines.forEach((line, i) => out.push(text(0, y + 11 + i * m.itemTitle, line, ink(legendItem))));
     if (row.kind === "width") {
       row.samples.forEach((s, i) => {
-        const x = (i * width) / 2;
-        out.push(`<path d="M${num(x)} ${num(cy + 6)}H${num(x + sample)}" stroke="${colors.neutral}" stroke-width="${num(s.width)}"/>`);
-        out.push(text(x + 46, cy + 10, s.text, value));
+        const sy = cy + i * m.entry;
+        out.push(`<path d="M0 ${num(sy + 6)}H${num(sample)}" stroke="${colors.neutral}" stroke-width="${num(s.width)}"/>`);
+        out.push(text(46, sy + 10, s.text, value));
       });
     } else if (row.kind === "ramp") {
       const gid = `wf-grad-${row.id}`;
@@ -227,9 +234,9 @@ function drawLegend(ctx: Ctx, width: number, layout: LegendLayout): string {
       out.push(rect({ x: 0, y: cy, width: width - 10, height: ramp }, `fill="url(#${gid})" stroke="${colors.neutral}" stroke-width="${strokeTokens.legendGradient}"`));
       const anchors = row.values.length === 3 ? ["start", "middle", "end"] : ["start", "end"];
       row.values.forEach((v, i) => out.push(text(((width - 10) * (anchors[i] === "start" ? 0 : anchors[i] === "middle" ? 1 : 2)) / 2, cy + 22, v, anchors[i] === "start" ? value : ink(legendValue, ` text-anchor="${anchors[i]}"`))));
-    } else {
+    } else if (row.kind === "swatches") {
       row.entries.forEach((e, i) => {
-        const sw: Box = { x: 0, y: cy + i * legendMetrics.entry, width: legendSwatchWidth, height: legendSwatchHeight };
+        const sw: Box = { x: 0, y: cy + i * m.entry, width: legendSwatchWidth, height: legendSwatchHeight };
         out.push(rect(sw, `rx="${radiusTokens.swatch}" fill="${e.color}"`));
         if (e.pattern !== "solid") out.push(rect(sw, `rx="${radiusTokens.swatch}" fill="url(#wf-pattern-${e.pattern})"`));
         out.push(text(20, sw.y + 10, texts[i], value));
@@ -262,7 +269,7 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
   const lodZoom = options.lodZoom ?? 1;
   const withheld = budgetEdges(scene, options.edgeBudget);
   const ctx: Ctx = { scene, colors, locale, lod: lodAt(lodZoom, scene.lod), lodZoom, withheld };
-  const frame = figureFrame(scene, { title: !!given.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: options.width, withheld });
+  const frame = figureFrame(scene, { title: !!given.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: options.width, withheld, caption: options.caption });
   const { padding: pad, width: totalW, height: totalH, outWidth: outW, outHeight: outH } = frame;
 
   const parts: string[] = [];
@@ -298,6 +305,10 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
     parts.push(`<path d="M0 0V${num(rule.bottom - rule.top)}" stroke="${colors.neutral}" stroke-opacity="${theme.opacity.legendRule}"/>`);
     parts.push(`<g transform="translate(${num(x - rule.x)} ${num(y - rule.top)})">${drawLegend(ctx, width, layout)}</g>`);
     parts.push(`</g>`);
+  }
+  if (frame.caption) {
+    const { x, y, lines } = frame.caption;
+    parts.push(`<g class="wf-caption">${lines.map((line, i) => text(x, y + i * figureMetrics.keyLine, line, `${fontAttrs(theme.text.figureText)} fill="${colors.ink}"`)).join("")}</g>`);
   }
   if (frame.note) parts.push(text(frame.note.x, frame.note.y, frame.note.text, `class="wf-edge-note" ${fontAttrs(theme.text.figureText)} fill="${colors.ink}"`));
   if (frame.key.lines.length) {

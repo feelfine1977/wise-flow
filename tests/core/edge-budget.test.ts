@@ -76,12 +76,15 @@ describe("edge budget", () => {
   });
 
   it("orders by the metric the edge width reads", () => {
-    const byCases = buildScene(scene.graph, scene.positions, {
+    const byShare = buildScene(scene.graph, scene.positions, {
       selfLoops: false,
-      style: { edgeWidth: { metric: "cases" } },
+      style: { edgeWidth: { metric: "share" } },
     });
-    // No edge has cases: every weight ties and the ids decide.
-    expect(ids(byCases, budgetEdges(byCases, 2)?.drawn)).toEqual(["e0", "e1"]);
+    // No edge has a share: every weight ties and the ids decide.
+    expect(ids(byShare, budgetEdges(byShare, 2)?.drawn)).toEqual(["e0", "e1"]);
+    // Cases, the default, where the paths give only transitions: the width reads those, and so does the order.
+    const byCases = buildScene(scene.graph, scene.positions, { selfLoops: false, style: { edgeWidth: { metric: "cases" } } });
+    expect(ids(byCases, budgetEdges(byCases, 2)?.drawn)).toEqual(["e1", "e5"]);
   });
 });
 

@@ -90,11 +90,13 @@ describe("ViewSwitcher", () => {
         <ViewSwitcher views={set} mode="grid" />
       </div>,
     );
-    // Without overlays the maps draw the follows self-loops and the re-added paths, and nothing else the legend explains.
+    // Without overlays the maps draw the follows self-loops, the re-added paths and the start and end events, and nothing
+    // else the legend explains.
     const loops = base.edges.some((e) => e.kind === "follows" && e.source === e.target);
     const readded = base.edges.some((e) => e.tags?.includes("reconnected"));
     expect(loops || readded).toBe(true);
-    const keys = [...(loops ? ["↻"] : []), ...(readded ? ["┄"] : [])];
+    expect(base.nodes.filter((n) => n.kind === "event").map((n) => n.tags)).toEqual([["start"], ["end"]]);
+    const keys = [...(loops ? ["↻"] : []), ...(readded ? ["┄"] : []), "○", "◉"];
     await waitFor(() => expect(container.querySelectorAll(".wf-views__legend").length).toBe(2));
     for (const legend of container.querySelectorAll(".wf-views__legend")) {
       expect([...legend.querySelectorAll(".wf-legend__glyph")].map((g) => g.textContent)).toEqual(keys);

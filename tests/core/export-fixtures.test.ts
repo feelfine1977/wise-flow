@@ -81,15 +81,29 @@ const observed: Variant = {
  * before the count it writes on their line; thirteen labels of the global and
  * the vendor map are cut one to four characters shorter. `plain` writes no
  * label at its zoom, has no chip and kept its digest.
+ * Recorded once more when the legend became a key and the numbers honest;
+ * compared element by element, only these changed, and every overlay group
+ * is the same: paths are as wide as their cases (they were as wide as their
+ * transitions; most move by under 0.05, the two paths between Record Goods
+ * Receipt and Record Service Entry Sheet from 3.75 to 1.98) and labelled with
+ * them in full up to 99,999, then "112k" (they read "31k", "1.0k"); activity
+ * counts and observed self-loop labels are grouped in full ("234,479" where it
+ * read "234k"), so the labels before them leave more room, and three labels are
+ * cut one to three characters shorter; the stages Purchase order, Invoice and
+ * Payment take other colours with their pattern twins (Purchase order shared
+ * grey with Requisition); the legend names the measure, the metric and the
+ * unit, writes three width samples, a key per badge glyph and the start and
+ * end; and a caption line under the map gives the label, cases, period and
+ * how much of the model is shown, which makes the figure 40 taller.
  */
 const before: Record<string, string> = {
-  overlays: "352dd9a0fb878118624ee4912dddd94b8b1aefffa78b98334b2891c9b76ced87",
-  stagesGerman: "41b63599f33a54ea4c5b38bd57bbf1e373bc2ec0e68395efd98b8b6dfc339c7a",
-  vendor: "cf04ca65d5cabc6886cf08ea306f73305d80a2771e858f12efbc19656237e4f3",
-  unfiltered: "d428da55677180be1caa1f3dc584d7f2a8eb88cd9ae0ea5cca4f89cd072e0c6b",
-  plain: "ffd703c091b76fd841cedbad8a61b324bd62f873034b0c237e3b66fb6197b8ba",
+  overlays: "7874b3305582ccf5d97ee1b303b622cb45cf8fcbb74955dbfb3e6f44a82e0b7e",
+  stagesGerman: "dec6bfa27dd2fd43b5a5748220865b63fb81a911173d71578981df4f28967c2a",
+  vendor: "de61d068329b4952b356f258076760d044dca6ddd88032a87307c3088b93a654",
+  unfiltered: "9b8950b1104db78b128f63d547acb67e502621ce5e60d6cbd8256d9679d97257",
+  plain: "9541fbef043162a55c5c5ca56a12159e8b7e2d4a6e54fc5ff957cb03c542c99a",
 };
-const beforeObserved = "3aa9ded0485cbcb6d9eb77fa04956ff336c5234c084638888b1a7c42dc537ae8";
+const beforeObserved = "102fa52420086eb9a1b9da00a448899a1718cd3dd7a7afbd887e076402bf0d30";
 
 describe("toSVG on the committed fixtures", () => {
   it("matches the recorded output once follows self-loops are hidden", () => {

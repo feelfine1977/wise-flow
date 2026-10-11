@@ -16,14 +16,16 @@ export type GroupKind = "lane" | "stage" | "pool";
 export type OverlayKind = "badge" | "arc" | "hatch" | "tint" | "chip" | "selfLoop";
 
 export interface FlowNode { id: string; kind: NodeKind; label: string; group?: string;
-  metrics?: Record<string, number>; tags?: string[]; }
+  metrics?: Record<string, number>; metricBasis?: Partial<Record<string, MetricBasis>>; tags?: string[]; }
 export interface FlowEdge { id: string; kind: EdgeKind; source: string; target: string;
-  metrics?: Record<string, number>; tags?: string[]; payload?: unknown; }
+  metrics?: Record<string, number>; metricBasis?: Partial<Record<string, MetricBasis>>; tags?: string[]; payload?: unknown; }
+export type MetricBasis = "atLeast" | "mean";   // a lower bound, or a mean of merged values; exact without an entry
 export interface FlowGroup { id: string; kind: GroupKind; label: string; parent?: string; }
 export interface Overlay { kind: OverlayKind; target: string; payload?: OverlayPayload; }
 export interface FlowGraph { nodes: FlowNode[]; edges: FlowEdge[]; groups?: FlowGroup[];
   overlays?: Overlay[]; meta?: FlowMeta; focus?: string; paths?: FlowPaths; }   // focus, paths: 0.3
-export interface FlowMeta { abstraction?: number | AbstractionMeta; [key: string]: unknown }
+export interface FlowMeta { abstraction?: number | AbstractionMeta; model?: ModelOutline; [key: string]: unknown }
+export interface ModelOutline { activities?: number; paths?: number; groups?: string[] }   // the model before abstraction
 export interface AbstractionMeta { minEdgeShare?: number; minNodeShare?: number; keepConnected?: boolean;
   collapse?: string[] | "all" }
 
@@ -45,6 +47,18 @@ export interface GraphIndex {
 threshold share (a number; `0` means nothing was removed) or, on a graph
 returned by `abstract`, the thresholds the library applied. `meta.abstraction`
 was `unknown` before; code that reads it as either form keeps compiling.
+`abstract` also records `meta.model`, the model before any abstraction (kept
+from an earlier one): its activities, its paths (follows edges between two
+different nodes) and its groups' ids in order. A figure's caption reports how
+much of it is shown, and categorical colours follow its group order, so a
+filtered graph keeps its stages' colours. A host may set it itself.
+
+`metricBasis` says which of an element's metrics are not exact: `atLeast`, a
+lower bound, and `mean`, a mean of merged values. `collapseGroups` sets it
+(see "Aggregation"); a host may set it for its own approximations. Every
+renderer, the descriptions, the table and the exports read it: a lower bound
+reads "at least 211,379" ("mindestens"), a mean of medians is named "lag, mean
+of medians" and is never written as a median.
 
 `validateGateways` checks the pairing of parallel gateways in any graph with
 gateways, generated or imported: a parallel split (a `gateway` node tagged
@@ -159,7 +173,21 @@ paths the one chosen depends on ids only, not on the input order
 ([Architecture §2.2](ARCHITECTURE.md#22-aggregation)). A collapsed group becomes a
 `stage` node with the group's id; counts are summed, `cases` and `share`
 are maxima, other metrics weighted means, internal transitions land in
-`internalCount`.
+`internalCount`. Parallel paths merged into one are combined the same way.
+The graph holds no case sets, so the cases of a stage (or of a merged path)
+cannot be computed exactly: two activities of one stage that one case each
+touches give the stage at least one case and at most two. The values are not
+changed; the result says what they are in `metricBasis`: of more than one
+merged element, `cases` and `share` are `atLeast` and every averaged metric
+(a median, a percentile, a shortfall share) is `mean`; summed counts
+(`events`, `count`, `starts`, `ends`, `internalCount`) are exact and have no
+entry. So stage Invoice of the whole-log fixture prints "at least 211,379"
+cases, where the true number lies between 211,379 and 251,734, on its card,
+in its description and tooltip, in the table and in both exports; a merged
+path's averaged median is left out of its label and named "lag, mean of
+medians" in its description and "(mean of medians)" in the table. A graph
+whose nodes are stages with their own numbers carries no basis: its numbers
+print as exact.
 
 `diff(a, b)` (baseline `a`, slice `b`) carries `b`'s metrics under their own
 names, `a`'s under `a_<metric>` and `b − a` under `delta_<metric>`; elements
@@ -278,14 +306,21 @@ the layout rejects with `LayoutUnavailableError` instead of freezing the page.
 ## Style
 
 ```ts
-export interface StyleSpec { edgeWidth?: ChannelSpec; edgeColor?: ColorSpec; nodeColor?: ColorSpec; lod?: Partial<LodRules> }
-export const defaultStyle: StyleSpec;   // width ← count (sqrt, 1–8 px), colour ← violationShare, nodes by group
-export const diffStyle: StyleSpec;      // colour ← delta_violationShare on the diverging palette
+export interface StyleSpec { edgeWidth?: ChannelSpec; edgeColor?: ColorSpec; nodeColor?: ColorSpec; lod?: Partial<LodRules>;
+  stages?: readonly string[] }   // the host's full stage list in stage order: categorical colours follow it
+export const defaultStyle: StyleSpec;   // width ← cases (sqrt, 1–8 px; transitions where paths give no cases), colour ← violationShare, nodes by group
+export const diffStyle: StyleSpec;      // width ← cases, colour ← delta_violationShare on the diverging palette
 export function buildScales(g: FlowGraph, spec?: StyleSpec, theme?: Theme): Scales;   // in the theme's palettes, default `defaultTheme`
 export interface Scales { edgeWidth(e): number; edgeColor(e): string; nodeColor(n): string; nodePattern(n): PatternId;
-  categorical(key): { color; pattern; index }; color(value, palette, domain): string; legend: LegendItem[]; domains }
+  categorical(key): CategoricalEntry; color(value, palette, domain): string; legend: LegendItem[]; domains;
+  pathMetric: string;              // the count paths are labelled with and their width reads: cases, or count
+  notEvaluated(e): boolean }       // a follows edge without a value of pathMetric
+export interface CategoricalEntry { key: string; color: string; pattern: PatternId; index: number; label?: string }   // label: the group's
+export function orderedCategorical(keys: Iterable<string>, theme?: Theme): Map<string, CategoricalEntry>;
 export type LegendItem =   // `title` is a string key for `t` (it was typed `string`)
-  | { kind: "width"; title: StringKey; metric: string; domain: [number, number]; range: [number, number] }
+  | { kind: "width"; title: StringKey; metric: string; domain: [number, number]; range: [number, number];
+      samples?: { value: number; width: number }[];   // the domain's ends and a count near the middle width
+      transitionsOnly?: boolean }                     // the paths give only transition counts
   | { kind: "sequential" | "diverging"; title: StringKey; metric: string; domain: number[]; stops: readonly string[] }
   | { kind: "categorical"; title: StringKey; entries: CategoricalEntry[] };
 export const palettes: { sequential; sequentialBlue; diverging; categorical };   // colour-blind safe
@@ -297,8 +332,27 @@ export function lodForSize(nodeCount: number, base?: Partial<LodRules>): LodRule
 export function patternDefs(prefix?: string, ink?: string, outOfScope?: string, look?: PatternLook): string;   // <pattern> tiles of the twins and the hatching; ink and outOfScope default to colorTokens.ink and .outOfScope, look to patternTokens
 ```
 
-Categorical colours are stable by hashed key and come with a pattern twin
+Categorical colours come with a pattern twin
 (`solid | diagonal | dots | crosshatch | horizontal | vertical | diagonal-reverse | grid`).
+They are assigned in stage order: `StyleSpec.stages` (the host's full stage
+list), then the order `abstract` recorded of the unfiltered graph
+(`meta.model.groups`), then the graph's groups and the other keys in the order
+they first appear. Each key takes its hashed colour or, when an earlier key
+has it, the next free colour (`orderedCategorical`), so no two stages share a
+swatch until the palette is used up; then the colours are free again and the
+next round shifts the pattern twins by one, so every pair of stages still
+differs in colour or pattern. Filtering a graph does not recolour its stages.
+Up to 0.3 the colour was the hashed key alone, and two stages could share it
+(Requisition and Purchase order of the fixture did); a key outside the order
+still takes its hashed colour.
+
+Paths count cases, as activities do: the default width reads `cases`, and
+paths are labelled with their cases (`Scales.pathMetric`). A graph whose paths
+give only transition counts is read by `count`, and the legend's path row says
+so. A follows edge without that value is not evaluated: it is drawn in the
+theme's `line` colour at the thinnest width, labelled "–", and the legend gains
+the row "not evaluated" ("nicht bewertet"). The edge budget ranks paths by the
+same value. Up to 0.3 the width and the labels read `count`.
 `ColorSpec.palette` names a palette of the theme: `neutral`, `shortfall`,
 `performance`, `diverging` or `categorical`; `sequential` and `sequentialBlue`
 keep working and are the theme's `shortfall` and `performance`. Data colours
@@ -564,46 +618,64 @@ export interface ExportOptions { preset?: "single-column" | "double-column" | "s
   background?; fontFamily?; padding?; lodZoom?; context?;
   edgeBudget?: EdgeBudget | ShownEdges;   // default every edge; see "Edge budget"
   theme?: ThemeSetting; scheme?: ColorScheme;   // what the figure is drawn in; default the default preset, light
-  textMeasure?: TextMeasure }   // what its texts are measured by; default estimateTextWidth (see "Text measure")
+  textMeasure?: TextMeasure;   // what its texts are measured by; default estimateTextWidth (see "Text measure")
+  caption?: boolean }          // the caption line under the figure (figureCaption); default true
 export function toSVG(scene: Scene, o?: ExportOptions): string;   // deterministic, legend embedded
 
 export type FigurePreset = "single-column" | "double-column" | "slide" | "none";
 export const FIGURE_WIDTHS: Record<Exclude<FigurePreset, "none">, number>;   // 1000, 2000, 1600
-export type LegendKeyKind = "badge" | "arc" | "reverse" | "selfLoop" | "outOfScope" | "reconnected";
+export type LegendKeyKind = "badge" | "arc" | "reverse" | "selfLoop" | "outOfScope" | "reconnected" | "notEvaluated" | "start" | "end";
 export interface LegendKey { kind: LegendKeyKind; glyph: string; title: StringKey }
 export type LegendRow =
-  | { kind: "width"; title: string; samples: { width: number; text: string }[] }          // path width: two sample strokes
+  | { kind: "measure"; text: string }                                                     // "Shortfall · cases · share of 251,734 cases"
+  | { kind: "width"; title: string; samples: { width: number; text: string }[] }          // path width: three sample strokes
   | { kind: "ramp"; title: string; id: string; stops: readonly string[]; values: string[] }  // a colour ramp: low, (middle,) high
   | { kind: "swatches"; title: string; entries: { text: string; color: string; pattern: PatternId }[] }   // categories with their pattern twins
   | { kind: "key"; key: LegendKeyKind; glyph: string; text: string }                      // one kind of mark drawn
   | { kind: "chip"; chip: Overlay; label: string; text: string };                         // a map-level chip
 export interface SceneLegend { title: string; rows: LegendRow[]; items: LegendItem[]; keys: LegendKey[]; chips: Overlay[] }
-export interface LegendSource { scales: { legend: LegendItem[] }; marks: readonly OverlayMark[];
-  nodeMarks: readonly { reconnected: boolean }[]; edgeMarks: readonly { reconnected: boolean }[]; locale: Locale }   // a FlowScene is one
+export interface LegendSource { scales: { legend: LegendItem[]; pathMetric?: string }; marks: readonly OverlayMark[];
+  nodeMarks: readonly { reconnected: boolean; node?: FlowNode }[]; edgeMarks: readonly { reconnected: boolean; notEvaluated?: boolean }[];
+  locale: Locale; graph?: Pick<FlowGraph, "meta"> }   // a FlowScene is one
 export function legendOfScene(scene: LegendSource): SceneLegend;   // what a scene draws: FlowScene.legend
 export function sceneLegend(items: LegendItem[], overlays: readonly Overlay[], locale?: Locale): SceneLegend;   // from scales and overlays alone
-export const legendMetrics: { width: 188; heading: 26; itemTitle: 16; widthScale: 20; gradient: 30; entry: 16; entriesEnd: 4;
+export const legendMetrics: { width: 188; heading: 26; itemTitle: 16; measureEnd: 6; widthScale: 20; gradient: 30; entry: 16; entriesEnd: 4;
   key: 14; chipsGap: 6; chipLabel: 13; chipText: 15 };
-export function legendItemHeight(item: LegendItem): number;
-export interface LegendLayout { rows: { row: LegendRow; y: number; texts: string[] }[];   // texts: shortened to the width
+export function legendItemHeight(item: LegendItem): number;   // with a title of one line
+export interface LegendLayout { rows: { row: LegendRow; y: number; lines: string[]; texts: string[] }[];   // lines: the title wrapped; texts: entries shortened, a key wrapped
   items: { item; y }[]; keys: { key; y }[]; chips: { chip; y }[]; height: number }
 export function legendLayout(legend: SceneLegend, o?: { measure?: TextMeasure; width?: number; text?: Theme["text"] }): LegendLayout;   // default the estimate, 188, the token table
 export const figureMetrics: { padding: 24; legendColumn: 220; legendInset: 16; titleHeight: 40; titleBaseline: 26;
   contextHeight: 18; contextBaseline: 44; keyLine: 16; noteRow: 16; noteBaseline: 12; noteSize: 11 };
 export interface FigureFrameOptions { title?: boolean; context?: boolean; legend?: boolean; padding?: number; preset?: FigurePreset; width?: number;
-  withheld?: { shown: number; total: number } }
+  withheld?: { shown: number; total: number }; caption?: boolean }
 export interface FigureFrame { padding; header; map: { width; height; offset: XY };
-  legend?: { layout: LegendLayout; x; y; width; rule: { x; top; bottom } }; note?: { text: string; x; y }; key: { lines: string[]; y };
-  width; height; outWidth; outHeight }
+  legend?: { layout: LegendLayout; x; y; width; rule: { x; top; bottom } }; caption?: { lines: string[]; x; y };
+  note?: { text: string; x; y }; key: { lines: string[]; y }; width; height; outWidth; outHeight }
 export function figureFrame(scene: FramedScene, o?: FigureFrameOptions): FigureFrame;   // FramedScene: graph, activityLabels?, locale, bounds, legend, textMeasure?, theme?
+export function figureCaption(g: FlowGraph, locale?: Locale, labelOf?: (id: string) => string): string | undefined;
 ```
 
-The legend and the figure frame are described once. The legend is an ordered
-list of typed rows (`LegendRow`) in the scene's words and numbers: the scales
-(path width with its two samples, a colour ramp with its values, the activity
-colours as swatches with their pattern twins), one key per kind of mark drawn
-that the legend explains (badges, arcs, reverse-order arcs, self-loops,
-out-of-scope hatching, re-added paths and activities) and the map-level chips.
+The legend and the figure frame are described once. The legend is a key: an
+ordered list of typed rows (`LegendRow`) in the scene's words and numbers.
+First the measure the map shows, with its unit and what the shares are of
+("Frequency · cases · share of 1,000 cases"; the measure is named by the path
+colour's metric: none or a count is frequency, the shortfall share shortfall,
+a lag performance, a difference difference; the unit is `Scales.pathMetric`;
+the cases are `meta.cases`, left out when unknown). Then the scales, each
+titled "channel: metric (unit)" from the metric registry ("Path width: cases
+(count)", "Path colour: expectation shortfall (% of cases)", "Activity colour:
+stage"): path width with three sample strokes and their values (the domain's
+ends and a count near the middle width, written as paths are), a colour ramp
+with its values, the stages as swatches with their labels and pattern twins.
+Where the paths give only transitions, the path row says so ("Path width:
+transitions (count) · paths count transitions; no case counts given"). Then
+one key per kind of mark drawn that the legend explains: one per badge glyph
+("≥1 Required: share of cases missing it", "≤1 Limited: share of cases
+repeating it", "∅ Excluded: share of cases where it occurs", other badges the
+generic key), arcs, reverse-order arcs, self-loops, out-of-scope hatching,
+paths and activities not directly observed (re-added), paths not evaluated,
+the start and the end of the process; and the map-level chips.
 The scene carries it as `FlowScene.legend`, built by `legendOfScene` from what
 the scene draws, so a row exists exactly when its mark is drawn: a kind with
 no mark on the map has no key and a kind drawn many times has one; the path
@@ -614,9 +686,12 @@ scene): a key for each overlay kind given and always one for re-added paths.
 `<Legend/>`, `toSVG`, `toPNG` and the Canvas `drawLegend` render the rows; the
 heading is the legend's `title`. `legendLayout` places the rows from their
 heights in `legendMetrics`, so the legend's height follows from its rows, and
-shortens the texts an export writes (a swatch's entry and a key 24 less than
-the width, a chip's label and text 4 less) by the scene's text measure; the
-map's panel writes them in full.
+fits the texts an export writes by the scene's text measure: the measure and
+every scale's title wrap to the width (16 a line), a key wraps 24 less than
+the width (14 a line), a swatch's entry is shortened 24 less and a chip's
+label and text 4 less; the map's panel writes them in full. Up to 0.3 a key
+was shortened to one line, a title was not fitted, and the width row had two
+samples side by side; now they stand one per line.
 `figureFrame` measures an exported figure: the header (title 40, context
 line 18), the map with its padding and the offset of the scene's content,
 the legend column (220: a rule, 16 inset, rows 188 wide, 16 inset), the
@@ -627,6 +702,16 @@ and the legend, its baseline 12 into the row and the activity key below it;
 the legend's rule then ends beside the map, and a figure narrower than the
 note (11 px, measured by the scene's text measure) is widened so that the note
 fits between the paddings; the activity key is wrapped by the same measure.
+Unless `caption` is false, a caption line stands under the map and the legend
+(lines 16 apart, the first baseline 12 below, wrapped to the figure's width
+at 11 px), before the note and the activity key: `figureCaption` of the
+graph's `meta`, its parts joined by " · ": the label (`label` or `scene`), the
+cases ("251,734 cases"), the period (`period`, two dates or `{ from, to }`),
+the filters (`filters`, a filter or a list of clauses, in the words of the
+filter chips; an empty one reads "filter: none") and how much of the model is
+shown ("16 of 42 activities, 35 of 656 paths shown", from `meta.model`). A
+part whose data is missing is left out, and a graph without any of it has no
+caption: nothing is invented. In SVG the caption is a `<g class="wf-caption">`.
 `toSVG`, `toPNG` and the Canvas `drawLegend` draw from these.
 
 ## Formatting and strings
@@ -634,10 +719,53 @@ fits between the paddings; the activity key is wrapped by the same measure.
 ```ts
 export type Locale = "en" | "de";
 export function formatCount(v, locale?), formatNumber(v, decimals?, locale?), formatShare(v, locale?),
-  formatDelta(v, locale?), formatHours(v, locale?), formatDays(v, locale?), formatCompact(v, locale?);
+  formatDelta(v, locale?), formatHours(v, locale?), formatDays(v, locale?), formatCompact(v, locale?),
+  formatPathCount(v, locale?);
 export function t(locale: Locale, key: StringKey, vars?): string;
 export function metricLabel(locale: Locale, metric: string): string;
 ```
+
+The numbers follow one set of rules, in English and German:
+
+- activities, lists and tooltips: grouped full integers ("1,000"; "1.000");
+  up to 0.3 an activity's count on the map was compact ("1.0k");
+- paths (`formatPathCount`): in full up to 99,999, then "113k", "1.2M"
+  ("1,2M"), never "1.0k";
+- percentages (`formatShare`): integers, one decimal under 1 % ("0.4 %"), and
+  a share that is not zero never reads "0 %": under 0.05 % it reads "<0.1 %";
+- durations (`formatHours`): minutes under an hour, hours under 48, then days;
+- a missing value is "–", never 0.
+
+`formatCompact` remains for badges and hosts; the library no longer writes
+it on the map.
+
+### Metric registry
+
+```ts
+export type MetricKind = "count" | "share" | "hours" | "number";
+export interface MetricEntry { label: StringKey; unit: StringKey; kind: MetricKind; mean: StringKey; meanLabel?: StringKey; measure?: StringKey }
+export const metricRegistry: Readonly<Record<string, MetricEntry>>;   // cases, count, events, starts, ends, internalCount, members, violations, share, violationShare, medianLagHours, p90LagHours, medianNextHours
+export function metricEntry(name: string): MetricEntry | undefined;
+export function metricKind(name: string): MetricKind;                 // delta_ and a_ read their metric; else from the name
+export function metricName(name: string, locale?: Locale): string;    // "cases", "median lag", "difference …", "… (a)", else the name
+export function metricUnit(name: string, locale?: Locale): string;    // "count", "% of cases", "min, h, d"; "" for a plain number
+export function metricBasis(element, name: string): MetricBasis | undefined;
+export interface MetricFormatOptions { basis?: MetricBasis; path?: boolean }
+export function formatMetricValue(name: string, value: number | undefined, locale?: Locale, o?: MetricFormatOptions): string;
+export function elementMetric(element, name: string, locale?: Locale, path?: boolean): string;   // with the element's basis
+export function metricLabelOf(name: string, locale?: Locale, basis?: MetricBasis): string;     // "lag, mean of medians" for a mean
+export function metricMeanNote(name: string, locale?: Locale): string;                         // "mean of medians", for a table cell
+export function channelTitle(channel: StringKey, name: string, locale?: Locale): string;       // "Path width: cases (count)"
+```
+
+The registry holds for each metric the words it is named by, its unit and how
+its values are written, in English and German, and the wording of a lower
+bound ("at least 211,379", "mindestens 211.379") and of a mean of merged
+values ("mean of medians", "Mittel der Mediane"; "weighted mean",
+"gewichtetes Mittel"). The legend's rows, the descriptions, the table, the
+path list and the exports read it. A metric it does not hold is named by
+itself and written as a share, a duration or a count by its name, else as a
+number (whole numbers in full, others with one decimal).
 
 ## React (`@wise/flow/react`)
 
@@ -1477,7 +1605,7 @@ Use `nodeSize` when providing precomputed positions, with the map's text measure
 
 `references` maps canonical activity IDs to display references. Persist the dictionary across filters; absent entries are retained and new entries are added without renumbering. References indicate identity, not execution order. Optional `names` supplies display aliases; the original graph is unchanged.
 
-Nodes show one secondary measure: distinct cases/items. Hover, focus and the export key show the original name plus exact item and event counts. Missing values are marked unavailable. Tooltips are dismissible with Escape and remain visible while their trigger or tooltip is hovered. Selecting an activity returns its canonical ID.
+Nodes show one secondary measure: distinct cases/items, grouped in full ("1,107 items"; up to 0.3 compact, "1.1k items"). Hover, focus and the export key show the original name plus exact item and event counts; `activityCounts` writes them in full whatever its `exact` argument says. Missing values are marked unavailable. Tooltips are dismissible with Escape and remain visible while their trigger or tooltip is hovered. Selecting an activity returns its canonical ID.
 
 SVG and Canvas PNG exports include the canonical activity key even when the colour legend or node counts are hidden. Recorded self-loop labels describe transition occurrences; a case repeat share is reported only when the required case counts exist. Explicit constraint evidence remains separate.
 

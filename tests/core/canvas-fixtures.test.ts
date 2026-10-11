@@ -127,14 +127,20 @@ function exported(fixture: Fixture, scene: Partial<Scene>, options: PngOptions):
  * every culled one holds the same calls as before but written texts: that chip's
  * text keeps three more characters ("Manual touches in the order stag…", where
  * it was "… s…"), and thirteen labels are cut shorter, as in the SVG export.
+ * Recorded once more when the legend became a key and the numbers honest:
+ * the map's recordings hold as many calls as before, and only the stage
+ * colours (Purchase order, Invoice and Payment, as in the SVG export), the
+ * paths' widths (their cases) and the written numbers and the labels before
+ * them changed; in `toPNG` the legend's calls, the pattern twins of those
+ * stages, the caption line under the map and the figure's height changed too.
  */
 const before = {
-  mapGlobalStages: "d76e93bad8a63a57a8fcceaff31a7f4dd7beb53c41264c6ab7b8080e2a963d49",
-  mapVendorIds: "8875a2eda7732d28910672b13161ae68586279383539a328867670ea4e77cc60",
-  mapUnfiltered: "97ce3dbff21175509f842a29fd38f33d96f5ea8257d08272968da41882f76ada",
-  pngGlobalTitle: "42edde5cfb8e0fbae72e8bffc7f197d6bef6776698c3e0f3ca26106b427fa938",
-  pngVendorIds: "b93ae6dd21d853239fa06f357a9c0b366981de5d1642843af5ad38a7202e5a76",
-  pngUnfilteredGerman: "317d9e42f7fa9fe3ca849559feb07fb648be15acc1f125676a558b763830bdd6",
+  mapGlobalStages: "754e6e471690e03db4a87e2657d9d6adf67746c719b790a85f418046528cd182",
+  mapVendorIds: "25cb75294d9924103a235882ed82f1d185cc26d159235c4341fd161d417e130a",
+  mapUnfiltered: "e9fac24593aee85e78014e9905a5ac7c21b477f6077e8961897a8a5af9af93b8",
+  pngGlobalTitle: "ca48118904e429c78f1e79b20b0dc61616f47d1f72e55db845d9c596019eb929",
+  pngVendorIds: "f182bc07eb9d4660c2e57c38a78bfd7ea71690eddfd0ea58203aee99109f0567",
+  pngUnfilteredGerman: "37defaeb0a3cb232a8b9aafbc50580441c69b79e8097c9cdda8797c339a5c28b",
 };
 
 /**
@@ -148,12 +154,14 @@ const before = {
  * map's outline: only its stroke's width changed, 2 where it was 1.5.
  * Recorded once more, for the three strips with the labels this changes, when
  * the drawing began to write the texts the scene's measure fitted (as above).
+ * Recorded once more when the legend became a key and the numbers honest:
+ * stage colours, path widths and written numbers changed, as above.
  */
 const culledBefore = {
-  culledGlobal: "a6a60651617897d2b4f711ee2eeee6211b9222cf7e68d0703f51fa20b95a32b8",
-  culledGlobalStages: "c76a53a11b53f41729f8e9cc0f9c806663dc8c9aaf48bccd9f5215e85b4ff443",
-  culledVendorIds: "1152631216a5e5d5a93721de8645abb74c1d9f00b5b8b693515ccf8485bee91a",
-  culledUnfiltered: "ba15b9663fd4c666ed9ef5e4a7713c93ec45d7f94c1fa29c26199e33035f09cb",
+  culledGlobal: "8351e88c9aa2a87f0e2306e80f9e8e16c6a7fb44ff7e2f9a036d6d3e8b98dbb8",
+  culledGlobalStages: "babf0d8b703a22e494a6fb60ae1016a3249c6c3908179cd87e8b3e069add3b1e",
+  culledVendorIds: "cf83a9560cb63fb3c9062a01c9ffb000390228ba7143acebf1779e9441e7a463",
+  culledUnfiltered: "649ce393c8fdc8269e935241611c3b214a0cf0d3e3a3bee8552e332bf380d295",
 };
 
 describe("Canvas drawing on the committed fixtures", () => {

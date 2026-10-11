@@ -43,6 +43,8 @@ export interface PngOptions {
   context?: boolean;
   /** The edges drawn, as in `toSVG`: those a map reported, or a budget. Default every edge. */
   edgeBudget?: EdgeBudget | ShownEdges;
+  /** The caption line under the map and the legend, as in `toSVG` (`figureCaption`). Default true. */
+  caption?: boolean;
 }
 
 export interface PngCanvas {
@@ -74,7 +76,7 @@ export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
   const tokens: CanvasTokens = { ...sceneTokens(prepared), ...(options.tokens ?? {}) };
   const { text: textTokens } = prepared.theme;
   const { edgeBudget } = options;
-  const frame = figureFrame(prepared, { title: !!scene.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: options.width, withheld: budgetEdges(prepared, edgeBudget) });
+  const frame = figureFrame(prepared, { title: !!scene.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: options.width, withheld: budgetEdges(prepared, edgeBudget), caption: options.caption });
   const { padding: pad, width: totalW, outWidth: cssWidth, outHeight: cssHeight } = frame;
   const k = totalW > 0 ? cssWidth / totalW : 1;
   const scale = options.scale ?? Math.max(2, typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1);
@@ -124,11 +126,12 @@ export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
     ctx.globalAlpha = 1;
     drawLegend(ctx, prepared, x, y, width, tokens, { createCanvas: (w, h) => create(w, h) });
   }
-  if (frame.note || frame.key.lines.length) {
+  if (frame.caption || frame.note || frame.key.lines.length) {
     ctx.fillStyle = tokens.ink;
     ctx.font = fontOf(textTokens.figureText, tokens.font);
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
+    if (frame.caption) frame.caption.lines.forEach((line, i) => ctx.fillText(line, frame.caption!.x, frame.caption!.y + i * figureMetrics.keyLine));
     if (frame.note) ctx.fillText(frame.note.text, frame.note.x, frame.note.y);
     frame.key.lines.forEach((line, i) => ctx.fillText(line, pad, frame.key.y + i * figureMetrics.keyLine));
   }

@@ -4,7 +4,8 @@
  * limited to, or wrapped into lines, by the scene's text measure.
  */
 import { type ActivityLabelOptions, activityDescription, activityLabelLines } from "./activity-labels.js";
-import { type Locale, formatCompact } from "./format.js";
+import { type Locale, formatPathCount } from "./format.js";
+import { elementMetric, metricBasis } from "./metrics.js";
 import { type Box, type Positions, type XY, straightRoute } from "./layout.js";
 import type { LaneBand } from "./lanes.js";
 import { type EdgeKind, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type GroupKind, type NodeKind, hasTag, metric } from "./model.js";
@@ -96,9 +97,11 @@ export interface EdgeMark {
   color: string;
   width: number;
   dash?: number[];
-  /** The count label at `edgeLabelPoint`, where the edge has a count. */
+  /** The count label at `edgeLabelPoint`, where the edge has a count; "–" on a path not evaluated. */
   texts: ElementText[];
   reconnected: boolean;
+  /** A path without a value: drawn in the line colour at the thinnest width (`Scales.notEvaluated`). */
+  notEvaluated?: boolean;
 }
 
 interface NodeMarkOptions {
@@ -118,10 +121,14 @@ export function gatewayGlyph(node: FlowNode): string {
   return hasTag(node, "and") ? "+" : hasTag(node, "or") ? "○" : "×";
 }
 
-/** The count a node shows: its cases, and for a stage its members before them. */
+/**
+ * The count a node shows: its cases grouped in full, and for a stage its
+ * members before them. Cases that are a lower bound (a collapsed stage) read
+ * "at least 211,379".
+ */
 export function nodeCount(node: FlowNode, locale: Locale = "en"): string | undefined {
   const cases = metric(node, "cases", NaN);
-  const shown = Number.isFinite(cases) ? formatCompact(cases, locale) : "";
+  const shown = Number.isFinite(cases) ? elementMetric(node, "cases", locale) : "";
   if (node.kind !== "stage") return shown || undefined;
   const members = metric(node, "members", NaN);
   return `${Number.isFinite(members) ? `${members} · ` : ""}${shown}`.trim() || undefined;
@@ -223,10 +230,19 @@ const RECONNECTED_EDGE_DASH = Object.freeze(dashTokens.reconnectedPath);
 const CONSTRAINT_DASH = Object.freeze(dashTokens.constraint);
 const NO_TEXTS: ElementText[] = Object.freeze([]) as unknown as ElementText[];
 
-/** What one edge looks like along its route. */
-export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string; width: number; locale?: Locale; theme?: Theme }): EdgeMark {
+/**
+ * What one edge looks like along its route. A path's label is the count of
+ * `metric` (`Scales.pathMetric`; another edge and a path without one: its
+ * cases, else its transitions):
+ * in full up to 99,999, then shortened; "≥" before a lower bound; "–" on a
+ * path `notEvaluated`.
+ */
+export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string; width: number; locale?: Locale; theme?: Theme; metric?: string; notEvaluated?: boolean }): EdgeMark {
   const reconnected = hasTag(edge, RECONNECTED_TAG);
-  const count = metric(edge, "count", NaN);
+  // A path reads the scene's path metric; another edge (a sequence flow, a constraint) its own cases, else its count.
+  const name = (edge.kind === "follows" && options.metric) || (Number.isFinite(metric(edge, "cases", NaN)) ? "cases" : "count");
+  const count = metric(edge, name, NaN);
+  const label = Number.isFinite(count) ? `${metricBasis(edge, name) === "atLeast" ? "≥" : ""}${formatPathCount(count, options.locale ?? "en")}` : options.notEvaluated ? "–" : undefined;
   const at = edgeLabelPoint(points);
   return {
     id: edge.id,
@@ -236,10 +252,11 @@ export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string;
     color: options.color,
     width: options.width,
     dash: (reconnected ? RECONNECTED_EDGE_DASH : edge.kind === "constraint" ? CONSTRAINT_DASH : undefined) as number[] | undefined,
-    texts: Number.isFinite(count)
-      ? [{ text: formatCompact(count, options.locale ?? "en"), x: at.x, y: at.y, size: (options.theme ?? defaultTheme).text.pathLabel.size, anchor: "middle", baseline: "alphabetic", paint: "ink", halo: true, role: "count", lod: "edgeLabels" }]
+    texts: label
+      ? [{ text: label, x: at.x, y: at.y, size: (options.theme ?? defaultTheme).text.pathLabel.size, anchor: "middle", baseline: "alphabetic", paint: "ink", halo: true, role: "count", lod: "edgeLabels" }]
       : NO_TEXTS,
     reconnected,
+    ...(options.notEvaluated && { notEvaluated: true }),
   };
 }
 
@@ -266,7 +283,7 @@ export function edgeMarks(graph: FlowGraph, positions: Positions, scales: Scales
     graph.edges.flatMap((e) => {
       if (e.source === e.target) return [];
       const points = edgePoints(positions, e);
-      return points ? [edgeMark(e, points, { color: edgeColor(e, scales, theme), width: scales.edgeWidth(e), locale, theme })] : [];
+      return points ? [edgeMark(e, points, { color: edgeColor(e, scales, theme), width: scales.edgeWidth(e), locale, theme, metric: scales.pathMetric, notEvaluated: scales.notEvaluated(e) })] : [];
     }),
   );
 }

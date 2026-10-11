@@ -9,7 +9,7 @@ const views: ViewSpec[] = [
   {
     id: "logistics",
     label: "Logistics",
-    style: { edgeWidth: { metric: "count", scale: "sqrt", range: [1, 8] }, edgeColor: { metric: "medianLagHours", palette: "sequentialBlue" }, nodeColor: { metric: "medianNextHours", palette: "sequentialBlue" } },
+    style: { edgeWidth: { metric: "cases", scale: "sqrt", range: [1, 8] }, edgeColor: { metric: "medianLagHours", palette: "sequentialBlue" }, nodeColor: { metric: "medianNextHours", palette: "sequentialBlue" } },
     overlays: overlaysFor(items.filter((it) => it.description.type === "lag"), { graph: base }),
   },
   { id: "compliance", label: "Compliance", overlays: overlaysFor(items.filter((it) => it.description.type === "precedence" || it.description.type === "exclusion"), { graph: base }) },

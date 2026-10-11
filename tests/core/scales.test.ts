@@ -24,14 +24,21 @@ describe("buildScales", () => {
     const widths = globalScene.edges.map((e) => s.edgeWidth(e));
     expect(Math.min(...widths)).toBeGreaterThanOrEqual(1);
     expect(Math.max(...widths)).toBeLessThanOrEqual(8);
-    const strongest = globalScene.edges.reduce((m, e) => ((e.metrics?.count ?? 0) > (m.metrics?.count ?? 0) ? e : m));
+    // The width reads cases, as the activities count.
+    const strongest = globalScene.edges.reduce((m, e) => ((e.metrics?.cases ?? 0) > (m.metrics?.cases ?? 0) ? e : m));
     expect(s.edgeWidth(strongest)).toBe(8);
-    expect(s.edgeColor({ id: "x", kind: "follows", source: "a", target: "b", metrics: { violationShare: 0 } })).toBe(palettes.sequential[0]);
-    expect(s.edgeColor({ id: "x", kind: "follows", source: "a", target: "b", metrics: { violationShare: 1 } })).toBe(palettes.sequential[palettes.sequential.length - 1]);
-    expect(s.edgeColor({ id: "x", kind: "follows", source: "a", target: "b" })).toBe("#8c8c8c");
+    expect(s.pathMetric).toBe("cases");
+    expect(s.edgeColor({ id: "x", kind: "follows", source: "a", target: "b", metrics: { cases: 1, violationShare: 0 } })).toBe(palettes.sequential[0]);
+    expect(s.edgeColor({ id: "x", kind: "follows", source: "a", target: "b", metrics: { cases: 1, violationShare: 1 } })).toBe(palettes.sequential[palettes.sequential.length - 1]);
+    expect(s.edgeColor({ id: "x", kind: "follows", source: "a", target: "b", metrics: { cases: 1 } })).toBe("#8c8c8c");
+    // A path without cases is not evaluated: the line colour at the thinnest width.
+    const bare = { id: "x", kind: "follows" as const, source: "a", target: "b" };
+    expect(s.notEvaluated(bare)).toBe(true);
+    expect(s.edgeColor(bare)).toBe("#cfd4dc");
+    expect(s.edgeWidth(bare)).toBe(1);
   });
 
-  it("assigns categorical colours by hashed key with pattern twins", () => {
+  it("assigns categorical colours with pattern twins and lists the stages in their order with their labels", () => {
     const s = buildScales(globalScene, defaultStyle);
     const order = s.categorical("order");
     expect(s.categorical("order")).toEqual(order);
@@ -43,14 +50,20 @@ describe("buildScales", () => {
     expect(s.nodeColor(node)).toBe(order.color);
     expect(s.nodePattern(node)).toBe(order.pattern);
     const cat = s.legend.find((l) => l.kind === "categorical");
-    expect(cat && cat.kind === "categorical" ? cat.entries.map((e) => e.key) : []).toEqual(["invoice", "order", "payment", "receipt", "requisition"]);
+    expect(cat && cat.kind === "categorical" ? cat.entries.map((e) => [e.key, e.label]) : []).toEqual([
+      ["requisition", "Requisition"],
+      ["order", "Purchase order"],
+      ["receipt", "Goods receipt"],
+      ["invoice", "Invoice"],
+      ["payment", "Payment"],
+    ]);
   });
 
   it("uses a symmetric diverging domain for deltas", () => {
     const d = diff(globalScene, globalScene);
     const s = buildScales(d, diffStyle);
     expect(s.domains.edgeColor).toEqual([-0.5, 0, 0.5]);
-    expect(s.edgeColor({ id: "x", kind: "follows", source: "a", target: "b", metrics: { delta_violationShare: 0 } })).toBe(palettes.diverging[3]);
+    expect(s.edgeColor({ id: "x", kind: "follows", source: "a", target: "b", metrics: { cases: 1, delta_violationShare: 0 } })).toBe(palettes.diverging[3]);
     const auto = buildScales(d, { edgeColor: { metric: "delta_count", palette: "diverging" } });
     const dom = auto.domains.edgeColor!;
     expect(dom[1]).toBe(0);

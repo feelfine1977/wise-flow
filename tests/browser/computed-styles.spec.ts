@@ -19,7 +19,15 @@ import { fileURLToPath } from "node:url";
  * once more when the legend began to list only the kinds of marks the map
  * draws: the legends of the stage map, the overlay catalogue and the BPMN view
  * lost their row for re-added paths (a `dd` and its glyph), which those maps do
- * not draw; every other element is the same. Geometry
+ * not draw; every other element is the same. They were recorded once more when
+ * the legend became a key and the numbers honest; compared element by element,
+ * only these changed: the legends (a line naming the measure, the stages
+ * flowing side by side by their labels, the keys in a row that wraps, one per
+ * badge glyph and for the start and the end); the paths' stroke widths, now
+ * their cases; and the colours of the stages Purchase order, Invoice and
+ * Payment wherever they are painted (node outlines and bands, group tints and
+ * outlines, lane bands, legend and table swatches, and the pattern twins the
+ * map defines for them). Geometry
  * that depends on the fonts of the machine (widths, heights, positions) is left
  * out, so the record holds on every operating system.
  */

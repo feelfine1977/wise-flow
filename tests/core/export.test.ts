@@ -163,7 +163,7 @@ describe("toSVG node and edge marks", () => {
   it("draws every node kind from its mark", () => {
     expect(groups(draw(), "node")).toEqual([
       // Text whose middle is given sits on a baseline 0.3 × its size lower: 20 + 3.6.
-      '<g class="wf-node wf-node-activity" data-id="a"><rect x="100" y="0" width="180" height="40" rx="6" fill="#ffffff" stroke="#8c8c8c" stroke-width="2"/><rect x="100" y="0" width="8" height="40" rx="3" fill="#8c8c8c"/><text x="116" y="23.6" font-size="12" fill="#1f1f1f">Check invoice</text><text x="274" y="35" font-size="9" text-anchor="end" fill="#5b6270">1.2k</text></g>',
+      '<g class="wf-node wf-node-activity" data-id="a"><rect x="100" y="0" width="180" height="40" rx="6" fill="#ffffff" stroke="#8c8c8c" stroke-width="2"/><rect x="100" y="0" width="8" height="40" rx="3" fill="#8c8c8c"/><text x="116" y="23.6" font-size="12" fill="#1f1f1f">Check invoice</text><text x="274" y="35" font-size="9" text-anchor="end" fill="#5b6270">1,234</text></g>',
       // The event's label sits inside its circle, as on the map.
       '<g class="wf-node wf-node-event" data-id="end"><circle cx="858" cy="20" r="18" fill="#ffffff" stroke="#1f1f1f" stroke-width="3"/><text x="858" y="22.7" font-size="9" text-anchor="middle" fill="#1f1f1f">End</text></g>',
       // The gateway shows its glyph, not its label.
@@ -172,7 +172,7 @@ describe("toSVG node and edge marks", () => {
       '<g class="wf-node wf-node-note" data-id="n"><rect x="640" y="0" width="160" height="60" rx="6" fill="#f6f7f9" stroke="#8c8c8c" stroke-width="2" stroke-dasharray="2 3"/><text x="656" y="33.3" font-size="11" fill="#1f1f1f">Ask the vendor twice</text></g>',
       '<g class="wf-node wf-node-activity" data-id="r"><rect x="400" y="100" width="180" height="40" rx="6" fill="#ffffff" stroke="#8c8c8c" stroke-width="2" stroke-dasharray="4 3"/><rect x="400" y="100" width="8" height="40" rx="3" fill="#8c8c8c"/><text x="416" y="123.6" font-size="12" fill="#1f1f1f">Re-added</text></g>',
       // The stage shows its members line.
-      '<g class="wf-node wf-node-stage" data-id="s"><rect x="400" y="0" width="200" height="56" rx="6" fill="#ffffff" stroke="#8c8c8c" stroke-width="3"/><rect x="400" y="0" width="8" height="56" rx="3" fill="#8c8c8c"/><text x="416" y="31.6" font-size="12" font-weight="600" fill="#1f1f1f">Payment</text><text x="594" y="51" font-size="9" text-anchor="end" fill="#5b6270">4 · 1.5k</text></g>',
+      '<g class="wf-node wf-node-stage" data-id="s"><rect x="400" y="0" width="200" height="56" rx="6" fill="#ffffff" stroke="#8c8c8c" stroke-width="3"/><rect x="400" y="0" width="8" height="56" rx="3" fill="#8c8c8c"/><text x="416" y="31.6" font-size="12" font-weight="600" fill="#1f1f1f">Payment</text><text x="594" y="51" font-size="9" text-anchor="end" fill="#5b6270">4 · 1,500</text></g>',
       '<g class="wf-node wf-node-event" data-id="start"><circle cx="18" cy="20" r="18" fill="#ffffff" stroke="#1f1f1f" stroke-width="2"/><text x="18" y="22.7" font-size="9" text-anchor="middle" fill="#1f1f1f">Start</text></g>',
     ]);
   });
@@ -184,7 +184,7 @@ describe("toSVG node and edge marks", () => {
       `<g class="wf-edge" data-id="a-&gt;g">${path("M280 20L320 20", "#8c8c8c")}<text x="300" y="16" font-size="10" text-anchor="middle" ${halo}>12</text></g>`,
       `<g class="wf-edge" data-id="g-&gt;s">${path("M364 20L382 20L382 28L400 28", "#0072B2", ' stroke-dasharray="2 4"')}</g>`,
       `<g class="wf-edge" data-id="s-&gt;r">${path("M500 56L500 100", "#8c8c8c", ' stroke-dasharray="6 5"')}<text x="500" y="74" font-size="10" text-anchor="middle" ${halo}>3</text></g>`,
-      `<g class="wf-edge" data-id="start-&gt;a">${path("M36 20L100 20", "#8c8c8c")}<text x="68" y="16" font-size="10" text-anchor="middle" ${halo}>1.2k</text></g>`,
+      `<g class="wf-edge" data-id="start-&gt;a">${path("M36 20L100 20", "#8c8c8c")}<text x="68" y="16" font-size="10" text-anchor="middle" ${halo}>1,234</text></g>`,
     ]);
   });
 
@@ -201,7 +201,7 @@ describe("toSVG node and edge marks", () => {
   it("truncates labels by the core rule and keeps the full text in a title", () => {
     const long = { ...elements.graph, nodes: elements.graph.nodes.map((n) => (n.id === "a" ? { ...n, label: "Change Approval for Purchase Order" } : n)) };
     const svg = toSVG({ graph: long, positions: elements.positions, style: elements.style }, { legend: false });
-    // 126.2 by the estimate beside the count "1.2k": 18 characters and the ellipsis.
-    expect(svg).toContain(">Change Approval fo…<");
+    // 121.25 by the estimate beside the count "1,234" (180 − 24 − 4 − 6 − 5 × 4.95): 17 characters and the ellipsis.
+    expect(svg).toContain(">Change Approval f…<");
   });
 });

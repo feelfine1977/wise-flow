@@ -55,10 +55,12 @@ describe("what the elements of a scene share", () => {
   });
 
   it("gives edges without a count one frozen empty list of texts and the dashed edges of a kind one frozen dash", () => {
-    const none = edge("s1-a1").texts;
+    const none = edge("a1-a2").texts;
     expect(none).toEqual([]);
     expect(Object.isFrozen(none)).toBe(true);
-    for (const id of ["s2-a2", "a1-a2", "r1-r2"]) expect(edge(id).texts).toBe(none);
+    expect(edge("r1-r2").texts).toBe(none);
+    // Paths without a count are not evaluated: labelled "–".
+    for (const id of ["s1-a1", "s2-a2"]) expect(edge(id).texts.map((t) => t.text)).toEqual(["–"]);
     expect(edge("a1-r1").texts.map((t) => t.text)).toEqual(["2"]);
 
     expect(edge("a1-r1").dash).toEqual([6, 5]);

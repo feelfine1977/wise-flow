@@ -3,6 +3,7 @@ import { collapsedActivityIds } from "./collapsed-members.js";
  * Aggregation: abstraction by frequency or performance with a keep-connected
  * guarantee, stage collapse (semantic zoom) and diff maps.
  */
+import type { MetricBasis } from "./metrics.js";
 import {
   type FlowEdge,
   type FlowGraph,
@@ -76,34 +77,48 @@ export function strengths<T extends { id: string; metrics?: Metrics }>(
   return out;
 }
 
-function sumMetrics(items: { metrics?: Metrics }[], weightKey: string[]): Metrics {
+/**
+ * The metrics of merged elements: counts summed (exact), cases and shares the
+ * maximum (a lower bound once more than one element is merged: the cases they
+ * share are not known), every other metric a mean weighted by the first of
+ * `weightKey` (a mean, not the metric of the whole). What is not exact is
+ * listed in `basis`; a value an element already carried as a bound or a mean
+ * stays one.
+ */
+function sumMetrics(items: { metrics?: Metrics; metricBasis?: Partial<Record<string, MetricBasis>> }[], weightKey: string[]): { metrics: Metrics; basis?: Partial<Record<string, MetricBasis>> } {
   const SUM = new Set(["events", "count", "starts", "ends", "violations", "internalCount"]);
   const MAX = new Set(["cases", "share"]);
   const names = new Set<string>();
   for (const it of items) for (const k of Object.keys(it.metrics ?? {})) names.add(k);
   const out: Metrics = {};
+  const basis: Partial<Record<string, MetricBasis>> = {};
   for (const name of names) {
     let sum = 0;
     let max = -Infinity;
     let weighted = 0;
     let weightSum = 0;
-    let any = false;
+    let n = 0;
+    let given: MetricBasis | undefined;
     for (const it of items) {
       const v = it.metrics?.[name];
       if (typeof v !== "number" || !Number.isFinite(v)) continue;
-      any = true;
+      n++;
       sum += v;
       max = Math.max(max, v);
       const w = firstMetric(it, weightKey) ?? 1;
       weighted += v * w;
       weightSum += w;
+      given = it.metricBasis?.[name] === "mean" ? "mean" : (given ?? it.metricBasis?.[name]);
     }
-    if (!any) continue;
+    if (!n) continue;
     if (SUM.has(name)) out[name] = sum;
     else if (MAX.has(name)) out[name] = max;
     else out[name] = weightSum > 0 ? weighted / weightSum : sum / items.length;
+    const merged = n > 1 && !SUM.has(name) ? (MAX.has(name) ? "atLeast" : "mean") : undefined;
+    const b = merged === "mean" || given === "mean" ? "mean" : (merged ?? given);
+    if (b) basis[name] = b;
   }
-  return out;
+  return Object.keys(basis).length ? { metrics: out, basis } : { metrics: out };
 }
 
 /**
@@ -111,6 +126,8 @@ function sumMetrics(items: { metrics?: Metrics }[], weightKey: string[]): Metric
  * The stage node takes the group's id and label. Internal edges are dropped and
  * counted in the stage node's `internalCount`; parallel edges are merged (counts
  * summed, cases and shares taken as the maximum, other metrics averaged by weight).
+ * Of more than one merged element, the maximum of cases and share is marked a lower
+ * bound and an average a mean (`metricBasis`); the values themselves are not changed.
  * Overlays remain separate: member/internal-edge targets move to the stage and
  * parallel-edge targets move to the merged edge, without averaging overlay values.
  * Folded arcs become labeled chips. `meta.collapsedMembers` retains original
@@ -159,12 +176,14 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
     const group = idx.groups.get(root)!;
     const members = membersOf.get(root)!;
     collapsedMembers.set(root, [...new Set(members.flatMap((member) => collapsedActivityIds(graph, member.id) ?? (member.kind === "activity" ? [member.id] : [])))]);
+    const { metrics, basis } = sumMetrics(members, ["cases", "events"]);
     nodes.push({
       id: root,
       kind: "stage",
       label: group.label,
       group: group.parent,
-      metrics: { ...sumMetrics(members, ["cases", "events"]), members: members.length },
+      metrics: { ...metrics, members: members.length },
+      ...(basis && { metricBasis: basis }),
       tags: [COLLAPSED_TAG],
     });
   }
@@ -209,12 +228,14 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
     for (let suffix = 1; usedIds.has(id); suffix++) id = `${baseId}:${first.kind}:${suffix}`;
     usedIds.add(id);
     for (const edge of list) edgeTarget.set(edge.id, id);
+    const { metrics, basis } = sumMetrics(list, ["count", "cases"]);
     return {
       id,
       kind: first.kind,
       source: first.source,
       target: first.target,
-      metrics: sumMetrics(list, ["count", "cases"]),
+      metrics,
+      ...(basis && { metricBasis: basis }),
       tags: [...new Set(list.flatMap((e) => e.tags ?? []))],
     };
   });
@@ -578,6 +599,9 @@ function restoreFlowContext(
  * weak follows edges, then (by default) restore connectivity with the strongest removed
  * elements. Structural nodes (events, gateways), constraint and flow edges are kept.
  * The result keeps the input order of elements; re-added elements are tagged.
+ * `meta.model` records the activities, paths and group order of the graph
+ * before any abstraction (kept from an earlier one): a figure's caption
+ * reports how much of it is shown, and stage colours follow its order.
  */
 export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowGraph {
   const { minEdgeShare = 0, minNodeShare = 0, keepConnected = true, collapse = false } = options;
@@ -618,6 +642,12 @@ export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowG
     meta: {
       ...(base.meta ?? {}),
       abstraction: { minEdgeShare, minNodeShare, keepConnected, collapse: collapse || undefined },
+      // The model before any abstraction: a figure's caption reports its size, stage colours follow its groups' order.
+      model: base.meta?.model ?? {
+        activities: graph.nodes.filter((n) => n.kind === "activity").length,
+        paths: graph.edges.filter((e) => e.kind === "follows" && e.source !== e.target).length,
+        groups: (graph.groups ?? []).map((g) => g.id),
+      },
     },
   };
 }

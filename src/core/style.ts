@@ -5,6 +5,7 @@
  */
 import { scaleLinear, scaleLog, scaleSqrt } from "d3-scale";
 import { hatchSvg, patternTwinSvg, svgMarkup } from "./mark-svg.js";
+import { metricKind } from "./metrics.js";
 import { type FlowEdge, type FlowGraph, type FlowNode, metric } from "./model.js";
 import type { StringKey } from "./strings.js";
 import { type ColorScheme, type Theme, type ThemePalettes, colorChannels, defaultTheme, themeColors } from "./theme.js";
@@ -226,6 +227,15 @@ export interface StyleSpec {
   edgeColor?: ColorSpec;
   nodeColor?: ColorSpec;
   lod?: Partial<LodRules>;
+  /**
+   * The host's full list of stage (group) ids in stage order. Categorical
+   * colours and their pattern twins are assigned in this order, then to the
+   * graph's other groups and keys in the order they first appear, so that a
+   * filtered graph keeps every stage's colour. Without it the order of the
+   * unfiltered graph that `abstract` records (`meta.model.groups`) is used,
+   * then the graph's own.
+   */
+  stages?: readonly string[];
 }
 
 export const defaultLod: LodRules = {
@@ -239,14 +249,14 @@ export const defaultLod: LodRules = {
 };
 
 export const defaultStyle: StyleSpec = {
-  edgeWidth: { metric: "count", scale: "sqrt", range: [strokeTokens.pathMin, strokeTokens.pathMax] },
+  edgeWidth: { metric: "cases", scale: "sqrt", range: [strokeTokens.pathMin, strokeTokens.pathMax] },
   edgeColor: { metric: "violationShare", palette: "sequential", domain: [0, 1] },
   nodeColor: { by: "group", palette: "categorical" },
 };
 
-/** Style for diff maps: width from the slice, colour from the delta of the shortfall share. */
+/** Style for diff maps: width from the slice's cases, colour from the delta of the shortfall share. */
 export const diffStyle: StyleSpec = {
-  edgeWidth: { metric: "count", scale: "sqrt", range: [strokeTokens.pathMin, strokeTokens.pathMax] },
+  edgeWidth: { metric: "cases", scale: "sqrt", range: [strokeTokens.pathMin, strokeTokens.pathMax] },
   edgeColor: { metric: "delta_violationShare", palette: "diverging", domain: [-0.5, 0, 0.5] },
   nodeColor: { metric: "delta_violationShare", palette: "diverging", domain: [-0.5, 0, 0.5] },
 };
@@ -282,10 +292,22 @@ export interface CategoricalEntry {
   color: string;
   pattern: PatternId;
   index: number;
+  /** The group's label where the key is a group's id. */
+  label?: string;
 }
 
 export type LegendItem =
-  | { kind: "width"; title: StringKey; metric: string; domain: [number, number]; range: [number, number] }
+  | {
+      kind: "width";
+      title: StringKey;
+      metric: string;
+      domain: [number, number];
+      range: [number, number];
+      /** Three values with the widths the scale draws them at: the domain's ends and a value near the middle width. */
+      samples?: { value: number; width: number }[];
+      /** The paths count transitions: the graph gives no cases for them. */
+      transitionsOnly?: boolean;
+    }
   | { kind: "sequential" | "diverging"; title: StringKey; metric: string; domain: number[]; stops: readonly string[] }
   | { kind: "categorical"; title: StringKey; entries: CategoricalEntry[] };
 
@@ -295,8 +317,23 @@ export interface Scales {
   edgeColor(edge: FlowEdge): string;
   nodeColor(node: FlowNode): string;
   nodePattern(node: FlowNode): PatternId;
-  /** Colour and pattern twin for a categorical key; stable by hashed key. */
+  /**
+   * Colour and pattern twin for a categorical key: assigned in stage order
+   * (`StyleSpec.stages`, `meta.model.groups`, then the graph's groups and
+   * keys), each key from its hashed colour to the next one free, so that no
+   * two keys share a colour until the palette is used up; then the colours
+   * are used again with the next pattern. A key outside that order takes its
+   * hashed colour.
+   */
   categorical(key: string): CategoricalEntry;
+  /**
+   * The count metric paths are labelled with and their width reads: the width
+   * metric, `cases` by default, or `count` where the graph gives paths only
+   * transition counts.
+   */
+  pathMetric: string;
+  /** A follows edge without a value of `pathMetric`: drawn in the line colour at the thinnest width, labelled "–". */
+  notEvaluated(edge: FlowEdge): boolean;
   /** Colour for a metric value on a named palette and domain. */
   color(value: number, palette: PaletteName, domain: number[]): string;
   legend: LegendItem[];
@@ -331,11 +368,40 @@ export function colorOn(value: number, palette: PaletteName, domain: number[], t
   return interpolatePalette(stops, tt);
 }
 
-/** The colour and pattern twin of a categorical key in a theme's categorical palette. */
-function categoricalEntry(key: string, theme: Theme): CategoricalEntry {
-  const colors = theme.palette.categorical;
-  const index = hashKey(key) % colors.length;
-  return { key, color: colors[index], pattern: theme.patterns[index % theme.patterns.length], index };
+/** The colour and pattern twin of a categorical key in a theme's categorical palette, by its hash; `round` shifts the pattern. */
+function categoricalEntry(key: string, theme: Theme, index = hashKey(key) % theme.palette.categorical.length, round = 0): CategoricalEntry {
+  return { key, color: theme.palette.categorical[index], pattern: theme.patterns[(index + round) % theme.patterns.length], index };
+}
+
+/**
+ * The entries of keys in their order: each takes its hashed colour or the
+ * next one not yet taken; once every colour is taken they are free again
+ * and the next round shifts the pattern twins by one.
+ */
+export function orderedCategorical(keys: Iterable<string>, theme: Theme = defaultTheme): Map<string, CategoricalEntry> {
+  const size = theme.palette.categorical.length;
+  const out = new Map<string, CategoricalEntry>();
+  const taken = new Set<number>();
+  let round = 0;
+  for (const key of keys) {
+    if (out.has(key) || !size) continue;
+    if (taken.size === size) {
+      taken.clear();
+      round++;
+    }
+    let index = hashKey(key) % size;
+    while (taken.has(index)) index = (index + 1) % size;
+    taken.add(index);
+    out.set(key, categoricalEntry(key, theme, index, round));
+  }
+  return out;
+}
+
+/** The value of a count with two significant digits: 357 → 360. */
+function roundish(v: number): number {
+  if (!(Math.abs(v) >= 100)) return Math.round(v);
+  const step = 10 ** (Math.floor(Math.log10(Math.abs(v))) - 1);
+  return Math.round(v / step) * step;
 }
 
 /** Build the scales of a graph for a style specification in a theme's palettes; deterministic for the same input. */
@@ -343,16 +409,27 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
   const domains: Scales["domains"] = {};
   const neutral = theme.color.neutral;
   const color = (value: number, palette: PaletteName, domain: number[]) => colorOn(value, palette, domain, theme);
-  const categorical = (key: string) => categoricalEntry(key, theme);
   // Paths carry the metrics; sequence flows of a BPMN-lite graph carry the same metrics.
   const follows = graph.edges.filter((e) => e.kind === "follows" || e.kind === "flow");
+  const has = (name: string) => follows.some((e) => Number.isFinite(metric(e, name, NaN)));
+  // Paths count cases like activities; where the graph gives them only transitions, they count those.
+  const transitionsOnly = !has("cases") && has("count");
+  const resolved = (name: string) => (name === "cases" && transitionsOnly ? "count" : name);
+
+  // Categorical colours in stage order, then in the order groups and keys first appear.
+  const keyOf = categoricalKey(spec.nodeColor);
+  const order = orderedCategorical([...(spec.stages ?? []), ...(graph.meta?.model?.groups ?? []), ...(graph.groups ?? []).map((g) => g.id), ...graph.nodes.flatMap((n) => keyOf(n) ?? [])], theme);
+  const categorical = (key: string) => order.get(key) ?? categoricalEntry(key, theme);
 
   // Edge width
-  const widthSpec = spec.edgeWidth;
+  const widthSpec = spec.edgeWidth && { ...spec.edgeWidth, metric: resolved(spec.edgeWidth.metric) };
+  const pathMetric = widthSpec && metricKind(widthSpec.metric) === "count" ? widthSpec.metric : resolved("cases");
+  const notEvaluated = (e: FlowEdge) => e.kind === "follows" && !Number.isFinite(metric(e, pathMetric, NaN));
   let widthFn: (e: FlowEdge) => number = () => theme.stroke.path;
+  let samples: { value: number; width: number }[] | undefined;
+  const measured = widthSpec && (widthSpec.domain ?? extentOf(follows.map((e) => metric(e, widthSpec.metric, NaN))));
   if (widthSpec) {
-    const domain =
-      widthSpec.domain ?? extentOf(follows.map((e) => metric(e, widthSpec.metric, NaN))) ?? [0, 1];
+    const domain = measured ?? [0, 1];
     const safeDomain: [number, number] = domain[0] === domain[1] ? [0, domain[1] || 1] : domain;
     const range = widthSpec.range ?? [theme.stroke.pathMin, theme.stroke.pathMax];
     const kind = widthSpec.scale ?? "sqrt";
@@ -363,11 +440,15 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
           ? scaleLinear().domain(safeDomain).range(range).clamp(true)
           : scaleSqrt().domain(safeDomain).range(range).clamp(true);
     domains.edgeWidth = safeDomain;
+    const at = (v: number) => Number(s(kind === "log" ? Math.max(1e-9, v) : v).toFixed(2));
     widthFn = (e) => {
       const v = e.metrics?.[widthSpec.metric];
       if (typeof v !== "number" || !Number.isFinite(v)) return range[0];
-      return Number(s(kind === "log" ? Math.max(1e-9, v) : v).toFixed(2));
+      return at(v);
     };
+    const middle = Number(s.invert((range[0] + range[1]) / 2));
+    // A count near the middle width, with two significant digits; another metric as it is.
+    samples = [safeDomain[0], metricKind(widthSpec.metric) === "count" ? roundish(middle) : middle, safeDomain[1]].map((value) => ({ value, width: at(value) }));
   }
 
   // Edge colour
@@ -388,25 +469,10 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
       return typeof v === "number" && Number.isFinite(v) ? color(v, palette, domain) : neutral;
     };
   }
+  const pathColorFn = (e: FlowEdge) => (notEvaluated(e) ? theme.color.line : edgeColorFn(e));
 
   // Node colour and pattern
   const nodeSpec = spec.nodeColor;
-  const keyOf = (n: FlowNode): string | undefined => {
-    switch (nodeSpec?.by) {
-      case "group":
-        return n.group;
-      case "kind":
-        return n.kind;
-      case "layer":
-        return n.tags?.find((tg) => tg.startsWith("layer:"))?.slice(6);
-      case "tag": {
-        const prefix = nodeSpec.tagPrefix ?? "";
-        return n.tags?.find((tg) => tg.startsWith(prefix))?.slice(prefix.length);
-      }
-      default:
-        return undefined;
-    }
-  };
   let nodeColorFn: (n: FlowNode) => string = () => neutral;
   let nodePatternFn: (n: FlowNode) => PatternId = () => "solid";
   const categoricalKeys = new Set<string>();
@@ -437,15 +503,19 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
   }
 
   const legend: LegendItem[] = [];
-  if (widthSpec && domains.edgeWidth) {
-    legend.push({ kind: "width", title: "legend.edgeWidth", metric: widthSpec.metric, domain: domains.edgeWidth, range: widthSpec.range ?? [theme.stroke.pathMin, theme.stroke.pathMax] });
+  // A width with nothing measured has no samples to show.
+  if (widthSpec && domains.edgeWidth && measured) {
+    legend.push({ kind: "width", title: "legend.edgeWidth", metric: widthSpec.metric, domain: domains.edgeWidth, range: widthSpec.range ?? [theme.stroke.pathMin, theme.stroke.pathMax], samples, ...(widthSpec.metric === "count" && transitionsOnly && { transitionsOnly }) });
   }
   if (edgeSpec?.metric && domains.edgeColor) {
     const palette = edgeSpec.palette ?? "sequential";
     legend.push({ kind: palette === "diverging" ? "diverging" : "sequential", title: "legend.edgeColor", metric: edgeSpec.metric, domain: domains.edgeColor, stops: themePalette(theme, palette) });
   }
   if (nodeSpec?.by && categoricalKeys.size) {
-    legend.push({ kind: "categorical", title: "legend.nodeColor", entries: [...categoricalKeys].sort().map(categorical) });
+    const labels = new Map(nodeSpec.by === "group" ? (graph.groups ?? []).map((g) => [g.id, g.label]) : []);
+    const entry = (k: string) => (labels.has(k) ? { ...categorical(k), label: labels.get(k) } : categorical(k));
+    // The order holds every node's key: the entries in stage order.
+    legend.push({ kind: "categorical", title: "legend.nodeColor", entries: [...order.keys()].filter((k) => categoricalKeys.has(k)).map(entry) });
   } else if (nodeSpec?.metric && domains.nodeColor) {
     const palette = nodeSpec.palette ?? "sequential";
     legend.push({ kind: palette === "diverging" ? "diverging" : "sequential", title: "legend.nodeColor", metric: nodeSpec.metric, domain: domains.nodeColor, stops: themePalette(theme, palette) });
@@ -454,13 +524,35 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
   return {
     spec,
     edgeWidth: widthFn,
-    edgeColor: edgeColorFn,
+    edgeColor: pathColorFn,
     nodeColor: nodeColorFn,
     nodePattern: nodePatternFn,
     categorical,
+    pathMetric,
+    notEvaluated,
     color,
     legend,
     domains,
+  };
+}
+
+/** The categorical key of a node for a colour specification: its group, kind, layer or tag. */
+function categoricalKey(nodeSpec: ColorSpec | undefined): (n: FlowNode) => string | undefined {
+  return (n) => {
+    switch (nodeSpec?.by) {
+      case "group":
+        return n.group;
+      case "kind":
+        return n.kind;
+      case "layer":
+        return n.tags?.find((tg) => tg.startsWith("layer:"))?.slice(6);
+      case "tag": {
+        const prefix = nodeSpec.tagPrefix ?? "";
+        return n.tags?.find((tg) => tg.startsWith(prefix))?.slice(prefix.length);
+      }
+      default:
+        return undefined;
+    }
   };
 }
 

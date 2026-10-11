@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type FlowGraph, type LegendItem, type Overlay, type Positions, type SceneLegend, MAP_TARGET, buildScene, figureFrame, legendLayout, legendOfScene, sceneLegend, toSVG } from "../../src/index";
+import { type FlowGraph, type LegendItem, type Overlay, type Positions, type SceneLegend, MAP_TARGET, buildScene, figureCaption, figureFrame, legendLayout, legendOfScene, sceneLegend, toSVG } from "../../src/index";
 import { type DrawContext, drawLegend, prepareScene, toPNGCanvas } from "../../src/canvas/index";
 
 const width: LegendItem = { kind: "width", title: "legend.edgeWidth", metric: "count", domain: [1, 9], range: [1, 8] };
@@ -35,11 +35,13 @@ describe("sceneLegend", () => {
     expect(legend.chips).toEqual([chip]);
     expect(legend.title).toBe("Legend");
     expect(legend.rows).toEqual([
-      { kind: "width", title: "Path width", samples: [{ width: 1, text: "1" }, { width: 8, text: "9" }] },
+      // No colour scale: the measure is frequency, in the unit the width reads.
+      { kind: "measure", text: "Frequency · transitions" },
+      { kind: "width", title: "Path width: transitions (count)", samples: [{ width: 1, text: "1" }, { width: 8, text: "9" }] },
       { kind: "key", key: "arc", glyph: "⌒", text: "Lag or precedence arc; width = coverage, colour = shortfall" },
       { kind: "key", key: "reverse", glyph: "⌒┄", text: "Reverse-order arc (precedence violated)" },
       { kind: "key", key: "outOfScope", glyph: "▨", text: "Outside scope" },
-      { kind: "key", key: "reconnected", glyph: "┄", text: "Re-added path" },
+      { kind: "key", key: "reconnected", glyph: "┄", text: "Not directly observed (re-added)" },
       { kind: "chip", chip, label: "⊂ Scope", text: "All cases" },
     ]);
   });
@@ -47,10 +49,12 @@ describe("sceneLegend", () => {
   it("writes the scales' titles and values in the locale", () => {
     const legend = sceneLegend([sequential, categorical, { ...sequential, kind: "diverging", metric: "delta", domain: [-1.5, 0, 2500.25] }], [], "de");
     expect(legend.title).toBe("Legende");
-    expect(legend.rows.slice(0, 3)).toEqual([
-      { kind: "ramp", title: "Pfadfarbe", id: "legendedgeColor-violationShare", stops: ["#fff", "#000"], values: ["0 %", "100 %"] },
+    expect(legend.rows.slice(0, 4)).toEqual([
+      { kind: "measure", text: "Erwartungslücke · Fälle" },
+      { kind: "ramp", title: "Pfadfarbe: Erwartungslücke (% der Fälle)", id: "legendedgeColor-violationShare", stops: ["#fff", "#000"], values: ["0 %", "100 %"] },
       { kind: "swatches", title: "Aktivitätsfarbe", entries: [{ text: "invoice", color: "#0072B2", pattern: "solid" }, { text: "payment", color: "#E69F00", pattern: "diagonal" }] },
-      { kind: "ramp", title: "Pfadfarbe", id: "legendedgeColor-delta", stops: ["#fff", "#000"], values: ["-1,5", "0,0", "2.500,3"] },
+      // A metric the registry does not hold: its name, no unit, integers in full and other numbers with one decimal.
+      { kind: "ramp", title: "Pfadfarbe: delta", id: "legendedgeColor-delta", stops: ["#fff", "#000"], values: ["-1,5", "0", "2.500,3"] },
     ]);
     expect(sceneLegend([], []).rows.map((r) => r.kind)).toEqual(["key"]);
   });
@@ -67,7 +71,7 @@ describe("legendOfScene", () => {
     groups: [{ id: "g", kind: "stage", label: "G" }],
   };
   const box = (x: number) => ({ x, y: 0, width: 100, height: 40 });
-  const at: Positions = { nodes: { a: box(0), b: box(200) }, groups: { g: { x: -10, y: -40, width: 320, height: 90 } }, edges: {}, bounds: { x: -10, y: -40, width: 320, height: 90 }, engine: "given", direction: "RIGHT" };
+  const at: Positions = { nodes: { a: box(0), b: box(200), s: { x: -60, y: 0, width: 36, height: 36 }, e: { x: 340, y: 0, width: 36, height: 36 } }, groups: { g: { x: -10, y: -40, width: 320, height: 90 } }, edges: {}, bounds: { x: -10, y: -40, width: 320, height: 90 }, engine: "given", direction: "RIGHT" };
   const keysOf = (g: FlowGraph, overlays: Overlay[] = []) => buildScene(g, at, { overlays, selfLoops: false }).legend.rows.filter((r) => r.kind === "key").map((r) => (r.kind === "key" ? r.key : ""));
   const cases: [string, FlowGraph, Overlay[], string[]][] = [
     ["nothing", graph, [], []],
@@ -78,6 +82,9 @@ describe("legendOfScene", () => {
     ["hatching", graph, [{ kind: "hatch", target: "b" }], ["outOfScope"]],
     ["a re-added path", { ...graph, edges: [{ ...graph.edges[0], tags: ["reconnected"] }] }, [], ["reconnected"]],
     ["a re-added activity", { ...graph, nodes: [graph.nodes[0], { ...graph.nodes[1], tags: ["reconnected"] }] }, [], ["reconnected"]],
+    ["a path without a value", { ...graph, edges: [{ ...graph.edges[0], metrics: {} }] }, [], ["notEvaluated"]],
+    ["a start and an end", { ...graph, nodes: [...graph.nodes, { id: "s", kind: "event", label: "Start", tags: ["start"] }, { id: "e", kind: "event", label: "End", tags: ["end"] }] }, [], ["start", "end"]],
+    ["only a start", { ...graph, nodes: [...graph.nodes, { id: "s", kind: "event", label: "Start", tags: ["start"] }] }, [], ["start"]],
     // Tints and chips in a group are drawn without a key.
     ["a tint and a chip in a group", graph, [{ kind: "tint", target: "g", payload: { value: 0.5 } }, { kind: "chip", target: "g", payload: { text: "x" } }], []],
   ];
@@ -91,42 +98,89 @@ describe("legendOfScene", () => {
     expect(keysOf(graph, [...badges, ...badges.map((o) => ({ ...o, kind: "hatch" as const }))])).toEqual(["badge", "outOfScope"]);
   });
 
+  it("lists one key per badge glyph, worded by the constraint it shows", () => {
+    const badge = (target: string, glyph: string, constraintType?: string): Overlay => ({ kind: "badge", target, payload: { glyph, constraintType, value: 0.1 } });
+    const scene = buildScene(graph, at, { overlays: [badge("a", "≥1", "presence"), badge("b", "≥1", "presence"), badge("b", "≤1", "singularity"), badge("a", "∅", "exclusion"), badge("b", "◆")], selfLoops: false });
+    // Badges are drawn in their canonical order (by target, then constraint id, here none, then as given): a's ≥1 and ∅,
+    // then b's ≥1, ≤1 and ◆; each glyph once.
+    expect(scene.legend.rows.filter((r) => r.kind === "key").map((r) => (r.kind === "key" ? [r.glyph, r.text] : []))).toEqual([
+      ["≥1", "Required: share of cases missing it"],
+      ["∅", "Excluded: share of cases where it occurs"],
+      ["≤1", "Limited: share of cases repeating it"],
+      ["◆", "Constraint badge with shortfall share"],
+    ]);
+    const german = buildScene(graph, at, { overlays: [badge("a", "≤1", "singularity")], selfLoops: false, locale: "de" });
+    expect(german.legend.rows.find((r) => r.kind === "key")).toEqual({ kind: "key", key: "badge", glyph: "≤1", text: "Begrenzt: Anteil der Fälle, die es wiederholen" });
+  });
+
+  it("names the measure, the metric and the unit of every scale, and says when paths count transitions", () => {
+    const titles = (g: FlowGraph, locale: "en" | "de" = "en") => buildScene(g, at, { selfLoops: false, locale }).legend.rows.map((r) => (r.kind === "measure" ? r.text : "title" in r ? r.title : r.kind));
+    // The paths give only transitions: the width reads them and its row says so.
+    expect(titles(graph)).toEqual(["Shortfall · transitions", "Path width: transitions (count) · paths count transitions; no case counts given", "Path colour: expectation shortfall (% of cases)"]);
+    // With cases on the paths and the cases of the log, as the activities count them.
+    const cased: FlowGraph = { ...graph, edges: [{ ...graph.edges[0], metrics: { count: 6, cases: 5 } }], meta: { cases: 1000 } };
+    expect(titles(cased)).toEqual(["Shortfall · cases · share of 1,000 cases", "Path width: cases (count)", "Path colour: expectation shortfall (% of cases)"]);
+    expect(titles(cased, "de")).toEqual(["Erwartungslücke · Fälle · Anteil an 1.000 Fällen", "Pfadbreite: Fälle (Anzahl)", "Pfadfarbe: Erwartungslücke (% der Fälle)"]);
+    // Colour by the median lag, in minutes, hours and days.
+    const lag = buildScene(cased, at, { selfLoops: false, style: { edgeWidth: { metric: "cases" }, edgeColor: { metric: "medianLagHours", palette: "sequentialBlue", domain: [0.5, 72] } } }).legend.rows;
+    expect(lag[0]).toEqual({ kind: "measure", text: "Performance · cases · share of 1,000 cases" });
+    expect(lag[2]).toMatchObject({ kind: "ramp", title: "Path colour: median lag (min, h, d)", values: ["30 min", "3.0 d"] });
+    // Stages: their labels, in stage order.
+    const staged: FlowGraph = { ...cased, nodes: cased.nodes.map((n) => ({ ...n, group: "g" })) };
+    expect(buildScene(staged, at, { selfLoops: false }).legend.rows.find((r) => r.kind === "swatches")).toMatchObject({ title: "Activity colour: stage", entries: [{ text: "G" }] });
+  });
+
+  it("writes three width samples: the ends of the domain and a count near the middle width", () => {
+    const wide: FlowGraph = { ...graph, edges: [
+      { id: "a->b", kind: "follows", source: "a", target: "b", metrics: { cases: 38 } },
+      { id: "b->a", kind: "follows", source: "b", target: "a", metrics: { cases: 113_000 } },
+    ] };
+    const row = buildScene(wide, at, { selfLoops: false }).legend.rows.find((r) => r.kind === "width");
+    // √v halfway between √38 and √113,000 (widths 1 to 8, the middle 4.5): ((6.164 + 336.155) / 2)² = 29,301, so 29,000,
+    // drawn at the width it has: √29,000 = 170.29 lies (170.29 − 6.164) / 329.991 = 0.4974 of the way, 1 + 7 × 0.4974 = 4.48.
+    // Paths are written in full up to 99,999, then in thousands.
+    expect(row).toEqual({ kind: "width", title: "Path width: cases (count)", samples: [{ width: 1, text: "38" }, { width: 4.48, text: "29,000" }, { width: 8, text: "113k" }] });
+  });
+
   it("lists no key for an overlay that is not drawn", () => {
     expect(keysOf(graph, [{ kind: "badge", target: "missing" }, { kind: "arc", target: "a", payload: { source: "a", target: "missing" } }])).toEqual([]);
   });
 
   it("lists the path scales only where paths are drawn and the map-level chips last", () => {
     const scene = buildScene(graph, at, { overlays: [chip], selfLoops: false });
-    expect(scene.legend.rows.map((r) => r.kind)).toEqual(["width", "ramp", "chip"]);
+    expect(scene.legend.rows.map((r) => r.kind)).toEqual(["measure", "width", "ramp", "chip"]);
     expect(buildScene({ ...graph, edges: [] }, at, { overlays: [chip] }).legend.rows.map((r) => r.kind)).toEqual(["chip"]);
   });
 });
 
 describe("legendLayout", () => {
-  it("places the rows from their heights and shortens their texts to the legend's width", () => {
+  it("places the rows from their heights and fits their texts to the legend's width", () => {
     const legend = sceneLegend([width, sequential, categorical], [{ kind: "badge", target: "a" }, chip]);
     const layout = legendLayout(legend);
-    // Heading 26; width 16 + 20; gradient 16 + 30; two entries 16 + 2 × 16 + 4; keys 14 apart; 6 before the chips; a chip 13 + 15.
+    // By the estimate a title line holds 31 characters at 11 px (6.05 each in 188), a key line 31 at 9.5 px (5.225 each in 164).
+    // Heading 26; the measure 16 + 6; width 16 + 2 × 16 + 4; the colour's title in two lines 32 + 30; two entries 16 + 2 × 16 + 4;
+    // two keys of two lines, 2 × 14 each; 6 before the chips; a chip 13 + 15.
     expect(layout.rows.map((r) => [r.row.kind, r.y])).toEqual([
-      ["width", 26],
-      ["ramp", 62],
-      ["swatches", 108],
-      ["key", 160],
-      ["key", 174],
-      ["chip", 194],
+      ["measure", 26],
+      ["width", 48],
+      ["ramp", 100],
+      ["swatches", 162],
+      ["key", 214],
+      ["key", 242],
+      ["chip", 276],
     ]);
-    expect(layout.items.map((i) => i.y)).toEqual([26, 62, 108]);
+    expect(layout.items.map((i) => i.y)).toEqual([48, 100, 162]);
     expect(layout.keys.map((k) => [k.key.kind, k.y])).toEqual([
-      ["badge", 160],
-      ["reconnected", 174],
+      ["badge", 214],
+      ["reconnected", 242],
     ]);
-    expect(layout.chips.map((c) => c.y)).toEqual([194]);
-    expect(layout.height).toBe(222);
-    // The estimate at 9.5 px is 5.225 per character: thirty and the ellipsis fit 188 − 24.
-    expect(layout.rows.map((r) => r.texts)).toEqual([[], [], ["invoice", "payment"], ["Constraint badge with shortfal…"], ["Re-added path"], ["⊂ Scope", "All cases"]]);
-    // Narrower, by another measure of 10 per character: 150 − 24 holds eleven characters and the ellipsis.
+    expect(layout.chips.map((c) => c.y)).toEqual([276]);
+    expect(layout.height).toBe(304);
+    expect(layout.rows.map((r) => r.lines)).toEqual([["Shortfall · transitions"], ["Path width: transitions (count)"], ["Path colour: expectation", "shortfall (% of cases)"], ["Activity colour"], [], [], []]);
+    expect(layout.rows.map((r) => r.texts)).toEqual([[], [], [], ["invoice", "payment"], ["Constraint badge with shortfall", "share"], ["Not directly observed", "(re-added)"], ["⊂ Scope", "All cases"]]);
+    // Narrower, by another measure of 10 per character: 150 − 24 holds twelve characters a line.
     const tens = legendLayout(legend, { measure: (t) => Array.from(t).length * 10, width: 150 });
-    expect(tens.rows[4].texts).toEqual(["Re-added pa…"]);
+    expect(tens.rows[5].texts).toEqual(["Not directly", "observed", "(re-added)"]);
   });
 });
 
@@ -140,13 +194,15 @@ describe("figureFrame", () => {
     // Title 40 + context 18; the map 100 + 2 × 24 by 50 + 2 × 24.
     expect(frame.header).toBe(58);
     expect(frame.map).toEqual({ width: 148, height: 98, offset: { x: 14, y: 62 } });
-    // The legend (222) is taller than the map: 58 + 222 + 2 × 24.
-    expect(frame.height).toBe(328);
+    // The legend (304) is taller than the map: 58 + 304 + 2 × 24.
+    expect(frame.height).toBe(410);
     expect(frame.width).toBe(148 + 220);
-    expect(frame.legend).toMatchObject({ x: 164, y: 82, width: 188, rule: { x: 148, top: 82, bottom: 304 } });
-    expect(frame.key).toEqual({ lines: [], y: 352 });
+    expect(frame.legend).toMatchObject({ x: 164, y: 82, width: 188, rule: { x: 148, top: 82, bottom: 386 } });
+    // The graph has no meta: no caption.
+    expect(frame.caption).toBeUndefined();
+    expect(frame.key).toEqual({ lines: [], y: 434 });
     expect(frame.outWidth).toBe(1000);
-    expect(frame.outHeight).toBeCloseTo((328 / 368) * 1000, 9);
+    expect(frame.outHeight).toBeCloseTo((410 / 368) * 1000, 9);
   });
 
   it("leaves out the legend column and the header when asked", () => {
@@ -164,6 +220,26 @@ describe("figureFrame", () => {
   it("measures an empty figure without padding or legend as empty", () => {
     const frame = figureFrame({ ...framed, bounds: { x: 0, y: 0, width: 0, height: 0 } }, { legend: false, padding: 0 });
     expect([frame.width, frame.height, frame.outWidth, frame.outHeight]).toEqual([0, 0, 0, 0]);
+  });
+
+  it("writes the caption under the map and the legend, from the graph's meta, and leaves out what is unknown", () => {
+    const g: FlowGraph = {
+      nodes: [{ id: "a", kind: "activity", label: "A" }, { id: "b", kind: "activity", label: "B" }, { id: "s", kind: "event", label: "Start" }],
+      edges: [{ id: "ab", kind: "follows", source: "a", target: "b" }, { id: "aa", kind: "follows", source: "a", target: "a" }, { id: "c", kind: "constraint", source: "a", target: "b" }],
+      meta: { label: "Purchase-to-pay", cases: 1000, period: ["2018-01-01", "2018-06-30"], filters: [], model: { activities: 12, paths: 31 } },
+    };
+    const frame = figureFrame({ ...framed, graph: g }, { legend: false, padding: 10 });
+    // The map 120 wide holds 100 at 11 px, 16 characters a line by the estimate.
+    expect(frame.caption?.lines.join(" ")).toBe("Purchase-to-pay · 1,000 cases · 2018-01-01 – 2018-06-30 · filter: none · 2 of 12 activities, 1 of 31 paths shown");
+    // Under the map (50 + 2 × 10), its first baseline 12 below, its lines 16 apart, then the padding.
+    expect(frame.caption).toMatchObject({ x: 10, y: 70 + 12 });
+    expect(frame.height).toBe(70 + frame.caption!.lines.length * 16 + 10);
+    expect(figureCaption({ ...g, meta: { ...g.meta, filters: [{ kind: "activity", op: "contains", activity: "a" }] } }, "de", (id) => id.toUpperCase())).toBe("Purchase-to-pay · 1.000 Fälle · 2018-01-01 – 2018-06-30 · Filter: Fälle mit A · 2 von 12 Aktivitäten, 1 von 31 Pfaden gezeigt");
+    // Only what the meta holds; nothing at all without it.
+    expect(figureCaption({ ...g, meta: { cases: 7, model: { paths: 31 } } })).toBe("7 cases · 1 of 31 paths shown");
+    expect(figureCaption({ ...g, meta: undefined })).toBeUndefined();
+    expect(figureFrame({ ...framed, graph: { ...g, meta: {} } }, { legend: false, padding: 10 }).caption).toBeUndefined();
+    expect(figureFrame({ ...framed, graph: g }, { legend: false, padding: 10, caption: false }).caption).toBeUndefined();
   });
 
   it("adds the activity key under the map and the legend", () => {
@@ -191,7 +267,7 @@ describe("the legend in the scene and the exports", () => {
     const svg = toSVG({ graph: tiny, positions: tinyAt, overlays: [{ kind: "badge", target: "a" }] });
     const legend = /<g class="wf-legend"[^]*?<\/g><\/g>/.exec(svg)![0];
     expect(legend).toContain("Constraint badge");
-    for (const absent of ["Lag or precedence", "Reverse-order", "Repeated execution", "Outside scope", "Re-added path"]) expect(legend).not.toContain(absent);
+    for (const absent of ["Lag or precedence", "Reverse-order", "Repeated execution", "Outside scope", "Not directly observed", "not evaluated", "Start of the process"]) expect(legend).not.toContain(absent);
   });
 
   it("gives PNG and SVG the height of the legend it draws", () => {

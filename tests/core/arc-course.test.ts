@@ -64,12 +64,16 @@ describe("arcs that cross no other activity", () => {
    * before arcs began to choose their course and their label's place. The
    * overlay kinds' SVG was recorded again when groups became marks of the
    * scene: only its stage group's outline changed, drawn at full opacity.
+   * Both SVGs were recorded again when paths began to be labelled with their
+   * cases: the marks kept their digests, and compared element by element only
+   * the paths changed. None of them has a count: they are not evaluated, drawn
+   * in the line colour and labelled "–".
    */
   const recorded = {
     kindsMarks: "4a6335a979e8e5cac63a82f3c4e8c6fd4e3bf945d67f8ae86f3a25fa5433ba9c",
-    kindsSvg: "ed20b73ee513ff1287c12f304af437a256ca6acef9a91c77142b824d37791a16",
+    kindsSvg: "9bacdfb13f06f6d43a6bf0b49152cd1438274be6e38ee12738aab42bb023b9e2",
     rowsMarks: "d5bc4e4d1fb81fcdfb77ecbe2c7d97bc1ce1304a39a759c952a531194b84ec7f",
-    rowsSvg: "f956d0cdbd76a1e869e78685fde53686457f254fdc164a06541504d6982b853f",
+    rowsSvg: "4c61685189644df9a68fdaf5e96ee1d64bae7087a53a340740f14a6bd7982d7a",
   };
 
   it("keep the marks they had", () => {

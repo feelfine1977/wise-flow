@@ -99,7 +99,9 @@ describe("Canvas overlay marks", () => {
       { op: "fill", path: expect.stringContaining("A490,8,12"), color: "#ffffff", alpha: 1 },
       { op: "stroke", path: expect.stringContaining("A490,8,12"), color: "#8c8c8c", alpha: 1, width: 2, dash: [] },
     ]);
-    const texts = ops.filter((o) => o.op === "fillText" && o.text !== "A" && o.text !== "B" && o.text !== "C" && !o.text?.startsWith("Stage"));
+    // The paths a → b and b → c carry no count: they are not evaluated and labelled "–" at their middles.
+    expect(ops.filter((o) => o.op === "fillText" && o.text === "–").map((o) => o.at)).toEqual([[150, 16], [350, 16]]);
+    const texts = ops.filter((o) => o.op === "fillText" && o.text !== "A" && o.text !== "B" && o.text !== "C" && o.text !== "–" && !o.text?.startsWith("Stage"));
     expect(texts.map(({ text, at, color, font: f, align, baseline }) => ({ text, at, color, font: f, align, baseline }))).toEqual([
       { text: "⏱ 25 %", at: [250, -74], color: "#1f1f1f", font: font("11px"), align: "center", baseline: "alphabetic" },
       { text: "⇐ 100 %", at: [250, 130.5], color: "#1f1f1f", font: font("11px"), align: "center", baseline: "alphabetic" },
@@ -114,7 +116,7 @@ describe("Canvas overlay marks", () => {
       { text: "Late", at: [462.4, 8.5], color: "#1f1f1f", font: font("10px"), align: "left", baseline: "middle" },
     ]);
     // Labels beside lines and badges carry a paper halo.
-    expect(ops.filter((o) => o.op === "strokeText").map((o) => [o.text, o.color, o.width])).toEqual([
+    expect(ops.filter((o) => o.op === "strokeText" && o.text !== "–").map((o) => [o.text, o.color, o.width])).toEqual([
       ["⏱ 25 %", "#ffffff", 3], ["⇐ 100 %", "#ffffff", 3], ["↻ 75 %", "#ffffff", 3], ["100 %", "#ffffff", 3], ["25 %", "#ffffff", 3],
     ]);
   });
@@ -133,7 +135,7 @@ describe("Canvas overlay marks", () => {
       { op: "fillRect", path: "R396.67,4,2,8", color: "#1f1f1f", alpha: 1 },
     ]);
     // The lead in bold, the text after its measured width (9 characters × 6 in this context).
-    const texts = ops.filter((o) => o.op === "fillText" && !["A", "B", "C"].includes(o.text ?? "") && !o.text?.startsWith("Stage"));
+    const texts = ops.filter((o) => o.op === "fillText" && !["A", "B", "C", "–"].includes(o.text ?? "") && !o.text?.startsWith("Stage"));
     expect(texts.map(({ text, at, font: f }) => ({ text, at, font: f }))).toEqual([
       { text: "◔", at: [358.6, 8.5], font: font("10px") },
       { text: "Touches: ", at: [417, 8.5], font: font("700 10px") },
@@ -252,17 +254,17 @@ describe("Canvas node and edge marks", () => {
       // The event's label inside its circle.
       text("Start", [18, 20], "9px", "center"),
       text("Check invoice", [116, 20], "12px"),
-      text("1.2k", [274, 35], "9px", "right", "alphabetic", "#5b6270"),
+      text("1,234", [274, 35], "9px", "right", "alphabetic", "#5b6270"),
       text("+", [342, 21], "700 14px", "center"),
       // The stage's members line.
       text("Payment", [416, 28], "600 12px"),
-      text("4 · 1.5k", [594, 51], "9px", "right", "alphabetic", "#5b6270"),
+      text("4 · 1,500", [594, 51], "9px", "right", "alphabetic", "#5b6270"),
       // The note's label at 11 px, as on the map.
       text("Ask the vendor twice", [656, 30], "11px"),
       text("End", [858, 20], "9px", "center"),
       text("Re-added", [416, 120], "12px"),
       // Edge counts with a halo, 4 above the middle of the route; the flow edge carries its count too.
-      text("1.2k", [68, 16], "10px", "center", "alphabetic"),
+      text("1,234", [68, 16], "10px", "center", "alphabetic"),
       text("12", [300, 16], "10px", "center", "alphabetic"),
       text("3", [500, 74], "10px", "center", "alphabetic"),
     ]);
@@ -278,10 +280,10 @@ describe("Canvas node and edge marks", () => {
     const long = { ...elements.graph, nodes: elements.graph.nodes.map((n) => (n.id === "a" ? { ...n, label: "Change Approval for Purchase Order" } : n)) };
     const label = (measure?: TextMeasure) => written(drawElements(undefined, 1, long, measure)).find((t) => t.at?.[0] === 116)?.text;
     // The context measures 6 per character. A 180 wide node leaves its label 152 inside the padding and the outline,
-    // less the count "1.2k" and the gap of 6 before it: by the estimate (6.6 at 12 px, 4.95 at 9 px) 126.2, so 18 and the ellipsis.
-    expect(label()).toBe("Change Approval fo…");
-    // A measure of 6 per character: 122, so 19 and the ellipsis.
-    expect(label((s) => Array.from(s).length * 6)).toBe("Change Approval for…");
+    // less the count "1,234" and the gap of 6 before it: by the estimate (6.6 at 12 px, 4.95 at 9 px) 121.25, so 17 and the ellipsis.
+    expect(label()).toBe("Change Approval f…");
+    // A measure of 6 per character: 152 − 30 − 6 = 116, so 18 and the ellipsis.
+    expect(label((s) => Array.from(s).length * 6)).toBe("Change Approval fo…");
   });
 
   it("draws the marks it is given rather than the other node and edge fields", () => {

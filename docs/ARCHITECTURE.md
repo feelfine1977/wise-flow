@@ -21,7 +21,7 @@
 │          overlay-marks · element-marks · mark-svg · figure ·│
 │          text · tokens · theme · style · hit · export ·     │
 │          views · selection · map-controller · actions ·     │
-│          paths · filters · format · strings                 │
+│          paths · filters · format · metrics · strings       │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -43,7 +43,8 @@ read what it resolves and do not decide it again.
 | Theme (`core/theme.ts`, `checkTheme` in `core/style.ts`) | `Theme`, `defaultTheme`, `printTheme`, `resolveTheme`, `themeColors`, `checkTheme`; `buildScene(…, { theme, scheme })` | what the marks are drawn in: colour roles with the dark scheme's changes, the data palettes and the pattern twins' order and look, fonts, text, radius, stroke, opacity and spacing tables, density, the smallest text and stroke, rules (none yet); the presets (`defaultTheme` is the token table, `printTheme` its `printTokens` over it); a setting as changes over a preset over the host's CSS variables; the CSS variable of every part; what of a theme falls short (§2.4) | the scene and its mark builders and scales; through the scene the SVG export, Canvas drawing, PNG export and React components; `useFlowTheme` (React), which reads the variables |
 | Edge budget (`core/edge-budget.ts`) | `budgetEdges(scene, budget, protection, inView)` → `EdgeSelection`; `edgeBudgetAdapter(clock)` (internal) | which edges in view a budget draws: protected edges (an overlay mark on them, selected, at the keyboard position, on a highlighted path), then weight, then id; or exactly the edges a map reported (`ShownEdges`); the adaptive budget's step, moved by the timed frames of gestures and only at rest (§4) | `drawScene` and `CanvasRenderer` (Canvas, `toPNG`), `useFlowElements` (React Flow), `toSVG` |
 | Mark SVG (`core/mark-svg.ts`) | `markSvg`, `svgMarkup` | the SVG elements of a mark | SVG export, React map, BPMN view |
-| Legend and figure frame (`core/figure.ts`) | `FlowScene.legend` (`legendOfScene`), `LegendRow`, `legendLayout`, `figureFrame` | the legend's typed rows from what the scene draws, their heights and texts at the export's width, the exported figure's frame and the note on withheld edges in it (§2.6) | `toSVG`, `toPNG`, Canvas `drawLegend`, `<Legend/>` |
+| Legend and figure frame (`core/figure.ts`) | `FlowScene.legend` (`legendOfScene`), `LegendRow`, `legendLayout`, `figureFrame`, `figureCaption` | the legend's typed rows from what the scene draws (the measure and its unit, the scales titled by metric and unit, a key per kind of mark drawn), their heights and texts at the export's width, the exported figure's frame, its caption line and the note on withheld edges in it (§2.6) | `toSVG`, `toPNG`, Canvas `drawLegend`, `<Legend/>` |
+| Metric registry (`core/metrics.ts`) | `metricRegistry`, `formatMetricValue`, `elementMetric`, `metricLabelOf`, `channelTitle` | for each metric its name, unit and number format in English and German, and how a lower bound and a mean of merged values read (§2.2, §2.6) | the legend, the node and edge marks, the descriptions, `<TableAlternative/>`, `<PathList/>` |
 | Design tokens (`core/tokens.ts`) | `designTokens` and its parts, `patternTwin`, `tokenVariables` | colours, palettes, fonts, node sizes, the arrowhead rule, pattern twins, and every size, radius, stroke, dash, text size and weight, opacity, spacing step and z-order by role; `tokens.css` is generated from it and checked against it (§2.4) | marks, SVG export, Canvas drawing and `readTokens`, PNG export, React components, `tokens.css` and through it the stylesheet |
 | Graph index and positions (`core/model.ts`, `core/layout.ts`) | `indexGraph`, `createPositions` | lookups, adjacency, group ancestors, nested members, labels; positions whose bounds always match their contents (§2.1, §2.3) | selection, filters, paths, lanes, layout, every renderer |
 | Layout cache (`core/layout.ts`, `core/layout-key.ts`) | `layout`, `createLayoutScope`, `cacheKey`, `clearLayoutCache`, `signal` | layouts keyed by their own inputs, bounded per scope, released on `dispose`; a layout runs while somebody waits for it; ELK and Dagre workers started on demand and terminated when their layout is aborted, timed out or replaced (§2.3) | `ProcessMap`, `useStableLayout`, `layoutBpmn` |
@@ -103,7 +104,13 @@ groups into stage nodes (semantic zoom) and restores connectivity: first a
 maximum spanning forest over the strongest direct edges between the kept
 nodes, then the cheapest paths of the original graph through removed nodes,
 then one edge per activity that lost all incoming or all outgoing paths.
-Re-added elements are tagged `reconnected` and drawn dashed. The thresholded
+Re-added elements are tagged `reconnected` and drawn dashed. A collapsed
+stage takes the maximum of its activities' `cases` and `share` and weighted
+means of other metrics; the graph holds no case sets, so these are not the
+stage's own numbers. The result keeps the values and marks them in
+`metricBasis` (`atLeast`, `mean`), and every surface reads them with the
+metric registry: "at least 211,379", "lag, mean of medians". Merged parallel
+paths are marked the same way; summed counts stay exact. The thresholded
 part is monotone in the thresholds; the reconnection is bounded (paths
 between components plus one edge per open need) but not a global optimum,
 so the total element count may differ by one re-added edge between
@@ -193,7 +200,13 @@ edges. These positions carry `engine: "provisional"`.
 (square root), edge and node colour ← a chosen metric (expectation shortfall
 share, performance, delta) on colour-blind-safe sequential (single hue),
 diverging (purple–orange) and categorical (Okabe–Ito) palettes; categorical
-keys hash to a stable colour with a pattern twin; text on coloured fills
+keys take colours with their pattern twins in stage order (the host's stage
+list, the unfiltered graph's group order that `abstract` records, then the
+graph's), each from its hashed colour to the next free one, so no two stages
+share a swatch until the palette is used up and patterns tell them apart
+after that; paths count cases like activities (transitions where a graph
+gives no cases), and a path without a value is drawn thin in the line colour
+and labelled "–"; text on coloured fills
 uses an ink with contrast ≥ 4.5 : 1. Level-of-detail rules say from which
 zoom labels, edge labels, badges, arcs, chips, hatching and self-loops
 appear; thresholds tighten with the number of nodes. Colours, palettes, the
@@ -306,16 +319,18 @@ hover and click on Canvas and in exports. `buildScene` resolves graph,
 positions and options once into the scene renderers read (activity
 references, lane bands, scales, the overlays to show with the follows
 self-loops in canonical order, level-of-detail rules, overlay geometry,
-overlay, node, edge and group marks in the theme and colour scheme, and the legend: typed rows for the
-scales of what is drawn, one key per kind of mark drawn and the map-level chips, so a row exists exactly
-when its mark is drawn);
+overlay, node, edge and group marks in the theme and colour scheme, and the legend: the measure with its
+unit, typed rows for the scales of what is drawn titled "channel: metric (unit)" from the metric registry,
+one key per kind of mark drawn (per badge glyph, and the start, the end and paths not evaluated too) and the
+map-level chips, so a row exists exactly when its mark is drawn);
 `toSVG(scene)` draws it with figure presets
 (single column, double column, slide), an embedded legend with the scales
 and overlay glyphs, deterministic output. `toPNG` (in `canvas/`) draws the
 same scene, presets and legend into a bitmap. The legend's rows and their
 heights and texts at the export's width (`legendLayout`) and the figure
-frame (`figureFrame`: header, map, legend column, note on withheld edges,
-activity key, output size) are measured once in the core; both exports,
+frame (`figureFrame`: header, map, legend column, caption line from the
+graph's `meta`, note on withheld edges, activity key, output size) are
+measured once in the core; both exports,
 the Canvas `drawLegend` and `<Legend/>` render the scene's rows.
 With an edge budget, or the edges a map reported through `onEdgesShown`,
 both exports draw the edges `budgetEdges` keeps and write the map's note
@@ -564,8 +579,9 @@ original edge targets in `collapsedEdgeTargets`; keep/exclude uses those activit
 IDs. Collapsed edge and pair filters that cannot express exact original semantics
 are unavailable. Overlays remain separate observations after merging; their
 values are not averaged into a fabricated statistic. Internal edges target the
-containing stage and folded arcs become labeled chips. Existing metric aggregation
-approximations are unchanged. Response focus and paths survive abstraction.
+containing stage and folded arcs become labeled chips. Metric aggregation
+approximations keep their values and are marked as lower bounds or means
+(`metricBasis`), which every surface prints as such. Response focus and paths survive abstraction.
 
 Each map lays out in its own layout scope, keyed by the layout module from layout
 options, resolved dimensions and relevant graph structure, and released on

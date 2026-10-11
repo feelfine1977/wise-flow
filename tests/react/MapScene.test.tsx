@@ -53,7 +53,7 @@ describe("ProcessMap scene", () => {
     const { container } = render(<ProcessMap graph={loop} positions={loopPositions} locale="de" {...plain} />);
     await waitFor(() => expect(container.querySelector('.wf-selfloop[data-edge-id="aa"]')).not.toBeNull());
     // 1 500 transitions in compact German notation.
-    expect(container.querySelector('.wf-selfloop[data-edge-id="aa"] title')?.textContent).toBe("aa — 1,5k ×");
+    expect(container.querySelector('.wf-selfloop[data-edge-id="aa"] title')?.textContent).toBe("aa — 1.500 ×");
   });
 
   it("draws a host self-loop that stands for a follows edge once", async () => {
@@ -61,7 +61,7 @@ describe("ProcessMap scene", () => {
     const { container } = render(<ProcessMap graph={loop} positions={loopPositions} overlays={stale} {...plain} />);
     await waitFor(() => expect(container.querySelector('.wf-selfloop[data-edge-id="aa"]')).not.toBeNull());
     expect(container.querySelectorAll('.wf-selfloop[data-edge-id="aa"]')).toHaveLength(1);
-    expect(container.querySelector('.wf-selfloop[data-edge-id="aa"] title')?.textContent).toBe("aa — 1.5k ×");
+    expect(container.querySelector('.wf-selfloop[data-edge-id="aa"] title')?.textContent).toBe("aa — 1,500 ×");
   });
 
   it("leaves out arcs whose endpoints are not both on the map", async () => {

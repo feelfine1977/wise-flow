@@ -99,8 +99,8 @@ describe("a scene built with a text measure", () => {
     // A start event leaves 32 at 9 px: two characters and the ellipsis. The note leaves 136 at 11 px: eleven and the ellipsis.
     expect(label("start")).toBe("St…");
     expect(label("n")).toBe("Ask the ven…");
-    // The activity leaves 110 at 12 px (180 less padding 24, outline 2 × 2, gap 6 and "1.2k" 4 × 9): eight and the ellipsis.
-    expect(label("a")).toBe("Check in…");
+    // The activity leaves 101 at 12 px (180 less padding 24, outline 2 × 2, gap 6 and "1,234" 5 × 9): seven and the ellipsis.
+    expect(label("a")).toBe("Check i…");
     expect(scene.textMeasure).toBe(em);
     // Without one the scene takes the estimate.
     expect(buildScene(elements.graph, elements.positions, { style: elements.style }).nodeMarks.find((m) => m.id === "n")!.texts[0].text).toBe("Ask the vendor twice");
@@ -110,7 +110,7 @@ describe("a scene built with a text measure", () => {
     expect(svg).toContain(">Ask the ven…</text>");
     const canvas = recording();
     drawScene(canvas.ctx, prepareScene(elements.graph, elements.positions, { ...options, lodBySize: false }), { x: 0, y: 0, zoom: 1, width: 1000, height: 600 }, undefined, { cull: false });
-    expect(canvas.texts).toEqual(expect.arrayContaining(["St…", "Ask the ven…", "Check in…"]));
+    expect(canvas.texts).toEqual(expect.arrayContaining(["St…", "Ask the ven…", "Check i…"]));
     expect(canvas.texts).not.toContain("Ask the vendor twice");
     const png = recording();
     toPNGCanvas({ graph: elements.graph, positions: elements.positions, style: elements.style, selfLoops: false }, { textMeasure: em, legend: false, scale: 1, createCanvas: (w, h) => ({ width: w, height: h, getContext: () => png.ctx }) });
@@ -120,10 +120,10 @@ describe("a scene built with a text measure", () => {
   it("gives a label the room the interactive map gives it: inside a solid outline and before the count on its line", () => {
     const scene = buildScene(elements.graph, elements.positions, { ...options, textMeasure: tens });
     const room = (id: string) => scene.nodeMarks.find((m) => m.id === id)!.texts.find((t) => t.role === "label")!.maxWidth;
-    // 180 less the padding 16 + 8, the outline 2 on both sides, the gap 6 and "1.2k" at 10 per character.
-    expect(room("a")).toBe(106);
-    // A stage: outlined 3 wide, "4 · 1.5k" after it.
-    expect(room("s")).toBe(200 - 24 - 6 - 6 - 80);
+    // 180 less the padding 16 + 8, the outline 2 on both sides, the gap 6 and "1,234" at 10 per character.
+    expect(room("a")).toBe(96);
+    // A stage: outlined 3 wide, "4 · 1,500" after it.
+    expect(room("s")).toBe(200 - 24 - 6 - 6 - 90);
     // A re-added activity is outlined dashed over its box and has no count; a note has no count either.
     expect(room("r")).toBe(156);
     expect(room("n")).toBe(136);
@@ -138,12 +138,12 @@ describe("a scene built with a text measure", () => {
     expect(activityNodeSize(graph.nodes[0], names)).toEqual({ width: 280, height: 20 + 2 * 18 + 16 });
     const positions: Positions = { nodes: { cap: { x: 0, y: 0, ...box } }, groups: {}, edges: {}, bounds: { x: 0, y: 0, ...box }, engine: "given", direction: "RIGHT" } as Positions;
     const lines = (measure?: TextMeasure) => buildScene(graph, positions, { activityLabels: names, textMeasure: measure }).nodeMarks[0].texts.map((t) => t.text);
-    expect(lines(em)).toEqual(["Change Approval", "for Purchase", "Order", "4.4k cases"]);
-    expect(lines()).toEqual(["Change Approval for Purchase", "Order", "4.4k cases"]);
+    expect(lines(em)).toEqual(["Change Approval", "for Purchase", "Order", "4,400 cases"]);
+    expect(lines()).toEqual(["Change Approval for Purchase", "Order", "4,400 cases"]);
     const canvas = recording();
     drawScene(canvas.ctx, prepareScene(graph, positions, { activityLabels: names, textMeasure: em, lodBySize: false }), { x: 0, y: 0, zoom: 1, width: 400, height: 200 }, undefined, { cull: false });
-    expect(canvas.texts).toEqual(["Change Approval", "for Purchase", "Order", "4.4k cases"]);
-    expect(prepareScene(graph, positions, { activityLabels: names, textMeasure: em }).nodes[0].activityLines).toEqual({ name: ["Change Approval", "for Purchase", "Order"], counts: ["4.4k cases"] });
+    expect(canvas.texts).toEqual(["Change Approval", "for Purchase", "Order", "4,400 cases"]);
+    expect(prepareScene(graph, positions, { activityLabels: names, textMeasure: em }).nodes[0].activityLines).toEqual({ name: ["Change Approval", "for Purchase", "Order"], counts: ["4,400 cases"] });
   });
 
   it("sizes a chip by it, its bold label measured in bold", () => {
@@ -168,17 +168,19 @@ describe("a scene built with a text measure", () => {
     expect(estimated.texts[1].text).toBe("13 %");
   });
 
-  it("shortens the legend's texts and widens the figure for its note by it", () => {
+  it("wraps the legend's keys and widens the figure for its note by it", () => {
     const badge: Overlay = { kind: "badge", target: "a", payload: { glyph: "●", value: 0.2 } };
     const scene = buildScene(elements.graph, elements.positions, { ...options, overlays: [badge] });
-    // 164 at 9.5 px: sixteen characters and the ellipsis; by the estimate (5.225 each) thirty and the ellipsis.
+    // 164 at 9.5 px: seventeen characters a line, so three lines; by the estimate (5.225 each) thirty-one, so two.
     const key = legendLayout(scene.legend, { measure: scene.textMeasure }).rows.find((r) => r.row.kind === "key" && r.row.key === "badge")!;
-    expect(key.texts).toEqual(["Constraint badge…"]);
-    expect(legendLayout(scene.legend).rows.find((r) => r.row.kind === "key" && r.row.key === "badge")!.texts).toEqual(["Constraint badge with shortfal…"]);
-    expect(toSVG({ graph: elements.graph, positions: elements.positions, overlays: [badge], style: elements.style, selfLoops: false }, { textMeasure: em })).toContain(">Constraint badge…</text>");
+    expect(key.texts).toEqual(["Constraint badge", "with shortfall", "share"]);
+    expect(legendLayout(scene.legend).rows.find((r) => r.row.kind === "key" && r.row.key === "badge")!.texts).toEqual(["Constraint badge with shortfall", "share"]);
+    const svg = toSVG({ graph: elements.graph, positions: elements.positions, overlays: [badge], style: elements.style, selfLoops: false }, { textMeasure: em });
+    expect(svg).toContain(">Constraint badge</text>");
+    expect(svg).toContain(">with shortfall</text>");
     const canvas = recording();
     drawLegend(canvas.ctx, prepareScene(elements.graph, elements.positions, { ...options, overlays: [badge] }), 0, 0, 188);
-    expect(canvas.texts).toContain("Constraint badge…");
+    expect(canvas.texts).toEqual(expect.arrayContaining(["Constraint badge", "with shortfall", "share"]));
     // "Showing 1 of 6 flows" at 11 px is 20 × 11 wide, wider than a map of one 50 wide node.
     const one: FlowGraph = { nodes: [{ id: "x", kind: "activity", label: "X" }], edges: [] };
     const box = { x: 0, y: 0, width: 50, height: 40 };

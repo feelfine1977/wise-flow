@@ -11,12 +11,17 @@ import {
   type StringKey,
   RECONNECTED_TAG,
   describeOverlay,
+  type MetricBasis,
+  elementMetric,
   formatCount,
-  formatHours,
+  formatMetricValue,
   formatShare,
   hasTag,
   metric,
+  metricBasis,
   metricLabel,
+  metricLabelOf,
+  metricMeanNote,
   t,
 } from "../core/index.js";
 
@@ -31,12 +36,13 @@ export function describeNode(node: FlowNode, overlays: Overlay[], locale: Locale
     parts.push(activityCounts(node, activityLabels, locale, true));
     if (Number.isFinite(share)) parts.push(formatShare(share, locale));
   } else if (Number.isFinite(cases)) {
-    parts.push(`${formatCount(cases, locale)} ${t(locale, "metric.cases")}${Number.isFinite(share) ? ` (${formatShare(share, locale)})` : ""}`);
+    // A collapsed stage's cases and share are lower bounds: "at least 211,379 cases (at least 84 %)".
+    parts.push(`${elementMetric(node, "cases", locale)} ${t(locale, "metric.cases")}${Number.isFinite(share) ? ` (${elementMetric(node, "share", locale)})` : ""}`);
   }
   const events = metric(node, "events", NaN);
   if (!activityLabels && Number.isFinite(events) && events !== cases) parts.push(`${formatCount(events, locale)} ${t(locale, "metric.events")}`);
   const violation = metric(node, "violationShare", NaN);
-  if (Number.isFinite(violation)) parts.push(`${formatShare(violation, locale)} ${t(locale, "metric.violationShare")}`);
+  if (Number.isFinite(violation)) parts.push(`${formatShare(violation, locale)} ${metricLabelOf("violationShare", locale, metricBasis(node, "violationShare"))}`);
   if (hasTag(node, RECONNECTED_TAG)) parts.push(t(locale, "map.reconnected"));
   for (const o of overlays) parts.push(describeOverlay(o, locale));
   return parts.join(". ") + ".";
@@ -77,12 +83,14 @@ export function metricColumns(items: { metrics?: Record<string, number> }[], pre
   return [...ordered, ...rest];
 }
 
-export function formatMetric(name: string, value: number | undefined, locale: Locale): string {
-  if (value === undefined || !Number.isFinite(value)) return "–";
-  if (/share/i.test(name)) return formatShare(value, locale);
-  if (/hours/i.test(name)) return formatHours(value, locale);
-  if (Number.isInteger(value)) return formatCount(value, locale);
-  return value.toFixed(2);
+/**
+ * A table cell: the value as the metric registry writes it ("–" when
+ * missing), a lower bound as "at least …", and a mean of merged values with
+ * what it is ("15 h (mean of medians)").
+ */
+export function formatMetric(name: string, value: number | undefined, locale: Locale, basis?: MetricBasis): string {
+  const text = formatMetricValue(name, value, locale, { basis });
+  return basis === "mean" && text !== "–" ? `${text} (${metricMeanNote(name, locale)})` : text;
 }
 
 export { describeEdge, metricLabel };

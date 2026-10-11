@@ -21,6 +21,7 @@ export function Legend({ scales, overlays = [], locale = "en", chips, legend }: 
   return (
     <div className="wf-panel wf-legend" {...part("legend")} role="region" aria-label={title}>
       <h3>{title}</h3>
+      {rows.map((row, i) => (row.kind === "measure" ? <p key={i} className="wf-legend__measure">{row.text}</p> : null))}
       <dl>
         {rows.map((row, i) => {
           if (row.kind === "width") {
@@ -35,7 +36,7 @@ export function Legend({ scales, overlays = [], locale = "en", chips, legend }: 
           }
           if (row.kind === "swatches") {
             return (
-              <div key={i}>
+              <div key={i} className="wf-legend__cats">
                 <dt>{row.title}</dt>
                 {row.entries.map((e) => (
                   <dd key={e.text} className="wf-legend__cat">
@@ -65,10 +66,10 @@ export function Legend({ scales, overlays = [], locale = "en", chips, legend }: 
           }
           return null;
         })}
-        <div>
-          {rows.map((row) =>
+        <div className="wf-legend__keys">
+          {rows.map((row, i) =>
             row.kind === "key" ? (
-              <dd key={row.key}>
+              <dd key={i}>
                 <span className="wf-legend__glyph" aria-hidden="true">
                   {row.glyph}
                 </span>
