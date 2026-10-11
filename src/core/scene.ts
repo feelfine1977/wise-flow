@@ -7,7 +7,7 @@
  */
 import { type ActivityLabelOptions, activityReferences } from "./activity-labels.js";
 import { pathCourses } from "./courses.js";
-import { type EdgeMark, type GroupMark, type NodeMark, edgeColor, edgeMarks, groupMarks, nodeMarks } from "./element-marks.js";
+import { type EdgeMark, type GroupMark, type NodeMark, edgeColor, edgeMarks, edgePoints, groupMarks, nodeMarks } from "./element-marks.js";
 import { type SceneLegend, legendOfScene } from "./figure.js";
 import type { Locale } from "./format.js";
 import { type Box, type Positions, type XY, unionBoxes } from "./layout.js";
@@ -122,13 +122,14 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
   const overlays = canonicalOverlays(shownOverlays(graph, options.overlays ?? graph.overlays ?? [], options, locale));
   const rules = { ...(style.lod ?? {}), ...(options.lod ?? {}) };
   const lod = options.lodBySize ? lodForSize(graph.nodes.length, rules) : { ...defaultLod, ...rules };
-  const geometry = placeOverlays(overlays, positions, { locale, ...(options.overlayGeometry ?? {}), lod }, groupTitles(graph.groups ?? [], positions), measure, theme.text);
   const scales = buildScales(graph, style, marked);
+  // Backward paths below the flow and opposite paths side by side; the scene's positions carry their courses, which chips keep clear of.
+  const courses = pathCourses(graph, positions, { width: scales.edgeWidth, bands: new Set(laid.bands.map((b) => b.id)) });
+  const routes = graph.edges.flatMap((e) => (e.kind === "constraint" || e.source === e.target ? [] : [edgePoints(courses.positions, e) ?? []]));
+  const geometry = placeOverlays(overlays, positions, { locale, ...(options.overlayGeometry ?? {}), lod }, groupTitles(graph.groups ?? [], positions), measure, theme.text, routes);
   // Elements a hatch covers are outside the scope the host evaluates; the state resolves here and reaches every renderer.
   const outOfScope = new Set(overlays.filter((o) => o.kind === "hatch").map((o) => o.target));
   const nodes = nodeMarks(graph, positions, scales, { locale, activityLabels, theme: marked, measure, outOfScope });
-  // Backward paths below the flow and opposite paths side by side; the scene's positions carry their courses.
-  const courses = pathCourses(graph, positions, { width: scales.edgeWidth, bands: new Set(laid.bands.map((b) => b.id)) });
   const edges = edgeMarks(graph, courses.positions, scales, locale, marked, courses);
   const groups = groupMarks(graph, positions, laid.bands, scales, marked);
   // A self-loop that stands for a path takes the path's colour; a tint follows the corners of what it covers.

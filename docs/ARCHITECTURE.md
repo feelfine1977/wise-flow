@@ -289,7 +289,9 @@ and its statistics to overlays with formatted readings. Renderers draw
 overlays; the core computes their geometry (badges as pills in a row wholly
 above the node, cubic arcs above the map and reverse arcs below it, each at the
 height or on the side that crosses the fewest other activities, self-loops at
-the corner, chips inside groups, and then the labels: a self-loop's label
+the corner, a group's chips in its title row or in rows above and below it
+where they cover no activity, title, badge, self-loop or other chip and
+cross the fewest paths, and then the labels: a self-loop's label
 and an arc's pill where they cover no activity, badge, chip, other label or
 group title) within a declared margin
 around the layout, and their visibility by zoom level. Overlays are drawn in a

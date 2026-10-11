@@ -103,10 +103,10 @@ describe("Canvas overlay marks", () => {
       { op: "fill", path: expect.stringContaining("A291,-11,9"), color: "#ffffff", alpha: 1 },
       { op: "stroke", path: expect.stringContaining("A291,-11,9"), color: "#b84a00", alpha: 1, width: 1, dash: [] },
     ]);
-    // Chip in stage s2 at (442, −4): paper fill, outline in the accent.
-    expect(startingAt(ops, "M454,-4")).toEqual([
-      { op: "fill", path: expect.stringContaining("A490,8,12"), color: "#ffffff", alpha: 1 },
-      { op: "stroke", path: expect.stringContaining("A490,8,12"), color: "#b84a00", alpha: 1, width: 1, dash: [] },
+    // Chip below stage s2 at (450, 54), clear of C, its self-loop and B's badge: paper fill, outline in the accent.
+    expect(startingAt(ops, "M462,54")).toEqual([
+      { op: "fill", path: expect.stringContaining("A498,66,12"), color: "#ffffff", alpha: 1 },
+      { op: "stroke", path: expect.stringContaining("A498,66,12"), color: "#b84a00", alpha: 1, width: 1, dash: [] },
     ]);
     // The paths a → b and b → c carry no count: they are not evaluated and labelled "–" at their middles.
     expect(ops.filter((o) => o.op === "fillText" && o.text === "–" && o.at?.[1] === 16).map((o) => o.at)).toEqual([[150, 16], [350, 16]]);
@@ -120,8 +120,8 @@ describe("Canvas overlay marks", () => {
       { text: "● · 100 %", at: [66.78, -10.5], color: "#b84a00", font: font("600 11px"), align: "center", baseline: "middle" },
       { text: "≥1 · 25 %", at: [266.78, -10.5], color: "#b84a00", font: font("600 11px"), align: "center", baseline: "middle" },
       // The map-level chip ("Scope") is not drawn on the map.
-      { text: "◔", at: [450, 8.5], color: "#1f1f1f", font: font("11px"), align: "left", baseline: "middle" },
-      { text: "Late", at: [462.4, 8.5], color: "#1f1f1f", font: font("11px"), align: "left", baseline: "middle" },
+      { text: "◔", at: [458, 66.5], color: "#1f1f1f", font: font("11px"), align: "left", baseline: "middle" },
+      { text: "Late", at: [470.4, 66.5], color: "#1f1f1f", font: font("11px"), align: "left", baseline: "middle" },
     ]);
     // Labels beside lines carry a paper halo; labels in pills need none.
     expect(ops.filter((o) => o.op === "strokeText" && o.text !== "–").map((o) => [o.text, o.color, o.width])).toEqual([["↻ 75 %", "#ffffff", 2]]);
@@ -132,20 +132,21 @@ describe("Canvas overlay marks", () => {
     const scene = prepareScene(graph, positions, { overlays: [chip], selfLoops: false, lodBySize: false });
     const { ctx, ops } = drawingContext();
     drawScene(ctx, scene, { x: 0, y: 0, zoom: 1, width: 1000, height: 600 }, undefined, { cull: false });
-    // The chip ends at 502 and is 159.1 wide: padding 16, glyph 12.4, gauge 46 and 14 characters of 6.05 by the estimate, so it starts at 342.9.
-    // Track 40 × 6 at (363.3, 5) with radius 3 in the line colour, 0.7 of it filled, the tick at 2 / 3.
-    expect(startingAt(ops, "M366.3,5")).toEqual([{ op: "fill", path: expect.stringContaining("A400.3,8,3"), color: defaultTokens.line, alpha: 1 }]);
-    const track = ops.findIndex((o) => o.path?.startsWith("M366.3,5"));
+    // The chip is 159.1 wide: padding 16, glyph 12.4, gauge 46 and 14 characters of 6.05 by the estimate. Clear of C, it lies
+    // above s2, ending at its right (510), so it starts at 350.9 and 4 above it at −38.
+    // Track 40 × 6 at (371.3, −29) with radius 3 in the line colour, 0.7 of it filled, the tick at 2 / 3.
+    expect(startingAt(ops, "M374.3,-29")).toEqual([{ op: "fill", path: expect.stringContaining("A408.3,-26,3"), color: defaultTokens.line, alpha: 1 }]);
+    const track = ops.findIndex((o) => o.path?.startsWith("M374.3,-29"));
     expect(ops.slice(track + 1).filter((o) => o.op === "fillRect")).toEqual([
-      { op: "fillRect", path: "R363.3,5,28,6", color: "#b84a00", alpha: 1 },
-      { op: "fillRect", path: "R388.97,4,2,8", color: "#1f1f1f", alpha: 1 },
+      { op: "fillRect", path: "R371.3,-29,28,6", color: "#b84a00", alpha: 1 },
+      { op: "fillRect", path: "R396.97,-30,2,8", color: "#1f1f1f", alpha: 1 },
     ]);
     // The lead in bold, the text after its measured width (9 characters × 6 in this context).
     const texts = ops.filter((o) => o.op === "fillText" && !cards.includes(o.text ?? "") && o.text !== "–" && !o.text?.startsWith("Stage"));
     expect(texts.map(({ text, at, font: f }) => ({ text, at, font: f }))).toEqual([
-      { text: "◔", at: [350.9, 8.5], font: font("11px") },
-      { text: "Touches: ", at: [409.3, 8.5], font: font("600 11px") },
-      { text: "2.1 ⌀", at: [463.3, 8.5], font: font("11px") },
+      { text: "◔", at: [358.9, -25.5], font: font("11px") },
+      { text: "Touches: ", at: [417.3, -25.5], font: font("600 11px") },
+      { text: "2.1 ⌀", at: [471.3, -25.5], font: font("11px") },
     ]);
   });
 

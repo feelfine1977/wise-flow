@@ -174,15 +174,20 @@ describe("group marks", () => {
     });
   });
 
-  it("places a group's chips from its chip anchor: the first ends there, the next 28 below", () => {
+  it("places a group's chips clear of its title, above it and then below it, each ending at its right edge", () => {
     const chip = { kind: "chip" as const, target: "pay", payload: { glyph: "⚖", label: "Four eyes", text: "met" } };
     const scene = buildScene({ ...grouped, overlays: [chip, chip] }, boxes);
     const chips = scene.marks.filter((m) => m.kind === "chip").map((m) => m.box);
-    // The anchor of `pay` (200, 0, 140 wide) is (332, 6); chips are 24 high with 4 between them.
+    // Each chip is 113.1 wide: from the anchor of `pay` (332, 6) it would cover the title "Payment" (212 to 270.8). The first
+    // lies above `pay` ending at its right (340), 4 above it; the second would cover the first there and from `pay`'s left
+    // (200 to 313.1), so it lies below `pay`, 4 under it.
     expect(chips.map((b) => [b.x + b.width, b.y])).toEqual([
-      [332, 6],
-      [332, 34],
+      [340, -28],
+      [340, 104],
     ]);
+    // A chip that fits beside the title stays in the title's row.
+    const short = buildScene({ ...grouped, overlays: [{ kind: "chip", target: "pay", payload: { text: "ok" } }] }, boxes).marks.find((m) => m.kind === "chip")!;
+    expect([short.box.x + short.box.width, short.box.y]).toEqual([332, 6]);
   });
 
   it("outlines bands between each other in the line colour and rules them along the side they start at", () => {

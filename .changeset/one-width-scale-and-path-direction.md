@@ -2,7 +2,7 @@
 "@wise/flow": minor
 ---
 
-Path width has one scale per graph.
+Path width has one scale per graph, every path shows its direction, and chips keep clear of stage names.
 
 - **One width scale per graph.** A path's width depends on its value alone: a
   square-root scale from 0 to the strongest path of the graph the map is
@@ -41,3 +41,9 @@ Path width has one scale per graph.
   `buildScene` puts them into the scene's positions, so a map's and an
   export's bounds include them. `edgeMark` takes `label` and `backward`,
   `edgeMarks` the courses; a path's label can be anchored at its start or end.
+- **Chips clear of stage names.** A chip of a measure that belongs to a stage
+  stays in the stage's title row where it covers nothing there; otherwise it
+  goes above or below the stage, where it covers no activity, title, badge,
+  self-loop or other chip and crosses the fewest paths, else where it covers
+  fewest (it was stacked downwards from the stage's top-right corner, over
+  its name and its activities).

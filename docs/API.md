@@ -743,6 +743,19 @@ self-loop it carries. The labels' boxes are measured in the language they
 are written in, `OverlayGeometryOptions.locale` (default `en`; `buildScene`
 passes the scene's locale).
 
+A chip of a group (a measure that belongs to a stage) is placed after the
+badges and the self-loops: in the group's title row, ending at its chip
+anchor, where it covers nothing there; otherwise above the group or below
+it, 4 clear of it, ending at its right edge or starting at its left, a row
+of 28 further out each time (four rows on either side). It takes the first
+place that covers no activity, group title, badge, self-loop or other chip and
+crosses the fewest paths (the scene's paths, in their courses; `overlayGeometry`
+alone knows no paths), and where every place covers something the first that covers
+fewest. Arc labels, placed after it, keep clear of it. Up to 0.3 a group's
+chips were stacked downwards from the chip anchor, over the group's title
+and its activities where those lay there. Map-level chips sit above the map,
+as before.
+
 An arc keeps clear of the activities between its ends where it can. Its
 default course runs above the map from the tops of its ends (below from the
 bottoms for a reverse arc) at a height of 22 % of its span, at least 40,
@@ -2058,8 +2071,8 @@ at 0.02), outlined in the line colour 1 wide on the two sides between bands
 and ruled 2 wide in its colour along the side it starts at (`rule`: top or
 left). Its title is written 12 in from the left on a baseline 22 below the
 top, at 13 semibold in the muted ink, and `chipAnchor` is where its chips are
-placed from: their right end 8 in from the right edge, the first 6 below the
-top. The SVG export, the Canvas map, the PNG export and `<ProcessMap/>` draw
+placed from: their right end 8 in from the right edge, 6 below the top, where
+that covers nothing (see the overlay geometry). The SVG export, the Canvas map, the PNG export and `<ProcessMap/>` draw
 these marks; the Canvas scene's `SceneGroup.mark` is the group's mark.
 
 `toSVG` draws this scene. Since this change it draws follows self-loops by

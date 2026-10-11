@@ -121,19 +121,21 @@ describe("toSVG overlay marks", () => {
       `<g class="wf-overlay wf-badge"><title></title><rect x="33.55" y="-20" width="66.45" height="18" rx="9" fill="#ffffff" stroke="#b84a00" stroke-width="1"/><text x="66.78" y="-7.2" font-size="11" font-weight="600" text-anchor="middle" fill="#b84a00">● · 100 %</text></g>`,
       `<g class="wf-overlay wf-badge"><title></title><rect x="233.55" y="-20" width="66.45" height="18" rx="9" fill="#ffffff" stroke="#b84a00" stroke-width="1"/><text x="266.78" y="-7.2" font-size="11" font-weight="600" text-anchor="middle" fill="#b84a00">≥1 · 25 %</text></g>`,
       // The map-level chip is listed with the legend only.
-      '<g class="wf-overlay wf-chip"><title>Late</title><rect x="442" y="-4" width="60" height="24" rx="12" fill="#ffffff" stroke="#b84a00" stroke-width="1"/><text x="450" y="11.8" font-size="11" fill="#1f1f1f">◔</text><text x="462.4" y="11.8" font-size="11" fill="#1f1f1f">Late</text></g>',
+      // The chip below s2, clear of C, its self-loop and B's badge.
+      '<g class="wf-overlay wf-chip"><title>Late</title><rect x="450" y="54" width="60" height="24" rx="12" fill="#ffffff" stroke="#b84a00" stroke-width="1"/><text x="458" y="69.8" font-size="11" fill="#1f1f1f">◔</text><text x="470.4" y="69.8" font-size="11" fill="#1f1f1f">Late</text></g>',
     ]);
   });
 
   it("draws a chip's gauge and its label in bold", () => {
     const chip: Overlay = { kind: "chip", target: "s2", payload: { glyph: "◔", label: "Touches", text: "2.1 ⌀", value: 0.5, gauge: { value: 2.1, threshold: 2, width: 1 } } };
     const drawn = toSVG({ graph: kinds.graph, positions: kinds.positions, overlays: [chip], selfLoops: false }, { legend: false }).match(/<g class="wf-overlay[^]*?<\/g>/g);
-    // The chip ends at 502 and is 159.1 wide: padding 16, glyph 12.4, gauge 46 and 14 characters of 6.05 by the estimate.
-    // Track 40 × 6 at (363.3, 5) in the line colour, 0.7 of it filled, the tick 2 px wide at 2 / 3 (389.97 − 1).
+    // The chip is 159.1 wide: padding 16, glyph 12.4, gauge 46 and 14 characters of 6.05 by the estimate; clear of C above s2,
+    // ending at its right (510) and 4 above it. Track 40 × 6 at (371.3, −29) in the line colour, 0.7 of it filled, the tick 2 px
+    // wide at 2 / 3 (397.97 − 1).
     expect(drawn).toEqual([
-      '<g class="wf-overlay wf-chip"><title>Touches — 2.1 ⌀</title><rect x="342.9" y="-4" width="159.1" height="24" rx="12" fill="#ffffff" stroke="#b84a00" stroke-width="1"/>' +
-        '<rect x="363.3" y="5" width="40" height="6" rx="3" fill="#cfd4dc"/><rect x="363.3" y="5" width="28" height="6" fill="#b84a00"/><rect x="388.97" y="4" width="2" height="8" fill="#1f1f1f"/>' +
-        '<text x="350.9" y="11.8" font-size="11" fill="#1f1f1f">◔</text><text x="409.3" y="11.8" font-size="11" fill="#1f1f1f"><tspan font-weight="600">Touches: </tspan>2.1 ⌀</text></g>',
+      '<g class="wf-overlay wf-chip"><title>Touches — 2.1 ⌀</title><rect x="350.9" y="-38" width="159.1" height="24" rx="12" fill="#ffffff" stroke="#b84a00" stroke-width="1"/>' +
+        '<rect x="371.3" y="-29" width="40" height="6" rx="3" fill="#cfd4dc"/><rect x="371.3" y="-29" width="28" height="6" fill="#b84a00"/><rect x="396.97" y="-30" width="2" height="8" fill="#1f1f1f"/>' +
+        '<text x="358.9" y="-22.2" font-size="11" fill="#1f1f1f">◔</text><text x="417.3" y="-22.2" font-size="11" fill="#1f1f1f"><tspan font-weight="600">Touches: </tspan>2.1 ⌀</text></g>',
     ]);
   });
 
