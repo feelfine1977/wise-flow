@@ -6,7 +6,7 @@
  * not empty, names its label and the labels of what it refers to, and has no
  * placeholder, no "undefined" and no raw id where a label exists.
  */
-import { renderHook } from "@testing-library/react";
+import { cleanup, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { type AbstractOptions, type ActivityLabelOptions, type ElementRef, type FlowGraph, type Locale, abstract, activityReferences } from "../../src/index";
 import { useElementDescriptions } from "../../src/react/map-elements";
@@ -58,9 +58,9 @@ describe("descriptions of every element of random graphs", () => {
           const groupLabel = new Map((shown.groups ?? []).map((g) => [g.id, g.label]));
           for (const locale of ["en", "de"] as const) {
             // One mounted hook at a time: a deep run describes tens of thousands of graphs.
-            const { result, unmount } = renderHook(() => useElementDescriptions(shown, shown.overlays ?? [], locale, labels));
+            const { result } = renderHook(() => useElementDescriptions(shown, shown.overlays ?? [], locale, labels));
             const describe = result.current.describeElement;
-            unmount();
+            cleanup();
             const elements: { ref: ElementRef; labels: string[]; ids: string[]; kind: string }[] = [
               ...shown.nodes.map((n) => {
                 const group = n.group !== undefined ? groupLabel.get(n.group) : undefined;
