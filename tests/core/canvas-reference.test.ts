@@ -246,9 +246,13 @@ function viewsOf(scene: PreparedScene, seed: number): { view: View; detail: stri
   if (boxes.length) {
     for (const side of SIDES) {
       const box = rng.pick(boxes);
-      // Straddling, just inside, just outside; outside by more than any extent allows.
-      for (const offset of [rng.float(0.1, 0.9) * (side === "left" || side === "right" ? box.width : box.height), 0.5, -0.5, -40]) {
-        out.push({ view: viewportAtSide(box, side, offset, rng.int(1, 1e9)), detail: `${side} ${offset.toFixed(1)}` });
+      // Straddling (the offset is in screen pixels, so the box's span is taken at the view's zoom), just inside, just
+      // outside; outside by more than any extent allows.
+      const fraction = rng.float(0.1, 0.9);
+      for (const offset of [undefined, 0.5, -0.5, -40]) {
+        const viewSeed = rng.int(1, 1e9);
+        const px = offset ?? fraction * (side === "left" || side === "right" ? box.width : box.height) * viewportAtSide(box, side, 0, viewSeed).zoom;
+        out.push({ view: viewportAtSide(box, side, px, viewSeed), detail: `${side} ${px.toFixed(1)}` });
       }
     }
   }
