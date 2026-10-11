@@ -1,4 +1,4 @@
-import { act, cleanup, render, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
 import { useRef } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -81,6 +81,11 @@ function resolved(setting?: ThemeSetting): () => FlowTheme {
   let last!: FlowTheme;
   render(<Probe setting={setting} report={(look) => void (last = look)} />);
   return () => last;
+}
+
+/** The legends open as strips; their toggles expand them to the whole key. */
+function expandLegends(container: HTMLElement) {
+  for (const button of within(container).queryAllByRole("button", { name: "Show the whole legend" })) fireEvent.click(button);
 }
 
 describe("a colour written in any CSS syntax", () => {
@@ -299,7 +304,7 @@ describe("the theme of a map", () => {
   it("repaints the DOM map, its pattern twins and the switcher's legends when a colour variable changes, without a new scene", async () => {
     const positions = await layout(vendor, { engine: "dagre" });
     document.head.appendChild(rules);
-    rules.textContent = ".inked, .inked * { --wf-ink: #123456; } .sized, .sized * { --wf-stroke-node: 3px; }";
+    rules.textContent = ".inked, .inked * { --wf-pattern-ink: #123456; } .sized, .sized * { --wf-stroke-node: 3px; }";
     const views = resolveViews(vendor, [{ id: "a", label: "A" }, { id: "b", label: "B" }], positions);
     const view = render(
       <div className="host">
@@ -309,7 +314,10 @@ describe("the theme of a map", () => {
     );
     const host = view.container.firstElementChild as HTMLElement;
     const inks = () => new Set([...view.container.querySelectorAll(".wf-node__band pattern > path, .wf-legend__swatch pattern > path")].map((p) => p.getAttribute("stroke")));
+    await waitFor(() => expect(view.container.querySelectorAll(".wf-views__legend").length).toBe(1));
+    expandLegends(view.container);
     await waitFor(() => expect(inks()).toEqual(new Set(["#1f1f1f"])));
+    expect(view.container.querySelectorAll(".wf-legend__swatch pattern").length).toBeGreaterThan(0);
     const built = vi.mocked(buildScene).mock.calls.length;
     act(() => host.classList.add("inked"));
     await waitFor(() => expect(inks()).toEqual(new Set(["#123456"])));
@@ -321,10 +329,10 @@ describe("the theme of a map", () => {
     expect(layouts).not.toHaveBeenCalled();
   });
 
-  it("draws the pattern twins of the DOM map and of the switcher's legends in the theme's ink, as the theme says", async () => {
+  it("draws the pattern twins of the DOM map and of the switcher's legends in the theme's pattern ink, as the theme says", async () => {
     const positions = await layout(vendor, { engine: "dagre" });
     document.head.appendChild(rules);
-    rules.textContent = ".host, .host * { --wf-ink: #123456; }";
+    rules.textContent = ".host, .host * { --wf-pattern-ink: #123456; }";
     const patterns = (root: Element) => [...root.querySelectorAll(".wf-node__band pattern > path, .wf-legend__swatch pattern > path")].map((p) => [p.getAttribute("stroke"), p.getAttribute("stroke-opacity")]);
     const map = (theme?: ThemeSetting) => (
       <div className="host">
@@ -335,7 +343,7 @@ describe("the theme of a map", () => {
     await waitFor(() => expect(patterns(view.container).length).toBeGreaterThan(1));
     expect(new Set(patterns(view.container).map(String))).toEqual(new Set(["#123456,0.6"]));
     // Print draws them opaque, and the setting's ink goes over the host's.
-    view.rerender(map({ preset: "print", color: { ink: "#000000" } }));
+    view.rerender(map({ preset: "print", color: { patternInk: "#000000" } }));
     await waitFor(() => expect(new Set(patterns(view.container).map(String))).toEqual(new Set(["#000000,1"])));
     cleanup();
 
@@ -343,6 +351,7 @@ describe("the theme of a map", () => {
     const views = resolveViews(vendor, [{ id: "a", label: "A" }, { id: "b", label: "B", style: { edgeColor: { metric: "count", palette: "performance" } } }], positions);
     const grid = render(<div className="host"><ViewSwitcher views={views} mode="grid" theme="print" edgeBudget="all" /></div>);
     const legends = grid.container.querySelector(".wf-views__legends")!;
+    expandLegends(grid.container);
     const swatches = [...legends.querySelectorAll<HTMLElement>(".wf-legend__swatch")];
     expect(swatches.length).toBeGreaterThan(1);
     // The print palette, in the form jsdom writes a background: #0072B2, #E69F00, #009E73, #CC79A7, #56B4E9, #D55E00, #F0E442.

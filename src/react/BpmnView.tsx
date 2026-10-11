@@ -1,5 +1,5 @@
 import { type CSSProperties, type ReactNode, forwardRef, useCallback, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { type FlowGraph, type Locale, type LodRules, type Overlay, createPositions, t } from "../core/index.js";
+import { type Box, type FlowGraph, type Insets, type Locale, type LodRules, type Overlay, createPositions, fitViewport, t } from "../core/index.js";
 import { connectBpmnJs } from "../bpmn/bpmn-js.js";
 import { type BpmnExport, exportBpmn } from "../bpmn/export.js";
 import { createIdResolver, renameToActivities } from "../bpmn/ids.js";
@@ -12,6 +12,7 @@ import type { ActivityRenaming } from "../bpmn/ids.js";
 import { useMapController } from "./controller.js";
 import { Legend } from "./Legend.js";
 import { type MarkIds, MarkFigure, domMark, markDefs, svgDom } from "./marks.js";
+import { Button, Panel, ZoomControl, clearOfPanels } from "./primitives.js";
 import { TableAlternative } from "./TableAlternative.js";
 import type { Selection } from "./types.js";
 
@@ -24,7 +25,27 @@ export interface BpmnViewHandle {
   viewer(): unknown;
   saveXML(): Promise<string | undefined>;
   saveSVG(): Promise<string | undefined>;
-  fit(): void;
+  /**
+   * Fit the diagram into the view less `insets` (screen pixels kept clear
+   * along each side); without them, clear of the panels over the diagram.
+   */
+  fit(insets?: Partial<Insets>): void;
+}
+
+/** The room the fitted diagram leaves around it on each side, relative to its size, and the largest zoom a fit takes (the viewer's own fit stops at 1). */
+const BPMN_FIT = { padding: 0.02, maxZoom: 1 };
+
+/** The box of the diagram's shapes and labels in the viewer's registry, if it has any. */
+function diagramBounds(elements: RegistryElement[]): Box | undefined {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const e of elements) {
+    if (e.waypoints || e.x === undefined || e.y === undefined || !e.width || !e.height) continue;
+    x0 = Math.min(x0, e.x);
+    y0 = Math.min(y0, e.y);
+    x1 = Math.max(x1, e.x + e.width);
+    y1 = Math.max(y1, e.y + e.height);
+  }
+  return x1 > x0 && y1 > y0 ? { x: x0, y: y0, width: x1 - x0, height: y1 - y0 } : undefined;
 }
 
 export interface BpmnViewProps {
@@ -141,6 +162,32 @@ export function createBpmnView(connect: ConnectViewer) {
     const [settled, setSettled] = useState(false);
     const announced = useRef<BpmnImport | undefined>(undefined);
     const manualNavigation = useRef(false);
+    const rootRef = useRef<HTMLDivElement>(null);
+    // The diagram fitted inside the view less the insets that keep it clear of the panels over it; with none in the way, the viewer's own fit.
+    const fitDiagram = (current: BpmnViewer, insets?: Partial<Insets>) => {
+      const container = containerRef.current;
+      const root = rootRef.current;
+      const bounds = diagramBounds(current.elements());
+      const width = container?.clientWidth ?? 0;
+      const height = container?.clientHeight ?? 0;
+      const clear = container && root && bounds && width > 0 && height > 0 ? (insets ?? clearOfPanels(container, bounds, BPMN_FIT.padding, BPMN_FIT, root)) : undefined;
+      if (!clear || !bounds || Object.values(clear).every((v) => !v)) {
+        current.zoom("fit-viewport");
+        return;
+      }
+      const v = fitViewport(bounds, { width, height }, { ...BPMN_FIT, insets: clear });
+      current.viewbox({ x: -v.x / v.zoom, y: -v.y / v.zoom, width: width / v.zoom, height: height / v.zoom });
+    };
+    const fitDiagramRef = useRef(fitDiagram);
+    fitDiagramRef.current = fitDiagram;
+    // The zoom the control shows, read again whenever the viewport changes.
+    const [zoomLevel, setZoomLevel] = useState<number>();
+    useEffect(() => {
+      if (!viewer || status !== "ready") return;
+      const read = () => setZoomLevel(viewer.zoom());
+      read();
+      return viewer.on("viewbox", read);
+    }, [viewer, status]);
     // A selection the diagram reported, passed to the controller.
     const diagramSelect = useRef<(s: BpmnSelection) => void>(() => {});
 
@@ -207,7 +254,7 @@ export function createBpmnView(connect: ConnectViewer) {
         if (!current || container.clientWidth === 0 || container.clientHeight === 0) return;
         try {
           current.resized();
-          if (fitRef.current && importedRef.current && !manualNavigation.current) current.zoom("fit-viewport");
+          if (fitRef.current && importedRef.current && !manualNavigation.current) fitDiagramRef.current(current);
         } catch {
           // A canvas without SVG geometry (test environments) cannot be refitted.
         }
@@ -302,7 +349,7 @@ export function createBpmnView(connect: ConnectViewer) {
           lastEmitted.current = "";
           importedRef.current = true;
           setSettled(true);
-          if (fitView) viewer.zoom("fit-viewport");
+          if (fitView) fitDiagramRef.current(viewer);
           setElements(viewer.elements());
           setStatus("ready");
         })
@@ -417,7 +464,10 @@ export function createBpmnView(connect: ConnectViewer) {
         viewer: () => viewerRef.current?.instance ?? null,
         saveXML: async () => viewerRef.current?.saveXML(),
         saveSVG: async () => viewerRef.current?.saveSVG(),
-        fit: () => viewerRef.current?.zoom("fit-viewport"),
+        fit: (insets) => {
+          const current = viewerRef.current;
+          if (current) fitDiagramRef.current(current, insets);
+        },
       }),
       [],
     );
@@ -444,6 +494,7 @@ export function createBpmnView(connect: ConnectViewer) {
 
     return (
       <div
+        ref={rootRef}
         className={`wf-bpmn${className ? ` ${className}` : ""}`}
         style={{ width: "100%", height: "100%", ...containerStyle }}
         role="group"
@@ -472,24 +523,32 @@ export function createBpmnView(connect: ConnectViewer) {
         {controls ? (
           <div className="wf-panel wf-bpmn__panel wf-bpmn__panel--top-left wf-controls">
             <div className="wf-controls__row">
-              <button type="button" className="wf-button" aria-pressed={view === "table"} onClick={() => setView(view === "table" ? "diagram" : "table")}>
+              <Button pressed={view === "table"} onClick={() => setView(view === "table" ? "diagram" : "table")}>
                 {view === "table" ? t(locale, "bpmn.diagram") : t(locale, "bpmn.table")}
-              </button>
+              </Button>
             </div>
           </div>
         ) : null}
         {navigation && view !== "table" ? (
-          <div className="wf-panel wf-bpmn__navigation" role="group" aria-label={t(locale, "bpmn.navigation")}>
-            <button type="button" className="wf-button" aria-label={t(locale, "map.zoomIn")} disabled={status !== "ready"} onClick={() => {
+          <ZoomControl
+            className="wf-bpmn__navigation"
+            label={t(locale, "bpmn.navigation")}
+            zoom={status === "ready" ? zoomLevel : undefined}
+            locale={locale}
+            disabled={status !== "ready"}
+            onZoomIn={() => {
               if (viewer) { manualNavigation.current = true; viewer.zoom(Math.min(4, viewer.zoom() * 1.25)); }
-            }}>+</button>
-            <button type="button" className="wf-button" aria-label={t(locale, "map.zoomOut")} disabled={status !== "ready"} onClick={() => {
+            }}
+            onZoomOut={() => {
               if (viewer) { manualNavigation.current = true; viewer.zoom(Math.max(0.05, viewer.zoom() / 1.25)); }
-            }}>−</button>
-            <button type="button" className="wf-button" title={t(locale, "bpmn.fit")} aria-label={t(locale, "bpmn.fit")} disabled={status !== "ready"} onClick={() => {
-              manualNavigation.current = true; viewer?.zoom("fit-viewport");
-            }}>⛶</button>
-            <button type="button" className="wf-button" disabled={status !== "ready"} onClick={() => {
+            }}
+            fitLabel={t(locale, "bpmn.fit")}
+            onFit={() => {
+              manualNavigation.current = true;
+              if (viewer) fitDiagram(viewer);
+            }}
+          >
+            <Button icon="readable" label={t(locale, "bpmn.readable")} disabled={status !== "ready"} onClick={() => {
               const container = containerRef.current;
               if (!viewer || !container) return;
               manualNavigation.current = true;
@@ -497,23 +556,23 @@ export function createBpmnView(connect: ConnectViewer) {
               const task = selected ?? viewer.elements().find((e) => !e.labelTarget && isTask(e.businessObject));
               if (task && task.x !== undefined && task.y !== undefined) viewer.viewbox({ x: task.x + (task.width ?? 0) / 2 - container.clientWidth / 2, y: task.y + (task.height ?? 0) / 2 - container.clientHeight / 2, width: container.clientWidth, height: container.clientHeight });
               else viewer.zoom(1);
-            }}>{t(locale, "bpmn.readable")}</button>
-          </div>
+            }} />
+          </ZoomControl>
         ) : null}
         {legend && view !== "table" ? (
           <div className="wf-bpmn__panel wf-bpmn__panel--bottom-right">
-            <Legend scales={scales} legend={scene.legend} locale={locale} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} />) : undefined} />
+            <Legend scales={scales} legend={scene.legend} locale={locale} onAnnounce={controller.announce} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} />) : undefined} />
           </div>
         ) : null}
         {status === "loading" || (status === "idle" && (xml || graph)) ? (
-          <div className="wf-panel wf-bpmn__panel wf-bpmn__panel--top-right" role="status">
+          <Panel part="status" className="wf-bpmn__panel wf-bpmn__panel--top-right" role="status">
             {t(locale, "bpmn.loading")}
-          </div>
+          </Panel>
         ) : null}
         {status === "error" ? (
-          <div className="wf-panel wf-bpmn__panel wf-bpmn__panel--top-right" role="alert">
+          <Panel part="status" className="wf-bpmn__panel wf-bpmn__panel--top-right" role="alert">
             {t(locale, "bpmn.error")}
-          </div>
+          </Panel>
         ) : null}
         {children}
       </div>

@@ -1,9 +1,10 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { type Box, type EdgeBudget, type HitItem, type Locale, type ShownEdges, type ThemeSetting, type XY, formatCount, t, themeColors } from "../core/index.js";
+import { type Box, type EdgeBudget, type HitItem, type Insets, type Locale, type ShownEdges, type ThemeSetting, type XY, formatCount, t, themeColors } from "../core/index.js";
 import { CanvasRenderer, type DrawState, type PreparedScene } from "../canvas/index.js";
 import { sceneTokens } from "../canvas/tokens.js";
 import { useEdgesShown } from "./hooks.js";
 import { part } from "./parts.js";
+import { ZoomControl, clearOfPanels } from "./primitives.js";
 import { useFlowTheme } from "./theme.js";
 
 export interface CanvasMapProps {
@@ -13,6 +14,8 @@ export interface CanvasMapProps {
   /** Changes when a new layout arrived; the view is fitted again. */
   fitKey?: string;
   fitView?: boolean;
+  /** Room kept clear along each side when the view is fitted, in screen pixels; by default clear of the panels over the map. */
+  fitInsets?: Partial<Insets>;
   /** Tooltip text for a hit. */
   describe?: (hit: HitItem) => string | undefined;
   onHover?: (hit: HitItem | null) => void;
@@ -42,7 +45,12 @@ export interface CanvasMapProps {
 
 export interface CanvasMapHandle {
   centerOn(id: string, zoom?: number): void;
-  fit(): void;
+  /**
+   * Fit the map into the canvas less `insets` (screen pixels kept clear along
+   * each side); without them, clear of the panels over the map (its
+   * `.wf-overlay-panel` children), so that none covers an activity.
+   */
+  fit(insets?: Partial<Insets>): void;
   /** True when the view changed since the map was last fitted. */
   moved(): boolean;
   zoomBy(factor: number): void;
@@ -52,6 +60,7 @@ export interface CanvasMapHandle {
 }
 
 const ZOOM_STEP = 1.2;
+const FIT_PADDING = 0.08;
 
 /** The note shown while the edge budget withholds edges, announced once its numbers settle. */
 export function EdgeNote({ withheld, locale, onAnnounce }: { withheld?: { shown: number; total: number }; locale: Locale; onAnnounce?: (text: string) => void }) {
@@ -76,7 +85,7 @@ export function EdgeNote({ withheld, locale, onAnnounce }: { withheld?: { shown:
  * focus, dimming) comes from the parent; keyboard handling stays there.
  */
 export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function CanvasMap(
-  { scene, state, locale = "en", fitKey, fitView = true, describe, onHover, onClick, onContextMenu, onViewportChange, descendants, edgeBudget = "adaptive", clock, onAnnounce, onEdgesShown, theme, className, children },
+  { scene, state, locale = "en", fitKey, fitView = true, fitInsets, describe, onHover, onClick, onContextMenu, onViewportChange, descendants, edgeBudget = "adaptive", clock, onAnnounce, onEdgesShown, theme, className, children },
   ref,
 ) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -89,9 +98,16 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
   const [overHit, setOverHit] = useState(false);
   const fitted = useRef<string | undefined>(undefined);
   const fittedView = useRef<unknown>(undefined);
-  const fitNow = () => {
-    rendererRef.current?.fit();
-    fittedView.current = rendererRef.current?.getViewport();
+  const [zoom, setZoom] = useState<number>();
+  const fitInsetsRef = useRef(fitInsets);
+  fitInsetsRef.current = fitInsets;
+  const fitNow = (insets?: Partial<Insets>) => {
+    const r = rendererRef.current;
+    const host = hostRef.current;
+    const bounds = r?.getScene()?.bounds;
+    if (!r) return;
+    r.fit(FIT_PADDING, insets ?? fitInsetsRef.current ?? (host && bounds ? clearOfPanels(host, bounds, FIT_PADDING, r) : undefined));
+    fittedView.current = r.getViewport();
   };
   const [ready, setReady] = useState(false);
   const [withheld, setWithheld] = useState<{ shown: number; total: number }>();
@@ -106,7 +122,10 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
     const host = hostRef.current;
     if (!canvas || !host) return;
     const renderer = new CanvasRenderer(canvas, { tokens, clock });
-    renderer.onViewportChange = (v) => onViewportChange?.(v);
+    renderer.onViewportChange = (v) => {
+      setZoom(v.zoom);
+      onViewportChange?.(v);
+    };
     renderer.onDraw = ({ withheld: w }) => {
       reportShown(w, renderer.getScene()?.edgeMarks ?? []);
       const key = w ? `${w.shown}/${w.total}` : "";
@@ -317,7 +336,7 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
       <canvas ref={canvasRef} aria-hidden="true" />
       {listed}
       {tooltip ? (
-        <div className="wf-canvas-map__tooltip" {...part("tooltip")} role="tooltip" style={{ left: tooltip.x, top: tooltip.y }}>
+        <div className="wf-tooltip wf-canvas-map__tooltip" {...part("tooltip")} role="tooltip" style={{ left: tooltip.x, top: tooltip.y }}>
           {tooltip.text}
         </div>
       ) : null}
@@ -327,17 +346,7 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
         </div>
       ) : null}
       <div className="wf-overlay-panel wf-overlay-panel--bottom-left">
-        <div className="wf-panel wf-zoom" {...part("controls")} role="group" aria-label={t(locale, "map.fit")}>
-          <button type="button" className="wf-button" aria-label={t(locale, "map.zoomIn")} onClick={() => rendererRef.current?.zoomBy(ZOOM_STEP)}>
-            +
-          </button>
-          <button type="button" className="wf-button" aria-label={t(locale, "map.zoomOut")} onClick={() => rendererRef.current?.zoomBy(1 / ZOOM_STEP)}>
-            −
-          </button>
-          <button type="button" className="wf-button" aria-label={t(locale, "map.fit")} onClick={fitNow}>
-            ⤢
-          </button>
-        </div>
+        <ZoomControl zoom={zoom} locale={locale} onZoomIn={() => rendererRef.current?.zoomBy(ZOOM_STEP)} onZoomOut={() => rendererRef.current?.zoomBy(1 / ZOOM_STEP)} onFit={() => fitNow()} />
       </div>
       {children}
     </div>

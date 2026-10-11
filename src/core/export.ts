@@ -279,7 +279,7 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
   parts.push(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${num(outW)}" height="${num(outH)}" viewBox="0 0 ${num(totalW)} ${num(totalH)}" font-family="${esc(font)}" role="img" aria-label="${esc(given.title ?? t(locale, "map.description", { nodes: scene.graph.nodes.length, edges: scene.graph.edges.length, groups: scene.graph.groups?.length ?? 0 }))}">`,
   );
-  parts.push(`<defs>${patternDefs("wf-pattern", colors.ink, colors.outOfScope, theme.pattern)}`);
+  parts.push(`<defs>${patternDefs("wf-pattern", colors.patternInk, colors.outOfScope, theme.pattern)}`);
   parts.push(svgMarkup(arrowMarker("wf-arrow", arrowheadTokens.edge)));
   parts.push(svgMarkup(arrowMarker("wf-overlay-arrow", markArrowhead(overlayArrow))));
   parts.push(`</defs>`);

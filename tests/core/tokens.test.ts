@@ -44,6 +44,7 @@ describe("the token table", () => {
       lineStrong: "#8c94a1",
       cueStripe: "#e6e8ec",
       cueFoot: "#5f6672",
+      patternInk: "#1f1f1f",
       focus: "#0072b2",
       selection: "rgba(0, 114, 178, 0.14)",
       neutral: "#8c8c8c",
@@ -57,12 +58,17 @@ describe("the token table", () => {
     expect(light["--wf-ink-muted"]).toBe("#5b6270");
     expect(light["--wf-out-of-scope"]).toBe("#b0b0b0");
     expect(light["--wf-fail"]).toBe("#d55e00");
-    expect(light["--wf-on-focus"]).toBe("#ffffff");
+    // Nothing reads the text on the focus colour since pressed toggles and selected tabs have colours of their own.
+    expect(light["--wf-on-focus"]).toBeUndefined();
     expect(light["--wf-radius-lg"]).toBe("8px");
     expect([light["--wf-cue-stripe"], light["--wf-cue-foot"], light["--wf-size-cue-foot"]]).toEqual(["#e6e8ec", "#5f6672", "3px"]);
     expect(light["--wf-note-width"]).toBe("160px");
     expect(light["--wf-mechanism"]).toBeUndefined();
+    // Pressed toggles and the pattern twins' ink have roles of their own; native controls follow the scheme.
+    expect([light["--wf-pressed"], light["--wf-on-pressed"], light["--wf-pattern-ink"], light["--wf-color-scheme"]]).toEqual(["#0072b2", "#ffffff", "#1f1f1f", "light"]);
+    expect([light["--wf-size-icon"], light["--wf-stroke-icon"]]).toEqual(["16px", "2px"]);
     expect(dark).toEqual({
+      "--wf-color-scheme": "dark",
       "--wf-paper": "#16181d",
       "--wf-surface": "#1f2229",
       "--wf-ink": "#ececec",
@@ -71,6 +77,9 @@ describe("the token table", () => {
       "--wf-line-strong": "#6b7280",
       "--wf-cue-stripe": "#2c3038",
       "--wf-cue-foot": "#8f96a3",
+      "--wf-pressed": "#0b1f2e",
+      "--wf-on-pressed": "#ececec",
+      "--wf-pattern-ink": "#101114",
       "--wf-selection": "rgba(86, 180, 233, 0.22)",
       "--wf-hover": "rgba(255, 255, 255, 0.07)",
     });

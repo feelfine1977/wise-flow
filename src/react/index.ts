@@ -5,7 +5,8 @@
 export { ProcessMap, groupNodeId } from "./ProcessMap.js";
 export { TableAlternative, type TableAlternativeProps } from "./TableAlternative.js";
 export { TraceTimeline, type TraceTimelineProps, type Trace, type TraceEvent, type Annotation } from "./TraceTimeline.js";
-export { AbstractionControls, type AbstractionControlsProps } from "./AbstractionControls.js";
+export { AbstractionControls, type AbstractionControlsProps, type KeptCount } from "./AbstractionControls.js";
+export { ZoomControl, type ZoomControlProps } from "./primitives.js";
 export { Legend, type LegendProps } from "./Legend.js";
 export { OverlayLayer, type OverlayLayerProps } from "./OverlayLayer.js";
 export { ContextMenu, type ContextMenuProps } from "./ContextMenu.js";

@@ -17,6 +17,8 @@ export interface CanvasTokens {
   /** The frequency cue's stripe and foot; the scene's, in its scheme, when not given. */
   cueStripe?: string;
   cueFoot?: string;
+  /** The ink of the pattern twins on the stage colours; the scene's, in its scheme, when not given. */
+  patternInk?: string;
   focus: string;
   selection: string;
   neutral: string;
@@ -33,6 +35,7 @@ export const defaultTokens: CanvasTokens = {
   lineStrong: colorTokens.lineStrong,
   cueStripe: colorTokens.cueStripe,
   cueFoot: colorTokens.cueFoot,
+  patternInk: colorTokens.patternInk,
   focus: colorTokens.focus,
   selection: colorTokens.selection,
   neutral: colorTokens.neutral,

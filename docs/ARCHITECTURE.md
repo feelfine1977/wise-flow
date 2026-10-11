@@ -7,6 +7,7 @@
 │ react/   <ProcessMap/> <TableAlternative/> <TraceTimeline/> │
 │          <BpmnView/> <ViewSwitcher/> <ContextMenu/>          │
 │          <PathList/> <FilterChips/> <CanvasMap/> <Legend/>   │
+│          <ZoomControl/> · panel primitives · fit             │
 │          useMapController · map-pointer · map-actions ·      │
 │          map-elements · nodes · edges · marks · theme        │
 │          hooks: useFlowGraph, useStableLayout, useOverlays   │
@@ -21,7 +22,8 @@
 │          overlay-marks · element-marks · mark-svg · figure ·│
 │          text · tokens · theme · style · hit · export ·     │
 │          views · selection · map-controller · actions ·     │
-│          paths · filters · format · metrics · strings       │
+│          paths · filters · format · metrics · strings ·     │
+│          viewport                                           │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -44,6 +46,7 @@ read what it resolves and do not decide it again.
 | Edge budget (`core/edge-budget.ts`) | `budgetEdges(scene, budget, protection, inView)` → `EdgeSelection`; `edgeBudgetAdapter(clock)` (internal) | which edges in view a budget draws: protected edges (an overlay mark on them, selected, at the keyboard position, on a highlighted path), then weight, then id; or exactly the edges a map reported (`ShownEdges`); the adaptive budget's step, moved by the timed frames of gestures and only at rest (§4) | `drawScene` and `CanvasRenderer` (Canvas, `toPNG`), `useFlowElements` (React Flow), `toSVG` |
 | Mark SVG (`core/mark-svg.ts`) | `markSvg`, `svgMarkup` | the SVG elements of a mark | SVG export, React map, BPMN view |
 | Legend and figure frame (`core/figure.ts`) | `FlowScene.legend` (`legendOfScene`), `LegendRow`, `legendLayout`, `figureFrame`, `figureCaption` | the legend's typed rows from what the scene draws (the measure and its unit, the scales titled by metric and unit, a key per kind of mark drawn), their heights and texts at the export's width, the exported figure's frame, its caption line and the note on withheld edges in it (§2.6) | `toSVG`, `toPNG`, Canvas `drawLegend`, `<Legend/>` |
+| Fitted view (`core/viewport.ts`) | `fitViewport(bounds, area, { insets, padding })`, `panelInsets(panels, area, bounds)` | the view that shows a map whole inside its area less insets, and the insets that keep it clear of the panels over it (each panel kept clear across or along the area, whichever leaves the larger zoom) | `ProcessMap` (React Flow), `CanvasRenderer.fit` and `CanvasMap`, `BpmnView` |
 | Metric registry (`core/metrics.ts`) | `metricRegistry`, `formatMetricValue`, `elementMetric`, `metricLabelOf`, `channelTitle` | for each metric its name, unit and number format in English and German, and how a lower bound and a mean of merged values read (§2.2, §2.6) | the legend, the node and edge marks, the descriptions, `<TableAlternative/>`, `<PathList/>` |
 | Design tokens (`core/tokens.ts`) | `designTokens` and its parts, `patternTwin`, `tokenVariables` | colours, palettes, fonts, node sizes, the arrowhead rule, pattern twins, and every size, radius, stroke, dash, text size and weight, opacity, spacing step and z-order by role; `tokens.css` is generated from it and checked against it (§2.4) | marks, SVG export, Canvas drawing and `readTokens`, PNG export, React components, `tokens.css` and through it the stylesheet |
 | Graph index and positions (`core/model.ts`, `core/layout.ts`) | `indexGraph`, `createPositions` | lookups, adjacency, group ancestors, nested members, labels; positions whose bounds always match their contents (§2.1, §2.3) | selection, filters, paths, lanes, layout, every renderer |
@@ -428,7 +431,15 @@ edge label layer, above the edges and below the nodes; self-loops above the
 nodes);
 edge labels and node details toggled through level-of-detail classes on the
 container. Abstraction controls (activities, paths, stage
-view, keep connected, table view) in a panel; the legend always visible.
+view, keep connected, table view) in a panel, the sliders saying what they
+keep ("7 of 12"); the legend always visible, as a one-line strip naming the
+measure and its unit that expands to the whole key; one zoom control
+(`<ZoomControl/>`: zoom in, zoom out, the current zoom, fit) in the DOM map,
+the Canvas map and the BPMN view, React Flow's own controls not rendered.
+Panels, buttons, chips and tooltips are one set of primitives modelled on
+the actions menu, styled through the tokens in both schemes. The fitted view
+keeps clear of the open panels (`panelInsets`), so that none covers an
+activity.
 Keyboard navigation over activities (arrow keys; Alt with an arrow key
 along the paths; Space selects; Enter opens the actions menu; Shift with
 an arrow key extends the selection; Escape; Home, End) with

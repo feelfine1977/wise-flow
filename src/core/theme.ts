@@ -200,11 +200,13 @@ function cssValue(value: unknown, path: string[]): string {
   return path[0] === "font" ? s.replace(/'/g, '"') : s.startsWith("#") ? s.toLowerCase() : s;
 }
 
-/** Every CSS variable of a theme in a scheme, as `tokens.css` writes the default theme's. */
+/** Every CSS variable of a theme in a scheme, as `tokens.css` writes the default theme's, and `--wf-color-scheme`, the scheme itself. */
 export function themeVariables(theme: Theme, scheme: ColorScheme = "light"): Record<string, string> {
   const colors = themeColors(theme, scheme);
   const out: Record<string, string> = {};
   for (const [name, path] of variableParts(theme)) out[name] = cssValue(path[0] === "color" ? colors[path[1] as ColorToken] : at(theme, path), path);
+  // The scheme the browser draws native controls in, as tokens.css writes it.
+  out["--wf-color-scheme"] = scheme;
   return out;
 }
 

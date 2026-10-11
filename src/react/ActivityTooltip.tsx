@@ -74,7 +74,7 @@ export function ActivityTooltip({ id, node, description, anchor }: Props) {
       id={id}
       ref={elementRef}
       role="tooltip"
-      className="wf-activity-tooltip"
+      className="wf-tooltip wf-activity-tooltip"
       {...part("tooltip")}
       style={position}
       onMouseEnter={() => { overTooltip.current = true; clearTimeout(closeTimer.current); }}
