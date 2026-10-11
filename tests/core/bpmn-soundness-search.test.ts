@@ -3,14 +3,13 @@ import { liteFromGraph } from "../../src/bpmn/headless";
 import { type FlowGraph, type FlowNode, hasTag, validateGateways, validateGraph } from "../../src/index";
 import { generatedModel } from "../support/models";
 import { caseCount, caseLabel, createRandom, seeds } from "../support/random";
-import { type TokenGame, playTokens } from "./token-game";
+import { type TokenGame, isWrong, playTokens } from "./token-game";
 
 // Every generated model is explored to completion; a model with more reachable
 // states than this would fail the test rather than pass unexplored.
 const LIMIT = 200_000;
 const sound = { complete: true, completes: true, stuck: [], unsafe: [], trapped: [], dead: [] };
 const verdict = (game: TokenGame) => ({ complete: game.complete, completes: game.completes, stuck: game.stuck, unsafe: game.unsafe, trapped: game.trapped, dead: game.dead });
-const wrong = (game: TokenGame) => !game.completes || game.stuck.length > 0 || game.unsafe.length > 0 || game.trapped.length > 0 || game.dead.length > 0;
 
 /** The model with one gateway's kind turned over: exclusive to parallel or back. */
 function turned(model: FlowGraph, id: string): FlowGraph {
@@ -62,6 +61,7 @@ describe("the structural check and the token game", () => {
   it("agree on every generated model and on each with one gateway turned over", () => {
     let turnedModels = 0;
     let caught = 0;
+    let bounded = 0;
     let unexplored = 0;
     for (const seed of seeds(caseCount(150))) {
       const rng = createRandom(seed);
@@ -76,19 +76,20 @@ describe("the structural check and the token game", () => {
       const game = playTokens(planted, { limit: 5_000 });
       const reported = validateGateways(planted);
       turnedModels++;
-      if (!wrong(game) && !game.complete) {
+      if (!game.complete) bounded++;
+      if (!isWrong(game) && !game.complete) {
         // Neither a problem nor all states seen: the game cannot judge this one.
         unexplored++;
         continue;
       }
       // Whatever the check reports is a real problem in the game, and every model the
       // game finds stuck or unsafe is reported by the check.
-      expect({ reported: reported.length > 0, wrong: wrong(game) }, label).toEqual({ reported: wrong(game), wrong: wrong(game) });
+      expect({ reported: reported.length > 0, wrong: isWrong(game) }, label).toEqual({ reported: isWrong(game), wrong: isWrong(game) });
       if (game.stuck.length || game.unsafe.length) expect(reported.length, label).toBeGreaterThan(0);
       if (reported.length) caught++;
     }
     expect(unexplored).toBeLessThan(turnedModels / 10);
-    console.log(`check and game: ${turnedModels} models with a turned gateway, ${caught} wrong and reported by both, ${unexplored} beyond the bound`);
+    console.log(`check and game: ${turnedModels} models with a turned gateway, ${caught} wrong and reported by both, ${bounded} stopped at the bound, ${unexplored} of them undecided`);
   });
 
   it("both catch a planted parallel join that no parallel split pairs", () => {

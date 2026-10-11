@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type FlowEdge, type FlowGraph, type FlowNode, validateGateways, validateGraph } from "../../src/index";
-import { playTokens } from "./token-game";
+import { isWrong, playTokens } from "./token-game";
 
 // A model from its flows: `start` and `end*` are events, `and*` parallel and
 // `xor*` exclusive gateways, every other id a task.
@@ -94,9 +94,7 @@ describe("validateGateways", () => {
     ];
     for (const flows of wrongModels) {
       const g = model(flows);
-      const game = playTokens(g);
-      const wrong = game.stuck.length > 0 || game.unsafe.length > 0 || game.trapped.length > 0 || game.dead.length > 0 || !game.completes;
-      expect({ wrong, reported: validateGateways(g).length > 0 }, flows).toEqual({ wrong: true, reported: true });
+      expect({ wrong: isWrong(playTokens(g)), reported: validateGateways(g).length > 0 }, flows).toEqual({ wrong: true, reported: true });
     }
   });
 
@@ -156,5 +154,25 @@ describe("validateGateways", () => {
       const game = playTokens(g);
       expect(game).toMatchObject({ complete: true, completes: true, stuck: [], unsafe: [], trapped: [], dead: [] });
     }
+  });
+});
+
+describe("the token game stopped at its bound", () => {
+  it("finds nothing wrong in a sound model it could not finish", () => {
+    // Five parallel branches: the start, 2^5 states of the branches, the join, the end:
+    // 35 states. Cut at 10, the case cannot have reached the join yet, but nothing
+    // seen is stuck, unsafe or unable to go on towards the states beyond the bound.
+    const g = model("start>and1 and1>a and1>b and1>c and1>d and1>e a>and2 b>and2 c>and2 d>and2 e>and2 and2>end");
+    expect(playTokens(g)).toMatchObject({ states: 35, complete: true, completes: true, stuck: [], unsafe: [], trapped: [], dead: [] });
+    const cut = playTokens(g, { limit: 10 });
+    expect(cut).toMatchObject({ states: 10, complete: false, completes: false, stuck: [], unsafe: [], trapped: [], dead: ["and2", "end"] });
+    expect(isWrong(cut)).toBe(false);
+  });
+
+  it("judges a model by stuck and unsafe states also when it could not finish", () => {
+    // The parallel join behind a choice waits for ever after one step of either branch.
+    const g = model("start>xor1 xor1>a xor1>b a>and1 b>and1 and1>end");
+    expect(isWrong(playTokens(g))).toBe(true);
+    expect(isWrong(playTokens(g, { limit: 4 }))).toBe(true);
   });
 });

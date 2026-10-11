@@ -40,8 +40,18 @@ export interface TokenGame {
    * (unsafe, or beyond the limit) is not counted.
    */
   trapped: string[][];
-  /** Nodes that take a token in no reachable state, in graph order. */
+  /** Nodes that take a token in no visited state, in graph order; all of them dead only when `complete`. */
   dead: string[];
+}
+
+/**
+ * Whether the game shows the model wrong: a stuck, unsafe or trapped state (each real
+ * also when the exploration stopped at its limit), or, once every reachable state was
+ * visited, a dead node or no way to complete.
+ */
+export function isWrong(game: TokenGame): boolean {
+  if (game.stuck.length || game.unsafe.length || game.trapped.length) return true;
+  return game.complete && (!game.completes || game.dead.length > 0);
 }
 
 const carriesTokens = (e: FlowEdge) => e.kind !== "constraint" && !hasTag(e, "message") && !hasTag(e, "association");
@@ -127,7 +137,9 @@ export function playTokens(graph: FlowGraph, options: { limit?: number } = {}): 
       let number = numberOf.get(k);
       if (number === undefined) {
         if (states.length >= limit) {
+          // A step leads beyond the limit: this state may still end there.
           result.complete = false;
+          explored[at] = false;
           continue;
         }
         number = states.length;
