@@ -99,6 +99,15 @@ describe("format", () => {
     expect(formatCompact(NaN)).toBe("–");
   });
 
+  it("formats with no decimals below zero and at most a hundred, the most a number can be printed with", () => {
+    expect(formatNumber(1234.5, -1)).toBe("1,235");
+    expect(formatNumber(1234.5, -2, "de")).toBe("1.235");
+    expect(formatNumber(1.26, NaN)).toBe("1");
+    expect(formatNumber(0.5, 1e308)).toBe(`0.5${"0".repeat(99)}`);
+    expect(formatNumber(0.5, Infinity, "de")).toBe(`0,5${"0".repeat(99)}`);
+    expect(formatNumber(0.25, 2.9)).toBe("0.25");
+  });
+
   it("translates with placeholders and falls back to English", () => {
     expect(t("en", "map.description", { nodes: 3, edges: 4, groups: 1 })).toBe("Process map with 3 nodes and 4 connections in 1 groups.");
     expect(t("de", "legend.title")).toBe("Legende");
