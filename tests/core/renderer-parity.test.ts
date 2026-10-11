@@ -50,20 +50,31 @@ describe("the parity readers", () => {
     expect([...drawn.keys()].sort()).toEqual(["edge:a->b", "edge:b->end", "edge:start->a", "group:g", "mark:badge:a:0", "node:a", "node:b", "node:end", "node:start"]);
     expect(drawn.get("node:a")).toMatchObject({ box: { x: 100, y: 0, width: 180, height: 48 }, props: { fill: "#ffffff", outlineWidth: "2", dash: "none", radius: "6", band: expect.stringMatching(/^#[0-9a-f]{6} 8$/) } });
     expect(drawn.get("node:a")!.texts.map((t) => [t.text, t.size])).toEqual([["Approve", 12], ["10", 9]]);
-    // Start and end events: a circle of the box's half width, outlined 1.5 and 3 in the ink.
-    expect(drawn.get("node:start")).toMatchObject({ box: { x: 0, y: 6, width: 36, height: 36 }, props: { outline: "#1f1f1f", outlineWidth: "1.5", radius: "18" } });
+    // Start and end events: a circle of the box's half width, outlined 2 and 3 in the ink.
+    expect(drawn.get("node:start")).toMatchObject({ box: { x: 0, y: 6, width: 36, height: 36 }, props: { outline: "#1f1f1f", outlineWidth: "2", radius: "18" } });
     expect(drawn.get("node:end")!.props.outlineWidth).toBe("3");
     expect(drawn.get("group:g")).toMatchObject({ box: { x: 80, y: -40, width: 520, height: 120 }, props: { dash: "6 4", outlineWidth: "1.5", radius: "10" } });
     // An edge's box is its route's: from the right of `a` to the left of `b` at their middle.
     expect(drawn.get("edge:a->b")!.box).toEqual({ x: 280, y: 24, width: 120, height: 0 });
   });
 
-  it("find the Canvas map and the PNG export drawing as the SVG export does, but for the group's outline", () => {
-    const color = scene.scales.categorical("g").color.toLowerCase();
-    const found = differences([{ name: "small", kinds, svg: svg(), others: { canvas: canvas(), png: png() } }]);
-    expect(found).toEqual(
-      (["canvas", "png"] as const).map((renderer) => ({ renderer, kind: "group:stage", property: "outline", svg: `${color}@0.5`, other: color, fixtures: ["small"], elements: 1 })),
-    );
+  it("find the Canvas map and the PNG export drawing as the SVG export does", () => {
+    expect(differences([{ name: "small", kinds, svg: svg(), others: { canvas: canvas(), png: png() } }])).toEqual([]);
+  });
+
+  it("read a band's fill, its outline between the bands and its rule alike from the three", () => {
+    const given = { graph, positions, overlays, lanes: "stages" as const };
+    const banded = buildScene(graph, positions, given);
+    const bandKinds = kindsOf(banded);
+    const read = {
+      svg: readSvg(toSVG(given), exportedMarks(banded)),
+      canvas: readCanvasMap(prepareScene(graph, positions, given), bandKinds, measure),
+      png: readPng((createCanvas) => toPNGCanvas(given, { scale: 1, createCanvas }), prepareScene(graph, positions, { ...given, lodBySize: false }), bandKinds, measure),
+    };
+    const color = banded.scales.categorical("g").color.toLowerCase();
+    // A stage band runs along the flow: outlined left and right in the line colour, its rule 3 wide along its top.
+    expect(read.svg.get("group:g")!.props).toMatchObject({ fill: `${color}@0.06`, outline: "#cfd4dc", outlineWidth: "1", dash: "none", outlineSides: "right left", rule: `${color} 3`, radius: "0" });
+    expect(differences([{ name: "bands", kinds: bandKinds, svg: read.svg, others: { canvas: read.canvas, png: read.png } }])).toEqual([]);
   });
 
   it("report a stroke width changed in one renderer as a difference the list lacks", () => {

@@ -115,15 +115,17 @@ function exported(fixture: Fixture, scene: Partial<Scene>, options: PngOptions):
  * activities: the scenes differ only in arc marks (in the global fixture four
  * arcs take another course and four more move their label along the arc; in
  * the vendor fixture two and one; in the unfiltered one, one label), so only
- * the arcs' calls changed.
+ * the arcs' calls changed. Recorded once more when the start event took the
+ * interactive map's outline: only its stroke's width changed, 2 where it was
+ * 1.5.
  */
 const before = {
-  mapGlobalStages: "9db6c60bad268bac1d034241e3be0ad640066102f8b55f062cfe1d2934792ee7",
-  mapVendorIds: "a2cc80340a1e94eb74fea10e25b17b6c8e5dbf2ef35a6c3d296f4606828298e1",
-  mapUnfiltered: "54a137c465c8c008aa35990f5431d211dbeabee90338ecffe4f23b7b02ccc8d8",
-  pngGlobalTitle: "23bed0f51a1accedc2494fabdf92837b531eccddd616b8f01799ab8365779763",
-  pngVendorIds: "3e30000e123af23278127f47f901b6ac35bb96c3f62618be6837bfbc3611287e",
-  pngUnfilteredGerman: "7350a5db2c3ebcff764f5dd9d23aebf7c9d905fa666afea98adab0503b6bc752",
+  mapGlobalStages: "e6874a03e252c02c08d83c6e6cd7f8f6112d9a94187c53c9281c36c8dec6389f",
+  mapVendorIds: "9059a4d2e577769f678425aa87515be387fefa21af8ee3d19587bc8f25014f67",
+  mapUnfiltered: "64083b98b2d865e00418a3575355a5eb27051b87414e0da46734e49887044f97",
+  pngGlobalTitle: "6ac08a82e0d24305ce0a8473ead80fc5f950687876dc3f3d257cfd2f7bb7a5f2",
+  pngVendorIds: "8e4de611f0743ecf8544f55714bffc738700162c50b80cdb77c93d3242ed3a9d",
+  pngUnfilteredGerman: "7cf1aa2ad56e9459d44953970156247ff7a85b0d08954e605c59dd93088bcb16",
 };
 
 /**
@@ -132,13 +134,15 @@ const before = {
  * recorded again for the two strips with arcs when arcs began to be drawn
  * between the edges and the nodes; their calls moved as in the uncull draws.
  * Recorded once more, for the three strips with arcs, when arcs began to keep
- * clear of the other activities; only the arcs' calls changed.
+ * clear of the other activities; only the arcs' calls changed. Recorded once
+ * more, for the strips with the start event, when it took the interactive
+ * map's outline: only its stroke's width changed, 2 where it was 1.5.
  */
 const culledBefore = {
-  culledGlobal: "7e90c53c831b066a8591e8c112bf5238c4b69578ab42c109c315ddf99449077e",
+  culledGlobal: "44b4fd9bead6f44da50aae0a2204766d6b994326de3cc9ae683c7be58a6c4ed5",
   culledGlobalStages: "313cd2232dd20a7ef1c60edaba696d756f05f043591a8b09b49d87114f889379",
-  culledVendorIds: "3242db8c7f087f0076240d4a0065d5eebb42249ad00f79a6c0a5f0f108fb1bf9",
-  culledUnfiltered: "d7060d0bfb1109996132693d55950e32d8978e10004f40c87fc75e5a60fd1ba2",
+  culledVendorIds: "1152631216a5e5d5a93721de8645abb74c1d9f00b5b8b693515ccf8485bee91a",
+  culledUnfiltered: "182af7a24e8cbb3d9bd3f922a5ad696c880c2c0b4c20788317ad14a64de63ea8",
 };
 
 describe("Canvas drawing on the committed fixtures", () => {

@@ -3,8 +3,9 @@ import { type Locale, formatShare } from "./format.js";
 import type { Box } from "./layout.js";
 import { type Overlay, type OverlayKind, MAP_TARGET } from "./model.js";
 import type { OverlayShape } from "./overlay-geometry.js";
-import { colorOn, contrastText, fixedColors, hexToRgb } from "./style.js";
-import { type Arrowhead, arrowheadTokens, dashTokens, opacityTokens, radiusTokens, strokeTokens, textTokens } from "./tokens.js";
+import { colorOn, contrastText, hexToRgb } from "./style.js";
+import { type Theme, defaultTheme } from "./theme.js";
+import { type Arrowhead, arrowheadTokens, dashTokens, opacityTokens } from "./tokens.js";
 
 /**
  * A colour by role. `ink`, `inkMuted`, `paper`, `surface`, `line` and
@@ -92,27 +93,27 @@ export interface OverlayMark {
   edgeId?: string;
 }
 
-/** Colour of an overlay's value (a share) on the sequential palette; neutral without one. */
-export function overlayColor(overlay: Overlay): string {
+/** Colour of an overlay's value (a share) on the theme's shortfall palette; neutral without one. */
+export function overlayColor(overlay: Overlay, theme: Theme = defaultTheme): string {
   const v = overlay.payload?.value;
-  return typeof v === "number" && Number.isFinite(v) ? colorOn(v, "sequential", [0, 1]) : fixedColors.neutral;
+  return typeof v === "number" && Number.isFinite(v) ? colorOn(v, "shortfall", [0, 1], theme) : theme.color.neutral;
 }
 
 /** Opacity of a tint over its element. */
 export const TINT_OPACITY = opacityTokens.tint;
 
 /** The value colour at `TINT_OPACITY` as CSS; none without a value. */
-export function tintColor(overlay: Overlay): string | undefined {
+export function tintColor(overlay: Overlay, theme: Theme = defaultTheme): string | undefined {
   const v = overlay.payload?.value;
   if (typeof v !== "number" || !Number.isFinite(v)) return undefined;
-  const [r, g, b] = hexToRgb(overlayColor(overlay));
+  const [r, g, b] = hexToRgb(overlayColor(overlay, theme));
   return `rgba(${r}, ${g}, ${b}, ${TINT_OPACITY})`;
 }
 
-/** Stroke width of an arc: `strokeTokens.arc` (2) plus `arcCoverage` (8) times its coverage (default 1). */
-export function arcWidth(overlay: Overlay): number {
+/** Stroke width of an arc: the theme's `arc` stroke (2) plus `arcCoverage` (8) times its coverage (default 1). */
+export function arcWidth(overlay: Overlay, theme: Theme = defaultTheme): number {
   const c = overlay.payload?.coverage;
-  return strokeTokens.arc + strokeTokens.arcCoverage * (typeof c === "number" ? Math.max(0, Math.min(1, c)) : 1);
+  return theme.stroke.arc + theme.stroke.arcCoverage * (typeof c === "number" ? Math.max(0, Math.min(1, c)) : 1);
 }
 
 /** Arrowhead of arcs and self-loops: a triangle `size` long and wide, its tip `overhang` × `size` beyond the path (`arrowheadTokens.overlay`). */
@@ -144,15 +145,16 @@ export function arcLabel(overlay: Overlay, locale: Locale = "en"): string {
   return `${p.glyph ?? ""} ${typeof p.value === "number" && Number.isFinite(p.value) ? formatShare(p.value, locale) : ""}`.trim();
 }
 
-/** One mark per shape, in the shapes' order. */
-export function overlayMarks(shapes: OverlayShape[], locale: Locale = "en"): OverlayMark[] {
-  return shapes.map((s) => overlayMark(s, locale));
+/** One mark per shape, in the shapes' order, with the sizes and colours of a theme. */
+export function overlayMarks(shapes: OverlayShape[], locale: Locale = "en", theme: Theme = defaultTheme): OverlayMark[] {
+  return shapes.map((s) => overlayMark(s, locale, theme));
 }
 
-function overlayMark(s: OverlayShape, locale: Locale): OverlayMark {
+function overlayMark(s: OverlayShape, locale: Locale, theme: Theme): OverlayMark {
+  const { text: textTokens, radius: radiusTokens, stroke: strokeTokens } = theme;
   const o = s.overlay;
   const p = o.payload ?? {};
-  const color = overlayColor(o);
+  const color = overlayColor(o, theme);
   const share = typeof p.value === "number" && Number.isFinite(p.value) ? formatShare(p.value, locale) : "";
   const mark: OverlayMark = {
     id: s.id,
@@ -181,7 +183,7 @@ function overlayMark(s: OverlayShape, locale: Locale): OverlayMark {
       return {
         ...mark,
         path: s.path,
-        stroke: { paint: "value", width: arcWidth(o), opacity: opacityTokens.arc, ...(p.reverse ? { dash: [...dashTokens.reverseArc] } : {}) },
+        stroke: { paint: "value", width: arcWidth(o, theme), opacity: opacityTokens.arc, ...(p.reverse ? { dash: [...dashTokens.reverseArc] } : {}) },
         arrow: overlayArrow,
         texts: s.labelX !== undefined && s.labelY !== undefined ? [halo(label, s.labelX, s.labelY, textTokens.arcLabel.size, "middle")] : [],
       };

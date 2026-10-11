@@ -172,7 +172,7 @@ describe("toSVG node and edge marks", () => {
       '<g class="wf-node wf-node-activity" data-id="r"><rect x="400" y="100" width="180" height="40" rx="6" fill="#ffffff" stroke="#8c8c8c" stroke-width="2" stroke-dasharray="4 3"/><rect x="400" y="100" width="8" height="40" rx="3" fill="#8c8c8c"/><text x="416" y="123.6" font-size="12" fill="#1f1f1f">Re-added</text></g>',
       // The stage shows its members line.
       '<g class="wf-node wf-node-stage" data-id="s"><rect x="400" y="0" width="200" height="56" rx="6" fill="#ffffff" stroke="#8c8c8c" stroke-width="3"/><rect x="400" y="0" width="8" height="56" rx="3" fill="#8c8c8c"/><text x="416" y="31.6" font-size="12" font-weight="600" fill="#1f1f1f">Payment</text><text x="594" y="51" font-size="9" text-anchor="end" fill="#5b6270">4 · 1.5k</text></g>',
-      '<g class="wf-node wf-node-event" data-id="start"><circle cx="18" cy="20" r="18" fill="#ffffff" stroke="#1f1f1f" stroke-width="1.5"/><text x="18" y="22.7" font-size="9" text-anchor="middle" fill="#1f1f1f">Start</text></g>',
+      '<g class="wf-node wf-node-event" data-id="start"><circle cx="18" cy="20" r="18" fill="#ffffff" stroke="#1f1f1f" stroke-width="2"/><text x="18" y="22.7" font-size="9" text-anchor="middle" fill="#1f1f1f">Start</text></g>',
     ]);
   });
 

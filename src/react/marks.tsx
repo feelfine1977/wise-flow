@@ -17,6 +17,11 @@ const TOKENS: Record<Exclude<MarkPaint, "value" | "onValue">, string> = {
   outOfScope: "var(--wf-out-of-scope)",
 };
 
+/** A mark's paint as CSS: a theme token as its variable, the mark's value colour (or the text colour on it) as it is. */
+export function paintCss(mark: { color: string; onColor?: string }, paint: MarkPaint): string {
+  return paint === "value" ? mark.color : paint === "onValue" ? (mark.onColor ?? mark.color) : TOKENS[paint];
+}
+
 /** Ids of the arrowhead marker and the hatching pattern a drawing refers to. */
 export interface MarkIds {
   arrow: string;

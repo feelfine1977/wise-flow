@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { constraintItems, globalScene } from "../fixtures/bpic2019";
 import { p2pStages, withSceneMetrics } from "../fixtures/p2p_stages";
 import { liteFromStages } from "../src/bpmn/index";
-import { type FlowGraph, type LaneMode, type Overlay, type Positions, abstract, constraintOverlays, layout, overlaysFor } from "../src/index";
+import { type FlowGraph, type LaneMode, type Overlay, type Positions, type Theme, abstract, constraintOverlays, defaultTheme, layout, overlaysFor } from "../src/index";
 import { ProcessMap } from "./maps";
 import { catalogueGraph, examples, rawKinds } from "./Overlays.stories";
 
@@ -19,15 +19,45 @@ const meta: Meta = {
 };
 export default meta;
 
-/** What the map draws: a graph with its overlays and lanes, laid out by Dagre. */
+/** What the map draws: a graph with its overlays and lanes, laid out by Dagre, in a theme. */
 export interface ParityScene {
   graph: FlowGraph;
   overlays: Overlay[];
   lanes?: LaneMode;
+  theme?: Theme;
   positions: Positions;
 }
 
 const global = abstract(globalScene, { minEdgeShare: 0.03, minNodeShare: 0.01 });
+
+/** One node of every kind: events, an activity, a gateway, a stage, a note and a re-added activity. */
+const kinds: FlowGraph = {
+  nodes: [
+    { id: "start", kind: "event", label: "Start", tags: ["start"] },
+    { id: "check", kind: "activity", label: "Check invoice", metrics: { cases: 1234 } },
+    { id: "split", kind: "gateway", label: "Parallel split", tags: ["and", "split"] },
+    { id: "pay", kind: "stage", label: "Payment", metrics: { members: 4, cases: 1500 } },
+    { id: "note", kind: "note", label: "Ask the vendor twice" },
+    { id: "readded", kind: "activity", label: "Re-added", tags: ["reconnected"], metrics: { cases: 12 } },
+    { id: "end", kind: "event", label: "End", tags: ["end"] },
+  ],
+  edges: [
+    { id: "start->check", kind: "follows", source: "start", target: "check", metrics: { count: 1234 } },
+    { id: "check->split", kind: "flow", source: "check", target: "split", metrics: { count: 12 } },
+    { id: "split->pay", kind: "constraint", source: "split", target: "pay" },
+    { id: "split->readded", kind: "follows", source: "split", target: "readded", tags: ["reconnected"], metrics: { count: 3 } },
+    { id: "pay->end", kind: "follows", source: "pay", target: "end", metrics: { count: 1500 } },
+    { id: "readded->note", kind: "follows", source: "readded", target: "note", metrics: { count: 3 } },
+  ],
+};
+
+/** Another theme: activities and stages outlined 3 wide with corners of 10, node labels at 14 and counts at 11. */
+const secondTheme: Theme = {
+  ...defaultTheme,
+  stroke: { ...defaultTheme.stroke, node: 3 },
+  radius: { ...defaultTheme.radius, node: 10 },
+  text: { ...defaultTheme.text, nodeLabel: { size: 14 }, nodeCount: { size: 11 } },
+};
 const stages = abstract(globalScene, { collapse: "all" });
 
 const scenes: Record<string, () => Omit<ParityScene, "positions">> = {
@@ -39,6 +69,8 @@ const scenes: Record<string, () => Omit<ParityScene, "positions">> = {
   stageBands: () => ({ graph: global, overlays: overlaysFor(constraintItems(), { graph: global }), lanes: "stages" }),
   stages: () => ({ graph: stages, overlays: overlaysFor(constraintItems(), { graph: stages }) }),
   roleLanes: () => ({ graph: liteFromStages(withSceneMetrics(p2pStages, globalScene), { lanes: "role" }), overlays: [], lanes: "roles" }),
+  kinds: () => ({ graph: kinds, overlays: [] }),
+  secondTheme: () => ({ ...scenes.small(), theme: secondTheme }),
 };
 
 function Parity({ name }: { name: string }) {
@@ -62,6 +94,7 @@ function Parity({ name }: { name: string }) {
         positions={scene.positions}
         overlays={scene.overlays}
         lanes={scene.lanes}
+        theme={scene.theme}
         renderer="svg"
         fitView={false}
         controls={false}
@@ -78,3 +111,5 @@ export const Global: StoryObj = { name: "BPIC global", render: () => <Parity nam
 export const StageBands: StoryObj = { name: "BPIC global in stage bands", render: () => <Parity name="stageBands" /> };
 export const Stages: StoryObj = { name: "BPIC stages", render: () => <Parity name="stages" /> };
 export const RoleLanes: StoryObj = { name: "role lanes", render: () => <Parity name="roleLanes" /> };
+export const ElementKinds: StoryObj = { name: "element kinds", render: () => <Parity name="kinds" /> };
+export const SecondTheme: StoryObj = { name: "small P2P in a second theme", render: () => <Parity name="secondTheme" /> };

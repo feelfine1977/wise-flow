@@ -19,7 +19,7 @@
 │ core/    model · aggregate · layout · lanes · routing ·     │
 │          scene · overlays · overlay-geometry ·              │
 │          overlay-marks · element-marks · mark-svg · figure ·│
-│          tokens · style · hit · export · views ·            │
+│          tokens · theme · style · hit · export · views ·    │
 │          selection · map-controller · actions · paths ·     │
 │          filters · format · strings                         │
 └────────────────────────────────────────────────────────────┘
@@ -36,9 +36,10 @@ read what it resolves and do not decide it again.
 
 | Module | Interface | Owns | Read by |
 | --- | --- | --- | --- |
-| Scene (`core/scene.ts`) | `buildScene(graph, positions, options)` → `FlowScene` | activity references, lane bands, scales, the overlays to show in canonical order with the follows self-loops, level-of-detail rules, overlay geometry, the marks and the legend, resolved once (§2.6) | `toSVG`, `prepareScene` (Canvas, `toPNG`), `ProcessMap`, `BpmnView` (`bpmn/scene.ts` over the registry's boxes) |
+| Scene (`core/scene.ts`) | `buildScene(graph, positions, options)` → `FlowScene` | activity references, lane bands, scales, the overlays to show in canonical order with the follows self-loops, level-of-detail rules, overlay geometry, the marks and the legend, resolved once in a theme and colour scheme (§2.4, §2.6) | `toSVG`, `prepareScene` (Canvas, `toPNG`), `ProcessMap`, `BpmnView` (`bpmn/scene.ts` over the registry's boxes) |
 | Overlay marks (`core/overlay-marks.ts`) | `FlowScene.marks`, `OverlayMark` | per placed overlay: box or path, fill, stroke, dash, arrowhead, texts, layer, zoom threshold, whether it is on the map (§2.5) | SVG export, Canvas drawing, React nodes and `OverlayLayer`, BPMN projection |
-| Node and edge marks (`core/element-marks.ts`) | `FlowScene.nodeMarks`, `FlowScene.edgeMarks`, `truncateText` | outline, fill, border, band, texts and their level of detail; edge route, colour, dash, count label (§2.5) | SVG export, Canvas drawing, React node and edge components |
+| Node, edge and group marks (`core/element-marks.ts`) | `FlowScene.nodeMarks`, `FlowScene.edgeMarks`, `FlowScene.groupMarks`, `truncateText` | outline, fill, border, band, texts and their level of detail; edge route, colour, dash, count label; a group's tint, outline, band sides and rule, title and chip anchor (§2.5) | SVG export, Canvas drawing, React node, edge and group components |
+| Theme (`core/theme.ts`) | `Theme`, `defaultTheme`, `themeColors`; `buildScene(…, { theme, scheme })` | what the marks are drawn in: colour roles with the dark scheme's changes, the data palettes, fonts, text, radius, stroke and spacing tables, density, rules (none yet); `defaultTheme` is the token table (§2.4) | the scene and its mark builders and scales; through the scene the SVG export, Canvas drawing, PNG export and React components |
 | Edge budget (`core/edge-budget.ts`) | `budgetEdges(scene, budget, protection, inView)` → `EdgeSelection`; `edgeBudgetAdapter(clock)` (internal) | which edges in view a budget draws: protected edges (an overlay mark on them, selected, at the keyboard position, on a highlighted path), then weight, then id; or exactly the edges a map reported (`ShownEdges`); the adaptive budget's step, moved by the timed frames of gestures and only at rest (§4) | `drawScene` and `CanvasRenderer` (Canvas, `toPNG`), `useFlowElements` (React Flow), `toSVG` |
 | Mark SVG (`core/mark-svg.ts`) | `markSvg`, `svgMarkup` | the SVG elements of a mark | SVG export, React map, BPMN view |
 | Legend and figure frame (`core/figure.ts`) | `sceneLegend`, `legendLayout`, `figureFrame` | legend rows and heights, the exported figure's frame and the note on withheld edges in it (§2.6) | `toSVG`, `toPNG`, Canvas `drawLegend`, `<Legend/>` |
@@ -209,6 +210,24 @@ uses, as CSS variables, which the stylesheet reads. Tooling tests fail when
 nowhere. Where two renderers
 draw a role differently, the table holds both values under two names.
 
+**Theme.** Appearance is scene data. A theme (`theme.ts`) holds the colour
+roles of the light scheme and what the dark scheme changes, the data palettes
+(`neutral`, `shortfall`, `performance`, `diverging`, `categorical`), the fonts,
+the text, radius, stroke and spacing tables, a density and a list of rules
+(empty for now); `defaultTheme` is the token table. `buildScene` takes
+`{ theme, scheme }` and resolves the marks in it once: outline widths, dashes,
+radii and text styles from the theme's tables, data colours through its
+palettes (the scales and overlay colours read them, so no fixed hex value of
+the palettes reaches a mark), and paints by role, whose colours in the scheme
+the scene carries (`colors`). Every renderer draws from the marks, so a theme
+and the dark scheme reach the interactive map, the Canvas map, the SVG export
+and the PNG export alike: the Canvas drawing and the exports take their
+colours and font from the scene unless given others, and the interactive map
+paints the roles with the CSS variables of `tokens.css`, whose dark blocks
+hold the dark scheme's values. A browser test draws committed fixtures in a
+second theme and in the dark scheme through all four and compares what they
+drew.
+
 ### 2.5 Overlays
 An overlay is data, not drawing: `{ kind, target, payload }` where kind is
 `badge | arc | hatch | tint | chip | selfLoop` and target is a node, edge,
@@ -232,7 +251,10 @@ drawing maps the same primitives to 2D calls. Nodes and edges have marks
 too: a node's outline, fill, border, colour band and texts (label or glyph,
 count, activity lines) with the level of detail each text is drawn from, an
 edge's route (straight between the boxes where none is given), colour, dash
-and count label at one label point. Node and edge texts are shortened by one
+and count label at one label point. Groups have marks as well: a box group's
+tint, dashed outline and title, a band's tint, its outline on the two sides
+between bands and its rule along the side it starts at, and where a group's
+chips are placed from. Node and edge texts are shortened by one
 rule (`truncateText`) with a text measure the renderer injects; SVG, Canvas
 and the React Flow map draw these marks.
 
@@ -242,7 +264,7 @@ hover and click on Canvas and in exports. `buildScene` resolves graph,
 positions and options once into the scene renderers read (activity
 references, lane bands, scales, the overlays to show with the follows
 self-loops in canonical order, level-of-detail rules, overlay geometry,
-overlay, node and edge marks, and the legend: the scales in use, the
+overlay, node, edge and group marks in the theme and colour scheme, and the legend: the scales in use, the
 overlay kinds present and the map-level chips);
 `toSVG(scene)` draws it with figure presets
 (single column, double column, slide), an embedded legend with the scales
@@ -321,7 +343,12 @@ restricted to the shown graph, lanes, manual moves, overlays, scales,
 level-of-detail rules and geometry; in Canvas mode the same scene becomes the
 Canvas map's retained geometry. Thin mapping to React Flow nodes and edges
 with custom components per node and edge kind that draw the scene's node
-and edge marks; groups as parent nodes;
+and edge marks; groups as parent nodes that draw the scene's group marks.
+The components hand each mark's fill, outline, radius, band, tint and text
+styles to the stylesheet as custom properties and draw a gateway's diamond,
+a dashed outline and a box group's dashed outline as the mark's SVG shape;
+the stylesheet keeps the layout and the interaction states of nodes and
+groups;
 the scene's overlay marks drawn by the node and group components that carry
 them (badges, hatching, chips at their boxes, each from its zoom; tints as
 background layers) and by SVG layers in the viewport (arcs in React Flow's
@@ -352,7 +379,7 @@ area shrinks and is fitted again); `FilterChips` sit above the map;
 `prepareScene` builds on the core scene (graph, positions, scales,
 overlays, lane bands, level of detail, overlay geometry and marks) and adds
 retained geometry with the R-tree of the core; `drawScene` issues plain 2D
-context calls for a viewport (groups and bands, tints, edges with arrowheads,
+context calls for a viewport (groups and bands from their marks, tints, edges with arrowheads,
 arcs, nodes with pattern twins, the other overlay marks, edge labels), decides the level of
 detail from the zoom and, above 1,500 elements, draws only what the R-tree
 finds inside the viewport, reading each element by its position in the

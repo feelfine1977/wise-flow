@@ -6,11 +6,14 @@
 import { type ActivityLabelOptions, activityDescription, activityLabelLines } from "./activity-labels.js";
 import { type Locale, formatCompact } from "./format.js";
 import { type Box, type Positions, type XY, straightRoute } from "./layout.js";
-import { type EdgeKind, type FlowEdge, type FlowGraph, type FlowNode, type NodeKind, hasTag, metric } from "./model.js";
+import type { LaneBand } from "./lanes.js";
+import { type EdgeKind, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type GroupKind, type NodeKind, hasTag, metric } from "./model.js";
 import { RECONNECTED_TAG } from "./aggregate.js";
-import type { MarkPaint, MarkText } from "./overlay-marks.js";
-import { type PatternId, type Scales, fixedColors } from "./style.js";
-import { dashTokens, dimensionTokens, radiusTokens, spaceTokens, strokeTokens, textTokens } from "./tokens.js";
+import { chipAnchor } from "./overlay-geometry.js";
+import type { MarkFill, MarkPaint, MarkText } from "./overlay-marks.js";
+import type { PatternId, Scales } from "./style.js";
+import { type Theme, defaultTheme } from "./theme.js";
+import { dashTokens, dimensionTokens, opacityTokens } from "./tokens.js";
 
 /** Width of a text in a font, in the units it is drawn in. */
 export type TextMeasure = (text: string, font: { size: number; weight?: number }) => number;
@@ -134,6 +137,8 @@ interface NodeMarkOptions {
   locale?: Locale;
   /** Activity label options with references (see `activityReferences`). */
   activityLabels?: ActivityLabelOptions;
+  /** The theme the mark's outline, radius and texts are resolved in. Default `defaultTheme`. */
+  theme?: Theme;
 }
 
 /** Glyph of a gateway: + for AND, ○ for OR, × otherwise. */
@@ -179,12 +184,13 @@ function outline(paint: MarkPaint, width: number, dash?: readonly number[]): Nod
 
 const RECONNECTED_DASH = Object.freeze(dashTokens.reconnectedNode);
 const NOTE_DASH = Object.freeze(dashTokens.note);
-/** Where a node's texts start and how much of its width they leave out: the stylesheet's padding of a node. */
-const INSET = 8 * spaceTokens.unit;
-const INSETS = INSET + 4 * spaceTokens.unit;
 
 /** What one node looks like in its box. */
 export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): NodeMark {
+  const { stroke: strokeTokens, radius: radiusTokens, text: textTokens, space } = options.theme ?? defaultTheme;
+  // Where a node's texts start and how much of its width they leave out: the stylesheet's padding of a node.
+  const INSET = 8 * space.unit;
+  const INSETS = INSET + 4 * space.unit;
   const locale = options.locale ?? "en";
   const reconnected = hasTag(node, RECONNECTED_TAG);
   const cx = box.x + box.width / 2;
@@ -236,7 +242,7 @@ const CONSTRAINT_DASH = Object.freeze(dashTokens.constraint);
 const NO_TEXTS: ElementText[] = Object.freeze([]) as unknown as ElementText[];
 
 /** What one edge looks like along its route. */
-export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string; width: number; locale?: Locale }): EdgeMark {
+export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string; width: number; locale?: Locale; theme?: Theme }): EdgeMark {
   const reconnected = hasTag(edge, RECONNECTED_TAG);
   const count = metric(edge, "count", NaN);
   const at = edgeLabelPoint(points);
@@ -249,7 +255,7 @@ export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string;
     width: options.width,
     dash: (reconnected ? RECONNECTED_EDGE_DASH : edge.kind === "constraint" ? CONSTRAINT_DASH : undefined) as number[] | undefined,
     texts: Number.isFinite(count)
-      ? [{ text: formatCompact(count, options.locale ?? "en"), x: at.x, y: at.y, size: textTokens.pathLabel.size, anchor: "middle", baseline: "alphabetic", paint: "ink", halo: true, role: "count", lod: "edgeLabels" }]
+      ? [{ text: formatCompact(count, options.locale ?? "en"), x: at.x, y: at.y, size: (options.theme ?? defaultTheme).text.pathLabel.size, anchor: "middle", baseline: "alphabetic", paint: "ink", halo: true, role: "count", lod: "edgeLabels" }]
       : NO_TEXTS,
     reconnected,
   };
@@ -263,27 +269,88 @@ function shareCounts<M extends { texts: ElementText[] }>(marks: M[]): M[] {
 }
 
 /** One mark per node with a box, in the graph's order. */
-export function nodeMarks(graph: FlowGraph, positions: Positions, scales: Scales, options: { locale?: Locale; activityLabels?: ActivityLabelOptions } = {}): NodeMark[] {
+export function nodeMarks(graph: FlowGraph, positions: Positions, scales: Scales, options: { locale?: Locale; activityLabels?: ActivityLabelOptions; theme?: Theme } = {}): NodeMark[] {
   return shareCounts(
     graph.nodes.flatMap((n) => {
       const box = positions.nodes[n.id];
-      return box ? [nodeMark(n, box, { color: scales.nodeColor(n), pattern: scales.nodePattern(n), locale: options.locale, activityLabels: options.activityLabels })] : [];
+      return box ? [nodeMark(n, box, { color: scales.nodeColor(n), pattern: scales.nodePattern(n), locale: options.locale, activityLabels: options.activityLabels, theme: options.theme })] : [];
     }),
   );
 }
 
 /** One mark per edge between two placed nodes, in the graph's order; edges from a node to itself are self-loop overlays. */
-export function edgeMarks(graph: FlowGraph, positions: Positions, scales: Scales, locale: Locale = "en"): EdgeMark[] {
+export function edgeMarks(graph: FlowGraph, positions: Positions, scales: Scales, locale: Locale = "en", theme: Theme = defaultTheme): EdgeMark[] {
   return shareCounts(
     graph.edges.flatMap((e) => {
       if (e.source === e.target) return [];
       const points = edgePoints(positions, e);
-      return points ? [edgeMark(e, points, { color: edgeColor(e, scales), width: scales.edgeWidth(e), locale })] : [];
+      return points ? [edgeMark(e, points, { color: edgeColor(e, scales, theme), width: scales.edgeWidth(e), locale, theme })] : [];
     }),
   );
 }
 
-/** Constraint edges in the mechanism colour, the others by the edge colour scale. */
-export function edgeColor(edge: FlowEdge, scales: Scales): string {
-  return edge.kind === "constraint" ? fixedColors.mechanism : scales.edgeColor(edge);
+/** Constraint edges in the theme's mechanism colour, the others by the edge colour scale. */
+export function edgeColor(edge: FlowEdge, scales: Scales, theme: Theme = defaultTheme): string {
+  return edge.kind === "constraint" ? theme.color.mechanism : scales.edgeColor(edge);
+}
+
+/** A side of a box. */
+export type BoxSide = "top" | "right" | "bottom" | "left";
+
+export interface GroupMark {
+  id: string;
+  kind: GroupKind;
+  group: FlowGroup;
+  box: Box;
+  /** Colour of the group's category (`scales.categorical`); the `value` paint. */
+  color: string;
+  /** Pattern twin of `color`. */
+  pattern: PatternId;
+  /** The lane band the group is drawn as (see `laneBands`). */
+  band?: LaneBand;
+  /** Corner radius of the box. */
+  radius: number;
+  /** The group's tint: its colour at an opacity. */
+  fill: MarkFill;
+  /** Outline: around the whole box, or only along `sides`. */
+  stroke: { paint: MarkPaint; width: number; dash?: number[]; sides?: BoxSide[] };
+  /** A band's rule along the side it starts at, in its colour. */
+  rule?: { paint: MarkPaint; width: number; side: BoxSide };
+  /** The group's title. */
+  texts: ElementText[];
+  /** Where the group's chips are placed from: the right end and the top of the first (`chipAnchor`). */
+  chipAnchor: XY;
+}
+
+/** What one group looks like in its box: a tinted box with a dashed outline, or a band outlined between the bands with a rule along its start. */
+export function groupMark(group: FlowGroup, box: Box, options: { color: string; pattern: PatternId; band?: LaneBand; theme?: Theme }): GroupMark {
+  const { stroke, text, radius } = options.theme ?? defaultTheme;
+  const band = options.band;
+  // Bands along the flow are outlined between each other, left and right, and ruled along the top; bands across it above and below, ruled along the left.
+  const main = band?.axis === "main";
+  return {
+    id: group.id,
+    kind: group.kind,
+    group,
+    box,
+    color: options.color,
+    pattern: options.pattern,
+    band,
+    radius: band ? 0 : radius.large,
+    fill: { paint: "value", opacity: band ? (band.index % 2 ? opacityTokens.bandOddFill : opacityTokens.bandFill) : opacityTokens.groupFill },
+    stroke: band ? { paint: "line", width: 1, sides: main ? ["left", "right"] : ["top", "bottom"] } : { paint: "value", width: stroke.group, dash: [...dashTokens.group] },
+    rule: band && { paint: "value", width: stroke.band, side: main ? "top" : "left" },
+    texts: [ink(group.label, box.x + 12, box.y + 22, text.groupLabel.size, { role: "label", baseline: "alphabetic", weight: text.groupLabel.weight })],
+    chipAnchor: chipAnchor(box),
+  };
+}
+
+/** One mark per group with a box, in the graph's order; groups drawn as bands carry their band. */
+export function groupMarks(graph: FlowGraph, positions: Positions, bands: readonly LaneBand[], scales: Scales, theme: Theme = defaultTheme): GroupMark[] {
+  const bandOf = new Map(bands.map((b) => [b.id, b]));
+  return (graph.groups ?? []).flatMap((g) => {
+    const box = positions.groups[g.id];
+    const c = scales.categorical(g.id);
+    return box ? [groupMark(g, box, { color: c.color, pattern: c.pattern, band: bandOf.get(g.id), theme })] : [];
+  });
 }

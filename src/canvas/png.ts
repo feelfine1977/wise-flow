@@ -2,10 +2,10 @@
  * PNG export: the scene drawn with the canvas routines into an offscreen
  * canvas, in the same figure frame and with the same legend as `toSVG`.
  */
-import { type EdgeBudget, type FigurePreset, type Scene, type ShownEdges, budgetEdges, figureFrame, figureMetrics, formatCount, opacityTokens, t, textTokens } from "../core/index.js";
+import { type ColorScheme, type EdgeBudget, type FigurePreset, type Scene, type ShownEdges, type Theme, budgetEdges, figureFrame, figureMetrics, formatCount, opacityTokens, t } from "../core/index.js";
 import { type DrawContext, drawLegend, drawScene, fontOf } from "./draw.js";
 import { prepareScene } from "./scene.js";
-import { type CanvasTokens, defaultTokens } from "./tokens.js";
+import { type CanvasTokens, sceneTokens } from "./tokens.js";
 
 /** What `toPNG` needs from a canvas; `HTMLCanvasElement` and `OffscreenCanvas` both fit. */
 export interface CanvasLike {
@@ -29,7 +29,12 @@ export interface PngOptions {
   padding?: number;
   /** Zoom level for the level-of-detail decisions. Default 1 (everything visible). */
   lodZoom?: number;
+  /** Colours and font over the scene's (`sceneTokens`). */
   tokens?: Partial<CanvasTokens>;
+  /** The theme the figure is drawn in. Default `defaultTheme`. */
+  theme?: Theme;
+  /** The colour scheme of the theme. Default `light`. */
+  scheme?: ColorScheme;
   /** Canvas factory for environments without a document (Node with a canvas package, tests). */
   createCanvas?: (width: number, height: number) => CanvasLike;
   /** Show the scene context line under the title. Default true. */
@@ -62,9 +67,10 @@ function defaultCreateCanvas(width: number, height: number): CanvasLike {
 
 /** Draw the scene into a canvas and return it (synchronous). */
 export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
-  const tokens: CanvasTokens = { ...defaultTokens, ...(options.tokens ?? {}) };
   const locale = scene.locale ?? "en";
-  const prepared = prepareScene(scene.graph, scene.positions, { style: scene.style, overlays: scene.overlays, locale, lanes: scene.lanes, selfLoops: scene.selfLoops, activityLabels: scene.activityLabels, lodBySize: false });
+  const prepared = prepareScene(scene.graph, scene.positions, { style: scene.style, overlays: scene.overlays, locale, lanes: scene.lanes, selfLoops: scene.selfLoops, activityLabels: scene.activityLabels, lodBySize: false, theme: options.theme, scheme: options.scheme });
+  const tokens: CanvasTokens = { ...sceneTokens(prepared), ...(options.tokens ?? {}) };
+  const { text: textTokens } = prepared.theme;
   const { edgeBudget } = options;
   const frame = figureFrame(prepared, { title: !!scene.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: options.width, withheld: budgetEdges(prepared, edgeBudget) });
   const { padding: pad, width: totalW, outWidth: cssWidth, outHeight: cssHeight } = frame;

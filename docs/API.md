@@ -281,7 +281,7 @@ the layout rejects with `LayoutUnavailableError` instead of freezing the page.
 export interface StyleSpec { edgeWidth?: ChannelSpec; edgeColor?: ColorSpec; nodeColor?: ColorSpec; lod?: Partial<LodRules> }
 export const defaultStyle: StyleSpec;   // width ← count (sqrt, 1–8 px), colour ← violationShare, nodes by group
 export const diffStyle: StyleSpec;      // colour ← delta_violationShare on the diverging palette
-export function buildScales(g: FlowGraph, spec?: StyleSpec): Scales;
+export function buildScales(g: FlowGraph, spec?: StyleSpec, theme?: Theme): Scales;   // in the theme's palettes, default `defaultTheme`
 export interface Scales { edgeWidth(e): number; edgeColor(e): string; nodeColor(n): string; nodePattern(n): PatternId;
   categorical(key): { color; pattern; index }; color(value, palette, domain): string; legend: LegendItem[]; domains }
 export type LegendItem =   // `title` is a string key for `t` (it was typed `string`)
@@ -289,15 +289,21 @@ export type LegendItem =   // `title` is a string key for `t` (it was typed `str
   | { kind: "sequential" | "diverging"; title: StringKey; metric: string; domain: number[]; stops: readonly string[] }
   | { kind: "categorical"; title: StringKey; entries: CategoricalEntry[] };
 export const palettes: { sequential; sequentialBlue; diverging; categorical };   // colour-blind safe
+export function themePalette(theme: Theme, name: ColorSpec["palette"]): readonly string[];   // "sequential" is the theme's shortfall, "sequentialBlue" its performance
 export function contrastText(background: string): string;  // ≥ 4.5 : 1 on every palette colour
 export interface LodRules { labels; edgeLabels; badges; arcs; chips; hatch; selfLoops }  // minimum zoom per element
 export function lodAt(zoom: number, rules?: Partial<LodRules>): Record<keyof LodRules, boolean>;
 export function lodForSize(nodeCount: number, base?: Partial<LodRules>): LodRules;
-export function patternDefs(prefix?: string, ink?: string): string;   // <pattern> tiles of the twins and the hatching; ink defaults to colorTokens.ink
+export function patternDefs(prefix?: string, ink?: string, outOfScope?: string): string;   // <pattern> tiles of the twins and the hatching; ink and outOfScope default to colorTokens.ink and .outOfScope
 ```
 
 Categorical colours are stable by hashed key and come with a pattern twin
 (`solid | diagonal | dots | crosshatch | horizontal | vertical | diagonal-reverse | grid`).
+`ColorSpec.palette` names a palette of the theme: `neutral`, `shortfall`,
+`performance`, `diverging` or `categorical`; `sequential` and `sequentialBlue`
+keep working and are the theme's `shortfall` and `performance`. Data colours
+are read from the theme the scales are built in, so a theme with other
+palettes colours paths, activities, groups and overlay values by them.
 
 ## Design tokens
 
@@ -386,6 +392,41 @@ end in a triangle 12 long and wide whose tip lies 1.2 beyond the path. A
 pattern twin is a 6-unit tile drawn by `patternDefs` (SVG), the Canvas band
 and `<PatternSwatch/>` (React) from `patternTwin`.
 
+## Theme
+
+```ts
+export type ColorScheme = "light" | "dark";
+export interface ThemePalettes { neutral: readonly string[]; shortfall: readonly string[]; performance: readonly string[];
+  diverging: readonly string[]; categorical: readonly string[] }
+export interface Theme {
+  color: Readonly<Record<ColorToken, string>>;            // the colour roles in the light scheme
+  dark: Readonly<Partial<Record<ColorToken, string>>>;    // the roles the dark scheme changes
+  palette: Readonly<ThemePalettes>;
+  font: { family: string; mono: string };
+  text: { [role in keyof typeof textTokens]: { size?; weight?; lineHeight? } };   // as textTokens, any values
+  radius: { [role in keyof typeof radiusTokens]: number | string };
+  stroke: { [role in keyof typeof strokeTokens]: number };
+  space: { unit: number; steps: readonly number[] };
+  density: "comfortable" | "compact";                     // the renderers draw comfortable
+  rules: readonly never[];                                // none yet
+}
+export const defaultTheme: Theme;                          // the token table: today's look
+export function themeColors(theme: Theme, scheme?: ColorScheme): Readonly<Record<ColorToken, string>>;  // the light roles with the scheme's changes
+```
+
+Appearance is scene data. `buildScene(graph, positions, { theme, scheme })`
+reads the theme once and resolves the marks in it: every node, edge, group
+and overlay mark carries its outline width, dash, corner radius and text
+sizes and weights from the theme's tables, its data colours from the theme's
+palettes, and names its paints by role (`MarkPaint`); `scene.colors` holds
+each role's colour in the scene's scheme. The SVG export, the Canvas map and
+the PNG export draw these values, so a theme reaches all of them alike; the
+interactive map draws the marks too and paints the roles with the CSS
+variables of `tokens.css`, whose dark blocks hold the same values as the
+dark scheme. `defaultTheme` is the token table, and a scene without a theme
+draws as before. `toSVG`, `toPNG` and `prepareScene` take `theme` and
+`scheme`, `<ProcessMap/>` takes `theme`.
+
 ## Overlays
 
 ```ts
@@ -447,7 +488,8 @@ export interface Scene { graph; positions; overlays?; style?; title?; subtitle?;
   activityLabels?: ActivityLabelOptions; selfLoops?: boolean }
 export interface ExportOptions { preset?: "single-column" | "double-column" | "slide" | "none"; width?; legend?;
   background?; fontFamily?; padding?; lodZoom?; context?;
-  edgeBudget?: EdgeBudget | ShownEdges }   // default every edge; see "Edge budget"
+  edgeBudget?: EdgeBudget | ShownEdges;   // default every edge; see "Edge budget"
+  theme?: Theme; scheme?: ColorScheme }   // what the figure is drawn in; default defaultTheme, light
 export function toSVG(scene: Scene, o?: ExportOptions): string;   // deterministic, legend embedded
 
 export type FigurePreset = "single-column" | "double-column" | "slide" | "none";
@@ -504,6 +546,7 @@ export function metricLabel(locale: Locale, metric: string): string;
 ```ts
 export function ProcessMap(props: {
   graph: FlowGraph; positions?: Positions; overlays?: Overlay[]; style?: StyleSpec;
+  theme?: Theme;   // outlines, radii, text styles and palettes of the marks; colour roles through tokens.css
   abstraction?: AbstractOptions; defaultAbstraction?: AbstractOptions; onAbstractionChange?: (o: AbstractOptions) => void;
   controls?: boolean; legend?: boolean; minimap?: boolean; renderer?: "auto" | "svg" | "canvas"; canvasThreshold?: number;
   selection?: Selection; onSelect?: (s: Selection) => void; onHover?: (id: string | null) => void;
@@ -641,6 +684,25 @@ after `@wise/flow/react-flow.css` (see "Styling contract").
 `--wf-gateway-*`, `--wf-event-*` and `--wf-note-*` with `-width` and
 `-height`), and the size, radius, stroke, dash, opacity, z-order and spacing
 roles of the token table (see "Design tokens"), which the stylesheet reads.
+Nodes and groups are drawn from their marks (see "Scene"): the components set
+a node's `--wf-node-fill`, `--wf-node-outline`, `--wf-node-stroke`,
+`--wf-node-radius` and `--wf-node-band`, a group's `--wf-group-color`,
+`--wf-group-fill`, `--wf-group-radius`, a band's `--wf-group-outline`,
+`--wf-group-top`, `-right`, `-bottom`, `-left` and `--wf-group-rule`, and each
+text's `--wf-text-size`, `--wf-text-weight` and `--wf-text-paint` from the
+mark, and the stylesheet keeps their layout and interaction. A gateway's
+diamond and a dashed outline are the mark's shape in `svg.wf-node__outline`
+(the node then has the class `wf-node--outlined`), a box group's dashed
+outline is `svg.wf-group__outline`. The role variables of node and group
+outlines, tints and texts (`--wf-stroke-node`, `--wf-stroke-stage`,
+`--wf-stroke-event-end`, `--wf-stroke-group`, `--wf-stroke-band`,
+`--wf-text-node-label`, `--wf-text-node-count`, `--wf-text-event-label`,
+`--wf-text-note-label`, `--wf-text-group-label`, `--wf-text-activity-name`,
+`--wf-text-activity-number`, `--wf-weight-stage-label`,
+`--wf-weight-gateway-glyph`, `--wf-weight-activity-name`,
+`--wf-weight-group-label`, `--wf-radius-circle`, `--wf-opacity-group-fill`,
+`--wf-opacity-band-fill`, `--wf-opacity-band-odd-fill`, `--wf-size-band`) are
+no longer defined: those values come from the theme.
 A host that sets one of them changes only the live map and the panels; the
 Canvas map, SVG and PNG read the table. The variables nothing read
 (`--wf-severity`, `--wf-mechanism`, `--wf-reservoir`, `--wf-pass`,
@@ -666,6 +728,8 @@ export interface OverlayLayerProps { marks?: OverlayMark[]; shapes?: OverlayShap
 //   marks?: OverlayMark[] the marks the element carries, in scene coordinates
 //   origin?: XY          the top-left corner of the element's box in scene coordinates
 // GroupNodeData.tint held one CSS colour before; it now holds background layers (valid for `background`, not `background-color`).
+// GroupNodeData.mark?: GroupMark  what the group looks like (`FlowScene.groupMarks`); resolved from `group`, `color` and `band` without it.
+// The tint layers lie over the group's own tint (`background-image`), as a tint mark lies over the group in the exports.
 export function Badges(props: { badges: Overlay[]; locale: Locale }): JSX.Element | null; // SVG, from the top-right corner
 export function Chip(props: { chip: Overlay; locale: Locale }): JSX.Element | null;       // SVG, at the size of its mark
 ```
@@ -1154,7 +1218,7 @@ renderer above `canvasThreshold` elements; the container carries
 export interface PreparedScene extends FlowScene { shapes: OverlayShape[]; nodes: SceneNode[]; edges: SceneEdge[];
   groups: SceneGroup[]; bounds: Box; hit: HitIndex; size: number; nodeById; edgeById; groupById; shapeById; labelCache }
 export function prepareScene(g: FlowGraph, p: Positions, o?: { activityLabels?; style?; overlays?; lod?; lodBySize?: boolean; locale?;
-  lanes?: LaneMode; bands?: LaneBand[]; overlayGeometry?; selfLoops?: boolean }): PreparedScene;
+  lanes?: LaneMode; bands?: LaneBand[]; overlayGeometry?; selfLoops?: boolean; theme?: Theme; scheme?: ColorScheme }): PreparedScene;
 export interface DrawContext { /* the subset of CanvasRenderingContext2D the routines use */ }
 export interface View { x: number; y: number; zoom: number; width: number; height: number }
 export interface DrawState { selection: Selection; hovered?: string | null; focused?: string | null; bright?: { nodes: Set<string>; edges: Set<string> };
@@ -1175,10 +1239,11 @@ export class CanvasRenderer { constructor(canvas: HTMLCanvasElement, o?: { token
   onViewportChange?: (v: Viewport) => void; lastDraw?: { nodes; edges; shapes; culled; withheld?; ms };
   onDraw?: (stats: { nodes; edges; shapes; culled; withheld?; ms }) => void }   // called after every draw
 export interface CanvasTokens { font; paper; surface; ink; inkMuted; line; lineStrong; focus; selection; neutral; outOfScope }
-export const defaultTokens: CanvasTokens;   // from the token table (`colorTokens`, `fontTokens`)
+export const defaultTokens: CanvasTokens;   // from the token table (`colorTokens`, `fontTokens`); without `tokens` a draw takes the scene's colours and font
 export function readTokens(element: Element | null | undefined, overrides?: Partial<CanvasTokens>): CanvasTokens;   // from the CSS variables (`cssVariable(key)`)
 export interface PngOptions { preset?: FigurePreset; width?; scale?; background?; legend?; padding?; lodZoom?; tokens?; createCanvas?; context?;
-  edgeBudget?: EdgeBudget | ShownEdges }   // default every edge; see "Edge budget"
+  edgeBudget?: EdgeBudget | ShownEdges;   // default every edge; see "Edge budget"
+  theme?: Theme; scheme?: ColorScheme }   // what the figure is drawn in; `tokens` override the scene's colours and font
 export function toPNGCanvas(scene: Scene, o?: PngOptions): { canvas; width; height; cssWidth; cssHeight; scale };
 export function toPNG(scene: Scene, o?: PngOptions): Promise<Blob>;
 export function toPNGDataUrl(scene: Scene, o?: PngOptions): string;
@@ -1306,10 +1371,11 @@ SVG and Canvas PNG exports include the canonical activity key even when the colo
 ```ts
 export interface FlowSceneOptions { overlays?: Overlay[]; style?: StyleSpec; locale?: Locale; lanes?: LaneMode;
   moved?: Readonly<Record<string, XY>>; activityLabels?: ActivityLabelOptions; selfLoops?: boolean; lod?: Partial<LodRules>; lodBySize?: boolean;
-  overlayGeometry?: OverlayGeometryOptions }
-export interface FlowScene { graph; positions; bands: LaneBand[]; activityLabels?; locale; style; scales: Scales;
+  overlayGeometry?: OverlayGeometryOptions; theme?: Theme; scheme?: ColorScheme }   // default defaultTheme, light
+export interface FlowScene { graph; positions; bands: LaneBand[]; activityLabels?; locale; style; theme: Theme; scheme: ColorScheme;
+  colors: Readonly<Record<ColorToken, string>>; scales: Scales;   // colors: every paint role in the scheme
   overlays: Overlay[]; lod: LodRules; geometry: OverlayGeometry; marks: OverlayMark[]; nodeMarks: NodeMark[]; edgeMarks: EdgeMark[];
-  legend: SceneLegend; bounds: Box }
+  groupMarks: GroupMark[]; legend: SceneLegend; bounds: Box }
 export function buildScene(g: FlowGraph, p: Positions, o?: FlowSceneOptions): FlowScene;
 export function followsSelfLoops(g: FlowGraph, o?: { locale?: Locale; observed?: { caseLabel?: string } }): Overlay[];
 export function withFollowsSelfLoops(g: FlowGraph, overlays: Overlay[], o?: { locale?; observed? }): Overlay[];
@@ -1323,10 +1389,10 @@ export interface MarkGauge { x: number; y: number; width: number; height: number
 export interface OverlayMark { id: string; kind: OverlayKind; overlay: Overlay; box: Box; layer: "below" | "between" | "above"; inMap: boolean;
   minZoom: number; color: string; onColor: string; title: string; radius: number; path?: string; fill?: MarkFill;
   stroke?: MarkStroke; arrow?: { size: number; overhang: number }; texts: MarkText[]; gauge?: MarkGauge; edgeId?: string }
-export function overlayMarks(shapes: OverlayShape[], locale?: Locale): OverlayMark[];
-export function overlayColor(o: Overlay): string;           // value on the sequential palette, neutral without one
-export function tintColor(o: Overlay): string | undefined;  // the same colour at TINT_OPACITY, as CSS rgba()
-export function arcWidth(o: Overlay): number;               // 2 + 8 × coverage (default 1)
+export function overlayMarks(shapes: OverlayShape[], locale?: Locale, theme?: Theme): OverlayMark[];
+export function overlayColor(o: Overlay, theme?: Theme): string;           // value on the theme's shortfall palette, its neutral without one
+export function tintColor(o: Overlay, theme?: Theme): string | undefined;  // the same colour at TINT_OPACITY, as CSS rgba()
+export function arcWidth(o: Overlay, theme?: Theme): number;               // 2 + 8 × coverage (default 1), the theme's arc strokes
 export const TINT_OPACITY: number;                          // 0.18
 export const overlayArrow: { size: number; overhang: number }; // 12, tip 0.1 × size beyond the path (`arrowheadTokens.overlay`)
 export const chipLayout: { padding: 8; glyph: 12.4; gauge: 46; gaugeWidth: 40; gaugeHeight: 6; char: 6.2 };
@@ -1345,11 +1411,17 @@ export interface NodeMark { id: string; kind: NodeKind; node: FlowNode; box: Box
   texts: ElementText[]; reconnected: boolean; title?: string }
 export interface EdgeMark { id: string; kind: EdgeKind; edge: FlowEdge; points: XY[]; color: string; width: number; dash?: number[];
   texts: ElementText[]; reconnected: boolean }
-export function nodeMark(n: FlowNode, box: Box, o: { color: string; pattern: PatternId; locale?: Locale; activityLabels?: ActivityLabelOptions }): NodeMark;
-export function edgeMark(e: FlowEdge, points: XY[], o: { color: string; width: number; locale?: Locale }): EdgeMark;
-export function nodeMarks(g: FlowGraph, p: Positions, scales: Scales, o?: { locale?; activityLabels? }): NodeMark[];
-export function edgeMarks(g: FlowGraph, p: Positions, scales: Scales, locale?: Locale): EdgeMark[];
-export function edgeColor(e: FlowEdge, scales: Scales): string;      // constraint edges in the mechanism colour
+export type BoxSide = "top" | "right" | "bottom" | "left";
+export interface GroupMark { id: string; kind: GroupKind; group: FlowGroup; box: Box; color: string; pattern: PatternId; band?: LaneBand;
+  radius: number; fill: MarkFill; stroke: { paint: MarkPaint; width: number; dash?: number[]; sides?: BoxSide[] };
+  rule?: { paint: MarkPaint; width: number; side: BoxSide }; texts: ElementText[]; chipAnchor: XY }
+export function nodeMark(n: FlowNode, box: Box, o: { color: string; pattern: PatternId; locale?: Locale; activityLabels?: ActivityLabelOptions; theme?: Theme }): NodeMark;
+export function edgeMark(e: FlowEdge, points: XY[], o: { color: string; width: number; locale?: Locale; theme?: Theme }): EdgeMark;
+export function groupMark(g: FlowGroup, box: Box, o: { color: string; pattern: PatternId; band?: LaneBand; theme?: Theme }): GroupMark;
+export function nodeMarks(g: FlowGraph, p: Positions, scales: Scales, o?: { locale?; activityLabels?; theme? }): NodeMark[];
+export function edgeMarks(g: FlowGraph, p: Positions, scales: Scales, locale?: Locale, theme?: Theme): EdgeMark[];
+export function groupMarks(g: FlowGraph, p: Positions, bands: readonly LaneBand[], scales: Scales, theme?: Theme): GroupMark[];
+export function edgeColor(e: FlowEdge, scales: Scales, theme?: Theme): string;      // constraint edges in the theme's mechanism colour
 export function gatewayGlyph(n: FlowNode): string;                  // + (and), ○ (or), × otherwise
 export function nodeCount(n: FlowNode, locale?: Locale): string | undefined;  // cases; a stage's members before them
 export function edgePoints(p: Positions, e: FlowEdge): XY[] | undefined;      // the route, or straight between the boxes
@@ -1421,7 +1493,7 @@ are self-loop overlays), both in the graph's order. A node mark says what
 the live map shows for its kind: the outline (`box` with a corner radius,
 the `circle` of an event, the `diamond` of a gateway), the fill and border
 with width and dash (notes dotted on the surface colour, re-added elements
-dashed, stages 3 wide, end events 3 wide), the colour band with its
+dashed, stages 3 wide, start events 2 and end events 3 wide), the colour band with its
 pattern twin (`band`, 8 wide; not on notes, events and gateways) and the
 texts: a gateway's glyph (×, + or ○) instead of its label, an event's label
 inside its circle at 9 px, a note's label at 11 px at every zoom, the
@@ -1457,6 +1529,19 @@ formatted in the map's `locale`; a given self-loop overlay that stands for
 a follows edge (its `edgeId`, no constraint) is replaced by the derived one
 instead of being drawn twice; an arc is kept only when both its endpoints
 are on the map; and the Canvas map draws every graph overlay once.
+
+`groupMarks` holds one `GroupMark` per group with a box, in the graph's
+order. A group is a box with corners of 10, tinted in its categorical
+colour at 0.06 and outlined in it 1.5 wide with dashes of 6 and gaps of 4;
+a group drawn as a lane band (`band`) is tinted at 0.06 (every other band
+at 0.02), outlined in the line colour 1 wide on the two sides between bands
+(`stroke.sides`: left and right along the flow, top and bottom across it)
+and ruled 3 wide in its colour along the side it starts at (`rule`: top or
+left). Its title is written 12 in from the left on a baseline 22 below the
+top, at 14 semibold in the ink, and `chipAnchor` is where its chips are
+placed from: their right end 8 in from the right edge, the first 6 below the
+top. The SVG export, the Canvas map, the PNG export and `<ProcessMap/>` draw
+these marks; the Canvas scene's `SceneGroup.mark` is the group's mark.
 
 `toSVG` draws this scene. Since this change it draws follows self-loops by
 default (as the live map does), also without `activityLabels`;

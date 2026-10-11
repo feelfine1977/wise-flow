@@ -89,6 +89,7 @@ export {
   lodAt,
   lodForSize,
   buildScales,
+  themePalette,
   patternDefs,
   PATTERNS,
   palettes,
@@ -138,6 +139,15 @@ export type {
   ColorToken,
   Arrowhead,
 } from "./tokens.js";
+export {
+  defaultTheme,
+  themeColors,
+} from "./theme.js";
+export type {
+  Theme,
+  ThemePalettes,
+  ColorScheme,
+} from "./theme.js";
 
 export {
   constraintOverlays,
@@ -405,6 +415,8 @@ export {
   edgeMark,
   nodeMarks,
   edgeMarks,
+  groupMark,
+  groupMarks,
   edgeColor,
   estimateTextWidth,
 } from "./element-marks.js";
@@ -413,6 +425,8 @@ export type {
   ElementText,
   NodeMark,
   EdgeMark,
+  GroupMark,
+  BoxSide,
 } from "./element-marks.js";
 
 export {

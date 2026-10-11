@@ -61,11 +61,13 @@ describe("arcs that cross no other activity", () => {
   /**
    * SHA-256 of the marks (as JSON) and of `toSVG` of two scenes whose arcs
    * cross no activity but their ends and whose labels lie clear, recorded
-   * before arcs began to choose their course and their label's place.
+   * before arcs began to choose their course and their label's place. The
+   * overlay kinds' SVG was recorded again when groups became marks of the
+   * scene: only its stage group's outline changed, drawn at full opacity.
    */
   const recorded = {
     kindsMarks: "4a6335a979e8e5cac63a82f3c4e8c6fd4e3bf945d67f8ae86f3a25fa5433ba9c",
-    kindsSvg: "4576129bd17cd024b6888240e58d615c2cc52dda1fbd06364d1e7f8bc2c8102a",
+    kindsSvg: "ed20b73ee513ff1287c12f304af437a256ca6acef9a91c77142b824d37791a16",
     rowsMarks: "d5bc4e4d1fb81fcdfb77ecbe2c7d97bc1ce1304a39a759c952a531194b84ec7f",
     rowsSvg: "f956d0cdbd76a1e869e78685fde53686457f254fdc164a06541504d6982b853f",
   };

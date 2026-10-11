@@ -6,6 +6,7 @@ import { scaleLinear, scaleLog, scaleSqrt } from "d3-scale";
 import { hatchSvg, patternTwinSvg, svgMarkup } from "./mark-svg.js";
 import { type FlowEdge, type FlowGraph, type FlowNode, metric } from "./model.js";
 import type { StringKey } from "./strings.js";
+import { type Theme, type ThemePalettes, defaultTheme } from "./theme.js";
 import { type PatternId, PATTERNS, colorTokens, paletteTokens, strokeTokens } from "./tokens.js";
 
 export { type PatternId, PATTERNS } from "./tokens.js";
@@ -13,7 +14,15 @@ export { type PatternId, PATTERNS } from "./tokens.js";
 /** The palettes of the token table (`paletteTokens`). */
 export const palettes = paletteTokens;
 
-type PaletteName = keyof typeof palettes;
+/** A palette of the theme by name; `sequential` and `sequentialBlue` are the theme's `shortfall` and `performance`. */
+type PaletteName = keyof typeof palettes | keyof ThemePalettes;
+
+const ALIASES: Partial<Record<PaletteName, keyof ThemePalettes>> = { sequential: "shortfall", sequentialBlue: "performance" };
+
+/** The stops of a named palette in a theme. */
+export function themePalette(theme: Theme, name: PaletteName): readonly string[] {
+  return theme.palette[ALIASES[name] ?? (name as keyof ThemePalettes)];
+}
 
 /** Fixed colours for hotspot types, gate states and the light scheme, from the token table (`colorTokens`). */
 export const fixedColors = {
@@ -228,9 +237,9 @@ function isShareMetric(name: string): boolean {
   return /share/i.test(name);
 }
 
-export function colorOn(value: number, palette: PaletteName, domain: number[]): string {
-  const stops = palettes[palette];
-  if (!Number.isFinite(value)) return fixedColors.neutral;
+export function colorOn(value: number, palette: PaletteName, domain: number[], theme: Theme = defaultTheme): string {
+  const stops = themePalette(theme, palette);
+  if (!Number.isFinite(value)) return theme.color.neutral;
   if (domain.length >= 3) {
     const [lo, mid, hi] = domain;
     const tt = value < mid ? (mid - lo === 0 ? 0 : 0.5 * (value - lo) / (mid - lo)) : hi - mid === 0 ? 1 : 0.5 + 0.5 * ((value - mid) / (hi - mid));
@@ -241,25 +250,30 @@ export function colorOn(value: number, palette: PaletteName, domain: number[]): 
   return interpolatePalette(stops, tt);
 }
 
-function categoricalEntry(key: string): CategoricalEntry {
-  const index = hashKey(key) % palettes.categorical.length;
-  return { key, color: palettes.categorical[index], pattern: PATTERNS[index], index };
+/** The colour and pattern twin of a categorical key in a theme's categorical palette. */
+function categoricalEntry(key: string, theme: Theme): CategoricalEntry {
+  const colors = theme.palette.categorical;
+  const index = hashKey(key) % colors.length;
+  return { key, color: colors[index], pattern: PATTERNS[index % PATTERNS.length], index };
 }
 
-/** Build the scales of a graph for a style specification; deterministic for the same input. */
-export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle): Scales {
+/** Build the scales of a graph for a style specification in a theme's palettes; deterministic for the same input. */
+export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, theme: Theme = defaultTheme): Scales {
   const domains: Scales["domains"] = {};
+  const neutral = theme.color.neutral;
+  const color = (value: number, palette: PaletteName, domain: number[]) => colorOn(value, palette, domain, theme);
+  const categorical = (key: string) => categoricalEntry(key, theme);
   // Paths carry the metrics; sequence flows of a BPMN-lite graph carry the same metrics.
   const follows = graph.edges.filter((e) => e.kind === "follows" || e.kind === "flow");
 
   // Edge width
   const widthSpec = spec.edgeWidth;
-  let widthFn: (e: FlowEdge) => number = () => strokeTokens.path;
+  let widthFn: (e: FlowEdge) => number = () => theme.stroke.path;
   if (widthSpec) {
     const domain =
       widthSpec.domain ?? extentOf(follows.map((e) => metric(e, widthSpec.metric, NaN))) ?? [0, 1];
     const safeDomain: [number, number] = domain[0] === domain[1] ? [0, domain[1] || 1] : domain;
-    const range = widthSpec.range ?? [strokeTokens.pathMin, strokeTokens.pathMax];
+    const range = widthSpec.range ?? [theme.stroke.pathMin, theme.stroke.pathMax];
     const kind = widthSpec.scale ?? "sqrt";
     const s =
       kind === "log"
@@ -277,7 +291,7 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle): S
 
   // Edge colour
   const edgeSpec = spec.edgeColor;
-  let edgeColorFn: (e: FlowEdge) => string = () => fixedColors.neutral;
+  let edgeColorFn: (e: FlowEdge) => string = () => neutral;
   if (edgeSpec?.metric) {
     const palette = edgeSpec.palette ?? "sequential";
     const domain =
@@ -290,7 +304,7 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle): S
     domains.edgeColor = domain;
     edgeColorFn = (e) => {
       const v = e.metrics?.[edgeSpec.metric!];
-      return typeof v === "number" && Number.isFinite(v) ? colorOn(v, palette, domain) : fixedColors.neutral;
+      return typeof v === "number" && Number.isFinite(v) ? color(v, palette, domain) : neutral;
     };
   }
 
@@ -312,7 +326,7 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle): S
         return undefined;
     }
   };
-  let nodeColorFn: (n: FlowNode) => string = () => fixedColors.neutral;
+  let nodeColorFn: (n: FlowNode) => string = () => neutral;
   let nodePatternFn: (n: FlowNode) => PatternId = () => "solid";
   const categoricalKeys = new Set<string>();
   if (nodeSpec?.by) {
@@ -322,11 +336,11 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle): S
     }
     nodeColorFn = (n) => {
       const k = keyOf(n);
-      return k === undefined ? fixedColors.neutral : categoricalEntry(k).color;
+      return k === undefined ? neutral : categorical(k).color;
     };
     nodePatternFn = (n) => {
       const k = keyOf(n);
-      return k === undefined ? "solid" : categoricalEntry(k).pattern;
+      return k === undefined ? "solid" : categorical(k).pattern;
     };
   } else if (nodeSpec?.metric) {
     const palette = nodeSpec.palette ?? "sequential";
@@ -337,23 +351,23 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle): S
     domains.nodeColor = domain;
     nodeColorFn = (n) => {
       const v = n.metrics?.[nodeSpec.metric!];
-      return typeof v === "number" && Number.isFinite(v) ? colorOn(v, palette, domain) : fixedColors.neutral;
+      return typeof v === "number" && Number.isFinite(v) ? color(v, palette, domain) : neutral;
     };
   }
 
   const legend: LegendItem[] = [];
   if (widthSpec && domains.edgeWidth) {
-    legend.push({ kind: "width", title: "legend.edgeWidth", metric: widthSpec.metric, domain: domains.edgeWidth, range: widthSpec.range ?? [strokeTokens.pathMin, strokeTokens.pathMax] });
+    legend.push({ kind: "width", title: "legend.edgeWidth", metric: widthSpec.metric, domain: domains.edgeWidth, range: widthSpec.range ?? [theme.stroke.pathMin, theme.stroke.pathMax] });
   }
   if (edgeSpec?.metric && domains.edgeColor) {
     const palette = edgeSpec.palette ?? "sequential";
-    legend.push({ kind: palette === "diverging" ? "diverging" : "sequential", title: "legend.edgeColor", metric: edgeSpec.metric, domain: domains.edgeColor, stops: palettes[palette] });
+    legend.push({ kind: palette === "diverging" ? "diverging" : "sequential", title: "legend.edgeColor", metric: edgeSpec.metric, domain: domains.edgeColor, stops: themePalette(theme, palette) });
   }
   if (nodeSpec?.by && categoricalKeys.size) {
-    legend.push({ kind: "categorical", title: "legend.nodeColor", entries: [...categoricalKeys].sort().map(categoricalEntry) });
+    legend.push({ kind: "categorical", title: "legend.nodeColor", entries: [...categoricalKeys].sort().map(categorical) });
   } else if (nodeSpec?.metric && domains.nodeColor) {
     const palette = nodeSpec.palette ?? "sequential";
-    legend.push({ kind: palette === "diverging" ? "diverging" : "sequential", title: "legend.nodeColor", metric: nodeSpec.metric, domain: domains.nodeColor, stops: palettes[palette] });
+    legend.push({ kind: palette === "diverging" ? "diverging" : "sequential", title: "legend.nodeColor", metric: nodeSpec.metric, domain: domains.nodeColor, stops: themePalette(theme, palette) });
   }
 
   return {
@@ -362,8 +376,8 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle): S
     edgeColor: edgeColorFn,
     nodeColor: nodeColorFn,
     nodePattern: nodePatternFn,
-    categorical: categoricalEntry,
-    color: colorOn,
+    categorical,
+    color,
     legend,
     domains,
   };
@@ -377,6 +391,6 @@ function symmetricDomain(values: number[]): number[] {
 }
 
 /** SVG pattern definitions for the pattern twins and the out-of-scope hatching, usable in exports and in the DOM. */
-export function patternDefs(prefix = "wf-pattern", ink: string = fixedColors.ink): string {
-  return [...PATTERNS.map((p) => patternTwinSvg(`${prefix}-${p}`, p, ink)), hatchSvg(`${prefix}-outofscope`, fixedColors.outOfScope)].map(svgMarkup).join("");
+export function patternDefs(prefix = "wf-pattern", ink: string = fixedColors.ink, outOfScope: string = fixedColors.outOfScope): string {
+  return [...PATTERNS.map((p) => patternTwinSvg(`${prefix}-${p}`, p, ink)), hatchSvg(`${prefix}-outofscope`, outOfScope)].map(svgMarkup).join("");
 }

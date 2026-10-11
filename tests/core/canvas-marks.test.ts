@@ -226,7 +226,7 @@ describe("Canvas node and edge marks", () => {
     // The start event: a circle of radius 18 on paper in ink; the end event's border is 3 wide.
     expect(ops.filter((o) => o.path === "A18,20,18")).toEqual([
       { op: "fill", path: "A18,20,18", color: "#ffffff", alpha: 1 },
-      { op: "stroke", path: "A18,20,18", color: "#1f1f1f", alpha: 1, width: 1.5, dash: [] },
+      { op: "stroke", path: "A18,20,18", color: "#1f1f1f", alpha: 1, width: 2, dash: [] },
     ]);
     expect(ops.find((o) => o.op === "stroke" && o.path === "A858,20,18")).toMatchObject({ width: 3 });
     // The gateway: a diamond in its box.

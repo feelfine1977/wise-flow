@@ -7,7 +7,15 @@ import { fileURLToPath } from "node:url";
  * a set of stories and interaction states, the properties that paint it. The
  * expected values were recorded once from the stylesheet and components before
  * the library's CSS moved into a cascade layer and the inline paints moved into
- * classes; the test proves that this move draws nothing differently. Geometry
+ * classes; the test proves that this move draws nothing differently. They were
+ * recorded again when nodes and groups began to be drawn from their marks:
+ * nodes cast no shadow and their texts take their size and weight from the
+ * mark (a stage's count is no longer semibold, and the node itself no longer
+ * sets a font size its descendants inherit); an event's radius is its mark's
+ * 18px where it was 50% of its 36px box; a box group draws its dashed outline
+ * as an SVG rectangle (`svg.wf-group__outline`) instead of a border; a group
+ * covered by a tint keeps its own tint below it; a band sets the border style
+ * of all four sides and the width of the two it outlines. Geometry
  * that depends on the fonts of the machine (widths, heights, positions) is left
  * out, so the record holds on every operating system.
  */
@@ -115,6 +123,9 @@ async function computedStyles(page: Page, properties: string[]): Promise<[string
   }, properties);
 }
 
+/** An element's name without the classes that carry the paints of marks, which name no element. */
+const named = (element: string) => element.replace(/\.wf-(fill|stroke)-[a-z-]+/g, "");
+
 /** The record: every distinct style once, and per scene each element with the index of its style. */
 interface Record {
   styles: string[];
@@ -137,7 +148,7 @@ test("the map and its panels draw the computed styles they drew before", async (
   }
   if (record) {
     const styles = [...new Set(Object.values(actual).flatMap((elements) => elements.map(([, style]) => style)))];
-    const scenes = Object.fromEntries(Object.entries(actual).map(([name, elements]) => [name, elements.map(([element, style]) => `${element} ${styles.indexOf(style)}`)]));
+    const scenes = Object.fromEntries(Object.entries(actual).map(([name, elements]) => [name, elements.map(([element, style]) => `${named(element)} ${styles.indexOf(style)}`)]));
     writeFileSync(RECORD, JSON.stringify({ styles, scenes } satisfies Record, null, 1) + "\n");
     return;
   }
@@ -148,8 +159,6 @@ test("the map and its panels draw the computed styles they drew before", async (
       return [line.slice(0, cut), expected.styles[Number(line.slice(cut + 1))]];
     });
     const after = actual[scene.name];
-    // The classes that carry the paints of marks name no element.
-    const named = (element: string) => element.replace(/\.wf-(fill|stroke)-[a-z-]+/g, "");
     expect(after.map(([element]) => named(element)), `${scene.name}: the elements`).toEqual(before.map(([element]) => element));
     const changed = after.flatMap(([element, style], i) => {
       if (style === before[i][1]) return [];

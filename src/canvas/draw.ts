@@ -5,9 +5,9 @@
  * a recording stub in tests. When the scene is large, only the elements the
  * scene's R-tree finds in the viewport are read, in the order of a full draw.
  */
-import { type Arrowhead, type Box, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type Selection, type ShownEdges, arrowheadExtent, arrowheadTokens, dashTokens, dimensionTokens, fitChars, fitLead, fixedColors, formatCompact, formatNumber, formatShare, hatchTokens, legendLayout, legendMetrics, budgetEdges, lodAt, markArrowhead, opacityTokens, patternTokens, patternTwin, radiusTokens, strokeTokens, t, textTokens, truncateText } from "../core/index.js";
+import { type Arrowhead, type Box, type BoxSide, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type Selection, type ShownEdges, type Theme, arrowheadExtent, arrowheadTokens, dimensionTokens, fitChars, fitLead, fixedColors, formatCompact, formatNumber, formatShare, hatchTokens, legendLayout, legendMetrics, budgetEdges, lodAt, markArrowhead, opacityTokens, patternTokens, patternTwin, t, truncateText } from "../core/index.js";
 import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene.js";
-import { type CanvasTokens, defaultTokens } from "./tokens.js";
+import { type CanvasTokens, sceneTokens } from "./tokens.js";
 
 /** The subset of the 2D context the renderer uses (stubbed in Node tests). */
 export interface DrawContext {
@@ -63,6 +63,7 @@ export interface DrawState {
 }
 
 export interface DrawOptions {
+  /** Colours and font. Default: the scene's (`sceneTokens`). */
   tokens?: CanvasTokens;
   /** Cull by viewport through the R-tree. Default: when the scene has more than 1,500 elements. */
   cull?: boolean;
@@ -173,10 +174,10 @@ function arrowhead(ctx: DrawContext, from: [number, number], end: [number, numbe
   }
 }
 
-function haloText(ctx: DrawContext, text: string, x: number, y: number, tokens: CanvasTokens) {
+function haloText(ctx: DrawContext, text: string, x: number, y: number, tokens: CanvasTokens, theme: Theme) {
   ctx.lineJoin = "round";
   ctx.strokeStyle = tokens.paper;
-  ctx.lineWidth = strokeTokens.halo;
+  ctx.lineWidth = theme.stroke.halo;
   ctx.strokeText(text, x, y);
   ctx.fillText(text, x, y);
 }
@@ -282,14 +283,14 @@ function drawText(ctx: DrawContext, scene: PreparedScene, tx: MarkText, color: s
   const { lead, text } = fitLead(tx, fit ?? ((s) => (tx.maxWidth === undefined ? s : truncate(ctx, scene, s, tx.maxWidth, tx))));
   let x = tx.x;
   if (lead) {
-    ctx.font = font(textTokens.chipLead.weight);
-    if (tx.halo) haloText(ctx, lead, x, tx.y, tokens);
+    ctx.font = font(scene.theme.text.chipLead.weight);
+    if (tx.halo) haloText(ctx, lead, x, tx.y, tokens, scene.theme);
     else ctx.fillText(lead, x, tx.y);
     x += ctx.measureText(lead).width;
     if (!text) return;
     ctx.font = font(tx.weight);
   }
-  if (tx.halo) haloText(ctx, text, x, tx.y, tokens);
+  if (tx.halo) haloText(ctx, text, x, tx.y, tokens, scene.theme);
   else ctx.fillText(text, x, tx.y);
 }
 
@@ -297,70 +298,67 @@ function visibleBox(view: View): Box {
   return { x: -view.x / view.zoom, y: -view.y / view.zoom, width: view.width / view.zoom, height: view.height / view.zoom };
 }
 
-function drawGroup(ctx: DrawContext, g: SceneGroup, tokens: CanvasTokens, selected: boolean) {
-  const b = g.box;
-  if (g.band) {
-    ctx.fillStyle = `${g.color}${alpha(g.band.index % 2 === 0 ? opacityTokens.bandFill : opacityTokens.bandOddFill)}`;
+/** The two ends of a side of a box. */
+function side(ctx: DrawContext, b: Box, which: BoxSide) {
+  const [x1, y1] = which === "right" ? [b.x + b.width, b.y] : which === "bottom" ? [b.x, b.y + b.height] : [b.x, b.y];
+  ctx.moveTo(x1, y1);
+  if (which === "top" || which === "bottom") ctx.lineTo(x1 + b.width, y1);
+  else ctx.lineTo(x1, y1 + b.height);
+}
+
+/** A colour at an opacity: a hex colour with its alpha appended. */
+const withAlpha = (color: string, opacity = 1) => (opacity === 1 ? color : `${color}${alpha(opacity)}`);
+
+function drawGroup(ctx: DrawContext, scene: PreparedScene, g: SceneGroup, tokens: CanvasTokens, selected: boolean) {
+  const { stroke: strokeTokens } = scene.theme;
+  const m = g.mark;
+  const b = m.box;
+  const { stroke, rule } = m;
+  const paint = (p: MarkPaint) => paintOf(m, p, tokens);
+  if (stroke.sides) {
+    ctx.fillStyle = withAlpha(paint(m.fill.paint), m.fill.opacity);
     ctx.fillRect(b.x, b.y, b.width, b.height);
-    ctx.strokeStyle = tokens.line;
-    ctx.lineWidth = 1;
-    ctx.setLineDash([]);
+    ctx.strokeStyle = paint(stroke.paint);
+    ctx.lineWidth = stroke.width;
+    ctx.setLineDash(stroke.dash ?? []);
     ctx.beginPath();
-    if (g.band.axis === "main") {
-      ctx.moveTo(b.x, b.y);
-      ctx.lineTo(b.x, b.y + b.height);
-      ctx.moveTo(b.x + b.width, b.y);
-      ctx.lineTo(b.x + b.width, b.y + b.height);
-    } else {
-      ctx.moveTo(b.x, b.y);
-      ctx.lineTo(b.x + b.width, b.y);
-      ctx.moveTo(b.x, b.y + b.height);
-      ctx.lineTo(b.x + b.width, b.y + b.height);
-    }
+    for (const s of stroke.sides) side(ctx, b, s);
     ctx.stroke();
-    ctx.beginPath();
-    ctx.strokeStyle = g.color;
-    ctx.lineWidth = strokeTokens.band;
-    if (g.band.axis === "main") {
-      ctx.moveTo(b.x, b.y);
-      ctx.lineTo(b.x + b.width, b.y);
-    } else {
-      ctx.moveTo(b.x, b.y);
-      ctx.lineTo(b.x, b.y + b.height);
-    }
-    ctx.stroke();
-    if (selected) {
-      ctx.strokeStyle = tokens.focus;
-      ctx.lineWidth = strokeTokens.canvasGroupSelected;
-      ctx.beginPath();
-      ctx.rect(b.x + 1, b.y + 1, b.width - 2, b.height - 2);
-      ctx.stroke();
-    }
   } else {
-    roundedRect(ctx, b, radiusTokens.large);
-    ctx.fillStyle = `${g.color}${alpha(opacityTokens.groupFill)}`;
+    roundedRect(ctx, b, m.radius);
+    ctx.fillStyle = withAlpha(paint(m.fill.paint), m.fill.opacity);
     ctx.fill();
-    ctx.strokeStyle = selected ? tokens.focus : g.color;
-    ctx.lineWidth = selected ? strokeTokens.canvasGroupSelected : strokeTokens.group;
-    ctx.setLineDash([...dashTokens.group]);
+    ctx.strokeStyle = selected ? tokens.focus : paint(stroke.paint);
+    ctx.lineWidth = selected ? strokeTokens.canvasGroupSelected : stroke.width;
+    ctx.setLineDash(stroke.dash ?? []);
     ctx.stroke();
     ctx.setLineDash([]);
   }
-  ctx.fillStyle = tokens.ink;
-  ctx.font = fontOf(textTokens.groupLabel, tokens.font);
-  ctx.textAlign = "left";
-  ctx.textBaseline = "alphabetic";
-  ctx.fillText(g.group.label, b.x + 12, b.y + 22);
+  if (rule) {
+    ctx.beginPath();
+    ctx.strokeStyle = paint(rule.paint);
+    ctx.lineWidth = rule.width;
+    side(ctx, b, rule.side);
+    ctx.stroke();
+  }
+  if (stroke.sides && selected) {
+    ctx.strokeStyle = tokens.focus;
+    ctx.lineWidth = strokeTokens.canvasGroupSelected;
+    ctx.beginPath();
+    ctx.rect(b.x + 1, b.y + 1, b.width - 2, b.height - 2);
+    ctx.stroke();
+  }
+  for (const tx of m.texts) drawText(ctx, scene, tx, paintOf(m, tx.paint, tokens), tokens);
 }
 
-function drawEdge(ctx: DrawContext, e: SceneEdge, tokens: CanvasTokens, highlighted: boolean, dimmed: boolean) {
+function drawEdge(ctx: DrawContext, e: SceneEdge, tokens: CanvasTokens, theme: Theme, highlighted: boolean, dimmed: boolean) {
   const m = e.mark;
   const pts = m.points;
   if (pts.length < 2) return;
   ctx.globalAlpha = dimmed ? opacityTokens.dimmedPath : 1;
   const color = highlighted ? tokens.focus : m.color;
   ctx.strokeStyle = color;
-  ctx.lineWidth = highlighted ? Math.max(m.width, strokeTokens.canvasPathHighlight) : m.width;
+  ctx.lineWidth = highlighted ? Math.max(m.width, theme.stroke.canvasPathHighlight) : m.width;
   ctx.lineJoin = "round";
   ctx.lineCap = "butt";
   ctx.setLineDash(m.dash ?? []);
@@ -376,6 +374,7 @@ function drawEdge(ctx: DrawContext, e: SceneEdge, tokens: CanvasTokens, highligh
 }
 
 function drawNode(ctx: DrawContext, scene: PreparedScene, n: SceneNode, tokens: CanvasTokens, state: DrawState, lod: ReturnType<typeof lodAt>, options: DrawOptions) {
+  const { stroke: strokeTokens, radius: radiusTokens } = scene.theme;
   const m = n.mark;
   const b = m.box;
   const id = m.id;
@@ -495,7 +494,7 @@ const nodeId = (n: SceneNode) => n.node.id;
  * that callers (and tests) can check the culling.
  */
 export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, state: DrawState = emptyState, options: DrawOptions = {}): { nodes: number; edges: number; shapes: number; culled: boolean; withheld?: EdgeSelection } {
-  const tokens = options.tokens ?? defaultTokens;
+  const tokens = options.tokens ?? sceneTokens(scene);
   const lodZoom = options.lodZoom ?? view.zoom;
   const lod = lodAt(lodZoom, scene.lod);
   const cull = options.cull ?? scene.size > CULL_ABOVE;
@@ -535,7 +534,7 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
     withheld = budgetEdges(scene, options.edgeBudget, state, found && inView);
   }
 
-  each(scene.groups, "group", groupId, (g) => drawGroup(ctx, g, tokens, state.selection.groups.includes(g.group.id)));
+  each(scene.groups, "group", groupId, (g) => drawGroup(ctx, scene, g, tokens, state.selection.groups.includes(g.group.id)));
   let shapes = 0;
   const marks = (layer: OverlayMark["layer"]) =>
     each(scene.marks, "overlay", markId, (m) => {
@@ -552,7 +551,7 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
     const id = e.edge.id;
     const highlighted = state.selection.edges.includes(id) || state.hovered === id;
     const dimmed = !!state.bright && !state.bright.edges.has(id);
-    drawEdge(ctx, e, tokens, highlighted, dimmed);
+    drawEdge(ctx, e, tokens, scene.theme, highlighted, dimmed);
     edges++;
   });
   marks("between");
@@ -578,8 +577,9 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
  * the keys of the overlay kinds present and the map-level chips. Returns the
  * height used, `legendLayout(scene.legend).height`.
  */
-export function drawLegend(ctx: DrawContext, scene: PreparedScene, x: number, y: number, width: number, tokens: CanvasTokens = defaultTokens, options: Pick<DrawOptions, "createCanvas"> = {}): number {
+export function drawLegend(ctx: DrawContext, scene: PreparedScene, x: number, y: number, width: number, tokens: CanvasTokens = sceneTokens(scene), options: Pick<DrawOptions, "createCanvas"> = {}): number {
   const L = scene.locale;
+  const textTokens = scene.theme.text;
   const layout = legendLayout(scene.legend);
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
