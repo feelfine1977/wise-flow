@@ -4,7 +4,7 @@
  * nodes that are still present.
  */
 import type { FlowGraph } from "./model.js";
-import { type Box, type EdgeRoute, type LayoutOptions, type Positions, GROUP_PADDING, createPositions, sizeOf, straightRoute, unionBoxes } from "./layout.js";
+import { type Box, type EdgeRoute, type LayoutOptions, type Positions, GROUP_PADDING, createPositions, gap as spacing, sizeOf, straightRoute, unionBoxes } from "./layout.js";
 
 /** Counts the elementary steps of `provisionalLayout`. */
 export interface ProvisionalWork {
@@ -23,8 +23,8 @@ export interface ProvisionalWork {
 export function provisionalLayout(graph: FlowGraph, o: LayoutOptions = {}, work: ProvisionalWork = { steps: 0 }): Positions {
   const direction = o.direction ?? "RIGHT";
   const flowX = direction === "RIGHT" || direction === "LEFT";
-  const gap = o.spacing?.node ?? 28;
-  const layerGap = o.spacing?.layer ?? 64;
+  const gap = spacing(o.spacing?.node, 28);
+  const layerGap = spacing(o.spacing?.layer, 64);
   const { nodes } = graph;
   const groups = (o.groups ?? "compound") === "compound" ? graph.groups ?? [] : [];
   const N = nodes.length;

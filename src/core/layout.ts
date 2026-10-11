@@ -119,9 +119,13 @@ export function defaultNodeSize(node: FlowNode): NodeSize {
 export const GROUP_PADDING = { top: 44, left: 20, bottom: 20, right: 20 };
 
 export function sizeOf(node: FlowNode, o: LayoutOptions): NodeSize {
-  if (!o.nodeSize) return defaultNodeSize(node);
-  return typeof o.nodeSize === "function" ? o.nodeSize(node) : o.nodeSize;
+  const s = typeof o.nodeSize === "function" ? o.nodeSize(node) : o.nodeSize;
+  // A size that is not finite counts as none, as a spacing does (`gap`).
+  return s && Number.isFinite(s.width) && Number.isFinite(s.height) ? s : defaultNodeSize(node);
 }
+
+/** A spacing option, or its default where it is not a finite number. */
+export const gap = (v: number | undefined, fallback: number): number => (Number.isFinite(v) ? v! : fallback);
 
 /**
  * Smallest box around the given boxes. Boxes without a non-negative width and
@@ -349,8 +353,8 @@ function prepare(graph: FlowGraph, o: LayoutOptions): Prepared {
 
 function elkGraph(p: Prepared, o: LayoutOptions, partition: boolean): ElkNode {
   const spacing = o.spacing ?? {};
-  const nodeSpacing = spacing.node ?? 28;
-  const layerSpacing = spacing.layer ?? 64;
+  const nodeSpacing = gap(spacing.node, 28);
+  const layerSpacing = gap(spacing.layer, 64);
   const idx = indexGraph({ nodes: p.nodes, edges: p.edges, groups: p.groups });
   const stageOrder = new Map<string, number>();
   p.groups.filter((g) => !g.parent && g.kind === "stage").forEach((g, i) => stageOrder.set(g.id, i));
@@ -387,7 +391,7 @@ function elkGraph(p: Prepared, o: LayoutOptions, partition: boolean): ElkNode {
     "elk.spacing.nodeNode": String(nodeSpacing),
     "elk.layered.spacing.nodeNodeBetweenLayers": String(layerSpacing),
     "elk.spacing.edgeNode": "24",
-    "elk.spacing.componentComponent": String(spacing.group ?? 48),
+    "elk.spacing.componentComponent": String(gap(spacing.group, 48)),
     "elk.edgeRouting": o.edgeRouting ?? "POLYLINE",
     "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
     "elk.layered.cycleBreaking.strategy": "GREEDY_MODEL_ORDER",
@@ -483,7 +487,7 @@ function dagreInput(p: Prepared, o: LayoutOptions): DagreInput {
   const groupIds = new Set(p.groups.map((gr) => gr.id));
   const inGroup = (id?: string) => (p.useGroups && id && groupIds.has(id) ? id : undefined);
   return {
-    graph: { rankdir: DAGRE_DIR[p.direction], nodesep: spacing.node ?? 28, ranksep: spacing.layer ?? 64, marginx: 8, marginy: 8 },
+    graph: { rankdir: DAGRE_DIR[p.direction], nodesep: gap(spacing.node, 28), ranksep: gap(spacing.layer, 64), marginx: 8, marginy: 8 },
     compound: p.useGroups,
     groups: p.useGroups ? p.groups.map((gr) => [gr.id, gr.label, inGroup(gr.parent)]) : [],
     nodes: p.nodes.map((n) => {

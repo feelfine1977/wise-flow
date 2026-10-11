@@ -239,7 +239,12 @@ given positions with `NaN` or an infinity in them instead of laying the graph
 out.
 
 Dagre lays out a node or an edge whose id is the empty string like any
-other, as ELK does; up to 0.3.5 it failed on it with a `TypeError`.
+other, as ELK does; up to 0.3.5 it failed on it with a `TypeError`. A
+spacing (`spacing.node`, `layer`, `group`) or a node size (given or returned
+by the `nodeSize` callback) that is not a finite number counts as not given:
+the default applies, in both engines and in the provisional arrangement. Up
+to 0.3.5 Dagre threw a `TypeError` or a plain error on it and ELK returned
+boxes that were not finite.
 
 Positions are absolute top-left coordinates and deterministic for the same
 input (elements are sorted by id before the engine runs). Groups become

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { globalScene, vendorScene } from "../../fixtures/bpic2019";
 import { type Box, type FlowGraph, abstract, coversGraph, filterPositions, layout, layoutUnion, unionGraph } from "../../src/index";
+import { provisionalLayout } from "../../src/core/provisional";
 
 function contains(outer: Box, inner: Box, slack = 0.5): boolean {
   return (
@@ -67,6 +68,21 @@ describe("layout of empty ids", () => {
     for (const id of ["", "\u0000", "b"]) expect(Object.values(p.nodes[id]).every(Number.isFinite), JSON.stringify(id)).toBe(true);
     expect(new Set([p.nodes[""].x, p.nodes["\u0000"].x, p.nodes.b.x]).size + new Set([p.nodes[""].y, p.nodes["\u0000"].y, p.nodes.b.y]).size).toBeGreaterThan(3);
     for (const id of ["", "\u0000", "b->"]) expect(p.edges[id]?.points.length, JSON.stringify(id)).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("layout options that are not finite numbers", () => {
+  // A size callback may compute from data; a spacing from a host's settings.
+  const graph = { nodes: ["a", "b", "c"].map((id) => ({ id, kind: "activity" as const, label: id, group: "s" })), edges: [{ id: "a->b", kind: "follows" as const, source: "a", target: "b" }, { id: "a->c", kind: "follows" as const, source: "a", target: "c" }], groups: [{ id: "s", kind: "stage" as const, label: "S" }] };
+
+  it.each(["dagre", "elk"] as const)("count as not given with %s: the default spacing and node size apply", async (engine) => {
+    const plain = await layout(graph, { engine });
+    for (const v of [NaN, Infinity, -Infinity]) {
+      for (const options of [{ spacing: { node: v } }, { spacing: { layer: v } }, { spacing: { group: v } }, { nodeSize: { width: v, height: 48 } }, { nodeSize: () => ({ width: 180, height: v }) }]) {
+        expect(await layout(graph, { engine, ...options }), `${JSON.stringify(options)} with ${v}`).toEqual(plain);
+        if (engine === "dagre") expect(provisionalLayout(graph, options), `provisional ${JSON.stringify(options)} with ${v}`).toEqual(provisionalLayout(graph));
+      }
+    }
   });
 });
 

@@ -68,3 +68,8 @@ came without an id; it threw a `TypeError` before.
 leaves a box with a number that is not finite out of the routing, as if it
 were missing. Such a box could keep the search going until the route outgrew
 an array: a `RangeError` after seconds of work and gigabytes of memory.
+
+`layout` (both engines and the provisional arrangement) takes a spacing or a
+node size that is not a finite number as not given and uses the default.
+Dagre threw a `TypeError` or a plain error on such a value before, and ELK
+returned boxes that were not finite.
