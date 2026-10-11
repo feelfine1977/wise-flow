@@ -451,7 +451,8 @@ as CSS variables), then the setting. Colours must be literals (`#rgb`,
 `#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()`); another syntax is left out (the
 preset's colour stays), so every paint of an export is a literal.
 `useFlowTheme` turns any CSS colour into one before. Palette stops are hex
-colours.
+colours (`#rgb`, `#rrggbb`), from which values are interpolated; a palette
+with another stop is left out (the preset's palette stays).
 
 **`default`** is today's look, in a light and a dark scheme. **`print`** is
 for figures: white paper and surfaces, no tints (`opacity.tint`, `groupFill`,

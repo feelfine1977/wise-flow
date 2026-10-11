@@ -14,7 +14,7 @@ variables, and the exports take it too.
   over a preset (`{ preset: "default", density: "compact", radius: { node: 4 } }`;
   a whole `Theme` is one too). `resolveTheme(setting, variables)` puts the
   setting over what a host wrote as CSS variables over the preset and keeps
-  only literal colours.
+  only literal colours, and only palettes of hex stops.
 - `Theme` gains `patterns` (the pattern twin of each categorical colour),
   `opacity` (the opacity table; the tints are `tint`, `groupFill`, `bandFill`,
   `bandOddFill`) and `minimum` (the smallest text and stroke, in pt). The

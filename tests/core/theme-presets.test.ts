@@ -87,6 +87,11 @@ describe("a theme set as changes over a preset", () => {
   it("leaves out colours that are not literals, so every paint of an export is one", () => {
     const theme = resolveTheme({ color: { paper: "oklch(0.98 0.01 90)", ink: "rgb(20 20 20)", focus: "var(--brand)" } });
     expect([theme.color.paper, theme.color.ink, theme.color.focus]).toEqual(["#ffffff", "rgb(20 20 20)", "#0072b2"]);
+    // Palettes are interpolated from hex stops: a palette with another stop is left out, the preset's stays.
+    const palette = { categorical: ["#123456", "oklch(0.6 0.1 200)"], shortfall: ["rgb(250 250 250)", "#a00"], neutral: ["#ccc", "#333333"] };
+    expect(resolveTheme({ palette }).palette).toEqual({ ...defaultTheme.palette, neutral: ["#ccc", "#333333"] });
+    const svg = toSVG({ graph: kinds.graph, positions: kinds.positions, overlays: kinds.overlays, style: { nodeColor: { by: "group" } } }, { theme: { palette } });
+    for (const word of ["oklch(", "rgb("]) expect(svg).not.toContain(word);
   });
 });
 

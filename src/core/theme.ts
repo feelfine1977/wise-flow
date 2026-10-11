@@ -124,10 +124,11 @@ export function colorChannels(css: string): [number, number, number, number] | u
   return [r, g, b, a].every(Number.isFinite) ? [r, g, b, a] : undefined;
 }
 
-/** Changes with the colours that are not literals left out. */
+/** Changes with the colours that are not literals left out, and the palettes with a stop that is not `#rgb` or `#rrggbb` (they are interpolated from hex). */
 function literalColors(changes: ThemeOverrides): ThemeOverrides {
   const keep = (roles: Partial<Record<ColorToken, string>> | undefined) => roles && Object.fromEntries(Object.entries(roles).filter(([, v]) => typeof v === "string" && colorChannels(v)));
-  return { ...changes, color: keep(changes.color), dark: keep(changes.dark) };
+  const palette = changes.palette && Object.fromEntries(Object.entries(changes.palette).filter(([, stops]) => stops?.every((s) => /^#([\da-f]{3}){1,2}$/i.test(s))));
+  return { ...changes, color: keep(changes.color), dark: keep(changes.dark), palette };
 }
 
 /**
