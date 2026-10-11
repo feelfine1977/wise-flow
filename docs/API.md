@@ -895,7 +895,9 @@ imported graph, as `<message>: <id>` (two elements with one `wise:flowId`, or
 two without an id, give one node id twice). Elements nested deeper than the
 call stack reaches (sub-processes, lanes) are read like any others. An
 element's empty `name` is exported and imported as an empty label; up to
-0.3.5 the export left it out and the import used the id.
+0.3.5 the export left it out and the import used the id. A sequence flow is
+marked `default` only when its source's `default` attribute names it; up to
+0.3.5 a flow without an id was marked whenever its source named no default.
 
 `<BpmnView/>` behaviour: bpmn-js is loaded on demand (NavigatedViewer, or
 Modeler with `mode="model"`); XML is imported once per `xml` value and the

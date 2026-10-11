@@ -210,7 +210,7 @@ export async function importBpmn(xml: string, options: ImportBpmnOptions = {}): 
       }
       const id = idOf(el);
       const derived: string[] = [];
-      if ((sourceEl.get("default") as ModdleElement | undefined)?.id === el.id) derived.push(V.defaultFlow);
+      if (sourceEl.get("default") === el) derived.push(V.defaultFlow);
       const condition = el.get("conditionExpression") as ModdleElement | undefined;
       if (condition) derived.push(V.conditionalFlow);
       const payload: Record<string, unknown> = { bpmnId: el.id };

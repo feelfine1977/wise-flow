@@ -30,4 +30,5 @@ are not finite numbers (and all positions of a diagram whose extent is not
 finite), and it reports every issue `validateGraph` finds on the imported graph,
 such as two elements with one `wise:flowId`. It rejects only with the parser's
 error when the text is not BPMN definitions. `positionsFromDi` takes an optional
-`warnings` array for these reports.
+`warnings` array for these reports. A sequence flow without an id is no longer
+marked as the default flow of a source that names no default flow.

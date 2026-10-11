@@ -112,6 +112,17 @@ describe("importBpmn on broken files", () => {
     expect(result.graph.edges).toEqual([]);
   });
 
+  it("marks only the flow a gateway names as its default, also when flows have no id", async () => {
+    // A flow without an id and a source without a default both have none: the two
+    // were compared by id, so every flow without an id came back as a default flow.
+    const result = await importBpmn(file('<task id="a"/><exclusiveGateway id="g" default="f"/><task id="b"/><task id="c"/><sequenceFlow sourceRef="a" targetRef="g"/><sequenceFlow id="f" sourceRef="g" targetRef="b"/><sequenceFlow sourceRef="g" targetRef="c"/>'));
+    expect(result.graph.edges.map((e) => [e.source, e.target, e.tags ?? []])).toEqual([
+      ["a", "g", []],
+      ["g", "b", ["default"]],
+      ["g", "c", []],
+    ]);
+  });
+
   it("leaves out and reports shapes and routes whose coordinates are not finite numbers", async () => {
     const result = await importBpmn(
       file(
