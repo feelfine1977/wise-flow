@@ -10,9 +10,12 @@ title, an edge's stroke, arrowhead and count label, an overlay mark's stroke,
 arrowhead and texts), so a node at the edge of the view no longer loses its
 outline, nor an edge its count label, a badge its share or a group its title.
 `HitIndex.fromScene` takes an optional fifth argument `extentOf` that
-supplies the box an item's bounds also cover; such an item keeps the
-element's own box as the new `HitItem.box`, which hit tests read, so `at`
-returns the same elements as before. The hit index now lists what is painted
+supplies the box an item's bounds also cover; node, group and overlay items
+carry the element's own box as the new `HitItem.box`, which hit tests read, so
+`at` returns the same elements as before. Every bound of the index is rounded
+outwards to a whole unit, so that the index holds whole numbers and costs no
+more memory than before; an area query (`within`) may find an item whose
+bounds end less than a unit short of the box. The hit index now lists what is painted
 on top first: overlay shapes above the nodes, nodes, arcs, edges, tints,
 groups (`HitItem.layer`, set from the shape's kind). Before, every overlay
 shape came first, so on the Canvas map a click inside a tinted stage selected

@@ -26,7 +26,7 @@ export interface HitItem {
    * reads the elements an area query finds in this order.
    */
   index?: number;
-  /** The element's box where the bounds reach beyond it (`extentOf`): hit tests read it, area queries the bounds. */
+  /** The box of a node, group or overlay shape: hit tests read it, area queries the bounds, which `extentOf` may have grown beyond it. */
   box?: Box;
   /** The layer of an overlay shape, for the order of hits; above the nodes when absent. */
   layer?: OverlayMark["layer"];
@@ -69,21 +69,20 @@ export class HitIndex {
   static fromScene(positions: Positions, geometry?: OverlayGeometry, edgeTolerance = 4, indexOf?: (kind: HitKind, id: string) => number | undefined, extentOf?: (item: HitItem) => Box | undefined): HitIndex {
     const index = new HitIndex(edgeTolerance);
     const items: HitItem[] = [];
-    const add = (item: HitItem, box?: Box) => {
+    const add = (item: HitItem) => {
       const e = extentOf?.(item);
-      if (e && (e.x < item.minX || e.y < item.minY || e.x + e.width > item.maxX || e.y + e.height > item.maxY)) {
-        item.box = box;
-        item.minX = Math.min(item.minX, e.x);
-        item.minY = Math.min(item.minY, e.y);
-        item.maxX = Math.max(item.maxX, e.x + e.width);
-        item.maxY = Math.max(item.maxY, e.y + e.height);
+      if (e) {
+        item.minX = Math.min(item.minX, Math.floor(e.x));
+        item.minY = Math.min(item.minY, Math.floor(e.y));
+        item.maxX = Math.max(item.maxX, Math.ceil(e.x + e.width));
+        item.maxY = Math.max(item.maxY, Math.ceil(e.y + e.height));
       }
       items.push(item);
     };
-    for (const [id, b] of Object.entries(positions.groups)) add(boxItem(id, "group", b, indexOf?.("group", id)), b);
-    for (const [id, b] of Object.entries(positions.nodes)) add(boxItem(id, "node", b, indexOf?.("node", id)), b);
+    for (const [id, b] of Object.entries(positions.groups)) add(boxItem(id, "group", b, indexOf?.("group", id)));
+    for (const [id, b] of Object.entries(positions.nodes)) add(boxItem(id, "node", b, indexOf?.("node", id)));
     for (const [id, r] of Object.entries(positions.edges)) for (const item of edgeItems(id, r, edgeTolerance, indexOf?.("edge", id))) add(item);
-    for (const s of geometry?.shapes ?? []) add({ ...boxItem(s.overlay.target, "overlay", s, indexOf?.("overlay", s.id)), shapeId: s.id, layer: markLayer(s.kind) }, s);
+    for (const s of geometry?.shapes ?? []) add({ ...boxItem(s.overlay.target, "overlay", s, indexOf?.("overlay", s.id)), shapeId: s.id, layer: markLayer(s.kind) });
     index.load(items);
     return index;
   }
@@ -103,7 +102,7 @@ export class HitIndex {
     return this;
   }
 
-  /** An element's size: its box, a segment with the tolerance around it, or the bounds. */
+  /** An element's size: its box, a segment with the tolerance around it, or the bounds of an item loaded without a box. */
   private area(it: HitItem): number {
     if (it.box) return it.box.width * it.box.height;
     if (it.segment) {
@@ -132,7 +131,7 @@ export class HitIndex {
 }
 
 function boxItem(id: string, kind: HitKind, b: Box, index: number | undefined): HitItem {
-  return { id, kind, minX: b.x, minY: b.y, maxX: b.x + b.width, maxY: b.y + b.height, index };
+  return { id, kind, minX: Math.floor(b.x), minY: Math.floor(b.y), maxX: Math.ceil(b.x + b.width), maxY: Math.ceil(b.y + b.height), index, box: b };
 }
 
 function edgeItems(id: string, route: EdgeRoute, tolerance: number, index: number | undefined): HitItem[] {
@@ -143,10 +142,10 @@ function edgeItems(id: string, route: EdgeRoute, tolerance: number, index: numbe
     out.push({
       id,
       kind: "edge",
-      minX: Math.min(a.x, b.x) - tolerance,
-      minY: Math.min(a.y, b.y) - tolerance,
-      maxX: Math.max(a.x, b.x) + tolerance,
-      maxY: Math.max(a.y, b.y) + tolerance,
+      minX: Math.floor(Math.min(a.x, b.x) - tolerance),
+      minY: Math.floor(Math.min(a.y, b.y) - tolerance),
+      maxX: Math.ceil(Math.max(a.x, b.x) + tolerance),
+      maxY: Math.ceil(Math.max(a.y, b.y) + tolerance),
       segment: route.points.length === 2 ? (route.points as [XY, XY]) : [a, b],
       index,
     });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type Box, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Overlay, type OverlayMark, createPositions } from "../../src/index";
+import { type Box, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Overlay, type OverlayMark, HitIndex, createPositions } from "../../src/index";
 import { type DrawOptions, type DrawState, type PreparedScene, type PrepareOptions, type SceneEdge, type SceneGroup, type SceneNode, type View, CanvasRenderer, drawScene, prepareScene, toPNGCanvas } from "../../src/canvas/index";
 import { type FamilyName, families } from "../support/graphs";
 import { type InkContext, type ListName, type Visit, drawn, inkContext, keyOf, watch } from "../support/ink";
@@ -13,7 +13,8 @@ import { type PositionKind, SIDES, VIEWPORT_KINDS, oddPositionsOf, positionsOf, 
 // level of detail or the interaction state draws it at the moment, with a
 // glyph allowed 0.7 em. What an element actually inks (recorded through the
 // context) must lie inside it; the renderer must read exactly the elements
-// whose extent meets the view.
+// whose extent, rounded outwards to whole units as the index holds it, meets
+// the view.
 
 interface Extent {
   minX: number;
@@ -84,16 +85,19 @@ function edgeExtents(e: SceneEdge): Extent[] {
   return out;
 }
 
+/** The index holds whole units: an extent is rounded outwards. */
+const whole = (e: Extent): Extent => ({ minX: Math.floor(e.minX), minY: Math.floor(e.minY), maxX: Math.ceil(e.maxX), maxY: Math.ceil(e.maxY) });
+
 function extentsOf(scene: PreparedScene, v: Pick<Visit, "list" | "index">): Extent[] {
   switch (v.list) {
     case "nodes":
-      return [nodeExtent(scene.nodes[v.index])];
+      return [whole(nodeExtent(scene.nodes[v.index]))];
     case "groups":
-      return [groupExtent(scene.groups[v.index])];
+      return [whole(groupExtent(scene.groups[v.index]))];
     case "marks":
-      return [markExtent(scene.marks[v.index])];
+      return [whole(markExtent(scene.marks[v.index]))];
     case "edges":
-      return edgeExtents(scene.edges[v.index]);
+      return edgeExtents(scene.edges[v.index]).map(whole);
   }
 }
 
@@ -363,6 +367,57 @@ describe("hit testing against a naive reference", () => {
       }
     }
     expect(points).toBeGreaterThanOrEqual(2000);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The area query of the index itself, as a host builds it from positions and
+// overlay geometry alone, against a brute-force search over every item.
+
+describe("the area query of the hit index against a brute-force search", () => {
+  it("finds exactly the items whose bounds, rounded outwards to whole units, meet the box", () => {
+    let queries = 0;
+    for (const seed of seeds(caseCount(20))) {
+      const { scene, detail } = sceneCase(seed);
+      const rng = createRandom(seed + 500_009);
+      const { positions, geometry } = scene;
+      const index = HitIndex.fromScene(positions, geometry);
+      // Every item with its key and the bounds the index holds: a box, a segment grown by the tolerance of 4, a shape.
+      const items: { key: string; e: Extent }[] = [];
+      for (const [id, b] of Object.entries(positions.groups)) items.push({ key: `group:${id}`, e: whole(extentOf(b)) });
+      for (const [id, b] of Object.entries(positions.nodes)) items.push({ key: `node:${id}`, e: whole(extentOf(b)) });
+      for (const [id, r] of Object.entries(positions.edges)) {
+        for (let i = 0; i + 1 < r.points.length; i++) {
+          const [a, b] = [r.points[i], r.points[i + 1]];
+          items.push({ key: `edge:${id}:${a.x},${a.y}-${b.x},${b.y}`, e: whole({ minX: Math.min(a.x, b.x) - 4, minY: Math.min(a.y, b.y) - 4, maxX: Math.max(a.x, b.x) + 4, maxY: Math.max(a.y, b.y) + 4 }) });
+        }
+      }
+      for (const s of geometry.shapes) items.push({ key: `overlay:${s.id}`, e: whole(extentOf(s)) });
+      const keyOfItem = (it: { kind: string; id: string; shapeId?: string; segment?: [{ x: number; y: number }, { x: number; y: number }] }) =>
+        it.kind === "edge" ? `edge:${it.id}:${it.segment![0].x},${it.segment![0].y}-${it.segment![1].x},${it.segment![1].y}` : `${it.kind}:${it.shapeId ?? it.id}`;
+      const boxes: Box[] = [...Object.values(positions.nodes), ...Object.values(positions.groups), ...geometry.shapes];
+      const bounds = scene.bounds;
+      for (let k = 0; k < 20; k++) {
+        let q: Box;
+        if (k % 2 === 0 || !boxes.length) {
+          // Anywhere over the bounds and a margin, up to a third of them on a side; every fifth has no width or no height.
+          const x = rng.float(bounds.x - 50, bounds.x + bounds.width + 50);
+          const y = rng.float(bounds.y - 50, bounds.y + bounds.height + 50);
+          q = { x, y, width: k % 10 === 0 ? 0 : rng.float(0, (bounds.width + 100) / 3), height: k % 10 === 5 ? 0 : rng.float(0, (bounds.height + 100) / 3) };
+        } else {
+          // Its left or top edge exactly at, half a unit from or one unit from an element's right or bottom edge.
+          const b = rng.pick(boxes);
+          const d = rng.pick([0, 0.5, 1, -0.5, -1]);
+          q = rng.chance() ? { x: b.x + b.width + d, y: b.y - 10, width: 300, height: b.height + 20 } : { x: b.x - 10, y: b.y + b.height + d, width: b.width + 20, height: 300 };
+        }
+        const label = caseLabel(seed, `${detail}; box ${k} ${JSON.stringify(q)}`);
+        const got = index.within(q).map(keyOfItem).sort();
+        const want = items.filter((it) => touch(it.e, extentOf(q))).map((it) => it.key).sort();
+        expect(got, label).toEqual(want);
+        queries++;
+      }
+    }
+    expect(queries).toBeGreaterThanOrEqual(400);
   });
 });
 

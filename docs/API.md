@@ -403,7 +403,7 @@ export class HitIndex { constructor(edgeTolerance?: number);
   at(x, y, tolerance?): HitItem[]; within(box: Box): HitItem[] }
 export interface HitItem { minX; minY; maxX; maxY; id: string; kind: "node" | "edge" | "group" | "overlay";
   segment?: [XY, XY]; shapeId?: string; index?: number;   // index: indexOf(kind, id or shape id)
-  box?: Box; layer?: "below" | "between" | "above" }   // box: the element's own box where the bounds reach beyond it; layer: of an overlay shape
+  box?: Box; layer?: "below" | "between" | "above" }   // box: of a node, group or overlay shape, what hit tests read; layer: of an overlay shape
 export interface Scene { graph; positions; overlays?; style?; title?; subtitle?; locale?; lanes?: LaneMode;
   activityLabels?: ActivityLabelOptions; selfLoops?: boolean }
 export interface ExportOptions { preset?: "single-column" | "double-column" | "slide" | "none"; width?; legend?;
@@ -434,19 +434,24 @@ export function figureFrame(scene: FramedScene, o?: FigureFrameOptions): FigureF
 
 `HitIndex.fromScene` indexes the boxes of the nodes and groups, the segments
 of the edge routes (each grown by `edgeTolerance`, 4) and the overlay shapes.
-With `extentOf` each item's bounds also cover the box the callback returns
-for it, so that an area query (`within`) finds an element whose drawing
-reaches beyond its box; the item then keeps the element's own box as
-`HitItem.box`, and `at` tests the point against that box, not the grown
-bounds. `at` lists the items within `tolerance` of the point (a box when the
-point is within the tolerance of it, an edge when it is within the tolerance
-of one of its segments) with the one painted on top first: overlay shapes
-above the nodes (badges, chips, hatching, self-loops), nodes, arcs, edges,
-tints, groups; among those the smaller element first (a segment with the
-tolerance around it), then by id. Overlay items carry their shape's layer
-(`HitItem.layer`, see `OverlayMark.layer`); an item without one ranks above
-the nodes. Up to 0.3.5 every overlay shape ranked first, so inside a tinted
-group every hit was the tint, and where an arc crossed a node, the arc.
+Every bound is rounded outwards to a whole unit, so that the index holds
+whole numbers, which the engine stores in place while every other number
+costs it a heap object: an area query (`within`) may therefore find an item
+whose bounds end less than a unit short of the box. With `extentOf` each
+item's bounds also cover the box the callback returns for it, so that an
+area query finds an element whose drawing reaches beyond its box. `at`
+tests the point against the element's own box (`HitItem.box`, carried by
+every node, group and overlay item), not the bounds, and an edge against its
+segment, so a hit test is exact. `at` lists the items within `tolerance` of
+the point (a box when the point is within the tolerance of it, an edge when
+it is within the tolerance of one of its segments) with the one painted on
+top first: overlay shapes above the nodes (badges, chips, hatching,
+self-loops), nodes, arcs, edges, tints, groups; among those the smaller
+element first (a segment with the tolerance around it), then by id. Overlay
+items carry their shape's layer (`HitItem.layer`, see `OverlayMark.layer`);
+an item without one ranks above the nodes. Up to 0.3.5 every overlay shape
+ranked first, so inside a tinted group every hit was the tint, and where an
+arc crossed a node, the arc.
 
 The legend and the figure frame are described once. `sceneLegend` lists the
 scale items, a key row for each overlay kind present (badges, arcs,
@@ -1212,7 +1217,9 @@ allows 0.7 em per character (a shortened text keeps a character and the
 ellipsis), 1 em above an alphabetic baseline and 0.35 em below it, 0.6 em
 each way from a middle baseline, and the halo around it; a font wider than
 that can still lose the last pixels of a label at the edge of a culled
-view. Up to 0.3.5 the index held the boxes alone, so a node whose outline,
+view. The index rounds every bound outwards to a whole unit, so an element
+whose extent ends less than a unit short of the view is read as well (and
+draws nothing visible; the canvas clips it). Up to 0.3.5 the index held the boxes alone, so a node whose outline,
 ring or focus rectangle reached into the view, an edge whose count label
 did, a badge whose share did, a group whose title did or an arc whose
 arrowhead did was not drawn while its box lay outside. Groups wholly outside
