@@ -5,7 +5,7 @@ The executable CI contract and release procedure are in [docs/CI.md](../docs/CI.
 | Directory | Purpose | Command |
 | --- | --- | --- |
 | `core/` | Node algorithms, seeded graph invariants, deterministic layout, filters, overlays, Canvas geometry, SVG/BPMN | `npm run test:core` |
-| `support/` | Seeded generators for searching tests: random stream, graph families, positions and viewports, event schedules, shrinking; fake layout workers and engines for lifecycle tests; a recording 2D context that says which element inked which canvas pixels | imported by `core/` and `react/` tests |
+| `support/` | Seeded generators for searching tests: random stream, graph families, positions and viewports, event schedules, shrinking, event logs and their directly-follows graphs, BPMN-lite models, mutated BPMN files; fake layout workers and engines for lifecycle tests; a recording 2D context that says which element inked which canvas pixels | imported by `core/` and `react/` tests |
 | `react/` | jsdom callbacks, keyboard interaction, state replacement and renderer lifecycles | `npm run test:components` |
 | `tooling/` | Negative checks for architecture boundaries, the source lint, workflow policies and artifact budgets | `npm run test:tooling` |
 | `package/` | Separate consumer of the actual npm tarball; NodeNext types and real browser assets/lifecycle | `npm run test:package` |
@@ -35,8 +35,21 @@ clock; `oddPositionsOf` places a point-sized, a huge and a twin node, and
 `watch` in `ink.ts` record a Canvas draw: every call with its arguments, and
 the box of canvas pixels each fill, stroke or text covers, attributed to the
 element whose list entry was read last, so that a test can compare what was
-drawn with a reference computed from the scene's data alone. Generators are
-hand-written and seeded; a test adds no dependency.
+drawn with a reference computed from the scene's data alone. `eventLog` in
+`logs.ts` plays a random process tree (sequence, choice, parallel block, loop)
+into traces and returns their directly-follows graph with the counts a host
+sends; `generatedModel` in `models.ts` builds a BPMN-lite model from such a
+log, a graph family or a random stage model, optionally with ids and labels
+that XML must escape and with default flows; `mutate` in `bpmn-files.ts`
+breaks the text of a BPMN file in one of `MUTATION_KINDS` (removed
+attributes, duplicate ids, dangling references, unknown elements and
+namespaces, missing diagram information, huge and non-numeric coordinates,
+an empty process, nested sub-processes, a large file, truncation, garbage,
+wrong element types, moved elements, the `wise` extension, entities).
+`core/token-game.ts` plays a model's tokens by the BPMN rules (at most one
+token per flow is explored) and reports stuck, unsafe and trapped states and
+nodes that never take a token. Generators are hand-written and seeded; a
+test adds no dependency.
 
 The shape of a searching test:
 
