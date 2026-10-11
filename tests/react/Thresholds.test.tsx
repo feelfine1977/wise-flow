@@ -435,7 +435,10 @@ describe("the layout while the controls move", () => {
       for (const w of FakeLayoutWorker.created) {
         for (const k of w.pending) expect(w.terminated, `${caseLabel(seed, "at the end")}: layout ${k} of ${w.kind} worker ${w.index} (${w.layouts[k].signature.slice(0, 60)}…) neither answered nor stopped\n  ${trace.join("\n  ")}`).toBe(true);
       }
+      // Once the map is gone, the module stops its workers (a microtask later) and none is left for the next seed.
       cleanup();
+      await act(async () => void (await vi.advanceTimersByTimeAsync(0)));
+      expect(FakeLayoutWorker.created.filter((w) => !w.terminated).map((w) => `${w.kind} worker ${w.index}`), `${caseLabel(seed, "after unmounting")}\n  ${trace.join("\n  ")}`).toEqual([]);
       vi.useRealTimers();
       vi.unstubAllGlobals();
       vi.restoreAllMocks();
