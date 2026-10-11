@@ -220,3 +220,63 @@ export function viewportOf(kind: ViewportKind, bounds: Box, seed: number): View 
 export function viewportsOf(bounds: Box, seed: number): Record<ViewportKind, View> {
   return Object.fromEntries(VIEWPORT_KINDS.map((kind, i) => [kind, viewportOf(kind, bounds, seed + i)])) as Record<ViewportKind, View>;
 }
+
+export type OddNode = "point" | "huge" | "twin";
+export const ODD_NODES: readonly OddNode[] = ["point", "huge", "twin"];
+
+/**
+ * Grid positions with three nodes a layout never produces, each drawn from the
+ * seed: `point` has no width and no height, `huge` is 20,000 by 12,000, and
+ * `twin` has exactly the box of another node, so a straight route between the
+ * two has no length. Group boxes stay as the grid gave them, so they may no
+ * longer contain these nodes; the bounds are recomputed. A graph of fewer than
+ * four nodes gets as many oddities as it has nodes beyond the first.
+ */
+export function oddPositionsOf(graph: FlowGraph, seed: number, options: PositionOptions = {}): { positions: Positions; odd: Partial<Record<OddNode, string>> } {
+  const rng = createRandom(seed + 600_013);
+  const positions = positionsOf(graph, "grid", seed, options);
+  const ids = graph.nodes.map((n) => n.id).filter((id) => positions.nodes[id]);
+  const odd: Partial<Record<OddNode, string>> = {};
+  const chosen = rng.sample(ids, Math.min(3, Math.max(0, ids.length - 1)));
+  ODD_NODES.forEach((kind, i) => {
+    const id = chosen[i];
+    if (id === undefined) return;
+    odd[kind] = id;
+    const box = positions.nodes[id];
+    if (kind === "point") Object.assign(box, { width: 0, height: 0 });
+    else if (kind === "huge") Object.assign(box, { width: 20_000, height: 12_000 });
+    else Object.assign(box, positions.nodes[rng.pick(ids.filter((other) => !chosen.includes(other)))]);
+  });
+  if (options.routes) {
+    for (const e of graph.edges) {
+      const s = positions.nodes[e.source];
+      const t = positions.nodes[e.target];
+      if (s && t && e.source !== e.target) positions.edges[e.id] = { points: [{ x: s.x + s.width / 2, y: s.y + s.height / 2 }, { x: t.x + t.width / 2, y: t.y + t.height / 2 }] };
+    }
+  }
+  const all = [...Object.values(positions.nodes), ...Object.values(positions.groups).filter((b) => b.width > 0 || b.height > 0)];
+  for (const r of Object.values(positions.edges)) for (const p of r.points) all.push({ x: p.x, y: p.y, width: 0, height: 0 });
+  positions.bounds = union(all);
+  return { positions, odd };
+}
+
+export type Side = "left" | "right" | "top" | "bottom";
+export const SIDES: readonly Side[] = ["left", "right", "top", "bottom"];
+
+/**
+ * An ordinary-sized viewport at a zoom of 0.5 to 2 whose `side` edge cuts
+ * the box: the box's far edge (its right edge for the left side, and so on)
+ * lies `offset` screen pixels inside the view, or outside it when `offset` is
+ * negative. Across the other axis the box is centred.
+ */
+export function viewportAtSide(box: Box, side: Side, offset: number, seed: number): View {
+  const rng = createRandom(seed);
+  const width = rng.int(800, 1600);
+  const height = rng.int(600, 1000);
+  const zoom = rng.pick([0.5, 0.75, 1, 1.5, 2]);
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  const x = side === "left" ? offset - (box.x + box.width) * zoom : side === "right" ? width - offset - box.x * zoom : width / 2 - cx * zoom;
+  const y = side === "top" ? offset - (box.y + box.height) * zoom : side === "bottom" ? height - offset - box.y * zoom : height / 2 - cy * zoom;
+  return { x, y, zoom, width, height };
+}

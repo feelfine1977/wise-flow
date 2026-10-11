@@ -5,7 +5,7 @@ The executable CI contract and release procedure are in [docs/CI.md](../docs/CI.
 | Directory | Purpose | Command |
 | --- | --- | --- |
 | `core/` | Node algorithms, seeded graph invariants, deterministic layout, filters, overlays, Canvas geometry, SVG/BPMN | `npm run test:core` |
-| `support/` | Seeded generators for searching tests: random stream, graph families, positions and viewports, event schedules, shrinking | imported by `core/` and `react/` tests |
+| `support/` | Seeded generators for searching tests: random stream, graph families, positions and viewports, event schedules, shrinking; a recording 2D context that says which element inked which canvas pixels | imported by `core/` and `react/` tests |
 | `react/` | jsdom callbacks, keyboard interaction, state replacement and renderer lifecycles | `npm run test:components` |
 | `tooling/` | Negative checks for architecture boundaries, the source lint, workflow policies and artifact budgets | `npm run test:tooling` |
 | `package/` | Separate consumer of the actual npm tarball; NodeNext types and real browser assets/lifecycle | `npm run test:package` |
@@ -30,7 +30,13 @@ labels), `invalidFamilies` plant defects and say which; `positionsOf` and
 `viewportOf` in `scenes.ts` arrange a graph (grid, layered, overlapping,
 extreme) and look at it (ordinary, tiny, huge, far away, extreme zoom);
 `schedule` and `interleave` in `schedules.ts` give event sequences on a fake
-clock. Generators are hand-written and seeded; a test adds no dependency.
+clock; `oddPositionsOf` places a point-sized, a huge and a twin node, and
+`viewportAtSide` puts a view's edge across an element. `inkContext` and
+`watch` in `ink.ts` record a Canvas draw: every call with its arguments, and
+the box of canvas pixels each fill, stroke or text covers, attributed to the
+element whose list entry was read last, so that a test can compare what was
+drawn with a reference computed from the scene's data alone. Generators are
+hand-written and seeded; a test adds no dependency.
 
 The shape of a searching test:
 
