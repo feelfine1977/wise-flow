@@ -69,6 +69,23 @@ test('measures every case the benchmark promises, in both modes', () => {
   assert.deepEqual(spec('refined-layout.dense-500'), { kind: 'firstScene', shape: 'dense', activities: 500 });
 });
 
+test('says how many flows the budget drew, as a range when the frames differ, and after how many warm-up gestures', () => {
+  const on = (id, detail) => catalogue().flatMap((c) => c.rows).find((r) => r.id === id).on(detail);
+  const view = { activities: 25001, flows: 50000, nodesInView: 25001, flowsInView: 50000 };
+  assert.equal(
+    on('draw.hub-50k.adaptive', { ...view, flowsDrawn: 500, flowsDrawnMin: 500, flowsDrawnMax: 500, budget: 'adaptive', warmupGestures: 4 }),
+    '25,001 activities, 50,000 flows; in view 25,001 activities, 50,000 flows, 500 drawn (budget settled after 4 warm-up gestures)',
+  );
+  assert.equal(
+    on('draw.hub-50k.adaptive', { ...view, flowsDrawn: 1000, flowsDrawnMin: 500, flowsDrawnMax: 1000, budget: 'adaptive', warmupGestures: 9 }),
+    '25,001 activities, 50,000 flows; in view 25,001 activities, 50,000 flows, 500–1,000 drawn (budget still moving after 9 warm-up gestures)',
+  );
+  assert.equal(
+    on('draw.hub-50k.all', { ...view, flowsDrawn: 50000, flowsDrawnMin: 50000, flowsDrawnMax: 50000, budget: 'all', warmupGestures: 1 }),
+    '25,001 activities, 50,000 flows; in view 25,001 activities, 50,000 flows, 50,000 drawn',
+  );
+});
+
 test('selects cases by a part of their ids', () => {
   assert.deepEqual(ids(catalogue({ only: ['map-ready.2'] })), ['map-ready.20000']);
   assert.deepEqual(ids(catalogue({ only: ['dense-500'] })), ['first-scene.dense-500', 'refined-layout.dense-500']);

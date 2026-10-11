@@ -35,6 +35,8 @@ const WIDTH = 1280;
 const HEIGHT = 800;
 const FLOWS_PER_ACTIVITY = 20;
 const GESTURE = 6;
+/** Warm-up gestures beyond the asked ones that the adaptive budget may take to settle. */
+const SETTLE_LIMIT = 8;
 /** How long a map may take to draw or to lay out before the case fails. */
 const LIMIT_MS = 120_000;
 /** The pause after each trial of a map without positions. */
@@ -119,7 +121,7 @@ function denseGraph(activities: number): FlowGraph {
 
 const median = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)] ?? 0;
 
-/** Frames of a moving view: a trial is a gesture of six frames, the view panned by a pixel before each; warm-up gestures come first. */
+/** Frames of a moving view: a trial is a gesture of six frames, the view panned by a pixel before each; warm-up gestures come first, until the adaptive budget has settled. */
 async function draw(spec: Extract<BrowserCase, { kind: "draw" }>): Promise<PageResult> {
   const { graph, positions } = spec.scene === "hub"
     ? hubScene(spec.size)
@@ -136,27 +138,41 @@ async function draw(spec: Extract<BrowserCase, { kind: "draw" }>): Promise<PageR
   if (spec.scene === "sparse") renderer.centerOn({ x: positions.bounds.x + positions.bounds.width / 2, y: positions.bounds.y + positions.bounds.height / 2 }, 1);
   else renderer.fit();
   await settle();
-  const frames: number[] = [];
-  const shown: number[] = [];
-  const inView: number[] = [];
-  for (let i = 0; frames.length < spec.trials * GESTURE; i++) {
-    if (i % GESTURE === 0) renderer.beginGesture();
-    renderer.panBy(i % 2 ? -1 : 1, 0);
-    renderer.draw();
-    const last = renderer.lastDraw!;
-    if (i >= spec.warmup * GESTURE) {
-      frames.push(last.ms);
-      shown.push(last.withheld?.shown ?? last.edges);
-      inView.push(last.withheld?.total ?? last.edges);
+  /** One gesture: its frames' draw times and the flows each drew and had in view. */
+  const gesture = async () => {
+    const drawn = [];
+    renderer.beginGesture();
+    for (let i = 0; i < GESTURE; i++) {
+      renderer.panBy(i % 2 ? -1 : 1, 0);
+      renderer.draw();
+      const last = renderer.lastDraw!;
+      drawn.push({ ms: last.ms, shown: last.withheld?.shown ?? last.edges, inView: last.withheld?.total ?? last.edges });
     }
-    if (i % GESTURE === GESTURE - 1) renderer.endGesture();
-    if (i % GESTURE === GESTURE - 1) await frame();
+    renderer.endGesture();
+    await frame();
+    return drawn;
+  };
+  // The adaptive budget moves a step after each gesture until it suits the frame
+  // time: warm up until a gesture draws as many flows as the one before, so that
+  // the trials time the budget it settles on rather than the steps on the way.
+  let warmupGestures = 0;
+  let previous: number | undefined;
+  for (let settled = spec.budget !== "adaptive"; warmupGestures < spec.warmup || (!settled && warmupGestures < spec.warmup + SETTLE_LIMIT); warmupGestures++) {
+    const shown = (await gesture()).at(-1)!.shown;
+    settled = spec.budget !== "adaptive" || shown === previous;
+    previous = shown;
   }
+  const frames = [];
+  for (let i = 0; i < spec.trials; i++) frames.push(...(await gesture()));
   renderer.dispose();
   canvas.remove();
+  const shown = frames.map((f) => f.shown);
   return {
-    samples: { frame: frames },
-    detail: { activities: graph.nodes.length, flows: graph.edges.length, nodesInView: renderer.lastDraw!.nodes, flowsInView: median(inView), flowsDrawn: median(shown), budget: spec.budget, framesPerTrial: GESTURE },
+    samples: { frame: frames.map((f) => f.ms) },
+    detail: {
+      activities: graph.nodes.length, flows: graph.edges.length, nodesInView: renderer.lastDraw!.nodes, flowsInView: median(frames.map((f) => f.inView)),
+      flowsDrawn: median(shown), flowsDrawnMin: Math.min(...shown), flowsDrawnMax: Math.max(...shown), budget: spec.budget, framesPerTrial: GESTURE, warmupGestures,
+    },
   };
 }
 

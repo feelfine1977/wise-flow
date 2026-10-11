@@ -45,7 +45,12 @@ export function catalogue({ quick = false, only } = {}) {
       on: (d) => `${n(d.activities)} activities, ${n(d.flows)} flows → ${n(d.shownActivities)}, ${n(d.shownFlows)}`,
     }],
   })));
-  const drawOn = (d) => `${n(d.activities)} activities, ${n(d.flows)} flows; in view ${n(d.nodesInView)} activities, ${n(d.flowsInView)} flows, ${n(d.flowsDrawn)} drawn`;
+  const drawOn = (d) => {
+    const steady = d.flowsDrawnMin === d.flowsDrawnMax;
+    const drawn = steady ? n(d.flowsDrawn) : `${n(d.flowsDrawnMin)}–${n(d.flowsDrawnMax)}`;
+    const settled = d.budget === 'adaptive' && d.warmupGestures !== undefined ? ` (budget ${steady ? 'settled' : 'still moving'} after ${d.warmupGestures} warm-up gestures)` : '';
+    return `${n(d.activities)} activities, ${n(d.flows)} flows; in view ${n(d.nodesInView)} activities, ${n(d.flowsInView)} flows, ${drawn} drawn${settled}`;
+  };
   const draw = [
     ['draw.sparse-100k', 'Sparse 100,000-activity scene at zoom 1, default budget', { scene: 'sparse', size: 100_000, budget: 'adaptive' }],
     ['draw.hub-50k.adaptive', 'Hub with 50,000 flows in view, default budget', { scene: 'hub', size: 50_000, budget: 'adaptive' }],

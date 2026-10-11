@@ -156,6 +156,9 @@ Playwright versions, the library's gzipped JavaScript) and
   gesture of six frames panned by a pixel each, and every frame is a sample;
   its time is the renderer's own draw time (`lastDraw.ms`, what the adaptive
   budget times), without rasterisation, in headless Chromium without a GPU.
+  The adaptive budget moves a step after each gesture, so its warm-up goes on
+  until a gesture draws as many flows as the one before (at most eight more
+  gestures) and the trials time the budget it settles on.
 - **Measured on** says what was measured: sizes, how much was in view and how
   many flows the budget drew, which renderer the map chose, how a layout ended.
 - **Before** is the number measured before the repairs of this line,
