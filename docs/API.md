@@ -957,7 +957,9 @@ duplicate ids, unresolved references), sequence flows without a flow node at
 an end, coordinates as above, and every issue `validateGraph` reports on the
 imported graph, as `<message>: <id>` (two elements with one `wise:flowId`, or
 two without an id, give one node id twice). Elements nested deeper than the
-call stack reaches (sub-processes, lanes) are read like any others. An
+call stack reaches (sub-processes, lanes) are read like any others, also by
+`validateBpmn`, which up to 0.3.5 overflowed the stack (`RangeError`) on
+them. An
 element's empty `name` is exported and imported as an empty label; up to
 0.3.5 the export left it out and the import used the id. A sequence flow is
 marked `default` only when its source's `default` attribute names it; up to

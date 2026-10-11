@@ -357,27 +357,33 @@ export async function validateBpmn(xml: string): Promise<BpmnValidation> {
     }
   }
   const missingDi: string[] = [];
-  const visit = (container: ModdleElement) => {
-    for (const el of (container.get("flowElements") as ModdleElement[] | undefined) ?? []) {
-      if (el.$type === "bpmn:SequenceFlow") counts.flows++;
-      else if (el.$type.endsWith("Gateway")) counts.gateways++;
-      else if (el.$type.endsWith("Event")) counts.events++;
-      else counts.tasks++;
-      if (el.id && !withDi.has(el.id)) missingDi.push(el.id);
-      if (el.get("flowElements")) visit(el);
-    }
-    const countLanes = (set: ModdleElement | undefined) => {
-      for (const lane of (set?.get("lanes") as ModdleElement[] | undefined) ?? []) {
-        counts.lanes++;
-        countLanes(lane.get("childLaneSet") as ModdleElement | undefined);
-      }
-    };
-    for (const set of (container.get("laneSets") as ModdleElement[] | undefined) ?? []) countLanes(set);
-  };
+  // Without recursion, as the import reads: sub-processes and lanes may nest deeper than the call stack reaches.
+  const sets: (ModdleElement | undefined)[] = [];
   for (const root of (rootElement.get("rootElements") as ModdleElement[] | undefined) ?? []) {
-    if (root.$type === "bpmn:Process") {
-      counts.processes++;
-      visit(root);
+    if (root.$type !== "bpmn:Process") continue;
+    counts.processes++;
+    // Depth first, in the order of the file: an element, then what it holds, then its next sibling.
+    const stack = [root];
+    while (stack.length) {
+      const el = stack.pop()!;
+      if (el !== root) {
+        if (el.$type === "bpmn:SequenceFlow") counts.flows++;
+        else if (el.$type.endsWith("Gateway")) counts.gateways++;
+        else if (el.$type.endsWith("Event")) counts.events++;
+        else counts.tasks++;
+        if (el.id && !withDi.has(el.id)) missingDi.push(el.id);
+      }
+      const inner = el.get("flowElements") as ModdleElement[] | undefined;
+      if (!inner) continue;
+      for (let i = inner.length - 1; i >= 0; i--) stack.push(inner[i]);
+      for (const set of (el.get("laneSets") as ModdleElement[] | undefined) ?? []) sets.push(set);
+    }
+  }
+  for (let set; sets.length; ) {
+    set = sets.pop();
+    for (const lane of (set?.get("lanes") as ModdleElement[] | undefined) ?? []) {
+      counts.lanes++;
+      sets.push(lane.get("childLaneSet") as ModdleElement | undefined);
     }
   }
   const messages = warnings.map((w) => w.message);

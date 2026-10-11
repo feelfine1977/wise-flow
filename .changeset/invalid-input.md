@@ -81,3 +81,6 @@ the edge through coordinates that were not finite before.
 `layout` with a `timeoutMs` longer than a timer can wait (above 2³¹ − 1 ms,
 `Infinity` included) waits that long. The timer fired at once before, so the
 layout timed out at the start.
+
+`validateBpmn` reads sub-processes and lanes nested deeper than the call
+stack reaches, as `importBpmn` does; it overflowed the stack before.

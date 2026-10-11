@@ -131,6 +131,19 @@ describe("export → import round trip", () => {
     expect((await validateBpmn(xml)).ok).toBe(true);
   });
 
+  it("validates a file whose sub-processes and lanes nest deeper than the call stack reaches", async () => {
+    // 20,000 sub-processes in one another around one task, and as many lanes; the importer reads such files too.
+    const depth = 20_000;
+    const open = Array.from({ length: depth }, (_, i) => `<bpmn:subProcess id="s${i}">`).join("");
+    const lanes = Array.from({ length: depth }, (_, i) => `<bpmn:lane id="l${i}"><bpmn:childLaneSet id="c${i}">`).join("");
+    const xml = `<?xml version="1.0"?><bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="d"><bpmn:process id="p"><bpmn:laneSet id="ls">${lanes}${"</bpmn:childLaneSet></bpmn:lane>".repeat(depth)}</bpmn:laneSet>${open}<bpmn:task id="t"/>${"</bpmn:subProcess>".repeat(depth)}</bpmn:process></bpmn:definitions>`;
+    const result = await validateBpmn(xml);
+    // A sub-process counts as a task; none of them has a shape, in the order they nest.
+    expect(result.counts).toMatchObject({ processes: 1, tasks: depth + 1, lanes: depth });
+    expect(result.missingDi).toHaveLength(depth + 1);
+    expect([result.missingDi[0], result.missingDi[1], result.missingDi.at(-1)]).toEqual(["s0", "s1", "t"]);
+  });
+
   it("makes ids XML-safe and keeps the original in wise:flowId", async () => {
     const out = await exportBpmn(lite, { layout: { engine: "dagre" } });
     expect(out.ids.toBpmn["__start->gw_skip_requisition"]).toMatch(/^Flow_/);
