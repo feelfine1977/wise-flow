@@ -141,6 +141,12 @@ describe("checkTheme", () => {
     expect(checkTheme(printTheme)).toEqual([]);
   });
 
+  it("measures a translucent colour as it is drawn, over its ground", () => {
+    // Black at 0.1 over white is #e6e6e6 (229.5 rounds up), 1.25 : 1 against the white paper; read opaque it would be 21 : 1.
+    const found = checkTheme(resolveTheme({ color: { ink: "rgba(0, 0, 0, 0.1)" } }));
+    expect(found.filter((d) => d.subject === "ink on paper")).toEqual([{ kind: "text", scheme: "light", subject: "ink on paper", value: Math.round(contrast("#e6e6e6", "#ffffff") * 100) / 100, minimum: 4.5 }]);
+  });
+
   it("reports each kind of shortfall of a theme built by hand", () => {
     const bad: Theme = {
       ...printTheme,

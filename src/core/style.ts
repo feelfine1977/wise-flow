@@ -134,12 +134,21 @@ const PT = 0.75;
 
 const twoDecimals = (n: number) => Math.round(n * 100) / 100;
 
+/** A colour as it is drawn over a ground (itself over white): a translucent colour mixed with the ground by its alpha. */
+function over(color: string, ground?: string): string {
+  const c = colorChannels(color);
+  if (!c || c[3] >= 1) return color;
+  const g = colorChannels(ground ? over(ground) : "#ffffff") ?? [255, 255, 255];
+  return `rgb(${c.slice(0, 3).map((v, i) => Math.round(v * c[3] + g[i] * (1 - c[3]))).join(" ")})`;
+}
+
 /**
  * What of a theme falls short, in both schemes: text against its ground at
  * least 4.5 : 1, lines against the paper at least 3 : 1, the path ramp
  * (`palette.neutral`) monotonic in luminance with its low end at least 3 : 1
  * against the paper, no text size or stroke width of the tables under the
- * theme's `minimum`, and every colour a literal. Empty when nothing does.
+ * theme's `minimum`, and every colour a literal. A translucent colour is
+ * measured as drawn over its ground. Empty when nothing does.
  */
 export function checkTheme(theme: Theme): ThemeDeviation[] {
   const out: ThemeDeviation[] = [];
@@ -152,7 +161,7 @@ export function checkTheme(theme: Theme): ThemeDeviation[] {
   for (const scheme of ["light", "dark"] as const) {
     const c = themeColors(theme, scheme);
     const check = (kind: "text" | "line" | "rampStart", subject: string, a: string, b: string, minimum: number) => {
-      const r = contrastRatio(a, b);
+      const r = contrastRatio(over(a, b), over(b));
       if (r < minimum) out.push({ kind, scheme, subject, value: twoDecimals(r), minimum });
     };
     for (const [text, ground] of TEXT) check("text", `${text} on ${ground}`, c[text], c[ground], TEXT_CONTRAST);
