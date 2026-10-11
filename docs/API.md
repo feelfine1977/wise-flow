@@ -161,7 +161,10 @@ the total divides by a sum taken in ascending order, which no input order
 changes. A collapsed group becomes a
 `stage` node with the group's id; counts are summed, `cases` and `share`
 are maxima, other metrics weighted means, internal transitions land in
-`internalCount`.
+`internalCount`. Edges of one kind between the same two shown nodes merge
+into one, named `source->target`, or `source->target:kind:n` where that id
+is taken; merged edges take their names in the order of their smallest
+original id, not of the input.
 
 `diff(a, b)` (baseline `a`, slice `b`) carries `b`'s metrics under their own
 names, `a`'s under `a_<metric>` and `b − a` under `delta_<metric>`; elements

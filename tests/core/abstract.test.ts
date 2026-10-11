@@ -396,4 +396,24 @@ describe("abstract: input order", () => {
     }
     expect([...results]).toHaveLength(1);
   });
+
+  it("names the merged edges of two kinds between the same nodes the same way whatever the input order", () => {
+    // Collapsing s makes a->c and b->c parallel follows edges and fa and fb parallel flows, both
+    // from s to c. The one whose smallest original id comes first, a->c before fa, keeps the
+    // plain id; the other takes the kind and a number.
+    const graph: FlowGraph = {
+      nodes: [{ id: "a", kind: "activity", label: "A", group: "s" }, { id: "b", kind: "activity", label: "B", group: "s" }, { id: "c", kind: "activity", label: "C" }],
+      edges: [
+        { id: "a->c", kind: "follows", source: "a", target: "c", metrics: { count: 1 } },
+        { id: "b->c", kind: "follows", source: "b", target: "c", metrics: { count: 2 } },
+        { id: "fa", kind: "flow", source: "a", target: "c" },
+        { id: "fb", kind: "flow", source: "b", target: "c" },
+      ],
+      groups: [{ id: "s", kind: "stage", label: "S" }],
+    };
+    for (const edges of orders(graph.edges)) {
+      const shown = collapseGroups({ ...graph, edges }, ["s"]);
+      expect(Object.fromEntries(shown.edges.map((e) => [e.kind, e.id])), edges.map((e) => e.id).join(" ")).toEqual({ follows: "s->c", flow: "s->c:flow:1" });
+    }
+  });
 });

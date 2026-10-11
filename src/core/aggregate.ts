@@ -201,6 +201,16 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
   }
   // Keep singleton ids unchanged and reserve node/group ids to avoid ambiguous targets.
   const usedIds = new Set([...nodes.map((n) => n.id), ...(graph.groups ?? []).map((g) => g.id), ...[...merged.values()].filter((list) => list.length === 1).map((list) => list[0].id)]);
+  // Merged edges are named in the order of their smallest original id.
+  const smallest = (key: string) => merged.get(key)!.map((e) => e.id).sort()[0];
+  const mergedIds = new Map<string, string>();
+  for (const key of order.filter((k) => merged.get(k)!.length > 1).sort((a, b) => (smallest(a) < smallest(b) ? -1 : 1))) {
+    const { source, target, kind } = merged.get(key)![0];
+    let id = `${source}->${target}`;
+    for (let suffix = 1; usedIds.has(id); suffix++) id = `${source}->${target}:${kind}:${suffix}`;
+    usedIds.add(id);
+    mergedIds.set(key, id);
+  }
   const edges: FlowEdge[] = order.map((key) => {
     const list = merged.get(key)!;
     if (list.length === 1) {
@@ -208,10 +218,7 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
       return list[0];
     }
     const first = list[0];
-    const baseId = `${first.source}->${first.target}`;
-    let id = baseId;
-    for (let suffix = 1; usedIds.has(id); suffix++) id = `${baseId}:${first.kind}:${suffix}`;
-    usedIds.add(id);
+    const id = mergedIds.get(key)!;
     for (const edge of list) edgeTarget.set(edge.id, id);
     return {
       id,
