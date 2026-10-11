@@ -100,6 +100,9 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
   const style = options.style ?? defaultStyle;
   const theme = options.theme ?? defaultTheme;
   const scheme = options.scheme ?? "light";
+  const colors = themeColors(theme, scheme);
+  // The marks draw the neutral and the constraint colour of the scheme; every other paint they name by role.
+  const marked = scheme === "light" ? theme : { ...theme, color: colors };
   const laid = laneBands(graph, givenPositions, { lanes: options.lanes ?? "none" });
   const positions = options.moved ? repositionNodes(graph, laid.positions, options.moved) : laid.positions;
   const activityLabels = options.activityLabels ? { ...options.activityLabels, references: activityReferences(graph, options.activityLabels.references) } : undefined;
@@ -107,8 +110,8 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
   const rules = { ...(style.lod ?? {}), ...(options.lod ?? {}) };
   const lod = options.lodBySize ? lodForSize(graph.nodes.length, rules) : { ...defaultLod, ...rules };
   const geometry = placeOverlays(overlays, positions, { ...(options.overlayGeometry ?? {}), lod }, groupTitles(graph.groups ?? [], positions));
-  const marks = overlayMarks(geometry.shapes, locale, theme);
-  const scales = buildScales(graph, style, theme);
+  const marks = overlayMarks(geometry.shapes, locale, marked);
+  const scales = buildScales(graph, style, marked);
   return {
     graph,
     positions,
@@ -118,15 +121,15 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
     style,
     theme,
     scheme,
-    colors: themeColors(theme, scheme),
+    colors,
     scales,
     overlays,
     lod,
     geometry,
     marks,
-    nodeMarks: nodeMarks(graph, positions, scales, { locale, activityLabels, theme }),
-    edgeMarks: edgeMarks(graph, positions, scales, locale, theme),
-    groupMarks: groupMarks(graph, positions, laid.bands, scales, theme),
+    nodeMarks: nodeMarks(graph, positions, scales, { locale, activityLabels, theme: marked }),
+    edgeMarks: edgeMarks(graph, positions, scales, locale, marked),
+    groupMarks: groupMarks(graph, positions, laid.bands, scales, marked),
     legend: sceneLegend(scales.legend, overlays),
     bounds: unionBoxes([positions.bounds, ...marks.filter((m) => m.inMap).map((m) => m.box)]),
   };

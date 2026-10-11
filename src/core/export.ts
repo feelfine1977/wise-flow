@@ -15,7 +15,7 @@ import { type MarkPaint, type MarkText, type OverlayMark, markArrowhead, overlay
 import { type FlowScene, buildScene } from "./scene.js";
 import { type StyleSpec, lodAt, patternDefs } from "./style.js";
 import { t } from "./strings.js";
-import type { ColorScheme, Theme } from "./theme.js";
+import { type ColorScheme, type ThemeSetting, resolveTheme } from "./theme.js";
 import { type ColorToken, arrowheadTokens, dimensionTokens, opacityTokens } from "./tokens.js";
 
 export interface Scene {
@@ -54,8 +54,8 @@ export interface ExportOptions {
    * every edge.
    */
   edgeBudget?: EdgeBudget | ShownEdges;
-  /** The theme the figure is drawn in. Default `defaultTheme`. */
-  theme?: Theme;
+  /** The theme the figure is drawn in: a preset's name or changes over a preset (`resolveTheme`). Default the `default` preset. */
+  theme?: ThemeSetting;
   /** The colour scheme of the theme. Default `light`. */
   scheme?: ColorScheme;
 }
@@ -253,7 +253,7 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
     activityLabels: given.activityLabels,
     selfLoops: given.selfLoops,
     overlayGeometry: options.overlayGeometry,
-    theme: options.theme,
+    theme: resolveTheme(options.theme),
     scheme: options.scheme,
   });
   const { locale, colors, theme } = scene;

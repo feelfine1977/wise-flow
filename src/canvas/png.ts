@@ -2,7 +2,7 @@
  * PNG export: the scene drawn with the canvas routines into an offscreen
  * canvas, in the same figure frame and with the same legend as `toSVG`.
  */
-import { type ColorScheme, type EdgeBudget, type FigurePreset, type Scene, type ShownEdges, type Theme, budgetEdges, figureFrame, figureMetrics, formatCount, opacityTokens, t } from "../core/index.js";
+import { type ColorScheme, type EdgeBudget, type FigurePreset, type Scene, type ShownEdges, type ThemeSetting, budgetEdges, figureFrame, figureMetrics, formatCount, opacityTokens, t } from "../core/index.js";
 import { type DrawContext, drawLegend, drawScene, fontOf } from "./draw.js";
 import { prepareScene } from "./scene.js";
 import { type CanvasTokens, sceneTokens } from "./tokens.js";
@@ -31,8 +31,8 @@ export interface PngOptions {
   lodZoom?: number;
   /** Colours and font over the scene's (`sceneTokens`). */
   tokens?: Partial<CanvasTokens>;
-  /** The theme the figure is drawn in. Default `defaultTheme`. */
-  theme?: Theme;
+  /** The theme the figure is drawn in: a preset's name or changes over a preset (`resolveTheme`). Default the `default` preset. */
+  theme?: ThemeSetting;
   /** The colour scheme of the theme. Default `light`. */
   scheme?: ColorScheme;
   /** Canvas factory for environments without a document (Node with a canvas package, tests). */

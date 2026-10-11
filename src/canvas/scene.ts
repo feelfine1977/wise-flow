@@ -8,7 +8,7 @@ import {
   type ActivityLabelOptions,
   type ColorScheme,
   type GroupMark,
-  type Theme,
+  type ThemeSetting,
   activityLabel,
   activityLabelLines,
   activityNodeCounts,
@@ -37,6 +37,7 @@ import {
   gatewayGlyph,
   groupMarks,
   hasTag,
+  resolveTheme,
   nodeCount,
   tintColor,
   unionBoxes,
@@ -122,8 +123,8 @@ export interface PrepareOptions {
   overlayGeometry?: OverlayGeometryOptions;
   /** Self-loop follows edges become self-loop overlays. Default true. */
   selfLoops?: boolean;
-  /** The theme the marks are resolved in. Default `defaultTheme`. */
-  theme?: Theme;
+  /** The theme the marks are resolved in: a preset's name or changes over a preset (`resolveTheme`). Default the `default` preset. */
+  theme?: ThemeSetting;
   /** The colour scheme of the theme. Default `light`. */
   scheme?: ColorScheme;
 }
@@ -158,7 +159,7 @@ export function prepareScene(graph: FlowGraph, givenPositions: Positions, option
     lod: options.lod,
     lodBySize: options.lodBySize !== false,
     overlayGeometry: options.overlayGeometry,
-    theme: options.theme,
+    theme: resolveTheme(options.theme),
     scheme: options.scheme,
   });
   return retainScene(options.bands ? { ...scene, bands: options.bands, groupMarks: groupMarks(graph, scene.positions, options.bands, scene.scales, scene.theme) } : scene);
