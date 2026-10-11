@@ -219,6 +219,7 @@
     "formatNumber",
     "formatShare",
     "gatewayGlyph",
+    "groupMark",
     "groupMarks",
     "hasTag",
     "hashKey",

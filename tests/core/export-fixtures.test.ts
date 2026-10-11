@@ -66,15 +66,20 @@ const observed: Variant = {
  * global fixture four take another course and four more move their label
  * along the arc; of the vendor's four, two and one; of `unfiltered`'s three,
  * one moves its label.
+ * Recorded once more when groups became marks of the scene; with the group
+ * elements taken out the output is the same. Stage groups are outlined at full
+ * opacity (they were at 0.5), as the Canvas map and the interactive map draw
+ * them; bands are outlined in the line colour on the two sides between bands
+ * (they were outlined all round in the neutral colour at 0.5).
  */
 const before: Record<string, string> = {
-  overlays: "74e67077d3b0f99f6893858a24aa05e3ae291722aba13f93aa53b9da27410bc9",
-  stagesGerman: "eb450ad2a8059ebda77de03601ef2c860c94a3f3f6a4d70a8267ac584154f38f",
-  vendor: "dba267f9dec9a165cfd032ea66f671ca1fcc8c89b40b6e563d15fafcd2d19acb",
-  unfiltered: "475c1cfa8937212d9f8a92c0a4c21533b318ecae296c5fc537ef20c5512febc0",
-  plain: "db64726176b89df026082bcc92fdeff7598af00d8b0effd952344530a25931b0",
+  overlays: "9c124aad12f2801947edaaa48e1d365df35efe179a19aefb3e5cc2c514008ac6",
+  stagesGerman: "2d40dab4cf1a69b9b051f14a02ef85a35efc9009c1f76a16ba62e2740b5cb3cc",
+  vendor: "69962d6fc2f92e270bacdd40e02e5324a0f06f8fbcd502f3b91d777d67c95dee",
+  unfiltered: "2672238a6b4b8c386465d17289ad82fccaa17c70f52bcc42051c79ab4e9b0451",
+  plain: "e4f17efdeef5174c01b79b34ed7296776059b40de01771e2d0b148b0ed440de6",
 };
-const beforeObserved = "fe4d21ec7aa3b6c9fb0e0b818218fdaa6975bd743dc971a55df3bfbc05409a8b";
+const beforeObserved = "3e423ac703f8bebd502733d987665eccd2d713e9a1a7948a20ae429650426de3";
 
 describe("toSVG on the committed fixtures", () => {
   it("matches the recorded output once follows self-loops are hidden", () => {

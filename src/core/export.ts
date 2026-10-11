@@ -3,11 +3,11 @@
  */
 import type { ActivityLabelOptions } from "./activity-labels.js";
 import { type EdgeBudget, type EdgeSelection, type ShownEdges, budgetEdges } from "./edge-budget.js";
-import { type ElementText, fitText, truncateText } from "./element-marks.js";
+import { type BoxSide, type ElementText, fitText, truncateText } from "./element-marks.js";
 import { type FigurePreset, type LegendLayout, figureFrame, figureMetrics, legendMetrics } from "./figure.js";
 import { type Locale, formatCompact, formatCount, formatNumber, formatShare } from "./format.js";
 import { type Box, type Positions } from "./layout.js";
-import { type LaneBand, type LaneMode } from "./lanes.js";
+import { type LaneMode } from "./lanes.js";
 import type { FlowGraph, Overlay } from "./model.js";
 import type { OverlayGeometryOptions } from "./overlays.js";
 import { type MarkSvgOptions, arrowMarker, markSvg, svgMarkup } from "./mark-svg.js";
@@ -16,7 +16,7 @@ import { type FlowScene, buildScene } from "./scene.js";
 import { type StyleSpec, lodAt, patternDefs } from "./style.js";
 import { t } from "./strings.js";
 import type { ColorScheme, Theme } from "./theme.js";
-import { type ColorToken, arrowheadTokens, dashTokens, dimensionTokens, opacityTokens } from "./tokens.js";
+import { type ColorToken, arrowheadTokens, dimensionTokens, opacityTokens } from "./tokens.js";
 
 export interface Scene {
   activityLabels?: ActivityLabelOptions;
@@ -72,7 +72,6 @@ interface Ctx {
   lod: ReturnType<typeof lodAt>;
   /** Zoom at which the level of detail is decided. */
   lodZoom: number;
-  bands: Map<string, LaneBand>;
   withheld?: EdgeSelection;
 }
 
@@ -87,24 +86,29 @@ function text(x: number, y: number, s: string, attrs = ""): string {
 /** The font attributes of a text role. */
 const fontAttrs = (role: { size: number; weight?: number }): string => `font-size="${role.size}"${role.weight ? ` font-weight="${role.weight}"` : ""}`;
 
+/** Path data along sides of a box. */
+function sidesPath(b: Box, sides: readonly BoxSide[]): string {
+  const [x0, y0, x1, y1] = [num(b.x), num(b.y), num(b.x + b.width), num(b.y + b.height)];
+  const d: Record<BoxSide, string> = { top: `M${x0} ${y0}H${x1}`, right: `M${x1} ${y0}V${y1}`, bottom: `M${x0} ${y1}H${x1}`, left: `M${x0} ${y0}V${y1}` };
+  return sides.map((side) => d[side]).join("");
+}
+
 function drawGroups(ctx: Ctx): string {
-  const { graph, positions, theme } = ctx.scene;
-  const { colors } = ctx;
   const out: string[] = [];
-  for (const g of [...(graph.groups ?? [])].sort((a, b) => (a.id < b.id ? -1 : 1))) {
-    const b = positions.groups[g.id];
-    if (!b) continue;
-    const c = ctx.scene.scales.categorical(g.id);
-    const band = ctx.bands.get(g.id);
-    out.push(`<g class="wf-group${band ? " wf-group-band" : ""}" data-id="${esc(g.id)}">`);
-    if (band) {
-      out.push(rect(b, `fill="${c.color}" fill-opacity="${band.index % 2 === 0 ? opacityTokens.bandFill : opacityTokens.bandOddFill}" stroke="${colors.neutral}" stroke-opacity="${opacityTokens.groupStroke}" stroke-width="1"`));
-      const edge = band.axis === "main" ? `M${num(b.x)} ${num(b.y)}H${num(b.x + b.width)}` : `M${num(b.x)} ${num(b.y)}V${num(b.y + b.height)}`;
-      out.push(`<path d="${edge}" stroke="${c.color}" stroke-width="${theme.stroke.band}" fill="none"/>`);
+  for (const m of [...ctx.scene.groupMarks].sort(byId)) {
+    const b = m.box;
+    const paint = (p: MarkPaint) => paintOf(ctx, m.color, m.color, p);
+    const fill = `fill="${paint(m.fill.paint)}" fill-opacity="${m.fill.opacity ?? 1}"`;
+    const { stroke, rule } = m;
+    out.push(`<g class="wf-group${m.band ? " wf-group-band" : ""}" data-id="${esc(m.id)}">`);
+    if (stroke.sides) {
+      out.push(rect(b, fill));
+      out.push(`<path d="${sidesPath(b, stroke.sides)}" stroke="${paint(stroke.paint)}" stroke-width="${num(stroke.width)}" fill="none"/>`);
     } else {
-      out.push(rect(b, `rx="${theme.radius.large}" fill="${c.color}" fill-opacity="${opacityTokens.groupFill}" stroke="${c.color}" stroke-opacity="${opacityTokens.groupStroke}" stroke-width="${theme.stroke.group}" stroke-dasharray="${dashTokens.group.join(" ")}"`));
+      out.push(rect(b, `rx="${num(m.radius)}" ${fill} stroke="${paint(stroke.paint)}" stroke-width="${num(stroke.width)}"${stroke.dash ? ` stroke-dasharray="${stroke.dash.join(" ")}"` : ""}`));
     }
-    out.push(text(b.x + 12, b.y + 22, g.label, `${fontAttrs(theme.text.groupLabel)} fill="${colors.ink}"`));
+    if (rule) out.push(`<path d="${sidesPath(b, [rule.side])}" stroke="${paint(rule.paint)}" stroke-width="${num(rule.width)}" fill="none"/>`);
+    for (const tx of m.texts) out.push(markText(ctx, m.color, m.color, tx));
     out.push(`</g>`);
   }
   return out.join("");
@@ -256,7 +260,7 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
   const font = options.fontFamily ?? theme.font.family;
   const lodZoom = options.lodZoom ?? 1;
   const withheld = budgetEdges(scene, options.edgeBudget);
-  const ctx: Ctx = { scene, colors, locale, lod: lodAt(lodZoom, scene.lod), lodZoom, bands: new Map(scene.bands.map((b) => [b.id, b])), withheld };
+  const ctx: Ctx = { scene, colors, locale, lod: lodAt(lodZoom, scene.lod), lodZoom, withheld };
   const frame = figureFrame(scene, { title: !!given.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: options.width, withheld });
   const { padding: pad, width: totalW, height: totalH, outWidth: outW, outHeight: outH } = frame;
 

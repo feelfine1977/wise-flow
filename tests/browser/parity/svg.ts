@@ -61,6 +61,39 @@ export function pathPoints(d: string): [number, number][] {
   return out;
 }
 
+/** Line segments of path data with M, L, H and V. */
+function segments(d: string): [number, number, number, number][] {
+  const out: [number, number, number, number][] = [];
+  let x = 0;
+  let y = 0;
+  for (const m of d.matchAll(/([MLHV])([^MLHVCZ]*)/gi)) {
+    const n = (m[2].match(/-?\d*\.?\d+(?:e-?\d+)?/gi) ?? []).map(Number);
+    const c = m[1].toUpperCase();
+    const to = (nx: number, ny: number) => {
+      out.push([x, y, nx, ny]);
+      [x, y] = [nx, ny];
+    };
+    if (c === "M") [x, y] = [n[0], n[1]];
+    else if (c === "H") to(n[0], y);
+    else if (c === "V") to(x, n[0]);
+    else to(n[0], n[1]);
+  }
+  return out;
+}
+
+/** Which sides of `box` the lines of a path draw. */
+function sidesOf(e: El, box: NonNullable<Drawn["box"]>): string {
+  const on = (v: number, w: number) => Math.abs(v - w) < 0.01;
+  const drawn = new Set<string>();
+  for (const [x1, y1, x2, y2] of segments(e.attrs.d ?? "")) {
+    if (on(y1, y2) && on(y1, box.y)) drawn.add("top");
+    if (on(x1, x2) && on(x1, box.x + box.width)) drawn.add("right");
+    if (on(y1, y2) && on(y1, box.y + box.height)) drawn.add("bottom");
+    if (on(x1, x2) && on(x1, box.x)) drawn.add("left");
+  }
+  return ["top", "right", "bottom", "left"].filter((side) => drawn.has(side)).join(" ") || "none";
+}
+
 const fillOf = (e: El) => paint(e.attrs.fill ?? "#000000", Number(e.attrs["fill-opacity"] ?? 1));
 const strokeOf = (e: El) => paint(e.attrs.stroke, Number(e.attrs["stroke-opacity"] ?? 1));
 
@@ -139,8 +172,9 @@ export function readSvg(svg: string, markIds: string[]): Drawing {
     if (hasClass(g, "wf-group")) {
       const props = { fill: fillOf(shape), radius: radiusOf(shape), shadow: shadowOf(filters, g, shape), ...outline(shape) };
       if (hasClass(g, "wf-group-band")) {
-        const rule = parts[1];
-        Object.assign(props, { outlineSides: "top right bottom left", rule: `${strokeOf(rule)} ${num(Number(rule.attrs["stroke-width"]))}` });
+        // A band is its fill, then its outline along some sides, then its rule.
+        const [, lines, rule] = parts;
+        Object.assign(props, { ...outline(lines), outlineSides: sidesOf(lines, boxOf(shape)!), rule: `${strokeOf(rule)} ${num(Number(rule.attrs["stroke-width"]))}` });
       }
       out.set(`group:${g.attrs["data-id"]}`, { box: boxOf(shape), props, texts });
     } else if (hasClass(g, "wf-edge")) {

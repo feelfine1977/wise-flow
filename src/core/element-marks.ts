@@ -322,48 +322,35 @@ export interface GroupMark {
   chipAnchor: XY;
 }
 
+/** What one group looks like in its box: a tinted box with a dashed outline, or a band outlined between the bands with a rule along its start. */
+export function groupMark(group: FlowGroup, box: Box, options: { color: string; pattern: PatternId; band?: LaneBand; theme?: Theme }): GroupMark {
+  const { stroke, text, radius } = options.theme ?? defaultTheme;
+  const band = options.band;
+  // Bands along the flow are outlined between each other, left and right, and ruled along the top; bands across it above and below, ruled along the left.
+  const main = band?.axis === "main";
+  return {
+    id: group.id,
+    kind: group.kind,
+    group,
+    box,
+    color: options.color,
+    pattern: options.pattern,
+    band,
+    radius: band ? 0 : radius.large,
+    fill: { paint: "value", opacity: band ? (band.index % 2 ? opacityTokens.bandOddFill : opacityTokens.bandFill) : opacityTokens.groupFill },
+    stroke: band ? { paint: "line", width: 1, sides: main ? ["left", "right"] : ["top", "bottom"] } : { paint: "value", width: stroke.group, dash: [...dashTokens.group] },
+    rule: band && { paint: "value", width: stroke.band, side: main ? "top" : "left" },
+    texts: [ink(group.label, box.x + 12, box.y + 22, text.groupLabel.size, { role: "label", baseline: "alphabetic", weight: text.groupLabel.weight })],
+    chipAnchor: chipAnchor(box),
+  };
+}
+
 /** One mark per group with a box, in the graph's order; groups drawn as bands carry their band. */
 export function groupMarks(graph: FlowGraph, positions: Positions, bands: readonly LaneBand[], scales: Scales, theme: Theme = defaultTheme): GroupMark[] {
   const bandOf = new Map(bands.map((b) => [b.id, b]));
-  const { stroke, text } = theme;
   return (graph.groups ?? []).flatMap((g) => {
-      const box = positions.groups[g.id];
-      if (!box) return [];
-      const c = scales.categorical(g.id);
-      const band = bandOf.get(g.id);
-      const label = ink(g.label, box.x + 12, box.y + 22, text.groupLabel.size, { role: "label", baseline: "alphabetic", weight: text.groupLabel.weight });
-      const mark: GroupMark = band
-        ? {
-            id: g.id,
-            kind: g.kind,
-            group: g,
-            box,
-            color: c.color,
-            pattern: c.pattern,
-            band,
-            radius: 0,
-            fill: { paint: "value", opacity: band.index % 2 === 0 ? opacityTokens.bandFill : opacityTokens.bandOddFill },
-            // Bands along the flow are outlined between each other, left and right; bands across it above and below.
-            stroke: { paint: "line", width: 1, sides: band.axis === "main" ? ["left", "right"] : ["top", "bottom"] },
-            rule: { paint: "value", width: stroke.band, side: band.axis === "main" ? "top" : "left" },
-            texts: [label],
-            chipAnchor: chipAnchor(box),
-          }
-        : {
-            id: g.id,
-            kind: g.kind,
-            group: g,
-            box,
-            color: c.color,
-            pattern: c.pattern,
-            band: undefined,
-            radius: theme.radius.large,
-            fill: { paint: "value", opacity: opacityTokens.groupFill },
-            stroke: { paint: "value", width: stroke.group, dash: [...dashTokens.group] },
-            rule: undefined,
-            texts: [label],
-            chipAnchor: chipAnchor(box),
-          };
-    return [mark];
+    const box = positions.groups[g.id];
+    const c = scales.categorical(g.id);
+    return box ? [groupMark(g, box, { color: c.color, pattern: c.pattern, band: bandOf.get(g.id), theme })] : [];
   });
 }

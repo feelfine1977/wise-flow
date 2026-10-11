@@ -415,6 +415,7 @@ export {
   edgeMark,
   nodeMarks,
   edgeMarks,
+  groupMark,
   groupMarks,
   edgeColor,
   estimateTextWidth,

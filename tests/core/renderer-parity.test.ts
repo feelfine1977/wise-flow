@@ -58,12 +58,23 @@ describe("the parity readers", () => {
     expect(drawn.get("edge:a->b")!.box).toEqual({ x: 280, y: 24, width: 120, height: 0 });
   });
 
-  it("find the Canvas map and the PNG export drawing as the SVG export does, but for the group's outline", () => {
-    const color = scene.scales.categorical("g").color.toLowerCase();
-    const found = differences([{ name: "small", kinds, svg: svg(), others: { canvas: canvas(), png: png() } }]);
-    expect(found).toEqual(
-      (["canvas", "png"] as const).map((renderer) => ({ renderer, kind: "group:stage", property: "outline", svg: `${color}@0.5`, other: color, fixtures: ["small"], elements: 1 })),
-    );
+  it("find the Canvas map and the PNG export drawing as the SVG export does", () => {
+    expect(differences([{ name: "small", kinds, svg: svg(), others: { canvas: canvas(), png: png() } }])).toEqual([]);
+  });
+
+  it("read a band's fill, its outline between the bands and its rule alike from the three", () => {
+    const given = { graph, positions, overlays, lanes: "stages" as const };
+    const banded = buildScene(graph, positions, given);
+    const bandKinds = kindsOf(banded);
+    const read = {
+      svg: readSvg(toSVG(given), exportedMarks(banded)),
+      canvas: readCanvasMap(prepareScene(graph, positions, given), bandKinds, measure),
+      png: readPng((createCanvas) => toPNGCanvas(given, { scale: 1, createCanvas }), prepareScene(graph, positions, { ...given, lodBySize: false }), bandKinds, measure),
+    };
+    const color = banded.scales.categorical("g").color.toLowerCase();
+    // A stage band runs along the flow: outlined left and right in the line colour, its rule 3 wide along its top.
+    expect(read.svg.get("group:g")!.props).toMatchObject({ fill: `${color}@0.06`, outline: "#cfd4dc", outlineWidth: "1", dash: "none", outlineSides: "right left", rule: `${color} 3`, radius: "0" });
+    expect(differences([{ name: "bands", kinds: bandKinds, svg: read.svg, others: { canvas: read.canvas, png: read.png } }])).toEqual([]);
   });
 
   it("report a stroke width changed in one renderer as a difference the list lacks", () => {

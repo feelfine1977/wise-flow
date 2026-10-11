@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type ElementText, type MarkText, buildScene, edgeLabelPoint, estimateTextWidth, fitText, routeMidpoint, truncateText } from "../../src/index";
+import { type ElementText, type FlowGraph, type MarkText, buildScene, createPositions, edgeLabelPoint, estimateTextWidth, fitText, routeMidpoint, truncateText } from "../../src/index";
 import { graph, positions, style } from "./element-kinds";
 
 const neutral = "#8c8c8c";
@@ -139,5 +139,67 @@ describe("label truncation", () => {
     expect(fitText(t, (s, font) => (sizes.push(font.size), s.length))).toBe("Ask the vendor twice");
     expect(sizes).toEqual([11]);
     expect(fitText({ ...t, maxWidth: undefined }, () => Infinity)).toBe("Ask the vendor twice");
+  });
+});
+
+describe("group marks", () => {
+  const grouped: FlowGraph = {
+    nodes: [
+      { id: "a", kind: "activity", label: "A", group: "order" },
+      { id: "b", kind: "activity", label: "B", group: "pay" },
+    ],
+    edges: [],
+    groups: [
+      { id: "pay", kind: "stage", label: "Payment" },
+      { id: "order", kind: "stage", label: "Order" },
+    ],
+  };
+  const boxes = createPositions(
+    {
+      nodes: { a: { x: 20, y: 40, width: 100, height: 40 }, b: { x: 220, y: 40, width: 100, height: 40 } },
+      groups: { order: { x: 0, y: 0, width: 140, height: 100 }, pay: { x: 200, y: 0, width: 140, height: 100 } },
+      edges: {},
+    },
+    "given",
+    "RIGHT",
+  );
+  const strip = <T extends { group: unknown }>({ group, ...rest }: T) => (expect(group).toBeDefined(), rest);
+
+  it("resolves a stage group's tint, dashed outline, title and chip anchor, in the graph's order", () => {
+    const scene = buildScene(grouped, boxes);
+    const [pay] = scene.groupMarks.map(strip);
+    expect(scene.groupMarks.map((m) => m.id)).toEqual(["pay", "order"]);
+    expect(pay).toEqual({
+      id: "pay",
+      kind: "stage",
+      box: boxes.groups.pay,
+      color: scene.scales.categorical("pay").color,
+      pattern: scene.scales.categorical("pay").pattern,
+      band: undefined,
+      radius: 10,
+      // Its colour at 0.06, outlined in it 1.5 wide with dashes of 6 and gaps of 4.
+      fill: { paint: "value", opacity: 0.06 },
+      stroke: { paint: "value", width: 1.5, dash: [6, 4] },
+      rule: undefined,
+      // The title 12 in from the left, on a baseline 22 below the top, at 14 px semibold.
+      texts: [text({ role: "label", text: "Payment", x: 212, y: 22, size: 14, weight: 600, baseline: "alphabetic" })],
+      // Chips end 8 in from the right edge, the first 6 below the top.
+      chipAnchor: { x: 332, y: 6 },
+    });
+  });
+
+  it("outlines bands between each other in the line colour and rules them along the side they start at", () => {
+    const along = buildScene(grouped, boxes, { lanes: "stages" });
+    const [first, second] = [...along.groupMarks].sort((a, b) => a.band!.index - b.band!.index);
+    // Stage bands run along the flow: outlined left and right, their rule 3 wide along the top; every other band at 0.02.
+    expect([first.radius, first.fill, first.stroke, first.rule]).toEqual([0, { paint: "value", opacity: 0.06 }, { paint: "line", width: 1, sides: ["left", "right"] }, { paint: "value", width: 3, side: "top" }]);
+    expect(second.fill).toEqual({ paint: "value", opacity: 0.02 });
+    const lanes: FlowGraph = { ...grouped, groups: grouped.groups!.map((g) => ({ ...g, kind: "lane" as const })) };
+    const across = buildScene(lanes, boxes, { lanes: "roles" });
+    // Lanes run across the flow: outlined above and below, their rule along the left.
+    expect(across.groupMarks.map((m) => [m.stroke.sides, m.rule?.side])).toEqual([
+      [["top", "bottom"], "left"],
+      [["top", "bottom"], "left"],
+    ]);
   });
 });
