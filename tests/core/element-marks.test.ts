@@ -188,6 +188,17 @@ describe("group marks", () => {
     });
   });
 
+  it("places a group's chips from its chip anchor: the first ends there, the next 28 below", () => {
+    const chip = { kind: "chip" as const, target: "pay", payload: { glyph: "⚖", label: "Four eyes", text: "met" } };
+    const scene = buildScene({ ...grouped, overlays: [chip, chip] }, boxes);
+    const chips = scene.marks.filter((m) => m.kind === "chip").map((m) => m.box);
+    // The anchor of `pay` (200, 0, 140 wide) is (332, 6); chips are 24 high with 4 between them.
+    expect(chips.map((b) => [b.x + b.width, b.y])).toEqual([
+      [332, 6],
+      [332, 34],
+    ]);
+  });
+
   it("outlines bands between each other in the line colour and rules them along the side they start at", () => {
     const along = buildScene(grouped, boxes, { lanes: "stages" });
     const [first, second] = [...along.groupMarks].sort((a, b) => a.band!.index - b.band!.index);

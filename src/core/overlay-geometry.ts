@@ -251,7 +251,8 @@ export function placeOverlays(
         if (!box) return;
         const slot = chipCount.get(o.target) ?? 0;
         chipCount.set(o.target, slot + 1);
-        const b = clampBox({ x: box.x + box.width - width - 8, y: box.y + 6 + slot * (chipH + 4), width, height: chipH });
+        const at = chipAnchor(box);
+        const b = clampBox({ x: at.x - width, y: at.y + slot * (chipH + 4), width, height: chipH });
         shapes.push({ id, overlay: o, kind: o.kind, ...b, minZoom: lod.chips });
         return;
       }
