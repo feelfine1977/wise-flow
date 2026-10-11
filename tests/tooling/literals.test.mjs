@@ -71,7 +71,7 @@ test('a module fails on a drawn literal: Canvas state, a dash, markup attributes
   assert.deepEqual(module('ctx.lineWidth = highlighted ? Math.max(m.width, 2.5) : m.width;'), ['1 lineWidth']);
   assert.deepEqual(module('ctx.globalAlpha = dimmed ? 0.35 : 1;'), ['1 globalAlpha']);
   assert.deepEqual(module('ctx.setLineDash([6, 4]);'), ['1 setLineDash argument']);
-  assert.deepEqual(module('ctx.font = `600 14px ${tokens.font}`;'), ['1 pixel length in a string']);
+  assert.deepEqual(module('ctx.font = `600 14px ${tokens.font}`;'), ['1 font weight', '1 pixel length in a string']);
   assert.deepEqual(module('roundedRect(ctx, b, 10);'), ['1 roundedRect argument']);
   assert.deepEqual(module('out.push(`<rect rx="3" fill="${c}"/>`);'), ['1 rx in markup']);
   assert.deepEqual(module('text(0, 14, s, `font-size="13" font-weight="700" fill="${ink}"`);'), ['1 font-size in markup', '1 font-weight in markup']);
@@ -88,6 +88,34 @@ test('a module fails on a JSX attribute written as a string and on a radius or b
   assert.deepEqual(module('const e = <div style={{ borderRadius: 4, borderTopLeftRadius: 2, borderWidth: 2, outlineWidth: 3 }} />;', 'src/x.tsx'), ['1 borderRadius', '1 borderTopLeftRadius', '1 borderWidth', '1 outlineWidth']);
   assert.deepEqual(module('el.style.borderRadius = 4;').length, 1);
   assert.deepEqual(module('const e = <path strokeWidth="1" opacity="0" style={{ borderRadius: radiusTokens.control }} />;', 'src/x.tsx'), []);
+});
+
+test('a stylesheet fails on the font shorthand, a size keyword and SVG radii and opacities', () => {
+  assert.deepEqual(css('.a { font: 600 var(--wf-text-panel) sans-serif; }'), ['font: font: 600 var(--wf-text-panel) sans-serif']);
+  assert.deepEqual(css('.a { font: bold 1em sans-serif; }'), ['font: font: bold 1em sans-serif']);
+  assert.deepEqual(css('.a { font-size: small; }'), ['font size: font-size: small']);
+  assert.deepEqual(css('.a { rx: 6; r: 4; }'), ['radius: rx: 6', 'radius: r: 4']);
+  assert.deepEqual(css('.a { stroke-opacity: 0.5; fill-opacity: 0.06; }'), ['opacity: stroke-opacity: 0.5', 'opacity: fill-opacity: 0.06']);
+  assert.deepEqual(css('.a { font: var(--wf-weight-panel-heading) var(--wf-text-panel) / 1.4 var(--wf-font); fill-opacity: var(--wf-opacity-group-fill); }'), []);
+});
+
+test('a module fails on a drawn value written as text, an attribute pair, a Canvas font weight and a weight keyword in markup', () => {
+  assert.deepEqual(module('const s = { fontWeight: "600", zIndex: "5", opacity: "0.5", lineHeight: 18 };'), ['1 fontWeight', '1 zIndex', '1 opacity', '1 lineHeight']);
+  assert.deepEqual(module('const s = { fontWeight: "bold" };'), ['1 fontWeight']);
+  assert.deepEqual(module('el.style.strokeWidth = "3";'), ['1 strokeWidth']);
+  assert.deepEqual(module('attrs.push(["stroke-width", "3"], ["font-weight", String(700)]);'), ['1 stroke-width attribute', '1 font-weight attribute']);
+  assert.deepEqual(module('el.setAttribute("rx", "6");'), ['1 rx attribute']);
+  assert.deepEqual(module('ctx.font = `bold ${size}px ${family}`;'), ['1 font weight']);
+  assert.deepEqual(module('const a = `font-weight="bold"`;'), ['1 font-weight in markup']);
+  assert.deepEqual(
+    module(`
+      attrs.push(["stroke-width", String(strokeTokens.halo)], ["rx", num(g.height / 2)], ["fill", "none"]);
+      el.setAttribute("class", "wf-1");
+      const s = { zIndex: "var(--wf-z-menu)", padding: "var(--wf-space-1-5)" };
+      ctx.font = \`\${role.weight} \${role.size}px \${family}\`;
+    `),
+    [],
+  );
 });
 
 test('a module passes with tokens, hairlines and layout arithmetic', () => {

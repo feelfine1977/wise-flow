@@ -7,7 +7,7 @@
   },
   "rules": {
     "arithmetic": "In modules, a number that is an operand of + - * / % is layout arithmetic, not a drawn value: half a box for a circle's or a pill's radius, twice an inset, a centre. Its operands come from the table or from the scene's geometry.",
-    "relativeUnits": "In stylesheets, lengths in rem, em, ch, vh and % outside font sizes and radii are layout relative to the host's root font or the container (the comparison table's spacing, letter spacing, widths in %). They are not on the pixel scale; a font size or radius in them is still a literal.",
+    "relativeUnits": "In stylesheets, lengths in rem, em, ch, vh and % outside font sizes and radii are layout relative to the host's root font or the container (the comparison table's spacing, letter spacing, widths in %), and a unitless line height is a multiple of the element's own font size. They are not on the pixel scale; a font size or radius in them is still a literal, and a line height in px is a pixel length.",
     "geometry": "Placement is not checked: where the core puts badges, chips, arcs, labels and legend rows (overlay geometry, the figure frame, legend metrics, label offsets), the BPMN layout's sizes and the readable label sizes of label-sizing.ts are positions and policies, not sizes of a drawn role."
   },
   "places": []

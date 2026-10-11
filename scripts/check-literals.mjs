@@ -27,14 +27,17 @@ const allowed = (values, n) => values.includes(Number(n));
 const CSS_PROPERTIES = [
   { test: /^font-size$/, what: 'font size', allow: [] },
   { test: /^font-weight$/, what: 'font weight', allow: [] },
-  { test: /^border(-[a-z]+)*-radius$/, what: 'radius', allow: [0] },
+  { test: /^(border(-[a-z]+)*-radius|rx|ry|r)$/, what: 'radius', allow: [0] },
   { test: /^stroke-width$/, what: 'stroke width', allow: [0, 1] },
   { test: /^stroke-dasharray$/, what: 'dash', allow: [] },
-  { test: /^opacity$/, what: 'opacity', allow: [0, 1] },
+  { test: /^(stroke-|fill-)?opacity$/, what: 'opacity', allow: [0, 1] },
   { test: /^z-index$/, what: 'z-order', allow: [0] },
 ];
 /** Keywords that take a value from elsewhere; `bold` or `normal` is a weight literal, `smaller` and `larger` are relative sizes. */
 const KEYWORDS = { 'font-size': /^(inherit|initial|unset|smaller|larger)$/, 'font-weight': /^(inherit|initial|unset)$/ };
+/** Weight keywords, and the absolute size keywords of `font-size` and of the `font` shorthand. */
+const WEIGHT_KEYWORD = /\b(bold|bolder|lighter|normal)\b/;
+const SIZE_KEYWORD = /(^|\s)(xx-small|x-small|small|medium|large|x-large|xx-large|xxx-large)(\s|$)/;
 
 /** `value` without its `var()` references; a fallback is kept, since it is drawn when the variable is missing. */
 function withoutVariables(value) {
@@ -53,9 +56,15 @@ export function cssLiterals(css, values) {
     const text = `${property}: ${raw.trim()}`;
     if ([...value.matchAll(/(-?\d*\.?\d+)px\b/g)].some((px) => !allowed(values.px, px[1]))) out.push({ line, rule: 'pixel length', text });
     const checked = CSS_PROPERTIES.find((p) => p.test.test(property));
+    if (property === 'font') {
+      // The shorthand: a size or weight in it is a literal; `inherit` and variables are not. A line height after `/` is relative.
+      const shorthand = value.replace(/\/\s*[\d.]+\b/, '');
+      if ((/(^|[\s(])\d/.test(shorthand) || WEIGHT_KEYWORD.test(shorthand) || SIZE_KEYWORD.test(shorthand)) && !out.some((o) => o.line === line && o.text === text)) out.push({ line, rule: 'font', text });
+      continue;
+    }
     if (!checked || KEYWORDS[property]?.test(value)) continue;
     const numbers = [...value.matchAll(/-?\d*\.?\d+(%|rem|em|px)?/g)].filter((n) => n[1] || !allowed(checked.allow, n[0]));
-    const keyword = property === 'font-weight' && /\b(bold|bolder|lighter|normal)\b/.test(value);
+    const keyword = (property === 'font-weight' && WEIGHT_KEYWORD.test(value)) || (property === 'font-size' && SIZE_KEYWORD.test(value));
     if ((numbers.length || keyword) && !out.some((o) => o.line === line && o.text === text)) out.push({ line, rule: checked.what, text });
   }
   return out;
@@ -65,7 +74,7 @@ export function cssLiterals(css, values) {
 // Modules
 
 /** Object keys, JSX attributes and assigned properties whose value is drawn as a size, stroke, radius, dash, weight, opacity or z-order. */
-const DRAW_KEYS = new Set(['fontSize', 'fontWeight', 'weight', 'size', 'strokeWidth', 'lineWidth', 'nodeStrokeWidth', 'interactionWidth', 'strokeOpacity', 'fillOpacity', 'opacity', 'globalAlpha', 'radius', 'rx', 'ry', 'r', 'dash', 'strokeDasharray', 'zIndex', 'borderWidth', 'outlineWidth']);
+const DRAW_KEYS = new Set(['fontSize', 'fontWeight', 'weight', 'size', 'lineHeight', 'strokeWidth', 'lineWidth', 'nodeStrokeWidth', 'interactionWidth', 'strokeOpacity', 'fillOpacity', 'opacity', 'globalAlpha', 'radius', 'rx', 'ry', 'r', 'dash', 'strokeDasharray', 'zIndex', 'borderWidth', 'outlineWidth']);
 /** Radii of React style objects: `borderRadius` and its corners. */
 const RADIUS_KEY = /^border(Top|Bottom|Start|End)?(Left|Right|Start|End)?Radius$/;
 const drawKey = (name) => !!name && (DRAW_KEYS.has(name) || RADIUS_KEY.test(name));
@@ -74,7 +83,13 @@ const DRAW_CALLS = { setLineDash: true, roundedRect: [2], outline: [1, 2], ink: 
 /** Constants named for what they hold. */
 const DRAW_NAMES = /(DASH|OPACITY|RADIUS|STROKE|FONT_SIZE|WEIGHT)$/;
 /** SVG attributes written in markup strings. */
+const SVG_ATTRIBUTE_NAMES = /^(font-size|font-weight|stroke-width|stroke-dasharray|stroke-opacity|fill-opacity|opacity|rx|ry|r)$/;
 const SVG_ATTRIBUTES = /\b(font-size|font-weight|stroke-width|stroke-dasharray|stroke-opacity|fill-opacity|opacity|rx|ry|r)="([^"$]*)"/g;
+/** The weight at the start of a Canvas font, such as `600 12px` or `bold 12px`. */
+const FONT_WEIGHT = /^\s*(bold|bolder|lighter|\d+)\s/;
+/** Numbers of a drawn value written as text, apart from the names of variables; a weight keyword when `weight` is set. */
+const textLiteral = (text, values, weight) => (text.replace(/--[\w-]+/g, '').match(/-?\d*\.?\d+/g) ?? []).some((n) => !allowed(values.number, n)) || (weight && WEIGHT_KEYWORD.test(text));
+const isWeight = (name) => /^(font-?weight|weight)$/i.test(name);
 const ARITHMETIC = new Set([ts.SyntaxKind.PlusToken, ts.SyntaxKind.MinusToken, ts.SyntaxKind.AsteriskToken, ts.SyntaxKind.SlashToken, ts.SyntaxKind.PercentToken]);
 
 const nameOf = (node) => (node && (ts.isIdentifier(node) || ts.isStringLiteral(node) || ts.isPrivateIdentifier(node)) ? node.text : undefined);
@@ -101,6 +116,11 @@ export function tsLiterals(source, file, values) {
   /** Numeric literals in a drawn value that are neither allowed values nor layout arithmetic. */
   const drawn = (expr, rule) => {
     const visit = (node) => {
+      if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+        // A value such as fontWeight: "600" or zIndex: "5" holds its number as text.
+        if (textLiteral(node.text, values, isWeight(rule))) report(node, rule);
+        return;
+      }
       if (ts.isNumericLiteral(node)) {
         const negative = ts.isPrefixUnaryExpression(node.parent) && node.parent.operator === ts.SyntaxKind.MinusToken;
         if (!allowed(values.number, negative ? -number(node.text) : number(node.text)) && !inArithmetic(node)) report(node, rule);
@@ -116,7 +136,19 @@ export function tsLiterals(source, file, values) {
     if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) {
       const text = node.text;
       for (const px of text.matchAll(/(?<![\w.$}-])(-?\d*\.?\d+)px\b/g)) if (!allowed(values.px, px[1])) report(node, 'pixel length in a string');
-      for (const a of text.matchAll(SVG_ATTRIBUTES)) if (/\d/.test(a[2]) && a[2].split(/[\s,]+/).some((n) => !allowed(values.number, n))) report(node, `${a[1]} in markup`);
+      for (const a of text.matchAll(SVG_ATTRIBUTES)) if ((/\d/.test(a[2]) && a[2].split(/[\s,]+/).some((n) => !allowed(values.number, n))) || (a[1] === 'font-weight' && WEIGHT_KEYWORD.test(a[2]))) report(node, `${a[1]} in markup`);
+      ts.forEachChild(node, visit);
+      return;
+    }
+    if (ts.isArrayLiteralExpression(node) && node.elements.length === 2 && ts.isStringLiteral(node.elements[0]) && SVG_ATTRIBUTE_NAMES.test(node.elements[0].text)) {
+      // An attribute as a [name, value] pair, as the mark builders write them.
+      drawn(node.elements[1], `${node.elements[0].text} attribute`);
+    } else if (ts.isCallExpression(node) && nameOf(node.expression.name ?? node.expression) === 'setAttribute' && node.arguments.length === 2 && ts.isStringLiteral(node.arguments[0]) && SVG_ATTRIBUTE_NAMES.test(node.arguments[0].text)) {
+      drawn(node.arguments[1], `${node.arguments[0].text} attribute`);
+    } else if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isPropertyAccessExpression(node.left) && node.left.name.text === 'font') {
+      // A Canvas font: its size is checked as a pixel length in the string; its weight here.
+      const head = ts.isStringLiteral(node.right) || ts.isNoSubstitutionTemplateLiteral(node.right) ? node.right.text : ts.isTemplateExpression(node.right) ? node.right.head.text : '';
+      if (FONT_WEIGHT.test(head) && !allowed(values.number, head.match(FONT_WEIGHT)[1])) report(node.right, 'font weight');
     } else if (ts.isPropertyAssignment(node) && drawKey(nameOf(node.name))) {
       drawn(node.initializer, nameOf(node.name));
     } else if (ts.isPropertyAssignment(node) && nameOf(node.name) === 'width' && ts.isObjectLiteralExpression(node.parent) && ts.isPropertyAssignment(node.parent.parent) && nameOf(node.parent.parent.name) === 'stroke') {
