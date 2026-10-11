@@ -1,5 +1,5 @@
 // Ship asset bytes and their original notices; CSS URLs remain relative to fonts.
-import { copyFileSync, cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -20,7 +20,14 @@ const layered = `@layer wf.react-flow {\n${reactFlowCss}\n}\n@layer wf {\n${flow
 for (const to of ["style.css", "react/style.css"]) writeFileSync(join(root, "dist", to), layered);
 copy(join(root, "src/react/style.css"), "style.unlayered.css");
 copy(join(dependency("@xyflow/react"), "dist/style.css"), "react-flow.css");
-cpSync(join(dependency("bpmn-js"), "dist/assets"), join(root, "dist/bpmn/assets"), { recursive: true });
+// File by file: Node's recursive copy fails on some mounted file systems.
+const copyDirectory = (from, to) => {
+  for (const entry of readdirSync(from, { withFileTypes: true })) {
+    if (entry.isDirectory()) copyDirectory(join(from, entry.name), join(to, entry.name));
+    else copy(join(from, entry.name), join(to, entry.name));
+  }
+};
+copyDirectory(join(dependency("bpmn-js"), "dist/assets"), "bpmn/assets");
 writeFileSync(join(root, "dist/bpmn.css"), [
   '@import "./bpmn/assets/diagram-js.css";',
   '@import "./bpmn/assets/bpmn-js.css";',
