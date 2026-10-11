@@ -398,11 +398,14 @@ Canvas map, the React map and the BPMN view) all draw these courses.
 ## Hit index and export
 
 ```ts
-export class HitIndex { static fromScene(p: Positions, g?: OverlayGeometry, edgeTolerance?: number,
-    indexOf?: (kind: HitItem["kind"], id: string) => number | undefined): HitIndex;
+export class HitIndex { constructor(edgeTolerance?: number);
+  static fromScene(p: Positions, g?: OverlayGeometry, edgeTolerance?: number,
+    indexOf?: (kind: HitItem["kind"], id: string) => number | undefined,
+    extentOf?: (item: HitItem) => Box | undefined): HitIndex;   // a box the item's bounds also cover
   at(x, y, tolerance?): HitItem[]; within(box: Box): HitItem[] }
 export interface HitItem { minX; minY; maxX; maxY; id: string; kind: "node" | "edge" | "group" | "overlay";
-  segment?: [XY, XY]; shapeId?: string; index?: number }   // index: indexOf(kind, id or shape id)
+  segment?: [XY, XY]; shapeId?: string; index?: number;   // index: indexOf(kind, id or shape id)
+  box?: Box; layer?: "below" | "between" | "above" }   // box: of a node, group or overlay shape, what hit tests read; layer: of an overlay shape
 export interface Scene { graph; positions; overlays?; style?; title?; subtitle?; locale?; lanes?: LaneMode;
   activityLabels?: ActivityLabelOptions; selfLoops?: boolean }
 export interface ExportOptions { preset?: "single-column" | "double-column" | "slide" | "none"; width?; legend?;
@@ -430,6 +433,27 @@ export interface FigureFrame { padding; header; map: { width; height; offset: XY
   width; height; outWidth; outHeight }
 export function figureFrame(scene: FramedScene, o?: FigureFrameOptions): FigureFrame;   // FramedScene: graph, activityLabels?, locale, bounds, legend
 ```
+
+`HitIndex.fromScene` indexes the boxes of the nodes and groups, the segments
+of the edge routes (each grown by `edgeTolerance`, 4) and the overlay shapes.
+Every bound is rounded outwards to a whole unit, so that the index holds
+whole numbers, which the engine stores in place while every other number
+costs it a heap object: an area query (`within`) may therefore find an item
+whose bounds end less than a unit short of the box. With `extentOf` each
+item's bounds also cover the box the callback returns for it, so that an
+area query finds an element whose drawing reaches beyond its box. `at`
+tests the point against the element's own box (`HitItem.box`, carried by
+every node, group and overlay item), not the bounds, and an edge against its
+segment, so a hit test is exact. `at` lists the items within `tolerance` of
+the point (a box when the point is within the tolerance of it, an edge when
+it is within the tolerance of one of its segments) with the one painted on
+top first: overlay shapes above the nodes (badges, chips, hatching,
+self-loops), nodes, arcs, edges, tints, groups; among those the smaller
+element first (a segment with the tolerance around it), then by id. Overlay
+items carry their shape's layer (`HitItem.layer`, see `OverlayMark.layer`);
+an item without one ranks above the nodes. Up to 0.3.5 every overlay shape
+ranked first, so inside a tinted group every hit was the tint, and where an
+arc crossed a node, the arc.
 
 The legend and the figure frame are described once. `sceneLegend` lists the
 scale items, a key row for each overlay kind present (badges, arcs,
@@ -1178,7 +1202,30 @@ hit index finds inside the viewport are read and drawn, in the order of a
 full draw: every item of `scene.hit` carries its element's position in
 `groups`, `marks`, `edges` or `nodes` as `HitItem.index`, so a draw reads
 about as many elements as the view holds, whatever the size of the scene.
-Groups wholly outside the viewport are no longer drawn there. A hit
+An element is found when its drawn extent meets the viewport, not only its
+box: `prepareScene` builds the index with the extent of everything the
+drawing can put beyond an element's box, whether or not the level of detail
+or the interaction state draws it at the moment. A node's extent is its box
+grown by 6 (its outline is at most 3 wide, its selection ring reaches 6
+outside the box and its focus rectangle 5; a gateway's diamond is as tall as
+it is wide) and its texts; a group's its box grown by 1.5 (a band's line, the
+dashed outline) and its title (12 in from the left, on a baseline 22 below
+the top, 14 px); an overlay mark's its box grown by half its stroke or by the
+reach of its arrowhead (10.8, the base of the triangle behind the path's
+end) and its texts; an edge's each segment grown by half its width, at least
+by the hit tolerance of 4 (which covers the arrowhead), and the segment at
+the route's middle by the count label written 4 above it. A text's extent
+allows 0.7 em per character (a shortened text keeps a character and the
+ellipsis), 1 em above an alphabetic baseline and 0.35 em below it, 0.6 em
+each way from a middle baseline, and the halo around it; a font wider than
+that can still lose the last pixels of a label at the edge of a culled
+view. The index rounds every bound outwards to a whole unit, so an element
+whose extent ends less than a unit short of the view is read as well (and
+draws nothing visible; the canvas clips it). Up to 0.3.5 the index held the boxes alone, so a node whose outline,
+ring or focus rectangle reached into the view, an edge whose count label
+did, a badge whose share did, a group whose title did or an arc whose
+arrowhead did was not drawn while its box lay outside. Groups wholly outside
+the viewport are not drawn in a culled view, like nodes and edges. A hit
 index whose items lack `index` (built without `indexOf`) is drawn by
 walking the lists, as before. Marks that are
 not drawn on the map (map-level chips) are neither in `bounds` nor in the

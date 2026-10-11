@@ -231,7 +231,10 @@ and the React Flow map draw these marks.
 
 ### 2.6 Hit-testing and export
 An R-tree (rbush) over nodes, groups, edge segments and overlay shapes for
-hover and click on Canvas and in exports. `buildScene` resolves graph,
+hover and click on Canvas and in exports; a hit lists what is painted on
+top first (marks above the nodes, nodes, arcs, edges, tints, groups), and
+an item's bounds may cover more than the element's box (what the Canvas
+drawing puts beyond it) while the hit test keeps to the box. `buildScene` resolves graph,
 positions and options once into the scene renderers read (activity
 references, lane bands, scales, the overlays to show with the follows
 self-loops in canonical order, level-of-detail rules, overlay geometry,
@@ -349,7 +352,9 @@ context calls for a viewport (groups and bands, tints, edges with arrowheads,
 arcs, nodes with pattern twins, the other overlay marks, edge labels), decides the level of
 detail from the zoom and, above 1,500 elements, draws only what the R-tree
 finds inside the viewport, reading each element by its position in the
-scene's lists so that a draw costs what the view holds. With an edge
+scene's lists so that a draw costs what the view holds; the R-tree holds
+each element's drawn extent (outline, selection ring, arrowheads, labels),
+so an element is drawn as soon as any of that reaches into the view. With an edge
 budget it draws only the edges in view that the core's `budgetEdges` keeps
 (protected ones, then the heaviest), the same rule the React Flow map
 applies to all its edges, and the map says how many it shows. The default

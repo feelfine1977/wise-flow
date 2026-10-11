@@ -71,6 +71,15 @@ function segmentMeets(a: XY, b: XY, it: Item, r: number): boolean {
   return t0 <= t1;
 }
 
+/** Where an arc is farthest from its ends: t = 0.5 for ends at one height, else where its vertical speed vanishes (both handles sit `dy` from their ends). */
+function apexT(sy: number, ty: number, dy: number): number {
+  const d = sy - ty;
+  if (Math.abs(d) < 1e-9) return 0.5;
+  const s = Math.sqrt(d * d + dy * dy);
+  const t = (d + dy - s) / (2 * d);
+  return t > 0 && t < 1 ? t : (d + dy + s) / (2 * d);
+}
+
 /**
  * Where the renderers write each group's title: 12 in from the left edge of its
  * box, on a baseline 22 below its top, at 14 px (about 0.6 em per character).
@@ -188,7 +197,7 @@ export function placeOverlays(
         }
         const { sy, ty, dy, at, below } = best;
         const path = `M${fmt(sx)} ${fmt(sy)} C${fmt(sx)} ${fmt(sy + dy)} ${fmt(tx)} ${fmt(ty + dy)} ${fmt(tx)} ${fmt(ty)}`;
-        const apexY = at(0.5).y;
+        const apexY = at(apexT(sy, ty, dy)).y;
         const labelAt = (t: number): XY => ({ x: at(t).x, y: at(t).y + (below ? 14 : -8) });
         let label = labelAt(0.5);
         const text = arcLabel(o);

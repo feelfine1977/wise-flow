@@ -5,7 +5,7 @@ The executable CI contract and release procedure are in [docs/CI.md](../docs/CI.
 | Directory | Purpose | Command |
 | --- | --- | --- |
 | `core/` | Node algorithms, seeded graph invariants, deterministic layout, filters, overlays, Canvas geometry, SVG/BPMN | `npm run test:core` |
-| `support/` | Seeded generators for searching tests: random stream, graph families, positions and viewports, event schedules, shrinking; fake layout workers and engines for lifecycle tests | imported by `core/` and `react/` tests |
+| `support/` | Seeded generators for searching tests: random stream, graph families, positions and viewports, event schedules, shrinking; fake layout workers and engines for lifecycle tests; a recording 2D context that says which element inked which canvas pixels | imported by `core/` and `react/` tests |
 | `react/` | jsdom callbacks, keyboard interaction, state replacement and renderer lifecycles | `npm run test:components` |
 | `tooling/` | Negative checks for architecture boundaries, the source lint, workflow policies and artifact budgets | `npm run test:tooling` |
 | `package/` | Separate consumer of the actual npm tarball; NodeNext types and real browser assets/lifecycle | `npm run test:package` |
@@ -28,9 +28,15 @@ shapes by size and seed (chain, layered, tree, cyclic, hub, components, stages,
 lanes, nested, overlaid, and long, German, right-to-left and markup-like
 labels), `invalidFamilies` plant defects and say which; `positionsOf` and
 `viewportOf` in `scenes.ts` arrange a graph (grid, layered, overlapping,
-extreme) and look at it (ordinary, tiny, huge, far away, extreme zoom);
+extreme; routes straight or bent) and look at it (ordinary, tiny, huge, far away, extreme zoom);
 `schedule` and `interleave` in `schedules.ts` give event sequences on a fake
-clock. Generators are hand-written and seeded; a test adds no dependency.
+clock; `oddPositionsOf` places a point-sized, a huge and a twin node, and
+`viewportAtSide` puts a view's edge across an element. `inkContext` and
+`watch` in `ink.ts` record a Canvas draw: every call with its arguments, and
+the box of canvas pixels each fill, stroke or text covers, attributed to the
+element whose list entry was read last, so that a test can compare what was
+drawn with a reference computed from the scene's data alone. Generators are
+hand-written and seeded; a test adds no dependency.
 
 The shape of a searching test:
 
@@ -46,6 +52,8 @@ for (const seed of seeds(caseCount(20))) {
   (`WISE_DEEP=3` runs a hundred and fifty times as many). Each searching test
   is run in deep mode at least once before it is merged, and its deep run is
   recorded with the seed range, the number of cases, the duration and the result.
+  A deep run of a large search outlives Vitest's test timeout of 30 seconds;
+  pass `--testTimeout=1800000 --hookTimeout=1800000` to let it finish.
 - `seeds(count)` are the seeds, `1 … count` by default and `count` seeds from
   `WISE_SEED` on when it is set. Every assertion names its seed through
   `caseLabel(seed, detail)`, so the failure prints

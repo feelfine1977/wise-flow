@@ -132,13 +132,20 @@ const before = {
  * recorded again for the two strips with arcs when arcs began to be drawn
  * between the edges and the nodes; their calls moved as in the uncull draws.
  * Recorded once more, for the three strips with arcs, when arcs began to keep
- * clear of the other activities; only the arcs' calls changed.
+ * clear of the other activities; only the arcs' calls changed. Recorded once
+ * more when the hit index began to hold each element's drawn extent instead
+ * of its box: compared visit by visit, every earlier draw is a subsequence
+ * of the new one with the same calls, and the only additions are one node per
+ * strip whose box lies just outside the strip and whose outline reaches into
+ * it (receive_order_confirmation in the two global strips at both zooms,
+ * with and without state, change_price in the stages strip); the vendor
+ * strip is unchanged.
  */
 const culledBefore = {
-  culledGlobal: "7e90c53c831b066a8591e8c112bf5238c4b69578ab42c109c315ddf99449077e",
-  culledGlobalStages: "313cd2232dd20a7ef1c60edaba696d756f05f043591a8b09b49d87114f889379",
+  culledGlobal: "ef26d539340b989f3c7ad2eef8aa8cb3947680bb02fd571c0363e9098ff899e6",
+  culledGlobalStages: "14ce384adbaf008e79747fe6a04a010b2ae12fea6f723514150f76121eced49e",
   culledVendorIds: "3242db8c7f087f0076240d4a0065d5eebb42249ad00f79a6c0a5f0f108fb1bf9",
-  culledUnfiltered: "d7060d0bfb1109996132693d55950e32d8978e10004f40c87fc75e5a60fd1ba2",
+  culledUnfiltered: "e03c44e495406405121f8e03d9eb2f1fd145509d238f7957749d8a4f73d2939a",
 };
 
 describe("Canvas drawing on the committed fixtures", () => {

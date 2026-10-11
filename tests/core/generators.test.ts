@@ -3,7 +3,7 @@ import { type FlowGraph, type Overlay, MAP_TARGET, validateGraph } from "../../s
 import type { View } from "../../src/canvas/index";
 import { type FamilyName, type InvalidFamilyName, OVERLAY_KINDS, componentCount, families, invalidFamilies, layerOf } from "../support/graphs";
 import { caseCount, caseLabel, createRandom, seeds } from "../support/random";
-import { POSITION_KINDS, VIEWPORT_KINDS, brokenPositionsOf, positionsOf, viewportsOf } from "../support/scenes";
+import { POSITION_KINDS, SIDES, VIEWPORT_KINDS, brokenPositionsOf, oddPositionsOf, positionsOf, viewportAtSide, viewportsOf } from "../support/scenes";
 import { interleave, schedule } from "../support/schedules";
 
 const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8];
@@ -537,6 +537,33 @@ describe("positions of a graph", () => {
       expect([bad.positions.bounds.x, bad.positions.bounds.width].every(Number.isFinite)).toBe(true);
     }
   });
+
+  it("bent routes run from centre to centre through one or two right-angled corners, drawn from the seed; straight routes are as before", () => {
+    const centre = (b: { x: number; y: number; width: number; height: number }) => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
+    for (const seed of SEEDS) {
+      const g = families.cyclic(30, seed);
+      const label = caseLabel(seed);
+      for (const p of [positionsOf(g, "grid", seed, { routes: "bent" }), oddPositionsOf(g, seed, { routes: "bent" }).positions]) {
+        let corners = 0;
+        for (const e of g.edges) {
+          if (e.source === e.target) {
+            expect(p.edges[e.id], label).toBeUndefined();
+            continue;
+          }
+          const pts = p.edges[e.id].points;
+          expect([3, 4], `${label}: ${e.id}`).toContain(pts.length);
+          expect(pts[0], label).toEqual(centre(p.nodes[e.source]));
+          expect(pts[pts.length - 1], label).toEqual(centre(p.nodes[e.target]));
+          for (let i = 1; i < pts.length; i++) expect(pts[i].x === pts[i - 1].x || pts[i].y === pts[i - 1].y, `${label}: ${e.id} segment ${i} is axis-aligned`).toBe(true);
+          corners += pts.length - 2;
+        }
+        expect(corners, label).toBeGreaterThan(0);
+      }
+      expect(JSON.stringify(positionsOf(g, "grid", seed, { routes: "bent" })), label).toBe(JSON.stringify(positionsOf(g, "grid", seed, { routes: "bent" })));
+      const straight = positionsOf(g, "grid", seed, { routes: true });
+      for (const e of g.edges) if (e.source !== e.target) expect(straight.edges[e.id].points, label).toEqual([centre(straight.nodes[e.source]), centre(straight.nodes[e.target])]);
+    }
+  });
 });
 
 describe("viewports over bounds", () => {
@@ -562,6 +589,48 @@ describe("viewports over bounds", () => {
       expect(fbr.x < -1e6 || ftl.x > far.width + 1e6 || fbr.y < -1e6 || ftl.y > far.height + 1e6, `${label}: far away sees none of the bounds`).toBe(true);
       expect([1e-6, 1e-4, 1e4, 1e6], label).toContain(all.extremeZoom.zoom);
       for (const kind of VIEWPORT_KINDS) expect(Object.values(all[kind]).every(Number.isFinite), `${label}: ${kind}`).toBe(true);
+    }
+  });
+});
+
+describe("odd positions and viewports at a side", () => {
+  it("odd positions hold a point, a huge box and a twin of another node, drawn from the seed, inside the bounds", () => {
+    for (const seed of SEEDS) {
+      const g = families.layered(20, seed);
+      const { positions, odd } = oddPositionsOf(g, seed, { routes: true });
+      const label = caseLabel(seed);
+      expect(JSON.stringify(oddPositionsOf(g, seed, { routes: true })), label).toBe(JSON.stringify({ positions, odd }));
+      expect(Object.keys(odd).sort(), label).toEqual(["huge", "point", "twin"]);
+      expect(new Set(Object.values(odd)).size, label).toBe(3);
+      expect(positions.nodes[odd.point!], label).toMatchObject({ width: 0, height: 0 });
+      expect(positions.nodes[odd.huge!], label).toMatchObject({ width: 20_000, height: 12_000 });
+      const twin = positions.nodes[odd.twin!];
+      expect(g.nodes.some((n) => n.id !== odd.twin && JSON.stringify(positions.nodes[n.id]) === JSON.stringify(twin)), `${label}: the twin shares a box`).toBe(true);
+      const b = positions.bounds;
+      for (const box of Object.values(positions.nodes)) expect(box.x >= b.x && box.y >= b.y && box.x + box.width <= b.x + b.width && box.y + box.height <= b.y + b.height, `${label}: inside the bounds`).toBe(true);
+      for (const e of g.edges) if (e.source !== e.target) expect(positions.edges[e.id].points, label).toHaveLength(2);
+    }
+    expect(oddPositionsOf(families.chain(1, 1), 1).odd).toEqual({});
+    expect(Object.keys(oddPositionsOf(families.chain(3, 1), 1).odd)).toEqual(["point", "huge"]);
+  });
+
+  it("a viewport at a side puts the box's far edge the offset inside the view and centres the box across", () => {
+    const box = { x: 1000, y: -200, width: 180, height: 48 };
+    for (const seed of SEEDS) for (const side of SIDES) for (const offset of [30, 0.5, -0.5, -40]) {
+      const v = viewportAtSide(box, side, offset, seed);
+      const label = caseLabel(seed, `${side} ${offset}`);
+      expect(JSON.stringify(viewportAtSide(box, side, offset, seed)), label).toBe(JSON.stringify(v));
+      const s = (x: number, y: number) => ({ x: x * v.zoom + v.x, y: y * v.zoom + v.y });
+      const tl = s(box.x, box.y);
+      const br = s(box.x + box.width, box.y + box.height);
+      if (side === "left") expect(br.x, label).toBeCloseTo(offset);
+      if (side === "right") expect(tl.x, label).toBeCloseTo(v.width - offset);
+      if (side === "top") expect(br.y, label).toBeCloseTo(offset);
+      if (side === "bottom") expect(tl.y, label).toBeCloseTo(v.height - offset);
+      if (side === "left" || side === "right") expect((tl.y + br.y) / 2, label).toBeCloseTo(v.height / 2);
+      else expect((tl.x + br.x) / 2, label).toBeCloseTo(v.width / 2);
+      expect([0.5, 0.75, 1, 1.5, 2], label).toContain(v.zoom);
+      expect(v.width >= 800 && v.width <= 1600 && v.height >= 600 && v.height <= 1000, label).toBe(true);
     }
   });
 });

@@ -1,19 +1,19 @@
 /**
  * Seeded positions and viewports for a graph. Positions are built by hand
- * here (boxes per node kind, group boxes around their members, straight
- * routes, bounds as the union of everything), not by the layout engines, so
+ * here (boxes per node kind, group boxes around their members, straight or
+ * bent routes, bounds as the union of everything), not by the layout engines, so
  * a test can drive the scene, hit-testing and export with a known arrangement.
  */
 import type { Box, EdgeRoute, FlowGraph, FlowNode, Positions } from "../../src/index";
 import type { View } from "../../src/canvas/index";
-import { createRandom } from "./random";
+import { type Random, createRandom } from "./random";
 
 export type PositionKind = "grid" | "layered" | "overlapping" | "extreme";
 export const POSITION_KINDS: readonly PositionKind[] = ["grid", "layered", "overlapping", "extreme"];
 
 export interface PositionOptions {
-  /** Straight two-point routes from centre to centre for every edge that is not a self-loop. Default false: no routes. */
-  routes?: boolean;
+  /** Routes from centre to centre for every edge that is not a self-loop: straight (`true`), or with one or two right-angled corners (`"bent"`). Default false: no routes. */
+  routes?: boolean | "bent";
 }
 
 /** The box each node kind gets (the library's default node sizes). */
@@ -44,6 +44,16 @@ function union(boxes: Box[]): Box {
     y1 = Math.max(y1, b.y + b.height);
   }
   return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
+}
+
+/** A route from the centre of `s` to the centre of `t`: straight, or (`bent`) through one corner (an L) or two (a Z, its upright drawn from the stream); a segment may have no length. */
+function routeOf(rng: Random, s: Box, t: Box, bent: boolean): EdgeRoute {
+  const a = { x: s.x + s.width / 2, y: s.y + s.height / 2 };
+  const b = { x: t.x + t.width / 2, y: t.y + t.height / 2 };
+  if (!bent) return { points: [a, b] };
+  if (rng.chance()) return { points: [a, { x: b.x, y: a.y }, b] };
+  const mx = a.x + (b.x - a.x) * rng.float(0.2, 0.8);
+  return { points: [a, { x: mx, y: a.y }, { x: mx, y: b.y }, b] };
 }
 
 /**
@@ -150,7 +160,7 @@ export function positionsOf(graph: FlowGraph, kind: PositionKind, seed: number, 
       const s = nodes[e.source];
       const t = nodes[e.target];
       if (!s || !t || e.source === e.target) continue;
-      edges[e.id] = { points: [{ x: s.x + s.width / 2, y: s.y + s.height / 2 }, { x: t.x + t.width / 2, y: t.y + t.height / 2 }] };
+      edges[e.id] = routeOf(rng, s, t, options.routes === "bent");
     }
   }
   const all = [...Object.values(nodes), ...Object.values(groups).filter((b) => b.width > 0 || b.height > 0)];
@@ -219,4 +229,64 @@ export function viewportOf(kind: ViewportKind, bounds: Box, seed: number): View 
 /** One viewport of every kind over the bounds, each from the seed. */
 export function viewportsOf(bounds: Box, seed: number): Record<ViewportKind, View> {
   return Object.fromEntries(VIEWPORT_KINDS.map((kind, i) => [kind, viewportOf(kind, bounds, seed + i)])) as Record<ViewportKind, View>;
+}
+
+export type OddNode = "point" | "huge" | "twin";
+export const ODD_NODES: readonly OddNode[] = ["point", "huge", "twin"];
+
+/**
+ * Grid positions with three nodes a layout never produces, each drawn from the
+ * seed: `point` has no width and no height, `huge` is 20,000 by 12,000, and
+ * `twin` has exactly the box of another node, so a straight route between the
+ * two has no length. Group boxes stay as the grid gave them, so they may no
+ * longer contain these nodes; the bounds are recomputed. A graph of fewer than
+ * four nodes gets as many oddities as it has nodes beyond the first.
+ */
+export function oddPositionsOf(graph: FlowGraph, seed: number, options: PositionOptions = {}): { positions: Positions; odd: Partial<Record<OddNode, string>> } {
+  const rng = createRandom(seed + 600_013);
+  const positions = positionsOf(graph, "grid", seed, options);
+  const ids = graph.nodes.map((n) => n.id).filter((id) => positions.nodes[id]);
+  const odd: Partial<Record<OddNode, string>> = {};
+  const chosen = rng.sample(ids, Math.min(3, Math.max(0, ids.length - 1)));
+  ODD_NODES.forEach((kind, i) => {
+    const id = chosen[i];
+    if (id === undefined) return;
+    odd[kind] = id;
+    const box = positions.nodes[id];
+    if (kind === "point") Object.assign(box, { width: 0, height: 0 });
+    else if (kind === "huge") Object.assign(box, { width: 20_000, height: 12_000 });
+    else Object.assign(box, positions.nodes[rng.pick(ids.filter((other) => !chosen.includes(other)))]);
+  });
+  if (options.routes) {
+    for (const e of graph.edges) {
+      const s = positions.nodes[e.source];
+      const t = positions.nodes[e.target];
+      if (s && t && e.source !== e.target) positions.edges[e.id] = routeOf(rng, s, t, options.routes === "bent");
+    }
+  }
+  const all = [...Object.values(positions.nodes), ...Object.values(positions.groups).filter((b) => b.width > 0 || b.height > 0)];
+  for (const r of Object.values(positions.edges)) for (const p of r.points) all.push({ x: p.x, y: p.y, width: 0, height: 0 });
+  positions.bounds = union(all);
+  return { positions, odd };
+}
+
+export type Side = "left" | "right" | "top" | "bottom";
+export const SIDES: readonly Side[] = ["left", "right", "top", "bottom"];
+
+/**
+ * An ordinary-sized viewport at a zoom of 0.5 to 2 whose `side` edge cuts
+ * the box: the box's far edge (its right edge for the left side, and so on)
+ * lies `offset` screen pixels inside the view, or outside it when `offset` is
+ * negative. Across the other axis the box is centred.
+ */
+export function viewportAtSide(box: Box, side: Side, offset: number, seed: number): View {
+  const rng = createRandom(seed);
+  const width = rng.int(800, 1600);
+  const height = rng.int(600, 1000);
+  const zoom = rng.pick([0.5, 0.75, 1, 1.5, 2]);
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  const x = side === "left" ? offset - (box.x + box.width) * zoom : side === "right" ? width - offset - box.x * zoom : width / 2 - cx * zoom;
+  const y = side === "top" ? offset - (box.y + box.height) * zoom : side === "bottom" ? height - offset - box.y * zoom : height / 2 - cy * zoom;
+  return { x, y, zoom, width, height };
 }
