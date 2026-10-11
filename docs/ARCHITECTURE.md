@@ -17,7 +17,7 @@
 │                          │        viewer · bpmn-js · moddle   │
 ├──────────────────────────┴─────────────────────────────────┤
 │ core/    model · aggregate · layout · lanes · routing ·     │
-│          scene · overlays · overlay-geometry ·              │
+│          courses · scene · overlays · overlay-geometry ·    │
 │          overlay-marks · element-marks · mark-svg · figure ·│
 │          text · tokens · theme · style · hit · export ·     │
 │          views · selection · map-controller · actions ·     │
@@ -39,6 +39,7 @@ read what it resolves and do not decide it again.
 | Scene (`core/scene.ts`) | `buildScene(graph, positions, options)` → `FlowScene` | activity references, lane bands, scales, the overlays to show in canonical order with the follows self-loops, level-of-detail rules, overlay geometry, the marks and the legend, resolved once in a theme and colour scheme (§2.4, §2.6) | `toSVG`, `prepareScene` (Canvas, `toPNG`), `ProcessMap`, `BpmnView` (`bpmn/scene.ts` over the registry's boxes) |
 | Overlay marks (`core/overlay-marks.ts`) | `FlowScene.marks`, `OverlayMark` | per placed overlay: box or path, fill, stroke, dash, arrowhead, texts, layer, zoom threshold, whether it is on the map (§2.5) | SVG export, Canvas drawing, React nodes and `OverlayLayer`, BPMN projection |
 | Node, edge and group marks (`core/element-marks.ts`) | `FlowScene.nodeMarks`, `FlowScene.edgeMarks`, `FlowScene.groupMarks` | outline, fill, border, band, texts and their level of detail; an activity's or a stage's card: its name on up to two lines, its number line (cases and their share of the log's), its frequency cue and whether it is out of scope; edge route, colour, dash, count label; a group's tint, outline, band sides and rule, title and chip anchor (§2.5) | SVG export, Canvas drawing, React node, edge and group components |
+| Path courses (`core/courses.ts`) | `pathCourses(graph, positions, { width, bands })` → `PathCourses` | the course of a path against the reading direction (its own line below the flow it returns over, entering its target from below) and of two opposite paths (side by side), and where their labels go (§2.5) | `buildScene`, whose positions and edge marks carry them to every renderer, the hit index and the culling |
 | Text measure (`core/text.ts`) | `TextMeasure`, `estimateTextWidth`, `truncateText`, `wrapText`; `buildScene(…, { textMeasure })`; `canvasTextMeasure` (Canvas) | how wide a text is, where it is shortened and how it wraps: node labels, chip texts and their boxes, activity names and boxes, the legend's texts, the figure's note and activity key, measured once when the scene is built (§2.5) | the mark builders, the overlay geometry, the legend layout and the figure frame; the renderers write the fitted texts |
 | Theme (`core/theme.ts`, `checkTheme` in `core/style.ts`) | `Theme`, `defaultTheme`, `printTheme`, `resolveTheme`, `themeColors`, `checkTheme`; `buildScene(…, { theme, scheme })` | what the marks are drawn in: colour roles with the dark scheme's changes, the data palettes and the pattern twins' order and look, fonts, text, radius, stroke, opacity and spacing tables, the place of the frequency cue, density, the smallest text and stroke, rules (none yet); the presets (`defaultTheme` is the token table, `printTheme` its `printTokens` over it); a setting as changes over a preset over the host's CSS variables; the CSS variable of every part; what of a theme falls short (§2.4) | the scene and its mark builders and scales; through the scene the SVG export, Canvas drawing, PNG export and React components; `useFlowTheme` (React), which reads the variables |
 | Edge budget (`core/edge-budget.ts`) | `budgetEdges(scene, budget, protection, inView)` → `EdgeSelection`; `edgeBudgetAdapter(clock)` (internal) | which edges in view a budget draws: protected edges (an overlay mark on them, selected, at the keyboard position, on a highlighted path), then weight, then id; or exactly the edges a map reported (`ShownEdges`); the adaptive budget's step, moved by the timed frames of gestures and only at rest (§4) | `drawScene` and `CanvasRenderer` (Canvas, `toPNG`), `useFlowElements` (React Flow), `toSVG` |
@@ -306,8 +307,10 @@ activity's or a stage's card (a neutral outline, the stage once as the band,
 the name on up to two lines, the cases and their share of the log's cases,
 and the frequency cue as a stripe and a foot as long as the share, placed as
 the theme's `frequencyCue` says; the layout reserves the card's size once), an
-edge's route (straight between the boxes where none is given), colour, dash
-and count label at one label point. Groups have marks as well: a box group's
+edge's route (straight between the boxes where none is given; a path against
+the reading direction as its own line below the flow it returns over, two
+opposite paths side by side: `pathCourses`), colour, dash, an arrowhead that
+grows with its width, and count label at one label point. Groups have marks as well: a box group's
 outline (a solid hairline, untinted unless the theme's `groupFill` says
 otherwise) and muted title, a band's tint, its outline on the two sides
 between bands and its rule along the side it starts at, and where a group's

@@ -10,6 +10,7 @@ import { type Box, type Positions, type XY, straightRoute } from "./layout.js";
 import type { LaneBand } from "./lanes.js";
 import { type EdgeKind, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type GroupKind, type NodeKind, hasTag, metric } from "./model.js";
 import { RECONNECTED_TAG } from "./aggregate.js";
+import type { CourseLabel, PathCourses } from "./courses.js";
 import { chipAnchor } from "./overlay-geometry.js";
 import type { MarkFill, MarkPaint, MarkText } from "./overlay-marks.js";
 import type { PatternId, Scales } from "./style.js";
@@ -121,6 +122,8 @@ export interface EdgeMark {
   reconnected: boolean;
   /** A path without a value: drawn in the line colour at the thinnest width (`Scales.notEvaluated`). */
   notEvaluated?: boolean;
+  /** A path against the reading direction, drawn below the flow it returns over (`pathCourses`). */
+  backward?: boolean;
 }
 
 interface NodeMarkOptions {
@@ -331,13 +334,22 @@ const NO_TEXTS: ElementText[] = Object.freeze([]) as unknown as ElementText[];
  * in full up to 99,999, then shortened; "≥" before a lower bound; "–" on a
  * path `notEvaluated`.
  */
-export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string; width: number; locale?: Locale; theme?: Theme; metric?: string; notEvaluated?: boolean }): EdgeMark {
+export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string; width: number; locale?: Locale; theme?: Theme; metric?: string; notEvaluated?: boolean; label?: CourseLabel; backward?: boolean }): EdgeMark {
   const reconnected = hasTag(edge, RECONNECTED_TAG);
   // A path reads the scene's path metric; another edge (a sequence flow, a constraint) its own cases, else its count.
   const name = (edge.kind === "follows" && options.metric) || (Number.isFinite(metric(edge, "cases", NaN)) ? "cases" : "count");
   const count = metric(edge, name, NaN);
   const label = Number.isFinite(count) ? `${metricBasis(edge, name) === "atLeast" ? "≥" : ""}${formatPathCount(count, options.locale ?? "en")}` : options.notEvaluated ? "–" : undefined;
-  const at = edgeLabelPoint(points);
+  const size = (options.theme ?? defaultTheme).text.pathLabel.size;
+  let at = edgeLabelPoint(points);
+  let anchor: ElementText["anchor"] = "middle";
+  if (options.label) {
+    // Beside the course, 4 clear of the line on the side given: after or before it, or above or below it.
+    const { at: p, side } = options.label;
+    const gap = options.width / 2 + 4;
+    if (Math.abs(side.x) > Math.abs(side.y)) [at, anchor] = [{ x: p.x + side.x * gap, y: p.y + 0.35 * size }, side.x > 0 ? "start" : "end"];
+    else at = { x: p.x, y: side.y > 0 ? p.y + gap + 0.8 * size : p.y - gap };
+  }
   return {
     id: edge.id,
     kind: edge.kind,
@@ -348,10 +360,11 @@ export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string;
     arrow: pathArrowhead(options.width),
     dash: (reconnected ? RECONNECTED_EDGE_DASH : undefined) as number[] | undefined,
     texts: label
-      ? [{ text: label, x: at.x, y: at.y, size: (options.theme ?? defaultTheme).text.pathLabel.size, anchor: "middle", baseline: "alphabetic", paint: "ink", halo: true, role: "count", lod: "edgeLabels" }]
+      ? [{ text: label, x: at.x, y: at.y, size, anchor, baseline: "alphabetic", paint: "ink", halo: true, role: "count", lod: "edgeLabels" }]
       : NO_TEXTS,
     reconnected,
     ...(options.notEvaluated && { notEvaluated: true }),
+    ...(options.backward && { backward: true }),
   };
 }
 
@@ -374,13 +387,17 @@ export function nodeMarks(graph: FlowGraph, positions: Positions, scales: Scales
   );
 }
 
-/** One mark per edge between two placed nodes, in the graph's order; edges from a node to itself are self-loop overlays. */
-export function edgeMarks(graph: FlowGraph, positions: Positions, scales: Scales, locale: Locale = "en", theme: Theme = defaultTheme): EdgeMark[] {
+/**
+ * One mark per edge between two placed nodes, in the graph's order; edges
+ * from a node to itself are self-loop overlays. `courses` gives the labels of
+ * paths with a course of their own and the paths drawn backward (`pathCourses`).
+ */
+export function edgeMarks(graph: FlowGraph, positions: Positions, scales: Scales, locale: Locale = "en", theme: Theme = defaultTheme, courses?: Pick<PathCourses, "labels" | "backward">): EdgeMark[] {
   return shareCounts(
     graph.edges.flatMap((e) => {
       if (e.source === e.target) return [];
       const points = edgePoints(positions, e);
-      return points ? [edgeMark(e, points, { color: edgeColor(e, scales, theme), width: scales.edgeWidth(e), locale, theme, metric: scales.pathMetric, notEvaluated: scales.notEvaluated(e) })] : [];
+      return points ? [edgeMark(e, points, { color: edgeColor(e, scales, theme), width: scales.edgeWidth(e), locale, theme, metric: scales.pathMetric, notEvaluated: scales.notEvaluated(e), label: courses?.labels.get(e.id), backward: courses?.backward.has(e.id) })] : [];
     }),
   );
 }

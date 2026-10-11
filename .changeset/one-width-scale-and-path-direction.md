@@ -32,3 +32,12 @@ Path width has one scale per graph.
   larger head; the React Flow map defines its heads with the export's
   `arrowMarker` (`wf-edge-arrow-<size>`) instead of React Flow's
   `MarkerType.ArrowClosed`.
+- **Paths back and paths both ways.** A path against the reading direction
+  runs as its own line below the flow it returns over and enters its target
+  from below (`EdgeMark.backward`); a layout drew it as a frame around the
+  groups between its ends. Two paths in opposite directions between the same
+  activities run side by side, each with its head and its label. The new
+  `pathCourses` (with `PathCourses`, `CourseLabel`) gives these courses;
+  `buildScene` puts them into the scene's positions, so a map's and an
+  export's bounds include them. `edgeMark` takes `label` and `backward`,
+  `edgeMarks` the courses; a path's label can be anchored at its start or end.

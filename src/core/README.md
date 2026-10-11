@@ -27,6 +27,7 @@ Framework-free TypeScript; runs in Node and in the browser. No DOM, no React.
 | `filters.ts` | the contract's filter clauses, `canonicalFilter`, `addClause`, `removeClause`, `describeClause`, `clauseForTarget`, preview normalisation |
 | `lanes.ts` | `laneBands`: stage groups as ordered bands along the flow, lane groups as bands across it; the lane model shared with the BPMN layout (`laneModel`, `stackLanes`, `spanLanes`, `laneRoutes`) |
 | `routing.ts` | `routeSequenceFlows` (orthogonal obstacle router), `repositionNodes` |
+| `courses.ts` | `pathCourses`: a path against the reading direction as its own line below the flow it returns over, two opposite paths side by side, and where their labels go |
 | `hit.ts` | `HitIndex` (rbush) over nodes, groups, edge segments and overlay shapes |
 | `figure.ts` | `legendOfScene`, `sceneLegend`, `legendLayout`, `figureFrame`, `figureCaption`: the legend's typed rows (`LegendRow`: the measure, the scales by metric and unit, a key per kind of mark drawn, the chips) from what a scene draws, their heights and texts at the export's width, and the figure frame of the exports (header, map, legend column, caption line, activity key, output size for a preset) |
 | `text.ts` | `TextMeasure`, `estimateTextWidth`, `truncateText`, `wrapText`, `fitText`, `fitLead`: the one measure of text widths a scene is built with, and the rules that shorten and wrap text by it |

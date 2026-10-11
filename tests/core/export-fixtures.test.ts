@@ -137,16 +137,24 @@ const observed: Variant = {
  * head with its triangle 2.25 beyond the line's end and one marker per larger
  * head (`wf-arrow-<size>`, 4 times the path's width rounded up). Everything
  * else is the same.
+ * Recorded once more when paths against the reading direction began to run
+ * below the flow they return over: compared group by group, only the edge
+ * groups of the backward paths differ (three of the global fixture, back to
+ * Record Goods Receipt; one of the vendor's, Clear Invoice → Record Invoice
+ * Receipt), in their course and their label's place, and the figure, whose
+ * map grew by the lowest of their lines (40.28; not with stage bands, which
+ * reach below it), is that much taller with its caption and legend rule.
+ * No path of these fixtures runs both ways without one of them backward.
  */
 
 const before: Record<string, string> = {
-  overlays: "37e17b8d11b7aa7587a67ea16bee4f1397170521d919131b9ee51f86900a9abe",
-  stagesGerman: "9b70c7893a4a22bcb08c9df56bf357fa6c150a87a186d66de9fc6b51aabb1571",
-  vendor: "a1d5acbacb1e5c39c370627584f65e62b4c341be6187003ae5da185233b06eda",
-  unfiltered: "dd0ab5b1e0a9ca96b12ec263bba5761dad5f1b8cbe83864f12f6f092098f8704",
-  plain: "7593df57c901d6d4e54b44f7bb3fe482082f7af9e21235e9fabb38fa1a70e483",
+  overlays: "65f0ca57abbfbc51e342b9d53dda5bafc3da7b9aa99b9307833044125193e102",
+  stagesGerman: "5a713a200ea965c0766416f969ac16421a884537e6ad04841308be2a9de5b112",
+  vendor: "42b0e99980ad3b8d13fc4f3b2b42c3ed4c137022b63a166aa0330fddb789e5d5",
+  unfiltered: "770efe758c1df1cb9b6ca6f1939eee92bb08c4bd2f7f141f54adb99106da0c51",
+  plain: "5f40a5d91fe03b0e8234e0acb1b4c819e900aadff2230d150bb3793b1ba5f7ea",
 };
-const beforeObserved = "cd000ec8bd501dd8831717c8d2e315979813e8d8e8a97b239e6a023a0de750ac";
+const beforeObserved = "59b1e1aa5debed8521911e8f9a99dfd3d6e6f1586dae2f9b671d514ed5fd7ba7";
 
 describe("toSVG on the committed fixtures", () => {
   it("matches the recorded output once follows self-loops are hidden", () => {

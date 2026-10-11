@@ -1889,7 +1889,11 @@ export interface NodeMark { id: string; kind: NodeKind; node: FlowNode; box: Box
   cue?: NodeCue; texts: ElementText[]; reconnected: boolean; outOfScope: boolean; title?: string }
 export interface EdgeMark { id: string; kind: EdgeKind; edge: FlowEdge; points: XY[]; color: string; width: number; dash?: number[];
   arrow: Arrowhead;                // the head at the route's end (`pathArrowhead(width)`); the line ends at `lineEnd(points, arrow)`
+  backward?: boolean;              // a path against the reading direction, drawn below the flow it returns over
   texts: ElementText[]; reconnected: boolean }
+export interface CourseLabel { at: XY; side: XY }   // a label beside `at` on its course, on the side the unit vector `side` points to
+export interface PathCourses { positions: Positions; backward: ReadonlySet<string>; labels: ReadonlyMap<string, CourseLabel> }
+export function pathCourses(g: FlowGraph, p: Positions, o: { width: (e: FlowEdge) => number; bands?: ReadonlySet<string> }): PathCourses;
 export function pathArrowhead(width: number, rule?: Arrowhead): Arrowhead;   // the rule's size, or perWidth × width rounded up where more
 export function lineEnd(points: readonly XY[], arrow: Arrowhead): XY;        // the route's end moved back by the head's overhang
 export type BoxSide = "top" | "right" | "bottom" | "left";
@@ -1898,10 +1902,12 @@ export interface GroupMark { id: string; kind: GroupKind; group: FlowGroup; box:
   rule?: { paint: MarkPaint; width: number; side: BoxSide }; texts: ElementText[]; chipAnchor: XY }
 export function nodeMark(n: FlowNode, box: Box, o: { color: string; pattern: PatternId; locale?: Locale; total?: number; outOfScope?: boolean;
   activityLabels?: ActivityLabelOptions; theme?: Theme; measure?: TextMeasure }): NodeMark;   // total: the log's cases
-export function edgeMark(e: FlowEdge, points: XY[], o: { color: string; width: number; locale?: Locale; theme?: Theme }): EdgeMark;
+export function edgeMark(e: FlowEdge, points: XY[], o: { color: string; width: number; locale?: Locale; theme?: Theme;
+  label?: CourseLabel; backward?: boolean }): EdgeMark;   // label: the count beside the course instead of 4 above its middle
 export function groupMark(g: FlowGroup, box: Box, o: { color: string; pattern: PatternId; band?: LaneBand; theme?: Theme }): GroupMark;
 export function nodeMarks(g: FlowGraph, p: Positions, scales: Scales, o?: { locale?; activityLabels?; theme?; measure?; outOfScope?: ReadonlySet<string> }): NodeMark[];
-export function edgeMarks(g: FlowGraph, p: Positions, scales: Scales, locale?: Locale, theme?: Theme): EdgeMark[];
+export function edgeMarks(g: FlowGraph, p: Positions, scales: Scales, locale?: Locale, theme?: Theme,
+  courses?: Pick<PathCourses, "labels" | "backward">): EdgeMark[];
 export function groupMarks(g: FlowGraph, p: Positions, bands: readonly LaneBand[], scales: Scales, theme?: Theme): GroupMark[];
 export function edgeColor(e: FlowEdge, scales: Scales, theme?: Theme): string;      // constraint edges in the theme's accent
 export function gatewayGlyph(n: FlowNode): string;                  // + (and), ○ (or), × otherwise
@@ -1910,6 +1916,32 @@ export function edgePoints(p: Positions, e: FlowEdge): XY[] | undefined;      //
 export function routeMidpoint(points: readonly XY[]): XY;           // half of the polyline's length
 export function edgeLabelPoint(points: readonly XY[]): XY;          // 4 above the route's midpoint
 ```
+
+**The direction of every path.** `buildScene` gives the paths (follows edges
+between two different nodes) courses of their own where a layout draws them
+as something else (`pathCourses`; the scene's `positions.edges` hold them, so
+the hit index and the culling follow them too):
+
+- A path whose target's middle lies before its source's start in the reading
+  direction runs against it. It leaves its source from the side away from the
+  flow (below it for a flow to the right or the left, right of it for a flow
+  down or up), runs as its own line 20 below the lowest node and group of the
+  stretch it returns over (groups drawn as bands are not in its way) and
+  enters its target from that side, so that its head points against the flow.
+  Several over one stretch lie 6 apart besides their half widths, shorter
+  ones nearer the flow; the ends of several on one node are spread along its
+  side; where a box lies below a node, the line first steps aside into the
+  gap beside the node's column. Its mark says `backward`, and its count is
+  written above the middle of its line. A layout draws such a path as a frame
+  around the groups between its ends (ELK) or along the flow (Dagre).
+- Two paths in opposite directions between the same two nodes, neither of
+  them backward, are each moved half their width and 2 to their own right,
+  so that they run side by side, each with its head, and each count is
+  written beside its own line (`anchor` "start" or "end" beside a line across
+  the flow).
+
+Above 5,000 paths the layout's routes are kept. A map's bounds, and so an
+export's figure, include the lines below the flow.
 
 `buildScene` resolves a graph and its positions once into what a renderer
 draws: activity references for every activity, lane bands and the positions

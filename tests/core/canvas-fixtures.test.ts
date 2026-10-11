@@ -158,15 +158,18 @@ function exported(fixture: Fixture, scene: Partial<Scene>, options: PngOptions):
  * line: the recordings hold as many calls as before; only each path's last
  * `lineTo`, which ends the line inside its head, and the base and outline
  * width of the heads that grew with their path changed; every head's tip is
- * where it was.
+ * where it was. Recorded once more when paths against the reading direction
+ * began to run below the flow: only the calls of the backward paths (their
+ * points, heads and labels, as in the SVG export) and, in `toPNG`, the
+ * figure's size and the caption's place changed.
  */
 const before = {
-  mapGlobalStages: "aae8c1699ee83cbef18cc69d2d2904d7a8a89b81a0e7a65af7367a95b0c02c1a",
-  mapVendorIds: "d8244b185bde09a54d4f2a6d975dcc3bf6c9b009637218868aa6f82f0792e258",
-  mapUnfiltered: "ff203b70534f875dfb7d7df8cf7f17d2b61d8cce76097f839877d9e50ea1fa91",
-  pngGlobalTitle: "6ceabec4241f3ce5d8c8f0ed493ac9379011917e6a866ffecbf89e4989c88525",
-  pngVendorIds: "69c0a5d82073ff64b931714b64beb77f975c8aff0ea08687ce82bfbb1041ae6d",
-  pngUnfilteredGerman: "fc06e160be54ec8b55e0a2ae4794731450ce58d59635e01bc9b5b44f176a8f3c",
+  mapGlobalStages: "5f4201488d92038aa0b8c52a8b148f29a35e24ce6a80cb50d7e31d770ab8f50e",
+  mapVendorIds: "8836838e834a311cf21ac5aa26f899e5c77e7af189d0a12d4f5c1f86fb919b23",
+  mapUnfiltered: "663f83401cf000cec8bdcbbb9dc47dbca109f686f0327b2693df02d67c20db90",
+  pngGlobalTitle: "50d2c3381add1e1eebb1b385e5a09370cb827cbaccd01c61a98ddc2b40cd809f",
+  pngVendorIds: "13b2ff02b35059fdb4b615bebd441d7a173bc4a363af96555cfd29f95f36a661",
+  pngUnfilteredGerman: "021831f2334b458db1bc2d5fb9936a164fffab76a1f6c9794ce6f14fd3a92ca8",
 };
 
 /**
@@ -193,13 +196,15 @@ const before = {
  * stage colours, path widths and written numbers changed, as above.
  * Recorded once more when path width took one scale per graph: only the
  * paths' widths changed, as above. Recorded once more when paths began to end
- * in a head that grows with the line, as above.
+ * in a head that grows with the line, as above. Recorded once more, for
+ * the strips that hold backward paths, when those began to run below the
+ * flow, as above.
  */
 const culledBefore = {
-  culledGlobal: "f9ccb1641a5dfed39e607891588f81ed5ae52b7c3605b0f14af09bbfc851d036",
+  culledGlobal: "65890723ecce4bed284865e0c2a459f7c29b2341fe5b7c4af13e590091dc0215",
   culledGlobalStages: "ae4336f3de55d2e322847918c0ce27731258ab9ab2f40346cb9e1cb1f655e053",
   culledVendorIds: "928c3b1f8d781016f462dc2c31a07e851368b167a67f9b27dd43afce727061cb",
-  culledUnfiltered: "617224a2f30c4bb547ffd8299b5887c0cc0aa90aa360d9a195a5af4c69853a6f",
+  culledUnfiltered: "ef3e3e2ed006fd1697e679b3f8b086d8a3adab05a4f07f14c9c28ed52fc94220",
 };
 
 describe("Canvas drawing on the committed fixtures", () => {
