@@ -349,6 +349,10 @@ describe("the caption of an export", () => {
       meta: { model: { activities: 9, paths: 20 } },
     };
     expect(figureCaption(collapseGroups(g, ["s"]))).toBe("6 of 9 activities shown");
+    // Collapsed before the abstraction: the model is the 42 activities in the stages; its paths are not known.
+    const collapsedFirst = abstract(collapseGroups(globalScene, "all"));
+    expect(collapsedFirst.meta?.model).toEqual({ activities: 42, groups: [] });
+    expect(figureCaption(collapsedFirst)).toBe("All purchase order items · 251,734 cases · 1948-01-26 – 2020-04-09 · 42 of 42 activities shown");
   });
 
   it("invents nothing for a graph without meta", () => {

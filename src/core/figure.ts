@@ -4,7 +4,7 @@
  * the activity key sit in an exported figure.
  */
 import { type ActivityLabelOptions, activityKeyLines } from "./activity-labels.js";
-import { collapsedActivityIds } from "./collapsed-members.js";
+import { shownActivityIds } from "./collapsed-members.js";
 import { asFilter, describeClause } from "./filters.js";
 import { type Locale, formatCount } from "./format.js";
 import type { Box } from "./layout.js";
@@ -283,13 +283,7 @@ export function figureCaption(graph: FlowGraph, locale: Locale = "en", labelOf?:
   }
   const model = meta.model ?? {};
   // A collapsed stage shows its activities; its merged paths are not the model's, so their share is not known.
-  const activities = new Set<string>();
-  let collapsed = false;
-  for (const n of graph.nodes) {
-    const members = n.kind === "stage" ? collapsedActivityIds(graph, n.id) : undefined;
-    if (members) collapsed = true;
-    for (const id of members ?? (n.kind === "activity" ? [n.id] : [])) activities.add(id);
-  }
+  const { ids: activities, collapsed } = shownActivityIds(graph);
   const shown = [
     counted(model.activities) && t(locale, "caption.activities", { shown: formatCount(activities.size, locale), total: formatCount(model.activities!, locale) }),
     counted(model.paths) && !collapsed && t(locale, "caption.paths", { shown: formatCount(graph.edges.filter((e) => e.kind === "follows" && e.source !== e.target).length, locale), total: formatCount(model.paths!, locale) }),

@@ -48,8 +48,10 @@ threshold share (a number; `0` means nothing was removed) or, on a graph
 returned by `abstract`, the thresholds the library applied. `meta.abstraction`
 was `unknown` before; code that reads it as either form keeps compiling.
 `abstract` also records `meta.model`, the model before any abstraction (kept
-from an earlier one): its activities, its paths (follows edges between two
-different nodes) and its groups' ids in order. A figure's caption reports how
+from an earlier one): its activities (a collapsed stage's members
+included), its paths (follows edges between two different nodes; left out
+when the graph is already collapsed, whose merged paths are not the model's)
+and its groups' ids in order. A figure's caption reports how
 much of it is shown, and categorical colours follow its group order, so a
 filtered graph keeps its stages' colours. A host may set it itself.
 

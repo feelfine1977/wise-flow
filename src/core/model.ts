@@ -143,9 +143,9 @@ export interface FlowMeta {
 
 /** The model a graph was abstracted from: what a figure's caption reports and the order stage colours follow. */
 export interface ModelOutline {
-  /** How many activities it has. */
+  /** How many activities it has, a collapsed stage's members included. */
   activities?: number;
-  /** How many paths (follows edges between two different nodes) it has. */
+  /** How many paths (follows edges between two different nodes) it has; unknown for a graph already collapsed. */
   paths?: number;
   /** Its groups' ids in their order, which categorical colours are assigned in (see `StyleSpec.stages`). */
   groups?: string[];

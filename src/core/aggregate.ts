@@ -1,4 +1,4 @@
-import { collapsedActivityIds } from "./collapsed-members.js";
+import { collapsedActivityIds, shownActivityIds } from "./collapsed-members.js";
 /**
  * Aggregation: abstraction by frequency or performance with a keep-connected
  * guarantee, stage collapse (semantic zoom) and diff maps.
@@ -10,6 +10,7 @@ import {
   type FlowGroup,
   type FlowNode,
   type Metrics,
+  type ModelOutline,
   type Overlay,
   MAP_TARGET,
   byId,
@@ -643,13 +644,20 @@ export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowG
       ...(base.meta ?? {}),
       abstraction: { minEdgeShare, minNodeShare, keepConnected, collapse: collapse || undefined },
       // The model before any abstraction: a figure's caption reports its size, stage colours follow its groups' order.
-      model: base.meta?.model ?? {
-        activities: graph.nodes.filter((n) => n.kind === "activity").length,
-        paths: graph.edges.filter((e) => e.kind === "follows" && e.source !== e.target).length,
-        groups: (graph.groups ?? []).map((g) => g.id),
-      },
+      model: base.meta?.model ?? modelOutline(graph),
     },
   };
+}
+
+/**
+ * A graph's outline as the model: its activities (a collapsed stage's
+ * members included), its paths (not known once a stage is collapsed: merged
+ * paths are not the model's) and its groups' order.
+ */
+function modelOutline(graph: FlowGraph): ModelOutline {
+  const { ids, collapsed } = shownActivityIds(graph);
+  const paths = collapsed ? undefined : graph.edges.filter((e) => e.kind === "follows" && e.source !== e.target).length;
+  return { activities: ids.size, ...(paths !== undefined && { paths }), groups: (graph.groups ?? []).map((g) => g.id) };
 }
 
 /** The maximum or the total of the follows edges' metric, which self-loops are measured against. */
