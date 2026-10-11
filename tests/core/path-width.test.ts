@@ -22,7 +22,7 @@ function shown(graph: FlowGraph, setting: AbstractOptions, collapse: boolean): F
 const strongest = Math.max(...globalScene.edges.filter((e) => e.kind === "follows").map((e) => e.metrics?.cases ?? 0));
 
 /**
- * The width the ticket's scale gives a count, derived by hand: the square root
+ * The width the graph's scale gives a count, derived by hand: the square root
  * from 0 to the strongest path onto 0 to 8, rounded to hundredths, and never
  * under the thinnest line of 1.
  */
