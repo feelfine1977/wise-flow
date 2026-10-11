@@ -584,8 +584,10 @@ The hook aborts the layout of a request it no longer shows (changed scenes
 or options, unmount), which terminates its worker; mounted again before the
 current task ends (StrictMode), it keeps its layouts and joins the layout
 that is running instead of starting it twice. A new `elk` instance alone does
-not lay out again, as up to 0.3.5, so an engine made on each render is the
-same engine. It passes its own `signal`:
+not lay out again, as up to 0.3.5, so an engine made on each render does not
+restart the layout it shows. The layouts it keeps for earlier inputs are kept
+per instance, though: returning to them with a new instance lays them out
+again, as 0.3.5 did. It passes its own `signal`:
 a `signal` in its options, or in `<ProcessMap layout>`, is replaced and has no
 effect there.
 
