@@ -74,6 +74,31 @@ const secondTheme: Theme = {
 };
 const stages = abstract(globalScene, { collapse: "all" });
 
+/**
+ * The element kinds with the activity tagged `manual`, the log's cases (so
+ * that the card has its frequency cue) and a badge, in a theme with a rule by
+ * kind, one by tag and two by a state the scene resolves.
+ */
+const ruled: FlowGraph = { ...kinds, nodes: kinds.nodes.map((n) => (n.id === "check" ? { ...n, tags: ["manual"] } : n)), meta: { cases: 2000 } };
+const rulesTheme: Theme = {
+  ...defaultTheme,
+  rules: [
+    { match: { part: "node", kind: "gateway" }, set: { fill: "#fff3c4", stroke: "#8a6d00" } },
+    { match: { part: "node", tag: "manual" }, set: { strokeWeight: "strong", radius: "m", text: { name: { weight: 600, color: "#1d4ed8" } }, cue: "bottom" } },
+    { match: { part: "edge", state: "reconnected" }, set: { stroke: "#b42318", opacity: 0.5 } },
+    { match: { part: "node", state: "reconnected" }, set: { fill: "#f3f4f6", opacity: 0.6 } },
+  ],
+};
+
+/** Rules of the interactive states: a selected activity's outline, fill and name; dimmed paths fainter than by default. */
+const stateRules: Theme = {
+  ...defaultTheme,
+  rules: [
+    { match: { part: "node", state: "selected" }, set: { stroke: "#c2410c", fill: "#fff7ed", text: { name: { color: "#7c2d12" } } } },
+    { match: { part: "edge", state: "dimmed" }, set: { opacity: 0.2 } },
+  ],
+};
+
 /** Only the paper, the ink, the focus colour and the font, in three CSS syntaxes. */
 const hostVariables: HostVariables = { "--wf-paper": "#fdf6e3", "--wf-ink": "darkslategray", "--wf-focus": "rebeccapurple", "--wf-font": "Georgia, serif" };
 
@@ -89,6 +114,7 @@ const scenes: Record<string, () => Omit<ParityScene, "positions"> & { variables?
   roleLanes: () => ({ graph: { ...liteFromStages(withSceneMetrics(p2pStages, globalScene), { lanes: "role" }), meta: globalScene.meta }, overlays: [], lanes: "roles" }),
   kinds: () => ({ graph: kinds, overlays: [] }),
   secondTheme: () => ({ ...scenes.small(), theme: secondTheme }),
+  rules: () => ({ graph: ruled, overlays: [{ kind: "badge", target: "check", payload: { glyph: "≥1", value: 0.23 } }], theme: rulesTheme }),
   hostVariables: () => ({ ...scenes.small(), variables: hostVariables }),
   names: () => ({ graph: global, overlays: overlaysFor(constraintItems(), { graph: global }), activityLabels: { mode: "names", references: {} } }),
   namesGerman: () => ({ graph: global, overlays: overlaysFor(constraintItems(), { graph: global }), activityLabels: { mode: "names", references: {} }, locale: "de", measure: "wide" }),
@@ -167,5 +193,25 @@ function LiveMaps() {
   );
 }
 export const HostVariablesLive: StoryObj = { name: "element kinds under a host's CSS variables, live in the DOM and on the Canvas", render: () => <LiveMaps /> };
+export const Rules: StoryObj = { name: "element kinds restyled by rules by kind, tag and state", render: () => <Parity name="rules" /> };
+
+/** The interactive map and the Canvas map side by side in a theme with rules of the interactive states, the activity selected and the paths away from it dimmed. */
+function StateMaps() {
+  const [positions, setPositions] = useState<Positions>();
+  useEffect(() => void layout(kinds, { engine: "dagre" }).then(setPositions), []);
+  const selection = { nodes: ["check"], edges: [], groups: [] };
+  return (
+    <div style={{ display: "flex", height: "100vh", width: "100vw" }}>
+      {positions
+        ? (["svg", "canvas"] as const).map((renderer) => (
+            <div key={renderer} style={{ flex: "1 1 0", minWidth: 0 }}>
+              <ProcessMap graph={kinds} positions={positions} renderer={renderer} theme={stateRules} selection={selection} fitView={false} controls={false} legend={false} contextMenu={false} pathList={false} />
+            </div>
+          ))
+        : null}
+    </div>
+  );
+}
+export const StateRules: StoryObj = { name: "element kinds with rules of the interactive states, live in the DOM and on the Canvas", render: () => <StateMaps /> };
 export const Names: StoryObj = { name: "BPIC global with activity names", render: () => <Parity name="names" /> };
 export const NamesGerman: StoryObj = { name: "BPIC global with activity names in German, measured wide", render: () => <Parity name="namesGerman" /> };

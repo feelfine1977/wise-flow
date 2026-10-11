@@ -46,19 +46,21 @@
   stroke-linejoin: round;
 }
 /*
- * Edges: the scene's colour, width and dash arrive as variables on the edge; React
- * Flow's rules for the path read its own variables, set here from them. A selected,
- * hovered or focused path is drawn in the focus colour.
+ * Edges: the scene's colour, width, dash and opacity arrive as variables on the edge;
+ * React Flow's rules for the path read its own variables, set here from them. A
+ * selected, hovered or focused path is drawn in the focus colour, or in the outline a
+ * theme's rule for the state sets (`--wf-state-outline`).
  */
 .wf-edge {
   --xy-edge-stroke: var(--wf-edge-color);
   --xy-edge-stroke-selected: var(--xy-edge-stroke);
   --xy-edge-stroke-width: var(--wf-edge-width);
+  opacity: var(--wf-edge-opacity, 1);
 }
 .wf-edge[data-wf-state~="selected"],
 .wf-edge--hovered,
 .wf-edge--focused {
-  --xy-edge-stroke: var(--wf-focus);
+  --xy-edge-stroke: var(--wf-state-outline, var(--wf-focus));
 }
 .wf-edge .react-flow__edge-path {
   stroke-dasharray: var(--wf-edge-dash, none);
@@ -103,6 +105,7 @@
   border: var(--wf-node-stroke) solid var(--wf-node-outline);
   border-radius: var(--wf-node-radius);
   background: var(--wf-node-fill);
+  opacity: var(--wf-node-opacity, 1);
   line-height: 1.2;
   display: flex;
   align-items: center;
@@ -130,19 +133,19 @@
   font-weight: var(--wf-text-weight, var(--wf-weight-panel-plain));
   color: var(--wf-text-paint);
 }
-/* Hover, selection and focus change the outline, never the fill. */
+/* Hover, selection and focus change the outline, never the fill; a theme's rule for the state sets it (`--wf-state-outline`). */
 .wf-node--hovered {
-  border-color: var(--wf-ink);
+  border-color: var(--wf-state-outline, var(--wf-ink));
 }
 .wf-node--hovered > .wf-node__outline > * {
-  stroke: var(--wf-ink);
+  stroke: var(--wf-state-outline, var(--wf-ink));
 }
 .wf-node--selected {
   box-shadow: 0 0 0 var(--wf-stroke-selection) var(--wf-selection);
-  border-color: var(--wf-focus);
+  border-color: var(--wf-state-outline, var(--wf-focus));
 }
 .wf-node--selected > .wf-node__outline > * {
-  stroke: var(--wf-focus);
+  stroke: var(--wf-state-outline, var(--wf-focus));
 }
 .wf-node--focused {
   outline: var(--wf-stroke-focus) solid var(--wf-focus);
@@ -214,6 +217,7 @@
   border-radius: var(--wf-group-radius);
   background-color: color-mix(in srgb, var(--wf-group-color) calc(100% * var(--wf-group-fill)), transparent);
   background-image: var(--wf-tint, none);
+  opacity: var(--wf-group-opacity, 1);
   position: relative;
 }
 .wf-group__outline {
@@ -309,8 +313,9 @@
 /* Edge labels */
 .wf-edge-label {
   font-family: var(--wf-font);
-  font-size: var(--wf-text-path-label);
-  fill: var(--wf-ink);
+  font-size: var(--wf-text-size, var(--wf-text-path-label));
+  font-weight: var(--wf-text-weight);
+  fill: var(--wf-text-paint, var(--wf-ink));
   paint-order: stroke;
   stroke: var(--wf-paper);
   stroke-width: var(--wf-stroke-halo);
@@ -880,7 +885,7 @@
   box-shadow: var(--wf-group-rule);
 }
 .wf-group--band.wf-group--selected {
-  outline: var(--wf-stroke-focus) solid var(--wf-focus);
+  outline: var(--wf-stroke-focus) solid var(--wf-state-outline, var(--wf-focus));
   outline-offset: calc(-1 * var(--wf-stroke-focus));
 }
 

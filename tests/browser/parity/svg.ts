@@ -2,7 +2,7 @@
  * What the SVG export drew: its string parsed into elements, each map element
  * read from its attributes.
  */
-import { type Drawing, type Drawn, type DrawnText, bbox, cue, dash, num, paint, pillOf } from "./drawn";
+import { type Drawing, type Drawn, type DrawnText, bbox, cue, dash, faded, num, paint, pillOf } from "./drawn";
 
 interface El {
   tag: string;
@@ -153,19 +153,20 @@ function textsOf(e: El): DrawnText[] {
 const shapes = new Set(["rect", "circle", "path"]);
 
 /**
- * The map elements of an SVG export, keyed as `Drawing` says. The export
- * writes overlay marks without their id, in the order of the scene's marks
- * per layer; `markIds` gives that order (the ids of the marks it draws, below,
- * between and above).
+ * The map elements of an SVG export, keyed as `Drawing` says, each at the
+ * opacity of its group. The export writes overlay marks without their id, in
+ * the order of the scene's marks per layer; `markIds` gives that order (the
+ * ids of the marks it draws, below, between and above).
  */
 export function readSvg(svg: string, markIds: string[]): Drawing {
-  const out: Drawing = new Map();
+  const drawing: Drawing = new Map();
   const all = [...walk(parseSvg(svg))];
   const filters = new Map(all.filter((e) => e.tag === "filter" && e.attrs.id).map((e) => [e.attrs.id, e]));
   const map = all.find((e) => hasClass(e, "wf-map"));
   if (!map) throw new Error("the export has no map");
   let mark = 0;
   for (const g of elements(map)) {
+    const out = { set: (key: string, drawn: Drawn) => drawing.set(key, faded(drawn, Number(g.attrs.opacity ?? 1))) };
     const parts = elements(g).filter((e) => shapes.has(e.tag));
     const [shape] = parts;
     const texts = textsOf(g);
@@ -207,5 +208,5 @@ export function readSvg(svg: string, markIds: string[]): Drawing {
     }
   }
   if (mark !== markIds.length) throw new Error(`the export draws ${mark} marks, the scene ${markIds.length}`);
-  return out;
+  return drawing;
 }

@@ -29,6 +29,7 @@ const FIXTURES: { name: string; story: string; scheme?: ColorScheme }[] = [
   { name: "kinds", story: "parity--element-kinds" },
   { name: "secondTheme", story: "parity--second-theme" },
   { name: "hostVariables", story: "parity--host-variables" },
+  { name: "rules", story: "parity--rules" },
   { name: "names", story: "parity--names" },
   { name: "namesGerman", story: "parity--names-german" },
   { name: "smallDark", story: "parity--small", scheme: "dark" },
@@ -84,6 +85,7 @@ test("the DOM map, the Canvas map, the SVG export and the PNG export draw the co
     if (name === "small") expect([svg, dom].map((d) => [d.get("node:create_po")!.props.cue, d.get("node:create_po")!.props.cueFoot]), `${name}: the cue`).toEqual([["#e6e8ec 171", "#5f6672 171"], ["#e6e8ec 171", "#5f6672 171"]]);
     if (name === "secondTheme") expect([svg, dom].map((d) => [d.get("node:create_po")!.props.cue, d.get("node:create_po")!.props.cueFoot]), `${name}: the cue's place`).toEqual([["none", "#5f6672 169"], ["none", "#5f6672 169"]]);
     if (name === "hostVariables") await hostVariablesReached(page, theme!, toSVG(given, look), dom.get(`node:${activity.id}`)!.props);
+    if (name === "rules") rulesReached({ svg, dom, canvas, png });
     // The measure reached what was compared: it wraps the activity names into more lines than the estimate.
     const lines = (s: typeof scene) => s.nodeMarks.flatMap((m) => m.texts.filter((t) => t.role === "nameLine")).length;
     if (named) expect(lines(scene), `${name}: the measure's lines`).toBeGreaterThan(lines(buildScene(graph, positions, { overlays, lanes, activityLabels, locale })));
@@ -119,6 +121,69 @@ async function hostVariablesReached(page: import("@playwright/test").Page, theme
   });
   expect([paint(drawn.focus), drawn.font], "hostVariables: the DOM map's focus and font").toEqual(["#663399", "Georgia, serif"]);
 }
+
+/**
+ * The theme's rules reached all four renderers: the gateway's fill and
+ * outline (by kind), the manual activity's outline 2 wide with corners of 8,
+ * its name at 600 in the rule's colour and its cue only as the foot, 1,234 of
+ * 2,000 cases of 180 − 8 − 2 long (by tag), the re-added path's colour at half
+ * its opacity and the re-added activity's fill at 0.6 (by state).
+ */
+function rulesReached(drawings: Record<string, Drawing>) {
+  for (const [renderer, d] of Object.entries(drawings)) {
+    const props = (key: string, ...names: string[]) => names.map((n) => d.get(key)?.props[n]);
+    expect(props("node:split", "fill", "outline"), `rules: ${renderer} by kind`).toEqual(["#fff3c4", "#8a6d00"]);
+    expect([...props("node:check", "outlineWidth", "radius", "cue", "cueFoot"), d.get("node:check")!.texts[0]], `rules: ${renderer} by tag`).toEqual(["2", "8", "none", "#5f6672 105", { text: "Check invoice", size: 13, weight: 600, paint: "#1d4ed8" }]);
+    expect([...props("edge:split->readded", "outline"), ...props("node:readded", "fill")], `rules: ${renderer} by state`).toEqual(["#b42318@0.5", "#f3f4f6@0.6"]);
+  }
+}
+
+/**
+ * The DOM map and the Canvas map draw the rules of the interactive states
+ * alike, through the core's state style: the selected activity's outline,
+ * fill and name in the rules' colours (not the focus colour), and every path
+ * away from it at the rule's opacity 0.2 (not the dimmed look's 0.25), while
+ * the dimmed activities keep the dimmed look.
+ */
+test("the DOM map and the Canvas map draw the theme's rules of the interactive states alike", async ({ page }) => {
+  await page.addInitScript(() => {
+    const log: { op: string; text?: string; fill: unknown; stroke: unknown; alpha: number }[] = [];
+    (window as unknown as { wfCanvas: typeof log }).wfCanvas = log;
+    const proto = CanvasRenderingContext2D.prototype as unknown as Record<string, (...args: unknown[]) => unknown>;
+    for (const op of ["fill", "stroke", "fillText"]) {
+      const own = proto[op];
+      proto[op] = function (this: CanvasRenderingContext2D, ...args: unknown[]) {
+        log.push({ op, text: op === "fillText" ? String(args[0]) : undefined, fill: this.fillStyle, stroke: this.strokeStyle, alpha: this.globalAlpha });
+        return own.apply(this, args);
+      };
+    }
+  });
+  await page.goto("/iframe.html?id=parity--state-rules&viewMode=story");
+  const label = "Check invoice";
+  await expect.poll(() => page.evaluate((text) => (window as unknown as { wfCanvas: { text?: string }[] }).wfCanvas.some((e) => e.text === text), label), { timeout: 60_000 }).toBe(true);
+  await expect(page.locator('.wf-process-map[data-renderer="svg"] g.wf-edge').first()).toBeVisible();
+  const dom = await page.evaluate(() => {
+    const map = document.querySelector('.wf-process-map[data-renderer="svg"]')!;
+    const node = map.querySelector("#wf-node-check")!;
+    const box = getComputedStyle(node);
+    const text = getComputedStyle(node.querySelector('[data-wf-part="node-label"] > span')!);
+    const dimmed = [...map.querySelectorAll('g.wf-edge[data-wf-state~="dimmed"]')].map((g) => Number(getComputedStyle(g).opacity) * Number(getComputedStyle(g.querySelector(".react-flow__edge-path")!).opacity));
+    return { outline: box.borderTopColor, fill: box.backgroundColor, name: text.color, dimmed };
+  });
+  const canvas = await page.evaluate((text) => {
+    const log = (window as unknown as { wfCanvas: { op: string; text?: string; fill: string; stroke: string; alpha: number }[] }).wfCanvas;
+    const at = log.map((e) => e.text).lastIndexOf(text);
+    const before = log.slice(0, at);
+    return { outline: before.filter((e) => e.op === "stroke").at(-1)!.stroke, fill: before.filter((e) => e.op === "fill").at(-1)!.fill, name: log[at].fill, alphas: [...new Set(log.filter((e) => e.op === "stroke").map((e) => Number(e.alpha.toFixed(2))))].sort() };
+  }, label);
+  expect({ outline: paint(dom.outline), fill: paint(dom.fill), name: paint(dom.name) }, "the DOM map's selected activity").toEqual({ outline: "#c2410c", fill: "#fff7ed", name: "#7c2d12" });
+  expect({ outline: paint(canvas.outline), fill: paint(canvas.fill), name: paint(canvas.name) }, "the Canvas map's selected activity").toEqual({ outline: "#c2410c", fill: "#fff7ed", name: "#7c2d12" });
+  expect(dom.dimmed.length, "paths away from the selection are dimmed").toBeGreaterThan(0);
+  expect(dom.dimmed.map((a) => Number(a.toFixed(2))), "the DOM map's dimmed paths").toEqual(dom.dimmed.map(() => 0.2));
+  // Strokes at full opacity, the dimmed paths' at the rule's 0.2 (none at the dimmed look's 0.25), and the dimmed
+  // activities' at the dimmed look's 0.35, for which the theme has no rule.
+  expect(canvas.alphas, "the Canvas map's strokes").toEqual([0.2, 0.35, 1]);
+});
 
 /**
  * The live Canvas map, which reads the host's variables itself, draws the

@@ -6,7 +6,7 @@
  */
 import { MarkerType } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { type ActivityLabelOptions, type EdgeBudget, type ElementRef, type FlowGraph, type FlowScene, type GraphIndex, type HitItem, type Locale, type Overlay, type OverlayMark, type Positions, type Selection, type TextMeasure, arrowheadTokens, budgetEdges, describeOverlay, indexGraph, zTokens } from "../core/index.js";
+import { type ActivityLabelOptions, type EdgeBudget, type ElementRef, type FlowGraph, type FlowScene, type GraphIndex, type HitItem, type Locale, type Overlay, type OverlayMark, type Positions, type Selection, type TextMeasure, arrowheadTokens, budgetEdges, describeOverlay, indexGraph, markInState, stateStyle, zTokens } from "../core/index.js";
 import { type DrawState, type PreparedScene, canvasTextMeasure } from "../canvas/index.js";
 import { retainScene } from "../canvas/scene.js";
 import { describeIndexedEdge } from "../core/describe.js";
@@ -114,6 +114,8 @@ export function useFlowElements(input: FlowInput) {
     }
     return { covers, carried, between };
   }, [scene]);
+  // A hovered mark as the theme's rules for the state draw it.
+  const inHover = useCallback((m: OverlayMark) => (m.id === hovered ? markInState(m, stateStyle(scene, "mark", m, { hovered: true })) : m), [scene, hovered]);
 
   const rfNodes = useMemo<(WfNode | WfGroupNode)[]>(() => {
     if (!positions || !enabled) return [];
@@ -132,6 +134,8 @@ export function useFlowElements(input: FlowInput) {
       const parentBox = g.parent ? groupBox(g.parent) : undefined;
       const gOverlays = overlaysByTarget.get(g.id) ?? [];
       const description = describeGroup(g, memberCount.get(g.id) ?? 0, gOverlays, locale);
+      const mark = groupMarks.get(g.id);
+      const state = mark && stateStyle(scene, "group", mark, { selected: selection.groups.includes(g.id) });
       out.push({
         id: GROUP_PREFIX + g.id,
         type: "wfGroup",
@@ -149,11 +153,12 @@ export function useFlowElements(input: FlowInput) {
           group: g,
           color: scales.categorical(g.id).color,
           tint: coverBackground(covers.get(g.id) ?? []),
-          marks: carried.get(g.id),
+          marks: carried.get(g.id)?.map(inHover),
           origin: { x: box.x, y: box.y },
           description,
-          band: groupMarks.get(g.id)?.band,
-          mark: groupMarks.get(g.id),
+          band: mark?.band,
+          mark: mark && markInState(mark, state),
+          state,
         },
       });
     }
@@ -164,6 +169,9 @@ export function useFlowElements(input: FlowInput) {
       const off = absOffset(parentGroup);
       const nOverlays = overlaysByTarget.get(n.id) ?? [];
       const description = describeElement({ kind: "node", id: n.id });
+      const states = { selected: selection.nodes.includes(n.id), focused: focused === n.id, hovered: hovered === n.id, dimmed: !(activityLabels && n.kind === "activity") && !!bright && !bright.nodes.has(n.id) };
+      // The theme's rules for these states, drawn over the mark.
+      const state = stateStyle(scene, "node", mark, states);
       out.push({
         id: n.id,
         type: n.kind,
@@ -185,20 +193,21 @@ export function useFlowElements(input: FlowInput) {
           pattern: mark.pattern,
           hatched: nOverlays.some((o) => o.kind === "hatch"),
           tint: coverBackground(covers.get(n.id) ?? []),
-          marks: carried.get(n.id),
+          marks: carried.get(n.id)?.map(inHover),
           origin: { x: box.x, y: box.y },
           direction: positions.direction,
-          focused: focused === n.id,
-          hovered: hovered === n.id,
-          dimmed: !(activityLabels && n.kind === "activity") && !!bright && !bright.nodes.has(n.id),
+          focused: states.focused,
+          hovered: states.hovered,
+          dimmed: states.dimmed,
           locale,
           description,
-          mark,
+          mark: markInState(mark, state),
+          state,
         },
       });
     }
     return out;
-  }, [positions, enabled, shown, scene, overlaysByTarget, covers, carried, scales, selection, hovered, focused, locale, bright, groupMarks, groupIndex, memberCount, activityLabels, describeElement, nodesDraggable]);
+  }, [positions, enabled, shown, scene, overlaysByTarget, covers, carried, inHover, scales, selection, hovered, focused, locale, bright, groupMarks, groupIndex, memberCount, activityLabels, describeElement, nodesDraggable]);
 
   // Every edge of the scene is in view of React Flow; with no frame to time, adaptive keeps its first step.
   const withheld = useMemo(() => (enabled ? budgetEdges(scene, edgeBudget === "adaptive" ? FIRST_STEP : edgeBudget, { selection, focused, highlighted }) : undefined), [enabled, scene, edgeBudget, selection, focused, highlighted]);
@@ -207,6 +216,8 @@ export function useFlowElements(input: FlowInput) {
     return (withheld ? scene.edgeMarks.filter((_, i) => withheld.drawn.has(i)) : scene.edgeMarks).map((mark) => {
       const e = mark.edge;
       const description = describeIndexedEdge(e, index, locale);
+      const states = { selected: selection.edges.includes(e.id), focused: focused === e.id, hovered: hovered === e.id, dimmed: !!bright && !bright.edges.has(e.id) };
+      const state = stateStyle(scene, "edge", mark, states);
       return {
         id: e.id,
         type: e.kind,
@@ -214,7 +225,7 @@ export function useFlowElements(input: FlowInput) {
         target: e.target,
         selected: selection.edges.includes(e.id),
         ariaLabel: description,
-        markerEnd: { type: MarkerType.ArrowClosed, color: mark.color, width: arrowheadTokens.edge.size, height: arrowheadTokens.edge.size, markerUnits: "userSpaceOnUse" },
+        markerEnd: { type: MarkerType.ArrowClosed, color: state?.stroke ?? mark.color, width: arrowheadTokens.edge.size, height: arrowheadTokens.edge.size, markerUnits: "userSpaceOnUse" },
         zIndex: hovered === e.id || focused === e.id ? zTokens.pathHovered : 0,
         data: {
           edge: e,
@@ -223,16 +234,18 @@ export function useFlowElements(input: FlowInput) {
           color: mark.color,
           label: mark.texts[0]?.text,
           reconnected: mark.reconnected,
-          hovered: hovered === e.id,
-          dimmed: !!bright && !bright.edges.has(e.id),
-          focused: focused === e.id,
+          hovered: states.hovered,
+          dimmed: states.dimmed,
+          focused: states.focused,
           description,
           mark,
+          state,
         },
       };
     });
   }, [positions, enabled, scene, index, selection, hovered, focused, locale, bright, withheld]);
-  return { nodes: rfNodes, edges: rfEdges, between, withheld };
+  const shownBetween = useMemo(() => between.map(inHover), [between, inHover]);
+  return { nodes: rfNodes, edges: rfEdges, between: shownBetween, withheld };
 }
 
 interface CanvasInput {

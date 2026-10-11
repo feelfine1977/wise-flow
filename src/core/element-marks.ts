@@ -10,6 +10,7 @@ import { type Box, type Positions, type XY, straightRoute } from "./layout.js";
 import type { LaneBand } from "./lanes.js";
 import { type EdgeKind, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type GroupKind, type NodeKind, hasTag, metric } from "./model.js";
 import { RECONNECTED_TAG } from "./aggregate.js";
+import { type RuleSet, type RuleState, type RuleTextRole, ruleDash, rulePaint, ruleRadius, ruleSet, ruleText, ruleTextRole, ruleWidth } from "./rules.js";
 import { chipAnchor } from "./overlay-geometry.js";
 import type { MarkFill, MarkPaint, MarkText } from "./overlay-marks.js";
 import type { PatternId, Scales } from "./style.js";
@@ -103,6 +104,8 @@ export interface NodeMark {
   outOfScope: boolean;
   /** Exact description for a tooltip, where the node shows a short form (activity labels). */
   title?: string;
+  /** The whole node's opacity, where a theme's rule sets one. */
+  opacity?: number;
 }
 
 export interface EdgeMark {
@@ -119,6 +122,8 @@ export interface EdgeMark {
   reconnected: boolean;
   /** A path without a value: drawn in the line colour at the thinnest width (`Scales.notEvaluated`). */
   notEvaluated?: boolean;
+  /** The whole path's opacity (its line, arrowhead and label), where a theme's rule sets one. */
+  opacity?: number;
 }
 
 interface NodeMarkOptions {
@@ -191,6 +196,18 @@ function outline(paint: MarkPaint, width: number, dash?: readonly number[]): Nod
 // A dash means "not directly observed": only what was re-added to keep the map connected is dashed.
 const RECONNECTED_DASH = Object.freeze(dashTokens.reconnectedNode);
 
+// The states an element is in when the scene is built.
+const NONE: readonly RuleState[] = [];
+const RECONNECTED: readonly RuleState[] = ["reconnected"];
+const OUT_OF_SCOPE: readonly RuleState[] = ["outOfScope"];
+const BOTH: readonly RuleState[] = ["outOfScope", "reconnected"];
+
+/** A text role's style with the size and weight a rule sets on its texts. */
+function styled<T extends { size: number; weight?: number }>(style: T, set: RuleSet | undefined, role: RuleTextRole): T & { weight?: number } {
+  const r = set?.text?.[role];
+  return r ? { ...style, size: r.size ?? style.size, weight: r.weight ?? style.weight } : style;
+}
+
 /** A card's share of all cases: its cases over the log's (a lower bound where the cases are one); none without both or with a log of no cases. */
 export function caseShare(node: FlowNode, total: number | undefined): number | undefined {
   const cases = metric(node, "cases", NaN);
@@ -213,16 +230,20 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
   const outOfScope = options.outOfScope ?? false;
   const cx = box.x + box.width / 2;
   const cy = box.y + box.height / 2;
+  // What the theme's rules set on the node, with the states it is in when the scene is built.
+  const set = ruleSet(theme, "node", node.kind, node.tags, outOfScope ? (reconnected ? BOTH : OUT_OF_SCOPE) : reconnected ? RECONNECTED : NONE);
+  const colors = theme.color;
+  const write = (t: ElementText) => ruleText(t, set, ruleTextRole(t.role), colors, options.color);
   const mark = (shape: NodeMark["shape"], radius: number, stroke: NodeMark["stroke"], texts: ElementText[], fill: MarkPaint = "paper", band?: number, title?: string, cue?: NodeCue): NodeMark => ({
     id: node.id,
     kind: node.kind,
     node,
     box,
     shape,
-    radius,
+    radius: shape === "box" ? ruleRadius(set, radius, box) : radius,
     color: options.color,
     pattern: options.pattern,
-    fill,
+    fill: rulePaint(set?.fill, set?.fillOpacity, fill, colors, options.color),
     stroke,
     texts,
     reconnected,
@@ -230,27 +251,32 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
     band,
     cue,
     title,
+    opacity: set?.opacity,
   });
-  const dash = reconnected ? RECONNECTED_DASH : undefined;
+  const dash = ruleDash(set, reconnected ? RECONNECTED_DASH : undefined, RECONNECTED_DASH);
+  // The outline in the paint and width of its kind, unless a rule sets them.
+  const line = (paint: MarkPaint, width: number) => outline(rulePaint(set?.stroke, undefined, paint, colors, options.color), ruleWidth(set, width), dash);
   switch (node.kind) {
     case "event": {
       // The label sits below the circle, shortened to its width.
       const label = textTokens.eventLabel;
-      const text = fitted(ink(node.label, cx, box.y + box.height + space.unit * 2 + label.size, label.size, { role: "label", anchor: "middle", baseline: "alphabetic", maxWidth: dimensionTokens.eventLabel, lod: "labels" }), measure);
-      return mark("circle", Math.min(box.width, box.height) / 2, outline("ink", hasTag(node, "end") ? strokeTokens.eventEnd : strokeTokens.eventStart, dash), [text], "paper", undefined, text.text === node.label ? undefined : node.label);
+      const size = styled(label, set, "label").size;
+      const text = fitted(write(ink(node.label, cx, box.y + box.height + space.unit * 2 + size, label.size, { role: "label", anchor: "middle", baseline: "alphabetic", maxWidth: dimensionTokens.eventLabel, lod: "labels" })), measure);
+      return mark("circle", Math.min(box.width, box.height) / 2, line("ink", hasTag(node, "end") ? strokeTokens.eventEnd : strokeTokens.eventStart), [text], "paper", undefined, text.text === node.label ? undefined : node.label);
     }
     case "gateway":
-      return mark("diamond", 0, outline("ink", strokeTokens.gateway, dash), [ink(gatewayGlyph(node), cx, cy + 1, textTokens.gatewayGlyph.size, { role: "glyph", weight: textTokens.gatewayGlyph.weight, anchor: "middle" })]);
+      return mark("diamond", 0, line("ink", strokeTokens.gateway), [write(ink(gatewayGlyph(node), cx, cy + 1, textTokens.gatewayGlyph.size, { role: "glyph", weight: textTokens.gatewayGlyph.weight, anchor: "middle" }))]);
     case "note":
-      return mark("box", radiusTokens.node, outline("value", strokeTokens.note), [fitted(ink(node.label, box.x + INSET, cy, textTokens.noteLabel.size, { role: "label", maxWidth: box.width - INSETS }), measure)], "surface");
+      return mark("box", radiusTokens.node, outline(rulePaint(set?.stroke, undefined, "value", colors, options.color), ruleWidth(set, strokeTokens.note), ruleDash(set, undefined, RECONNECTED_DASH)), [fitted(write(ink(node.label, box.x + INSET, cy, textTokens.noteLabel.size, { role: "label", maxWidth: box.width - INSETS })), measure)], "surface");
     default: {
       // The card: the name on up to two lines, the number line, the stage once as the band, the frequency cue.
-      const width = node.kind === "stage" ? strokeTokens.stage : strokeTokens.node;
-      const stroke = outline("lineStrong", width, dash);
+      const stroke = line("lineStrong", node.kind === "stage" ? strokeTokens.stage : strokeTokens.node);
+      const width = stroke.width;
       const labels = node.kind === "activity" ? options.activityLabels : undefined;
       const name = labels ? activityLabel(node, labels) : node.label;
-      const nameText = node.kind === "stage" ? { ...textTokens.activityName, ...textTokens.stageLabel } : textTokens.activityName;
-      const { activityNumber: numberText, activityShare: shareText } = textTokens;
+      const nameText = styled(node.kind === "stage" ? { ...textTokens.activityName, ...textTokens.stageLabel } : textTokens.activityName, set, "name");
+      const numberText = styled(textTokens.activityNumber, set, "count");
+      const shareText = styled(textTokens.activityShare, set, "share");
       // The room the interactive map gives the texts: inside the padding and a solid outline (a dashed one is drawn over the box).
       const room = box.width - INSETS - (dash ? 0 : 2 * width);
       const lines = wrapLines(name, room, nameText, 2, measure);
@@ -261,25 +287,24 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
       const top = box.y + width + (box.height - 2 * width - dimensionTokens.cueFoot - block) / 2;
       const lod = labels ? undefined : ("labels" as const);
       const x = box.x + INSET;
-      const texts = lines.map((line, i) => ink(line, x, baseline(top + i * nameText.lineHeight, nameText.lineHeight, nameText.size), nameText.size, { role: "nameLine", baseline: "alphabetic", weight: nameText.weight, paint: outOfScope ? "inkMuted" : "ink", lod }));
+      const texts = lines.map((text, i) => write(ink(text, x, baseline(top + i * nameText.lineHeight, nameText.lineHeight, nameText.size), nameText.size, { role: "nameLine", baseline: "alphabetic", weight: nameText.weight, paint: outOfScope ? "inkMuted" : "ink", lod })));
       if (counted) {
         const count = elementMetric(node, "cases", locale);
         const y = baseline(top + lines.length * nameText.lineHeight, numberText.lineHeight, numberText.size);
-        texts.push(ink(count, x, y, numberText.size, { role: "countLine", baseline: "alphabetic", weight: numberText.weight, lod }));
+        texts.push(write(ink(count, x, y, numberText.size, { role: "countLine", baseline: "alphabetic", weight: numberText.weight, lod })));
         const shown = share === undefined ? "–" : formatMetricValue("share", share, locale, { basis: metricBasis(node, "cases") });
-        texts.push(ink(`· ${shown}`, x + measure(count, numberText) + 2 * space.unit, y, shareText.size, { role: "share", baseline: "alphabetic", paint: "inkMuted", lod }));
+        texts.push(write(ink(`· ${shown}`, x + measure(count, numberText) + 2 * space.unit, y, shareText.size, { role: "share", baseline: "alphabetic", weight: shareText.weight, paint: "inkMuted", lod })));
       }
       // A name shortened to two lines is given whole to hover and assistive technology.
       const cut = lines.join("").replace(/\s/gu, "") !== name.replace(/\s/gu, "");
       const title = labels ? activityDescription(node, labels, locale) : cut ? name : undefined;
-      return mark("box", radiusTokens.node, stroke, texts, "paper", dimensionTokens.band, title, cue(box, width, share, theme));
+      return mark("box", radiusTokens.node, stroke, texts, "paper", dimensionTokens.band, title, cue(box, width, share, set?.cue ?? theme.frequencyCue));
     }
   }
 }
 
-/** The stripe and foot of a card's share inside its outline and after its band, as the theme places them. */
-function cue(box: Box, stroke: number, share: number | undefined, theme: Theme): NodeCue | undefined {
-  const place = theme.frequencyCue;
+/** The stripe and foot of a card's share inside its outline and after its band, where `place` puts them. */
+function cue(box: Box, stroke: number, share: number | undefined, place: Theme["frequencyCue"]): NodeCue | undefined {
   if (!(share! > 0) || place === "none") return undefined;
   const { band, cueFoot } = dimensionTokens;
   const part = (y: number, height: number, paint: MarkPaint) => ({ box: { x: box.x + band, y, width: Math.min(1, share!) * (box.width - band - stroke), height }, paint });
@@ -301,7 +326,10 @@ const NO_TEXTS: ElementText[] = Object.freeze([]) as unknown as ElementText[];
  * path `notEvaluated`.
  */
 export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string; width: number; locale?: Locale; theme?: Theme; metric?: string; notEvaluated?: boolean }): EdgeMark {
+  const theme = options.theme ?? defaultTheme;
   const reconnected = hasTag(edge, RECONNECTED_TAG);
+  // What the theme's rules set on the path: its colour, dash, opacity and label.
+  const set = ruleSet(theme, "edge", edge.kind, edge.tags, reconnected ? RECONNECTED : NONE);
   // A path reads the scene's path metric; another edge (a sequence flow, a constraint) its own cases, else its count.
   const name = (edge.kind === "follows" && options.metric) || (Number.isFinite(metric(edge, "cases", NaN)) ? "cases" : "count");
   const count = metric(edge, name, NaN);
@@ -312,14 +340,15 @@ export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string;
     kind: edge.kind,
     edge,
     points,
-    color: options.color,
+    color: set?.stroke ? rulePaint(set.stroke, undefined, "value", theme.color, options.color) : options.color,
     width: options.width,
-    dash: (reconnected ? RECONNECTED_EDGE_DASH : undefined) as number[] | undefined,
+    dash: ruleDash(set, reconnected ? RECONNECTED_EDGE_DASH : undefined, RECONNECTED_EDGE_DASH),
     texts: label
-      ? [{ text: label, x: at.x, y: at.y, size: (options.theme ?? defaultTheme).text.pathLabel.size, anchor: "middle", baseline: "alphabetic", paint: "ink", halo: true, role: "count", lod: "edgeLabels" }]
+      ? [ruleText<ElementText>({ text: label, x: at.x, y: at.y, size: theme.text.pathLabel.size, anchor: "middle", baseline: "alphabetic", paint: "ink", halo: true, role: "count", lod: "edgeLabels" }, set, "label", theme.color, options.color)]
       : NO_TEXTS,
     reconnected,
     ...(options.notEvaluated && { notEvaluated: true }),
+    ...(set?.opacity !== undefined && { opacity: set.opacity }),
   };
 }
 
@@ -384,14 +413,21 @@ export interface GroupMark {
   texts: ElementText[];
   /** Where the group's chips are placed from: the right end and the top of the first (`chipAnchor`). */
   chipAnchor: XY;
+  /** The whole group's opacity, where a theme's rule sets one. */
+  opacity?: number;
 }
 
 /** What one group looks like in its box: a box outlined by a hairline, tinted as the theme's `groupFill` says (not by default), or a band outlined between the bands with a rule along its start. */
 export function groupMark(group: FlowGroup, box: Box, options: { color: string; pattern: PatternId; band?: LaneBand; theme?: Theme }): GroupMark {
-  const { stroke, text, radius, opacity } = options.theme ?? defaultTheme;
+  const theme = options.theme ?? defaultTheme;
+  const { stroke, text, radius, opacity } = theme;
   const band = options.band;
   // Bands along the flow are outlined between each other, left and right, and ruled along the top; bands across it above and below, ruled along the left.
   const main = band?.axis === "main";
+  // What the theme's rules set on the group; a band keeps its square corners and solid sides.
+  const set = ruleSet(theme, "group", group.kind, undefined, NONE);
+  const paint = (p: MarkPaint) => rulePaint(set?.stroke, undefined, p, theme.color, options.color);
+  const label = styled(text.groupLabel, set, "label");
   return {
     id: group.id,
     kind: group.kind,
@@ -400,12 +436,16 @@ export function groupMark(group: FlowGroup, box: Box, options: { color: string; 
     color: options.color,
     pattern: options.pattern,
     band,
-    radius: band ? 0 : radius.large,
-    fill: { paint: "value", opacity: band ? (band.index % 2 ? opacity.bandOddFill : opacity.bandFill) : opacity.groupFill },
-    stroke: band ? { paint: "line", width: 1, sides: main ? ["left", "right"] : ["top", "bottom"] } : { paint: "line", width: stroke.group },
+    radius: band ? 0 : ruleRadius(set, radius.large, box),
+    fill: {
+      paint: rulePaint(set?.fill, undefined, "value", theme.color, options.color),
+      opacity: set?.fillOpacity ?? (set?.fill === undefined ? (band ? (band.index % 2 ? opacity.bandOddFill : opacity.bandFill) : opacity.groupFill) : undefined),
+    },
+    stroke: band ? { paint: paint("line"), width: ruleWidth(set, 1), sides: main ? ["left", "right"] : ["top", "bottom"] } : { paint: paint("line"), width: ruleWidth(set, stroke.group), dash: ruleDash(set, undefined, RECONNECTED_DASH) },
     rule: band && { paint: "value", width: stroke.band, side: main ? "top" : "left" },
-    texts: [ink(group.label, box.x + 12, box.y + 22, text.groupLabel.size, { role: "label", baseline: "alphabetic", weight: text.groupLabel.weight, paint: "inkMuted" })],
+    texts: [ruleText(ink(group.label, box.x + 12, box.y + 22, label.size, { role: "label", baseline: "alphabetic", weight: label.weight, paint: "inkMuted" }), set, "label", theme.color, options.color)],
     chipAnchor: chipAnchor(box),
+    opacity: set?.opacity,
   };
 }
 

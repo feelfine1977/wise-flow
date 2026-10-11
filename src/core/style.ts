@@ -8,6 +8,7 @@ import { hatchSvg, patternTwinSvg, svgMarkup } from "./mark-svg.js";
 import { metricKind } from "./metrics.js";
 import { type FlowEdge, type FlowGraph, type FlowNode, metric } from "./model.js";
 import type { StringKey } from "./strings.js";
+import { ruleDeviations } from "./rules.js";
 import { type ColorScheme, type Theme, type ThemePalettes, colorChannels, defaultTheme, themeColors, themePalettes } from "./theme.js";
 import { type ColorToken, type PatternId, type PatternLook, PATTERNS, colorTokens, paletteTokens, strokeTokens } from "./tokens.js";
 
@@ -109,12 +110,14 @@ export interface ThemeDeviation {
    * contrast against the paper from stop to stop.
    * `rampStart`: its low end against the paper under 3 : 1. `textSize`,
    * `strokeWidth`: a table entry under the theme's minimum. `color`: a colour
-   * that is not a literal.
+   * that is not a literal. `rule`: an entry of a rule that is unknown or out
+   * of range (`ruleDeviations`); the rule changes nothing, but an opacity
+   * outside 0.2 to 1 is clamped to it.
    */
-  kind: "text" | "line" | "rampOrder" | "rampStart" | "textSize" | "strokeWidth" | "color";
+  kind: "text" | "line" | "rampOrder" | "rampStart" | "textSize" | "strokeWidth" | "color" | "rule";
   /** The scheme of a contrast or of the ramp. */
   scheme?: ColorScheme;
-  /** What was measured: `ink on paper`, `lineStrong on paper`, `palette.neutral`, `text.nodeCount`, `stroke.legendGradient`, `dark.paper`. */
+  /** What was measured: `ink on paper`, `lineStrong on paper`, `palette.neutral`, `text.nodeCount`, `stroke.legendGradient`, `dark.paper`, `rules[0].set.strokeWeight`. */
   subject: string;
   /** The contrast ratio (two decimals), the size or width in pt, or the colour. */
   value: number | string;
@@ -157,8 +160,9 @@ function over(color: string, ground?: string): string {
  * scheme (`palette.neutral`, in the dark scheme with `darkPalette` over it)
  * monotonic in luminance, each stop with more contrast against the paper than
  * the one before, and its low end at least 3 : 1 against it, no text size or stroke width of the tables under the
- * theme's `minimum`, and every colour a literal. A translucent colour is
- * measured as drawn over its ground. Empty when nothing does.
+ * theme's `minimum`, every colour a literal, and every rule known and in
+ * range (`ruleDeviations`). A translucent colour is measured as drawn over
+ * its ground. Empty when nothing does.
  */
 export function checkTheme(theme: Theme): ThemeDeviation[] {
   const out: ThemeDeviation[] = [];
@@ -188,7 +192,7 @@ export function checkTheme(theme: Theme): ThemeDeviation[] {
   for (const [role, width] of Object.entries(theme.stroke)) {
     if (width * PT < theme.minimum.stroke) out.push({ kind: "strokeWidth", subject: `stroke.${role}`, value: width * PT, minimum: theme.minimum.stroke });
   }
-  return out;
+  return [...out, ...ruleDeviations(theme)];
 }
 
 /** Stable 32-bit FNV-1a hash of a string. */

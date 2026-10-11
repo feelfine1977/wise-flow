@@ -5,6 +5,7 @@ import type {
   EdgeBudget,
   EdgeMark,
   EdgeRoute,
+  StateStyle,
   Filter,
   FilterClause,
   FilterPreview,
@@ -64,6 +65,8 @@ export type ActivityNodeData = {
   description: string;
   /** What the node looks like (`FlowScene.nodeMarks`); resolved from the fields above without it. */
   mark?: NodeMark;
+  /** What the theme's rules for the node's interactive states set (`stateStyle`), already in `mark`. */
+  state?: StateStyle;
 };
 
 export type GroupNodeData = {
@@ -80,6 +83,8 @@ export type GroupNodeData = {
   band?: LaneBand;
   /** What the group looks like (`FlowScene.groupMarks`); resolved from the fields above without it. */
   mark?: GroupMark;
+  /** What the theme's rules for the group's interactive states set (`stateStyle`), already in `mark`. */
+  state?: StateStyle;
 };
 
 export type WfNode = Node<ActivityNodeData, "activity" | "stage" | "gateway" | "event" | "note">;
@@ -98,6 +103,8 @@ export type FollowsEdgeData = {
   description: string;
   /** What the edge looks like (`FlowScene.edgeMarks`); resolved from the fields above without it. */
   mark?: EdgeMark;
+  /** What the theme's rules for the edge's interactive states set (`stateStyle`). */
+  state?: StateStyle;
 };
 
 export type WfEdge = Edge<FollowsEdgeData, "follows" | "constraint" | "flow">;

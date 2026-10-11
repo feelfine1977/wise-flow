@@ -8,7 +8,7 @@ import { createElement, type ReactNode } from "react";
 import { type MarkPaint, type MarkSvgOptions, type OverlayMark, type SvgElement, MAP_TARGET, arrowMarker, createPositions, hatchSvg, hatchTokens, hexToRgb, markArrowhead, markSvg, overlayArrow, overlayGeometry, overlayMarks } from "../core/index.js";
 import type { Overlay } from "../core/index.js";
 
-const TOKENS: Record<Exclude<MarkPaint, "value" | "onValue">, string> = {
+const TOKENS: Record<Exclude<MarkPaint, "value" | "onValue" | `#${string}`>, string> = {
   ink: "var(--wf-ink)",
   inkMuted: "var(--wf-ink-muted)",
   paper: "var(--wf-paper)",
@@ -20,10 +20,12 @@ const TOKENS: Record<Exclude<MarkPaint, "value" | "onValue">, string> = {
   outOfScope: "var(--wf-out-of-scope)",
 };
 
-/** A mark's paint as CSS: a theme token as its variable, the mark's value colour (or the text colour on it) as it is. */
+/** A mark's paint as CSS: a theme token as its variable, the mark's value colour (or the text colour on it) and a literal as they are. */
 export function paintCss(mark: { color: string; onColor?: string }, paint: MarkPaint): string {
-  return paint === "value" ? mark.color : paint === "onValue" ? (mark.onColor ?? mark.color) : TOKENS[paint];
+  return paint === "value" ? mark.color : paint === "onValue" ? (mark.onColor ?? mark.color) : token(paint);
 }
+
+const token = (paint: Exclude<MarkPaint, "value" | "onValue">) => (paint[0] === "#" ? paint : TOKENS[paint as keyof typeof TOKENS]);
 
 /** Ids of the arrowhead marker and the hatching pattern a drawing refers to. */
 export interface MarkIds {
@@ -37,7 +39,7 @@ export const MARK_IDS: MarkIds = { arrow: "wf-mark-arrow", pattern: "wf-mark-out
 /** Paints as CSS: tokens as variables; a hovered mark shows its value in the focus colour. */
 export function domMarkOptions(ids: MarkIds, hovered = false): MarkSvgOptions {
   return {
-    paint: (m, paint) => (paint === "value" ? (hovered ? "var(--wf-focus)" : m.color) : paint === "onValue" ? (hovered ? TOKENS.paper : m.onColor) : TOKENS[paint]),
+    paint: (m, paint) => (paint === "value" ? (hovered ? "var(--wf-focus)" : m.color) : paint === "onValue" ? (hovered ? TOKENS.paper : m.onColor) : token(paint)),
     arrowId: ids.arrow,
     patternId: ids.pattern,
   };
@@ -105,8 +107,8 @@ export function mapMark(m: OverlayMark, ids: MarkIds, hovered = false): SvgEleme
 export function coverBackground(marks: OverlayMark[]): string | undefined {
   const layers = marks.flatMap((m) => {
     if (!m.fill) return [];
-    const opacity = m.fill.opacity ?? 1;
-    const color = m.fill.paint === "value" ? `rgba(${hexToRgb(m.color).join(", ")}, ${opacity})` : `color-mix(in srgb, ${m.fill.paint === "onValue" ? m.onColor : TOKENS[m.fill.paint]} ${opacity * 100}%, transparent)`;
+    const opacity = (m.fill.opacity ?? 1) * (m.opacity ?? 1);
+    const color = m.fill.paint === "value" ? `rgba(${hexToRgb(m.color).join(", ")}, ${opacity})` : `color-mix(in srgb, ${paintCss(m, m.fill.paint)} ${opacity * 100}%, transparent)`;
     const gap = hatchTokens.domPeriod - hatchTokens.width;
     return [m.fill.pattern ? `repeating-linear-gradient(135deg, transparent 0 ${gap}px, ${color} ${gap}px ${hatchTokens.domPeriod}px)` : `linear-gradient(${color}, ${color})`];
   });

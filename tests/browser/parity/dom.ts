@@ -3,7 +3,7 @@
  * and geometry, in flow coordinates. `readDomInPage` runs in the page and
  * returns plain values; `readDom` turns them into a `Drawing`.
  */
-import { type Drawing, type DrawnText, bbox, cue, dash, num, paint, pillOf, shadow } from "./drawn";
+import { type Drawing, type DrawnText, bbox, cue, dash, faded, num, paint, pillOf, shadow } from "./drawn";
 
 type Box = { x: number; y: number; width: number; height: number };
 
@@ -26,6 +26,8 @@ export interface DomElement {
   /** The pill a mark's label is written in. */
   pill?: { box: Box; fill: string; stroke: string; width: number; radius: number };
   texts: { text: string; size: number; weight: number; color: string }[];
+  /** The opacity the element is drawn at: its own and its ancestors' in the viewport. */
+  alpha?: number;
 }
 
 /**
@@ -74,6 +76,11 @@ export function readDomInPage(tints: { id: string; target: string }[]): DomEleme
     return cs.visibility === "visible" && cs.display !== "none" && el.getClientRects().length > 0;
   };
   const px = (v: string, of = 0) => (v.endsWith("%") ? (parseFloat(v) / 100) * of : parseFloat(v) || 0);
+  const alphaOf = (el: Element) => {
+    let a = 1;
+    for (let e: Element | null = el; e && e !== viewport; e = e.parentElement) a *= Number(getComputedStyle(e).opacity);
+    return a;
+  };
   // Texts of the element's own text nodes, in document order, outside the parts named by `skip`.
   const textsOf = (root: Element, skip: string) => {
     const out: DomElement["texts"] = [];
@@ -131,7 +138,8 @@ export function readDomInPage(tints: { id: string; target: string }[]): DomEleme
     return {
       key,
       box: rectBox(el),
-      fill: { color: cs.backgroundColor, opacity: Number(cs.opacity) },
+      fill: { color: cs.backgroundColor, opacity: 1 },
+      alpha: alphaOf(el),
       outline: border(el),
       radius: px(cs.borderTopLeftRadius, el.offsetWidth),
       ...shadows(el),
@@ -144,7 +152,7 @@ export function readDomInPage(tints: { id: string; target: string }[]): DomEleme
     const node = htmlElement(`node:${wrapper.dataset.id}`, el, ".wf-marks, .react-flow__handle, .wf-node__band, .wf-node__outline, .wf-node__cue");
     const band = el.querySelector<HTMLElement>(":scope > .wf-node__band");
     const shape = el.querySelector<SVGGraphicsElement>(":scope > .wf-node__outline > *");
-    const fill = shape ? { color: getComputedStyle(shape).fill, opacity: Number(getComputedStyle(shape).fillOpacity) * node.fill.opacity } : node.fill;
+    const fill = shape ? { color: getComputedStyle(shape).fill, opacity: Number(getComputedStyle(shape).fillOpacity) } : node.fill;
     const part = (selector: string) => {
       const p = el.querySelector<HTMLElement>(`:scope > ${selector}`);
       return p ? { color: getComputedStyle(p).backgroundColor, width: rectBox(p).width } : undefined;
@@ -164,7 +172,8 @@ export function readDomInPage(tints: { id: string; target: string }[]): DomEleme
       key: `edge:${g.dataset.id}`,
       box: boxOf(svgPoints(path, pathPoints(path.getAttribute("d") ?? ""))),
       fill: { color: cs.fill === "none" ? "none" : cs.fill, opacity: 1 },
-      outline: { color: cs.stroke, width: parseFloat(cs.strokeWidth), style: cs.strokeDasharray, opacity: Number(cs.opacity) * Number(cs.strokeOpacity), sides: "" },
+      alpha: alphaOf(path),
+      outline: { color: cs.stroke, width: parseFloat(cs.strokeWidth), style: cs.strokeDasharray, opacity: Number(cs.strokeOpacity), sides: "" },
       join: cs.strokeLinejoin,
       arrow: !!path.getAttribute("marker-end"),
       texts: textsOf(g, "title"),
@@ -192,6 +201,7 @@ export function readDomInPage(tints: { id: string; target: string }[]): DomEleme
       pill: pill && ps ? { box: boxOf(svgPoints(pill, [[p("x"), p("y")], [p("x") + p("width"), p("y") + p("height")]])), fill: ps.fill, stroke: ps.stroke, width: parseFloat(ps.strokeWidth), radius: p("rx") } : undefined,
       box: boxOf(svgPoints(shape, points)),
       fill: { color: cs.fill, opacity: Number(cs.fillOpacity) },
+      alpha: alphaOf(shape),
       outline: cs.stroke === "none" ? undefined : { color: cs.stroke, width: parseFloat(cs.strokeWidth), style: cs.strokeDasharray, opacity: Number(cs.strokeOpacity), sides: "" },
       radius: shape.tagName === "rect" ? px(cs.getPropertyValue("rx")) || a("rx") : undefined,
       texts,
@@ -239,7 +249,7 @@ export function readDom(elements: DomElement[], kinds: Map<string, string>): Dra
       props.rule = e.rule ? `${paint(e.rule.color)} ${num(e.rule.width)}` : "none";
     }
     const texts: DrawnText[] = e.texts.map((t) => ({ text: t.text, size: t.size, weight: t.weight, paint: paint(t.color) }));
-    out.set(e.key, { box: e.box && bbox([[e.box.x, e.box.y], [e.box.x + e.box.width, e.box.y + e.box.height]]), props, texts });
+    out.set(e.key, faded({ box: e.box && bbox([[e.box.x, e.box.y], [e.box.x + e.box.width, e.box.y + e.box.height]]), props, texts }, e.alpha ?? 1));
   }
   return out;
 }

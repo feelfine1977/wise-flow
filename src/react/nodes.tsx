@@ -1,6 +1,6 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { memo, useContext } from "react";
-import { type ElementText, type GroupMark, type LayoutDirection, type MarkPaint, type NodeMark, type Overlay, type SvgElement, defaultNodeSize, groupMark, hasTag, nodeMark } from "../core/index.js";
+import { type ElementText, type GroupMark, type LayoutDirection, type MarkPaint, type NodeMark, type Overlay, type StateStyle, type SvgElement, defaultNodeSize, groupMark, hasTag, nodeMark } from "../core/index.js";
 import { ElementMarks, MARK_IDS, MarkFigure, mapMark, marksAtOrigin, paintCss, svgReact } from "./marks.js";
 import { part } from "./parts.js";
 import { PatternSwatch, PatternTheme } from "./patterns.js";
@@ -51,10 +51,17 @@ const px = (n: number) => `${n}px`;
 /** A diamond or a dashed outline, which a border cannot draw, is an SVG shape (`Outline`). */
 const drawnOutline = (m: NodeMark) => m.shape === "diamond" || !!m.stroke.dash;
 
-/** The node's fill, outline, its width and corner radius from its mark, as custom properties for the stylesheet. */
-function look(m: NodeMark): Record<string, string> {
+/**
+ * The node's fill, outline, its width, corner radius and opacity from its
+ * mark, as custom properties for the stylesheet; and the outline the rules of
+ * its interactive states set, which the stylesheet draws them in instead.
+ */
+function look(m: NodeMark, state?: StateStyle): Record<string, string> {
   const drawn = drawnOutline(m);
-  return { "--wf-node-color": m.color, "--wf-node-fill": drawn ? "transparent" : paintCss(m, m.fill), "--wf-node-outline": paintCss(m, m.stroke.paint), "--wf-node-stroke": px(drawn ? 0 : m.stroke.width), "--wf-node-radius": px(m.radius) };
+  const out: Record<string, string> = { "--wf-node-color": m.color, "--wf-node-fill": drawn ? "transparent" : paintCss(m, m.fill), "--wf-node-outline": paintCss(m, m.stroke.paint), "--wf-node-stroke": px(drawn ? 0 : m.stroke.width), "--wf-node-radius": px(m.radius) };
+  if (m.opacity !== undefined) out["--wf-node-opacity"] = String(m.opacity);
+  if (state?.stroke) out["--wf-state-outline"] = paintCss(m, state.stroke);
+  return out;
 }
 
 /** A text's size, weight and paint from its mark, as custom properties for the stylesheet. */
@@ -90,7 +97,8 @@ function attrs(mark: NodeMark, data: ActivityNodeData, selected: boolean | undef
   if (selected) c.push("wf-node--selected");
   if (data.focused) c.push("wf-node--focused");
   if (data.hovered) c.push("wf-node--hovered");
-  if (data.dimmed) c.push("wf-node--dimmed");
+  // An opacity of the dimmed state's rules replaces the dimmed look.
+  if (data.dimmed && data.state?.opacity === undefined) c.push("wf-node--dimmed");
   if (data.hatched) c.push("wf-node--hatched");
   if (data.tint) c.push("wf-node--tinted");
   if (mark.reconnected) c.push("wf-node--reconnected");
@@ -101,7 +109,7 @@ function attrs(mark: NodeMark, data: ActivityNodeData, selected: boolean | undef
 
 /** The node's look and the fills of the marks that cover it (`tint`). */
 function covered(mark: NodeMark, data: ActivityNodeData): Record<string, string> {
-  return data.tint ? { ...look(mark), "--wf-tint": data.tint } : look(mark);
+  return data.tint ? { ...look(mark, data.state), "--wf-tint": data.tint } : look(mark, data.state);
 }
 
 const lodClass = (t: ElementText) => (t.lod === "labels" ? " wf-lod-labels" : t.lod === "edgeLabels" ? " wf-lod-edge-labels" : "");
@@ -231,10 +239,12 @@ function groupMarkOf(data: GroupNodeData, width = 0, height = 0): GroupMark {
   return data.mark ?? groupMark(data.group, { x: 0, y: 0, width, height }, { color: data.color, pattern: "solid", band: data.band });
 }
 
-/** The group's tint, radius, a band's outline on its sides and its rule from its mark, as custom properties for the stylesheet. */
-function groupLook(m: GroupMark, tint: string | undefined): Record<string, string | undefined> {
+/** The group's fill, tint, radius, opacity, a band's outline on its sides and its rule from its mark, as custom properties for the stylesheet. */
+function groupLook(m: GroupMark, tint: string | undefined, state?: StateStyle): Record<string, string | undefined> {
   const { stroke, rule } = m;
-  const out: Record<string, string | undefined> = { "--wf-group-color": m.color, "--wf-group-fill": String(m.fill.opacity ?? 1), "--wf-group-radius": px(m.radius), "--wf-tint": tint };
+  const out: Record<string, string | undefined> = { "--wf-group-color": paintCss(m, m.fill.paint), "--wf-group-fill": String(m.fill.opacity ?? 1), "--wf-group-radius": px(m.radius), "--wf-tint": tint };
+  if (m.opacity !== undefined) out["--wf-group-opacity"] = String(m.opacity);
+  if (state?.stroke) out["--wf-state-outline"] = paintCss(m, state.stroke);
   if (stroke.sides) {
     out["--wf-group-outline"] = paintCss(m, stroke.paint);
     for (const side of ["top", "right", "bottom", "left"] as const) out[`--wf-group-${side}`] = px(stroke.sides.includes(side) ? stroke.width : 0);
@@ -251,7 +261,7 @@ const Group = memo(function Group({ id, data, selected, width, height }: NodePro
     <div
       id={`wf-group-${id}`}
       className={`wf-group${data.tint ? " wf-group--tinted" : ""}${selected ? " wf-group--selected" : ""}${band ? ` wf-group--band wf-group--band-${band.axis}${band.index % 2 ? " wf-group--band-odd" : ""}` : ""}`}
-      style={groupLook(mark, data.tint)}
+      style={groupLook(mark, data.tint, data.state)}
       title={data.description}
       data-kind="group"
       data-band={band ? band.axis : undefined}

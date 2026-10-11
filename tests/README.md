@@ -36,7 +36,14 @@ which the other three renderers draw. The test checks that the scheme and
 the theme reached what it compares, and for the host's variables that the theme
 holds them as literals, that the SVG export writes them (and no `var(`, `oklch(`
 or `color-mix(`) and that the DOM map paints its focus and writes its labels in
-them. For every node, edge, group and mark it compares the box,
+them. One story draws the element kinds in a theme with rules (a gateway's fill
+and outline by kind, an activity tagged `manual` outlined 2 wide with corners of
+8, its name at 600 in the rule's colour and its cue only as the foot by tag, a
+re-added path's colour at half its opacity and a re-added activity's fill at
+0.6 by state), and the test checks that all four renderers drew them. Each
+reader draws an element at its opacity (its group's in the SVG export, the
+computed opacity of it and its ancestors in the DOM map, the global alpha on
+the Canvas) into every paint of it. For every node, edge, group and mark it compares the box,
 outline paint and width, dash, fill, radius, shadow, colour band, a card's
 frequency cue (the paint and the length, to the pixel, of its stripe and its
 foot), band rule and each text's string, size, weight and paint with the SVG
@@ -58,7 +65,13 @@ estimate and in German with another measure (`fixtures/text-measures.ts`),
 which the test gives the exports too; it checks that the measure reached what
 it compares (more name lines than the estimate).
 
-A second test opens the interactive map and the live Canvas map side by side
+A second test opens the interactive map and the live Canvas map side by side in
+a theme with rules of the interactive states and one activity selected, records
+the Canvas context's calls in the page, and checks that both draw the selected
+activity's outline, fill and name in the rules' colours and every dimmed path at
+the rule's opacity.
+
+A third test opens the interactive map and the live Canvas map side by side
 under the same four variables, with no theme and one activity selected, records
 the Canvas context's calls in the page, and checks that the Canvas map fills the
 activity, outlines it in the focus colour and writes its name in the ink and

@@ -485,6 +485,20 @@ export const hatchTokens = { size: 8, width: 1, domPeriod: 7 } as const;
 export const minimumTokens = { text: 8.25, stroke: 0.75 } as const;
 
 /**
+ * What a theme's rules may set, on the scales: a stroke weight of 1 or 2, a
+ * radius of 4, 8 or full (half the shorter side of the box), an opacity from
+ * 0.2 to 1 (a value outside is clamped), a text size up to 15 (from the
+ * theme's minimum) and a weight of 400, 500 or 600.
+ */
+export const ruleTokens = {
+  strokeWeight: { thin: 1, strong: 2 },
+  radius: { s: 4, m: 8 },
+  opacity: { min: 0.2, max: 1 },
+  textMax: 15,
+  weights: [400, 500, 600],
+} as const;
+
+/**
  * What the print theme changes in the table: white paper and surfaces, no
  * tints, a pattern twin on every categorical colour (five colours, five
  * patterns, none solid, each colour with the twin it had among seven) drawn opaque, ramps whose palest stop has 3 : 1 on the
@@ -527,6 +541,7 @@ export const designTokens = {
   pattern: patternTokens,
   hatch: hatchTokens,
   minimum: minimumTokens,
+  rule: ruleTokens,
   print: printTokens,
 } as const;
 
