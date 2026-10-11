@@ -48,7 +48,8 @@ an empty process, nested sub-processes, a large file, truncation, garbage,
 wrong element types, moved elements, the `wise` extension, entities).
 `core/token-game.ts` plays a model's tokens by the BPMN rules (at most one
 token per flow is explored) and reports stuck, unsafe and trapped states and
-nodes that never take a token. Generators are hand-written and seeded; a
+nodes that never take a token; `isWrong` judges a game that stopped at its
+limit only by what it saw. Generators are hand-written and seeded; a
 test adds no dependency.
 
 The shape of a searching test:
