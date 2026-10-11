@@ -250,6 +250,14 @@ describe("the culled Canvas draw against a naive reference", () => {
         const budget = rng.chance(0.25) ? rng.int(0, scene.edges.length) : undefined;
         const label = caseLabel(seed, `${detail}; ${viewDetail}${budget === undefined ? "" : `; budget ${budget}`}`);
         const oracle = record(scene, view, state, { cull: false });
+        // The extent is not too tight anywhere: what an element inks, in flow units, lies inside the extent the index holds it for.
+        for (const v of drawn(oracle.visits)) {
+          const ink = v.ink!;
+          const inked = { minX: (ink.x - view.x) / view.zoom, minY: (ink.y - view.y) / view.zoom, maxX: (ink.x + ink.width - view.x) / view.zoom, maxY: (ink.y + ink.height - view.y) / view.zoom };
+          const e = extentsOf(scene, v).reduce(join);
+          const eps = 1e-9 * Math.max(1, Math.abs(inked.minX), Math.abs(inked.minY), Math.abs(inked.maxX), Math.abs(inked.maxY));
+          expect(inked.minX + eps >= e.minX && inked.minY + eps >= e.minY && inked.maxX - eps <= e.maxX && inked.maxY - eps <= e.maxY, `${label}: ${v.list} ${v.id} inks ${JSON.stringify(inked)} beyond its extent ${JSON.stringify(e)}`).toBe(true);
+        }
         const culled = record(scene, view, state, { cull: true, edgeBudget: budget });
         const want = expected(scene, view, state, oracle.visits, budget);
         const got = drawn(culled.visits);
