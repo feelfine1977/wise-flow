@@ -89,6 +89,20 @@ describe("edge budget", () => {
     // No edge has cases: every weight ties and the ids decide.
     expect(ids(byCases, budgetEdges(byCases, 2)?.drawn)).toEqual(["e0", "e1"]);
   });
+
+  it("reads protection from the scene's marks and the weight from its style, also for edge marks it has seen", () => {
+    // The scene's order is known already; a scene object that shares its edge marks but not its marks
+    // or style is chosen from by its own: the arc of `marked` on e4, then the order by cases.
+    const arc: Overlay = { kind: "arc", target: "b->d", payload: { source: "b", target: "d", value: 0.2 } };
+    const marked = sceneOf(["a", "b", "c", "d"], scene.graph.edges, [arc]);
+    expect(ids(scene, budgetEdges(scene, 0)?.drawn)).toEqual([]);
+    expect(ids(scene, budgetEdges({ ...scene, marks: marked.marks }, 0)?.drawn)).toEqual(["e4"]);
+    expect(ids(marked, budgetEdges({ ...marked, marks: [] }, 0)?.drawn)).toEqual([]);
+    expect(ids(scene, budgetEdges({ ...scene, style: { edgeWidth: { metric: "cases" } } }, 2)?.drawn)).toEqual(["e0", "e1"]);
+    // And the scene itself is still chosen from by its own marks and style.
+    expect(ids(scene, budgetEdges(scene, 2)?.drawn)).toEqual(["e1", "e5"]);
+    expect(ids(marked, budgetEdges(marked, 0)?.drawn)).toEqual(["e4"]);
+  });
 });
 
 /** A seeded graph of n activities and 3n edges with counts in 1..20 (many ties), in shuffled id order. */

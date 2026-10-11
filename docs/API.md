@@ -1455,7 +1455,9 @@ edge protected); otherwise the positions in `scene.edgeMarks` of the edges
 drawn, how many that is (`shown`) and how many were in view (`total`). The
 edges in view are `inView` (positions in `scene.edgeMarks`), or every edge
 of the scene without it. The order by weight is computed once per scene and
-kept with its `edgeMarks` while they live.
+kept with its `edgeMarks` while they live, together with the metric and the
+overlay marks it was read from: a scene object that shares the edge marks but
+has other `marks` or another `style` is ordered and protected by its own.
 
 `<ProcessMap edgeBudget/>` applies it in both renderers (default
 `"adaptive"`, below). The React Flow map has every edge of the

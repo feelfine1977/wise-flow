@@ -34,21 +34,22 @@ export interface EdgeSelection {
   total: number;
 }
 
-// Per scene: each edge's rank by weight and id, and whether a mark is on it.
-const orders = new WeakMap<readonly EdgeMark[], { rank: Int32Array; marked: Uint8Array }>();
+// Per scene: each edge's rank by weight and id, and whether a mark is on it; kept with the edge marks for the
+// metric and the overlay marks they were read from.
+const orders = new WeakMap<readonly EdgeMark[], { name: string; overlays: FlowScene["marks"]; rank: Int32Array; marked: Uint8Array }>();
 
 function orderOf(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style">) {
   const marks = scene.edgeMarks;
-  let known = orders.get(marks);
-  if (known) return known;
   const name = scene.style.edgeWidth?.metric ?? "count";
+  let known = orders.get(marks);
+  if (known && known.name === name && known.overlays === scene.marks) return known;
   const weight = marks.map((m) => metric(m.edge, name, -Infinity));
   const sorted = marks.map((_, i) => i).sort((a, b) => weight[b] - weight[a] || (marks[a].id < marks[b].id ? -1 : 1));
   const rank = new Int32Array(marks.length);
   sorted.forEach((i, at) => (rank[i] = at));
   const arcs = new Set(scene.marks.filter((m) => m.overlay.kind === "arc").map((m) => `${m.overlay.payload?.source}\n${m.overlay.payload?.target}`));
   const named = new Set(scene.marks.map((m) => m.edgeId));
-  known = { rank, marked: Uint8Array.from(marks, (m) => +(named.has(m.id) || arcs.has(`${m.edge.source}\n${m.edge.target}`))) };
+  known = { name, overlays: scene.marks, rank, marked: Uint8Array.from(marks, (m) => +(named.has(m.id) || arcs.has(`${m.edge.source}\n${m.edge.target}`))) };
   orders.set(marks, known);
   return known;
 }
