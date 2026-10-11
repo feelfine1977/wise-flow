@@ -175,7 +175,8 @@ describe("checkTheme", () => {
     };
     expect(checkTheme(bad)).toEqual([
       { kind: "color", subject: "dark.paper", value: "oklch(0.2 0 0)" },
-      { kind: "rampOrder", subject: "palette.neutral", value: "#eeeeee #999999 #dddddd" },
+      // Against the white paper the stops have 1.16, 2.85 and 1.39 : 1: the third stands out less than the second.
+      { kind: "rampOrder", scheme: "light", subject: "palette.neutral", value: "#eeeeee #999999 #dddddd" },
       { kind: "text", scheme: "light", subject: "inkMuted on paper", value: 2.81, minimum: 4.5 },
       { kind: "text", scheme: "light", subject: "inkMuted on surface", value: 2.81, minimum: 4.5 },
       { kind: "line", scheme: "light", subject: "lineStrong on paper", value: 1.54, minimum: 3 },

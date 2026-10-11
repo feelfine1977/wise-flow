@@ -27,7 +27,7 @@ describe("sceneLegend", () => {
     expect(legend.items).toEqual([width]);
     expect(legend.keys.map((k) => [k.kind, k.glyph, k.title])).toEqual([
       ["arc", "⌒", "legend.arc"],
-      ["reverse", "⌒┄", "legend.reverse"],
+      ["reverse", "⇐", "legend.reverse"],
       ["outOfScope", "▨", "legend.outOfScope"],
       ["reconnected", "┄", "legend.reconnected"],
     ]);
@@ -36,8 +36,8 @@ describe("sceneLegend", () => {
     expect(legend.title).toBe("Legend");
     expect(legend.rows).toEqual([
       { kind: "width", title: "Path width", samples: [{ width: 1, text: "1" }, { width: 8, text: "9" }] },
-      { kind: "key", key: "arc", glyph: "⌒", text: "Lag or precedence arc; width = coverage, colour = shortfall" },
-      { kind: "key", key: "reverse", glyph: "⌒┄", text: "Reverse-order arc (precedence violated)" },
+      { kind: "key", key: "arc", glyph: "⌒", text: "Lag or precedence arc; label = share short of the cases evaluated" },
+      { kind: "key", key: "reverse", glyph: "⇐", text: "Reverse-order arc (precedence violated), below the flow" },
       { kind: "key", key: "outOfScope", glyph: "▨", text: "Outside scope" },
       { kind: "key", key: "reconnected", glyph: "┄", text: "Re-added path" },
       { kind: "chip", chip, label: "⊂ Scope", text: "All cases" },

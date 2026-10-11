@@ -34,7 +34,9 @@ describe("toPNG reads the scene", () => {
     const nodes = new Set(vendor.nodes.map((n) => n.id));
     const badges = constraints.filter((o) => o.kind === "badge" && nodes.has(o.target));
     expect(badges.length).toBeGreaterThan(0);
-    const expected = badges.map((o) => String(o.payload?.glyph)).sort();
+    // Each badge writes its glyph and its share in its pill: the vendor's three constraints fall short for 6, 7 and 20 % of its cases.
+    const expected = ["∅ · 6 %", "≤1 · 7 %", "≥1 · 20 %"];
+    expect(badges.map((o) => String(o.payload?.glyph)).sort()).toEqual(["∅", "≤1", "≥1"]);
     const fromGraph = textRecorder();
     toPNGCanvas({ graph: withOverlays, positions }, { legend: false, scale: 1, createCanvas: fromGraph.createCanvas });
     expect(badgeTexts(fromGraph.texts).sort()).toEqual(expected);

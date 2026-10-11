@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { globalScene } from "../../fixtures/bpic2019";
-import { PATTERNS, buildScales, contrastRatio, contrastText, defaultStyle, diff, diffStyle, hashKey, interpolatePalette, lodAt, lodForSize, palettes, patternDefs } from "../../src/index";
+import { buildScales, contrastRatio, contrastText, defaultStyle, defaultTheme, diff, diffStyle, hashKey, interpolatePalette, lodAt, lodForSize, palettes, patternDefs, shortfallStyle } from "../../src/index";
 
 describe("buildScales", () => {
   it("is deterministic and independent of element order", () => {
@@ -26,16 +26,23 @@ describe("buildScales", () => {
     expect(Math.max(...widths)).toBeLessThanOrEqual(8);
     const strongest = globalScene.edges.reduce((m, e) => ((e.metrics?.count ?? 0) > (m.metrics?.count ?? 0) ? e : m));
     expect(s.edgeWidth(strongest)).toBe(8);
-    expect(s.edgeColor({ id: "x", kind: "follows", source: "a", target: "b", metrics: { violationShare: 0 } })).toBe(palettes.sequential[0]);
-    expect(s.edgeColor({ id: "x", kind: "follows", source: "a", target: "b", metrics: { violationShare: 1 } })).toBe(palettes.sequential[palettes.sequential.length - 1]);
+    // Colour by the count too, on the neutral ramp: the weakest path at its light end, the strongest at its dark end.
+    const weakest = globalScene.edges.reduce((m, e) => ((e.metrics?.count ?? Infinity) < (m.metrics?.count ?? Infinity) ? e : m));
+    expect(s.edgeColor(weakest)).toBe("#8c8c8c");
+    expect(s.edgeColor(strongest)).toBe("#141414");
     expect(s.edgeColor({ id: "x", kind: "follows", source: "a", target: "b" })).toBe("#8c8c8c");
+    // The shortfall style colours by the shortfall share instead.
+    const short = buildScales(globalScene, shortfallStyle);
+    expect(short.edgeColor({ id: "x", kind: "follows", source: "a", target: "b", metrics: { violationShare: 0 } })).toBe(palettes.sequential[0]);
+    expect(short.edgeColor({ id: "x", kind: "follows", source: "a", target: "b", metrics: { violationShare: 1 } })).toBe(palettes.sequential[palettes.sequential.length - 1]);
+    expect(short.edgeWidth(strongest)).toBe(8);
   });
 
   it("assigns categorical colours by hashed key with pattern twins", () => {
     const s = buildScales(globalScene, defaultStyle);
     const order = s.categorical("order");
     expect(s.categorical("order")).toEqual(order);
-    expect(PATTERNS[order.index]).toBe(order.pattern);
+    expect(defaultTheme.patterns[order.index]).toBe(order.pattern);
     expect(palettes.categorical[order.index]).toBe(order.color);
     expect(hashKey("order")).toBe(hashKey("order"));
     expect(hashKey("order")).not.toBe(hashKey("Order"));

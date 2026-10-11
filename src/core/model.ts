@@ -52,6 +52,8 @@ export interface OverlayPayload {
   value?: number;
   /** Share of cases where the constraint could be evaluated. */
   coverage?: number;
+  /** Cases the constraint was evaluated on: the base of `value`, which an arc's label writes after it ("late 35 % of 820"). */
+  evaluated?: number;
   /** Glyph shown in badges: "≥1", "≤1", "∅", "⇒". */
   glyph?: string;
   /** Text shown next to the glyph or on hover, already formatted. */

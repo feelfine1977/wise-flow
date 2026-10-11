@@ -279,7 +279,8 @@ the layout rejects with `LayoutUnavailableError` instead of freezing the page.
 
 ```ts
 export interface StyleSpec { edgeWidth?: ChannelSpec; edgeColor?: ColorSpec; nodeColor?: ColorSpec; lod?: Partial<LodRules> }
-export const defaultStyle: StyleSpec;   // width ← count (sqrt, 1–8 px), colour ← violationShare, nodes by group
+export const defaultStyle: StyleSpec;   // width and colour ← count (sqrt; 1–8 px, the neutral ramp), nodes by group
+export const shortfallStyle: StyleSpec; // width ← count, colour ← violationShare on the shortfall palette (the default up to 0.3)
 export const diffStyle: StyleSpec;      // colour ← delta_violationShare on the diverging palette
 export function buildScales(g: FlowGraph, spec?: StyleSpec, theme?: Theme): Scales;   // in the theme's palettes, default `defaultTheme`
 export interface Scales { edgeWidth(e): number; edgeColor(e): string; nodeColor(n): string; nodePattern(n): PatternId;
@@ -288,7 +289,7 @@ export type LegendItem =   // `title` is a string key for `t` (it was typed `str
   | { kind: "width"; title: StringKey; metric: string; domain: [number, number]; range: [number, number] }
   | { kind: "sequential" | "diverging"; title: StringKey; metric: string; domain: number[]; stops: readonly string[] }
   | { kind: "categorical"; title: StringKey; entries: CategoricalEntry[] };
-export const palettes: { sequential; sequentialBlue; diverging; categorical };   // colour-blind safe
+export const palettes: { neutral; sequential; sequentialBlue; diverging; categorical };   // colour-blind safe
 export function themePalette(theme: Theme, name: ColorSpec["palette"]): readonly string[];   // "sequential" is the theme's shortfall, "sequentialBlue" its performance
 export function contrastText(background: string): string;  // ≥ 4.5 : 1 on every palette colour
 export interface LodRules { labels; edgeLabels; badges; arcs; chips; hatch; selfLoops }  // minimum zoom per element
@@ -303,15 +304,46 @@ Categorical colours are stable by hashed key and come with a pattern twin
 `performance`, `diverging` or `categorical`; `sequential` and `sequentialBlue`
 keep working and are the theme's `shortfall` and `performance`. Data colours
 are read from the theme the scales are built in, so a theme with other
-palettes colours paths, activities, groups and overlay values by them.
+palettes colours paths, activities and groups by them.
+
+**Paths by cases.** In the default style a path's colour and its width both
+mean its count: the width on a square-root scale from 1 to 8, the colour on
+the same square-root scale along the theme's `neutral` ramp (`ColorSpec.scale:
+"sqrt"`; `"linear"`, the default, runs evenly over the domain). The ramp is a
+grey that gets darker with more cases in the light scheme (`#8c8c8c` to
+`#141414`) and brighter with more cases in the dark scheme (`#6e737d` to
+`#f2f3f5`, the theme's `darkPalette.neutral`); its lightest stop has at least
+3 : 1 against the paper in both. A path without a count takes the theme's
+`neutral` colour. Constraint edges are drawn in the theme's `accent`. Up to
+0.3 the default style coloured paths by their expectation shortfall share on
+the orange `shortfall` ramp; that colouring is `shortfallStyle`:
+
+```tsx
+<ProcessMap graph={graph} style={shortfallStyle} />
+toSVG({ graph, positions, style: shortfallStyle });
+```
+
+or, keeping the rest of a style, `{ ...style, edgeColor: { metric:
+"violationShare", palette: "shortfall", domain: [0, 1] } }`.
+
+**Deviations are the one hue.** Badges, chips, constraint arcs, their labels,
+tints and constraint self-loops are drawn in the theme's `accent` (orange,
+`#b84a00` in the light scheme, `#ff8c42` in the dark), whatever their value;
+the categorical palette leaves out Okabe–Ito's orange (`#E69F00`) and
+vermilion (`#D55E00`), so no stage reads as a deviation. The six colours left
+keep the pattern twins they had (`solid`, `dots`, `crosshatch`, `horizontal`,
+`diagonal-reverse`, `grid`, the theme's `patterns`), so no two share one; the
+print theme's five keep theirs too (`diagonal`, `crosshatch`, `horizontal`,
+`vertical`, `grid`). Hashed keys fall on other colours than they did with
+eight.
 
 ## Design tokens
 
 ```ts
 export const colorTokens: { paper; surface; ink; inkMuted; inkStrong; line; lineStrong; focus; onFocus; selection; hover; neutral; outOfScope;
-  severity; mechanism; reservoir; pass; warn; fail };              // the light scheme
+  accent; severity; mechanism; reservoir; pass; warn; fail };      // the light scheme; accent: deviations
 export const darkColorTokens: Partial<Record<ColorToken, string>>; // what the dark scheme changes
-export const paletteTokens: { sequential; sequentialBlue; diverging; categorical };  // `palettes` is this object
+export const paletteTokens: { neutral; sequential; sequentialBlue; diverging; categorical };  // `palettes` is this object
 export const fontTokens: { family; mono };                         // "Inter, 'Segoe UI', Helvetica, Arial, sans-serif"
 export const nodeSizeTokens: Record<NodeKind, { width; height }>;  // `DEFAULT_SIZES` is this object
 export const sizeTokens: { radius: 6; radiusLarge: 10; band: 8; shadow; shadowMenu };   // radius and band read the role tables below
@@ -324,9 +356,9 @@ export const textTokens: { nodeLabel; stageLabel; nodeCount; eventLabel; gateway
 export const radiusTokens: { node: 6; large: 10; band; swatch; control; tooltip; key; pill; circle: "50%"; filterChip; legendGradient;
   activityTooltip; comparisonBar; tint; hatch; chip; canvasSelection; timelineEvent; timelineViolation };
 export const strokeTokens: { node; stage; eventStart; eventEnd; gateway; note; focus; selection; canvasSelection; group;
-  canvasGroupSelected; band; halo; path; pathMin; pathMax; canvasPathHighlight; pathFocus; pathHit; arc; arcCoverage;
-  selfLoop; badge; chip; filterChip; legendGradient; tab; timelineSpan; timelineViolation; minimapNode };
-export const dashTokens: { reconnectedNode; reconnectedPath; note; constraint; group; reverseArc; timelineAnchor; bpmnOutOfScope };  // readonly number arrays
+  canvasGroupSelected; band; halo; path; pathMin; pathMax; canvasPathHighlight; pathFocus; pathHit; arc; arcCoverage; pill;
+  selfLoop; badge; chip; filterChip; legendGradient; tab; timelineSpan; timelineViolation; minimapNode };   // arcCoverage is read by nothing
+export const dashTokens: { reconnectedNode; reconnectedPath; note; constraint; group; reverseArc; timelineAnchor; bpmnOutOfScope };  // readonly number arrays; note, constraint, group and reverseArc are read by nothing
 export const opacityTokens: { dimmed; dimmedPath; disabled; tint; hatch; arc; groupFill; bandFill; bandOddFill; groupStroke; legendRule; timelineGrid };
 export const spaceTokens: { unit: 2; steps: readonly [1, 1.5, 2, 3, 4, 5, 6, 7, 8] };
 export const zTokens: { pathHovered; activityLabels; comparisonRowHeader; comparisonHeader; comparisonCorner; overlayPanel; bpmnTable;
@@ -342,8 +374,8 @@ export type PatternId; export const PATTERNS: PatternId[];          // also expo
 export const patternTokens: { size: 6; strokeWidth: 1; strokeOpacity: 0.6; dotRadius: 1; dotOpacity: 0.7 };
 export function patternTwin(p: PatternId): { size; lines: [x1, y1, x2, y2][]; dots: [cx, cy][] };
 export const hatchTokens: { size: 8; width: 2; domPeriod: 7 };
-export const designTokens: { color; darkColor; palette; font; nodeSize; size; textSize; text; radius; stroke; dash; opacity; space; z;
-  dimension; arrowhead; pattern; hatch };
+export const designTokens: { color; darkColor; palette; darkPalette; font; nodeSize; size; textSize; text; radius; stroke; dash; opacity; space; z;
+  dimension; arrowhead; pattern; hatch; minimum; print };   // darkPalette: the palettes the dark scheme changes (the path ramp)
 export const themedColors: readonly ColorToken[];                  // the colours with a CSS variable
 export function cssVariable(name: string): string;                 // "inkMuted" → "--wf-ink-muted"
 export function tokenVariables(): { light: Record<string, string>; dark: Record<string, string> };
@@ -401,7 +433,8 @@ export interface ThemePalettes { neutral: readonly string[]; shortfall: readonly
 export interface Theme {
   color: Readonly<Record<ColorToken, string>>;            // the colour roles in the light scheme
   dark: Readonly<Partial<Record<ColorToken, string>>>;    // the roles the dark scheme changes
-  palette: Readonly<ThemePalettes>;
+  palette: Readonly<ThemePalettes>;                       // neutral: paths by cases, few to many
+  darkPalette?: Readonly<Partial<ThemePalettes>>;         // the palettes the dark scheme changes; default: neutral dim to bright
   patterns: readonly PatternId[];                         // the pattern twin of each categorical colour, in the palette's order
   pattern: PatternLook;                                   // how pattern twins are drawn: as patternTokens (tile, widths, opacities)
   font: { family: string; mono: string };
@@ -458,10 +491,12 @@ preset's colour stays), so every paint of an export is a literal.
 colours (`#rgb`, `#rrggbb`), from which values are interpolated; a palette
 with another stop is left out (the preset's palette stays).
 
-**`default`** is today's look, in a light and a dark scheme. **`print`** is
+**`default`** is today's look, in a light and a dark scheme, each with its own
+path ramp (`palette.neutral`, and `darkPalette.neutral` for the dark scheme)
+and its own accent (`color.accent`, `dark.accent`). **`print`** is
 for figures: white paper and surfaces, no tints (`opacity.tint`, `groupFill`,
 `bandFill`, `bandOddFill` are 0), a pattern twin on every categorical colour
-(seven colours, seven patterns, none solid) drawn opaque (`pattern`), ramps
+(five colours, five patterns, none solid) drawn opaque (`pattern`), ramps
 whose palest stop has 3 : 1 on the paper (`palette.neutral` three greys,
 `shortfall` three oranges, `performance` three blues), no text or stroke in
 its tables under 7 pt and 0.75 pt at the layout's own size (`minimum`; the
@@ -479,11 +514,14 @@ the theme `useFlowTheme` resolves for its container.
 
 **`checkTheme(theme)`** returns what falls short, as data, in both schemes:
 text against its ground under 4.5 : 1 (`ink` and `inkMuted` on `paper` and on
-`surface`, `onFocus` on `focus`), a line against the paper under 3 : 1
-(`lineStrong`, `neutral`, `focus`; `line` draws hairlines and tracks whose
+`surface`, `onFocus` on `focus`, `accent` on `paper`, where deviations write
+their labels), a line against the paper under 3 : 1
+(`lineStrong`, `neutral`, `focus`, `accent`; `line` draws hairlines and tracks whose
 meaning a label or a neighbour carries too, and is not checked), the path
-ramp (`palette.neutral`) not monotonic in luminance or its low end under
-3 : 1 against the paper, a text size or stroke width of the tables under the
+ramp of each scheme (`palette.neutral`, in the dark scheme with `darkPalette`
+over it) not rising in contrast against the paper from stop to stop
+(`rampOrder`, with its scheme) or its low end under 3 : 1 against the paper,
+a text size or stroke width of the tables under the
 theme's `minimum` (in pt, one layout unit being 0.75 pt), and a colour that
 is not a literal. Both presets pass in both schemes; the default's `minimum`
 is the smallest it draws today (6 pt: the trace timeline's 8 px marks;
@@ -520,35 +558,46 @@ export function overlayMargin(o?: OverlayGeometryOptions): number;
 
 Presets: presence → badge (`≥m`, missing share); singularity → badge (`≤k`)
 and self-loop (repeat share); exclusion → badge (`∅`, occurrence share); lag →
-arc above the map (width = coverage, colour = late share, threshold in the
-text); precedence → arc with `⇒` plus a reverse arc (`⇐`) below the map for
-the reverse share; balance / metric → chip with a gauge on the group or the
+arc above the map labelled with the late share of the cases evaluated
+(`evaluated` in the payload; threshold in the text); precedence → arc with
+`⇒` plus a reverse arc (`⇐`) below the map for the reverse share; balance / metric → chip with a gauge on the group or the
 map, tint on the group; applicability → hatch on nodes whose in-scope share
 is below `outOfScopeMinShare` (default 1 %) and a scope chip. Constraints
 without evaluated cases read "not applicable in this scene".
 
 `overlayGeometry` returns shapes (boxes, arc and self-loop paths, label
-anchors, minimum zoom) that never extend beyond `overlayMargin()` around the
-positions' bounds.
+anchors and the boxes of the labels (`label`), minimum zoom) that never
+extend beyond `overlayMargin()` around the positions' bounds. A badge is a
+pill (`badgeSize`, default 18 tall) with its glyph and share in it ("≥1 ·
+22 %"), wholly above its activity, 2 clear of it; the badges of an activity
+run leftwards from its top-right corner, 4 apart, and start left of a
+self-loop it carries. The labels' boxes are measured in the language they
+are written in, `OverlayGeometryOptions.locale` (default `en`; `buildScene`
+passes the scene's locale).
 
 An arc keeps clear of the activities between its ends where it can. Its
 default course runs above the map from the tops of its ends (below from the
 bottoms for a reverse arc) at a height of 22 % of its span, at least 40,
 plus 14 for each earlier arc on the same pair, at most 140 (`arcHeight`). When
-that course, drawn at its stroke width, crosses the box of a node other than
-its ends, the arc takes the course that crosses the fewest: first on its own
+that course, with half its width and 4 of paper on either side, crosses the
+box of a node other than its ends, the arc takes the course that crosses the fewest: first on its own
 side, then on the other, each from the nearest height in steps of 14 (the
 further one first when two are equally near, up to 32 steps), within the
-margin. A tie keeps the earlier course, so an arc that crosses nothing is
-drawn as before. The dash and the glyph still tell a reverse arc from a
-forward one on either side. The arc's label sits on it, 8 above the curve
-(14 below for a course below the map), at the point nearest the middle (in
-steps of 1/32 of the curve) where its box (11 per character and 4 on either
-side, from 14 above its baseline to 4 below) covers no node, no earlier
-arc's label and no group's title; where none is free, at the point that
-covers the fewest. Before, every arc took its default course and its label
-sat at the middle. `buildScene` and the renderers reading it (SVG, PNG, the
-Canvas map, the React map and the BPMN view) all draw these courses.
+margin. A tie keeps the earlier course. Every arc is solid and one width
+(`stroke.arc`, 1.5); its coverage is not drawn. A reverse-order arc runs
+below the flow and its label starts with ⇐. The labels are placed after the
+badges and the chips: a self-loop's label right of its corner, or above the
+loop, or left of it, each a step higher where that is taken; an arc's label
+is a pill (the text 6 in from either end, 18 tall) centred on
+the arc at the point nearest the middle (in steps of 1/32 of the curve) where
+it covers no node, badge, chip, self-loop label, earlier arc label or group
+title; where none is free, at the point that covers the fewest. It states the
+share first and its base second: "late 35 % of 820", "order 14 % of 820",
+"⇐ 14 % of 820" (German "verspätet 35 % von 820", "Reihenfolge …"), the base
+being the payload's `evaluated`; an arc of another kind writes its glyph
+before them, and a `displayLabel` replaces them. `buildScene` and the
+renderers reading it (SVG, PNG, the Canvas map, the React map and the BPMN
+view) all draw these courses and labels.
 
 ## Hit index and export
 
@@ -801,8 +850,8 @@ a node's `--wf-node-fill`, `--wf-node-outline`, `--wf-node-stroke`,
 `--wf-group-top`, `-right`, `-bottom`, `-left` and `--wf-group-rule`, and each
 text's `--wf-text-size`, `--wf-text-weight` and `--wf-text-paint` from the
 mark, and the stylesheet keeps their layout and interaction. A gateway's
-diamond and a dashed outline are the mark's shape in `svg.wf-node__outline`
-(the node then has the class `wf-node--outlined`), a box group's dashed
+diamond and a dashed outline (a re-added node's) are the mark's shape in `svg.wf-node__outline`
+(the node then has the class `wf-node--outlined`), a box group's
 outline is `svg.wf-group__outline`. The role variables of node and group
 outlines, tints and texts (`--wf-stroke-node`, `--wf-stroke-stage`,
 `--wf-stroke-event-end`, `--wf-stroke-group`, `--wf-stroke-band`,
@@ -1544,7 +1593,7 @@ panel, not map text) keep their CSS ellipsis.
 ```ts
 export interface FlowSceneOptions { overlays?: Overlay[]; style?: StyleSpec; locale?: Locale; lanes?: LaneMode;
   moved?: Readonly<Record<string, XY>>; activityLabels?: ActivityLabelOptions; selfLoops?: boolean; lod?: Partial<LodRules>; lodBySize?: boolean;
-  overlayGeometry?: OverlayGeometryOptions; theme?: Theme; scheme?: ColorScheme;   // default defaultTheme, light; the marks take the scheme's neutral and mechanism colours
+  overlayGeometry?: OverlayGeometryOptions; theme?: Theme; scheme?: ColorScheme;   // default defaultTheme, light; the marks take the scheme's neutral, accent and palettes
   textMeasure?: TextMeasure }   // default estimateTextWidth; see "Text measure"
 export interface FlowScene { graph; positions; bands: LaneBand[]; activityLabels?; locale; style; theme: Theme; scheme: ColorScheme;
   colors: Readonly<Record<ColorToken, string>>; textMeasure: TextMeasure; scales: Scales;   // colors: every paint role in the scheme
@@ -1562,11 +1611,13 @@ export interface MarkText { text: string; x: number; y: number; size: number; we
 export interface MarkGauge { x: number; y: number; width: number; height: number; value: number; threshold: number } // shares 0–1
 export interface OverlayMark { id: string; kind: OverlayKind; overlay: Overlay; box: Box; layer: "below" | "between" | "above"; inMap: boolean;
   minZoom: number; color: string; onColor: string; title: string; radius: number; path?: string; fill?: MarkFill;
-  stroke?: MarkStroke; arrow?: { size: number; overhang: number }; texts: MarkText[]; gauge?: MarkGauge; edgeId?: string }
-export function overlayMarks(shapes: OverlayShape[], locale?: Locale, theme?: Theme, measure?: TextMeasure): OverlayMark[];
-export function overlayColor(o: Overlay, theme?: Theme): string;           // value on the theme's shortfall palette, its neutral without one
-export function tintColor(o: Overlay, theme?: Theme): string | undefined;  // the same colour at the theme's tint opacity (TINT_OPACITY in the default theme), as CSS rgba()
-export function arcWidth(o: Overlay, theme?: Theme): number;               // 2 + 8 × coverage (default 1), the theme's arc strokes
+  stroke?: MarkStroke; arrow?: { size: number; overhang: number }; texts: MarkText[]; gauge?: MarkGauge; edgeId?: string;
+  pill?: { box: Box; radius: number; fill: MarkFill; stroke: MarkStroke } }   // pill: the box an arc's label is written in
+export function overlayMarks(shapes: OverlayShape[], locale?: Locale, theme?: Theme, measure?: TextMeasure,
+  context?: { pathColor?: (edgeId: string) => string | undefined; radius?: (target: string) => number | undefined }): OverlayMark[];
+export function overlayColor(o: Overlay, theme?: Theme): string;           // the theme's accent, whatever the value
+export function tintColor(o: Overlay, theme?: Theme): string | undefined;  // the accent at the theme's tint opacity (TINT_OPACITY in the default theme), as CSS rgba(); none without a value
+export function arcWidth(o: Overlay, theme?: Theme): number;               // the theme's arc stroke (1.5), whatever the coverage
 export const TINT_OPACITY: number;                          // 0.18
 export const overlayArrow: { size: number; overhang: number }; // 12, tip 0.1 × size beyond the path (`arrowheadTokens.overlay`)
 export const chipLayout: { padding: 8; glyph: 12.4; gauge: 46; gaugeWidth: 40; gaugeHeight: 6; char: 6.2 };   // char: read by nothing
@@ -1595,7 +1646,7 @@ export function groupMark(g: FlowGroup, box: Box, o: { color: string; pattern: P
 export function nodeMarks(g: FlowGraph, p: Positions, scales: Scales, o?: { locale?; activityLabels?; theme?; measure? }): NodeMark[];
 export function edgeMarks(g: FlowGraph, p: Positions, scales: Scales, locale?: Locale, theme?: Theme): EdgeMark[];
 export function groupMarks(g: FlowGraph, p: Positions, bands: readonly LaneBand[], scales: Scales, theme?: Theme): GroupMark[];
-export function edgeColor(e: FlowEdge, scales: Scales, theme?: Theme): string;      // constraint edges in the theme's mechanism colour
+export function edgeColor(e: FlowEdge, scales: Scales, theme?: Theme): string;      // constraint edges in the theme's accent
 export function gatewayGlyph(n: FlowNode): string;                  // + (and), ○ (or), × otherwise
 export function nodeCount(n: FlowNode, locale?: Locale): string | undefined;  // cases; a stage's members before them
 export function edgePoints(p: Positions, e: FlowEdge): XY[] | undefined;      // the route, or straight between the boxes
@@ -1629,9 +1680,16 @@ new value of `layer`), the zoom from
 which the mark is drawn (`minZoom`; observed self-loops at every zoom) and
 whether it is drawn on the map at all (`inMap`: map-level chips are listed
 with the legend instead). Colours are roles: `value` is the mark's `color`
-(`overlayColor`), `onValue` the text colour on it, and `ink`, `paper` and
+(`overlayColor`: the accent; for a self-loop that stands for a path, the
+path's colour, `context.pathColor` in `buildScene`), `onValue` the text colour on it, and `ink`, `paper` and
 `outOfScope` are tokens the renderer resolves, so a themed Canvas keeps its
-colours. `toSVG` and the Canvas drawing map these primitives to their output
+colours. A tint takes the corners of the node or group it covers
+(`context.radius`; `radius.tint` without one). Badges are pills of paper
+outlined in the accent with their glyph and share in the accent; an arc's
+label is written in the accent on a pill of paper outlined in it (`pill`),
+drawn over the path; a constraint self-loop's label is in the accent, a
+path's in the ink. A shape without a label box (`label`) but with a label
+point gets its pill centred on the point. `toSVG` and the Canvas drawing map these primitives to their output
 and decide nothing by overlay kind. The rules behind the marks exist once:
 `overlayColor`, `tintColor`, `arcWidth` and `overlayArrow` (a triangle 12
 long and 12 wide whose tip reaches 1.2 beyond the end of the path, the live
@@ -1649,7 +1707,7 @@ that does not fit is shortened together with its lead. `fixedColors.line` is
 the line colour of exports.
 
 `markSvg` turns a mark into SVG elements: a group with a title, the path or
-the rounded box, the gauge and the texts as the scene fitted them (a lead as
+the rounded box, an arc label's pill (`rect.wf-pill`), the gauge and the texts as the scene fitted them (a lead as
 a bold `tspan`). The paint roles
 are resolved by `o.paint` and the arrowhead and hatching refer to
 `o.arrowId` and `o.patternId`. `toSVG` writes these elements with
@@ -1664,8 +1722,8 @@ anything by overlay kind.
 are self-loop overlays), both in the graph's order. A node mark says what
 the live map shows for its kind: the outline (`box` with a corner radius,
 the `circle` of an event, the `diamond` of a gateway), the fill and border
-with width and dash (notes dotted on the surface colour, re-added elements
-dashed, stages 3 wide, start events 2 and end events 3 wide), the colour band with its
+with width and dash (notes solid on the surface colour, re-added elements
+dashed and nothing else, stages 3 wide, start events 2 and end events 3 wide), the colour band with its
 pattern twin (`band`, 8 wide; not on notes, events and gateways) and the
 texts: a gateway's glyph (×, + or ○) instead of its label, an event's label
 inside its circle at 9 px, a note's label at 11 px at every zoom, the
@@ -1675,7 +1733,8 @@ cases, for a stage its members before them), or with `activityLabels` the
 wrapped name and count lines and the exact description as `title`. An edge
 mark carries the route (`edgePoints`: the routed points, or a straight line
 between the two boxes where the positions have none), colour (`edgeColor`),
-width, dash (re-added `6 5`, constraint `2 4`) and, where the edge has a
+width, dash (re-added `6 5`, and no other: a dash means "not directly
+observed"; constraint edges are solid in the accent) and, where the edge has a
 `count`, of any kind, the count at `edgeLabelPoint`. Every text names its
 `role` and the level-of-detail rule it is drawn from (`lod`; drawn at
 every zoom without one). What does not differ between elements is shared and
@@ -1701,7 +1760,7 @@ are on the map; and the Canvas map draws every graph overlay once.
 
 `groupMarks` holds one `GroupMark` per group with a box, in the graph's
 order. A group is a box with corners of 10, tinted in its categorical
-colour at 0.06 and outlined in it 1.5 wide with dashes of 6 and gaps of 4;
+colour at 0.06 and outlined in it 1.5 wide, solid (it was dashed 6 and 4);
 a group drawn as a lane band (`band`) is tinted at 0.06 (every other band
 at 0.02), outlined in the line colour 1 wide on the two sides between bands
 (`stroke.sides`: left and right along the flow, top and bottom across it)
@@ -1917,9 +1976,10 @@ element (set on it or on its container), then the preset. `useFlowTheme` resolve
   without a new layout and without building the scene again. A change of
   the font does too given a `textMeasure`; the default measure is made
   again in the new font, as is any new measure. A change of a size,
-  radius, stroke, opacity, of the scheme, or of the neutral and the
-  constraint colour (which the marks draw in) builds the scene once, without
-  a new layout.
+  radius, stroke, opacity, of the scheme, or of the neutral colour, the
+  accent or a palette (which the marks draw in) builds the scene once, without
+  a new layout. `--wf-accent` sets the accent; `tokens.css` does not define
+  it, since the marks carry it.
 - **The DOM map** paints with the variables it inherits. Given a `theme`, the
   map writes the theme's colours, fonts and the sizes the stylesheet reads
   (the variables of `tokens.css`) on its own element, over its

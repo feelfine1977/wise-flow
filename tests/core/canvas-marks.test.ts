@@ -71,52 +71,56 @@ const startingAt = (ops: Op[], point: string) => ops.filter((o) => o.path?.start
 describe("Canvas overlay marks", () => {
   it("draws every overlay mark with its colours and coordinates", () => {
     const ops = draw();
-    // Tint over stage s2 (190, −10), corner radius 10, at the tint opacity; hatching over
+    // Tint over stage s2 (190, −10), corner radius 10, at the tint opacity, in the accent; hatching over
     // activity a in the out-of-scope colour (no pattern tiles in Node), radius 6.
-    expect(ops.filter((o) => o.alpha === 0.18)).toEqual([{ op: "fill", path: expect.stringMatching(/^M200,-10 .*A500,0,10/), color: "#fd8d3c", alpha: 0.18 }]);
+    expect(ops.filter((o) => o.alpha === 0.18)).toEqual([{ op: "fill", path: expect.stringMatching(/^M200,-10 .*A500,0,10/), color: "#b84a00", alpha: 0.18 }]);
     expect(ops.filter((o) => o.alpha === 0.55)).toEqual([{ op: "fill", path: expect.stringMatching(/^M6,0 .*A94,6,6/), color: "#b0b0b0", alpha: 0.55 }]);
-    // Arc a → c: width 2 + 8 × 0.5, then the arrowhead pointing down to (450, 0), 12 long and
+    // Arc a → c: one width, 1.5, in the accent, then the arrowhead pointing down to (450, 0), 12 long and
     // wide, its tip 1.2 beyond the end.
-    expect(startingAt(ops, "M50,0")).toEqual([{ op: "stroke", path: "M50,0 C50,-88,450,-88,450,0", color: "#fdd0a2", alpha: 0.9, width: 6, dash: [] }]);
-    expect(startingAt(ops, "M450,1.2")).toEqual([{ op: "fill", path: "M450,1.2 L444,-10.8 L456,-10.8 Z", color: "#fdd0a2", alpha: 0.9 }]);
-    // Reverse arc c → a below the map, dashed, width 2; its arrowhead points up to (50, 40).
-    expect(startingAt(ops, "M450,40")).toEqual([{ op: "stroke", path: "M450,40 C450,142,50,142,50,40", color: "#7f2704", alpha: 0.9, width: 2, dash: [6, 4] }]);
-    expect(startingAt(ops, "M50,38.8")).toEqual([{ op: "fill", path: "M50,38.8 L56,50.8 L44,50.8 Z", color: "#7f2704", alpha: 0.9 }]);
+    expect(startingAt(ops, "M50,0")).toEqual([{ op: "stroke", path: "M50,0 C50,-88,450,-88,450,0", color: "#b84a00", alpha: 0.9, width: 1.5, dash: [] }]);
+    expect(startingAt(ops, "M450,1.2")).toEqual([{ op: "fill", path: "M450,1.2 L444,-10.8 L456,-10.8 Z", color: "#b84a00", alpha: 0.9 }]);
+    // Reverse arc c → a below the map, solid; its arrowhead points up to (50, 40).
+    expect(startingAt(ops, "M450,40")).toEqual([{ op: "stroke", path: "M450,40 C450,142,50,142,50,40", color: "#b84a00", alpha: 0.9, width: 1.5, dash: [] }]);
+    expect(startingAt(ops, "M50,38.8")).toEqual([{ op: "fill", path: "M50,38.8 L56,50.8 L44,50.8 Z", color: "#b84a00", alpha: 0.9 }]);
+    // Their pills, of radius 9, centred on the arcs' middles (250, −66) and (250, 116.5): paper outlined in the accent.
+    for (const middle of ["-66,9", "116.5,9"]) {
+      expect(ops.filter((o) => o.path?.includes(middle))).toEqual([
+        { op: "fill", path: expect.stringContaining("Z"), color: "#ffffff", alpha: 1 },
+        { op: "stroke", path: expect.stringContaining("Z"), color: "#b84a00", alpha: 1, width: 1.5, dash: [] },
+      ]);
+    }
     // Self-loop at c's top-right corner; the arrowhead points left to (500, 12).
-    expect(startingAt(ops, "M482,0")).toEqual([{ op: "stroke", path: "M482,0 C482,-28,528,12,500,12", color: "#d94801", alpha: 1, width: 2.5, dash: [] }]);
-    expect(startingAt(ops, "M498.8,12")).toEqual([{ op: "fill", path: "M498.8,12 L510.8,6 L510.8,18 Z", color: "#d94801", alpha: 1 }]);
-    // Badges: pills of radius 11 at (76, −11) and (274, −11) with a paper outline.
-    expect(startingAt(ops, "M87,-11")).toEqual([
-      { op: "fill", path: expect.stringContaining("A87,0,11"), color: "#7f2704", alpha: 1 },
-      { op: "stroke", path: expect.stringContaining("A87,0,11"), color: "#ffffff", alpha: 1, width: 1.5, dash: [] },
+    expect(startingAt(ops, "M482,0")).toEqual([{ op: "stroke", path: "M482,0 C482,-28,528,12,500,12", color: "#b84a00", alpha: 1, width: 2.5, dash: [] }]);
+    expect(startingAt(ops, "M498.8,12")).toEqual([{ op: "fill", path: "M498.8,12 L510.8,6 L510.8,18 Z", color: "#b84a00", alpha: 1 }]);
+    // Badges: pills of radius 9, 61.5 wide, ending at the right of a (100) and b (300), 18 tall and 2 above them, on paper outlined in the accent.
+    expect(startingAt(ops, "M47.5,-20")).toEqual([
+      { op: "fill", path: expect.stringContaining("A91,-11,9"), color: "#ffffff", alpha: 1 },
+      { op: "stroke", path: expect.stringContaining("A91,-11,9"), color: "#b84a00", alpha: 1, width: 1.5, dash: [] },
     ]);
-    expect(startingAt(ops, "M285,-11")).toEqual([
-      { op: "fill", path: expect.stringContaining("A287,0,11"), color: "#fdd0a2", alpha: 1 },
-      { op: "stroke", path: expect.stringContaining("A287,0,11"), color: "#ffffff", alpha: 1, width: 1.5, dash: [] },
+    expect(startingAt(ops, "M247.5,-20")).toEqual([
+      { op: "fill", path: expect.stringContaining("A291,-11,9"), color: "#ffffff", alpha: 1 },
+      { op: "stroke", path: expect.stringContaining("A291,-11,9"), color: "#b84a00", alpha: 1, width: 1.5, dash: [] },
     ]);
-    // Chip in stage s2 at (442, −4): paper fill, outline in the (neutral) value colour.
+    // Chip in stage s2 at (442, −4): paper fill, outline in the accent.
     expect(startingAt(ops, "M454,-4")).toEqual([
       { op: "fill", path: expect.stringContaining("A490,8,12"), color: "#ffffff", alpha: 1 },
-      { op: "stroke", path: expect.stringContaining("A490,8,12"), color: "#8c8c8c", alpha: 1, width: 2, dash: [] },
+      { op: "stroke", path: expect.stringContaining("A490,8,12"), color: "#b84a00", alpha: 1, width: 2, dash: [] },
     ]);
     const texts = ops.filter((o) => o.op === "fillText" && o.text !== "A" && o.text !== "B" && o.text !== "C" && !o.text?.startsWith("Stage"));
     expect(texts.map(({ text, at, color, font: f, align, baseline }) => ({ text, at, color, font: f, align, baseline }))).toEqual([
-      { text: "⏱ 25 %", at: [250, -74], color: "#1f1f1f", font: font("11px"), align: "center", baseline: "alphabetic" },
-      { text: "⇐ 100 %", at: [250, 130.5], color: "#1f1f1f", font: font("11px"), align: "center", baseline: "alphabetic" },
-      { text: "↻ 75 %", at: [506, -6], color: "#1f1f1f", font: font("10px"), align: "left", baseline: "alphabetic" },
-      // A badge without a glyph: a dot in contrasting ink and the share once, beside it.
-      { text: "●", at: [87, 0.5], color: "#ffffff", font: font("700 10px"), align: "center", baseline: "middle" },
-      { text: "100 %", at: [102, 0.5], color: "#1f1f1f", font: font("10px"), align: "left", baseline: "middle" },
-      { text: "≥1", at: [286, 0.5], color: "#000000", font: font("700 10px"), align: "center", baseline: "middle" },
-      { text: "25 %", at: [302, 0.5], color: "#1f1f1f", font: font("10px"), align: "left", baseline: "middle" },
+      // The arcs' labels in the middles of their pills.
+      { text: "late 25 %", at: [250, -65.5], color: "#b84a00", font: font("11px"), align: "center", baseline: "middle" },
+      { text: "⇐ 100 %", at: [250, 117], color: "#b84a00", font: font("11px"), align: "center", baseline: "middle" },
+      { text: "↻ 75 %", at: [506, -6], color: "#b84a00", font: font("10px"), align: "left", baseline: "alphabetic" },
+      // A badge without a glyph writes a dot and its share once, in its pill.
+      { text: "● · 100 %", at: [69.25, -10.5], color: "#b84a00", font: font("700 10px"), align: "center", baseline: "middle" },
+      { text: "≥1 · 25 %", at: [269.25, -10.5], color: "#b84a00", font: font("700 10px"), align: "center", baseline: "middle" },
       // The map-level chip ("Scope") is not drawn on the map.
       { text: "◔", at: [450, 8.5], color: "#1f1f1f", font: font("10px"), align: "left", baseline: "middle" },
       { text: "Late", at: [462.4, 8.5], color: "#1f1f1f", font: font("10px"), align: "left", baseline: "middle" },
     ]);
-    // Labels beside lines and badges carry a paper halo.
-    expect(ops.filter((o) => o.op === "strokeText").map((o) => [o.text, o.color, o.width])).toEqual([
-      ["⏱ 25 %", "#ffffff", 3], ["⇐ 100 %", "#ffffff", 3], ["↻ 75 %", "#ffffff", 3], ["100 %", "#ffffff", 3], ["25 %", "#ffffff", 3],
-    ]);
+    // Labels beside lines carry a paper halo; labels in pills need none.
+    expect(ops.filter((o) => o.op === "strokeText").map((o) => [o.text, o.color, o.width])).toEqual([["↻ 75 %", "#ffffff", 3]]);
   });
 
   it("draws a chip's gauge and its label in bold before the text", () => {
@@ -129,7 +133,7 @@ describe("Canvas overlay marks", () => {
     expect(startingAt(ops, "M374,5")).toEqual([{ op: "fill", path: expect.stringContaining("A408,8,3"), color: defaultTokens.line, alpha: 1 }]);
     const track = ops.findIndex((o) => o.path?.startsWith("M374,5"));
     expect(ops.slice(track + 1).filter((o) => o.op === "fillRect")).toEqual([
-      { op: "fillRect", path: "R371,5,28,6", color: "#fd8d3c", alpha: 1 },
+      { op: "fillRect", path: "R371,5,28,6", color: "#b84a00", alpha: 1 },
       { op: "fillRect", path: "R396.67,4,2,8", color: "#1f1f1f", alpha: 1 },
     ]);
     // The lead in bold, the text after its measured width (9 characters × 6 in this context).
@@ -147,14 +151,15 @@ describe("Canvas overlay marks", () => {
       ["edge", "M100,20 L200,20"], ["edge", "M300,20 L400,20"],
       ["arc", "M50,0 C50,-88,450,-88,450,0"], ["arc", "M450,40 C450,142,50,142,50,40"],
       ["node", "M6,0 L94,0"], ["node", "M206,0 L294,0"], ["node", "M406,0 L494,0"],
-      ["badge", "M87,-11"], ["badge", "M285,-11"],
+      ["badge", "M47.5,-20"], ["badge", "M247.5,-20"],
     ];
     const order = (ops: Op[]) => ops.flatMap((o) => (o.op === "stroke" ? parts.filter(([, at]) => o.path?.startsWith(at)).map(([part]) => part) : []));
     const painted = ["edge", "edge", "arc", "arc", "node", "node", "node", "badge", "badge"];
     expect(order(draw())).toEqual(painted);
     const scene = prepareScene(graph, positions, { overlays, selfLoops: false, lodBySize: false });
     const culled = drawingContext();
-    drawScene(culled.ctx, scene, { x: 0, y: 0, zoom: 1, width: 1000, height: 600 }, undefined, { cull: true });
+    // A view that holds the badges above the activities too (from y = −200).
+    drawScene(culled.ctx, scene, { x: 50, y: 200, zoom: 1, width: 1000, height: 600 }, undefined, { cull: true });
     expect(order(culled.ops)).toEqual(painted);
     const png = drawingContext();
     toPNGCanvas({ graph, positions, overlays, selfLoops: false }, { legend: false, scale: 1, createCanvas: (width, height) => ({ width, height, getContext: () => png.ctx }) });
@@ -167,16 +172,17 @@ describe("Canvas overlay marks", () => {
     const { ctx, ops } = drawingContext();
     drawScene(ctx, { ...scene, marks }, { x: 0, y: 0, zoom: 1, width: 1000, height: 600 }, undefined, { cull: false });
     // Arc a → c ends at (450, 0) pointing down: the tip 0.5 × 20 below it, the base 20 above the tip.
-    expect(startingAt(ops, "M450,10")).toEqual([{ op: "fill", path: "M450,10 L440,-10 L460,-10 Z", color: "#fdd0a2", alpha: 0.9 }]);
+    expect(startingAt(ops, "M450,10")).toEqual([{ op: "fill", path: "M450,10 L440,-10 L460,-10 Z", color: "#b84a00", alpha: 0.9 }]);
   });
 
   it("shows a hovered mark in the focus colour and hides marks below their zoom", () => {
     const hovered = draw({ selection: { nodes: [], edges: [], groups: [] }, hovered: "badge:b:6" });
-    expect(startingAt(hovered, "M285,-11")[0].color).toBe(defaultTokens.focus);
-    expect(hovered.find((o) => o.text === "≥1")?.color).toBe("#ffffff");
+    // Its pill keeps the paper; its outline and its text take the focus colour.
+    expect(startingAt(hovered, "M247.5,-20").map((o) => o.color)).toEqual(["#ffffff", defaultTokens.focus]);
+    expect(hovered.find((o) => o.text === "≥1 · 25 %")?.color).toBe(defaultTokens.focus);
     // At zoom 0.18 only the tint (every zoom) and the hatching (from 0.15) remain.
     const far = draw(undefined, 0.18);
-    expect(far.filter((o) => o.alpha === 0.18 || o.alpha === 0.55).map((o) => o.color)).toEqual(["#fd8d3c", "#b0b0b0"]);
+    expect(far.filter((o) => o.alpha === 0.18 || o.alpha === 0.55).map((o) => o.color)).toEqual(["#b84a00", "#b0b0b0"]);
     expect(far.filter((o) => o.op === "stroke" && o.alpha === 0.9)).toEqual([]);
     expect(far.filter((o) => o.op === "fillText").map((o) => o.text)).toEqual(["Stage 1", "Stage 2"]);
   });
@@ -187,8 +193,8 @@ describe("Canvas overlay marks", () => {
       const scene = prepareScene(graph, positions, { overlays: tint, lanes, selfLoops: false });
       const { ctx, ops } = drawingContext();
       drawScene(ctx, scene, { x: 0, y: 0, zoom: 1, width: 1000, height: 600 }, undefined, { cull: false });
-      const tinted = ops.filter((o) => (o.op === "fill" || o.op === "fillRect") && /#fd8d3c|253, 141, 60/.test(o.color));
-      expect(tinted, lanes).toEqual([expect.objectContaining({ op: "fill", color: "#fd8d3c", alpha: 0.18 })]);
+      const tinted = ops.filter((o) => (o.op === "fill" || o.op === "fillRect") && /#b84a00|184, 74, 0/.test(o.color));
+      expect(tinted, lanes).toEqual([expect.objectContaining({ op: "fill", color: "#b84a00", alpha: 0.18 })]);
     }
   });
 
@@ -235,10 +241,10 @@ describe("Canvas node and edge marks", () => {
       { op: "fill", path: "M342,-2 L364,20 L342,42 L320,20 Z", color: "#ffffff", alpha: 1 },
       { op: "stroke", path: "M342,-2 L364,20 L342,42 L320,20 Z", color: "#1f1f1f", alpha: 1, width: 1.5, dash: [] },
     ]);
-    // The note: on the surface colour, a dotted border in its colour, no band.
+    // The note: on the surface colour, a solid border in its colour, no band.
     expect(startingAt(ops, "M646,0")).toEqual([
       { op: "fill", path: expect.stringContaining("A794,6,6"), color: "#f6f7f9", alpha: 1 },
-      { op: "stroke", path: expect.stringContaining("A794,6,6"), color: "#8c8c8c", alpha: 1, width: 2, dash: [2, 3] },
+      { op: "stroke", path: expect.stringContaining("A794,6,6"), color: "#8c8c8c", alpha: 1, width: 2, dash: [] },
     ]);
     // Activities and stages: a band 8 wide in their colour; the stage's border is 3 wide; the re-added activity is dashed.
     expect(ops.filter((o) => o.op === "fillRect" && o.color === "#8c8c8c").map((o) => o.path)).toEqual(["R100,0,8,40", "R400,0,8,56", "R400,100,8,40"]);
@@ -266,8 +272,8 @@ describe("Canvas node and edge marks", () => {
       text("12", [300, 16], "10px", "center", "alphabetic"),
       text("3", [500, 74], "10px", "center", "alphabetic"),
     ]);
-    // The constraint edge in mechanism blue, dotted.
-    expect(startingAt(drawElements(), "M364,20")).toEqual([{ op: "stroke", path: "M364,20 L382,20 L382,28 L400,28", color: "#0072B2", alpha: 1, width: 1.5, dash: [2, 4] }]);
+    // The constraint edge in the accent, solid.
+    expect(startingAt(drawElements(), "M364,20")).toEqual([{ op: "stroke", path: "M364,20 L382,20 L382,28 L400,28", color: "#b84a00", alpha: 1, width: 1.5, dash: [] }]);
   });
 
   it("keeps the gateway's glyph and the note's label when zoomed out", () => {

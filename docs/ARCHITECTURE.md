@@ -190,10 +190,15 @@ edges. These positions carry `engine: "provisional"`.
 
 ### 2.4 Style
 `buildScales` builds d3 scales from metric ranges: edge width ← count
-(square root), edge and node colour ← a chosen metric (expectation shortfall
-share, performance, delta) on colour-blind-safe sequential (single hue),
-diverging (purple–orange) and categorical (Okabe–Ito) palettes; categorical
-keys hash to a stable colour with a pattern twin; text on coloured fills
+(square root), edge and node colour ← a chosen metric on colour-blind-safe
+sequential (single hue), diverging (purple–orange) and categorical
+(Okabe–Ito without orange and vermilion) palettes. The default style colours
+a path by its count too, on the same square-root scale along the theme's grey
+`neutral` ramp (darker with more cases in the light scheme, brighter in the
+dark), so the main flow is the most visible line; `shortfallStyle` colours it
+by the expectation shortfall share instead. Deviations (badges, chips, arcs,
+their labels, tints, constraint edges) are the one hue, the theme's
+`accent`; categorical keys hash to a stable colour with a pattern twin; text on coloured fills
 uses an ink with contrast ≥ 4.5 : 1. Level-of-detail rules say from which
 zoom labels, edge labels, badges, arcs, chips, hatching and self-loops
 appear; thresholds tighten with the number of nodes. Colours, palettes, the
@@ -226,7 +231,8 @@ and the PNG export alike: the Canvas drawing and the exports take their
 colours and font from the scene unless given others, and the interactive map
 paints the roles with the CSS variables of `tokens.css`, whose dark blocks
 hold the dark scheme's values. In the dark scheme the marks take the scheme's
-neutral and constraint colour. A browser test draws committed fixtures in a
+neutral colour, accent and palettes (`darkPalette` over `palette`: the path
+ramp runs dim to bright). A browser test draws committed fixtures in a
 second theme, in the dark scheme and under a host's CSS variables through all
 four and compares what they drew.
 
@@ -262,16 +268,17 @@ An overlay is data, not drawing: `{ kind, target, payload }` where kind is
 group id or `__map`. Presets map a constraint description (presence,
 singularity, exclusion, lag, precedence, balance / metric, applicability)
 and its statistics to overlays with formatted readings. Renderers draw
-overlays; the core computes their geometry (badge slots along the node's
-top edge, cubic arcs above the map and reverse arcs below it, each at the
-height or on the side that crosses the fewest other activities, with its
-label on it where it covers no activity, other arc label or group title,
-self-loops at the corner, chips inside groups) within a declared margin
+overlays; the core computes their geometry (badges as pills in a row wholly
+above the node, cubic arcs above the map and reverse arcs below it, each at the
+height or on the side that crosses the fewest other activities, self-loops at
+the corner, chips inside groups, and then the labels: a self-loop's label
+and an arc's pill where they cover no activity, badge, chip, other label or
+group title) within a declared margin
 around the layout, and their visibility by zoom level. Overlays are drawn in a
 canonical order so that exports do not depend on input order. The scene
 carries one resolved mark per placed overlay (box or path, fill, stroke,
-dash, arrowhead, texts, layer, zoom threshold, whether it is drawn on the
-map); the layer puts tints below the edges, arcs between the edges and the
+dash, arrowhead, an arc label's pill, texts, layer, zoom threshold, whether
+it is drawn on the map; a dash only on what was not directly observed); the layer puts tints below the edges, arcs between the edges and the
 nodes, so that a node and its badges stay readable where an arc crosses it,
 and the other marks above the nodes; one mapping turns a mark into SVG elements, which the SVG export
 writes and the React map and the BPMN view create in the DOM, and the Canvas

@@ -25,5 +25,6 @@ it("draws the arcs of the P2P story on the courses and with the labels of the sc
     const text = g.querySelector("text")!;
     return [g.dataset.overlayId, g.querySelector("path")!.getAttribute("d"), Number(text.getAttribute("x")), Number(text.getAttribute("y"))];
   });
-  expect(drawn).toEqual(expected.map((m) => [m.id, m.path, Number(m.texts[0].x.toFixed(2)), Number(m.texts[0].y.toFixed(2))]));
+  // A label is given by its middle and written on a baseline 0.3 × its size (11) lower.
+  expect(drawn).toEqual(expected.map((m) => [m.id, m.path, Number(m.texts[0].x.toFixed(2)), Number((m.texts[0].y + 3.3).toFixed(2))]));
 });

@@ -60,7 +60,7 @@ export interface SceneLegend {
 const KEYS: readonly LegendKey[] = [
   { kind: "badge", glyph: "●", title: "legend.badge" },
   { kind: "arc", glyph: "⌒", title: "legend.arc" },
-  { kind: "reverse", glyph: "⌒┄", title: "legend.reverse" },
+  { kind: "reverse", glyph: "⇐", title: "legend.reverse" },
   { kind: "selfLoop", glyph: "↻", title: "legend.selfLoop" },
   { kind: "outOfScope", glyph: "▨", title: "legend.outOfScope" },
   { kind: "reconnected", glyph: "┄", title: "legend.reconnected" },

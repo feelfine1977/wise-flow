@@ -154,12 +154,12 @@ describe("BpmnView through the viewer seam", () => {
     const viewer = await ready(container);
     await waitFor(() => expect(viewer.overlays).toHaveLength(1));
     expect(viewer.markers.get("Task_CreatePO")).toEqual(new Set(["wf-bpmn--badge"]));
-    // First slot of the task at (440, 140): 440 + 100 - 28 + 2, 140 - 11.
-    expect(viewer.overlays[0].overlay.html.querySelector("svg")?.getAttribute("viewBox")).toBe("514 129 24 22");
+    // The pill "≥1 · 25 %" (61.5 wide, 18 tall) ending at the right edge of the task at (440, 140), 2 above it: 440 + 100 − 61.5, 140 − 20.
+    expect(viewer.overlays[0].overlay.html.querySelector("svg")?.getAttribute("viewBox")).toBe("478.5 120 61.5 18");
     // The modeler moves the task in place; the registry is read again on the next frame.
     Object.assign(viewer.element("Task_CreatePO"), { x: 400, y: 100 });
     act(() => viewer.emit("changed", undefined));
-    await waitFor(() => expect(viewer.overlays[0].overlay.html.querySelector("svg")?.getAttribute("viewBox")).toBe("474 89 24 22"));
+    await waitFor(() => expect(viewer.overlays[0].overlay.html.querySelector("svg")?.getAttribute("viewBox")).toBe("438.5 80 61.5 18"));
     rerender(<BpmnView xml={xml} overlays={[]} />);
     await waitFor(() => expect(viewer.overlays).toEqual([]));
     expect(viewer.markers.get("Task_CreatePO")).toEqual(new Set());

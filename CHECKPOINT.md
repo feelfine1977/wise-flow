@@ -27,17 +27,18 @@ npm run storybook       # opens http://localhost:6006
 What appears: the BPI Challenge 2019 purchase-to-pay log (251,734 purchase
 order items) as a directly-follows map laid out by ELK, with the stage
 groups Requisition → Purchase order → Goods receipt → Invoice → Payment
-from left to right, start and end events, path width by transition count
-and colour by expectation-shortfall share, a legend at the bottom right and
+from left to right, start and end events, path width and grey shade by
+transition count (darker with more), a legend at the bottom right and
 the abstraction panel at the top left.
 
-Constraint overlays from the fixture statistics:
+Constraint overlays from the fixture statistics, all in the one orange accent:
 
 - badges on `Clear Invoice` (≥1, 23 % missing), `Record Invoice Receipt`
   (≤1, 4 % repeated) and `Cancel Invoice Receipt` (∅, 3 % occur);
 - arcs above the map from Record Goods Receipt / Record Service Entry Sheet
-  to Record Invoice Receipt / Vendor creates invoice (lag, 19 % late;
-  precedence, 52 % reverse) and dashed reverse arcs below the map;
+  to Record Invoice Receipt / Vendor creates invoice ("late 19 % of 11,129",
+  "order 52 % of 11,129" in pills) and solid reverse arcs below the map
+  ("⇐ 52 % of 11,129");
 - self-loops with the repeat share at the top-right corner of activities;
 - hatched activities outside the consignment scope; a chip with the manual
   touches gauge on the Purchase order group and three map-level chips under
@@ -84,8 +85,8 @@ Pass when: shared activities sit at identical coordinates on both sides
 
 What appears: a small synthetic purchase-to-pay graph on Dagre with one
 example per preset: presence badge (≥1 22 %), singularity badge and
-self-loop (≤1 17 %), exclusion badge (∅ 4 %), lag arc (⏱ 35 %), precedence
-arc (⇒ 14 %) with a dashed reverse arc (⇐ 14 %), balance chip with a gauge
+self-loop (≤1 17 %), exclusion badge (∅ 4 %), lag arc (late 35 % of 850), precedence
+arc (order 14 % of 850) with a solid reverse arc below the flow (⇐ 14 % of 850), balance chip with a gauge
 and a tint on the Purchase order group, hatched Record Service Entry Sheet
 with the scope chip. The remaining stories show one preset each and the
 raw overlay kinds.
@@ -215,8 +216,8 @@ exclusive gateways; a rejection loop through the *Approved?* choice) with
 the fixture's constraint overlays for the dataset *All items*: 17
 overlays, badges on Record Invoice Receipt (≤1 4 %) and Clear Invoice
 (≥1 23 %), lag and precedence arcs between Record Goods
-Receipt / Record Service Entry Sheet and Record Invoice Receipt with dashed
-reverse arcs, hatched tasks outside the 3-way-match scope, map-level chips
+Receipt / Record Service Entry Sheet and Record Invoice Receipt with solid
+reverse arcs below the flow, hatched tasks outside the 3-way-match scope, map-level chips
 under the legend. Below the diagram the mapping table lists every task
 with the activity it was matched to: `record_goods_receipt` by id, five
 tasks by label, and *Approve Invoice* unmapped.

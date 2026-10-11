@@ -13,54 +13,57 @@ describe("overlay marks", () => {
   it("resolves one mark per shape with everything needed to draw it", () => {
     const scene = buildScene(graph, positions, { overlays, selfLoops: false });
     expect(scene.marks.map((m) => m.id)).toEqual(scene.geometry.shapes.map((s) => s.id));
-    const base = { inMap: true, layer: "above", title: "", radius: 0, texts: [] };
-    expect(scene.marks.map(data)).toEqual([
-      // Over the box of stage s2, below the edges, from every zoom.
-      { ...base, id: "tint:s2:0", kind: "tint", layer: "below", box: { x: 190, y: -10, width: 320, height: 60 }, minZoom: 0, color: "#fd8d3c", onColor: "#000000", title: "Balance — 50 % above", radius: 10, fill: { paint: "value", opacity: 0.18 } },
-      // Without a value the colour is neutral; the hatching is 0.55 opaque, as on the map.
-      { ...base, id: "hatch:a:1", kind: "hatch", box: { x: 0, y: 0, width: 100, height: 40 }, minZoom: defaultLod.hatch, color: "#8c8c8c", onColor: "#000000", title: "Scope — Out of scope", radius: 6, fill: { paint: "outOfScope", pattern: "outOfScope", opacity: 0.55 } },
-      // Width 2 + 8 × coverage 0.5; label at the apex (250, 0.75 × −88 − 8); between the edges and the nodes.
+    const base = { inMap: true, layer: "above", title: "", radius: 0, texts: [], color: "#b84a00", onColor: "#ffffff" };
+    const r = (n: number) => Math.round(n * 1000) / 1000;
+    const rounded = <T,>(o: T): T => JSON.parse(JSON.stringify(o), (_, v) => (typeof v === "number" ? r(v) : v));
+    // Every deviation in the accent #b84a00 (white text on it reaches 5.23 : 1, black 4.02 : 1).
+    expect(rounded(scene.marks.map(data))).toEqual([
+      // Over the box of stage s2, below the edges, from every zoom, with the group's corners (10).
+      { ...base, id: "tint:s2:0", kind: "tint", layer: "below", box: { x: 190, y: -10, width: 320, height: 60 }, minZoom: 0, title: "Balance — 50 % above", radius: 10, fill: { paint: "value", opacity: 0.18 } },
+      // The hatching is 0.55 opaque in the out-of-scope colour, as on the map, with the activity's corners (6).
+      { ...base, id: "hatch:a:1", kind: "hatch", box: { x: 0, y: 0, width: 100, height: 40 }, minZoom: defaultLod.hatch, title: "Scope — Out of scope", radius: 6, fill: { paint: "outOfScope", pattern: "outOfScope", opacity: 0.55 } },
+      // One width, 1.5, whatever the coverage. Its pill on the apex (250, 0.75 × −88): "late 25 %", 9 characters of
+      // 0.55 × 11 and 6 on either side, 66.45 wide and 18 tall; the box reaches its top.
       {
-        ...base, id: "arc:a->c:2", kind: "arc", layer: "between", box: { x: 50, y: -88, width: 400, height: 88 }, minZoom: defaultLod.arcs, color: "#fdd0a2", onColor: "#000000",
-        path: "M50 0 C50 -88 450 -88 450 0", stroke: { paint: "value", width: 6, opacity: 0.9 }, arrow: { size: 12, overhang: 0.1 },
-        texts: [{ ...ink, text: "⏱ 25 %", x: 250, y: -74, size: 11, anchor: "middle", baseline: "alphabetic" }],
+        ...base, id: "arc:a->c:2", kind: "arc", layer: "between", box: { x: 50, y: -75, width: 400, height: 75 }, minZoom: defaultLod.arcs,
+        path: "M50 0 C50 -88 450 -88 450 0", stroke: { paint: "value", width: 1.5, opacity: 0.9 }, arrow: { size: 12, overhang: 0.1 },
+        pill: { box: { x: 216.775, y: -75, width: 66.45, height: 18 }, radius: 9, fill: { paint: "paper" }, stroke: { paint: "value", width: 1.5 } },
+        texts: [{ text: "late 25 %", x: 250, y: -65.5, size: 11, anchor: "middle", baseline: "middle", paint: "value", halo: false }],
       },
-      // The reverse arc runs below the boxes, second on the pair (height 88 + 14), dashed, width 2 at coverage 0.
+      // The reverse arc runs below the boxes, second on the pair (height 88 + 14), solid; its pill "⇐ 100 %" (54.35 wide)
+      // on its middle (250, 40 + 0.75 × 102).
       {
-        ...base, id: "arc:c->a:3", kind: "arc", layer: "between", box: { x: 50, y: 40, width: 400, height: 94.5 }, minZoom: defaultLod.arcs, color: "#7f2704", onColor: "#ffffff",
-        path: "M450 40 C450 142 50 142 50 40", stroke: { paint: "value", width: 2, opacity: 0.9, dash: [6, 4] }, arrow: { size: 12, overhang: 0.1 },
-        texts: [{ ...ink, text: "⇐ 100 %", x: 250, y: 130.5, size: 11, anchor: "middle", baseline: "alphabetic" }],
+        ...base, id: "arc:c->a:3", kind: "arc", layer: "between", box: { x: 50, y: 40, width: 400, height: 85.5 }, minZoom: defaultLod.arcs,
+        path: "M450 40 C450 142 50 142 50 40", stroke: { paint: "value", width: 1.5, opacity: 0.9 }, arrow: { size: 12, overhang: 0.1 },
+        pill: { box: { x: 222.825, y: 107.5, width: 54.35, height: 18 }, radius: 9, fill: { paint: "paper" }, stroke: { paint: "value", width: 1.5 } },
+        texts: [{ text: "⇐ 100 %", x: 250, y: 117, size: 11, anchor: "middle", baseline: "middle", paint: "value", halo: false }],
       },
+      // The label right of the corner, clear of the chip in s2 (442–502); the box reaches its end (506 + 6 × 5.5).
       {
-        ...base, id: "selfLoop:c:4", kind: "selfLoop", box: { x: 480, y: -23, width: 45, height: 37 }, minZoom: defaultLod.selfLoops, color: "#d94801", onColor: "#000000",
+        ...base, id: "selfLoop:c:4", kind: "selfLoop", box: { x: 480, y: -23, width: 59, height: 37 }, minZoom: defaultLod.selfLoops,
         path: "M482 0 C482 -28 528 12 500 12", stroke: { paint: "value", width: 2.5 }, arrow: { size: 12, overhang: 0.1 },
-        texts: [{ ...ink, text: "↻ 75 %", x: 506, y: -6, size: 10, anchor: "start", baseline: "alphabetic" }],
+        texts: [{ ...ink, text: "↻ 75 %", x: 506, y: -6, size: 10, anchor: "start", baseline: "alphabetic", paint: "value" }],
       },
-      // A badge without a glyph shows a dot and its share once, beside it.
+      // Badges are pills of paper wholly above the box, 2 clear of it, ending at its right edge: the glyph (a dot
+      // without one) and the share, 9 characters of 5.5 and 6 on either side, 61.5 wide.
       {
-        ...base, id: "badge:a:5", kind: "badge", box: { x: 76, y: -11, width: 22, height: 22 }, minZoom: defaultLod.badges, color: "#7f2704", onColor: "#ffffff",
-        radius: 11, fill: { paint: "value" }, stroke: { paint: "paper", width: 1.5 },
-        texts: [
-          { text: "●", x: 87, y: 0.5, size: 10, weight: 700, anchor: "middle", baseline: "middle", paint: "onValue", halo: false },
-          { ...ink, text: "100 %", x: 102, y: 0.5, size: 10, anchor: "start", baseline: "middle" },
-        ],
+        ...base, id: "badge:a:5", kind: "badge", box: { x: 38.5, y: -20, width: 61.5, height: 18 }, minZoom: defaultLod.badges,
+        radius: 9, fill: { paint: "paper" }, stroke: { paint: "value", width: 1.5 },
+        texts: [{ text: "● · 100 %", x: 69.25, y: -10.5, size: 10, weight: 700, anchor: "middle", baseline: "middle", paint: "value", halo: false }],
       },
       {
-        ...base, id: "badge:b:6", kind: "badge", box: { x: 274, y: -11, width: 24, height: 22 }, minZoom: defaultLod.badges, color: "#fdd0a2", onColor: "#000000",
-        radius: 11, fill: { paint: "value" }, stroke: { paint: "paper", width: 1.5 },
-        texts: [
-          { text: "≥1", x: 286, y: 0.5, size: 10, weight: 700, anchor: "middle", baseline: "middle", paint: "onValue", halo: false },
-          { ...ink, text: "25 %", x: 302, y: 0.5, size: 10, anchor: "start", baseline: "middle" },
-        ],
+        ...base, id: "badge:b:6", kind: "badge", box: { x: 238.5, y: -20, width: 61.5, height: 18 }, minZoom: defaultLod.badges,
+        radius: 9, fill: { paint: "paper" }, stroke: { paint: "value", width: 1.5 },
+        texts: [{ text: "≥1 · 25 %", x: 269.25, y: -10.5, size: 10, weight: 700, anchor: "middle", baseline: "middle", paint: "value", halo: false }],
       },
       // Map-level chips are listed with the legend, not drawn on the map.
       {
-        ...base, id: `chip:${MAP_TARGET}:7`, kind: "chip", inMap: false, box: { x: -10, y: -170, width: 60, height: 24 }, minZoom: defaultLod.chips, color: "#8c8c8c", onColor: "#000000", title: "Scope",
+        ...base, id: `chip:${MAP_TARGET}:7`, kind: "chip", inMap: false, box: { x: -10, y: -170, width: 60, height: 24 }, minZoom: defaultLod.chips, title: "Scope",
         radius: 12, fill: { paint: "paper" }, stroke: { paint: "value", width: 2 },
         texts: [{ text: "Scope", x: -2, y: -157.5, size: 10, anchor: "start", baseline: "middle", paint: "ink", halo: false, maxWidth: 44 }],
       },
       {
-        ...base, id: "chip:s2:8", kind: "chip", box: { x: 442, y: -4, width: 60, height: 24 }, minZoom: defaultLod.chips, color: "#8c8c8c", onColor: "#000000", title: "Late",
+        ...base, id: "chip:s2:8", kind: "chip", box: { x: 442, y: -4, width: 60, height: 24 }, minZoom: defaultLod.chips, title: "Late",
         radius: 12, fill: { paint: "paper" }, stroke: { paint: "value", width: 2 },
         // The glyph, then the text 2 characters (12.4 px) further.
         texts: [
@@ -83,7 +86,7 @@ describe("overlay marks", () => {
     // right-aligned 8 px inside s2 (190 + 320 − 8 − 151.4) and 6 px below its top.
     expect(rounded(marks[0])).toMatchObject({
       box: { x: 350.6, y: -4, width: 151.4, height: 24 },
-      color: "#fd8d3c",
+      color: "#b84a00",
       title: "Touches — 2.1 ⌀",
       texts: [
         { text: "◔", x: 358.6, y: 8.5 },
@@ -116,16 +119,17 @@ describe("overlay marks", () => {
     expect(minZoom(tightened, "tint:s2")).toBe(0);
     const observed = buildScene(loop, positions, { overlays: [], activityLabels: { mode: "ids", references: {} } });
     expect(observed.marks).toHaveLength(1);
-    expect(observed.marks[0]).toMatchObject({ kind: "selfLoop", minZoom: 0, edgeId: "cc", color: "#8c8c8c", texts: [{ text: "↻ 6 transitions" }] });
+    // It stands for the path cc, the only one with a count, so the strongest: the dark end of the path ramp; its label in the ink.
+    expect(observed.marks[0]).toMatchObject({ kind: "selfLoop", minZoom: 0, edgeId: "cc", color: "#141414", texts: [{ text: "↻ 6 transitions", paint: "ink" }] });
   });
 
   it("states the value colour, the arc width, the tint and the arrowhead once", () => {
     const at = (value: unknown, coverage?: unknown) => ({ kind: "arc" as const, target: "x", payload: { value, coverage } as never });
-    expect([0, 0.25, 0.5, 0.75, 1].map((v) => overlayColor(at(v)))).toEqual(["#fff5eb", "#fdd0a2", "#fd8d3c", "#d94801", "#7f2704"]);
-    expect(overlayColor(at(undefined))).toBe("#8c8c8c");
-    expect(overlayColor(at(Number.NaN))).toBe("#8c8c8c");
-    expect([undefined, 0, 0.5, 2, -1].map((c) => arcWidth(at(0, c)))).toEqual([10, 2, 6, 10, 2]);
-    expect(tintColor(at(0.5))).toBe("rgba(253, 141, 60, 0.18)");
+    // The accent whatever the value; one width whatever the coverage.
+    expect([0, 0.25, 1, undefined, Number.NaN].map((v) => overlayColor(at(v)))).toEqual(Array(5).fill("#b84a00"));
+    expect([undefined, 0, 0.5, 2, -1].map((c) => arcWidth(at(0, c)))).toEqual(Array(5).fill(1.5));
+    // #b84a00 is 184, 74, 0.
+    expect(tintColor(at(0.5))).toBe("rgba(184, 74, 0, 0.18)");
     expect(tintColor(at(undefined))).toBeUndefined();
     expect(overlayArrow).toEqual({ size: 12, overhang: 0.1 });
   });

@@ -160,8 +160,8 @@ function outline(paint: MarkPaint, width: number, dash?: readonly number[]): Nod
   return stroke;
 }
 
+// A dash means "not directly observed": only what was re-added to keep the map connected is dashed.
 const RECONNECTED_DASH = Object.freeze(dashTokens.reconnectedNode);
-const NOTE_DASH = Object.freeze(dashTokens.note);
 
 /** What one node looks like in its box. */
 export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): NodeMark {
@@ -197,7 +197,7 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
     case "gateway":
       return mark("diamond", 0, outline("ink", strokeTokens.gateway, dash), [ink(gatewayGlyph(node), cx, cy + 1, textTokens.gatewayGlyph.size, { role: "glyph", weight: textTokens.gatewayGlyph.weight, anchor: "middle" })]);
     case "note":
-      return mark("box", radiusTokens.node, outline("value", strokeTokens.note, NOTE_DASH), [fitted(ink(node.label, box.x + INSET, cy, textTokens.noteLabel.size, { role: "label", maxWidth: box.width - INSETS }), measure)], "surface");
+      return mark("box", radiusTokens.node, outline("value", strokeTokens.note), [fitted(ink(node.label, box.x + INSET, cy, textTokens.noteLabel.size, { role: "label", maxWidth: box.width - INSETS }), measure)], "surface");
     default: {
       const stroke = outline("value", node.kind === "stage" ? strokeTokens.stage : strokeTokens.node, dash);
       const labels = node.kind === "activity" ? options.activityLabels : undefined;
@@ -220,7 +220,6 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
 }
 
 const RECONNECTED_EDGE_DASH = Object.freeze(dashTokens.reconnectedPath);
-const CONSTRAINT_DASH = Object.freeze(dashTokens.constraint);
 const NO_TEXTS: ElementText[] = Object.freeze([]) as unknown as ElementText[];
 
 /** What one edge looks like along its route. */
@@ -235,7 +234,7 @@ export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string;
     points,
     color: options.color,
     width: options.width,
-    dash: (reconnected ? RECONNECTED_EDGE_DASH : edge.kind === "constraint" ? CONSTRAINT_DASH : undefined) as number[] | undefined,
+    dash: (reconnected ? RECONNECTED_EDGE_DASH : undefined) as number[] | undefined,
     texts: Number.isFinite(count)
       ? [{ text: formatCompact(count, options.locale ?? "en"), x: at.x, y: at.y, size: (options.theme ?? defaultTheme).text.pathLabel.size, anchor: "middle", baseline: "alphabetic", paint: "ink", halo: true, role: "count", lod: "edgeLabels" }]
       : NO_TEXTS,
@@ -271,9 +270,9 @@ export function edgeMarks(graph: FlowGraph, positions: Positions, scales: Scales
   );
 }
 
-/** Constraint edges in the theme's mechanism colour, the others by the edge colour scale. */
+/** Constraint edges in the theme's accent, the others by the edge colour scale. */
 export function edgeColor(edge: FlowEdge, scales: Scales, theme: Theme = defaultTheme): string {
-  return edge.kind === "constraint" ? theme.color.mechanism : scales.edgeColor(edge);
+  return edge.kind === "constraint" ? theme.color.accent : scales.edgeColor(edge);
 }
 
 /** A side of a box. */
@@ -304,7 +303,7 @@ export interface GroupMark {
   chipAnchor: XY;
 }
 
-/** What one group looks like in its box: a tinted box with a dashed outline, or a band outlined between the bands with a rule along its start. */
+/** What one group looks like in its box: a tinted box with a solid outline, or a band outlined between the bands with a rule along its start. */
 export function groupMark(group: FlowGroup, box: Box, options: { color: string; pattern: PatternId; band?: LaneBand; theme?: Theme }): GroupMark {
   const { stroke, text, radius, opacity } = options.theme ?? defaultTheme;
   const band = options.band;
@@ -320,7 +319,7 @@ export function groupMark(group: FlowGroup, box: Box, options: { color: string; 
     band,
     radius: band ? 0 : radius.large,
     fill: { paint: "value", opacity: band ? (band.index % 2 ? opacity.bandOddFill : opacity.bandFill) : opacity.groupFill },
-    stroke: band ? { paint: "line", width: 1, sides: main ? ["left", "right"] : ["top", "bottom"] } : { paint: "value", width: stroke.group, dash: [...dashTokens.group] },
+    stroke: band ? { paint: "line", width: 1, sides: main ? ["left", "right"] : ["top", "bottom"] } : { paint: "value", width: stroke.group },
     rule: band && { paint: "value", width: stroke.band, side: main ? "top" : "left" },
     texts: [ink(group.label, box.x + 12, box.y + 22, text.groupLabel.size, { role: "label", baseline: "alphabetic", weight: text.groupLabel.weight })],
     chipAnchor: chipAnchor(box),

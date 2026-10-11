@@ -61,6 +61,10 @@ export function markSvg(m: OverlayMark, o: MarkSvgOptions): SvgElement {
     if (m.fill?.opacity !== undefined) fill.push(["fill-opacity", String(m.fill.opacity)]);
     children.push({ tag: "rect", attrs: [...box(m.box), ["rx", num(m.radius)], ...fill, ...(stroke.length ? stroke : [["stroke", "none"] as [string, string]])], children: [] });
   }
+  if (m.pill) {
+    const { box: b, radius, fill, stroke: line } = m.pill;
+    children.push({ tag: "rect", attrs: [["class", "wf-pill"], ...box(b), ["rx", num(radius)], ["fill", o.paint(m, fill.paint)], ["stroke", o.paint(m, line.paint)], ["stroke-width", num(line.width)]], children: [] });
+  }
   if (m.gauge) {
     const g = m.gauge;
     children.push({ tag: "rect", attrs: [...box(g), ["rx", num(g.height / 2)], ["fill", o.paint(m, "line")]], children: [] });

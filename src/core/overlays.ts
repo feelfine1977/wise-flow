@@ -92,8 +92,8 @@ function present(graph: FlowGraph | undefined, ids: string[]): string[] {
  * - presence: badge per activity with the missing share;
  * - singularity: badge "≤ k" and a self-loop tinted by the repeat share;
  * - exclusion: badge "∅" with the occurrence share;
- * - lag: arc a → b above the map, width = coverage, colour = late share;
- * - precedence: arc with an order glyph, plus a reverse arc for violations;
+ * - lag: arc a → b above the map, labelled with the late share of the cases evaluated;
+ * - precedence: arc with an order glyph, plus a reverse arc below the map for violations;
  * - balance / metric: chip with the gauge, tint on the group when attached to one;
  * - applicability: hatch on nodes outside the scope, chip with the in-scope share.
  */
@@ -105,6 +105,8 @@ export function constraintOverlays(
   const locale = options.locale ?? "en";
   const share = stats.violationShare ?? 0;
   const applicable = (stats.evaluated ?? stats.cases ?? 1) > 0;
+  // The cases a share is taken of, which an arc's label writes after it.
+  const evaluated = stats.evaluated ?? stats.cases;
   const na = applicable ? undefined : t(locale, "constraint.notApplicable");
   const out: Overlay[] = [];
 
@@ -169,7 +171,7 @@ export function constraintOverlays(
         out.push({
           kind: "arc",
           target: `${s}->${tgt}`,
-          payload: base(c, { source: s, target: tgt, value: share, coverage: stats.coverage ?? 1, threshold: delta, width, unit, glyph: "⏱", text: parts.join(" · ") }),
+          payload: base(c, { source: s, target: tgt, value: share, coverage: stats.coverage ?? 1, evaluated, threshold: delta, width, unit, glyph: "⏱", text: parts.join(" · ") }),
         });
       }
       break;
@@ -188,6 +190,7 @@ export function constraintOverlays(
             target: tgt,
             value: share,
             coverage: stats.coverage ?? 1,
+            evaluated,
             glyph: "⇒",
             text: [na ?? t(locale, "constraint.reverse", { share: formatShare(reverse, locale) }), stats.coverage !== undefined && applicable ? t(locale, "constraint.coverage", { share: formatShare(stats.coverage, locale) }) : undefined].filter(Boolean).join(" · "),
           }),
@@ -196,7 +199,7 @@ export function constraintOverlays(
           out.push({
             kind: "arc",
             target: `${tgt}->${s}`,
-            payload: base(c, { source: tgt, target: s, value: reverse, coverage: reverse, reverse: true, glyph: "⇐", text: t(locale, "constraint.reverse", { share: formatShare(reverse, locale) }) }),
+            payload: base(c, { source: tgt, target: s, value: reverse, coverage: reverse, evaluated, reverse: true, glyph: "⇐", text: t(locale, "constraint.reverse", { share: formatShare(reverse, locale) }) }),
           });
         }
       }

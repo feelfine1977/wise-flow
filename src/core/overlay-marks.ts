@@ -1,12 +1,13 @@
 /** Overlay marks: what each placed overlay looks like, resolved once for every renderer. */
-import { type Locale, formatShare } from "./format.js";
+import { type Locale, formatCount, formatShare } from "./format.js";
 import type { Box } from "./layout.js";
 import { type Overlay, type OverlayKind, MAP_TARGET } from "./model.js";
 import type { OverlayShape } from "./overlay-geometry.js";
-import { colorOn, contrastText, hexToRgb } from "./style.js";
+import { contrastText, hexToRgb } from "./style.js";
+import { type StringKey, t } from "./strings.js";
 import { type TextMeasure, estimateTextWidth, fitMarkText } from "./text.js";
 import { type Theme, defaultTheme } from "./theme.js";
-import { type Arrowhead, arrowheadTokens, dashTokens, opacityTokens } from "./tokens.js";
+import { type Arrowhead, arrowheadTokens, opacityTokens } from "./tokens.js";
 
 /**
  * A colour by role. `ink`, `inkMuted`, `paper`, `surface`, `line` and
@@ -90,20 +91,21 @@ export interface OverlayMark {
   texts: MarkText[];
   /** Gauge drawn in the line colour, filled in the value colour, with an ink tick. */
   gauge?: MarkGauge;
+  /** The rounded box the mark's label is written in (an arc's), drawn over the path and under the texts. */
+  pill?: { box: Box; radius: number; fill: MarkFill; stroke: MarkStroke };
   /** The follows edge the overlay stands for. */
   edgeId?: string;
 }
 
-/** Colour of an overlay's value (a share) on the theme's shortfall palette; neutral without one. */
-export function overlayColor(overlay: Overlay, theme: Theme = defaultTheme): string {
-  const v = overlay.payload?.value;
-  return typeof v === "number" && Number.isFinite(v) ? colorOn(v, "shortfall", [0, 1], theme) : theme.color.neutral;
+/** Colour of an overlay: the theme's accent, the one hue of deviations, whatever its value. */
+export function overlayColor(_overlay: Overlay, theme: Theme = defaultTheme): string {
+  return theme.color.accent;
 }
 
 /** Opacity of a tint over its element. */
 export const TINT_OPACITY = opacityTokens.tint;
 
-/** The value colour at the theme's tint opacity (`TINT_OPACITY` in the default theme) as CSS; none without a value. */
+/** The accent at the theme's tint opacity (`TINT_OPACITY` in the default theme) as CSS; none without a value. */
 export function tintColor(overlay: Overlay, theme: Theme = defaultTheme): string | undefined {
   const v = overlay.payload?.value;
   if (typeof v !== "number" || !Number.isFinite(v)) return undefined;
@@ -111,10 +113,9 @@ export function tintColor(overlay: Overlay, theme: Theme = defaultTheme): string
   return `rgba(${r}, ${g}, ${b}, ${theme.opacity.tint})`;
 }
 
-/** Stroke width of an arc: the theme's `arc` stroke (2) plus `arcCoverage` (8) times its coverage (default 1). */
-export function arcWidth(overlay: Overlay, theme: Theme = defaultTheme): number {
-  const c = overlay.payload?.coverage;
-  return theme.stroke.arc + theme.stroke.arcCoverage * (typeof c === "number" ? Math.max(0, Math.min(1, c)) : 1);
+/** Stroke width of an arc: the theme's `arc` stroke, the same for every arc; its coverage is not drawn. */
+export function arcWidth(_overlay: Overlay, theme: Theme = defaultTheme): number {
+  return theme.stroke.arc;
 }
 
 /** Arrowhead of arcs and self-loops: a triangle `size` long and wide, its tip `overhang` × `size` beyond the path (`arrowheadTokens.overlay`). */
@@ -143,24 +144,69 @@ export function chipText(overlay: Overlay, locale: Locale = "en"): { lead?: stri
   return p.label ? { lead: `${p.label}: `, text } : { text };
 }
 
-/** What an arc prints: its display label, or its glyph and share. */
+/**
+ * The pill a label is written in: its text `padding` in from either end and
+ * `height` tall, its ends half circles.
+ */
+export const pillLayout = { padding: 6, height: 18 } as const;
+
+const shareOf = (overlay: Overlay, locale: Locale) => {
+  const v = overlay.payload?.value;
+  return typeof v === "number" && Number.isFinite(v) ? formatShare(v, locale) : "";
+};
+
+/** The kind of constraint an arc's label names: a lag (`⏱`) or a precedence (`⇒`), from its type or its glyph. */
+const ARC_WORDS: Record<string, StringKey> = { lag: "arc.lag", "⏱": "arc.lag", precedence: "arc.precedence", "⇒": "arc.precedence" };
+
+/**
+ * What an arc prints: the share first and its base second ("late 35 % of
+ * 820", "order 14 % of 820"); a reverse-order arc the sign ⇐ before them
+ * ("⇐ 14 % of 820"). An arc of another kind writes its glyph before them; a
+ * display label replaces all of it (after the sign of a reverse-order arc).
+ */
 export function arcLabel(overlay: Overlay, locale: Locale = "en"): string {
   const p = overlay.payload ?? {};
-  if (typeof p.displayLabel === "string") return p.displayLabel;
-  return `${p.glyph ?? ""} ${typeof p.value === "number" && Number.isFinite(p.value) ? formatShare(p.value, locale) : ""}`.trim();
+  if (typeof p.displayLabel === "string") return p.reverse && !p.displayLabel.startsWith("⇐") ? `⇐ ${p.displayLabel}` : p.displayLabel;
+  const share = shareOf(overlay, locale);
+  const based = share && typeof p.evaluated === "number" && Number.isFinite(p.evaluated) ? t(locale, "arc.base", { share, base: formatCount(p.evaluated, locale) }) : share;
+  const word = p.reverse ? "arc.reverse" : ARC_WORDS[String(p.constraintType)] ?? ARC_WORDS[String(p.glyph)];
+  return (word ? t(locale, word, { share: based }) : `${p.glyph ?? ""} ${based}`).trim();
+}
+
+/** What a self-loop writes beside it: its display label, or ↻ and its share. */
+export function selfLoopLabel(overlay: Overlay, locale: Locale = "en"): string {
+  const p = overlay.payload ?? {};
+  const share = shareOf(overlay, locale);
+  return typeof p.displayLabel === "string" ? p.displayLabel : share ? `↻ ${share}` : "";
+}
+
+/** What a badge writes in its pill: its glyph (● without one) and its share. */
+export function badgeLabel(overlay: Overlay, locale: Locale = "en"): string {
+  const glyph = overlay.payload?.glyph ?? "●";
+  const share = shareOf(overlay, locale);
+  return share ? `${glyph} · ${share}` : glyph;
+}
+
+/** What the marks take from the elements they stand for or cover. */
+export interface OverlayMarkContext {
+  /** The colour of a path a self-loop stands for (`edgeId` without a constraint), as the path is drawn. */
+  pathColor?: (edgeId: string) => string | undefined;
+  /** The corner radius of a node or group a tint covers, so that the tint follows its corners. */
+  radius?: (target: string) => number | undefined;
 }
 
 /** One mark per shape, in the shapes' order, with the sizes and colours of a theme and texts fitted by a measure. */
-export function overlayMarks(shapes: OverlayShape[], locale: Locale = "en", theme: Theme = defaultTheme, measure: TextMeasure = estimateTextWidth): OverlayMark[] {
-  return shapes.map((s) => overlayMark(s, locale, theme, measure));
+export function overlayMarks(shapes: OverlayShape[], locale: Locale = "en", theme: Theme = defaultTheme, measure: TextMeasure = estimateTextWidth, context: OverlayMarkContext = {}): OverlayMark[] {
+  return shapes.map((s) => overlayMark(s, locale, theme, measure, context));
 }
 
-function overlayMark(s: OverlayShape, locale: Locale, theme: Theme, measure: TextMeasure): OverlayMark {
+function overlayMark(s: OverlayShape, locale: Locale, theme: Theme, measure: TextMeasure, context: OverlayMarkContext): OverlayMark {
   const { text: textTokens, radius: radiusTokens, stroke: strokeTokens, opacity } = theme;
   const o = s.overlay;
   const p = o.payload ?? {};
-  const color = overlayColor(o, theme);
-  const share = typeof p.value === "number" && Number.isFinite(p.value) ? formatShare(p.value, locale) : "";
+  // A self-loop that stands for a path is drawn as the path is; every deviation in the accent.
+  const path = typeof p.edgeId === "string" && !p.constraintId ? context.pathColor?.(p.edgeId) : undefined;
+  const color = path ?? overlayColor(o, theme);
   const mark: OverlayMark = {
     id: s.id,
     kind: s.kind,
@@ -180,39 +226,43 @@ function overlayMark(s: OverlayShape, locale: Locale, theme: Theme, measure: Tex
   const halo = (text: string, x: number, y: number, size: number, anchor: MarkText["anchor"]): MarkText => ({ text, x, y, size, anchor, baseline: "alphabetic", paint: "ink", halo: true });
   switch (s.kind) {
     case "tint":
-      return { ...mark, radius: radiusTokens.tint, fill: { paint: "value", opacity: opacity.tint } };
+      return { ...mark, radius: context.radius?.(o.target) ?? radiusTokens.tint, fill: { paint: "value", opacity: opacity.tint } };
     case "hatch":
       return { ...mark, radius: radiusTokens.hatch, fill: { paint: "outOfScope", pattern: "outOfScope", opacity: opacity.hatch } };
     case "arc": {
+      // Solid, one width; the label in the accent on a pill of paper over the path, where the geometry put it (or
+      // centred on the label's point of a shape placed elsewhere).
       const label = arcLabel(o, locale);
+      const width = measure(label, textTokens.arcLabel) + 2 * pillLayout.padding;
+      const at = s.label ?? (s.labelX !== undefined && s.labelY !== undefined ? { x: s.labelX - width / 2, y: s.labelY - pillLayout.height / 2, width, height: pillLayout.height } : undefined);
       return {
         ...mark,
         path: s.path,
-        stroke: { paint: "value", width: arcWidth(o, theme), opacity: opacity.arc, ...(p.reverse ? { dash: [...dashTokens.reverseArc] } : {}) },
+        stroke: { paint: "value", width: arcWidth(o, theme), opacity: opacity.arc },
         arrow: overlayArrow,
-        texts: s.labelX !== undefined && s.labelY !== undefined ? [halo(label, s.labelX, s.labelY, textTokens.arcLabel.size, "middle")] : [],
+        ...(at && label ? { pill: { box: at, radius: at.height / 2, fill: { paint: "paper" }, stroke: { paint: "value", width: strokeTokens.pill } } } : {}),
+        texts: at && label ? [{ text: label, x: at.x + at.width / 2, y: at.y + at.height / 2 + 0.5, size: textTokens.arcLabel.size, anchor: "middle", baseline: "middle", paint: "value", halo: false }] : [],
       };
     }
     case "selfLoop": {
-      const label = typeof p.displayLabel === "string" ? p.displayLabel : share ? `↻ ${share}` : "";
+      const label = selfLoopLabel(o, locale);
       return {
         ...mark,
         path: s.path,
         stroke: { paint: "value", width: strokeTokens.selfLoop },
         arrow: overlayArrow,
-        texts: s.labelX !== undefined && s.labelY !== undefined && (p.displayLabel || share) ? [halo(label, s.labelX, s.labelY, textTokens.selfLoopLabel.size, "start")] : [],
+        // A repetition's label in the accent; a path's in the ink, as the path's count is.
+        texts: s.labelX !== undefined && s.labelY !== undefined && label ? [{ ...halo(label, s.labelX, s.labelY, textTokens.selfLoopLabel.size, "start"), paint: path ? "ink" : "value" }] : [],
       };
     }
     case "badge":
+      // A pill of paper outlined in the accent, with the glyph and the share in it.
       return {
         ...mark,
         radius: s.height / 2,
-        fill: { paint: "value" },
-        stroke: { paint: "paper", width: strokeTokens.badge },
-        texts: [
-          { text: p.glyph ?? "●", x: s.x + s.width / 2, y: middle, size: textTokens.badge.size, weight: textTokens.badge.weight, anchor: "middle", baseline: "middle", paint: "onValue", halo: false },
-          ...(share ? [{ ...halo(share, s.x + s.width + 4, middle, textTokens.badgeValue.size, "start"), baseline: "middle" as const }] : []),
-        ],
+        fill: { paint: "paper" },
+        stroke: { paint: "value", width: strokeTokens.badge },
+        texts: [{ text: badgeLabel(o, locale), x: s.x + s.width / 2, y: middle, size: textTokens.badge.size, weight: textTokens.badge.weight, anchor: "middle", baseline: "middle", paint: "value", halo: false }],
       };
     case "chip": {
       // Glyph, gauge and text in a row, as the live map lays them out.

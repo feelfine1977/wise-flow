@@ -122,26 +122,28 @@ describe("buildScene", () => {
 
   it("places the overlay geometry on the positions", () => {
     const scene = buildScene(graph, positions, { overlays: given });
-    // Margin = max(140 + 24, 22 + 8, 24 + 8) = 164.
+    // Margin = max(140 + 24, 18 + 8, 24 + 8) = 164.
     expect(scene.geometry.margin).toBe(164);
     const shapes = Object.fromEntries(scene.geometry.shapes.map(({ id, x, y, width, height, path, labelX, labelY, minZoom }) => [id, { x, y, width, height, path, labelX, labelY, minZoom }]));
     expect(shapes).toEqual({
       "tint:s2:0": { x: 190, y: -10, width: 320, height: 60, path: undefined, labelX: undefined, labelY: undefined, minZoom: 0 },
-      // From the top centres (50, 0) and (450, 0); height max(40, 400 × 0.22) = 88; apex at 0.75 × −88.
-      "arc:a->c:1": { x: 50, y: -88, width: 400, height: 88, path: "M50 0 C50 -88 450 -88 450 0", labelX: 250, labelY: -74, minZoom: defaultLod.arcs },
-      // Anchored 18 left of c's top-right corner (500, 0), radius 14.
-      "selfLoop:c:2": { x: 480, y: -23, width: 45, height: 37, path: "M482 0 C482 -28 528 12 500 12", labelX: 506, labelY: -6, minZoom: defaultLod.selfLoops },
-      "selfLoop:c:3": { x: 480, y: -23, width: 45, height: 37, path: "M482 0 C482 -28 528 12 500 12", labelX: 506, labelY: -6, minZoom: defaultLod.selfLoops },
-      // Slot 0 at the right end of the top edge: x = right − (width + 4) + 2, centred on the edge.
-      "badge:a:4": { x: 76, y: -11, width: 22, height: 22, path: undefined, labelX: undefined, labelY: undefined, minZoom: defaultLod.badges },
-      "badge:b:5": { x: 274, y: -11, width: 24, height: 22, path: undefined, labelX: undefined, labelY: undefined, minZoom: defaultLod.badges },
+      // From the top centres (50, 0) and (450, 0); height max(40, 400 × 0.22) = 88; apex at 0.75 × −88. Without a value
+      // or a glyph it has nothing to write, so no label.
+      "arc:a->c:1": { x: 50, y: -66, width: 400, height: 66, path: "M50 0 C50 -88 450 -88 450 0", labelX: undefined, labelY: undefined, minZoom: defaultLod.arcs },
+      // Anchored 18 left of c's top-right corner (500, 0), radius 14. The path's loop writes "↻ 50 %" (2 of its 4 cases)
+      // right of the corner, 33 wide; the repetition's "↻ 25 %" would cover it there and goes above the loop, at 482.
+      "selfLoop:c:2": { x: 480, y: -23, width: 59, height: 37, path: "M482 0 C482 -28 528 12 500 12", labelX: 506, labelY: -6, minZoom: defaultLod.selfLoops },
+      "selfLoop:c:3": { x: 480, y: -37, width: 45, height: 51, path: "M482 0 C482 -28 528 12 500 12", labelX: 482, labelY: -27, minZoom: defaultLod.selfLoops },
+      // Pills 18 tall, 2 above the box, ending at its right edge: a dot alone (5.5 + 12, at least 18 wide), "≥1 · 20 %" 61.5.
+      "badge:a:4": { x: 82, y: -20, width: 18, height: 18, path: undefined, labelX: undefined, labelY: undefined, minZoom: defaultLod.badges },
+      "badge:b:5": { x: 238.5, y: -20, width: 61.5, height: 18, path: undefined, labelX: undefined, labelY: undefined, minZoom: defaultLod.badges },
       // Map chips start at the top-left of the margin: y = −10 − 164 + 4.
       [`chip:${MAP_TARGET}:6`]: { x: -10, y: -170, width: 60, height: 24, path: undefined, labelX: undefined, labelY: undefined, minZoom: defaultLod.chips },
     });
-    expect(scene.geometry.bounds).toEqual({ x: -10, y: -170, width: 535, height: 220 });
+    expect(scene.geometry.bounds).toEqual({ x: -10, y: -170, width: 549, height: 220 });
     // The map chip is listed with the legend, not drawn on the map, so the scene's bounds
-    // run from the arc's top (−88) to the positions' bottom (50) and the self-loop's right (525).
-    expect(scene.bounds).toEqual({ x: -10, y: -88, width: 535, height: 138 });
+    // run from the arc's top (−66) to the positions' bottom (50) and the first self-loop's label's end (539).
+    expect(scene.bounds).toEqual({ x: -10, y: -66, width: 549, height: 116 });
     expect(buildScene(graph, positions, { selfLoops: false }).bounds).toEqual(positions.bounds);
   });
 
@@ -176,9 +178,9 @@ describe("buildScene", () => {
 
   it("builds the scales over the follows edges", () => {
     const scene = buildScene(graph, positions);
-    // Counts 9, 4 and 6; colour by a share metric reads [0, 1].
+    // Counts 9, 4 and 6, for the width and for the colour.
     expect(scene.scales.domains.edgeWidth).toEqual([4, 9]);
-    expect(scene.scales.domains.edgeColor).toEqual([0, 1]);
+    expect(scene.scales.domains.edgeColor).toEqual([4, 9]);
     expect(scene.scales.edgeWidth(graph.edges[0])).toBe(8);
     expect(scene.scales.edgeWidth(graph.edges[1])).toBe(1);
     const linear = buildScene(graph, positions, { style: { edgeWidth: { metric: "cases", scale: "linear", range: [2, 4] } } });

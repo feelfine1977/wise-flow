@@ -37,7 +37,9 @@ holds them as literals, that the SVG export writes them (and no `var(`, `oklch(`
 or `color-mix(`) and that the DOM map paints its focus and writes its labels in
 them. For every node, edge, group and mark it compares the box,
 outline paint and width, dash, fill, radius, shadow, colour band, band rule and
-each text's string, size, weight and paint with the SVG export's. Every
+each text's string, size, weight and paint with the SVG export's, and for paths
+their line join and arrowhead, for arcs and self-loops their arrowhead and for
+a mark with a label pill the pill's box, fill, outline and radius. Every
 difference is listed in `browser/parity/expected.json` by renderer, element
 kind, property and the two values, with its fixtures and number of elements; a
 difference the list lacks fails, and so does an entry that is no longer found or

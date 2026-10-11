@@ -54,7 +54,7 @@ describe("what the elements of a scene share", () => {
     expect(buildScene(graph, positions).nodeMarks.find((m) => m.id === "a2")!.stroke).toBe(node("a1").stroke);
   });
 
-  it("gives edges without a count one frozen empty list of texts and the dashed edges of a kind one frozen dash", () => {
+  it("gives edges without a count one frozen empty list of texts and the re-added edges one frozen dash", () => {
     const none = edge("s1-a1").texts;
     expect(none).toEqual([]);
     expect(Object.isFrozen(none)).toBe(true);
@@ -63,10 +63,10 @@ describe("what the elements of a scene share", () => {
 
     expect(edge("a1-r1").dash).toEqual([6, 5]);
     expect(edge("a2-r2").dash).toBe(edge("a1-r1").dash);
-    // A constraint between re-added activities is not re-added itself: dotted.
-    expect(edge("a1-a2").dash).toEqual([2, 4]);
-    expect(edge("r1-r2").dash).toBe(edge("a1-a2").dash);
-    for (const id of ["a1-r1", "a1-a2"]) expect(Object.isFrozen(edge(id).dash)).toBe(true);
+    // A constraint between re-added activities is not re-added itself, and only what was not directly observed is dashed.
+    expect(edge("a1-a2").dash).toBeUndefined();
+    expect(edge("r1-r2").dash).toBeUndefined();
+    expect(Object.isFrozen(edge("a1-r1").dash)).toBe(true);
     expect(edge("s1-a1").dash).toBeUndefined();
   });
 

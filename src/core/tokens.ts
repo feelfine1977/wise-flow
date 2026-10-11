@@ -29,6 +29,8 @@ export const colorTokens = {
   hover: "rgba(0, 0, 0, 0.05)",
   neutral: "#8c8c8c",
   outOfScope: "#b0b0b0",
+  /** Deviations: badges, chips, constraint arcs and their labels, the one hue of the map. Text in it reaches 4.5 : 1 on the paper. */
+  accent: "#b84a00",
   // Hotspot types and gate states (Okabe–Ito).
   severity: "#D55E00",
   mechanism: "#0072B2",
@@ -50,22 +52,32 @@ export const darkColorTokens: Partial<Record<ColorToken, string>> = {
   lineStrong: "#6b7280",
   selection: "rgba(86, 180, 233, 0.22)",
   hover: "rgba(255, 255, 255, 0.07)",
+  accent: "#ff8c42",
 };
 
 /**
  * Palettes. Sequential scales are single-hue and lightness-driven (safe for every
  * common colour-vision deficiency); the diverging scale is purple–orange; the
- * categorical palette is Okabe–Ito.
+ * categorical palette is Okabe–Ito without its orange and vermilion, which
+ * would read as the accent.
  */
 export const paletteTokens = {
+  /** Paths by cases in the light scheme: grey, darker with more cases; the lightest has 3.36 : 1 on the paper. */
+  neutral: ["#8c8c8c", "#6b6b6b", "#4d4d4d", "#2e2e2e", "#141414"],
   /** Light to dark orange; used for expectation shortfall shares. */
   sequential: ["#fff5eb", "#fdd0a2", "#fd8d3c", "#d94801", "#7f2704"],
   /** Light to dark blue; used for performance metrics. */
   sequentialBlue: ["#f7fbff", "#c6dbef", "#6baed6", "#2171b5", "#08306b"],
   /** Purple (negative) over neutral to orange (positive); used for deltas. */
   diverging: ["#542788", "#998ec3", "#d8daeb", "#f7f7f7", "#fee0b6", "#f1a340", "#b35806"],
-  /** Okabe–Ito, stable by hashed key, with pattern twins. */
-  categorical: ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00", "#F0E442", "#999999"],
+  /** Okabe–Ito without orange and vermilion, stable by hashed key, with pattern twins (`categoricalPatterns`). */
+  categorical: ["#0072B2", "#009E73", "#CC79A7", "#56B4E9", "#F0E442", "#999999"],
+} as const;
+
+/** Palettes that the dark scheme changes. */
+export const darkPaletteTokens = {
+  /** Paths by cases in the dark scheme: grey, brighter with more cases; the dimmest has 3.73 : 1 on the dark paper. */
+  neutral: ["#6e737d", "#8d929b", "#adb1b8", "#cfd2d6", "#f2f3f5"],
 } as const;
 
 export const fontTokens = {
@@ -174,8 +186,12 @@ export const strokeTokens = {
   canvasPathHighlight: 2.5,
   pathFocus: 3,
   pathHit: 14,
-  arc: 2,
+  /** Every constraint arc, whatever its coverage. */
+  arc: 1.5,
+  /** Read by nothing: an arc's width no longer shows its coverage. */
   arcCoverage: 8,
+  /** Outline of the pill an arc's label is written in. */
+  pill: 1.5,
   selfLoop: 2.5,
   badge: 1.5,
   chip: 2,
@@ -187,7 +203,11 @@ export const strokeTokens = {
   minimapNode: 2,
 } as const;
 
-/** Dash patterns by meaning, in layout units. */
+/**
+ * Dash patterns by meaning, in layout units. A dash means "not directly
+ * observed": the scene dashes only re-added paths and activities. `note`,
+ * `constraint`, `group` and `reverseArc` are read by nothing.
+ */
 export const dashTokens = {
   reconnectedNode: [4, 3],
   reconnectedPath: [6, 5],
@@ -335,7 +355,7 @@ export type PatternId =
   | "diagonal-reverse"
   | "grid";
 
-/** Pattern twins in the order of the categorical palette. */
+/** Every pattern twin; the SVG export and the maps define a tile for each. */
 export const PATTERNS: PatternId[] = [
   "solid",
   "diagonal",
@@ -346,6 +366,13 @@ export const PATTERNS: PatternId[] = [
   "diagonal-reverse",
   "grid",
 ];
+
+/**
+ * The pattern twin of each categorical colour, in the palette's order: each
+ * colour keeps the twin it had before orange (diagonal) and vermilion
+ * (vertical) left the palette, so no two colours share one.
+ */
+export const categoricalPatterns: PatternId[] = ["solid", "dots", "crosshatch", "horizontal", "diagonal-reverse", "grid"];
 
 /**
  * Pattern twins of the categorical colours: tiles of `size` with lines of
@@ -408,8 +435,8 @@ export const minimumTokens = { text: 6, stroke: 0.375 } as const;
 
 /**
  * What the print theme changes in the table: white paper and surfaces, no
- * tints, a pattern twin on every categorical colour (seven colours, seven
- * patterns, none solid) drawn opaque, ramps whose palest stop has 3 : 1 on the
+ * tints, a pattern twin on every categorical colour (five colours, five
+ * patterns, none solid, each colour with the twin it had among seven) drawn opaque, ramps whose palest stop has 3 : 1 on the
  * paper (three greys, three oranges, three blues), and no text under 7 pt and
  * no stroke under 0.75 pt. It has no dark scheme.
  */
@@ -419,9 +446,9 @@ export const printTokens = {
     neutral: ["#8c8c8c", "#5c5c5c", "#2b2b2b"],
     shortfall: ["#e6550d", "#a63603", "#5a1c03"],
     performance: ["#3a7bbf", "#08519c", "#08306b"],
-    categorical: ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00", "#F0E442"],
+    categorical: ["#0072B2", "#009E73", "#CC79A7", "#56B4E9", "#F0E442"],
   },
-  patterns: ["diagonal", "dots", "crosshatch", "horizontal", "vertical", "diagonal-reverse", "grid"],
+  patterns: ["diagonal", "crosshatch", "horizontal", "vertical", "grid"],
   pattern: { strokeOpacity: 1, dotOpacity: 1 },
   text: { nodeCount: { size: 10 }, eventLabel: { size: 10 }, attribution: { size: 10 }, legendKey: { size: 10 }, timelineMark: { size: 10 } },
   stroke: { legendGradient: 1 },
@@ -434,6 +461,7 @@ export const designTokens = {
   color: colorTokens,
   darkColor: darkColorTokens,
   palette: paletteTokens,
+  darkPalette: darkPaletteTokens,
   font: fontTokens,
   nodeSize: nodeSizeTokens,
   size: sizeTokens,

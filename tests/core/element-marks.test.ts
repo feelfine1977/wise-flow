@@ -43,9 +43,9 @@ describe("node marks", () => {
           text({ role: "count", text: "4 · 1.5k", x: 594, y: 51, size: 9, anchor: "end", baseline: "alphabetic", paint: "inkMuted", lod: "labels" }),
         ],
       },
-      // A note: on the surface colour with a dotted border, no band, its 11 px label at every zoom.
+      // A note: on the surface colour with a solid border (a dash means "not directly observed"), no band, its 11 px label at every zoom.
       {
-        ...base, id: "n", kind: "note", box: positions.nodes.n, shape: "box", radius: 6, fill: "surface", stroke: { paint: "value", width: 2, dash: [2, 3] },
+        ...base, id: "n", kind: "note", box: positions.nodes.n, shape: "box", radius: 6, fill: "surface", stroke: { paint: "value", width: 2 },
         texts: [text({ role: "label", text: "Ask the vendor twice", x: 656, y: 30, size: 11, maxWidth: 136 })],
       },
       // An end event has a 3 wide border.
@@ -96,8 +96,8 @@ describe("edge marks", () => {
       { id: "start->a", kind: "follows", points: positions.edges["start->a"].points, color: neutral, width: 1.5, reconnected: false, texts: [count("1.2k", 68, 16)] },
       // Without a route: a straight line between the two boxes; flow edges carry their count too.
       { id: "a->g", kind: "flow", points: [{ x: 280, y: 20 }, { x: 320, y: 20 }], color: neutral, width: 1.5, reconnected: false, texts: [count("12", 300, 16)] },
-      // Constraint edges: mechanism blue, dotted; without a count no label.
-      { id: "g->s", kind: "constraint", points: positions.edges["g->s"].points, color: "#0072B2", width: 1.5, dash: [2, 4], reconnected: false, texts: [] },
+      // Constraint edges: in the accent, solid; without a count no label.
+      { id: "g->s", kind: "constraint", points: positions.edges["g->s"].points, color: "#b84a00", width: 1.5, reconnected: false, texts: [] },
       { id: "s->r", kind: "follows", points: positions.edges["s->r"].points, color: neutral, width: 1.5, dash: [6, 5], reconnected: true, texts: [count("3", 500, 74)] },
     ]);
   });
@@ -135,7 +135,7 @@ describe("group marks", () => {
   );
   const strip = <T extends { group: unknown }>({ group, ...rest }: T) => (expect(group).toBeDefined(), rest);
 
-  it("resolves a stage group's tint, dashed outline, title and chip anchor, in the graph's order", () => {
+  it("resolves a stage group's tint, solid outline, title and chip anchor, in the graph's order", () => {
     const scene = buildScene(grouped, boxes);
     const [pay] = scene.groupMarks.map(strip);
     expect(scene.groupMarks.map((m) => m.id)).toEqual(["pay", "order"]);
@@ -147,9 +147,9 @@ describe("group marks", () => {
       pattern: scene.scales.categorical("pay").pattern,
       band: undefined,
       radius: 10,
-      // Its colour at 0.06, outlined in it 1.5 wide with dashes of 6 and gaps of 4.
+      // Its colour at 0.06, outlined in it 1.5 wide, solid.
       fill: { paint: "value", opacity: 0.06 },
-      stroke: { paint: "value", width: 1.5, dash: [6, 4] },
+      stroke: { paint: "value", width: 1.5 },
       rule: undefined,
       // The title 12 in from the left, on a baseline 22 below the top, at 14 px semibold.
       texts: [text({ role: "label", text: "Payment", x: 212, y: 22, size: 14, weight: 600, baseline: "alphabetic" })],

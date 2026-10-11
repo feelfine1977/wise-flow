@@ -70,11 +70,12 @@ describe("BpmnView overlays from the scene", () => {
     await waitFor(() => expect(container.querySelector(".wf-bpmn")?.getAttribute("data-bpmn-status")).toBe("ready"));
     const viewer = viewers.instances[0];
     await waitFor(() => expect(viewer.overlays.length).toBe(3));
-    // Slots run leftwards from the right edge of the 100 px task: 100 - 26 + 2 and 100 - 52 + 2, half a badge above.
+    // Pills run leftwards from the right edge of the 100 px task, 18 tall and 2 above it: "● · 50 %" and "● · 25 %"
+    // (8 characters of 5.5 and 6 on either side, 56 wide) at 100 − 56 and 44 − 4 − 56; a dot alone 18 wide at 100 − 18.
     expect(viewer.overlays.map((a) => [a.element, a.overlay.position.left, a.overlay.position.top]).sort()).toEqual([
-      ["Task_ApproveInvoice", 76, -11],
-      ["Task_CreatePO", 50, -11],
-      ["Task_CreatePO", 76, -11],
+      ["Task_ApproveInvoice", 82, -20],
+      ["Task_CreatePO", -16, -20],
+      ["Task_CreatePO", 44, -20],
     ]);
   });
 
@@ -98,12 +99,12 @@ describe("BpmnView overlays from the scene", () => {
       const { element, overlay } = viewer.overlays.find((a) => a.overlay.html.className === className)!;
       return { id: element, ...overlay };
     };
-    // The badge's box: 24 wide for its glyph, at the first slot of the task (440 + 100 - 28 + 2, 140 - 11), shown
-    // from the default badge zoom 0.22 (eleven nodes leave it unchanged).
+    // The badge's pill: "≥1 · 25 %", 61.5 wide, ending at the right edge of the task at (440, 140) and 2 above it
+    // (440 + 100 − 61.5, 140 − 20), shown from the default badge zoom 0.22 (eleven nodes leave it unchanged).
     const badge = added("wf-badge");
-    expect([badge.id, badge.position, badge.show, badge.scale]).toEqual(["Task_CreatePO", { top: -11, left: 74 }, { minZoom: 0.22 }, { min: 0.8, max: 1.2 }]);
-    expect(badge.html.querySelector("svg")?.getAttribute("viewBox")).toBe("514 129 24 22");
-    expect(badge.html.querySelector("rect")?.getAttribute("fill")).toBe("#fdd0a2");
+    expect([badge.id, badge.position, badge.show, badge.scale]).toEqual(["Task_CreatePO", { top: -20, left: 38.5 }, { minZoom: 0.22 }, { min: 0.8, max: 1.2 }]);
+    expect(badge.html.querySelector("svg")?.getAttribute("viewBox")).toBe("478.5 120 61.5 18");
+    expect(badge.html.querySelector("rect")?.getAttribute("stroke")).toBe("#b84a00");
     // The tint covers the task from every zoom, scales with the diagram and is multiplied onto it.
     const tint = added("wf-tint wf-mark--below");
     expect([tint.id, tint.position, tint.show, tint.scale]).toEqual(["Task_CreatePO", { top: 0, left: 0 }, undefined, true]);
@@ -115,10 +116,12 @@ describe("BpmnView overlays from the scene", () => {
     const { container: map } = render(<Chip chip={chip} locale="en" />);
     expect(drawn.textContent).toBe(map.textContent);
     expect(drawn.textContent).toBe("Touches — 2.1 ⌀◔Touches: 2.1 ⌀");
-    // The arc runs between the tasks in the SVG layer, dashed as a reverse arc.
+    // The arc runs between the tasks in the SVG layer, solid as every arc, its label "⇐ 100 %" on its pill.
     const arc = viewer.layer().querySelector(".wf-arc path");
-    expect(arc?.getAttribute("stroke-dasharray")).toBe("6 4");
+    expect(arc?.getAttribute("stroke-dasharray")).toBeNull();
     expect(arc?.getAttribute("marker-end")).toBe("url(#wf-bpmn-arrow)");
+    expect(viewer.layer().querySelector(".wf-arc .wf-pill")).not.toBeNull();
+    expect(viewer.layer().querySelector(".wf-arc text")?.textContent).toBe("⇐ 100 %");
   });
 
   it("keeps the diagram's marks out of the styling contract, which reaches only the React map and its panels", async () => {
