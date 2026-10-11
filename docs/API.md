@@ -402,16 +402,28 @@ export interface Theme {
   color: Readonly<Record<ColorToken, string>>;            // the colour roles in the light scheme
   dark: Readonly<Partial<Record<ColorToken, string>>>;    // the roles the dark scheme changes
   palette: Readonly<ThemePalettes>;
+  patterns: readonly PatternId[];                         // the pattern twin of each categorical colour, in the palette's order
   font: { family: string; mono: string };
   text: { [role in keyof typeof textTokens]: { size?; weight?; lineHeight? } };   // as textTokens, any values
   radius: { [role in keyof typeof radiusTokens]: number | string };
   stroke: { [role in keyof typeof strokeTokens]: number };
+  opacity: { [role in keyof typeof opacityTokens]: number };   // the tints are tint, groupFill, bandFill, bandOddFill
   space: { unit: number; steps: readonly number[] };
   density: "comfortable" | "compact";                     // the renderers draw comfortable
+  minimum: { text: number; stroke: number };              // pt at the figure's output size (1 layout unit = 0.75 pt)
   rules: readonly never[];                                // none yet
 }
 export const defaultTheme: Theme;                          // the token table: today's look
+export const printTheme: Theme;                            // defaultTheme with printTokens over it; no dark scheme
+export const themePresets: Readonly<Record<ThemePreset, Theme>>;
+export type ThemePreset = "default" | "print";
+export type ThemeOverrides = /* any part of Theme, each table entry on its own */ & { preset?: ThemePreset };
+export type ThemeSetting = ThemePreset | ThemeOverrides;   // a whole Theme is a ThemeOverrides too
+export function resolveTheme(setting?: ThemeSetting, variables?: ThemeOverrides): Theme;   // preset, then variables, then the setting
 export function themeColors(theme: Theme, scheme?: ColorScheme): Readonly<Record<ColorToken, string>>;  // the light roles with the scheme's changes
+export function checkTheme(theme: Theme): ThemeDeviation[];   // empty when nothing falls short
+export interface ThemeDeviation { kind: "text" | "line" | "rampOrder" | "rampStart" | "textSize" | "strokeWidth" | "color";
+  scheme?: ColorScheme; subject: string; value: number | string; minimum?: number }
 ```
 
 Appearance is scene data. `buildScene(graph, positions, { theme, scheme })`
@@ -425,7 +437,56 @@ interactive map draws the marks too and paints the roles with the CSS
 variables of `tokens.css`, whose dark blocks hold the same values as the
 dark scheme. `defaultTheme` is the token table, and a scene without a theme
 draws as before. `toSVG`, `toPNG` and `prepareScene` take `theme` and
-`scheme`, `<ProcessMap/>` takes `theme`.
+`scheme`; `<ProcessMap/>`, `<CanvasMap/>` and `<ViewSwitcher/>` take `theme`
+(see "Theme of a map in a page").
+
+**Presets and settings.** A host sets a theme as a preset's name (`"default"`,
+`"print"`) or as changes over a preset: `{ preset: "default", density:
+"compact", radius: { node: 4 }, text: { nodeLabel: { size: 13 } } }` changes
+those entries and keeps the rest of the preset (`default` unless named); a
+list, such as a palette, replaces the preset's. A whole `Theme` is such
+changes too, so code that passes one keeps working. `resolveTheme(setting,
+variables)` gives the theme: the preset, then `variables` (what a host wrote
+as CSS variables), then the setting. Colours must be literals (`#rgb`,
+`#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()`); another syntax is left out (the
+preset's colour stays), so every paint of an export is a literal.
+`useFlowTheme` turns any CSS colour into one before. Palette stops are hex
+colours.
+
+**`default`** is today's look, in a light and a dark scheme. **`print`** is
+for figures: white paper and surfaces, no tints (`opacity.tint`, `groupFill`,
+`bandFill`, `bandOddFill` are 0), a pattern twin on every categorical colour
+(seven colours, seven patterns, none solid), a neutral ramp of three greys,
+no text under 7 pt and no stroke under 0.75 pt (`minimum`; the default's 9 px
+counts and labels and 9.5 px legend keys are 10 px, the legend ramp's outline
+1 px), and no dark scheme: it draws the same in both. Its legend sits beside
+the plot, as in every export. The values are the token table's `printTokens`.
+
+**Exports.** `toSVG`, `toPNG` and `prepareScene` draw the `default` preset in
+the light scheme unless given `theme` or `scheme`; `theme: "print"` draws the
+print theme. They never read the page: an export of a map in the dark scheme
+is light unless `scheme: "dark"` is passed. To export what a map draws, pass
+the theme `useFlowTheme` resolves for its container.
+
+**`checkTheme(theme)`** returns what falls short, as data, in both schemes:
+text against its ground under 4.5 : 1 (`ink` and `inkMuted` on `paper` and on
+`surface`, `onFocus` on `focus`), a line against the paper under 3 : 1
+(`lineStrong`, `neutral`, `focus`; `line` draws hairlines and tracks whose
+meaning a label or a neighbour carries too, and is not checked), the path
+ramp (`palette.neutral`) not monotonic in luminance or its low end under
+3 : 1 against the paper, a text size or stroke width of the tables under the
+theme's `minimum` (in pt, one layout unit being 0.75 pt), and a colour that
+is not a literal. Both presets pass in both schemes; the default's `minimum`
+is the smallest it draws today (6 pt: the trace timeline's 8 px marks;
+0.375 pt: the legend ramp's 0.5 px outline). The React components log what
+it finds once per theme in development (`process.env.NODE_ENV` other than
+`production`), and decide nothing from it.
+
+**Greyscale.** In print, stage colours that look alike in grey are told apart
+by their patterns: each categorical colour has a pattern no other has, and
+the ink the pattern is drawn in reaches 3 : 1 against every one of them; the
+path ramp's greys darken step by step, each at least 1.5 : 1 from the next.
+A test checks these on the preset.
 
 ## Overlays
 
@@ -489,7 +550,7 @@ export interface Scene { graph; positions; overlays?; style?; title?; subtitle?;
 export interface ExportOptions { preset?: "single-column" | "double-column" | "slide" | "none"; width?; legend?;
   background?; fontFamily?; padding?; lodZoom?; context?;
   edgeBudget?: EdgeBudget | ShownEdges;   // default every edge; see "Edge budget"
-  theme?: Theme; scheme?: ColorScheme }   // what the figure is drawn in; default defaultTheme, light
+  theme?: ThemeSetting; scheme?: ColorScheme }   // what the figure is drawn in; default the default preset, light
 export function toSVG(scene: Scene, o?: ExportOptions): string;   // deterministic, legend embedded
 
 export type FigurePreset = "single-column" | "double-column" | "slide" | "none";
@@ -546,7 +607,7 @@ export function metricLabel(locale: Locale, metric: string): string;
 ```ts
 export function ProcessMap(props: {
   graph: FlowGraph; positions?: Positions; overlays?: Overlay[]; style?: StyleSpec;
-  theme?: Theme;   // outlines, radii, text styles and palettes of the marks; colour roles through tokens.css
+  theme?: ThemeSetting;   // a preset's name or changes over a preset, over the container's --wf-* variables; see "Theme of a map in a page"
   abstraction?: AbstractOptions; defaultAbstraction?: AbstractOptions; onAbstractionChange?: (o: AbstractOptions) => void;
   controls?: boolean; legend?: boolean; minimap?: boolean; renderer?: "auto" | "svg" | "canvas"; canvasThreshold?: number;
   selection?: Selection; onSelect?: (s: Selection) => void; onHover?: (id: string | null) => void;
@@ -703,8 +764,9 @@ outlines, tints and texts (`--wf-stroke-node`, `--wf-stroke-stage`,
 `--wf-weight-group-label`, `--wf-radius-circle`, `--wf-opacity-group-fill`,
 `--wf-opacity-band-fill`, `--wf-opacity-band-odd-fill`, `--wf-size-band`) are
 no longer defined: those values come from the theme.
-A host that sets one of them changes only the live map and the panels; the
-Canvas map, SVG and PNG read the table. The variables nothing read
+A host that sets one of them, or any other `--wf-*` variable of a theme part,
+on the map's container sets that part of the map's theme (see "Theme of a map
+in a page"), so the Canvas map draws it too and an export given that theme. The variables nothing read
 (`--wf-severity`, `--wf-mechanism`, `--wf-reservoir`, `--wf-pass`,
 `--wf-cat-0`…`7`, `--wf-seq-0`…`4`, `--wf-div-neg`, `--wf-div-mid`,
 `--wf-div-pos`) are no longer defined; their values remain in `colorTokens`
@@ -870,7 +932,7 @@ export interface BpmnSelection { tasks: string[]; flows: string[]; lanes: string
 export interface BpmnViewHandle { viewer(): unknown; saveXML(): Promise<string | undefined>; saveSVG(): Promise<string | undefined>; fit(): void }
 export function ViewSwitcher(props: { views: ViewSet; mode?: "single" | "grid"; onModeChange?; activeView?; onActiveViewChange?;
   columns?; locale?; selection?; onSelect?; onHover?; legend?; lod?; minimap?; className?; containerStyle?;
-  edgeBudget?: EdgeBudget | "adaptive" }): JSX.Element;   // from @wise/flow/react; edgeBudget is passed to every view's map
+  edgeBudget?: EdgeBudget | "adaptive"; theme?: ThemeSetting }): JSX.Element;   // from @wise/flow/react; edgeBudget and theme are passed to every view's map
 ```
 
 Gateways of `liteFromGraph`: a node with several successors gets an XOR
@@ -1179,17 +1241,19 @@ export function CanvasMap(props: { scene: PreparedScene | undefined; state: Draw
   onContextMenu?; onViewportChange?; descendants?; className?; children?;
   edgeBudget?: EdgeBudget | "adaptive";   // default "adaptive"
   clock?: () => number;   // ms, read by the adaptive edge budget; default performance.now; read when the map mounts
-  onAnnounce?: (text: string) => void; onEdgesShown?: (shown: ShownEdges | undefined) => void }
+  onAnnounce?: (text: string) => void; onEdgesShown?: (shown: ShownEdges | undefined) => void;
+  theme?: ThemeSetting }   // its colours and font, over the container's --wf-* variables; see "Theme of a map in a page"
   & { ref?: Ref<CanvasMapHandle> }): JSX.Element;
 export interface CanvasMapHandle { centerOn(id, zoom?); fit(); zoomBy(factor); screenBox(id): Box | undefined; renderer(): CanvasRenderer | null;
   moved(): boolean }   // true when the view changed since the map was last fitted
 ```
 
-`<CanvasMap/>` (and `<ProcessMap renderer="canvas"/>`) follows the theme:
-it reads the CSS variables of its host with `readTokens` when it mounts and
-again, redrawing when a value changed, whenever the `class`, `style` or
-`data-theme` attribute of the host or an ancestor changes or the system's
-colour scheme (`prefers-color-scheme`) switches.
+`<CanvasMap/>` (and `<ProcessMap renderer="canvas"/>`) follows the theme: it
+draws in the colours and the font `useFlowTheme` resolves for the element that
+contains it (its `theme` prop over that element's `--wf-*` variables over the
+preset), and redraws, without preparing the scene again, when they change
+(see "Theme of a map in a page"). Sizes, radii and strokes are the scene's.
+It no longer calls `readTokens`.
 
 `<ProcessMap/>` with the 0.3 props: a right click on a node, path or group
 (or Enter on the focused element) opens `<ContextMenu/>` with
@@ -1218,7 +1282,7 @@ renderer above `canvasThreshold` elements; the container carries
 export interface PreparedScene extends FlowScene { shapes: OverlayShape[]; nodes: SceneNode[]; edges: SceneEdge[];
   groups: SceneGroup[]; bounds: Box; hit: HitIndex; size: number; nodeById; edgeById; groupById; shapeById; labelCache }
 export function prepareScene(g: FlowGraph, p: Positions, o?: { activityLabels?; style?; overlays?; lod?; lodBySize?: boolean; locale?;
-  lanes?: LaneMode; bands?: LaneBand[]; overlayGeometry?; selfLoops?: boolean; theme?: Theme; scheme?: ColorScheme }): PreparedScene;
+  lanes?: LaneMode; bands?: LaneBand[]; overlayGeometry?; selfLoops?: boolean; theme?: ThemeSetting; scheme?: ColorScheme }): PreparedScene;
 export interface DrawContext { /* the subset of CanvasRenderingContext2D the routines use */ }
 export interface View { x: number; y: number; zoom: number; width: number; height: number }
 export interface DrawState { selection: Selection; hovered?: string | null; focused?: string | null; bright?: { nodes: Set<string>; edges: Set<string> };
@@ -1240,10 +1304,10 @@ export class CanvasRenderer { constructor(canvas: HTMLCanvasElement, o?: { token
   onDraw?: (stats: { nodes; edges; shapes; culled; withheld?; ms }) => void }   // called after every draw
 export interface CanvasTokens { font; paper; surface; ink; inkMuted; line; lineStrong; focus; selection; neutral; outOfScope }
 export const defaultTokens: CanvasTokens;   // from the token table (`colorTokens`, `fontTokens`); without `tokens` a draw takes the scene's colours and font
-export function readTokens(element: Element | null | undefined, overrides?: Partial<CanvasTokens>): CanvasTokens;   // from the CSS variables (`cssVariable(key)`)
+export function readTokens(element: Element | null | undefined, overrides?: Partial<CanvasTokens>): CanvasTokens;   // from the CSS variables (`cssVariable(key)`), as they are; <CanvasMap/> reads them with useFlowTheme instead
 export interface PngOptions { preset?: FigurePreset; width?; scale?; background?; legend?; padding?; lodZoom?; tokens?; createCanvas?; context?;
   edgeBudget?: EdgeBudget | ShownEdges;   // default every edge; see "Edge budget"
-  theme?: Theme; scheme?: ColorScheme }   // what the figure is drawn in; `tokens` override the scene's colours and font
+  theme?: ThemeSetting; scheme?: ColorScheme }   // what the figure is drawn in (default the default preset, light); `tokens` override the scene's colours and font
 export function toPNGCanvas(scene: Scene, o?: PngOptions): { canvas; width; height; cssWidth; cssHeight; scale };
 export function toPNG(scene: Scene, o?: PngOptions): Promise<Blob>;
 export function toPNGDataUrl(scene: Scene, o?: PngOptions): string;
@@ -1371,7 +1435,7 @@ SVG and Canvas PNG exports include the canonical activity key even when the colo
 ```ts
 export interface FlowSceneOptions { overlays?: Overlay[]; style?: StyleSpec; locale?: Locale; lanes?: LaneMode;
   moved?: Readonly<Record<string, XY>>; activityLabels?: ActivityLabelOptions; selfLoops?: boolean; lod?: Partial<LodRules>; lodBySize?: boolean;
-  overlayGeometry?: OverlayGeometryOptions; theme?: Theme; scheme?: ColorScheme }   // default defaultTheme, light
+  overlayGeometry?: OverlayGeometryOptions; theme?: Theme; scheme?: ColorScheme }   // default defaultTheme, light; the marks take the scheme's neutral and mechanism colours
 export interface FlowScene { graph; positions; bands: LaneBand[]; activityLabels?; locale; style; theme: Theme; scheme: ColorScheme;
   colors: Readonly<Record<ColorToken, string>>; scales: Scales;   // colors: every paint role in the scheme
   overlays: Overlay[]; lod: LodRules; geometry: OverlayGeometry; marks: OverlayMark[]; nodeMarks: NodeMark[]; edgeMarks: EdgeMark[];
@@ -1391,7 +1455,7 @@ export interface OverlayMark { id: string; kind: OverlayKind; overlay: Overlay; 
   stroke?: MarkStroke; arrow?: { size: number; overhang: number }; texts: MarkText[]; gauge?: MarkGauge; edgeId?: string }
 export function overlayMarks(shapes: OverlayShape[], locale?: Locale, theme?: Theme): OverlayMark[];
 export function overlayColor(o: Overlay, theme?: Theme): string;           // value on the theme's shortfall palette, its neutral without one
-export function tintColor(o: Overlay, theme?: Theme): string | undefined;  // the same colour at TINT_OPACITY, as CSS rgba()
+export function tintColor(o: Overlay, theme?: Theme): string | undefined;  // the same colour at the theme's tint opacity (TINT_OPACITY in the default theme), as CSS rgba()
 export function arcWidth(o: Overlay, theme?: Theme): number;               // 2 + 8 × coverage (default 1), the theme's arc strokes
 export const TINT_OPACITY: number;                          // 0.18
 export const overlayArrow: { size: number; overhang: number }; // 12, tip 0.1 × size beyond the path (`arrowheadTokens.overlay`)
@@ -1703,6 +1767,63 @@ the drawing. A constraint arc is not an observed process route.
 `repositionNodes` keeps supplied edge identities, directions and metrics unchanged. It routes around all visible boxes, including a moved box obstructing an unrelated edge; self loops remain node-anchored overlays. During an overlapping drag, an unroutable edge falls back to a clipped direct route rather than throwing. Positions and routes are immutable, and bounds include the rerouted edges. Manual placement is local to the mounted map unless the host persists it.
 
 Custom child controls should import `useReactFlow`, `useNodesInitialized` and `useStore` from `@wise/flow/react`, so they share the renderer's context even when a host resolves different Node/browser entry points of React Flow.
+
+## Theme of a map in a page
+
+```ts
+// @wise/flow/react
+export function useFlowTheme(host: RefObject<Element | null>, setting?: ThemeSetting): FlowTheme;
+export interface FlowTheme { theme: Theme; scheme: ColorScheme }
+// <ProcessMap theme?>, <CanvasMap theme?>, <ViewSwitcher theme?>: ThemeSetting
+```
+
+A host writes a map's theme as an object, as CSS variables, or both. The
+precedence is: the `theme` setting, then the `--wf-*` variables of the map's
+container, then the preset. `useFlowTheme` resolves it, and the map,
+`<CanvasMap/>` and a host's export read what it resolves:
+
+- **Variables.** Every part of a theme has a variable: a colour role
+  `--wf-<role>` (`--wf-paper`, `--wf-ink-muted`, …), the fonts `--wf-font`
+  and `--wf-font-mono`, a text role's `--wf-text-<role>` (size),
+  `--wf-weight-<role>` and `--wf-leading-<role>`, `--wf-radius-<role>` (and
+  `--wf-radius`, `--wf-radius-lg` for the node's and the large radius),
+  `--wf-stroke-<role>` and `--wf-opacity-<role>`, roles in kebab case.
+  Lengths are read in px. The map reads them on the element that contains
+  it, as set there or inherited; a value equal to what `tokens.css` sets is
+  `tokens.css`'s, not the host's, and is left out.
+- **Colours** in any CSS syntax (a name, `hsl()`, `oklch()`, `color-mix()`,
+  …) become the literal the browser paints, read back from one pixel of a
+  canvas: `#rrggbb`, or `rgba()` when translucent. The same holds for the
+  colours of a `theme` object. So the Canvas map and an export draw literals.
+- **Scheme.** The scheme is the one `tokens.css` draws in: `data-theme` on the
+  document's root, otherwise `prefers-color-scheme`. Colours read in the dark
+  scheme are the theme's `dark` roles: an export, which draws the light
+  scheme unless told otherwise, does not inherit them.
+- **Changes.** The hook follows the `class`, `style` and `data-theme`
+  attributes of the container and its ancestors and the system's colour
+  scheme. A change of a colour or a font repaints the DOM map and the Canvas
+  map without a new layout and without building the scene again; a change of
+  a size, radius, stroke, opacity, of the scheme, or of the neutral and the
+  constraint colour (which the marks draw in) builds the scene once, without
+  a new layout.
+- **The DOM map** paints with the variables it inherits. Given a `theme`, the
+  map writes the theme's colours, fonts and the sizes the stylesheet reads
+  (the variables of `tokens.css`) on its own element, so its panels follow it
+  too; without one it writes none.
+- **Exports.** `toSVG(scene, { theme: look.theme })` draws what the map draws,
+  in the light scheme; `scheme: look.scheme` draws the page's scheme.
+
+```tsx
+const ref = useRef<HTMLDivElement>(null);
+const look = useFlowTheme(ref);   // the container's variables over the default preset
+<div ref={ref} style={{ "--wf-paper": "#fdf6e3", "--wf-font": "Georgia, serif" }}>
+  <ProcessMap graph={graph} />
+</div>
+const svg = toSVG({ graph, positions }, { theme: look.theme });
+```
+
+The element must be mounted when the component that calls the hook mounts.
+In development the hook logs what `checkTheme` finds, once per finding.
 
 ## Styling contract
 
