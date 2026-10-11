@@ -4,9 +4,9 @@ import { layout, toSVG, type FlowGraph, type Overlay } from '@wise/flow';
 import { ProcessMap } from '@wise/flow/react';
 import { BpmnView, exportBpmn, liteFromStages, type BpmnSelection } from '@wise/flow/bpmn';
 import { prepareScene } from '@wise/flow/canvas';
-import '@wise/flow/react-flow.css';
 import '@wise/flow/bpmn.css';
 import '@wise/flow/tokens.css';
+// The recommended stylesheet: React Flow's styles and the library's in the cascade layer `wf`.
 import '@wise/flow/style.css';
 import elkWorkerUrl from '@wise/flow/elk-worker.min.js?url';
 import dagreWorkerUrl from '@wise/flow/dagre-worker.min.js?url';

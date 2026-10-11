@@ -1,6 +1,6 @@
 import { EdgeLabelRenderer, ViewportPortal } from "@xyflow/react";
 import { type Locale, type OverlayMark, type OverlayShape, overlayMarks } from "../core/index.js";
-import { type MarkIds, domMark, markDefs, svgReact } from "./marks.js";
+import { type MarkIds, mapMark, markDefs, svgReact } from "./marks.js";
 
 export interface OverlayLayerProps {
   /** The scene's overlay marks (`FlowScene.marks`). Without them, the marks of `shapes`. */
@@ -37,7 +37,7 @@ export function OverlayLayer({ marks, shapes = [], locale, zoom = Infinity, hove
         <svg className="wf-overlay-layer" style={{ position: "absolute", left: 0, top: 0, width: 1, height: 1, overflow: "visible", zIndex }} aria-hidden="true">
           {defs ? svgReact(markDefs(IDS)) : null}
           {list.map((m) =>
-            svgReact(domMark(m, IDS, hoveredId === m.id), m.id, {
+            svgReact(mapMark(m, IDS, hoveredId === m.id), m.id, {
               onMouseEnter: () => onHover?.(m.id),
               onMouseLeave: () => onHover?.(null),
               onClick: () => onSelect?.(shapeOf(m)),

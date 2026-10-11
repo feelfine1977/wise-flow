@@ -1,6 +1,7 @@
 import { scaleLinear, scaleTime } from "d3-scale";
 import { type KeyboardEvent, useEffect, useId, useMemo, useState } from "react";
 import { type Locale, contrastText, formatNumber, hashKey, palettes, t } from "../core/index.js";
+import { part } from "./parts.js";
 
 export interface TraceEvent {
   activity: string;
@@ -134,7 +135,7 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
 
   if (table) {
     return (
-      <div className={`wf-table wf-trace-timeline${className ? ` ${className}` : ""}`}>
+      <div className={`wf-table wf-trace-timeline${className ? ` ${className}` : ""}`} {...part("timeline")}>
         <table>
           <caption>{description}</caption>
           <thead>
@@ -170,7 +171,7 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
   }
 
   return (
-    <div className={`wf-trace-timeline${className ? ` ${className}` : ""}`} style={{ position: "relative", width }}>
+    <div className={`wf-trace-timeline${className ? ` ${className}` : ""}`} {...part("timeline")} style={{ position: "relative", width }}>
       <svg width={width} height={height} role={onSelect ? "group" : "img"} aria-labelledby={`${id}-desc`}>
         <title id={`${id}-desc`}>{description}</title>
         <g className="wf-axis">
@@ -223,6 +224,7 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
                     <title>{describeEvent(e, row.times[i], locale)}</title>
                     <circle
                       className={`wf-event${violates ? " wf-event--violates" : ""}`}
+                      {...part("timeline-event")}
                       cx={xs[i]}
                       cy={cy}
                       r={violates ? 6.5 : 5}
@@ -251,7 +253,7 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
       </svg>
       {unplacedEvents > 0 ? <p>{t(locale, "timeline.unplaced", { count: unplacedEvents })}</p> : null}
       {hover && hoveredRow ? (
-        <div className="wf-tooltip" style={{ left: Math.min(xOf(hoveredRow, hover.index) + 10, width - 200), top: TOP + rows.indexOf(hoveredRow) * rowHeight + rowHeight / 2 + 10 }} role="status">
+        <div className="wf-tooltip" {...part("tooltip")} style={{ left: Math.min(xOf(hoveredRow, hover.index) + 10, width - 200), top: TOP + rows.indexOf(hoveredRow) * rowHeight + rowHeight / 2 + 10 }} role="status">
           {describeEvent(hover.event, hoveredRow.times[hover.index], locale)}
         </div>
       ) : null}

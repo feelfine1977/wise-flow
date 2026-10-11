@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { FlowNode } from "../core/index.js";
+import { part } from "./parts.js";
 
 interface Props {
   id: string;
@@ -74,6 +75,7 @@ export function ActivityTooltip({ id, node, description, anchor }: Props) {
       ref={elementRef}
       role="tooltip"
       className="wf-activity-tooltip"
+      {...part("tooltip")}
       style={position}
       onMouseEnter={() => { overTooltip.current = true; clearTimeout(closeTimer.current); }}
       onMouseLeave={() => { overTooltip.current = false; if (!candidate.current) setShown(null); }}

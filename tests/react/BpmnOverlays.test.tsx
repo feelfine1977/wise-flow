@@ -120,4 +120,23 @@ describe("BpmnView overlays from the scene", () => {
     expect(arc?.getAttribute("stroke-dasharray")).toBe("6 4");
     expect(arc?.getAttribute("marker-end")).toBe("url(#wf-bpmn-arrow)");
   });
+
+  it("keeps the diagram's marks out of the styling contract, which reaches only the React map and its panels", async () => {
+    const { container } = render(
+      <BpmnView
+        xml={xml}
+        legend={false}
+        overlays={[
+          { kind: "badge", target: "Task_CreatePO", payload: { glyph: "≥1", value: 0.25 } },
+          { kind: "selfLoop", target: "Task_ApproveInvoice", payload: { value: 0.25 } },
+        ]}
+      />,
+    );
+    await waitFor(() => expect(container.querySelector(".wf-bpmn")?.getAttribute("data-bpmn-status")).toBe("ready"));
+    const viewer = viewers.instances[0];
+    await waitFor(() => expect(viewer.layer().querySelector(".wf-selfloop")).not.toBeNull());
+    await waitFor(() => expect(viewer.overlays.length).toBe(1));
+    const drawn = [viewer.layer(), viewer.overlays[0].overlay.html];
+    expect(drawn.flatMap((root) => Array.from(root.querySelectorAll("[data-wf-part], [data-wf-kind], [data-wf-state]")))).toEqual([]);
+  });
 });

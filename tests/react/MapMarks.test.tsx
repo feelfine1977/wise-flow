@@ -153,22 +153,46 @@ describe("Badges", () => {
   });
 });
 
-const TOKENS: Record<string, string> = { "var(--wf-ink)": "#1f1f1f", "var(--wf-paper)": "#ffffff", "var(--wf-line)": "#cfd4dc", "var(--wf-out-of-scope)": "#b0b0b0" };
+const TOKENS: Record<string, string> = { ink: "#1f1f1f", paper: "#ffffff", line: "#cfd4dc", "out-of-scope": "#b0b0b0" };
 const IDS: Record<string, string> = { "url(#wf-arc-arrow)": "url(#wf-overlay-arrow)", "url(#wf-mark-arrow)": "url(#wf-overlay-arrow)", "url(#wf-mark-outofscope)": "url(#wf-pattern-outofscope)" };
-const DOM_ONLY = new Set(["data-overlay-id", "data-constraint", "pointer-events", "style"]);
+const DOM_ONLY = new Set(["data-overlay-id", "data-constraint", "pointer-events", "data-wf-part", "data-wf-kind", "data-wf-state"]);
 
 /**
  * An element as tag, attributes and children, with the DOM's paints and ids
- * read as the SVG export writes them: token variables (in the style) as the
- * fixed colours, and the export's marker and pattern ids.
+ * read as the SVG export writes them: the classes of token paints
+ * (`wf-fill-ink`) as the fixed colours, and the export's marker and pattern ids.
  */
 function tree(e: Element): unknown {
   const attrs: Record<string, string> = {};
   for (const a of Array.from(e.attributes)) if (!DOM_ONLY.has(a.name)) attrs[a.name] = IDS[a.value] ?? a.value;
-  const style = (e as SVGElement).style;
-  for (const name of ["fill", "stroke"]) {
-    const value = style?.getPropertyValue(name);
-    if (value) attrs[name] = TOKENS[value] ?? value;
-  }
+  const classes = (attrs.class ?? "").split(" ").filter((c) => {
+    const paint = c.match(/^wf-(fill|stroke)-(.+)$/);
+    if (paint) attrs[paint[1]] = TOKENS[paint[2]] ?? paint[2];
+    return c && !paint;
+  });
+  if (classes.length) attrs.class = classes.join(" ");
+  else delete attrs.class;
   return { tag: e.tagName, attrs, children: Array.from(e.childNodes).map((c) => (c.nodeType === 3 ? c.textContent : tree(c as Element))) };
 }
+
+describe("paints of the theme on marks", () => {
+  it("have a rule in the stylesheet for every class the marks of every overlay kind carry, plain and hovered", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { overlayGeometry, overlayMarks } = await import("../../src/index");
+    const { MARK_IDS, mapMark, markDefs, svgReact } = await import("../../src/react/marks");
+    const kinds = await import("../core/overlay-kinds");
+    // The fixture's overlays and a chip with a gauge, whose track is painted with the line colour.
+    const gauge: (typeof kinds.overlays)[number] = { kind: "chip", target: "b", payload: { glyph: "◔", text: "2.1", value: 0.5, gauge: { value: 2.1, threshold: 2, width: 1 } } };
+    const marks = overlayMarks(overlayGeometry([...kinds.overlays, gauge], kinds.positions).shapes);
+    const markup = renderToStaticMarkup(<svg>{[...marks.flatMap((m) => [false, true].map((hovered) => svgReact(mapMark(m, MARK_IDS, hovered), `${m.id}-${hovered}`))), svgReact(markDefs(MARK_IDS), "defs")]}</svg>);
+    const classes = new Set([...markup.matchAll(/\bwf-(?:fill|stroke)-[a-z-]+/g)].map(([c]) => c));
+    // Ink, paper, the gauge's track, the hatching's lines, and a hovered mark's value in the focus colour.
+    for (const c of ["wf-fill-ink", "wf-fill-paper", "wf-stroke-paper", "wf-fill-line", "wf-stroke-out-of-scope", "wf-fill-focus", "wf-stroke-focus"]) expect(classes).toContain(c);
+    const css = readFileSync("src/react/style.css", "utf8");
+    for (const c of classes) {
+      const [, property, token] = c.match(/^wf-(fill|stroke)-(.+)$/)!;
+      expect(css, c).toContain(`\n.${c} { ${property}: var(--wf-${token}); }\n`);
+    }
+  });
+});

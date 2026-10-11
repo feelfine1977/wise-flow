@@ -1,5 +1,6 @@
 import { type Locale, type Overlay, type Scales, type SceneLegend, colorTokens, formatCompact, formatNumber, formatShare, sceneLegend, t } from "../core/index.js";
 import { PatternSwatch } from "./patterns.js";
+import { part } from "./parts.js";
 
 export interface LegendProps {
   scales: Scales;
@@ -15,7 +16,7 @@ export interface LegendProps {
 export function Legend({ scales, overlays = [], locale = "en", chips, legend }: LegendProps) {
   const { items, keys } = legend ?? sceneLegend(scales.legend, overlays);
   return (
-    <div className="wf-panel wf-legend" role="region" aria-label={t(locale, "legend.title")}>
+    <div className="wf-panel wf-legend" {...part("legend")} role="region" aria-label={t(locale, "legend.title")}>
       <h3>{t(locale, "legend.title")}</h3>
       <dl>
         {items.map((item, i) => {

@@ -1,5 +1,6 @@
 import { useId } from "react";
 import { type AbstractOptions, type Locale, formatShare, t } from "../core/index.js";
+import { part } from "./parts.js";
 
 export interface AbstractionControlsProps {
   value: AbstractOptions;
@@ -18,7 +19,7 @@ export function AbstractionControls({ value, onChange, locale = "en", hasStages 
   const nodeShare = value.minNodeShare ?? 0;
   const edgeShare = value.minEdgeShare ?? 0;
   return (
-    <form className="wf-panel wf-controls" onSubmit={(e) => e.preventDefault()} aria-label={t(locale, "controls.title")}>
+    <form className="wf-panel wf-controls" {...part("abstraction-panel")} onSubmit={(e) => e.preventDefault()} aria-label={t(locale, "controls.title")}>
       <h3>{t(locale, "controls.title")}</h3>
       <label htmlFor={`${id}-nodes`}>
         <span>{t(locale, "controls.activities")}</span>

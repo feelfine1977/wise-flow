@@ -1,4 +1,5 @@
 import { type Filter, type FilterClause, type FilterPreview, type Locale, asFilter, changesCases, describeClause, describePreview, formatCount, normalizeFilterPreview, removeClause, t } from "../core/index.js";
+import { part } from "./parts.js";
 
 export interface FilterChipsProps {
   /** The filter of the contract (`{ and: [...] }`) or its clauses. */
@@ -42,7 +43,7 @@ export function FilterChips({ filter, preview, locale = "en", labelOf = (id) => 
   };
   const showClear = clearable ?? !!onFilterChange;
   return (
-    <div className={`wf-filters${className ? ` ${className}` : ""}`} role="group" aria-label={t(locale, "filters.title")}>
+    <div className={`wf-filters${className ? ` ${className}` : ""}`} {...part("filters")} role="group" aria-label={t(locale, "filters.title")}>
       <span className="wf-filters__title">{t(locale, "filters.title")}</span>
       {summary ? (
         <span className="wf-filters__count" data-testid="wf-filters-count">
@@ -61,6 +62,7 @@ export function FilterChips({ filter, preview, locale = "en", labelOf = (id) => 
               key={`${i}-${text}`}
               className={`wf-chip wf-filter-chip${changes ? " wf-filter-chip--changes" : ""}`}
               data-kind={c.kind}
+              {...part("filter-chip")}
               data-changes-cases={changes || undefined}
               tabIndex={onFilterChange ? 0 : undefined}
               onKeyDown={(e) => {

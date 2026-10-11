@@ -1,6 +1,6 @@
 /**
  * Overlay marks in the DOM: the SVG elements of `markSvg` with paints that
- * follow the theme's CSS tokens. The React map and the BPMN view both draw
+ * follow the theme's CSS tokens through classes a host rule can override. The React map and the BPMN view both draw
  * through this module, so a new overlay kind needs no change in either.
  */
 import { useStore } from "@xyflow/react";
@@ -40,7 +40,8 @@ export function markDefs(ids: MarkIds): SvgElement {
   return { tag: "defs", attrs: [], children: [arrowMarker(ids.arrow, markArrowhead(overlayArrow)), hatchSvg(ids.pattern, TOKENS.outOfScope)] };
 }
 
-// CSS variables are not valid in presentation attributes; they go into the style.
+// CSS variables are not valid in presentation attributes. In the React map a paint of the theme
+// becomes a class (`wf-fill-ink` for `fill: var(--wf-ink)`); the BPMN view's DOM gets it as a style.
 const isVariable = (value: string) => value.startsWith("var(");
 const camel = (name: string) => (name === "class" ? "className" : name.startsWith("data-") ? name : name.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase()));
 
@@ -48,12 +49,12 @@ const camel = (name: string) => (name === "class" ? "className" : name.startsWit
 export function svgReact(e: SvgElement | string, key?: number | string, extra: Record<string, unknown> = {}): ReactNode {
   if (typeof e === "string") return e;
   const props: Record<string, unknown> = { key };
-  const style: Record<string, string> = {};
+  const paints: string[] = [];
   for (const [name, value] of e.attrs) {
-    if (isVariable(value)) style[camel(name)] = value;
+    if (isVariable(value)) paints.push(`wf-${name}-${value.slice(9, -1)}`);
     else props[camel(name)] = value;
   }
-  if (Object.keys(style).length) props.style = style;
+  if (paints.length) props.className = [props.className, ...paints].filter(Boolean).join(" ");
   return createElement(e.tag, { ...props, ...extra }, ...e.children.map((c, i) => svgReact(c, i)));
 }
 
@@ -81,6 +82,17 @@ export function domMark(m: OverlayMark, ids: MarkIds, hovered = false): SvgEleme
   return g;
 }
 
+/**
+ * A mark of the React map and its panels: `domMark` with the data attributes of the styling
+ * contract. The BPMN view's diagram draws `domMark` without them, out of reach of host CSS.
+ */
+export function mapMark(m: OverlayMark, ids: MarkIds, hovered = false): SvgElement {
+  const g = domMark(m, ids, hovered);
+  g.attrs.push(["data-wf-part", "mark"], ["data-wf-kind", m.kind]);
+  if (hovered) g.attrs.push(["data-wf-state", "hovered"]);
+  return g;
+}
+
 /** CSS background layers that draw the fills of marks covering an element (`layer: "below"`). */
 export function coverBackground(marks: OverlayMark[]): string | undefined {
   const layers = marks.flatMap((m) => {
@@ -97,7 +109,7 @@ export function MarkFigure({ mark }: { mark: OverlayMark }) {
   const { x, y, width, height } = mark.box;
   return (
     <svg className="wf-mark" width={width} height={height} viewBox={`${x} ${y} ${width} ${height}`} overflow="visible" aria-hidden="true">
-      {svgReact(domMark(mark, MARK_IDS))}
+      {svgReact(mapMark(mark, MARK_IDS))}
     </svg>
   );
 }
@@ -120,7 +132,7 @@ export function ElementMarks({ marks, origin }: { marks: OverlayMark[]; origin: 
   if (!marks.length) return null;
   return (
     <svg className="wf-marks" overflow="visible" aria-hidden="true">
-      <g transform={`translate(${-origin.x} ${-origin.y})`}>{marks.map((m, i) => (shown[i] === "1" ? svgReact(domMark(m, MARK_IDS), m.id) : null))}</g>
+      <g transform={`translate(${-origin.x} ${-origin.y})`}>{marks.map((m, i) => (shown[i] === "1" ? svgReact(mapMark(m, MARK_IDS), m.id) : null))}</g>
     </svg>
   );
 }
@@ -128,7 +140,7 @@ export function ElementMarks({ marks, origin }: { marks: OverlayMark[]; origin: 
 /** The marker and pattern that `ElementMarks` refer to; rendered once by the map. */
 export function MarkDefs() {
   return (
-    <svg className="wf-mark-defs" width={0} height={0} style={{ position: "absolute" }} aria-hidden="true">
+    <svg className="wf-mark-defs" width={0} height={0} aria-hidden="true">
       {svgReact(markDefs(MARK_IDS))}
     </svg>
   );
