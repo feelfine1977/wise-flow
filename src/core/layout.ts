@@ -318,7 +318,8 @@ function guard<T>(promise: Promise<T>, ms: number, signal: AbortSignal, stop?: (
       reject(error);
     };
     const abort = () => end(signal.reason);
-    const timer = setTimeout(() => end(new LayoutTimeout(`layout timed out after ${ms} ms`)), ms);
+    // A timer fires at once beyond 2³¹ − 1 ms; a longer timeout (Infinity) waits that long.
+    const timer = setTimeout(() => end(new LayoutTimeout(`layout timed out after ${ms} ms`)), Math.min(ms, 2 ** 31 - 1));
     const clear = () => {
       clearTimeout(timer);
       signal.removeEventListener("abort", abort);

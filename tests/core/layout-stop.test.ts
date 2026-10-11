@@ -289,6 +289,21 @@ describe("stopping a layout", () => {
     scope.dispose();
   });
 
+  it("waits as long as a timer can for a timeout beyond a timer's reach, as for Infinity", async () => {
+    // Timers fire at once for a delay above 2³¹ − 1 ms; such a timeout must not end the layout before the engine answers.
+    for (const timeoutMs of [Infinity, 2 ** 31, Number.MAX_SAFE_INTEGER]) {
+      let answer: (() => void) | undefined;
+      const elk = { layout: (graph: ElkNode) => new Promise<ElkNode>((resolve) => (answer = () => resolve({ ...graph, children: graph.children?.map((c) => ({ ...c, x: 0, y: 0 })) }))) } as unknown as ELK;
+      let settled = "";
+      const pending = layout(pair, { elk, engine: "elk", timeoutMs }).then(() => (settled = "resolved"), (e: Error) => (settled = e.message));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(settled, String(timeoutMs)).toBe("");
+      answer!();
+      await pending;
+      expect(settled, String(timeoutMs)).toBe("resolved");
+    }
+  });
+
   it("rejects at once for an ELK instance the caller supplies, which cannot be interrupted", async () => {
     const terminateWorker = vi.fn();
     const elk = { layout: () => new Promise<ElkNode>(() => undefined), terminateWorker } as unknown as ELK;

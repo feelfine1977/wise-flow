@@ -77,3 +77,7 @@ returned boxes that were not finite.
 `layout` with Dagre leaves out an edge whose source or target is not a node
 of the graph; Dagre placed a node of its own for the missing end and routed
 the edge through coordinates that were not finite before.
+
+`layout` with a `timeoutMs` longer than a timer can wait (above 2³¹ − 1 ms,
+`Infinity` included) waits that long. The timer fired at once before, so the
+layout timed out at the start.

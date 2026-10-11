@@ -298,7 +298,9 @@ run: ELK, and Dagre in a worker. When it passes, the worker running it is
 terminated, so no layout work continues; `engine: "auto"` then falls back to
 Dagre, `"elk"` and `"dagre"` reject with "layout timed out after … ms". A
 timeout does not try ELK again (without stage partitions, as an ELK error
-still does). **In-process ELK, and an `elk` instance the caller supplies,
+still does). A timeout longer than a timer can wait (2³¹ − 1 ms, about 24
+days), `Infinity` included, waits that long; up to 0.3.5 the timer fired at
+once and the layout timed out before the engine answered. **In-process ELK, and an `elk` instance the caller supplies,
 cannot be interrupted**: an abort or timeout rejects at once, but the engine
 finishes its run in the background and its result is discarded; in-process
 ELK also blocks the calling thread while it runs, so a timeout cannot end it
