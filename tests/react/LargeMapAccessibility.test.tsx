@@ -282,6 +282,36 @@ describe("the table alternative of a large map", () => {
     expect(within(within(screen.getByRole("table")).getAllByRole("row")[1]).getByRole("rowheader").textContent).toBe("Activity 0");
   });
 
+  it("keeps the input focus on a working pager button when Next reaches the last page or Previous the first", () => {
+    const { graph } = seeded(250);
+    render(<TableAlternative graph={graph} pageSize={100} tables={["nodes"]} />);
+    const next = screen.getByRole("button", { name: "Next rows" }) as HTMLButtonElement;
+    const previous = screen.getByRole("button", { name: "Previous rows" }) as HTMLButtonElement;
+    next.focus();
+    fireEvent.click(next);
+    // Page 2 of 3: both buttons work, and the focus stays where it was.
+    expect(document.activeElement).toBe(next);
+    fireEvent.click(next);
+    // The last page: Next no longer works, so the focus moves to Previous.
+    expect(screen.getByRole("status").textContent).toBe("Rows 201–250 of 250");
+    expect(next.disabled).toBe(true);
+    expect(document.activeElement).toBe(previous);
+    fireEvent.click(previous);
+    expect(document.activeElement).toBe(previous);
+    fireEvent.click(previous);
+    // The first page: back to Next.
+    expect(screen.getByRole("status").textContent).toBe("Rows 1–100 of 250");
+    expect(previous.disabled).toBe(true);
+    expect(document.activeElement).toBe(next);
+    // A click that does not carry the input focus (a pointer in a browser that does not focus buttons) moves none.
+    const search = screen.getByRole("searchbox");
+    search.focus();
+    fireEvent.click(next);
+    fireEvent.click(next);
+    expect(next.disabled).toBe(true);
+    expect(document.activeElement).toBe(search);
+  });
+
   it("speaks German", () => {
     const { graph } = seeded(250);
     render(<TableAlternative graph={graph} pageSize={100} locale="de" />);

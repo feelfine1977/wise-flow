@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { type ElementRef, type FlowGraph, type Locale, type Overlay, type Scales, type StringKey, buildScales, defaultStyle, describeOverlay, emptySelection, formatCount, formatShare, t } from "../core/index.js";
 import { clickSelection } from "../core/map-controller.js";
 import { formatMetric, metricColumns, metricLabel } from "./describe.js";
@@ -34,6 +34,13 @@ type TableName = "nodes" | "edges" | "overlays";
  */
 function usePage<T>(rows: T[], text: (row: T) => string, query: string, pageSize: number | undefined, locale: Locale) {
   const [page, setPage] = useState({ query, at: 0 });
+  const buttons = useRef<(HTMLButtonElement | null)[]>([]);
+  // A button that goes to the first or the last page stops working there: the input focus it had moves to the other one.
+  const refocus = useRef<number | undefined>(undefined);
+  useLayoutEffect(() => {
+    if (refocus.current !== undefined) buttons.current[refocus.current]?.focus();
+    refocus.current = undefined;
+  });
   if (pageSize === undefined) return { rows, table: {}, head: {}, row: () => ({}), pager: null };
   const q = query.trim().toLocaleLowerCase();
   const matching = q ? rows.filter((r) => text(r).toLocaleLowerCase().includes(q)) : rows;
@@ -43,16 +50,19 @@ function usePage<T>(rows: T[], text: (row: T) => string, query: string, pageSize
   const at = page.query === query ? Math.min(page.at, last) : 0;
   const from = at * pageSize;
   const shown = matching.slice(from, from + pageSize);
-  const go = (to: number) => setPage({ query, at: to });
+  const go = (to: number, button: HTMLButtonElement) => {
+    if (document.activeElement === button && (to === 0 || to === last)) refocus.current = to === 0 ? 1 : 0;
+    setPage({ query, at: to });
+  };
   const pager = (
     <div className="wf-table__pager">
-      <button type="button" className="wf-button" disabled={at === 0} onClick={() => go(at - 1)}>
+      <button ref={(b) => void (buttons.current[0] = b)} type="button" className="wf-button" disabled={at === 0} onClick={(e) => go(at - 1, e.currentTarget)}>
         {t(locale, "table.previous")}
       </button>
       <span role="status">
         {matching.length ? t(locale, "table.rows", { from: formatCount(from + 1, locale), to: formatCount(from + shown.length, locale), total: formatCount(matching.length, locale) }) : t(locale, "table.empty")}
       </span>
-      <button type="button" className="wf-button" disabled={at >= last} onClick={() => go(at + 1)}>
+      <button ref={(b) => void (buttons.current[1] = b)} type="button" className="wf-button" disabled={at >= last} onClick={(e) => go(at + 1, e.currentTarget)}>
         {t(locale, "table.next")}
       </button>
     </div>

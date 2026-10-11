@@ -512,6 +512,8 @@ export function TableAlternative(props: { graph; overlays?; scales?; locale?; se
 // With `pageSize` every table shows one page of rows with "Previous rows" and "Next rows" buttons and a status line
 // ("Rows 1–100 of 20,000"), a search field filters the rows of all tables by their text, and the tables carry
 // `aria-rowcount` and their rows `aria-rowindex`. Without it (default) every row is rendered and there is no search.
+// A pager button that reaches the last page ("Next rows") or the first ("Previous rows") while it has the input focus
+// hands the focus to the other button, which still works there.
 export function TraceTimeline(props: { traces: Trace[]; anchor?: string; annotations?: Annotation[]; locale?;
   width?; rowHeight?; colorKey?; onSelect?; table?: boolean }): JSX.Element;
 export function AbstractionControls(props), Legend(props), OverlayLayer(props);
