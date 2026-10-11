@@ -126,6 +126,21 @@ function fractional(graph: FlowGraph): FlowGraph {
   };
 }
 
+/**
+ * The graph with every count rounded down to a power of two, so that many edges cost
+ * the same and many paths are equally cheap: where the library broke such a tie by
+ * the input order, two orders of one input would give different results.
+ */
+function tied(graph: FlowGraph): FlowGraph {
+  const coarse = (m: Metrics | undefined) =>
+    m && Object.fromEntries(Object.entries(m).map(([k, v]) => [k, ["count", "cases", "events"].includes(k) && v >= 1 ? 2 ** Math.floor(Math.log2(v)) : v]));
+  return {
+    ...graph,
+    nodes: graph.nodes.map((n) => ({ ...n, metrics: coarse(n.metrics) })),
+    edges: graph.edges.map((e) => ({ ...e, metrics: coarse(e.metrics) })),
+  };
+}
+
 function anyOptions(rng: Random, graph: FlowGraph): AbstractOptions {
   const relativeTo = rng.pick(["max", "total"] as const);
   const shares = relativeTo === "max" ? [0, 0.05, 0.1, 0.25, 0.5, 0.75, 1] : [0, 0.005, 0.01, 0.02, 0.05, 0.1, 0.3];
@@ -216,9 +231,10 @@ describe("abstraction invariants on random graphs", () => {
     for (const seed of seeds(caseCount(500))) {
       const rng = createRandom(seed);
       const plain = anyGraph(rng);
-      const graph = rng.chance(0.3) ? fractional(plain) : plain;
+      const variant = rng.weighted([["plain", 4], ["fractional", 3], ["tied", 3]] as const);
+      const graph = variant === "fractional" ? fractional(plain) : variant === "tied" ? tied(plain) : plain;
       const options = anyOptions(rng, graph);
-      if (graph !== plain && options.relativeTo === "total" && rng.chance(0.6)) {
+      if (variant === "fractional" && options.relativeTo === "total" && rng.chance(0.6)) {
         // A threshold exactly at one element's share of the total, summed in some order: where
         // the total depends on the order of adding, the order decides whether it is kept.
         const shares = (els: { metrics?: Metrics }[]) => els.map((el) => el.metrics?.share).filter((v): v is number => v !== undefined);
@@ -229,7 +245,7 @@ describe("abstraction invariants on random graphs", () => {
       const expected = canonical(abstract(graph, options));
       for (let k = 0; k < 2; k++) {
         const permuted = { ...graph, nodes: rng.shuffle(graph.nodes), edges: rng.shuffle(graph.edges) };
-        expect(canonical(abstract(permuted, options)), caseLabel(seed, `order ${k}, ${JSON.stringify(options)}`)).toBe(expected);
+        expect(canonical(abstract(permuted, options)), caseLabel(seed, `${variant}, order ${k}, ${JSON.stringify(options)}`)).toBe(expected);
       }
     }
   });
