@@ -58,11 +58,14 @@ async function mountMap(edgeBudget: number | "all" | "adaptive" | undefined, ms 
   const ref = createRef<CanvasMapHandle>();
   // What the host is told to export.
   const reported: (ShownEdges | undefined)[] = [];
-  render(
+  const tree = (budget: typeof edgeBudget) => (
     <div style={{ width: 1200, height: 800 }}>
-      <CanvasMap ref={ref} scene={scene} state={state} fitKey="fit" edgeBudget={edgeBudget} clock={clock} onEdgesShown={(s) => reported.push(s)} />
-    </div>,
+      <CanvasMap ref={ref} scene={scene} state={state} fitKey="fit" edgeBudget={budget} clock={clock} onEdgesShown={(s) => reported.push(s)} />
+    </div>
   );
+  const view = render(tree(edgeBudget));
+  /** The host changes the budget. */
+  const rerender = (budget: typeof edgeBudget) => act(() => view.rerender(tree(budget)));
   await waitFor(() => expect(ref.current?.renderer()?.lastDraw).toBeDefined());
   const renderer = ref.current!.renderer()!;
   // Every draw from here on, with the edges it showed.
@@ -97,7 +100,7 @@ async function mountMap(edgeBudget: number | "all" | "adaptive" | undefined, ms 
     }
     return during;
   }
-  return { renderer, clock, shown, pan, zoom, host, reported };
+  return { renderer, clock, shown, pan, zoom, host, reported, rerender };
 }
 
 describe("adaptive edge budget on the Canvas map", () => {
@@ -120,6 +123,28 @@ describe("adaptive edge budget on the Canvas map", () => {
     await act(() => new Promise((done) => setTimeout(done, 50)));
     expect(note()).toBe("Showing 2,000 of 2,500 flows");
     fireEvent.pointerDown(map.host, { clientX: 600, clientY: 400, button: 0, pointerId: 2 });
+    await waitFor(() => expect(note()).toBe("Showing 1,000 of 2,500 flows"));
+  });
+
+  it("keeps the budget while a drag goes on after a wheel run that began on a fixed budget ends", async () => {
+    const map = await mountMap("all");
+    const host = map.host;
+    expect(note()).toBeUndefined();
+    // A wheel run starts on a fixed budget, and the host turns the budget adaptive while it runs.
+    fireEvent.wheel(host, { clientX: 600, clientY: 400, deltaY: 10 });
+    map.rerender("adaptive");
+    await waitFor(() => expect(note()).toBe("Showing 2,000 of 2,500 flows"));
+    // A drag of slow frames starts; the wheel run ends 200 ms after its turn, while the drag goes on.
+    fireEvent.pointerDown(host, { clientX: 600, clientY: 400, button: 0, pointerId: 1 });
+    for (let k = 1; k <= 6; k++) {
+      fireEvent.pointerMove(host, { clientX: 600 + 10 * k, clientY: 400, pointerId: 1 });
+      await act(async () => void map.renderer.draw());
+    }
+    await act(() => new Promise((done) => setTimeout(done, 300)));
+    await act(async () => void map.renderer.draw());
+    expect(note()).toBe("Showing 2,000 of 2,500 flows");
+    // The drag ends: the view is at rest and the step applies.
+    fireEvent.pointerUp(host, { clientX: 660, clientY: 400, button: 0, pointerId: 1 });
     await waitFor(() => expect(note()).toBe("Showing 1,000 of 2,500 flows"));
   });
 

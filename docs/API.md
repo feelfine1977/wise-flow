@@ -1522,7 +1522,10 @@ an edge. A map React Flow draws above it (`renderer="svg"`, or a higher
 
 `CanvasRenderer` adapts when its `drawOptions.edgeBudget` is `"adaptive"`
 and its host reports gestures with `beginGesture()` and `endGesture()`
-(overlapping gestures count until the last one ends); `<CanvasMap/>` does
+(overlapping gestures count until the last one ends, and every gesture is
+counted whatever the budget is, so a gesture that began on a fixed budget
+and ends after the host turned it adaptive cannot move the budget while
+another gesture is still under way); `<CanvasMap/>` does
 this for its drag and wheel. The clock is injected (`clock`, in ms, default
 `performance.now`), so tests drive it with a fake one. `drawScene` and
 `budgetEdges` draw one frame and take a number, `"all"` or a `ShownEdges`, never `"adaptive"`.

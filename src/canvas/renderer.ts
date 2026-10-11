@@ -200,9 +200,9 @@ export class CanvasRenderer {
     this.onDraw?.(this.lastDraw);
   }
 
-  /** A pan or zoom starts: an adaptive edge budget times its frames. */
+  /** A pan or zoom starts: an adaptive edge budget times its frames. Counted whatever the budget is, so that a gesture ending after the host turned the budget adaptive balances its start. */
   beginGesture(): void {
-    if (this.drawOptions.edgeBudget === "adaptive") (this.adapter ??= edgeBudgetAdapter(this.clock)).start();
+    (this.adapter ??= edgeBudgetAdapter(this.clock)).start();
   }
 
   /** It ends: an adaptive edge budget may move a step and is drawn. */

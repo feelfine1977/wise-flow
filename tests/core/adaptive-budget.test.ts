@@ -214,6 +214,30 @@ describe("adaptive edge budget in the Canvas renderer", () => {
     expect(clock).not.toHaveBeenCalled();
   });
 
+  it("counts a gesture that began while the budget was fixed, so its end cannot apply a step while a later gesture is still under way", () => {
+    let now = 0;
+    const clock = vi.fn(() => (now += SLOW));
+    const { renderer } = rendererOf(n, clock, "all");
+    renderer.draw();
+    // A wheel run starts on a fixed budget; the host then turns the budget adaptive, and a drag starts.
+    renderer.beginGesture();
+    renderer.drawOptions = { ...renderer.drawOptions, edgeBudget: "adaptive" };
+    renderer.beginGesture();
+    for (let k = 0; k < 6; k++) {
+      renderer.panBy(1, 0);
+      renderer.draw();
+      expect(renderer.lastDraw!.withheld).toMatchObject({ shown: 2000, total: n });
+    }
+    // The wheel run ends while the drag goes on: the view is not at rest, so the budget stays.
+    renderer.endGesture();
+    renderer.draw();
+    expect(renderer.lastDraw!.withheld).toMatchObject({ shown: 2000, total: n });
+    // The drag ends: now the slow frames take their step.
+    renderer.endGesture();
+    renderer.draw();
+    expect(renderer.lastDraw!.withheld).toMatchObject({ shown: 1000, total: n });
+  });
+
   it("reads no clock once its host turns an adaptive budget fixed", () => {
     let now = 0;
     const clock = vi.fn(() => (now += SLOW));
