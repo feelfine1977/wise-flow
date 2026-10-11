@@ -167,11 +167,13 @@ export function pathCourses(graph: FlowGraph, positions: Positions, options: { w
   // A leg from a node's far side down to the line's depth, stepping aside where a box lies below the node.
   const leg = (node: string, m: number, depth: number, role: "source" | "target"): XY[] => {
     const s = span(nodes[node]);
-    const below = nodeSpans.filter((o) => o.id !== node && o.m0 < m && m < o.m1 && o.c0 >= s.c1 && o.c0 < depth);
+    // Nodes and groups below the node (a group around it starts above its far side).
+    const below = obstacles.filter((o) => o.id !== node && o.m0 < m && m < o.m1 && o.c0 >= s.c1 && o.c0 < depth);
     if (!below.length) return [at(m, s.c1), at(m, depth)];
     const step = s.c1 + Math.min(ASIDE, (below.reduce((v, o) => Math.min(v, o.c0), Infinity) - s.c1) / 2);
-    // The node's column: the boxes beside it across the flow. A source steps back towards its target, a target ahead towards its source.
-    const column = nodeSpans.filter((o) => o.m0 < s.m1 && s.m0 < o.m1);
+    // The node's column: the nodes beside it across the flow and the groups below it. A source steps back towards its
+    // target, a target ahead towards its source.
+    const column = obstacles.filter((o, i) => o.m0 < s.m1 && s.m0 < o.m1 && (i < nodeSpans.length || (o.c0 >= s.c1 && o.c0 < depth)));
     const back = (role === "source") === sign > 0;
     const aside = back ? column.reduce((v, o) => Math.min(v, o.m0), s.m0) - ASIDE : column.reduce((v, o) => Math.max(v, o.m1), s.m1) + ASIDE;
     return [at(m, s.c1), at(m, step), at(aside, step), at(aside, depth)];

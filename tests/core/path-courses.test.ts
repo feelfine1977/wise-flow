@@ -74,6 +74,32 @@ describe("a path against the reading direction", () => {
     }
   });
 
+  it("steps aside beyond a stage that lies below its source, not through it", () => {
+    // B returns to A within the stage S1; the stage S2 lies below B with C in it.
+    const activity = (id: string, group: string) => ({ id, kind: "activity" as const, label: id.toUpperCase(), group, metrics: { cases: 10 } });
+    const graph: FlowGraph = {
+      nodes: [activity("a", "s1"), activity("b", "s1"), activity("c", "s2")],
+      edges: [
+        { id: "a->b", kind: "follows", source: "a", target: "b", metrics: { cases: 10 } },
+        { id: "b->a", kind: "follows", source: "b", target: "a", metrics: { cases: 3 } },
+        { id: "b->c", kind: "follows", source: "b", target: "c", metrics: { cases: 7 } },
+      ],
+      groups: [
+        { id: "s1", kind: "stage", label: "S1" },
+        { id: "s2", kind: "stage", label: "S2" },
+      ],
+    };
+    const box = (x: number, y: number) => ({ x, y, width: 100, height: 40 });
+    const groups = { s1: { x: 0, y: 0, width: 320, height: 90 }, s2: { x: 180, y: 110, width: 140, height: 90 } };
+    const scene = buildScene(graph, createPositions({ nodes: { a: box(20, 30), b: box(200, 30), c: box(200, 140) }, groups, edges: {} }, "given", "RIGHT"), { selfLoops: false });
+    const back = scene.edgeMarks.find((m) => m.id === "b->a")!;
+    // From B's bottom (250, 70) it steps 12 down, into the gap above S2 (at 110), then aside 12 before S2 (180), the
+    // leftmost box of B's column, so to 168; it runs 20 below S2 (200) besides its half width, √(3 / 10) × 8 / 2 = 2.19,
+    // and enters A from its bottom middle (70, 70).
+    expect(back.points).toEqual([{ x: 250, y: 70 }, { x: 250, y: 82 }, { x: 168, y: 82 }, { x: 168, y: 222.19 }, { x: 70, y: 222.19 }, { x: 70, y: 70 }]);
+    expect(crossed(back.points, groups)).toEqual(["s1"]);
+  });
+
   it("is drawn so by the SVG export too, with its own head", () => {
     const svg = toSVG({ graph: backAcrossStages, positions: laid, selfLoops: false });
     const d = /<g class="wf-edge" data-id="check-&gt;create"><path d="([^"]+)"[^>]*marker-end="url\(#wf-arrow(-\d+)?\)"/.exec(svg)?.[1];
