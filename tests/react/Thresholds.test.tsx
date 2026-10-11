@@ -19,10 +19,10 @@
 import { type RenderResult, act, cleanup, render } from "@testing-library/react";
 import { type TestContext, afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { DrawContext, DrawOptions, PreparedScene, View } from "../../src/canvas/index";
-import { type AbstractOptions, type FlowGraph, type Locale, type LodRules, type Overlay, type Positions, abstract, defaultNodeSize, layout, toSVG } from "../../src/index";
+import { type AbstractOptions, type FlowGraph, type Locale, type LodRules, type Overlay, type Positions, abstract, buildScene, defaultNodeSize, layout, toSVG } from "../../src/index";
 import { ProcessMap } from "../../src/react/index";
 import { type LadderScene, type Rung, MAGNITUDES, RUNGS, committedScenes, generatedScene, optionsOf, shownGraph } from "../support/ladder";
-import { type Failure, type Reading, checkReading, findingOf, fitView, pictureOf, readCanvas } from "../support/reading";
+import { type Failure, type Reading, arcLabelPlaces, checkReading, findingOf, fitView, pictureOf, readCanvas } from "../support/reading";
 import { savePicture } from "../support/pictures";
 import { caseCount, caseLabel, createRandom, seeds } from "../support/random";
 import { FakeLayoutWorker, layoutSignature, replyOf } from "../support/workers";
@@ -169,14 +169,16 @@ function readCanvasMap(container: Element): { fitted: Reading; full: Reading } {
 }
 
 /** Read and check a rung; failures outside the open findings are attached as the rung's picture. */
-async function check(annotate: TestContext["annotate"], mounted: Mounted, readings: { fitted: Reading; full: Reading }, scene: LadderScene, rung: Rung, shown: FlowGraph, positions: Positions, locale: Locale) {
+async function check(annotate: TestContext["annotate"], mounted: Mounted, readings: { fitted: Reading; full: Reading }, scene: LadderScene, rung: Rung, shown: FlowGraph, positions: Positions, locale: Locale, pictures: "every failure" | "unexpected" = "every failure") {
   const { fitted, full } = readings;
   const failures = checkReading({ fitted, full, expect: { graph: scene.graph, abstraction: abstract(scene.graph, optionsOf(rung)), rung, locale, positions } });
   const base = baseOf(scene.graph, rung);
-  const unexpected = failures.filter((f) => !findingOf(f, shown, base));
-  const findings = [...new Set(failures.flatMap((f) => findingOf(f, shown, base) ?? []))].sort();
+  // Where each arc label could go: the map's scene, built again from what the map is given.
+  const places = arcLabelPlaces(buildScene(shown, positions, { overlays: [...(shown.overlays ?? []), ...scene.overlays], locale, lodBySize: true }));
+  const unexpected = failures.filter((f) => !findingOf(f, shown, base, places));
+  const findings = [...new Set(failures.flatMap((f) => findingOf(f, shown, base, places) ?? []))].sort();
   const name = `${mounted.renderer === "react" ? "React map" : "Canvas map"} · ${scene.name} · ${rung.name}`;
-  if (failures.length) {
+  if (pictures === "every failure" ? failures.length : unexpected.length) {
     const svg = toSVG({ graph: shown, positions, overlays: [...(shown.overlays ?? []), ...scene.overlays], locale }, { legend: true, edgeBudget: BUDGET });
     const path = savePicture(name, pictureOf(svg, failures, name));
     await annotate(`${name}: ${failures.length} failing, picture ${path}`, { path, contentType: "image/svg+xml" });
@@ -315,6 +317,7 @@ describe("how the map reads across thresholds and sizes, on the React map and th
     reducedMotion();
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => quiet);
     let cells = 0;
+    const tally = new Map<string, number>();
     // The maps stay mounted from seed to seed and are given each scene in turn.
     const mounted: Partial<Record<Renderer, Mounted>> = {};
     for (const seed of seeds(caseCount(20))) {
@@ -326,13 +329,15 @@ describe("how the map reads across thresholds and sizes, on the React map and th
         const rung = rng.pick(RUNGS);
         const step = await show(mounted[renderer], renderer, scene, rung, locale);
         mounted[renderer] = step.mounted;
-        const { name, unexpected } = await check(annotate, step.mounted, step.readings, scene, rung, step.shown, step.positions, locale);
+        const { name, unexpected, findings } = await check(annotate, step.mounted, step.readings, scene, rung, step.shown, step.positions, locale, "unexpected");
+        for (const f of findings) tally.set(`${f} on the ${renderer === "react" ? "React" : "Canvas"} map`, (tally.get(`${f} on the ${renderer === "react" ? "React" : "Canvas"} map`) ?? 0) + 1);
         expect(unexpected, `${caseLabel(seed, `${name} · ${locale}`)}\n  ${summary(unexpected)}`).toEqual([]);
         cells++;
       }
     }
     expect(cells).toBe(caseCount(20) * MAGNITUDES.length);
-  }, 600_000);
+    await annotate(`${cells} cells; cells with an open finding: ${[...tally].sort().map(([k, n]) => `${k} ${n}`).join(", ")}`);
+  }, 600_000 * caseCount(1));
 });
 
 describe("the layout while the controls move", () => {
@@ -438,5 +443,5 @@ describe("the layout while the controls move", () => {
     expect(steps).toBe(caseCount(10) * 14);
     // Answers of earlier settings, or from stopped workers, did arrive.
     expect(stale).toBeGreaterThan(0);
-  }, 300_000);
+  }, 300_000 * caseCount(1));
 });

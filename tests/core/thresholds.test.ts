@@ -8,18 +8,20 @@
  * element and text any zoom draws, and under a budget of 24 paths. The
  * readings are held against what the scene says (`checkReading`).
  *
- * Three kinds of failure are open decisions, written up and pinned below as
- * findings: texts drawn below 9 px, path counts that cover each other or a
- * card, and activities that keep connected leaves without a path from the
- * start or to the end. Every other failure fails the search, prints its seed
- * and the smallest graph that still fails, and attaches the picture of its
- * rung to the report.
+ * Five kinds of failure are open decisions, written up and pinned below as
+ * findings (`findingOf`): texts drawn below 9 px, path counts that cover each
+ * other or a card, activities that keep connected leaves without a path from
+ * the start or to the end, a legend whose path widths run from 0 because every
+ * path has one count, and an arc label on a card or a label where its arc had
+ * no free place. Every other failure fails the search, prints its seed and the
+ * smallest graph that still fails, and attaches the picture of its rung to the
+ * report.
  */
 import { type TestContext, describe, expect, it } from "vitest";
 import { type PreparedScene, prepareScene } from "../../src/canvas/index";
 import { type FlowGraph, type Locale, type Overlay, type Positions, abstract, createPositions, layout, toSVG } from "../../src/index";
 import { type LadderScene, type Rung, MAGNITUDES, RUNGS, committedScenes, generatedScene, optionsOf, randomSetting, rungOf, shownGraph } from "../support/ladder";
-import { type Failure, type Finding, type Reading, checkReading, findingOf, fitView, pictureOf, readCanvas, weaklyConnected } from "../support/reading";
+import { type Failure, type Finding, type Reading, arcLabelPlaces, checkReading, findingOf, fitView, pictureOf, readCanvas, weaklyConnected } from "../support/reading";
 import { positionsOf } from "../support/scenes";
 import { savePicture } from "../support/pictures";
 import { caseCount, caseLabel, createRandom, seeds } from "../support/random";
@@ -41,6 +43,8 @@ function positionsFor(shown: FlowGraph): Promise<Positions> {
 
 interface Cell {
   shown: FlowGraph;
+  /** Whether each arc's label had a free place (`arcLabelPlaces`). */
+  places: Map<string, boolean>;
   positions: Positions;
   overlays: Overlay[];
   failures: Failure[];
@@ -70,13 +74,13 @@ async function readCell(graph: FlowGraph, sceneOverlays: Overlay[], rung: Rung, 
   const full = { ...readCanvas(prepared, whole, { lodZoom: 100 }), ...legendOf(prepared) };
   const budgeted = readCanvas(prepared, whole, { lodZoom: 100, edgeBudget: BUDGET });
   const failures = checkReading({ fitted, full, budgeted, expect: { graph, abstraction, rung, locale, positions: prepared.positions } });
-  return { shown, positions: at, overlays, failures, fitted };
+  return { shown, positions: at, overlays, failures, fitted, places: arcLabelPlaces(prepared) };
 }
 
 const baseOf = (graph: FlowGraph, rung: Rung) => (rung.collapse ? abstract(graph, { collapse: rung.collapse, keepConnected: false }) : graph);
 
-const findingsOf = (cell: Cell, graph: FlowGraph, rung: Rung): Finding[] => [...new Set(cell.failures.flatMap((f) => findingOf(f, cell.shown, baseOf(graph, rung)) ?? []))].sort();
-const unexpected = (cell: Cell, graph: FlowGraph, rung: Rung): Failure[] => cell.failures.filter((f) => !findingOf(f, cell.shown, baseOf(graph, rung)));
+const findingsOf = (cell: Cell, graph: FlowGraph, rung: Rung): Finding[] => [...new Set(cell.failures.flatMap((f) => findingOf(f, cell.shown, baseOf(graph, rung), cell.places) ?? []))].sort();
+const unexpected = (cell: Cell, graph: FlowGraph, rung: Rung): Failure[] => cell.failures.filter((f) => !findingOf(f, cell.shown, baseOf(graph, rung), cell.places));
 
 /** The picture of a rung with its failures marked, saved beside the report and attached to the test. */
 async function attach(annotate: Annotate, title: string, cell: Cell): Promise<void> {
@@ -159,6 +163,8 @@ describe("how the map reads across thresholds and sizes, on the Canvas drawing",
 
   it("holds every property at every rung of generated scenes of 10², 10⁴, 10⁶ and 10⁷ events", async ({ annotate }) => {
     let cells = 0;
+    // How many cells of each magnitude show each open finding, for the report.
+    const tally = new Map<string, number>();
     for (const seed of seeds(caseCount(20))) {
       // German numbers on every other seed: the printed counts read back with the other separators.
       const locale: Locale = seed % 2 ? "en" : "de";
@@ -169,6 +175,7 @@ describe("how the map reads across thresholds and sizes, on the Canvas drawing",
         for (const rung of RUNGS) {
           const cell = await readCell(scene.graph, scene.overlays, rung, locale);
           cells++;
+          for (const f of findingsOf(cell, scene.graph, rung)) tally.set(`${f} at ${magnitude.toExponential(0)}`, (tally.get(`${f} at ${magnitude.toExponential(0)}`) ?? 0) + 1);
           const bad = unexpected(cell, scene.graph, rung);
           if (!bad.length) continue;
           await attach(annotate, `${scene.name} · ${rung.name}`, cell);
@@ -177,7 +184,7 @@ describe("how the map reads across thresholds and sizes, on the Canvas drawing",
           const fails = (g: FlowGraph) => {
             const sceneOverlays = g.overlays ?? [];
             const plain = { ...g, overlays: undefined };
-            return readCell(plain, sceneOverlays, rung, locale).then((c) => c.failures.some((f) => kind(f) === kind(bad[0]) && !findingOf(f, c.shown, baseOf(plain, rung))));
+            return readCell(plain, sceneOverlays, rung, locale).then((c) => c.failures.some((f) => kind(f) === kind(bad[0]) && !findingOf(f, c.shown, baseOf(plain, rung), c.places)));
           };
           const smallest = await shrinkAsync({ ...scene.graph, overlays: scene.overlays }, fails);
           expect(bad, `${caseLabel(seed, `${scene.name} · ${rung.name} · ${locale}`)}\n  ${summary(bad)}\n  smallest graph that still fails:\n  ${JSON.stringify(smallest)}`).toEqual([]);
@@ -185,7 +192,8 @@ describe("how the map reads across thresholds and sizes, on the Canvas drawing",
       }
     }
     expect(cells).toBe(caseCount(20) * MAGNITUDES.length * RUNGS.length);
-  }, 600_000);
+    await annotate(`${cells} cells; cells with an open finding: ${[...tally].sort().map(([k, n]) => `${k} ${n}`).join(", ")}`);
+  }, 600_000 * caseCount(1));
 
   it("never adds, moving the controls up, an element that a lower setting removed", () => {
     // Elements are what the scene draws: cards, path lines and self-loops. Positions do not decide which exist.
@@ -214,7 +222,7 @@ describe("how the map reads across thresholds and sizes, on the Canvas drawing",
       pairs++;
     }
     expect(pairs).toBeGreaterThanOrEqual(200);
-  }, 120_000);
+  }, 120_000 * caseCount(1));
 });
 
 /** `shrinkGraph` for a predicate that lays out: the candidates are tried one at a time. */
@@ -309,6 +317,58 @@ describe("the open findings, pinned", () => {
     const rung = { ...rungOf(4, true, false) };
     const failures = checkReading({ fitted: emptyReading(), full: emptyReading(shown), expect: { graph, abstraction: shown, rung, locale: "en" } }).filter((f) => f.property === "reach");
     expect(failures.map((f) => f.detail)).toEqual(["a4 is not reachable from the start"]);
+  });
+
+  it("finding: the legend's path widths run from 0 when every path has one count, and from 0 to 1 without paths", () => {
+    const at = { a: { x: 0, y: 0, width: 180, height: 48 }, b: { x: 300, y: 0, width: 180, height: 48 } };
+    const node = (id: string) => ({ id, kind: "activity" as const, label: id.toUpperCase(), metrics: { cases: 9 } });
+    const one: FlowGraph = { nodes: [node("a"), node("b")], edges: [{ id: "a->b", kind: "follows", source: "a", target: "b", metrics: { count: 9 } }] };
+    const none: FlowGraph = { nodes: [node("a")], edges: [] };
+    const widths = (graph: FlowGraph) => {
+      const prepared = prepareScene(graph, createPositions({ nodes: Object.fromEntries(graph.nodes.map((n) => [n.id, at[n.id as "a" | "b"]])), groups: {}, edges: {} }, "given", "RIGHT"), {});
+      const item = prepared.legend.items.find((i) => i.kind === "width");
+      return { domain: item?.kind === "width" ? item.domain : undefined, drawn: prepared.edgeMarks.map((m) => m.width) };
+    };
+    // One path of 9: the scale runs from 0 to 9 and draws it at the widest, 8.
+    expect(widths(one)).toEqual({ domain: [0, 9], drawn: [8] });
+    // No path: the legend still lists widths from 0 to 1.
+    expect(widths(none)).toEqual({ domain: [0, 1], drawn: [] });
+    // The check reports both as legend ends that are not the scene's, and they are this finding.
+    const rung = rungOf(5, false, false);
+    const ends = (graph: FlowGraph) => {
+      const { domain } = widths(graph);
+      const reading = { ...emptyReading(graph), widthEnds: [String(domain![0]), String(domain![1])] as [string, string] };
+      return checkReading({ fitted: emptyReading(), full: reading, expect: { graph, abstraction: graph, rung, locale: "en" } }).filter((f) => f.property === "legend ends");
+    };
+    expect(ends(one).map((f) => [f.detail, findingOf(f, one, one)])).toEqual([["the legend's path widths run 0 … 9, the scene's from 9 to 9", "one count"]]);
+    expect(ends(none).map((f) => [f.detail, findingOf(f, none, none)])).toEqual([["the legend's path widths run 0 … 1 on a map without paths", "one count"]]);
+  });
+
+  it("finding: an arc label covers an activity where its arc has no free place", () => {
+    // From the search (seed 54, 10², 50 %, not connected): four activities in a column, 20 apart, and the two arcs
+    // of a precedence between a0 and a4. The forward arc's label takes the one gap a label fits (20 high, a label
+    // 18), at (90, 63.77) between a0 and a2; every place of the reverse arc then meets an activity or that label.
+    const box = (y: number) => ({ x: 0, y, width: 180, height: 48 });
+    const at = { a0: box(0), a2: box(68), a4: box(136), a3: box(204) };
+    const graph: FlowGraph = {
+      nodes: Object.keys(at).map((id) => ({ id, kind: "activity", label: id })),
+      edges: [],
+      overlays: [
+        { kind: "arc", target: "a0->a4", payload: { constraintId: "order", source: "a0", target: "a4", value: 0.6, coverage: 0.8, glyph: "⇒" } },
+        { kind: "arc", target: "a4->a0", payload: { constraintId: "order", source: "a4", target: "a0", value: 0.47, coverage: 0.47, reverse: true, glyph: "⇐" } },
+      ],
+    };
+    const prepared = prepareScene(graph, createPositions({ nodes: at, groups: {}, edges: {} }, "given", "RIGHT"), {});
+    const arcs = prepared.marks.filter((m) => m.kind === "arc").map((m) => [m.id, m.path, m.texts[0].text, m.texts[0].x, Number(m.texts[0].y.toFixed(2))]);
+    expect(arcs).toEqual([
+      ["arc:a0->a4:0", "M90 0 C90 -40 90 96 90 136", "⇒ 60 %", 90, 63.77],
+      ["arc:a4->a0:1", "M90 184 C90 238 90 102 90 48", "⇐ 47 %", 90, 170.5],
+    ]);
+    const places = arcLabelPlaces(prepared);
+    expect([...places]).toEqual([["arc:a0->a4:0", true], ["arc:a4->a0:1", false]]);
+    const full = readCanvas(prepared, { x: 0, y: 100, zoom: 1, width: 400, height: 500 }, { lodZoom: 100 });
+    const covering = checkReading({ fitted: full, full, expect: { graph, abstraction: graph, rung: rungOf(0, false, false), locale: "en" } }).filter((f) => f.property.startsWith("label covers"));
+    expect(covering.map((f) => [f.detail, findingOf(f, graph, graph, places)])).toEqual([['arc label "⇐ 47 %" of arc:a4->a0:1 covers a4', "arc label without a place"]]);
   });
 });
 

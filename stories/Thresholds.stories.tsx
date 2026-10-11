@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { prepareScene } from "../src/canvas/index";
 import { type Positions, abstract, formatCompact, layout } from "../src/index";
 import { type LadderScene, type Rung, MAGNITUDES, STEPS, committedScenes, generatedScene, optionsOf, rungOf, shownGraph } from "../tests/support/ladder";
-import { type Failure, checkReading, findingOf, fitView, readCanvas } from "../tests/support/reading";
+import { type Failure, arcLabelPlaces, checkReading, findingOf, fitView, readCanvas } from "../tests/support/reading";
 import { ProcessMap } from "./maps";
 
 /**
@@ -52,7 +52,7 @@ function measure(scene: LadderScene, rung: Rung, positions: Positions) {
     paths: shown.edges.filter((e) => e.source !== e.target).length,
     ends: width?.kind === "width" ? `${formatCompact(width.domain[0])} … ${formatCompact(width.domain[1])}` : "–",
     zoom: fitted.zoom,
-    failures: failures.map((f) => ({ ...f, finding: findingOf(f, shown, base) })),
+    failures: failures.map((f) => ({ ...f, finding: findingOf(f, shown, base, arcLabelPlaces(prepared)) })),
   };
 }
 

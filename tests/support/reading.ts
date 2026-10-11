@@ -16,7 +16,7 @@
  */
 import type { DrawContext, PreparedScene, View } from "../../src/canvas/index";
 import { drawScene } from "../../src/canvas/index";
-import { type Box, type FlowEdge, type FlowGraph, type FlowNode, type Locale, type NodeKind, type Positions, palettes } from "../../src/index";
+import { type Box, type FlowEdge, type FlowGraph, type FlowNode, type FlowScene, type Locale, type NodeKind, type Positions, palettes } from "../../src/index";
 import { type ListName, watch } from "./ink";
 import type { Rung } from "./ladder";
 
@@ -498,8 +498,53 @@ export function noteCounts(note: Reading["note"], locale: Locale): { shown: numb
   return shown === undefined || total === undefined ? undefined : { shown, total };
 }
 
+/**
+ * Whether each arc's label had a free place, by the documented rule: of the
+ * 29 points nearest the middle of its curve, in steps of 1/32, 8 above it (14
+ * below a course below the map), one where the label's box (11 per character
+ * and 4 on either side, from 14 above its baseline to 4 below) meets no
+ * activity, badge, group title (12 in from the group's left, 8 below its top,
+ * 8.4 per character, 18 high), path count (0.55 em per character, from one em
+ * above its baseline) or earlier arc label. Written from the documentation,
+ * not from the geometry code; a place that clears an obstacle by less than
+ * `TOUCH` does not count as free.
+ */
+export function arcLabelPlaces(scene: Pick<FlowScene, "graph" | "positions" | "marks" | "edgeMarks">): Map<string, boolean> {
+  const near = (a: Box, b: Box) => a.x <= b.x + b.width + TOUCH && b.x <= a.x + a.width + TOUCH && a.y <= b.y + b.height + TOUCH && b.y <= a.y + a.height + TOUCH;
+  const fixed: Box[] = [
+    ...Object.values(scene.positions.nodes),
+    ...(scene.graph.groups ?? []).flatMap((g) => {
+      const b = scene.positions.groups[g.id];
+      return b ? [{ x: b.x + 12, y: b.y + 8, width: Array.from(g.label).length * 8.4, height: 18 }] : [];
+    }),
+    ...scene.marks.filter((m) => m.kind === "badge").map((m) => m.box),
+    ...scene.edgeMarks.flatMap((e) => e.texts.map((t) => ({ x: t.x - estimate(t.text, t.size) / 2, y: t.y - t.size, width: estimate(t.text, t.size), height: t.size }))),
+  ];
+  const placed: Box[] = [];
+  const out = new Map<string, boolean>();
+  for (const m of scene.marks) {
+    const label = m.texts[0];
+    if (m.kind !== "arc" || !m.path || !label) continue;
+    const [sx, sy, , c1y, , , tx, ty] = (m.path.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
+    const dy = c1y - sy;
+    const rect = (x: number, y: number): Box => ({ x: x - label.text.length * 5.5 - 4, y: y - 14, width: label.text.length * 11 + 8, height: 18 });
+    let free = false;
+    for (let k = 0; k < 29 && !free; k++) {
+      const t = 0.5 + ((k % 2 ? -1 : 1) * Math.ceil(k / 2)) / 32;
+      const u = 1 - t;
+      const x = (u * u * u + 3 * u * u * t) * sx + (3 * u * t * t + t * t * t) * tx;
+      const y = u * u * u * sy + 3 * u * u * t * (sy + dy) + 3 * u * t * t * (ty + dy) + t * t * t * ty + (dy > 0 ? 14 : -8);
+      const r = rect(x, y);
+      free = ![...fixed, ...placed].some((b) => near(r, b));
+    }
+    out.set(m.id, free);
+    placed.push(rect(label.x, label.y));
+  }
+  return out;
+}
+
 /** The open decisions a failure can belong to (written up, pinned as findings). */
-export type Finding = "small text" | "path counts" | "reach" | "one count";
+export type Finding = "small text" | "path counts" | "reach" | "one count" | "arc label without a place";
 
 /**
  * The open decision a failure belongs to, or none: texts drawn below the
@@ -507,11 +552,16 @@ export type Finding = "small text" | "path counts" | "reach" | "one count";
  * no place of their own); with keep connected, an activity without a path from
  * the start or to the end while the map is in one piece, which is all keep
  * connected promises (`base` is the graph the thresholds were applied to); a
- * legend whose path widths run from 0 because every path has one count.
+ * legend whose path widths run from 0 because every path has one count; an
+ * arc label covering a card or a label where its arc had no free place
+ * (`places`, from `arcLabelPlaces`).
  */
-export function findingOf(f: Failure, shown: FlowGraph, base: FlowGraph): Finding | undefined {
+export function findingOf(f: Failure, shown: FlowGraph, base: FlowGraph, places?: ReadonlyMap<string, boolean>): Finding | undefined {
   if (f.property === "text too small") return "small text";
   if ((f.property === "label covers card" || f.property === "label covers label") && /\bpath label\b/.test(f.detail)) return "path counts";
+  // Where the rule found no free place on the arc, its label covers the fewest: the rule holds.
+  const arcs = [...f.detail.matchAll(/arc label "[^"]*" of (\S+)/g)].map((m) => m[1]);
+  if ((f.property === "label covers card" || f.property === "label covers label") && arcs.some((id) => places?.get(id) === false)) return "arc label without a place";
   if (f.property === "reach" && (weaklyConnected(shown) || !weaklyConnected(base))) return "reach";
   // A width scale over paths of one count, or none, runs from 0.
   if (f.property === "legend ends" && /^the legend's path widths run 0 … \S+(, the scene's from (\d+) to \2| on a map without paths)$/.test(f.detail)) return "one count";
