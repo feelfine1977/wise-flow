@@ -61,6 +61,20 @@ describe("the DOM map under a theme's rules", () => {
     expect(edge("start->a").getAttribute("data-wf-state") ?? "").not.toContain("dimmed");
   });
 
+  it("draws a dimmed path at the dimmed look's opacity in place of a rule's, as the Canvas map does", async () => {
+    const { container } = render(
+      <div style={{ width: 1000, height: 400 }}>
+        <ProcessMap graph={graph} positions={positions} style={style} theme={{ ...defaultTheme, rules: rules.slice(0, 3) }} selection={{ nodes: ["a"], edges: [], groups: [] }} renderer="svg" controls={false} legend={false} fitView={false} selfLoops={false} contextMenu={false} pathList={false} />
+      </div>,
+    );
+    await waitFor(() => expect(container.querySelectorAll("g.wf-edge")).toHaveLength(4));
+    const readded = container.querySelector<SVGGElement>('g.wf-edge[data-id="s->r"]')!;
+    // The re-added path is at 0.5 by the rule and dimmed without a rule for the state: the dimmed look's 0.25 on its line, not 0.5 × 0.25.
+    expect(readded.getAttribute("class")).toContain("wf-edge--dimmed");
+    expect(variable(readded, "--wf-edge-opacity")).toBe("");
+    expect(variable(readded, "--wf-edge-color")).toBe("#b42318");
+  });
+
   it("draws the default states without rules for them", async () => {
     const { container } = render(
       <div style={{ width: 1000, height: 400 }}>

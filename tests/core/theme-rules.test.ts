@@ -111,6 +111,11 @@ describe("a theme's rules", () => {
     expect(ops.filter((o) => o.op === "stroke" && o.color === "#0072b2")).toEqual([]);
     expect(ops.some((o) => o.alpha === 0.2)).toBe(true);
     expect(ops.some((o) => o.alpha === 0.25)).toBe(false);
+
+    // Without a rule for the dimmed state, a dimmed path is at the dimmed look's 0.25, also where a rule set its opacity to 0.5.
+    ops.length = 0;
+    drawScene(ctx, prepareScene(graph, positions, { overlays, theme: withRules(three) }), { x: 0, y: 0, zoom: 1, width: 900, height: 200 }, state, { cull: false, background: false });
+    expect(ops.filter((o) => o.op === "stroke" && o.color === "#b42318").map((o) => o.alpha)).toEqual([0.25, 0.25]);
   });
 
   it("ignore an entry left undefined, which the type allows, rather than refuse the rule or undo an earlier one", () => {

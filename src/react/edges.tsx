@@ -30,7 +30,8 @@ const Follows = memo(function Follows(props: EdgeProps<WfEdge>) {
   const state = data.state;
   const color = state?.stroke ? paintCss(mark, state.stroke) : mark.color;
   const dash = state?.dash ? state.dash.join(" ") || "none" : mark.dash?.join(" ");
-  const opacity = state?.opacity ?? mark.opacity;
+  // The dimmed look replaces the opacity a rule set in the scene, as on the Canvas and as for nodes.
+  const opacity = state?.opacity ?? (data.dimmed ? undefined : mark.opacity);
   return (
     <g
       id={`wf-edge-${id}`}
