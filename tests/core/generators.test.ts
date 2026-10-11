@@ -82,6 +82,9 @@ const degrees = (g: FlowGraph) => {
 
 const index = (id: string) => Number(id.slice(1));
 
+/** JSON that tells `NaN`, `Infinity`, `-Infinity` and `undefined` apart, which `JSON.stringify` writes alike or drops. */
+const exact = (value: unknown) => JSON.stringify(value, (_, v) => (v === undefined ? "undefined" : typeof v === "number" && !Number.isFinite(v) ? String(v) : v));
+
 // ---------------------------------------------------------------------------
 
 describe("the seeded random stream", () => {
@@ -182,8 +185,9 @@ describe("every family is deterministic for a seed", () => {
 
   it.each(invalidNames)("%s (invalid)", (name) => {
     for (const seed of SEEDS) {
-      const a = JSON.stringify(invalidFamilies[name](20, seed));
-      expect(JSON.stringify(invalidFamilies[name](20, seed)), caseLabel(seed, name)).toBe(a);
+      const a = exact(invalidFamilies[name](20, seed));
+      expect(exact(invalidFamilies[name](20, seed)), caseLabel(seed, name)).toBe(a);
+      expect(exact(invalidFamilies[name](20, seed + 1)), caseLabel(seed, `${name} differs from the next seed`)).not.toBe(a);
     }
   });
 });
@@ -412,6 +416,8 @@ describe("the invalid families and validateGraph", () => {
       const issues = validateGraph(graph);
       const label = caseLabel(seed, name);
       expect(defects.length, label).toBeGreaterThan(0);
+      // One issue per reported defect and none besides: the base graph is valid and the silent defects add nothing.
+      expect(issues, label).toHaveLength(defects.filter((d) => d.expect !== null).length);
       for (const d of defects) {
         if (d.expect === null) continue;
         expect(issues.some((i) => i.message === d.expect && (d.kind === "overlay-target-missing" || i.id === d.id)), `${label}: ${d.kind} on ${d.id} expects "${d.expect}" among ${JSON.stringify(issues)}`).toBe(true);
@@ -423,12 +429,9 @@ describe("the invalid families and validateGraph", () => {
     const silent = new Set<string>();
     for (const name of invalidNames) {
       const { graph, defects } = invalidFamilies[name](12, 1);
-      const issues = validateGraph(graph);
-      for (const d of defects) {
-        if (d.expect !== null) continue;
-        silent.add(d.kind);
-        expect(issues.some((i) => i.id === d.id && d.id !== ""), `${name}: ${d.kind} on ${d.id} is not reported today; when it is, record the message in the family`).toBe(false);
-      }
+      for (const d of defects) if (d.expect === null) silent.add(d.kind);
+      // Every issue belongs to a defect with a message, so a silent defect that starts being reported fails here.
+      expect(validateGraph(graph), `${name}: a defect without a message is reported today; record the message in the family`).toHaveLength(defects.filter((d) => d.expect !== null).length);
     }
     expect([...silent].sort()).toEqual(["empty-id", "group-cycle", "missing-id", "missing-metric", "negative-metric", "non-finite-metric", "string-metric", "unknown-edge-kind", "unknown-node-kind", "zero-metric"]);
   });
@@ -527,7 +530,9 @@ describe("positions of a graph", () => {
       const missing = brokenPositionsOf(g, "missing", seed);
       expect(missing.broken.length).toBeGreaterThan(0);
       for (const id of missing.broken) expect(missing.positions.nodes[id]).toBeUndefined();
+      expect(exact(brokenPositionsOf(g, "missing", seed)), caseLabel(seed)).toBe(exact(missing));
       const bad = brokenPositionsOf(g, "nonFinite", seed);
+      expect(exact(brokenPositionsOf(g, "nonFinite", seed)), caseLabel(seed)).toBe(exact(bad));
       for (const id of bad.broken) expect(Object.values(bad.positions.nodes[id]).some((v) => !Number.isFinite(v))).toBe(true);
       expect([bad.positions.bounds.x, bad.positions.bounds.width].every(Number.isFinite)).toBe(true);
     }
