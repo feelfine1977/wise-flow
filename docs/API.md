@@ -222,8 +222,8 @@ counts; a lower share shows less, and every pair of shares is valid. Given
 either of them, the selection is by detail: `minNodeShare`, `minEdgeShare`
 and `keepConnected` are not read, and the share left out is 1. Thresholds
 work as before for a host that passes only them: on a graph that is not a
-comparison and has no protected mark, the same nodes, edges, groups and
-overlays, with `meta.shown` added.
+comparison, has no protected mark and no path id in `keep`, the same nodes,
+edges, groups and overlays, with `meta.shown` added.
 
 - **Activities** are ranked by cases, then events, then id (`nodeMetric`
   replaces cases). A share `p` shows the `p` most frequent share by rank,
