@@ -55,3 +55,8 @@ renderer, and `-Infinity` gave 2.
 `canonicalClause` keeps a filter clause of a kind it does not know as it is
 and reads an `any` group without `clauses` as an empty group; both threw a
 `TypeError` before, in every function that compares or adds clauses.
+
+`liteFromGraph` gives two edges between the same nodes (a follows edge and a
+flow, say) two flow ids where a gateway takes the place of an end: the
+second gets `:1` after the id. Both got one id before, so the graph failed
+`validateGraph` and its BPMN export lost a flow.
