@@ -125,7 +125,7 @@ function drawNodes(ctx: Ctx): string {
     const b = m.box;
     const paint = (p: MarkPaint) => paintOf(m.color, m.color, p);
     const stroke = `fill="${paint(m.fill)}" stroke="${paint(m.stroke.paint)}" stroke-width="${num(m.stroke.width)}"${m.stroke.dash ? ` stroke-dasharray="${m.stroke.dash.join(" ")}"` : ""}`;
-    out.push(`<g class="wf-node wf-node-${m.kind}" data-id="${esc(m.id)}">`);
+    out.push(`<g class="wf-node wf-node-${esc(m.kind)}" data-id="${esc(m.id)}">`);
     const cx = b.x + b.width / 2;
     const cy = b.y + b.height / 2;
     if (m.shape === "circle") {

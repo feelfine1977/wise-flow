@@ -31,3 +31,6 @@ a number outside threw a `RangeError` before.
 of its entries whose `clause` is a number; anything else under that key threw
 a `TypeError` before (also in `<FilterChips preview>` and `<ProcessMap
 filterPreview>`).
+
+`toSVG` escapes a node's kind in the node's `class` attribute. A kind outside
+`NodeKind` that held a quote could end the attribute and add markup before.

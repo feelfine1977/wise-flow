@@ -459,6 +459,11 @@ export interface FigureFrame { padding; header; map: { width; height; offset: XY
 export function figureFrame(scene: FramedScene, o?: FigureFrameOptions): FigureFrame;   // FramedScene: graph, activityLabels?, locale, bounds, legend
 ```
 
+`toSVG` writes every text and id that comes with the scene (labels, ids,
+kinds, metric names, overlay texts, title) escaped: `&`, `<`, `>` and `"`
+become entities, so nothing in them becomes markup. Up to 0.3.5 a node kind
+outside `NodeKind` was written into a `class` attribute as it was.
+
 `HitIndex.fromScene` indexes the boxes of the nodes and groups, the segments
 of the edge routes (each grown by `edgeTolerance`, 4) and the overlay shapes.
 Every bound is rounded outwards to a whole unit, so that the index holds
