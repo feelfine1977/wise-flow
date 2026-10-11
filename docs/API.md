@@ -819,6 +819,12 @@ not take, and no parallel split whose branches an exclusive merge lets
 through twice; `validateGateways` reports nothing on it. Without
 `andGateways` every gateway is XOR, as before.
 
+Lanes of `liteFromStages` with `lanes: "role"`: a lane per role, in the
+order the activities first use them; the split and join of a choice,
+parallel or optional stage sit in the stage's `role`, and a role that only
+such gateways use gets its lane after the others (up to 0.3.5 it had none,
+and the gateways named a missing group).
+
 Start and end of `liteFromGraph`: an added start event leads to the nodes
 without predecessors, else to those that start cases (`metrics.starts`),
 else to the node with the most cases; an added end event is reached from the

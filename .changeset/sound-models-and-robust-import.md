@@ -15,6 +15,10 @@ With `selfLoops: "flow"` a self-loop passes the node's exclusive split and join
 instead of being a second outgoing flow of the task, which BPMN reads as a
 parallel split.
 
+`liteFromStages` with `lanes: "role"` adds the lane of a stage's role that only
+the stage's gateways are in, after the other lanes; before, those gateways named
+a group the model did not have.
+
 `exportBpmn` writes an empty label as an empty `name`, so it comes back empty
 instead of as the element's id.
 
