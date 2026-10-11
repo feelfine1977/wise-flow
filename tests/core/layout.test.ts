@@ -71,6 +71,20 @@ describe("layout of empty ids", () => {
   });
 });
 
+describe("layout of an edge to a node that is not there", () => {
+  it("leaves the edge out with Dagre, and routes the others along finite points", async () => {
+    const graph: FlowGraph = {
+      nodes: [{ id: "a", kind: "activity", label: "A" }, { id: "b", kind: "activity", label: "B" }],
+      edges: [{ id: "a->b", kind: "follows", source: "a", target: "b" }, { id: "a->gone", kind: "follows", source: "a", target: "gone" }, { id: "gone->b", kind: "follows", source: "gone", target: "b" }],
+    };
+    const p = await layout(graph, { engine: "dagre" });
+    expect(Object.keys(p.nodes)).toEqual(["a", "b"]);
+    expect(Object.keys(p.edges)).toEqual(["a->b"]);
+    expect(Object.values(p.edges).flatMap((r) => r.points).every((q) => Number.isFinite(q.x) && Number.isFinite(q.y))).toBe(true);
+    expect(Object.values(p.bounds).every(Number.isFinite)).toBe(true);
+  });
+});
+
 describe("layout options that are not finite numbers", () => {
   // A size callback may compute from data; a spacing from a host's settings.
   const graph = { nodes: ["a", "b", "c"].map((id) => ({ id, kind: "activity" as const, label: id, group: "s" })), edges: [{ id: "a->b", kind: "follows" as const, source: "a", target: "b" }, { id: "a->c", kind: "follows" as const, source: "a", target: "c" }], groups: [{ id: "s", kind: "stage" as const, label: "S" }] };

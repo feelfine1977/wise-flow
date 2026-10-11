@@ -485,6 +485,7 @@ export interface DagreOutput {
 function dagreInput(p: Prepared, o: LayoutOptions): DagreInput {
   const spacing = o.spacing ?? {};
   const groupIds = new Set(p.groups.map((gr) => gr.id));
+  const nodeIds = new Set(p.nodes.map((n) => n.id));
   const inGroup = (id?: string) => (p.useGroups && id && groupIds.has(id) ? id : undefined);
   return {
     graph: { rankdir: DAGRE_DIR[p.direction], nodesep: gap(spacing.node, 28), ranksep: gap(spacing.layer, 64), marginx: 8, marginy: 8 },
@@ -494,7 +495,8 @@ function dagreInput(p: Prepared, o: LayoutOptions): DagreInput {
       const s = sizeOf(n, o);
       return [n.id, s.width, s.height, inGroup(n.group)];
     }),
-    edges: p.edges.filter((e) => e.source !== e.target).map((e) => [e.id, e.source, e.target]),
+    // Dagre would make a node of its own, without a size, for an end that is not there.
+    edges: p.edges.filter((e) => e.source !== e.target && nodeIds.has(e.source) && nodeIds.has(e.target)).map((e) => [e.id, e.source, e.target]),
   };
 }
 

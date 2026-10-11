@@ -73,3 +73,7 @@ an array: a `RangeError` after seconds of work and gigabytes of memory.
 node size that is not a finite number as not given and uses the default.
 Dagre threw a `TypeError` or a plain error on such a value before, and ELK
 returned boxes that were not finite.
+
+`layout` with Dagre leaves out an edge whose source or target is not a node
+of the graph; Dagre placed a node of its own for the missing end and routed
+the edge through coordinates that were not finite before.

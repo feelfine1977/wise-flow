@@ -244,7 +244,11 @@ spacing (`spacing.node`, `layer`, `group`) or a node size (given or returned
 by the `nodeSize` callback) that is not a finite number counts as not given:
 the default applies, in both engines and in the provisional arrangement. Up
 to 0.3.5 Dagre threw a `TypeError` or a plain error on it and ELK returned
-boxes that were not finite.
+boxes that were not finite. Dagre leaves out an edge whose source or target
+is not a node of the graph (which `validateGraph` reports); up to 0.3.5 it
+placed a node of its own for the missing end and routed the edge through
+coordinates that were not finite. ELK rejects such a graph with its own
+error, and `engine: "auto"` then falls back to Dagre, as before.
 
 Positions are absolute top-left coordinates and deterministic for the same
 input (elements are sorted by id before the engine runs). Groups become
