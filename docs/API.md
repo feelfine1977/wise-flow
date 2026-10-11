@@ -907,6 +907,13 @@ flow); `constraint` edges have no BPMN counterpart and are listed in
 top-level pool group → the participant. When lanes exist the process is
 wrapped in a collaboration with one participant, as Camunda Modeler does.
 
+Every element of the export has an id of its own. A FlowGraph id that names
+a node, an edge and a group at once (a collapsed stage shares its group's
+id) gives each its own BPMN id, and `ids.toBpmn` maps it to the first, the
+node's; a node without an id is written as one with the empty id. Up to
+0.3.5 such elements were written under one id, which made the file invalid,
+and an element without an id threw a `TypeError`.
+
 The `wise` extension keeps the round trip lossless: `wise:flowId` (the
 FlowGraph id when the XML id had to be made safe), `wise:kind` (when it
 differs from the type's default), `wise:tags` (space-separated) and

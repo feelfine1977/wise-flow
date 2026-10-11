@@ -7,7 +7,7 @@
 import { type Box, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Positions, createPositions, edgePoints, hasTag } from "../core/index.js";
 import { finitePositions } from "../core/layout.js";
 import { type BpmnLayoutOptions, POOL_ID, layoutBpmn } from "./layout.js";
-import { type IdMap, createIdMap, registerId } from "./ids.js";
+import { type IdMap, createIdMap } from "./ids.js";
 import { type BpmnModdleInstance, type ModdleElement, createModdle, typeOfTag } from "./moddle.js";
 import { BPMN_VOCABULARY as V, eventDefinitionTypes, eventType, gatewayType, isGeneratedGateway } from "./vocabulary.js";
 
@@ -85,11 +85,11 @@ interface Ctx {
   extension: boolean;
 }
 
+// Every element gets an id of its own; a FlowGraph id shared by a node, an edge or a group maps to the first.
 function idFor(ctx: Ctx, flowId: string, prefix = ""): string {
-  const existing = ctx.ids.toBpmn[flowId];
-  if (existing) return existing;
-  const id = xmlId(flowId, ctx.taken, prefix);
-  registerId(ctx.ids, id, flowId);
+  const id = xmlId(flowId ?? "", ctx.taken, prefix);
+  ctx.ids.toBpmn[flowId] ??= id;
+  ctx.ids.toFlow[id] = flowId;
   return id;
 }
 
@@ -150,11 +150,13 @@ export async function exportBpmn(graph: FlowGraph, options: ExportBpmnOptions = 
 
   // Flow nodes
   const elements = new Map<string, ModdleElement>();
+  const nodeElements: ModdleElement[] = [];
   const nodeById = new Map(graph.nodes.map((n) => [n.id, n]));
   for (const n of graph.nodes) {
     const type = bpmnTypeOfNode(n);
     const id = idFor(ctx, n.id);
     const el = moddle.create(type, { id });
+    nodeElements.push(el);
     if (type === "bpmn:TextAnnotation") {
       el.set("text", n.label);
       artifacts.push(el);
@@ -273,8 +275,8 @@ export async function exportBpmn(graph: FlowGraph, options: ExportBpmnOptions = 
     if (lane && b) addShape(lane, b, { isHorizontal: true });
     else if (lane) warnings.push(`lane ${g.id} has no position`);
   }
-  for (const n of graph.nodes) {
-    const el = elements.get(n.id)!;
+  for (const [i, n] of graph.nodes.entries()) {
+    const el = nodeElements[i];
     const b = positions.nodes[n.id];
     if (!b) {
       warnings.push(`node ${n.id} has no position`);

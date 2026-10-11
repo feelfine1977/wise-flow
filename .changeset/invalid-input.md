@@ -37,3 +37,10 @@ filterPreview>`).
 
 `<Chip/>` renders nothing for an overlay that has no mark on its own (an arc,
 or a kind outside `OverlayKind`); it threw a `TypeError` before.
+
+`exportBpmn` gives every element an id of its own: a node, an edge and a
+group that share a FlowGraph id (a collapsed stage and its group) were
+written under one BPMN id, which made the file invalid and lost elements on
+import; two nodes with one id now get a shape each. `ids.toBpmn` maps a
+shared id to the node's BPMN id. A node or an edge without an id is exported
+as one with the empty id; it threw a `TypeError` before.

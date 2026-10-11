@@ -89,6 +89,48 @@ describe("export → import round trip", () => {
     expect(again.xml).toBe(out.xml);
   });
 
+  it("gives a node, an edge and a lane that share an id one BPMN id each and reads them back", async () => {
+    // FlowGraph keeps nodes, edges and groups apart, so all three may be called "a" (a collapsed stage shares its group's id).
+    const graph: FlowGraph = {
+      nodes: [
+        { id: "a", kind: "activity", label: "A", group: "a" },
+        { id: "b", kind: "activity", label: "B", group: "a" },
+      ],
+      edges: [{ id: "a", kind: "flow", source: "a", target: "b" }],
+      groups: [{ id: "a", kind: "lane", label: "Lane A" }],
+    };
+    const { xml, ids } = await exportBpmn(graph);
+    const written = [...xml.matchAll(/ id="([^"]+)"/g)].map((m) => m[1]);
+    expect(new Set(written).size).toBe(written.length);
+    // The node keeps the plain id; the flow and the lane take their prefixes, as when nothing is shared.
+    expect(written).toEqual(expect.arrayContaining(["a", "b", "Flow_a", "Lane_a"]));
+    expect(ids.toBpmn.a).toBe("a");
+    expect(ids.toFlow).toMatchObject({ a: "a", Flow_a: "a", Lane_a: "a" });
+    expect((await validateBpmn(xml)).ok).toBe(true);
+    const back = await importBpmn(xml);
+    expect(back.warnings).toEqual([]);
+    expect(back.graph.nodes.map((n) => [n.id, n.group])).toEqual([["a", "a"], ["b", "a"]]);
+    expect(back.graph.edges.map((e) => [e.id, e.source, e.target])).toEqual([["a", "a", "b"]]);
+    expect(back.graph.groups?.filter((g) => g.kind === "lane").map((g) => g.id)).toEqual(["a"]);
+  });
+
+  it("exports nodes and edges without an id", async () => {
+    // A null column of a backend: typed around the model, so the ids read undefined.
+    const none = undefined as unknown as string;
+    const graph: FlowGraph = {
+      nodes: [
+        { id: "a", kind: "activity", label: "A" },
+        { id: none, kind: "activity", label: "Unnamed" },
+        { id: none, kind: "activity", label: "Unnamed too" },
+      ],
+      edges: [{ id: none, kind: "flow", source: "a", target: "b" }],
+    };
+    const { xml } = await exportBpmn(graph);
+    const written = [...xml.matchAll(/ id="([^"]+)"/g)].map((m) => m[1]);
+    expect(new Set(written).size).toBe(written.length);
+    expect((await validateBpmn(xml)).ok).toBe(true);
+  });
+
   it("makes ids XML-safe and keeps the original in wise:flowId", async () => {
     const out = await exportBpmn(lite, { layout: { engine: "dagre" } });
     expect(out.ids.toBpmn["__start->gw_skip_requisition"]).toMatch(/^Flow_/);
