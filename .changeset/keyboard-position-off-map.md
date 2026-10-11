@@ -11,6 +11,7 @@ as from no keyboard position (from the first selected activity on the map,
 else from the one Home goes to). The map controller's keys do the same for an
 `active` element or a first selected activity that has no box or is not in
 the graph.
+
 In the table view `<ProcessMap/>` names no element in
 `aria-activedescendant` either, since that view renders neither the element
 list nor the map's elements; back in the map view it names the keyboard

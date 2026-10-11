@@ -266,7 +266,7 @@ function neighbourhood(index: GraphIndex, at: string, limit: number): ElementRef
 }
 
 /** The activity Home goes to: the first node with a box, left to right and top to bottom. */
-function firstInReadingOrder(graph: FlowGraph, positions: Positions | undefined): string | undefined {
+export function firstInReadingOrder(graph: FlowGraph, positions: Positions | undefined): string | undefined {
   let first: string | undefined;
   for (const n of graph.nodes) {
     const b = positions?.nodes[n.id];
@@ -276,32 +276,10 @@ function firstInReadingOrder(graph: FlowGraph, positions: Positions | undefined)
   return first;
 }
 
-/** What the element list is built from. */
-export interface ListInput {
-  shown: FlowGraph;
-  index: GraphIndex;
-  positions: Positions | undefined;
-  /** The element at the keyboard position. */
-  focused: string | null;
-  selection: Selection;
-  /** Activities plus groups above which the list holds only a neighbourhood. */
-  limit: number;
-  /** The node Home goes to, when the caller has it already. */
-  home?: string;
-}
-
-/** The list holds only a neighbourhood: the shown graph has more activities plus groups than the limit. */
-export const listBounded = (shown: FlowGraph, limit: number) => shown.nodes.length + (shown.groups?.length ?? 0) > limit;
-
-/**
- * The elements listed for assistive technology, the targets of
- * `aria-activedescendant`: every node and group and the focused edge; above
- * the limit the neighbourhood of the keyboard position, else of the first
- * selected node, else of the node Home goes to.
- */
-export function listedElements({ shown, index, positions, focused, selection, limit, home }: ListInput): ElementRef[] {
-  if (listBounded(shown, limit)) {
-    const centre = [focused, selection.nodes[0], home ?? firstInReadingOrder(shown, positions)].find((id): id is string => id != null && (index.nodes.has(id) || index.edges.has(id)));
+/** The elements listed for assistive technology: all nodes, groups and the focused edge, or above the limit a neighbourhood. */
+export function listedElements(shown: FlowGraph, index: GraphIndex, focused: string | null, selected: string | undefined, limit: number, home: string | undefined): ElementRef[] {
+  if (shown.nodes.length + (shown.groups?.length ?? 0) > limit) {
+    const centre = [focused, selected, home].find((id): id is string => id != null && (index.nodes.has(id) || index.edges.has(id)));
     return centre === undefined ? [] : neighbourhood(index, centre, limit);
   }
   const list: ElementRef[] = shown.nodes.map((n) => ({ kind: "node", id: n.id }));
@@ -316,18 +294,15 @@ export function useCanvasElements(input: CanvasInput) {
   const { describeElement, index } = descriptions;
   const canvasScene = useMemo<PreparedScene | undefined>(() => (enabled && positions ? retainScene(scene) : undefined), [enabled, positions, scene]);
   const canvasState = useMemo<DrawState>(() => ({ selection, hovered, focused, bright, highlighted }), [selection, hovered, focused, bright, highlighted]);
-  const bounded = enabled && listBounded(shown, limit);
+  const bounded = enabled && shown.nodes.length + (shown.groups?.length ?? 0) > limit;
   // Above the limit the list follows the keyboard: its element, else the activity it starts from.
   const home = useMemo(() => (bounded ? firstInReadingOrder(shown, positions) : undefined), [bounded, shown, positions]);
-  // Below the limit the list changes only with the graph and the focused edge.
-  const listFocus = bounded ? focused : focused && index.edges.has(focused) ? focused : null;
-  const listSelection = bounded ? selection.nodes[0] : undefined;
-  const canvasDescendants = useMemo(() => {
-    if (!enabled) return undefined;
-    // Home is known already: the list does not change with positions that move.
-    const refs = listedElements({ shown, index, positions: undefined, focused: listFocus, selection: { nodes: listSelection === undefined ? [] : [listSelection], edges: [], groups: [] }, limit, home });
-    return refs.map((ref) => ({ ...ref, description: describeElement(ref) }));
-  }, [enabled, shown, index, listFocus, listSelection, limit, home, describeElement]);
+  const at = bounded || (focused && index.edges.has(focused)) ? focused : null;
+  const selected = bounded ? selection.nodes[0] : undefined;
+  const canvasDescendants = useMemo(
+    () => (enabled ? listedElements(shown, index, at, selected, limit, home).map((ref) => ({ ...ref, description: describeElement(ref) })) : undefined),
+    [enabled, shown, index, at, selected, limit, home, describeElement],
+  );
   const describeHit = useCallback(
     (hit: HitItem): string | undefined => {
       if (activityLabels && hit.kind === "node" && index.nodes.get(hit.id)?.kind === "activity") return undefined;

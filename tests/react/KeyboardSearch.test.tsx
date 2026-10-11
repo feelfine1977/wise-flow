@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { type AbstractOptions, type EdgeBudget, type ElementRef, type FlowEdge, type FlowGraph, type FlowScene, type GraphIndex, type Positions, type Selection, type ShownEdges, abstract, budgetEdges, buildScene, indexGraph } from "../../src/index";
 import { type MapContext, type MapEvent, type MapState, initialMapState, mapEmphasis, mapStep } from "../../src/core/map-controller";
 import { ProcessMap } from "../../src/react/index";
-import { listedElements } from "../../src/react/map-elements";
+import { firstInReadingOrder, listedElements } from "../../src/react/map-elements";
 import { type FamilyName, families } from "../support/graphs";
 import { type Random, caseCount, caseLabel, createRandom, seeds } from "../support/random";
 import { POSITION_KINDS, positionsOf } from "../support/scenes";
@@ -221,7 +221,7 @@ function checkStep(map: RandomMap, before: MapState, event: MapEvent, after: Map
   if (after.menu) tally.menu++;
   if (at?.kind === "edge") tally.onPath++;
   // The element list the Canvas map renders for this state.
-  const list = listedElements({ shown: graph, index, positions, focused: after.active, selection: after.selection, limit }).map(refKey);
+  const list = listedElements(graph, index, after.active, after.selection.nodes[0], limit, firstInReadingOrder(graph, positions)).map(refKey);
   const elements = graph.nodes.length + (graph.groups?.length ?? 0);
   if (elements > limit) tally.bounded++;
   if (elements > limit) must(list.length <= limit, () => `${label()}: ${list.length} listed above the limit`);
