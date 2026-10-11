@@ -15,7 +15,7 @@ import { type MarkPaint, type MarkText, type OverlayMark, markArrowhead, overlay
 import { type FlowScene, buildScene } from "./scene.js";
 import { type StyleSpec, fixedColors, lodAt, patternDefs } from "./style.js";
 import { t } from "./strings.js";
-import { arrowheadTokens, fontTokens, sizeTokens } from "./tokens.js";
+import { arrowheadTokens, dashTokens, dimensionTokens, fontTokens, opacityTokens, radiusTokens, strokeTokens, textTokens } from "./tokens.js";
 
 export interface Scene {
   activityLabels?: ActivityLabelOptions;
@@ -77,6 +77,9 @@ function text(x: number, y: number, s: string, attrs = ""): string {
   return `<text x="${num(x)}" y="${num(y)}" ${attrs}>${esc(s)}</text>`;
 }
 
+/** The font attributes of a text role. */
+const fontAttrs = (role: { size: number; weight?: number }): string => `font-size="${role.size}"${role.weight ? ` font-weight="${role.weight}"` : ""}`;
+
 function drawGroups(ctx: Ctx): string {
   const { graph, positions } = ctx.scene;
   const out: string[] = [];
@@ -87,13 +90,13 @@ function drawGroups(ctx: Ctx): string {
     const band = ctx.bands.get(g.id);
     out.push(`<g class="wf-group${band ? " wf-group-band" : ""}" data-id="${esc(g.id)}">`);
     if (band) {
-      out.push(rect(b, `fill="${c.color}" fill-opacity="${band.index % 2 === 0 ? 0.06 : 0.02}" stroke="${fixedColors.neutral}" stroke-opacity="0.5" stroke-width="1"`));
+      out.push(rect(b, `fill="${c.color}" fill-opacity="${band.index % 2 === 0 ? opacityTokens.bandFill : opacityTokens.bandOddFill}" stroke="${fixedColors.neutral}" stroke-opacity="${opacityTokens.groupStroke}" stroke-width="1"`));
       const edge = band.axis === "main" ? `M${num(b.x)} ${num(b.y)}H${num(b.x + b.width)}` : `M${num(b.x)} ${num(b.y)}V${num(b.y + b.height)}`;
-      out.push(`<path d="${edge}" stroke="${c.color}" stroke-width="3" fill="none"/>`);
+      out.push(`<path d="${edge}" stroke="${c.color}" stroke-width="${strokeTokens.band}" fill="none"/>`);
     } else {
-      out.push(rect(b, `rx="${sizeTokens.radiusLarge}" fill="${c.color}" fill-opacity="0.06" stroke="${c.color}" stroke-opacity="0.5" stroke-width="1.5" stroke-dasharray="6 4"`));
+      out.push(rect(b, `rx="${radiusTokens.large}" fill="${c.color}" fill-opacity="${opacityTokens.groupFill}" stroke="${c.color}" stroke-opacity="${opacityTokens.groupStroke}" stroke-width="${strokeTokens.group}" stroke-dasharray="${dashTokens.group.join(" ")}"`));
     }
-    out.push(text(b.x + 12, b.y + 22, g.label, `font-size="14" font-weight="600" fill="${fixedColors.ink}"`));
+    out.push(text(b.x + 12, b.y + 22, g.label, `${fontAttrs(textTokens.groupLabel)} fill="${fixedColors.ink}"`));
     out.push(`</g>`);
   }
   return out.join("");
@@ -138,8 +141,8 @@ function drawNodes(ctx: Ctx): string {
     }
     if (m.band) {
       const band: Box = { x: b.x, y: b.y, width: m.band, height: b.height };
-      out.push(rect(band, `rx="3" fill="${m.color}"`));
-      if (m.pattern !== "solid") out.push(rect(band, `rx="3" fill="url(#wf-pattern-${m.pattern})"`));
+      out.push(rect(band, `rx="${radiusTokens.band}" fill="${m.color}"`));
+      if (m.pattern !== "solid") out.push(rect(band, `rx="${radiusTokens.band}" fill="url(#wf-pattern-${m.pattern})"`));
     }
     if (m.title) out.push(`<title>${esc(m.title)}</title>`);
     for (const tx of shownTexts(ctx, m.texts)) out.push(markText(m.color, m.color, tx));
@@ -160,7 +163,7 @@ function paintOf(color: string, onColor: string, paint: MarkPaint): string {
 
 function markText(color: string, onColor: string, m: MarkText): string {
   const y = m.baseline === "middle" ? m.y + 0.3 * m.size : m.y;
-  const halo = m.halo ? ` paint-order="stroke" stroke="${fixedColors.paper}" stroke-width="3"` : "";
+  const halo = m.halo ? ` paint-order="stroke" stroke="${fixedColors.paper}" stroke-width="${strokeTokens.halo}"` : "";
   return text(m.x, y, fitText(m), `font-size="${m.size}"${m.weight ? ` font-weight="${m.weight}"` : ""}${m.anchor === "start" ? "" : ` text-anchor="${m.anchor}"`} fill="${paintOf(color, onColor, m.paint)}"${halo}`);
 }
 
@@ -174,44 +177,47 @@ function drawMarks(ctx: Ctx, layer: OverlayMark["layer"]): string {
 function drawLegend(ctx: Ctx, width: number, layout: LegendLayout): string {
   const out: string[] = [];
   const L = ctx.locale;
-  out.push(text(0, 14, t(L, "legend.title"), `font-size="13" font-weight="700" fill="${fixedColors.ink}"`));
+  const { legendTitle, legendItem, legendValue, legendKey, legendChip } = textTokens;
+  const { legendSampleExport: sample, legendGradient: ramp, legendSwatchWidth, legendSwatchHeight } = dimensionTokens;
+  const value = `${fontAttrs(legendValue)} fill="${fixedColors.ink}"`;
+  out.push(text(0, 14, t(L, "legend.title"), `${fontAttrs(legendTitle)} fill="${fixedColors.ink}"`));
   for (const { item, y } of layout.items) {
-    out.push(text(0, y + 11, t(L, item.title), `font-size="11" font-weight="600" fill="${fixedColors.ink}"`));
+    out.push(text(0, y + 11, t(L, item.title), `${fontAttrs(legendItem)} fill="${fixedColors.ink}"`));
     const cy = y + legendMetrics.itemTitle;
     if (item.kind === "width") {
       const [lo, hi] = item.range;
-      out.push(`<path d="M0 ${num(cy + 6)}H40" stroke="${fixedColors.neutral}" stroke-width="${num(lo)}"/>`);
-      out.push(text(46, cy + 10, formatCompact(item.domain[0], L), `font-size="10" fill="${fixedColors.ink}"`));
-      out.push(`<path d="M${num(width / 2)} ${num(cy + 6)}H${num(width / 2 + 40)}" stroke="${fixedColors.neutral}" stroke-width="${num(hi)}"/>`);
-      out.push(text(width / 2 + 46, cy + 10, formatCompact(item.domain[1], L), `font-size="10" fill="${fixedColors.ink}"`));
+      out.push(`<path d="M0 ${num(cy + 6)}H${sample}" stroke="${fixedColors.neutral}" stroke-width="${num(lo)}"/>`);
+      out.push(text(46, cy + 10, formatCompact(item.domain[0], L), value));
+      out.push(`<path d="M${num(width / 2)} ${num(cy + 6)}H${num(width / 2 + sample)}" stroke="${fixedColors.neutral}" stroke-width="${num(hi)}"/>`);
+      out.push(text(width / 2 + 46, cy + 10, formatCompact(item.domain[1], L), value));
     } else if (item.kind === "sequential" || item.kind === "diverging") {
       const gid = `wf-grad-${item.title.replace(/\W/g, "")}-${item.metric.replace(/\W/g, "")}`;
       const stops = item.stops.map((c, i) => `<stop offset="${num((i / (item.stops.length - 1)) * 100)}%" stop-color="${c}"/>`).join("");
       out.push(`<defs><linearGradient id="${gid}">${stops}</linearGradient></defs>`);
-      out.push(rect({ x: 0, y: cy, width: width - 10, height: 10 }, `fill="url(#${gid})" stroke="${fixedColors.neutral}" stroke-width="0.5"`));
+      out.push(rect({ x: 0, y: cy, width: width - 10, height: ramp }, `fill="url(#${gid})" stroke="${fixedColors.neutral}" stroke-width="${strokeTokens.legendGradient}"`));
       const share = /share/i.test(item.metric);
       const f = (v: number) => (share ? formatShare(v, L) : formatNumber(v, 1, L));
-      out.push(text(0, cy + 22, f(item.domain[0]), `font-size="10" fill="${fixedColors.ink}"`));
-      if (item.domain.length === 3) out.push(text((width - 10) / 2, cy + 22, f(item.domain[1]), `font-size="10" text-anchor="middle" fill="${fixedColors.ink}"`));
-      out.push(text(width - 10, cy + 22, f(item.domain[item.domain.length - 1]), `font-size="10" text-anchor="end" fill="${fixedColors.ink}"`));
+      out.push(text(0, cy + 22, f(item.domain[0]), value));
+      if (item.domain.length === 3) out.push(text((width - 10) / 2, cy + 22, f(item.domain[1]), `${fontAttrs(legendValue)} text-anchor="middle" fill="${fixedColors.ink}"`));
+      out.push(text(width - 10, cy + 22, f(item.domain[item.domain.length - 1]), `${fontAttrs(legendValue)} text-anchor="end" fill="${fixedColors.ink}"`));
     } else if (item.kind === "categorical") {
       item.entries.forEach((e, i) => {
-        const sw: Box = { x: 0, y: cy + i * legendMetrics.entry, width: 14, height: 12 };
-        out.push(rect(sw, `rx="2" fill="${e.color}"`));
-        if (e.pattern !== "solid") out.push(rect(sw, `rx="2" fill="url(#wf-pattern-${e.pattern})"`));
-        out.push(text(20, sw.y + 10, truncateText(e.key, width - 24, { size: 10 }), `font-size="10" fill="${fixedColors.ink}"`));
+        const sw: Box = { x: 0, y: cy + i * legendMetrics.entry, width: legendSwatchWidth, height: legendSwatchHeight };
+        out.push(rect(sw, `rx="${radiusTokens.swatch}" fill="${e.color}"`));
+        if (e.pattern !== "solid") out.push(rect(sw, `rx="${radiusTokens.swatch}" fill="url(#wf-pattern-${e.pattern})"`));
+        out.push(text(20, sw.y + 10, truncateText(e.key, width - 24, legendValue), value));
       });
     }
   }
   for (const { key, y } of layout.keys) {
-    out.push(text(0, y + 10, key.glyph, `font-size="10" fill="${fixedColors.ink}"`));
-    out.push(text(22, y + 10, truncateText(t(L, key.title), width - 24, { size: 9.5 }), `font-size="9.5" fill="${fixedColors.ink}"`));
+    out.push(text(0, y + 10, key.glyph, value));
+    out.push(text(22, y + 10, truncateText(t(L, key.title), width - 24, legendKey), `${fontAttrs(legendKey)} fill="${fixedColors.ink}"`));
   }
   for (const { chip, y } of layout.chips) {
     const p = chip.payload ?? {};
-    const label = truncateText(`${p.glyph ?? ""} ${p.label ?? ""}`.trim(), width - 4, { size: 10, weight: 600 });
-    out.push(text(0, y + 10, label, `font-size="10" font-weight="600" fill="${fixedColors.ink}"`));
-    out.push(text(0, y + legendMetrics.chipLabel + 10, truncateText(String(p.text ?? ""), width - 4, { size: 9.5 }), `font-size="9.5" fill="${fixedColors.ink}"`));
+    const label = truncateText(`${p.glyph ?? ""} ${p.label ?? ""}`.trim(), width - 4, legendChip);
+    out.push(text(0, y + 10, label, `${fontAttrs(legendChip)} fill="${fixedColors.ink}"`));
+    out.push(text(0, y + legendMetrics.chipLabel + 10, truncateText(String(p.text ?? ""), width - 4, legendKey), `${fontAttrs(legendKey)} fill="${fixedColors.ink}"`));
   }
   return out.join("");
 }
@@ -249,13 +255,13 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
   parts.push(`</defs>`);
   parts.push(rect({ x: 0, y: 0, width: totalW, height: totalH }, `fill="${options.background ?? fixedColors.paper}"`));
   if (given.title) {
-    parts.push(text(pad, figureMetrics.titleBaseline, given.title, `font-size="18" font-weight="700" fill="${fixedColors.ink}"`));
+    parts.push(text(pad, figureMetrics.titleBaseline, given.title, `${fontAttrs(textTokens.figureTitle)} fill="${fixedColors.ink}"`));
     if (options.context !== false) {
       const meta = scene.graph.meta ?? {};
       const label = given.subtitle ?? String(meta.label ?? meta.scene ?? "");
       const cases = typeof meta.cases === "number" ? formatCount(meta.cases, locale) : "–";
       const events = typeof meta.events === "number" ? formatCount(meta.events, locale) : "–";
-      parts.push(text(pad, figureMetrics.contextBaseline, t(locale, "export.context", { label, cases, events }), `font-size="11" fill="${fixedColors.neutral}"`));
+      parts.push(text(pad, figureMetrics.contextBaseline, t(locale, "export.context", { label, cases, events }), `${fontAttrs(textTokens.figureText)} fill="${fixedColors.neutral}"`));
     }
   }
   parts.push(`<g class="wf-map" transform="translate(${num(frame.map.offset.x)} ${num(frame.map.offset.y)})">`);
@@ -269,14 +275,14 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
   if (frame.legend) {
     const { rule, x, y, width, layout } = frame.legend;
     parts.push(`<g class="wf-legend" transform="translate(${num(rule.x)} ${num(rule.top)})">`);
-    parts.push(`<path d="M0 0V${num(rule.bottom - rule.top)}" stroke="${fixedColors.neutral}" stroke-opacity="0.4"/>`);
+    parts.push(`<path d="M0 0V${num(rule.bottom - rule.top)}" stroke="${fixedColors.neutral}" stroke-opacity="${opacityTokens.legendRule}"/>`);
     parts.push(`<g transform="translate(${num(x - rule.x)} ${num(y - rule.top)})">${drawLegend(ctx, width, layout)}</g>`);
     parts.push(`</g>`);
   }
-  if (frame.note) parts.push(text(frame.note.x, frame.note.y, frame.note.text, `class="wf-edge-note" font-size="${figureMetrics.noteSize}" fill="${fixedColors.ink}"`));
+  if (frame.note) parts.push(text(frame.note.x, frame.note.y, frame.note.text, `class="wf-edge-note" ${fontAttrs(textTokens.figureText)} fill="${fixedColors.ink}"`));
   if (frame.key.lines.length) {
     parts.push(`<g class="wf-activity-key" aria-label="Activity key">`);
-    frame.key.lines.forEach((line, i) => parts.push(text(pad, frame.key.y + i * figureMetrics.keyLine, line, `font-size="11" fill="${fixedColors.ink}"`)));
+    frame.key.lines.forEach((line, i) => parts.push(text(pad, frame.key.y + i * figureMetrics.keyLine, line, `${fontAttrs(textTokens.figureText)} fill="${fixedColors.ink}"`)));
     parts.push(`</g>`);
   }
   parts.push(`</svg>`);

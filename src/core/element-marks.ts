@@ -10,7 +10,7 @@ import { type EdgeKind, type FlowEdge, type FlowGraph, type FlowNode, type NodeK
 import { RECONNECTED_TAG } from "./aggregate.js";
 import type { MarkPaint, MarkText } from "./overlay-marks.js";
 import { type PatternId, type Scales, fixedColors } from "./style.js";
-import { sizeTokens, textSizeTokens } from "./tokens.js";
+import { dashTokens, dimensionTokens, radiusTokens, spaceTokens, strokeTokens, textTokens } from "./tokens.js";
 
 /** Width of a text in a font, in the units it is drawn in. */
 export type TextMeasure = (text: string, font: { size: number; weight?: number }) => number;
@@ -177,8 +177,11 @@ function outline(paint: MarkPaint, width: number, dash?: readonly number[]): Nod
   return stroke;
 }
 
-const RECONNECTED_DASH = Object.freeze([4, 3]);
-const NOTE_DASH = Object.freeze([2, 3]);
+const RECONNECTED_DASH = Object.freeze(dashTokens.reconnectedNode);
+const NOTE_DASH = Object.freeze(dashTokens.note);
+/** Where a node's texts start and how much of its width they leave out: the stylesheet's padding of a node. */
+const INSET = 8 * spaceTokens.unit;
+const INSETS = INSET + 4 * spaceTokens.unit;
 
 /** What one node looks like in its box. */
 export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): NodeMark {
@@ -205,30 +208,31 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
   const dash = reconnected ? RECONNECTED_DASH : undefined;
   switch (node.kind) {
     case "event":
-      return mark("circle", Math.min(box.width, box.height) / 2, outline("ink", hasTag(node, "end") ? 3 : 1.5, dash), [ink(node.label, cx, cy, textSizeTokens.small, { role: "label", anchor: "middle", maxWidth: box.width - 4, lod: "labels" })]);
+      return mark("circle", Math.min(box.width, box.height) / 2, outline("ink", hasTag(node, "end") ? strokeTokens.eventEnd : strokeTokens.eventStart, dash), [ink(node.label, cx, cy, textTokens.eventLabel.size, { role: "label", anchor: "middle", maxWidth: box.width - 4, lod: "labels" })]);
     case "gateway":
-      return mark("diamond", 0, outline("ink", 1.5, dash), [ink(gatewayGlyph(node), cx, cy + 1, textSizeTokens.glyph, { role: "glyph", weight: 700, anchor: "middle" })]);
+      return mark("diamond", 0, outline("ink", strokeTokens.gateway, dash), [ink(gatewayGlyph(node), cx, cy + 1, textTokens.gatewayGlyph.size, { role: "glyph", weight: textTokens.gatewayGlyph.weight, anchor: "middle" })]);
     case "note":
-      return mark("box", sizeTokens.radius, outline("value", 2, NOTE_DASH), [ink(node.label, box.x + 16, cy, textSizeTokens.note, { role: "label", maxWidth: box.width - 24 })], "surface");
+      return mark("box", radiusTokens.node, outline("value", strokeTokens.note, NOTE_DASH), [ink(node.label, box.x + INSET, cy, textTokens.noteLabel.size, { role: "label", maxWidth: box.width - INSETS })], "surface");
     default: {
-      const stroke = outline("value", node.kind === "stage" ? 3 : 2, dash);
+      const stroke = outline("value", node.kind === "stage" ? strokeTokens.stage : strokeTokens.node, dash);
       const labels = node.kind === "activity" ? options.activityLabels : undefined;
       if (labels) {
         const lines = activityLabelLines(node, labels, box.width, locale);
         const counts = labels.showCounts === false ? [] : lines.counts;
-        const left = (text: string, size: number, y: number, role: ElementText["role"]) => ink(text, box.x + 16, y, size, { role, baseline: "alphabetic" });
-        const names = lines.name.map((line, i) => left(line, textSizeTokens.nameLine, box.y + 24 + i * 18, "nameLine"));
-        return mark("box", sizeTokens.radius, stroke, names.concat(counts.map((line, i) => left(line, textSizeTokens.countLine, box.y + 24 + lines.name.length * 18 + i * 16, "countLine"))), "paper", sizeTokens.band, activityDescription(node, labels, locale));
+        const left = (text: string, size: number, y: number, role: ElementText["role"]) => ink(text, box.x + INSET, y, size, { role, baseline: "alphabetic" });
+        const { activityName: nameText, activityNumber: numberText } = textTokens;
+        const names = lines.name.map((line, i) => left(line, nameText.size, box.y + 24 + i * nameText.lineHeight, "nameLine"));
+        return mark("box", radiusTokens.node, stroke, names.concat(counts.map((line, i) => left(line, numberText.size, box.y + 24 + lines.name.length * nameText.lineHeight + i * numberText.lineHeight, "countLine"))), "paper", dimensionTokens.band, activityDescription(node, labels, locale));
       }
       const count = nodeCount(node, locale);
-      const label = ink(node.label, box.x + 16, cy, textSizeTokens.label, { role: "label", maxWidth: box.width - 24, lod: "labels", weight: node.kind === "stage" ? 600 : undefined });
-      return mark("box", sizeTokens.radius, stroke, count ? [label, ink(count, box.x + box.width - 6, box.y + box.height - 5, textSizeTokens.small, { role: "count", anchor: "end", baseline: "alphabetic", paint: "inkMuted", lod: "labels" })] : [label], "paper", sizeTokens.band);
+      const label = ink(node.label, box.x + INSET, cy, textTokens.nodeLabel.size, { role: "label", maxWidth: box.width - INSETS, lod: "labels", weight: node.kind === "stage" ? textTokens.stageLabel.weight : undefined });
+      return mark("box", radiusTokens.node, stroke, count ? [label, ink(count, box.x + box.width - 6, box.y + box.height - 5, textTokens.nodeCount.size, { role: "count", anchor: "end", baseline: "alphabetic", paint: "inkMuted", lod: "labels" })] : [label], "paper", dimensionTokens.band);
     }
   }
 }
 
-const RECONNECTED_EDGE_DASH = Object.freeze([6, 5]);
-const CONSTRAINT_DASH = Object.freeze([2, 4]);
+const RECONNECTED_EDGE_DASH = Object.freeze(dashTokens.reconnectedPath);
+const CONSTRAINT_DASH = Object.freeze(dashTokens.constraint);
 const NO_TEXTS: ElementText[] = Object.freeze([]) as unknown as ElementText[];
 
 /** What one edge looks like along its route. */
@@ -245,7 +249,7 @@ export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string;
     width: options.width,
     dash: (reconnected ? RECONNECTED_EDGE_DASH : edge.kind === "constraint" ? CONSTRAINT_DASH : undefined) as number[] | undefined,
     texts: Number.isFinite(count)
-      ? [{ text: formatCompact(count, options.locale ?? "en"), x: at.x, y: at.y, size: textSizeTokens.edgeCount, anchor: "middle", baseline: "alphabetic", paint: "ink", halo: true, role: "count", lod: "edgeLabels" }]
+      ? [{ text: formatCompact(count, options.locale ?? "en"), x: at.x, y: at.y, size: textTokens.pathLabel.size, anchor: "middle", baseline: "alphabetic", paint: "ink", halo: true, role: "count", lod: "edgeLabels" }]
       : NO_TEXTS,
     reconnected,
   };

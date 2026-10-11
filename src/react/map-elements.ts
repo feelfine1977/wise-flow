@@ -6,7 +6,7 @@
  */
 import { MarkerType } from "@xyflow/react";
 import { useCallback, useMemo } from "react";
-import { type ActivityLabelOptions, type EdgeBudget, type ElementRef, type FlowGraph, type FlowScene, type GraphIndex, type HitItem, type Locale, type Overlay, type OverlayMark, type Positions, type Selection, arrowheadTokens, budgetEdges, describeOverlay, indexGraph } from "../core/index.js";
+import { type ActivityLabelOptions, type EdgeBudget, type ElementRef, type FlowGraph, type FlowScene, type GraphIndex, type HitItem, type Locale, type Overlay, type OverlayMark, type Positions, type Selection, arrowheadTokens, budgetEdges, describeOverlay, indexGraph, zTokens } from "../core/index.js";
 import type { DrawState, PreparedScene } from "../canvas/index.js";
 import { retainScene } from "../canvas/scene.js";
 import { describeIndexedEdge } from "../core/describe.js";
@@ -155,7 +155,7 @@ export function useFlowElements(input: FlowInput) {
         draggable: nodesDraggable === true && n.kind === "activity",
         selected: selection.nodes.includes(n.id),
         // Keep activity copy above ordinary and hovered routes, including grouped graphs.
-        zIndex: activityLabels ? 10 : undefined,
+        zIndex: activityLabels ? zTokens.activityLabels : undefined,
         ariaLabel: description,
         data: {
           node: n,
@@ -196,7 +196,7 @@ export function useFlowElements(input: FlowInput) {
         selected: selection.edges.includes(e.id),
         ariaLabel: description,
         markerEnd: { type: MarkerType.ArrowClosed, color: mark.color, width: arrowheadTokens.edge.size, height: arrowheadTokens.edge.size, markerUnits: "userSpaceOnUse" },
-        zIndex: hovered === e.id || focused === e.id ? 5 : 0,
+        zIndex: hovered === e.id || focused === e.id ? zTokens.pathHovered : 0,
         data: {
           edge: e,
           route: positions.edges[e.id],

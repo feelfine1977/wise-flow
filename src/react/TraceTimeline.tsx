@@ -1,6 +1,6 @@
 import { scaleLinear, scaleTime } from "d3-scale";
 import { type KeyboardEvent, useEffect, useId, useMemo, useState } from "react";
-import { type Locale, contrastText, formatNumber, hashKey, palettes, t } from "../core/index.js";
+import { type Locale, contrastText, formatNumber, hashKey, opacityTokens, palettes, radiusTokens, strokeTokens, t, textTokens } from "../core/index.js";
 import { part } from "./parts.js";
 
 export interface TraceEvent {
@@ -180,7 +180,7 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
             const tx = tickX(tick);
             return (
               <g key={i} transform={`translate(${tx} ${TOP - 6})`}>
-                <line y2={height - TOP} strokeOpacity={0.4} />
+                <line y2={height - TOP} strokeOpacity={opacityTokens.timelineGrid} />
                 <text y={-8} textAnchor="middle">
                   {tickLabel(tick)}
                 </text>
@@ -208,7 +208,7 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
                 return (
                   <g key={`${a.constraintId}-${i}`} className="wf-annotation">
                     <title>{a.label ?? a.constraintId}</title>
-                    <path d={`M${from} ${y + 4}V${y}H${to}V${y + 4}`} fill="none" stroke="var(--wf-fail)" strokeWidth={1.5} />
+                    <path d={`M${from} ${y + 4}V${y}H${to}V${y + 4}`} fill="none" stroke="var(--wf-fail)" strokeWidth={strokeTokens.timelineSpan} />
                     <text x={(from + to) / 2} y={y - 2} textAnchor="middle">
                       {a.label ?? a.constraintId}
                     </text>
@@ -227,7 +227,7 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
                       {...part("timeline-event")}
                       cx={xs[i]}
                       cy={cy}
-                      r={violates ? 6.5 : 5}
+                      r={violates ? radiusTokens.timelineViolation : radiusTokens.timelineEvent}
                       fill={fill}
                       role={onSelect ? "button" : undefined}
                       aria-label={onSelect ? `${row.trace.caseId}: ${describeEvent(e, row.times[i], locale)}` : undefined}
@@ -240,7 +240,7 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
                       onKeyDown={(event) => selectWithKeyboard(event, row.trace.caseId, i)}
                     />
                     {violates ? (
-                      <text x={xs[i]} y={cy + 3} textAnchor="middle" fontSize={8} fill={contrastText(fill)} pointerEvents="none">
+                      <text x={xs[i]} y={cy + 3} textAnchor="middle" fontSize={textTokens.timelineMark.size} fill={contrastText(fill)} pointerEvents="none">
                         !
                       </text>
                     ) : null}

@@ -4,7 +4,7 @@
  * same elements in the DOM.
  */
 import type { MarkPaint, MarkText, OverlayMark } from "./overlay-marks.js";
-import { type Arrowhead, type PatternId, arrowheadExtent, hatchTokens, patternTokens, patternTwin } from "./tokens.js";
+import { type Arrowhead, type PatternId, arrowheadExtent, hatchTokens, patternTokens, patternTwin, strokeTokens, textTokens } from "./tokens.js";
 
 /** An SVG element: tag, attributes in order, and child elements or text. */
 export interface SvgElement {
@@ -47,8 +47,8 @@ function textElement(mark: OverlayMark, m: MarkText, o: MarkSvgOptions): SvgElem
   if (m.weight) attrs.push(["font-weight", String(m.weight)]);
   if (m.anchor !== "start") attrs.push(["text-anchor", m.anchor]);
   attrs.push(["fill", o.paint(mark, m.paint)]);
-  if (m.halo) attrs.push(["paint-order", "stroke"], ["stroke", o.paint(mark, "paper")], ["stroke-width", "3"]);
-  return { tag: "text", attrs, children: lead ? [{ tag: "tspan", attrs: [["font-weight", "700"]], children: [lead] }, ...(text ? [text] : [])] : [text] };
+  if (m.halo) attrs.push(["paint-order", "stroke"], ["stroke", o.paint(mark, "paper")], ["stroke-width", String(strokeTokens.halo)]);
+  return { tag: "text", attrs, children: lead ? [{ tag: "tspan", attrs: [["font-weight", String(textTokens.chipLead.weight)]], children: [lead] }, ...(text ? [text] : [])] : [text] };
 }
 
 /** The group of SVG elements that draws one mark, in scene coordinates. */

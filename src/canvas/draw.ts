@@ -5,7 +5,7 @@
  * a recording stub in tests. When the scene is large, only the elements the
  * scene's R-tree finds in the viewport are read, in the order of a full draw.
  */
-import { type Arrowhead, type Box, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type Selection, type ShownEdges, arrowheadExtent, arrowheadTokens, fitChars, fitLead, fixedColors, formatCompact, formatNumber, formatShare, hatchTokens, legendLayout, legendMetrics, budgetEdges, lodAt, markArrowhead, patternTokens, patternTwin, t, truncateText } from "../core/index.js";
+import { type Arrowhead, type Box, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type Selection, type ShownEdges, arrowheadExtent, arrowheadTokens, dashTokens, dimensionTokens, fitChars, fitLead, fixedColors, formatCompact, formatNumber, formatShare, hatchTokens, legendLayout, legendMetrics, budgetEdges, lodAt, markArrowhead, opacityTokens, patternTokens, patternTwin, radiusTokens, strokeTokens, t, textTokens, truncateText } from "../core/index.js";
 import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene.js";
 import { type CanvasTokens, defaultTokens } from "./tokens.js";
 
@@ -79,6 +79,12 @@ export interface DrawOptions {
 export const emptyState: DrawState = { selection: { nodes: [], edges: [], groups: [] } };
 
 const CULL_ABOVE = 1500;
+
+/** The CSS font of a text role, or of a size and weight. */
+export const fontOf = (role: { size: number; weight?: number }, family: string) => `${role.weight ? `${role.weight} ` : ""}${role.size}px ${family}`;
+
+/** An opacity as the two hex digits of an alpha channel. */
+const alpha = (opacity: number) => Math.round(opacity * 255).toString(16).padStart(2, "0");
 
 function roundedRect(ctx: DrawContext, b: Box, r: number) {
   const radius = Math.max(0, Math.min(r, b.width / 2, b.height / 2));
@@ -170,7 +176,7 @@ function arrowhead(ctx: DrawContext, from: [number, number], end: [number, numbe
 function haloText(ctx: DrawContext, text: string, x: number, y: number, tokens: CanvasTokens) {
   ctx.lineJoin = "round";
   ctx.strokeStyle = tokens.paper;
-  ctx.lineWidth = 3;
+  ctx.lineWidth = strokeTokens.halo;
   ctx.strokeText(text, x, y);
   ctx.fillText(text, x, y);
 }
@@ -268,7 +274,7 @@ function truncate(ctx: DrawContext, scene: PreparedScene, text: string, maxWidth
  * measure unless `fit` says otherwise); a lead is written bold before it.
  */
 function drawText(ctx: DrawContext, scene: PreparedScene, tx: MarkText, color: string, tokens: CanvasTokens, fit?: (text: string) => string) {
-  const font = (weight?: number) => `${weight ? `${weight} ` : ""}${tx.size}px ${tokens.font}`;
+  const font = (weight?: number) => fontOf({ size: tx.size, weight }, tokens.font);
   ctx.fillStyle = color;
   ctx.font = font(tx.weight);
   ctx.textAlign = tx.anchor === "start" ? "left" : tx.anchor === "end" ? "right" : "center";
@@ -276,7 +282,7 @@ function drawText(ctx: DrawContext, scene: PreparedScene, tx: MarkText, color: s
   const { lead, text } = fitLead(tx, fit ?? ((s) => (tx.maxWidth === undefined ? s : truncate(ctx, scene, s, tx.maxWidth, tx))));
   let x = tx.x;
   if (lead) {
-    ctx.font = font(700);
+    ctx.font = font(textTokens.chipLead.weight);
     if (tx.halo) haloText(ctx, lead, x, tx.y, tokens);
     else ctx.fillText(lead, x, tx.y);
     x += ctx.measureText(lead).width;
@@ -294,7 +300,7 @@ function visibleBox(view: View): Box {
 function drawGroup(ctx: DrawContext, g: SceneGroup, tokens: CanvasTokens, selected: boolean) {
   const b = g.box;
   if (g.band) {
-    ctx.fillStyle = g.band.index % 2 === 0 ? `${g.color}0f` : `${g.color}05`;
+    ctx.fillStyle = `${g.color}${alpha(g.band.index % 2 === 0 ? opacityTokens.bandFill : opacityTokens.bandOddFill)}`;
     ctx.fillRect(b.x, b.y, b.width, b.height);
     ctx.strokeStyle = tokens.line;
     ctx.lineWidth = 1;
@@ -314,7 +320,7 @@ function drawGroup(ctx: DrawContext, g: SceneGroup, tokens: CanvasTokens, select
     ctx.stroke();
     ctx.beginPath();
     ctx.strokeStyle = g.color;
-    ctx.lineWidth = 3;
+    ctx.lineWidth = strokeTokens.band;
     if (g.band.axis === "main") {
       ctx.moveTo(b.x, b.y);
       ctx.lineTo(b.x + b.width, b.y);
@@ -325,23 +331,23 @@ function drawGroup(ctx: DrawContext, g: SceneGroup, tokens: CanvasTokens, select
     ctx.stroke();
     if (selected) {
       ctx.strokeStyle = tokens.focus;
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = strokeTokens.canvasGroupSelected;
       ctx.beginPath();
       ctx.rect(b.x + 1, b.y + 1, b.width - 2, b.height - 2);
       ctx.stroke();
     }
   } else {
-    roundedRect(ctx, b, 10);
-    ctx.fillStyle = `${g.color}0f`;
+    roundedRect(ctx, b, radiusTokens.large);
+    ctx.fillStyle = `${g.color}${alpha(opacityTokens.groupFill)}`;
     ctx.fill();
     ctx.strokeStyle = selected ? tokens.focus : g.color;
-    ctx.lineWidth = selected ? 2.5 : 1.5;
-    ctx.setLineDash([6, 4]);
+    ctx.lineWidth = selected ? strokeTokens.canvasGroupSelected : strokeTokens.group;
+    ctx.setLineDash([...dashTokens.group]);
     ctx.stroke();
     ctx.setLineDash([]);
   }
   ctx.fillStyle = tokens.ink;
-  ctx.font = `600 14px ${tokens.font}`;
+  ctx.font = fontOf(textTokens.groupLabel, tokens.font);
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
   ctx.fillText(g.group.label, b.x + 12, b.y + 22);
@@ -351,10 +357,10 @@ function drawEdge(ctx: DrawContext, e: SceneEdge, tokens: CanvasTokens, highligh
   const m = e.mark;
   const pts = m.points;
   if (pts.length < 2) return;
-  ctx.globalAlpha = dimmed ? 0.25 : 1;
+  ctx.globalAlpha = dimmed ? opacityTokens.dimmedPath : 1;
   const color = highlighted ? tokens.focus : m.color;
   ctx.strokeStyle = color;
-  ctx.lineWidth = highlighted ? Math.max(m.width, 2.5) : m.width;
+  ctx.lineWidth = highlighted ? Math.max(m.width, strokeTokens.canvasPathHighlight) : m.width;
   ctx.lineJoin = "round";
   ctx.lineCap = "butt";
   ctx.setLineDash(m.dash ?? []);
@@ -377,7 +383,7 @@ function drawNode(ctx: DrawContext, scene: PreparedScene, n: SceneNode, tokens: 
   const focused = state.focused === id;
   const hovered = state.hovered === id;
   const dimmed = !n.activityLines && !!state.bright && !state.bright.nodes.has(id);
-  ctx.globalAlpha = dimmed ? 0.35 : 1;
+  ctx.globalAlpha = dimmed ? opacityTokens.dimmed : 1;
   ctx.setLineDash(m.stroke.dash ?? []);
   const cx = b.x + b.width / 2;
   const cy = b.y + b.height / 2;
@@ -413,20 +419,22 @@ function drawNode(ctx: DrawContext, scene: PreparedScene, n: SceneNode, tokens: 
   }
   for (const tx of m.texts) if (!tx.lod || lod[tx.lod]) drawText(ctx, scene, tx, paintOf(m, tx.paint, tokens), tokens);
   if (selected) {
+    // The ring's inner edge lies on the element: its centre line is half its width outside.
+    const out = strokeTokens.canvasSelection / 2;
     ctx.strokeStyle = tokens.selection;
-    ctx.lineWidth = 6;
+    ctx.lineWidth = strokeTokens.canvasSelection;
     ctx.setLineDash([]);
     if (n.node.kind === "event") {
       ctx.beginPath();
-      ctx.arc(b.x + b.width / 2, b.y + b.height / 2, Math.min(b.width, b.height) / 2 + 3, 0, 2 * Math.PI);
+      ctx.arc(b.x + b.width / 2, b.y + b.height / 2, Math.min(b.width, b.height) / 2 + out, 0, 2 * Math.PI);
     } else {
-      roundedRect(ctx, { x: b.x - 3, y: b.y - 3, width: b.width + 6, height: b.height + 6 }, 8);
+      roundedRect(ctx, { x: b.x - out, y: b.y - out, width: b.width + 2 * out, height: b.height + 2 * out }, radiusTokens.canvasSelection);
     }
     ctx.stroke();
   }
   if (focused) {
     ctx.strokeStyle = tokens.focus;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = strokeTokens.focus;
     ctx.setLineDash([]);
     ctx.beginPath();
     ctx.rect(b.x - 4, b.y - 4, b.width + 8, b.height + 8);
@@ -576,11 +584,13 @@ export function drawLegend(ctx: DrawContext, scene: PreparedScene, x: number, y:
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = tokens.ink;
-  ctx.font = `700 13px ${tokens.font}`;
+  const { legendTitle, legendItem, legendValue, legendKey, legendChip } = textTokens;
+  const { legendSampleExport: sample, legendGradient: ramp, legendSwatchWidth: swatchWidth, legendSwatchHeight: swatchHeight } = dimensionTokens;
+  ctx.font = fontOf(legendTitle, tokens.font);
   ctx.fillText(t(L, "legend.title"), x, y + 14);
   for (const { item: it, y: top } of layout.items) {
     ctx.fillStyle = tokens.ink;
-    ctx.font = `600 11px ${tokens.font}`;
+    ctx.font = fontOf(legendItem, tokens.font);
     ctx.fillText(t(L, it.title), x, y + top + 11);
     const cy = y + top + legendMetrics.itemTitle;
     if (it.kind === "width") {
@@ -590,15 +600,15 @@ export function drawLegend(ctx: DrawContext, scene: PreparedScene, x: number, y:
       ctx.lineWidth = lo;
       ctx.beginPath();
       ctx.moveTo(x, cy + 6);
-      ctx.lineTo(x + 40, cy + 6);
+      ctx.lineTo(x + sample, cy + 6);
       ctx.stroke();
       ctx.lineWidth = hi;
       ctx.beginPath();
       ctx.moveTo(x + width / 2, cy + 6);
-      ctx.lineTo(x + width / 2 + 40, cy + 6);
+      ctx.lineTo(x + width / 2 + sample, cy + 6);
       ctx.stroke();
       ctx.fillStyle = tokens.ink;
-      ctx.font = `10px ${tokens.font}`;
+      ctx.font = fontOf(legendValue, tokens.font);
       ctx.fillText(formatCompact(it.domain[0], L), x + 46, cy + 10);
       ctx.fillText(formatCompact(it.domain[1], L), x + width / 2 + 46, cy + 10);
     } else if (it.kind === "sequential" || it.kind === "diverging") {
@@ -609,11 +619,11 @@ export function drawLegend(ctx: DrawContext, scene: PreparedScene, x: number, y:
       } else {
         ctx.fillStyle = it.stops[Math.floor(it.stops.length / 2)];
       }
-      ctx.fillRect(x, cy, width - 10, 10);
+      ctx.fillRect(x, cy, width - 10, ramp);
       const share = /share/i.test(it.metric);
       const f = (v: number) => (share ? formatShare(v, L) : formatNumber(v, 1, L));
       ctx.fillStyle = tokens.ink;
-      ctx.font = `10px ${tokens.font}`;
+      ctx.font = fontOf(legendValue, tokens.font);
       ctx.textAlign = "left";
       ctx.fillText(f(it.domain[0]), x, cy + 22);
       if (it.domain.length === 3) {
@@ -627,30 +637,30 @@ export function drawLegend(ctx: DrawContext, scene: PreparedScene, x: number, y:
       it.entries.forEach((e, i) => {
         const ey = cy + i * legendMetrics.entry;
         ctx.fillStyle = e.color;
-        ctx.fillRect(x, ey, 14, 12);
+        ctx.fillRect(x, ey, swatchWidth, swatchHeight);
         const pattern = patternFor(ctx, e.pattern, tokens.ink, options);
         if (pattern) {
           ctx.fillStyle = pattern;
-          ctx.fillRect(x, ey, 14, 12);
+          ctx.fillRect(x, ey, swatchWidth, swatchHeight);
         }
         ctx.fillStyle = tokens.ink;
-        ctx.font = `10px ${tokens.font}`;
+        ctx.font = fontOf(legendValue, tokens.font);
         ctx.fillText(truncate(ctx, scene, e.key, width - 24), x + 20, ey + 10);
       });
     }
   }
   ctx.fillStyle = tokens.ink;
   for (const { key, y: top } of layout.keys) {
-    ctx.font = `10px ${tokens.font}`;
+    ctx.font = fontOf(legendValue, tokens.font);
     ctx.fillText(key.glyph, x, y + top + 10);
-    ctx.font = `9.5px ${tokens.font}`;
+    ctx.font = fontOf(legendKey, tokens.font);
     ctx.fillText(truncate(ctx, scene, t(L, key.title), width - 24), x + 22, y + top + 10);
   }
   for (const { chip, y: top } of layout.chips) {
     const p = chip.payload ?? {};
-    ctx.font = `600 10px ${tokens.font}`;
+    ctx.font = fontOf(legendChip, tokens.font);
     ctx.fillText(truncate(ctx, scene, `${p.glyph ?? ""} ${p.label ?? ""}`.trim(), width - 4), x, y + top + 10);
-    ctx.font = `9.5px ${tokens.font}`;
+    ctx.font = fontOf(legendKey, tokens.font);
     ctx.fillText(truncate(ctx, scene, String(p.text ?? ""), width - 4), x, y + top + legendMetrics.chipLabel + 10);
   }
   return layout.height;

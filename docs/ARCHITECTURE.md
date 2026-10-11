@@ -42,7 +42,7 @@ read what it resolves and do not decide it again.
 | Edge budget (`core/edge-budget.ts`) | `budgetEdges(scene, budget, protection, inView)` → `EdgeSelection`; `edgeBudgetAdapter(clock)` (internal) | which edges in view a budget draws: protected edges (an overlay mark on them, selected, at the keyboard position, on a highlighted path), then weight, then id; or exactly the edges a map reported (`ShownEdges`); the adaptive budget's step, moved by the timed frames of gestures and only at rest (§4) | `drawScene` and `CanvasRenderer` (Canvas, `toPNG`), `useFlowElements` (React Flow), `toSVG` |
 | Mark SVG (`core/mark-svg.ts`) | `markSvg`, `svgMarkup` | the SVG elements of a mark | SVG export, React map, BPMN view |
 | Legend and figure frame (`core/figure.ts`) | `sceneLegend`, `legendLayout`, `figureFrame` | legend rows and heights, the exported figure's frame and the note on withheld edges in it (§2.6) | `toSVG`, `toPNG`, Canvas `drawLegend`, `<Legend/>` |
-| Design tokens (`core/tokens.ts`) | `designTokens` and its parts, `patternTwin`, `tokenVariables` | colours, palettes, fonts, node and mark sizes, the arrowhead rule, pattern twins; `tokens.css` is checked against it (§2.4) | marks, SVG export, Canvas `readTokens`, `tokens.css` |
+| Design tokens (`core/tokens.ts`) | `designTokens` and its parts, `patternTwin`, `tokenVariables` | colours, palettes, fonts, node sizes, the arrowhead rule, pattern twins, and every size, radius, stroke, dash, text size and weight, opacity, spacing step and z-order by role; `tokens.css` is generated from it and checked against it (§2.4) | marks, SVG export, Canvas drawing and `readTokens`, PNG export, React components, `tokens.css` and through it the stylesheet |
 | Graph index and positions (`core/model.ts`, `core/layout.ts`) | `indexGraph`, `createPositions` | lookups, adjacency, group ancestors, nested members, labels; positions whose bounds always match their contents (§2.1, §2.3) | selection, filters, paths, lanes, layout, every renderer |
 | Layout cache (`core/layout.ts`, `core/layout-key.ts`) | `layout`, `createLayoutScope`, `cacheKey`, `clearLayoutCache`, `signal` | layouts keyed by their own inputs, bounded per scope, released on `dispose`; a layout runs while somebody waits for it; ELK and Dagre workers started on demand and terminated when their layout is aborted, timed out or replaced (§2.3) | `ProcessMap`, `useStableLayout`, `layoutBpmn` |
 | Provisional arrangement (`core/provisional.ts`) | `provisionalLayout`, `reusePositions` (internal) | what a map shows until its layout arrives: a linear-time layered arrangement, or earlier positions of the nodes still present (§2.3) | `useStableLayout` (`ProcessMap`) |
@@ -196,11 +196,18 @@ uses an ink with contrast ≥ 4.5 : 1. Level-of-detail rules say from which
 zoom labels, edge labels, badges, arcs, chips, hatching and self-loops
 appear; thresholds tighten with the number of nodes. Colours, palettes, the
 font stack, default node sizes, mark sizes, the arrowhead rule and the
-pattern twins live in one token table (`tokens.ts`). The SVG export and the
-marks read it, the Canvas renderer starts from it and follows the live CSS
-variables, and `tokens.css` writes its themeable part as CSS variables,
-checked against the table by a tooling test; the stylesheet reads the node
-sizes through those variables.
+pattern twins live in one token table (`tokens.ts`), and so does every
+size, radius, stroke width, dash, text size and weight, opacity, spacing step
+and z-order the library draws, each under a role name (activity name, path
+label, group outline, reconnected dash, dimmed opacity, …). The SVG export,
+the marks, the Canvas drawing, the PNG export and the React components read
+the table for their roles; the Canvas renderer follows the live CSS
+variables for colours and the font. `npm run tokens` generates `tokens.css`
+from the table: the colours, the node sizes and the roles the stylesheet
+uses, as CSS variables, which the stylesheet reads. Tooling tests fail when
+`tokens.css` differs from the table and when one of its variables is read
+nowhere. Where two renderers
+draw a role differently, the table holds both values under two names.
 
 ### 2.5 Overlays
 An overlay is data, not drawing: `{ kind, target, payload }` where kind is

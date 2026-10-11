@@ -5,7 +5,7 @@
  */
 import { useStore } from "@xyflow/react";
 import { createElement, type ReactNode } from "react";
-import { type MarkPaint, type MarkSvgOptions, type OverlayMark, type SvgElement, MAP_TARGET, arrowMarker, createPositions, hatchSvg, hexToRgb, markArrowhead, markSvg, overlayArrow, overlayGeometry, overlayMarks } from "../core/index.js";
+import { type MarkPaint, type MarkSvgOptions, type OverlayMark, type SvgElement, MAP_TARGET, arrowMarker, createPositions, hatchSvg, hatchTokens, hexToRgb, markArrowhead, markSvg, overlayArrow, overlayGeometry, overlayMarks } from "../core/index.js";
 import type { Overlay } from "../core/index.js";
 
 const TOKENS: Record<Exclude<MarkPaint, "value" | "onValue">, string> = {
@@ -99,7 +99,8 @@ export function coverBackground(marks: OverlayMark[]): string | undefined {
     if (!m.fill) return [];
     const opacity = m.fill.opacity ?? 1;
     const color = m.fill.paint === "value" ? `rgba(${hexToRgb(m.color).join(", ")}, ${opacity})` : `color-mix(in srgb, ${m.fill.paint === "onValue" ? m.onColor : TOKENS[m.fill.paint]} ${opacity * 100}%, transparent)`;
-    return [m.fill.pattern ? `repeating-linear-gradient(135deg, transparent 0 5px, ${color} 5px 7px)` : `linear-gradient(${color}, ${color})`];
+    const gap = hatchTokens.domPeriod - hatchTokens.width;
+    return [m.fill.pattern ? `repeating-linear-gradient(135deg, transparent 0 ${gap}px, ${color} ${gap}px ${hatchTokens.domPeriod}px)` : `linear-gradient(${color}, ${color})`];
   });
   return layers.length ? layers.join(", ") : undefined;
 }

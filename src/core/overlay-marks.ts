@@ -4,7 +4,7 @@ import type { Box } from "./layout.js";
 import { type Overlay, type OverlayKind, MAP_TARGET } from "./model.js";
 import type { OverlayShape } from "./overlay-geometry.js";
 import { colorOn, contrastText, fixedColors, hexToRgb } from "./style.js";
-import { type Arrowhead, arrowheadTokens } from "./tokens.js";
+import { type Arrowhead, arrowheadTokens, dashTokens, opacityTokens, radiusTokens, strokeTokens, textTokens } from "./tokens.js";
 
 /**
  * A colour by role. `ink`, `inkMuted`, `paper`, `surface`, `line` and
@@ -99,7 +99,7 @@ export function overlayColor(overlay: Overlay): string {
 }
 
 /** Opacity of a tint over its element. */
-export const TINT_OPACITY = 0.18;
+export const TINT_OPACITY = opacityTokens.tint;
 
 /** The value colour at `TINT_OPACITY` as CSS; none without a value. */
 export function tintColor(overlay: Overlay): string | undefined {
@@ -109,10 +109,10 @@ export function tintColor(overlay: Overlay): string | undefined {
   return `rgba(${r}, ${g}, ${b}, ${TINT_OPACITY})`;
 }
 
-/** Stroke width of an arc: 2 plus 8 times its coverage (default 1). */
+/** Stroke width of an arc: `strokeTokens.arc` (2) plus `arcCoverage` (8) times its coverage (default 1). */
 export function arcWidth(overlay: Overlay): number {
   const c = overlay.payload?.coverage;
-  return 2 + 8 * (typeof c === "number" ? Math.max(0, Math.min(1, c)) : 1);
+  return strokeTokens.arc + strokeTokens.arcCoverage * (typeof c === "number" ? Math.max(0, Math.min(1, c)) : 1);
 }
 
 /** Arrowhead of arcs and self-loops: a triangle `size` long and wide, its tip `overhang` × `size` beyond the path (`arrowheadTokens.overlay`). */
@@ -173,17 +173,17 @@ function overlayMark(s: OverlayShape, locale: Locale): OverlayMark {
   const halo = (text: string, x: number, y: number, size: number, anchor: MarkText["anchor"]): MarkText => ({ text, x, y, size, anchor, baseline: "alphabetic", paint: "ink", halo: true });
   switch (s.kind) {
     case "tint":
-      return { ...mark, radius: 10, fill: { paint: "value", opacity: TINT_OPACITY } };
+      return { ...mark, radius: radiusTokens.tint, fill: { paint: "value", opacity: TINT_OPACITY } };
     case "hatch":
-      return { ...mark, radius: 6, fill: { paint: "outOfScope", pattern: "outOfScope", opacity: 0.55 } };
+      return { ...mark, radius: radiusTokens.hatch, fill: { paint: "outOfScope", pattern: "outOfScope", opacity: opacityTokens.hatch } };
     case "arc": {
       const label = arcLabel(o, locale);
       return {
         ...mark,
         path: s.path,
-        stroke: { paint: "value", width: arcWidth(o), opacity: 0.9, ...(p.reverse ? { dash: [6, 4] } : {}) },
+        stroke: { paint: "value", width: arcWidth(o), opacity: opacityTokens.arc, ...(p.reverse ? { dash: [...dashTokens.reverseArc] } : {}) },
         arrow: overlayArrow,
-        texts: s.labelX !== undefined && s.labelY !== undefined ? [halo(label, s.labelX, s.labelY, 11, "middle")] : [],
+        texts: s.labelX !== undefined && s.labelY !== undefined ? [halo(label, s.labelX, s.labelY, textTokens.arcLabel.size, "middle")] : [],
       };
     }
     case "selfLoop": {
@@ -191,9 +191,9 @@ function overlayMark(s: OverlayShape, locale: Locale): OverlayMark {
       return {
         ...mark,
         path: s.path,
-        stroke: { paint: "value", width: 2.5 },
+        stroke: { paint: "value", width: strokeTokens.selfLoop },
         arrow: overlayArrow,
-        texts: s.labelX !== undefined && s.labelY !== undefined && (p.displayLabel || share) ? [halo(label, s.labelX, s.labelY, 10, "start")] : [],
+        texts: s.labelX !== undefined && s.labelY !== undefined && (p.displayLabel || share) ? [halo(label, s.labelX, s.labelY, textTokens.selfLoopLabel.size, "start")] : [],
       };
     }
     case "badge":
@@ -201,16 +201,16 @@ function overlayMark(s: OverlayShape, locale: Locale): OverlayMark {
         ...mark,
         radius: s.height / 2,
         fill: { paint: "value" },
-        stroke: { paint: "paper", width: 1.5 },
+        stroke: { paint: "paper", width: strokeTokens.badge },
         texts: [
-          { text: p.glyph ?? "●", x: s.x + s.width / 2, y: middle, size: 10, weight: 700, anchor: "middle", baseline: "middle", paint: "onValue", halo: false },
-          ...(share ? [{ ...halo(share, s.x + s.width + 4, middle, 10, "start"), baseline: "middle" as const }] : []),
+          { text: p.glyph ?? "●", x: s.x + s.width / 2, y: middle, size: textTokens.badge.size, weight: textTokens.badge.weight, anchor: "middle", baseline: "middle", paint: "onValue", halo: false },
+          ...(share ? [{ ...halo(share, s.x + s.width + 4, middle, textTokens.badgeValue.size, "start"), baseline: "middle" as const }] : []),
         ],
       };
     case "chip": {
       // Glyph, gauge and text in a row, as the live map lays them out.
       const { padding, glyph, gauge, gaugeWidth, gaugeHeight } = chipLayout;
-      const plain = (text: string, x: number): MarkText => ({ text, x, y: middle, size: 10, anchor: "start", baseline: "middle", paint: "ink", halo: false });
+      const plain = (text: string, x: number): MarkText => ({ text, x, y: middle, size: textTokens.chip.size, anchor: "start", baseline: "middle", paint: "ink", halo: false });
       const gaugeX = s.x + padding + (p.glyph ? glyph : 0);
       const textX = gaugeX + (p.gauge ? gauge : 0);
       const g = p.gauge;
@@ -218,9 +218,9 @@ function overlayMark(s: OverlayShape, locale: Locale): OverlayMark {
       const share = (v: number) => Math.max(0, Math.min(1, v / span));
       return {
         ...mark,
-        radius: 12,
+        radius: radiusTokens.chip,
         fill: { paint: "paper" },
-        stroke: { paint: "value", width: 2 },
+        stroke: { paint: "value", width: strokeTokens.chip },
         texts: [...(p.glyph ? [plain(p.glyph, s.x + padding)] : []), { ...plain("", textX), ...chipText(o, locale), maxWidth: s.width - 2 * padding - (p.glyph ? glyph : 0) - (g ? gauge : 0) }],
         ...(g ? { gauge: { x: gaugeX, y: s.y + (s.height - gaugeHeight) / 2, width: gaugeWidth, height: gaugeHeight, value: share(g.value), threshold: share(g.threshold) } } : {}),
       };

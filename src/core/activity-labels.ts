@@ -1,6 +1,9 @@
 import { type Locale, formatCompact, formatCount } from "./format.js";
 import { type NodeSize, defaultNodeSize } from "./layout.js";
 import { type FlowGraph, type FlowNode, metric } from "./model.js";
+import { textTokens } from "./tokens.js";
+
+const { activityName: nameText, activityNumber: numberText } = textTokens;
 
 /** Presentation only. Map keys are canonical activity node IDs. */
 export interface ActivityLabelOptions {
@@ -41,7 +44,7 @@ export function activityLabel(node: FlowNode, options: ActivityLabelOptions): st
 }
 
 /** Conservative deterministic wrapping shared by live renderers and headless exports. */
-export function wrapActivityText(value: string, width: number, fontSize = 14): string[] {
+export function wrapActivityText(value: string, width: number, fontSize: number = nameText.size): string[] {
   // Deliberately generous advances for the default sans-serif stack; wide scripts
   // reserve a full em. No browser font measurement or viewport-dependent wrapping.
   const advance = (char: string) => fontSize * ((char.codePointAt(0) ?? 0) <= 0x2ff ? 0.7 : 1);
@@ -95,7 +98,7 @@ export function activityDescription(node: FlowNode, options: ActivityLabelOption
 export function activityLabelLines(node: FlowNode, options: ActivityLabelOptions, width: number, locale: Locale = "en") {
   return {
     name: wrapActivityText(activityLabel(node, options), width - 32),
-    counts: wrapActivityText(activityNodeCounts(node, options, locale), width - 32, 12),
+    counts: wrapActivityText(activityNodeCounts(node, options, locale), width - 32, numberText.size),
   };
 }
 
@@ -106,9 +109,9 @@ export function activityNodeSize(node: FlowNode, options: ActivityLabelOptions):
   // IDs get a fixed title row even when called before the reference inventory exists.
   const nameRows = options.mode === "ids" ? 1 : wrapActivityText(activityLabel(node, options), width - 32).length;
   // Reserve the chosen metric even when the checkbox is off.
-  const countRowsIn = (locale: Locale) => wrapActivityText(activityNodeCounts(node, options, locale), width - 32, 12).length;
+  const countRowsIn = (locale: Locale) => wrapActivityText(activityNodeCounts(node, options, locale), width - 32, numberText.size).length;
   const countRows = Math.max(1, countRowsIn("en"), countRowsIn("de"));
-  return { width, height: 20 + nameRows * 18 + countRows * 16 };
+  return { width, height: 20 + nameRows * nameText.lineHeight + countRows * numberText.lineHeight };
 }
 
 /** Visible canonical key, independent of the optional colour/constraint legend. */
@@ -116,5 +119,5 @@ export function activityKeyLines(graph: FlowGraph, options: ActivityLabelOptions
   if (!options) return [];
   const nodes = graph.nodes.filter((n) => n.kind === "activity");
   if (!nodes.length) return [];
-  return ["Activity key — exact counts", ...nodes.sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0).flatMap((node) => wrapActivityText(activityDescription(node, options, locale), width, 11))];
+  return ["Activity key — exact counts", ...nodes.sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0).flatMap((node) => wrapActivityText(activityDescription(node, options, locale), width, textTokens.figureText.size))];
 }

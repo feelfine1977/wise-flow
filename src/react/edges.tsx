@@ -1,6 +1,6 @@
 import { BaseEdge, type EdgeProps } from "@xyflow/react";
 import { memo } from "react";
-import { type EdgeMark, type XY, edgeMark, fitText, routeMidpoint } from "../core/index.js";
+import { type EdgeMark, type XY, edgeMark, fitText, routeMidpoint, strokeTokens } from "../core/index.js";
 import { part } from "./parts.js";
 import type { FollowsEdgeData, WfEdge } from "./types.js";
 
@@ -32,10 +32,10 @@ const Follows = memo(function Follows(props: EdgeProps<WfEdge>) {
       data-id={id}
       {...part("edge", mark.kind, [selected && "selected", data.focused && "focused", data.hovered && "hovered", data.dimmed && "dimmed", mark.reconnected && "reconnected"])}
       // The scene's paints as variables (a focused path at least 3 wide): the stylesheet draws the path with them, a host rule on the path overrides them.
-      style={{ ["--wf-edge-color" as string]: mark.color, ["--wf-edge-width" as string]: data.focused ? Math.max(mark.width, 3) : mark.width, ["--wf-edge-dash" as string]: mark.dash?.join(" ") }}
+      style={{ ["--wf-edge-color" as string]: mark.color, ["--wf-edge-width" as string]: data.focused ? Math.max(mark.width, strokeTokens.pathFocus) : mark.width, ["--wf-edge-dash" as string]: mark.dash?.join(" ") }}
     >
       <title>{data.description}</title>
-      <BaseEdge id={id} path={polyline(mark.points)} markerEnd={markerEnd} interactionWidth={14} {...part("edge-path")} />
+      <BaseEdge id={id} path={polyline(mark.points)} markerEnd={markerEnd} interactionWidth={strokeTokens.pathHit} {...part("edge-path")} />
       {label ? (
         <text className="wf-edge-label wf-lod-edge-labels" {...part("edge-label")} x={label.x} y={label.y} textAnchor="middle">
           {fitText(label)}
