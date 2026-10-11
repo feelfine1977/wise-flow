@@ -1524,7 +1524,8 @@ nothing when it names every edge in view.
 whenever the edges the map draws change: while the budget withholds edges,
 with their ids (`edges`, in the scene's order) and the number the map's note
 counts (`total`); with undefined once every edge is drawn again. It is not
-called while nothing was ever withheld. A culled Canvas map counts the edges
+called while nothing was ever withheld; a host that starts listening while
+edges are withheld is told them at once. A culled Canvas map counts the edges
 in its view, so a pan can change the value. When `<ProcessMap/>` switches
 renderer (`renderer="auto"` crossing its threshold), and when it draws the
 Canvas map again after the table view, it is called with undefined and then

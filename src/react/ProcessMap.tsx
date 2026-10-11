@@ -214,7 +214,9 @@ function ProcessMapInner(props: ProcessMapProps) {
   // The Canvas map reports the edges it draws itself.
   const tellShown = useEdgesShownAcross(props.onEdgesShown, useCanvas, view !== "table");
   const reportShown = useEdgesShown(useCanvas ? undefined : tellShown);
-  useEffect(() => reportShown(flow.withheld, scene.edgeMarks), [flow.withheld, scene, reportShown]);
+  // A host that starts listening is told what the map withholds.
+  const listening = !!tellShown;
+  useEffect(() => reportShown(flow.withheld, scene.edgeMarks), [flow.withheld, scene, reportShown, listening]);
   // React Flow draws new nodes a commit later; until then the layout is not in place.
   const laidBy = useRef(new WeakMap<object, Positions | undefined>()).current;
   laidBy.set(flow.nodes, laidPositions);

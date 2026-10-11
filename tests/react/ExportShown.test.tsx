@@ -120,6 +120,26 @@ describe("exporting what the map shows", () => {
     expect(note()).toBeUndefined();
   });
 
+  for (const renderer of ["svg", "canvas"] as const) {
+    it(`tells a host that starts listening while the ${renderer} map withholds edges what it draws`, async () => {
+      if (renderer === "canvas") quietCanvas();
+      const reported: (ShownEdges | undefined)[] = [];
+      const map = (listen: boolean) => (
+        <div style={{ width: 1200, height: 800 }}>
+          <ProcessMap graph={small.graph} positions={small.positions} controls={false} legend={false} fitView={false} selfLoops={false} contextMenu={false} pathList={false} renderer={renderer} edgeBudget={3} onEdgesShown={listen ? (shown) => reported.push(shown) : undefined} />
+        </div>
+      );
+      const view = render(map(false));
+      await waitFor(() => expect(note()).toBe("Showing 3 of 8 flows"));
+      // An export dialog that opens later listens from then on, and learns what the map withholds.
+      await act(async () => view.rerender(map(true)));
+      await waitFor(() => expect(reported).toHaveLength(1));
+      expect([...reported[0]!.edges].sort()).toEqual(["h-t2", "h-t5", "h-t7"]);
+      expect(reported[0]!.total).toBe(8);
+      expect(svgNote(toSVG(small, { edgeBudget: reported[0] }))).toBe("Showing 3 of 8 flows");
+    });
+  }
+
   it("reports what the Canvas map draws when it is shown again after the table view", async () => {
     quietCanvas();
     const reported: (ShownEdges | undefined)[] = [];

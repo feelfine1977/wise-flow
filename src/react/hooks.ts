@@ -204,8 +204,12 @@ export function useArrival(positions: Positions | undefined, provisional: boolea
 /** Reports the edges a map draws to `onEdgesShown` when they change. */
 export function useEdgesShown(onEdgesShown: ((shown: ShownEdges | undefined) => void) | undefined) {
   const callback = useRef(onEdgesShown);
-  useLayoutEffect(() => void (callback.current = onEdgesShown));
   const last = useRef("");
+  useLayoutEffect(() => {
+    // Nobody listens: whoever listens next is told from every edge drawn.
+    if (!onEdgesShown) last.current = "";
+    callback.current = onEdgesShown;
+  });
   return useCallback((withheld: EdgeSelection | undefined, marks: readonly { id: string }[]) => {
     // Nobody listens: start again from every edge drawn.
     if (!callback.current) return void (last.current = "");
