@@ -11,7 +11,6 @@
  * are the same after every step that is not an interaction; and no worker is
  * alive without a user.
  */
-import { type ReactNode, StrictMode } from "react";
 import { type RenderResult, act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FlowGraph, LayoutOptions, Positions } from "../../src/index";
@@ -20,9 +19,6 @@ import { families } from "../support/graphs";
 import { type Random, caseCount, caseLabel, createRandom, seeds } from "../support/random";
 import { schedule } from "../support/schedules";
 import { FakeLayoutWorker, layoutSignature, replyOf } from "../support/workers";
-
-const Strict = ({ children }: { children: ReactNode }) => <StrictMode>{children}</StrictMode>;
-const Plain = ({ children }: { children: ReactNode }) => <>{children}</>;
 
 const workers: LayoutOptions = { elkWorkerUrl: FakeLayoutWorker.elkUrl, dagreWorkerUrl: FakeLayoutWorker.dagreUrl };
 
@@ -245,7 +241,7 @@ function perform(m: Model, op: Op): boolean {
       m.request++;
       m.timeouts.set(signatureOf(m), VARIANTS[m.variant].options.timeoutMs ?? 20000);
       reducedMotion(op.reduced);
-      m.handle = render(element(m), { wrapper: op.strict ? Strict : Plain });
+      m.handle = render(element(m), { reactStrictMode: op.strict });
       if (op.strict) count(m.stats, "mount in StrictMode");
       return true;
     }

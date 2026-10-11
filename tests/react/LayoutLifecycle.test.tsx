@@ -8,7 +8,7 @@
  * disposes scopes. After every step a small model of the schedule says what
  * must be true, and every violation names its invariant, the seed and the step.
  */
-import { type ReactNode, StrictMode, useEffect } from "react";
+import { useEffect } from "react";
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type LayoutOptions, type LayoutScope, type Positions, createLayoutScope, layout, layoutUnion } from "../../src/index";
@@ -18,8 +18,6 @@ import { families } from "../support/graphs";
 import { type Random, caseCount, caseLabel, createRandom, seeds } from "../support/random";
 import { schedule } from "../support/schedules";
 import { type AnswerSource, FakeLayoutWorker, HeldEngine, layoutSignature, replyOf } from "../support/workers";
-
-const Strict = ({ children }: { children: ReactNode }) => <StrictMode>{children}</StrictMode>;
 
 const ELK = FakeLayoutWorker.elkUrl;
 const DAGRE = FakeLayoutWorker.dagreUrl;
@@ -132,6 +130,8 @@ interface Reply {
 interface HookResult {
   result: StableLayout;
   signature: string | undefined;
+  /** The scenes and variant of the request, as the model names them. */
+  inputs: string | undefined;
   /** Counts the hook's requests: every mount, change of scenes or options, and clone. */
   request: number;
   mount: number;
@@ -150,6 +150,12 @@ interface DirectScope {
   holds: Set<string>;
   /** Disposed since its last request: the next request starts a new job even for the same inputs, replacing what is pending. */
   disposedSince: boolean;
+  /** Counts the disposals, so that a request can tell whether the scope was disposed after it was made. */
+  disposals: number;
+  /** The inputs requested since the scope was created or last disposed, the most recent last. */
+  recent: string[];
+  /** Inputs a request to the scope resolved for: their layout finished in this scope. */
+  finished: Set<string>;
 }
 
 interface DirectRequest {
@@ -159,6 +165,8 @@ interface DirectRequest {
   scenes: Scenes;
   variant: Variant;
   signature: string;
+  /** The scenes and variant, as the model names them: one name per layout key, also for the empty graph. */
+  inputs: string;
   controller?: AbortController;
   /** Aborted while pending and before any answer for its inputs was delivered: it must end rejected. */
   mustReject: boolean;
@@ -175,7 +183,15 @@ interface Asked {
   graph: FlowGraph;
   options: LayoutOptions;
   signature: string;
+  inputs: string;
 }
+
+/**
+ * The model's name for a request's inputs: the scenes and the variant. Every
+ * pair has a layout key of its own, while the engines' signature does not tell
+ * the variants of an empty graph apart.
+ */
+const inputsName = (scenes: Scenes, variant: Variant) => `${scenes.name} with ${variant.name}`;
 
 interface Model {
   seed: number;
@@ -193,10 +209,18 @@ interface Model {
     scenes: Scenes;
     variant: Variant;
     signature: string | undefined;
+    inputs: string | undefined;
     request: number;
     mount: number;
     /** The worker URLs the hook's scope holds. */
     holds: Set<string>;
+    /** The inputs this mount requested, the most recent last, and those whose layout finished in its scope and may still be kept. */
+    recent: string[];
+    finished: Set<string>;
+    /** How much of the log the finished inputs were read from. */
+    learnedUpTo: number;
+    /** The current request asks for inputs whose layout the scope keeps: it must be ready at once. */
+    expectKnown: boolean;
     handle?: ReturnType<typeof renderHook<StableLayout, HookProps>>;
   };
   log: HookResult[];
@@ -231,13 +255,13 @@ function newModel(seed: number, hookScopes: LayoutScope[]): Model {
     variants,
     engine,
     step: 0,
-    hook: { mounted: false, strict: false, scopesBefore: 0, scenes: pool[0], variant: variants[0], signature: undefined, request: 0, mount: 0, holds: new Set() },
+    hook: { mounted: false, strict: false, scopesBefore: 0, scenes: pool[0], variant: variants[0], signature: undefined, inputs: undefined, request: 0, mount: 0, holds: new Set(), recent: [], finished: new Set(), learnedUpTo: 0, expectKnown: false },
     log: [],
     replies: [undefined],
     fails: new Set(),
     scopes: [
-      { name: "scope A (2 entries)", scope: createLayoutScope({ maxEntries: 2 }), maxEntries: 2, holds: new Set(), disposedSince: false },
-      { name: "scope B (1 entry)", scope: createLayoutScope({ maxEntries: 1 }), maxEntries: 1, holds: new Set(), disposedSince: false },
+      { name: "scope A (2 entries)", scope: createLayoutScope({ maxEntries: 2 }), maxEntries: 2, holds: new Set(), disposedSince: false, disposals: 0, recent: [], finished: new Set() },
+      { name: "scope B (1 entry)", scope: createLayoutScope({ maxEntries: 1 }), maxEntries: 1, holds: new Set(), disposedSince: false, disposals: 0, recent: [], finished: new Set() },
     ],
     requests: [],
     hookScopes,
@@ -247,9 +271,30 @@ function newModel(seed: number, hookScopes: LayoutScope[]): Model {
   };
 }
 
-function remember(m: Model, scope: LayoutScope, graph: FlowGraph, options: LayoutOptions): void {
+function remember(m: Model, scope: LayoutScope, graph: FlowGraph, options: LayoutOptions, inputs: string): void {
   const list = m.asked.get(scope) ?? m.asked.set(scope, []).get(scope)!;
-  if (!list.some((a) => a.graph === graph && a.options === options)) list.push({ graph, options, signature: layoutSignature(graph, options) });
+  if (!list.some((a) => a.graph === graph && a.options === options)) list.push({ graph, options, signature: layoutSignature(graph, options), inputs });
+}
+
+/**
+ * Records a request for `signature` in a scope's list of recent inputs (the most
+ * recent last) and says whether its layout, if it had finished, is still kept:
+ * fewer than `bound` other inputs were requested after it, so the scope's
+ * least-recently-used eviction cannot have reached it.
+ */
+function requestAgain(recent: string[], signature: string, bound: number): boolean {
+  const at = recent.indexOf(signature);
+  const kept = at >= 0 && at >= recent.length - bound;
+  if (at >= 0) recent.splice(at, 1);
+  recent.push(signature);
+  return kept;
+}
+
+/** How many layouts of each input the workers and the engine were given since the counts were taken. */
+function postedSince(m: Model, before: Map<AnswerSource, number>): Map<string, number> {
+  const posted = new Map<string, number>();
+  for (const s of sources(m)) for (const l of s.layouts.slice(before.get(s) ?? 0)) posted.set(l.signature, (posted.get(l.signature) ?? 0) + 1);
+  return posted;
 }
 
 /** Everything a schedule can answer: the workers in the order they were started, then the engine. */
@@ -326,8 +371,15 @@ function drawOp(m: Model, kind: OpKind, inBurst = false): Op {
       if (inBurst) return drawOp(m, "advance", inBurst);
       const kinds = ALPHABET.filter(([k]) => k !== "burst");
       const atomic = rng.chance(0.5);
-      // Half of the spaced bursts are an answer arriving while a component re-renders or a caller leaves.
-      if (!atomic && rng.chance(0.5)) return { kind, atomic, ops: [drawOp(m, "reply", true), drawOp(m, rng.pick(["change", "unmount", "direct", "abort"] as const), true)] };
+      const shape = rng.int(0, 2);
+      // A third of the spaced bursts are an answer arriving while a component re-renders or a caller leaves.
+      if (!atomic && shape === 0) return { kind, atomic, ops: [drawOp(m, "reply", true), drawOp(m, rng.pick(["change", "unmount", "direct", "abort"] as const), true)] };
+      // Another third ask a scope again for the inputs of a request that is being stopped: the new request must not join the stopped job.
+      const stopping = pendingWithSignal.filter((q) => q.scope >= 0);
+      if (!atomic && shape === 1 && stopping.length) {
+        const q = rng.pick(stopping);
+        return { kind, atomic, ops: [{ kind: "abort", request: q.id }, { kind: "direct", scope: q.scope, scenes: m.pool.indexOf(q.scenes), variant: m.variants.indexOf(q.variant), signal: rng.chance(0.5) }] };
+      }
       return { kind, atomic, ops: Array.from({ length: rng.int(2, 3) }, () => drawOp(m, rng.weighted(kinds), true)) };
     }
   }
@@ -355,11 +407,11 @@ function mountHook(m: Model): void {
     ({ scenes, options }: HookProps) => {
       const result = useStableLayout(scenes, options);
       useEffect(() => {
-        if (log[log.length - 1]?.result !== result) log.push({ result, signature: model.hook.signature, request: model.hook.request, mount: model.hook.mount });
+        if (log[log.length - 1]?.result !== result) log.push({ result, signature: model.hook.signature, inputs: model.hook.inputs, request: model.hook.request, mount: model.hook.mount });
       });
       return result;
     },
-    { initialProps: { scenes: m.hook.scenes.value, options: m.hook.variant.options }, wrapper: m.hook.strict ? Strict : undefined },
+    { initialProps: { scenes: m.hook.scenes.value, options: m.hook.variant.options }, reactStrictMode: m.hook.strict },
   );
 }
 
@@ -368,12 +420,17 @@ function hookAsks(m: Model, clone = false): void {
   const { hook } = m;
   hook.request++;
   hook.signature = hook.scenes.union && layoutSignature(hook.scenes.union, hook.variant.options);
+  hook.inputs = hook.scenes.union && inputsName(hook.scenes, hook.variant);
+  const kept = hook.inputs !== undefined && requestAgain(hook.recent, hook.inputs, DEFAULT_ENTRIES);
+  hook.expectKnown = kept && hook.finished.has(hook.inputs!);
+  // Not kept for certain: the scope may have evicted the layout, so a new one may be running until a result says ready again.
+  if (hook.inputs !== undefined && !kept) hook.finished.delete(hook.inputs);
   if (hook.scenes.union?.nodes.length) for (const url of hook.variant.holds) hook.holds.add(url);
   const scenes = clone ? structuredClone(hook.scenes.value) : hook.scenes.value;
   if (hook.handle) hook.handle.rerender({ scenes, options: hook.variant.options });
   else mountHook(m);
   if (hook.signature !== undefined) m.timeouts.set(hook.signature, hook.variant.timeoutMs);
-  for (const scope of m.hookScopes.slice(hook.scopesBefore)) if (hook.scenes.union) remember(m, scope, hook.scenes.union, hook.variant.options);
+  for (const scope of m.hookScopes.slice(hook.scopesBefore)) if (hook.scenes.union) remember(m, scope, hook.scenes.union, hook.variant.options, hook.inputs!);
 }
 
 /**
@@ -401,6 +458,9 @@ function apply(m: Model, op: Op): boolean {
       hook.scenes = m.pool[op.scenes];
       hook.variant = m.variants[op.variant];
       hook.holds = new Set();
+      hook.recent = [];
+      hook.finished = new Set();
+      hook.learnedUpTo = m.log.length;
       hook.handle = undefined;
       hook.scopesBefore = m.hookScopes.length;
       hookAsks(m);
@@ -442,7 +502,7 @@ function apply(m: Model, op: Op): boolean {
       const graph = scenes.union!;
       const controller = op.signal ? new AbortController() : undefined;
       const options: LayoutOptions = controller ? { ...variant.options, signal: controller.signal } : variant.options;
-      const request: DirectRequest = { id: m.requests.length, scope: op.scope, scenes, variant, signature: layoutSignature(graph, variant.options), controller, mustReject: false, aborted: false, replaced: false, state: "pending" };
+      const request: DirectRequest = { id: m.requests.length, scope: op.scope, scenes, variant, signature: layoutSignature(graph, variant.options), inputs: inputsName(scenes, variant), controller, mustReject: false, aborted: false, replaced: false, state: "pending" };
       m.requests.push(request);
       m.timeouts.set(request.signature, variant.timeoutMs);
       const single = !Array.isArray(scenes.value) && scenes.value !== undefined ? scenes.value : undefined;
@@ -451,16 +511,20 @@ function apply(m: Model, op: Op): boolean {
       else {
         const s = m.scopes[op.scope];
         // A request for other inputs, or any request after a dispose, starts another job and replaces the pending ones.
-        for (const other of m.requests) if (other !== request && other.scope === op.scope && other.state === "pending" && (s.disposedSince || other.signature !== request.signature)) other.replaced = true;
+        for (const other of m.requests) if (other !== request && other.scope === op.scope && other.state === "pending" && (s.disposedSince || other.inputs !== request.inputs)) other.replaced = true;
         s.disposedSince = false;
+        if (!requestAgain(s.recent, request.inputs, s.maxEntries)) s.finished.delete(request.inputs);
         if (graph.nodes.length) for (const url of variant.holds) s.holds.add(url);
         promise = single ? s.scope.layout(single, options) : s.scope.layoutUnion(scenes.value as FlowGraph[], options);
-        remember(m, s.scope, single ?? graph, variant.options);
+        remember(m, s.scope, single ?? graph, variant.options, request.inputs);
       }
+      const disposals = op.scope < 0 ? 0 : m.scopes[op.scope].disposals;
       promise.then(
         (positions) => {
           request.state = "resolved";
           request.positions = positions;
+          // The layout finished in the scope; unless the scope was disposed since, it keeps it.
+          if (op.scope >= 0 && m.scopes[op.scope].disposals === disposals) m.scopes[op.scope].finished.add(request.inputs);
         },
         (error: unknown) => {
           request.state = "rejected";
@@ -477,11 +541,16 @@ function apply(m: Model, op: Op): boolean {
       q.controller.abort(new Error(`stopped request ${q.id}`));
       return true;
     }
-    case "dispose":
-      m.scopes[op.scope].scope.dispose();
-      m.scopes[op.scope].holds.clear();
-      m.scopes[op.scope].disposedSince = true;
+    case "dispose": {
+      const s = m.scopes[op.scope];
+      s.scope.dispose();
+      s.holds.clear();
+      s.disposedSince = true;
+      s.disposals++;
+      s.recent = [];
+      s.finished.clear();
       return true;
+    }
     case "burst":
       throw new Error("a burst is run operation by operation");
   }
@@ -490,11 +559,28 @@ function apply(m: Model, op: Op): boolean {
 // ---------------------------------------------------------------------------
 // The invariants
 
-function check(m: Model): string[] {
+/** The violations after a step; `op` is the step's operation and `posted` counts the layouts each input was given during it. */
+function check(m: Model, op?: Op, posted?: Map<string, number>): string[] {
   const bad: string[] = [];
   const now = Date.now();
   const { hook } = m;
   const current = hook.mounted ? m.log[m.log.length - 1] : undefined;
+
+  // A request joins the layout its scope already runs or keeps: one step of asking starts at most one layout of its inputs.
+  if (op && posted && (op.kind === "mount" || op.kind === "change" || op.kind === "direct")) {
+    const signature = op.kind === "direct" ? m.requests[m.requests.length - 1]?.signature : hook.signature;
+    const n = signature === undefined ? 0 : posted.get(signature) ?? 0;
+    if (n > 1) bad.push(`starts once: "${describeOp(op)}" started ${n} layouts of ${signature} in one step`);
+  }
+
+  // A layout the hook's scope keeps is shown at once: asked again for inputs whose layout finished in this mount, with fewer
+  // than the scope's bound of other inputs requested since, the request is ready from its first render.
+  if (current && hook.expectKnown) {
+    const first = m.log.find((e) => e.mount === hook.mount && e.request === hook.request);
+    if (first && first.result.status !== "ready") bad.push(`kept: the hook asked again for ${hook.inputs} (${hook.signature}), whose layout its scope keeps, but reports ${first.result.status} instead of the kept layout`);
+  }
+  for (const e of m.log.slice(hook.learnedUpTo)) if (e.mount === hook.mount && e.result.status === "ready" && e.inputs !== undefined) hook.finished.add(e.inputs);
+  hook.learnedUpTo = m.log.length;
   const timeoutOf = (signature: string) => m.timeouts.get(signature) ?? DEFAULT_TIMEOUT;
   /** A layout of these inputs reached its timeout before it was answered (or still unanswered). */
   const timedOut = (signature: string) => sources(m).some((w) => w.layouts.some((l) => l.signature === signature && (l.answeredAt ?? now) - l.postedAt >= timeoutOf(signature)));
@@ -595,9 +681,10 @@ function check(m: Model): string[] {
   const wait = (signature: string) => waited.set(signature, (waited.get(signature) ?? 0) + 1);
   if (current?.result.status === "pending" && hook.signature) wait(hook.signature);
   m.scopes.forEach((s, i) => {
-    const signatures = new Set(m.requests.filter((q) => q.scope === i && q.state === "pending").map((q) => q.signature));
-    if (signatures.size > 1) bad.push(`replaced: ${s.name} has pending requests for ${signatures.size} different inputs`);
-    for (const signature of signatures) wait(signature);
+    const pending = m.requests.filter((q) => q.scope === i && q.state === "pending");
+    const inputs = new Set(pending.map((q) => q.inputs));
+    if (inputs.size > 1) bad.push(`replaced: ${s.name} has pending requests for ${inputs.size} different inputs`);
+    for (const signature of new Set(pending.map((q) => q.signature))) wait(signature);
   });
   for (const q of m.requests) if (q.scope < 0 && q.state === "pending") wait(q.signature);
   const holders = new Set<string>();
@@ -633,6 +720,16 @@ function check(m: Model): string[] {
     if (n > runs) bad.push(`liveness: ${n} requests wait for ${signature} but ${runs} workers or engine runs compute it`);
   }
   for (const [url, n] of idle) if (n > 1) bad.push(`no worker without a user: ${n} idle workers for ${url}`);
+
+  // A scope keeps a finished layout while fewer than its bound of other inputs were requested after it.
+  for (const s of m.scopes) {
+    for (const inputs of s.finished) {
+      const at = s.recent.indexOf(inputs);
+      if (at < s.recent.length - s.maxEntries) continue;
+      const asked = m.asked.get(s.scope)?.find((a) => a.inputs === inputs);
+      if (asked && !layoutModule.knownLayout(s.scope, asked.graph, asked.options)) bad.push(`kept: ${s.name} should still hold the layout of ${inputs} (${asked.signature}; ${s.recent.length - 1 - at} other inputs requested since) but knows none`);
+    }
+  }
 
   // The scope's cache never exceeds its bound and never returns a layout for different inputs.
   const scopes: { name: string; scope: LayoutScope; maxEntries: number }[] = [
@@ -698,8 +795,7 @@ async function windDown(m: Model): Promise<void> {
   await settle();
   for (const w of sources(m)) for (const k of w.pending) perform(m, { kind: "reply", source: w.index, layout: k });
   await settle();
-  for (const s of m.scopes) s.scope.dispose();
-  for (const s of m.scopes) s.holds.clear();
+  for (const s of m.scopes) perform(m, { kind: "dispose", scope: m.scopes.indexOf(s) });
   await settle();
 }
 
@@ -756,10 +852,11 @@ async function runSchedule(seed: number, length: number, hookScopes: LayoutScope
       m.step = step;
       if (at > Date.now()) await advance(at - Date.now());
       const op = drawOp(m, event);
+      const before = new Map(sources(m).map((s) => [s, s.layouts.length]));
       const did = await run(m, op);
       trace.push(`${step} @${at}ms: ${did}`);
       await settle();
-      const bad = check(m);
+      const bad = check(m, op, postedSince(m, before));
       expect(bad, `${caseLabel(seed, `step ${step}: ${did}`)}\n${trace.join("\n")}`).toEqual([]);
     }
     const stats = summarise(m);
