@@ -115,7 +115,8 @@ failure fails the search. `pictureOf` draws a rung with its failures marked;
 `savePicture` (`pictures.ts`) writes it under `reports/thresholds/`, and the
 tests attach it to their report (`annotate`, copied to `.vitest-attachments/`).
 `core/thresholds.test.ts` reads the Canvas drawing of every rung of the
-committed scenes (laid out by ELK) and of 20 seeds at the four magnitudes,
+committed scenes (laid out by ELK, by Dagre above 500 nodes and paths) and
+of 20 seeds at the four magnitudes,
 and checks 200 random pairs of settings for elements that come back higher
 up; `react/Thresholds.test.tsx` reads the React map and the Canvas map
 (Dagre layouts) at every committed rung and one rung of each generated scene,

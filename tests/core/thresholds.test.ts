@@ -3,10 +3,11 @@
  * rung of the ladder (activities and paths at 0 %, the default, 5 %, 10 %,
  * 25 % and 50 %, keep connected on and off, stages shown and collapsed) on
  * the two committed scenes and on generated scenes of four magnitudes is
- * laid out by ELK, prepared as the Canvas map prepares it and drawn into a
- * recording context: at the view that fits it into 1,200 × 800, with every
- * element and text any zoom draws, and under a budget of 24 paths. The
- * readings are held against what the scene says (`checkReading`).
+ * laid out by ELK (by Dagre above 500 nodes and paths), prepared as the
+ * Canvas map prepares it and drawn into a recording context: at the view
+ * that fits it into 1,200 × 800, with every element and text any zoom draws,
+ * and under a budget of 24 paths. The readings are held against what the
+ * scene says (`checkReading`).
  *
  * Five kinds of failure are open decisions, written up and pinned below as
  * findings (`findingOf`): texts drawn below 9 px, path counts that cover each
@@ -32,12 +33,18 @@ const BUDGET = 24;
 
 type Annotate = TestContext["annotate"];
 
-/** Layouts by the shown graph's structure: the magnitudes of a seed, and rungs that keep the same elements, share one. */
+/**
+ * Layouts by the shown graph's structure: the magnitudes of a seed, and rungs
+ * that keep the same elements, share one. ELK, without the timeout that would
+ * hand a loaded host's run to the fallback; Dagre above the fallback's limit
+ * of 500 nodes and paths, which only the whole log at 0 % reaches (ELK takes
+ * 7 s there, three times that under coverage).
+ */
 const layouts = new Map<string, Promise<Positions>>();
 function positionsFor(shown: FlowGraph): Promise<Positions> {
   const key = `${shown.nodes.map((n) => `${n.id}@${n.group ?? ""}`).join()}|${shown.edges.map((e) => e.id).join()}|${(shown.groups ?? []).map((g) => g.id).join()}`;
   let p = layouts.get(key);
-  if (!p) layouts.set(key, (p = layout(shown)));
+  if (!p) layouts.set(key, (p = layout(shown, shown.nodes.length + shown.edges.length > 500 ? { engine: "dagre" } : { engine: "elk", timeoutMs: 600_000 })));
   return p;
 }
 
@@ -93,7 +100,8 @@ const summary = (failures: readonly Failure[]) => failures.slice(0, 6).map((f) =
 
 /**
  * The open findings at each rung of the committed scenes, as written up with
- * their pictures: on the whole log and on the vendor, laid out by ELK.
+ * their pictures: on the whole log and on the vendor, laid out by ELK (the
+ * whole log at 0 % by Dagre).
  */
 const WRITTEN_UP: Record<string, string> = {
   "global · 0 % · connected · stages shown": "path counts, small text",
