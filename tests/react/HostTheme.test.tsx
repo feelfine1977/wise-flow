@@ -23,8 +23,8 @@ vi.mock("../../src/core/layout.js", async (importOriginal) => {
 
 const { buildScene } = await import("../../src/core/scene.js");
 const { vendorScene } = await import("../../fixtures/bpic2019");
-const { abstract, defaultTheme, toSVG, layout } = await import("../../src/index");
-const { CanvasMap, ProcessMap, emptySelection, useFlowTheme } = await import("../../src/react/index");
+const { abstract, defaultTheme, toSVG, layout, resolveViews } = await import("../../src/index");
+const { CanvasMap, ProcessMap, ViewSwitcher, emptySelection, useFlowTheme } = await import("../../src/react/index");
 const { prepareScene } = await import("../../src/canvas/index");
 const { cssColor } = await import("../../src/react/theme");
 type FlowTheme = import("../../src/react/index").FlowTheme;
@@ -242,6 +242,24 @@ describe("the theme of a map", () => {
     const given = { graph: vendor, positions: { nodes: {}, groups: {}, edges: {}, bounds: { x: 0, y: 0, width: 0, height: 0 }, engine: "given" as const, direction: "RIGHT" as const } };
     expect(toSVG(given, { theme: look.theme })).toContain('fill="#ffffff"');
     expect(toSVG(given, { theme: look.theme, scheme: look.scheme })).toContain('fill="#101010"');
+  });
+
+  it("gives every view's map the switcher's theme, in the page's scheme, without a new layout", async () => {
+    const positions = await layout(vendor, { engine: "dagre" });
+    const views = resolveViews(vendor, [{ id: "a", label: "A" }, { id: "b", label: "B" }], positions);
+    const switcher = (mode: "single" | "grid") => <ViewSwitcher views={views} mode={mode} theme={{ color: { paper: "#fdf6e3" } }} edgeBudget="all" legend={false} />;
+    const view = render(switcher("grid"));
+    const papers = () => [...view.container.querySelectorAll<HTMLElement>(".wf-process-map")].map((map) => map.style.getPropertyValue("--wf-paper"));
+    await waitFor(() => expect(papers()).toEqual(["#fdf6e3", "#fdf6e3"]));
+    view.rerender(switcher("single"));
+    await waitFor(() => expect(papers()).toEqual(["#fdf6e3"]));
+    // The setting's paper is the light scheme's; in the dark scheme the default theme's dark paper is drawn.
+    const laid = layouts.mock.calls.length;
+    act(() => void (document.documentElement.dataset.theme = "dark"));
+    await waitFor(() => expect(papers()).toEqual(["#16181d"]));
+    act(() => void delete document.documentElement.dataset.theme);
+    await waitFor(() => expect(papers()).toEqual(["#fdf6e3"]));
+    expect(layouts.mock.calls.length).toBe(laid);
   });
 
   it("logs what checkTheme finds once, in development", () => {
