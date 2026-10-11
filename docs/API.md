@@ -308,16 +308,36 @@ export const darkColorTokens: Partial<Record<ColorToken, string>>; // what the d
 export const paletteTokens: { sequential; sequentialBlue; diverging; categorical };  // `palettes` is this object
 export const fontTokens: { family; mono };                         // "Inter, 'Segoe UI', Helvetica, Arial, sans-serif"
 export const nodeSizeTokens: Record<NodeKind, { width; height }>;  // `DEFAULT_SIZES` is this object
-export const sizeTokens: { radius: 6; radiusLarge: 10; band: 8; shadow };
-export const textSizeTokens: { label: 12; glyph: 14; small: 9; note: 11; edgeCount: 10; nameLine: 14; countLine: 12 };
+export const sizeTokens: { radius: 6; radiusLarge: 10; band: 8; shadow; shadowMenu };   // radius and band read the role tables below
+export const textSizeTokens: { label: 12; glyph: 14; small: 9; note: 11; edgeCount: 10; nameLine: 14; countLine: 12 };  // sizes of roles of textTokens
+export const textTokens: { nodeLabel; stageLabel; nodeCount; eventLabel; gatewayGlyph; noteLabel; activityName; activityNumber;
+  pathLabel; groupLabel; badge; badgeValue; chip; chipLead; arcLabel; selfLoopLabel; attribution; legendTitle; legendItem;
+  legendValue; legendKey; legendChip; figureTitle; figureText; panel; panelHeading; panelTitle; panelNote; panelLabel; panelKey;
+  panelSymbol; panelPlain; tooltip; activityTooltip; timelineAxis; timelineLabel; timelineNote; timelineMark; comparisonValue;
+  comparisonNote; comparisonDenominator; comparisonTab; comparisonCaption; comparisonRowHeader };  // each { size?; weight?; lineHeight? }
+export const radiusTokens: { node: 6; large: 10; band; swatch; control; tooltip; key; pill; circle: "50%"; filterChip; legendGradient;
+  activityTooltip; comparisonBar; tint; hatch; chip; canvasSelection; timelineEvent; timelineViolation };
+export const strokeTokens: { node; stage; eventStart; eventEnd; gateway; note; focus; selection; canvasSelection; group;
+  canvasGroupSelected; band; halo; path; pathMin; pathMax; canvasPathHighlight; pathFocus; pathHit; arc; arcCoverage;
+  selfLoop; badge; chip; filterChip; legendGradient; tab; timelineSpan; timelineViolation; minimapNode };
+export const dashTokens: { reconnectedNode; reconnectedPath; note; constraint; group; reverseArc; timelineAnchor; bpmnOutOfScope };  // readonly number arrays
+export const opacityTokens: { dimmed; dimmedPath; disabled; tint; hatch; arc; groupFill; bandFill; bandOddFill; groupStroke; legendRule; timelineGrid };
+export const spaceTokens: { unit: 2; steps: readonly [1, 1.5, 2, 3, 4, 5, 6, 7, 8] };
+export const zTokens: { pathHovered; activityLabels; comparisonRowHeader; comparisonHeader; comparisonCorner; overlayPanel; bpmnTable;
+  bpmnPanel; sideList; tooltip; canvasTooltip; bpmnNavigation; menu; activityTooltip; marksAbove };
+export const dimensionTokens: { band: 8; mapMinHeight; viewMapMinHeight; handle; panelMaxWidth; controlLabel; controlOutput;
+  legendSwatchWidth; legendSwatchHeight; legendSample; legendSampleExport; legendGlyph; legendGradient; searchMinWidth; tableSwatch;
+  tooltipMaxWidth; canvasTooltipMaxWidth; activityTooltipMaxWidth; bpmnTableTop; watermarkClearance; sideList; menuMinWidth;
+  menuMaxWidth; filterChipMinHeight; zoomButtonWidth; zoomButtonHeight; backgroundGap };
 export interface Arrowhead { size; box; length; width; overhang; outline }
 export const arrowheadTokens: { edge: Arrowhead; overlay: Arrowhead };
 export function arrowheadExtent(a: Arrowhead): { length; half; tip; outline };  // in user units
 export type PatternId; export const PATTERNS: PatternId[];          // also exported from the style module, as before
 export const patternTokens: { size: 6; strokeWidth: 1; strokeOpacity: 0.6; dotRadius: 1; dotOpacity: 0.7 };
 export function patternTwin(p: PatternId): { size; lines: [x1, y1, x2, y2][]; dots: [cx, cy][] };
-export const hatchTokens: { size: 8; width: 2 };
-export const designTokens: { color; darkColor; palette; font; nodeSize; size; textSize; arrowhead; pattern; hatch };
+export const hatchTokens: { size: 8; width: 2; domPeriod: 7 };
+export const designTokens: { color; darkColor; palette; font; nodeSize; size; textSize; text; radius; stroke; dash; opacity; space; z;
+  dimension; arrowhead; pattern; hatch };
 export const themedColors: readonly ColorToken[];                  // the colours with a CSS variable
 export function cssVariable(name: string): string;                 // "inkMuted" → "--wf-ink-muted"
 export function tokenVariables(): { light: Record<string, string>; dark: Record<string, string> };
@@ -334,7 +354,29 @@ and the pattern twins. `fixedColors`, `palettes`, `DEFAULT_SIZES` and
 export and the marks use it directly; the Canvas renderer's `defaultTokens`
 come from it and `readTokens` reads `cssVariable(key)` for each of them.
 `tokens.css` writes `tokenVariables()` (light in `:root`, dark in both dark
-blocks); a tooling test fails when the file and the table differ.
+blocks); `npm run tokens` generates it from the table and a tooling test
+fails when the file and the table differ.
+
+Every size, radius, stroke width, dash, font size and weight, opacity and
+z-order the library draws has a role name in the table: text by role
+(`textTokens`: the map's node, activity, path, group, badge, chip, arc and
+self-loop texts, the legend, the exported figure, panels, tooltips, the trace
+timeline and the cohort comparison), radii by element (`radiusTokens`),
+stroke widths by element and state (`strokeTokens`), dash patterns by meaning
+(`dashTokens`), state opacities (`opacityTokens`), spacing as multiples of one
+unit (`spaceTokens`), the stacking order (`zTokens`) and the fixed sizes of
+controls, panels and legend samples (`dimensionTokens`). The stylesheet reads
+the roles it uses through CSS variables of `tokens.css`: `--wf-text-<role>`,
+`--wf-weight-<role>` and `--wf-leading-<role>` (the role in kebab case, such
+as `--wf-text-activity-name`), `--wf-radius-<role>`, `--wf-stroke-<role>`,
+`--wf-dash-<role>`, `--wf-opacity-<role>`, `--wf-z-<role>`, `--wf-size-<role>`,
+`--wf-space-<step>` (`--wf-space-1` is 2px, `--wf-space-1-5` 3px, up to
+`--wf-space-8`, 16px) and `--wf-shadow-menu`. The marks, the Canvas drawing,
+the SVG and PNG exports and the React components read the table for the same
+roles. Where the renderers draw a role differently today, the table names both
+values (`legendSample` and `legendSampleExport`, `selection` and
+`canvasSelection`, …); every value is the one drawn before the table had it,
+so nothing drawn changed.
 
 The arrowhead rule is the live map's: an edge ends in a closed triangle 3
 long and 4.8 wide, outlined by 0.6 in its colour, its tip on the route's
@@ -595,7 +637,10 @@ Stylesheets: `@wise/flow/tokens.css` (design tokens, light and dark),
 `--wf-radius`, `--wf-radius-lg`, `--wf-shadow` and the default node boxes
 (`--wf-node-width` and `--wf-node-height` for activities, `--wf-stage-*`,
 `--wf-gateway-*`, `--wf-event-*` and `--wf-note-*` with `-width` and
-`-height`), which the stylesheet reads. The variables nothing read
+`-height`), and the size, radius, stroke, dash, opacity, z-order and spacing
+roles of the token table (see "Design tokens"), which the stylesheet reads.
+A host that sets one of them changes only the live map and the panels; the
+Canvas map, SVG and PNG read the table. The variables nothing read
 (`--wf-severity`, `--wf-mechanism`, `--wf-reservoir`, `--wf-pass`,
 `--wf-cat-0`…`7`, `--wf-seq-0`…`4`, `--wf-div-neg`, `--wf-div-mid`,
 `--wf-div-pos`) are no longer defined; their values remain in `colorTokens`

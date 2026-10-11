@@ -66,7 +66,8 @@
     "check:workflows": "node scripts/check-workflows.mjs",
     "check": "npm run lint && npm run typecheck && npm run check:architecture && npm run check:workflows && npm run test:tooling && npm run test:coverage",
     "test:browser": "playwright test -c tests/browser/playwright.config.ts",
-    "check:budgets": "node scripts/check-budgets.mjs"
+    "check:budgets": "node scripts/check-budgets.mjs",
+    "tokens": "node scripts/generate-tokens.mjs"
   },
   "peerDependencies": {
     "react": ">=18",

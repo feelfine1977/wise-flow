@@ -1,6 +1,6 @@
 import { BaseEdge, type EdgeProps } from "@xyflow/react";
 import { memo } from "react";
-import { type EdgeMark, type XY, edgeMark, fitText, routeMidpoint } from "../core/index.js";
+import { type EdgeMark, type XY, edgeMark, fitText, opacityTokens, routeMidpoint, strokeTokens } from "../core/index.js";
 import type { FollowsEdgeData, WfEdge } from "./types.js";
 
 function polyline(points: XY[]): string {
@@ -31,12 +31,12 @@ const Follows = memo(function Follows(props: EdgeProps<WfEdge>) {
         id={id}
         path={polyline(mark.points)}
         markerEnd={markerEnd}
-        interactionWidth={14}
+        interactionWidth={strokeTokens.pathHit}
         style={{
           stroke: selected || data.hovered || data.focused ? "var(--wf-focus)" : mark.color,
-          strokeWidth: data.focused ? Math.max(mark.width, 3) : mark.width,
+          strokeWidth: data.focused ? Math.max(mark.width, strokeTokens.pathFocus) : mark.width,
           strokeDasharray: mark.dash?.join(" "),
-          opacity: data.dimmed ? 0.25 : 1,
+          opacity: data.dimmed ? opacityTokens.dimmedPath : 1,
         }}
       />
       {label ? (

@@ -13,7 +13,7 @@ import {
   type OnNodesChange,
 } from "@xyflow/react";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { type AbstractOptions, type ElementRef, type FlowGraph, type Positions, type XY, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, defaultStyle, formatCount, lodAt, t } from "../core/index.js";
+import { type AbstractOptions, type ElementRef, type FlowGraph, type Positions, type XY, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, defaultStyle, dimensionTokens, formatCount, lodAt, spaceTokens, strokeTokens, t } from "../core/index.js";
 import { type MapContext, mapEmphasis, menuHeading } from "../core/map-controller.js";
 import { ActivityTooltip } from "./ActivityTooltip.js";
 import { AbstractionControls } from "./AbstractionControls.js";
@@ -414,7 +414,7 @@ function ProcessMapInner(props: ProcessMapProps) {
       {showFilters ? <FilterChips filter={props.filters} preview={props.filterPreview} locale={locale} labelOf={labelOf} onFilterChange={props.onFilterChange} onAnnounce={controller.announce} /> : null}
       <div ref={bodyRef} className="wf-process-map__body">
         {view === "table" ? (
-          <div style={{ position: "absolute", inset: 0, overflow: "auto", padding: 12 }}>
+          <div style={{ position: "absolute", inset: 0, overflow: "auto", padding: 6 * spaceTokens.unit }}>
             {controlsElement}
             <TableAlternative graph={shown} overlays={overlays} scales={scales} locale={locale} selection={selection} onSelect={select} pageSize={largeTable ? TABLE_PAGE_SIZE : undefined} />
           </div>
@@ -472,10 +472,10 @@ function ProcessMapInner(props: ProcessMapProps) {
                 disableKeyboardA11y
                 defaultEdgeOptions={{ type: "follows" }}
               >
-                <Background gap={24} size={1} />
+                <Background gap={dimensionTokens.backgroundGap} size={1} />
                 <MarkDefs />
                 <Controls showInteractive={false} onZoomIn={userMove} onZoomOut={userMove} onFitView={() => void (moved.current = false)} />
-                {minimap ? <MiniMap pannable zoomable nodeStrokeWidth={2} /> : null}
+                {minimap ? <MiniMap pannable zoomable nodeStrokeWidth={strokeTokens.minimapNode} /> : null}
                 {positions ? (
                   <OverlayLayer
                     marks={flow.between}

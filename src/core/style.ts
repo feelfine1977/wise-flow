@@ -6,7 +6,7 @@ import { scaleLinear, scaleLog, scaleSqrt } from "d3-scale";
 import { hatchSvg, patternTwinSvg, svgMarkup } from "./mark-svg.js";
 import { type FlowEdge, type FlowGraph, type FlowNode, metric } from "./model.js";
 import type { StringKey } from "./strings.js";
-import { type PatternId, PATTERNS, colorTokens, paletteTokens } from "./tokens.js";
+import { type PatternId, PATTERNS, colorTokens, paletteTokens, strokeTokens } from "./tokens.js";
 
 export { type PatternId, PATTERNS } from "./tokens.js";
 
@@ -149,14 +149,14 @@ export const defaultLod: LodRules = {
 };
 
 export const defaultStyle: StyleSpec = {
-  edgeWidth: { metric: "count", scale: "sqrt", range: [1, 8] },
+  edgeWidth: { metric: "count", scale: "sqrt", range: [strokeTokens.pathMin, strokeTokens.pathMax] },
   edgeColor: { metric: "violationShare", palette: "sequential", domain: [0, 1] },
   nodeColor: { by: "group", palette: "categorical" },
 };
 
 /** Style for diff maps: width from the slice, colour from the delta of the shortfall share. */
 export const diffStyle: StyleSpec = {
-  edgeWidth: { metric: "count", scale: "sqrt", range: [1, 8] },
+  edgeWidth: { metric: "count", scale: "sqrt", range: [strokeTokens.pathMin, strokeTokens.pathMax] },
   edgeColor: { metric: "delta_violationShare", palette: "diverging", domain: [-0.5, 0, 0.5] },
   nodeColor: { metric: "delta_violationShare", palette: "diverging", domain: [-0.5, 0, 0.5] },
 };
@@ -254,12 +254,12 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle): S
 
   // Edge width
   const widthSpec = spec.edgeWidth;
-  let widthFn: (e: FlowEdge) => number = () => 1.5;
+  let widthFn: (e: FlowEdge) => number = () => strokeTokens.path;
   if (widthSpec) {
     const domain =
       widthSpec.domain ?? extentOf(follows.map((e) => metric(e, widthSpec.metric, NaN))) ?? [0, 1];
     const safeDomain: [number, number] = domain[0] === domain[1] ? [0, domain[1] || 1] : domain;
-    const range = widthSpec.range ?? [1, 8];
+    const range = widthSpec.range ?? [strokeTokens.pathMin, strokeTokens.pathMax];
     const kind = widthSpec.scale ?? "sqrt";
     const s =
       kind === "log"
@@ -343,7 +343,7 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle): S
 
   const legend: LegendItem[] = [];
   if (widthSpec && domains.edgeWidth) {
-    legend.push({ kind: "width", title: "legend.edgeWidth", metric: widthSpec.metric, domain: domains.edgeWidth, range: widthSpec.range ?? [1, 8] });
+    legend.push({ kind: "width", title: "legend.edgeWidth", metric: widthSpec.metric, domain: domains.edgeWidth, range: widthSpec.range ?? [strokeTokens.pathMin, strokeTokens.pathMax] });
   }
   if (edgeSpec?.metric && domains.edgeColor) {
     const palette = edgeSpec.palette ?? "sequential";

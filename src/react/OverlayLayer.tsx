@@ -1,5 +1,5 @@
 import { EdgeLabelRenderer, ViewportPortal } from "@xyflow/react";
-import { type Locale, type OverlayMark, type OverlayShape, overlayMarks } from "../core/index.js";
+import { type Locale, type OverlayMark, type OverlayShape, overlayMarks, zTokens } from "../core/index.js";
 import { type MarkIds, domMark, markDefs, svgReact } from "./marks.js";
 
 export interface OverlayLayerProps {
@@ -49,7 +49,7 @@ export function OverlayLayer({ marks, shapes = [], locale, zoom = Infinity, hove
   return (
     <>
       {layer(EdgeLabelRenderer, between, 0, true)}
-      {layer(ViewportPortal, visible.filter((m) => m.layer === "above"), 1001, !between.length)}
+      {layer(ViewportPortal, visible.filter((m) => m.layer === "above"), zTokens.marksAbove, !between.length)}
     </>
   );
 }

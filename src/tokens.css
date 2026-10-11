@@ -1,10 +1,12 @@
 /*
- * Design tokens of @wise/flow as CSS variables. The values come from the
- * token table of the core (`src/core/tokens.ts`, `tokenVariables`); a tooling
- * test fails when this file and the table differ. The workbench ships its own
- * tokens package; an application theme that sets these variables is picked up
- * by the stylesheet and by the Canvas map. Light and dark schemes.
+ * Design tokens of @wise/flow as CSS variables, generated from the token
+ * table of the core (`src/core/tokens.ts`, `tokenVariables`) by
+ * `npm run tokens`; do not edit by hand. A tooling test fails when this file
+ * and the table differ. The workbench ships its own tokens package; an
+ * application theme that sets these variables is picked up by the stylesheet
+ * and by the Canvas map. Light and dark schemes.
  */
+
 :root {
   --wf-font: Inter, "Segoe UI", Helvetica, Arial, sans-serif;
   --wf-font-mono: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
@@ -20,16 +22,12 @@
   --wf-hover: rgba(0, 0, 0, 0.05);
   --wf-neutral: #8c8c8c;
   --wf-out-of-scope: #b0b0b0;
-
-  /* Gate states (Okabe–Ito). */
   --wf-warn: #e69f00;
   --wf-fail: #d55e00;
-
   --wf-radius: 6px;
   --wf-radius-lg: 10px;
   --wf-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
-
-  /* Default node boxes, in layout units; the layout reserves the same sizes. */
+  --wf-shadow-menu: 0 6px 24px rgba(0, 0, 0, 0.18);
   --wf-node-width: 180px;
   --wf-node-height: 48px;
   --wf-stage-width: 200px;
@@ -40,6 +38,121 @@
   --wf-event-height: 36px;
   --wf-note-width: 160px;
   --wf-note-height: 60px;
+  --wf-text-node-label: 12px;
+  --wf-text-node-count: 9px;
+  --wf-text-event-label: 9px;
+  --wf-text-note-label: 11px;
+  --wf-text-activity-name: 14px;
+  --wf-text-activity-number: 12px;
+  --wf-text-path-label: 10px;
+  --wf-text-group-label: 14px;
+  --wf-text-legend-item: 11px;
+  --wf-text-legend-value: 10px;
+  --wf-text-attribution: 9px;
+  --wf-text-panel: 12px;
+  --wf-text-panel-heading: 12px;
+  --wf-text-panel-title: 13px;
+  --wf-text-panel-note: 11px;
+  --wf-text-panel-label: 10px;
+  --wf-text-panel-key: 10px;
+  --wf-text-panel-symbol: 14px;
+  --wf-text-tooltip: 11px;
+  --wf-text-activity-tooltip: 13px;
+  --wf-text-timeline-axis: 10px;
+  --wf-text-timeline-label: 11px;
+  --wf-text-timeline-note: 10px;
+  --wf-text-comparison-value: 14px;
+  --wf-text-comparison-note: 0.875rem;
+  --wf-text-comparison-denominator: 0.8rem;
+  --wf-weight-stage-label: 600;
+  --wf-weight-gateway-glyph: 700;
+  --wf-weight-activity-name: 500;
+  --wf-weight-group-label: 600;
+  --wf-weight-legend-item: 600;
+  --wf-weight-panel-heading: 700;
+  --wf-weight-panel-label: 700;
+  --wf-weight-panel-plain: 400;
+  --wf-weight-comparison-tab: 600;
+  --wf-weight-comparison-caption: 600;
+  --wf-weight-comparison-row-header: 500;
+  --wf-weight-comparison-denominator: 400;
+  --wf-leading-activity-name: 18px;
+  --wf-leading-activity-number: 16px;
+  --wf-radius-band: 3px;
+  --wf-radius-swatch: 2px;
+  --wf-radius-control: 4px;
+  --wf-radius-tooltip: 4px;
+  --wf-radius-key: 3px;
+  --wf-radius-pill: 999px;
+  --wf-radius-circle: 50%;
+  --wf-radius-filter-chip: 12px;
+  --wf-radius-legend-gradient: 3px;
+  --wf-radius-activity-tooltip: 6px;
+  --wf-radius-comparison-bar: 2px;
+  --wf-stroke-node: 2px;
+  --wf-stroke-stage: 3px;
+  --wf-stroke-event-end: 3px;
+  --wf-stroke-focus: 2px;
+  --wf-stroke-selection: 3px;
+  --wf-stroke-group: 1.5px;
+  --wf-stroke-band: 3px;
+  --wf-stroke-halo: 3px;
+  --wf-stroke-filter-chip: 2px;
+  --wf-stroke-tab: 3px;
+  --wf-stroke-timeline-violation: 2px;
+  --wf-dash-timeline-anchor: 4 3;
+  --wf-dash-bpmn-out-of-scope: 4 3;
+  --wf-opacity-dimmed: 0.35;
+  --wf-opacity-disabled: 0.45;
+  --wf-opacity-group-fill: 0.06;
+  --wf-opacity-band-fill: 0.06;
+  --wf-opacity-band-odd-fill: 0.02;
+  --wf-z-comparison-row-header: 1;
+  --wf-z-comparison-header: 2;
+  --wf-z-comparison-corner: 3;
+  --wf-z-overlay-panel: 5;
+  --wf-z-bpmn-table: 5;
+  --wf-z-bpmn-panel: 6;
+  --wf-z-side-list: 6;
+  --wf-z-tooltip: 10;
+  --wf-z-canvas-tooltip: 10;
+  --wf-z-bpmn-navigation: 15;
+  --wf-z-menu: 30;
+  --wf-z-activity-tooltip: 1000;
+  --wf-size-band: 8px;
+  --wf-size-map-min-height: 320px;
+  --wf-size-view-map-min-height: 240px;
+  --wf-size-handle: 6px;
+  --wf-size-panel-max-width: 260px;
+  --wf-size-control-label: 70px;
+  --wf-size-control-output: 42px;
+  --wf-size-legend-swatch-width: 14px;
+  --wf-size-legend-swatch-height: 12px;
+  --wf-size-legend-sample: 28px;
+  --wf-size-legend-glyph: 18px;
+  --wf-size-legend-gradient: 10px;
+  --wf-size-search-min-width: 240px;
+  --wf-size-table-swatch: 10px;
+  --wf-size-tooltip-max-width: 280px;
+  --wf-size-canvas-tooltip-max-width: 320px;
+  --wf-size-activity-tooltip-max-width: 320px;
+  --wf-size-bpmn-table-top: 56px;
+  --wf-size-watermark-clearance: 48px;
+  --wf-size-side-list: 380px;
+  --wf-size-menu-min-width: 260px;
+  --wf-size-menu-max-width: 340px;
+  --wf-size-filter-chip-min-height: 24px;
+  --wf-size-zoom-button-width: 28px;
+  --wf-size-zoom-button-height: 26px;
+  --wf-space-1: 2px;
+  --wf-space-1-5: 3px;
+  --wf-space-2: 4px;
+  --wf-space-3: 6px;
+  --wf-space-4: 8px;
+  --wf-space-5: 10px;
+  --wf-space-6: 12px;
+  --wf-space-7: 14px;
+  --wf-space-8: 16px;
 }
 
 @media (prefers-color-scheme: dark) {

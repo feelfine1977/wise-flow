@@ -10,6 +10,7 @@ import type { Box } from "./layout.js";
 import { type FlowGraph, type Overlay, MAP_TARGET } from "./model.js";
 import type { LegendItem } from "./style.js";
 import { type StringKey, t } from "./strings.js";
+import { textTokens } from "./tokens.js";
 
 export type FigurePreset = "single-column" | "double-column" | "slide" | "none";
 
@@ -132,7 +133,7 @@ export const figureMetrics = {
   /** The row of the note on withheld edges, and its baseline in it. */
   noteRow: 16,
   noteBaseline: 12,
-  noteSize: 11,
+  noteSize: textTokens.figureText.size,
 } as const;
 
 export interface FigureFrameOptions {

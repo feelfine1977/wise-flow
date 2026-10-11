@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { loadTokens, readers, tokenDifferences, unusedVariables } from '../../scripts/check-tokens.mjs';
+import { tokensCss } from '../../scripts/generate-tokens.mjs';
 
 const read = (path) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8');
 const css = read('../../src/tokens.css');
@@ -11,6 +12,27 @@ const variables = tokens.tokenVariables();
 
 test('tokens.css holds exactly the variables of the token table, in both schemes', () => {
   assert.deepEqual(tokenDifferences(css, variables), []);
+});
+
+test('tokens.css is the file the generator writes from the token table', () => {
+  assert.equal(css, tokensCss(variables));
+  assert.deepEqual(tokenDifferences(tokensCss(variables), variables), []);
+});
+
+test('the table gives the stylesheet its text, radius, stroke, dash, opacity, z-order, size and spacing roles as variables', () => {
+  const { light } = variables;
+  assert.equal(light['--wf-text-activity-name'], '14px');
+  assert.equal(light['--wf-weight-activity-name'], '500');
+  assert.equal(light['--wf-leading-activity-name'], '18px');
+  assert.equal(light['--wf-text-comparison-note'], '0.875rem');
+  assert.equal(light['--wf-radius-circle'], '50%');
+  assert.equal(light['--wf-radius-pill'], '999px');
+  assert.equal(light['--wf-stroke-group'], '1.5px');
+  assert.equal(light['--wf-dash-timeline-anchor'], '4 3');
+  assert.equal(light['--wf-opacity-group-fill'], '0.06');
+  assert.equal(light['--wf-z-menu'], '30');
+  assert.equal(light['--wf-size-side-list'], '380px');
+  assert.deepEqual(Object.entries(light).filter(([k]) => k.startsWith('--wf-space-')), [['--wf-space-1', '2px'], ['--wf-space-1-5', '3px'], ['--wf-space-2', '4px'], ['--wf-space-3', '6px'], ['--wf-space-4', '8px'], ['--wf-space-5', '10px'], ['--wf-space-6', '12px'], ['--wf-space-7', '14px'], ['--wf-space-8', '16px']]);
 });
 
 test('the check names a changed, a missing and an extra variable and a missing block', () => {
