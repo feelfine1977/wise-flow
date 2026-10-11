@@ -571,7 +571,9 @@ extend beyond `overlayMargin()` around the positions' bounds. A badge is a
 pill (`badgeSize`, default 18 tall) with its glyph and share in it ("≥1 ·
 22 %"), wholly above its activity, 2 clear of it; the badges of an activity
 run leftwards from its top-right corner, 4 apart, and start left of a
-self-loop it carries.
+self-loop it carries. The labels' boxes are measured in the language they
+are written in, `OverlayGeometryOptions.locale` (default `en`; `buildScene`
+passes the scene's locale).
 
 An arc keeps clear of the activities between its ends where it can. Its
 default course runs above the map from the tops of its ends (below from the

@@ -39,7 +39,10 @@ The map draws the process in neutrals and deviations in one accent.
 - **Labels keep apart.** Self-loop labels and arc labels are placed after
   the badges and chips and cover no activity, badge, chip, other label or
   group title where a place is free (`OverlayShape.label` holds the box of a
-  label). Tints take the corners of what they cover.
+  label, measured in `OverlayGeometryOptions.locale`, default `en`).
+  `overlayMarks` takes a fifth parameter, the colours of the paths
+  self-loops stand for and the corners of what tints cover; tints take the
+  corners of what they cover.
 - **A dash means "not directly observed".** Only re-added paths and
   activities are dashed; notes, constraint edges, box groups and reverse
   arcs are solid (`dashTokens.note`, `constraint`, `group` and `reverseArc`
