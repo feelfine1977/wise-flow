@@ -103,7 +103,8 @@ describe("the live Canvas map and the theme", () => {
       addListener: () => {}, removeListener: () => {}, dispatchEvent: () => true,
     }) as unknown as MediaQueryList);
     const { labels, view } = await mount();
-    expect(listeners.length).toBeGreaterThan(0);
+    // One for the map's theme and one for the Canvas map's.
+    expect(listeners.length).toBe(2);
     // A scheme change shows in the computed variables only; jsdom does not evaluate the media query, so a rule
     // added to the theme stands in for it. No attribute changes, so only the media query's listener can redraw.
     theme.textContent += "\n.host, .host * { --wf-ink: #dddddd; }";

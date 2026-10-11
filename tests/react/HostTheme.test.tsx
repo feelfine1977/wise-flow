@@ -195,7 +195,7 @@ describe("the theme of a map", () => {
     expect(vi.mocked(buildScene).mock.calls.length).toBe(built);
   });
 
-  it("draws the variables a host sets on the map's own element on the Canvas map too, and given a theme draws its variables there", async () => {
+  it("draws the variables a host sets on the map's own element on the Canvas map too, and given a theme puts it over them", async () => {
     const { label } = recorder();
     const positions = await layout(vendor, { engine: "dagre" });
     document.head.appendChild(rules);
@@ -210,12 +210,21 @@ describe("the theme of a map", () => {
     await waitFor(() => expect(label()).toEqual(["#123456"]));
     view.rerender(map({ containerStyle: { "--wf-ink": "#234567" } as React.CSSProperties }));
     await waitFor(() => expect(label()).toEqual(["#234567"]));
-    // Given a theme, the map writes the theme's variables over its own: the DOM and the Canvas map draw the same ink.
-    view.rerender(map({ containerStyle: { "--wf-ink": "#234567" } as React.CSSProperties, theme: { color: { paper: "#fdf6e3" } } }));
+    // Given a theme, the setting goes over the map's own variables, which go over the preset; the map writes the
+    // result on its element, so the DOM and the Canvas map draw the same.
     const root = view.container.querySelector(".wf-process-map") as HTMLElement;
-    await waitFor(() => expect(root.style.getPropertyValue("--wf-paper")).toBe("#fdf6e3"));
-    await waitFor(() => expect(label()).toEqual(["#1f1f1f"]));
-    expect(root.style.getPropertyValue("--wf-ink")).toBe("#1f1f1f");
+    const drawn = async (props: Parameters<typeof map>[0], ink: string) => {
+      view.rerender(map(props));
+      await waitFor(() => expect([label(), root.style.getPropertyValue("--wf-ink")]).toEqual([[ink], ink]));
+    };
+    const paper = { color: { paper: "#fdf6e3" } };
+    await drawn({ containerStyle: { "--wf-ink": "#234567" } as React.CSSProperties, theme: paper }, "#234567");
+    expect(root.style.getPropertyValue("--wf-paper")).toBe("#fdf6e3");
+    await drawn({ className: "mine", theme: paper }, "#123456");
+    await drawn({ className: "mine", containerStyle: { "--wf-ink": "#234567" } as React.CSSProperties, theme: { color: { ink: "#345678" } } }, "#345678");
+    // A setting that no longer names the ink gives the map's own variable back.
+    await drawn({ className: "mine", theme: paper }, "#123456");
+    await drawn({ theme: paper }, "#1f1f1f");
   });
 
   it("draws the variables a host sets on a Canvas map of its own", async () => {

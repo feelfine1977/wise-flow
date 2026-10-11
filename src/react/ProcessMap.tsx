@@ -35,7 +35,7 @@ import { OverlayLayer } from "./OverlayLayer.js";
 import { part } from "./parts.js";
 import { PathList } from "./PathList.js";
 import { TableAlternative } from "./TableAlternative.js";
-import { useFlowTheme } from "./theme.js";
+import { type Written, useTheme } from "./theme.js";
 import { type ProcessMapProps, type Selection, type WfEdge, type WfGroupNode, type WfNode } from "./types.js";
 
 const DEFAULT_CANVAS_THRESHOLD = 2000;
@@ -148,15 +148,15 @@ function ProcessMapInner(props: ProcessMapProps) {
   // Graph overlays and the given ones; the scene keeps those it can place and adds the follows self-loops.
   const sceneOverlays = useMemo(() => (extraOverlays ? [...(shown.overlays ?? []), ...extraOverlays] : undefined), [shown, extraOverlays]);
   // The theme: the setting over the CSS variables of the map's element (its own and those it inherits) over the preset,
-  // in the page's scheme. Given a setting, the map writes the theme's variables on its element, so it reads its container's.
-  // The scene is built again only when the marks change; colours and the font are painted from the theme.
+  // in the page's scheme. Given a setting, the map writes the theme's variables on its element, and sets them aside
+  // while it reads the element's. The scene is built again only when the marks change; colours and the font are painted from the theme.
   const containerRef = useRef<HTMLDivElement>(null);
-  const given = props.theme !== undefined;
-  const host = useMemo(() => ({ get current() { return given ? (containerRef.current?.parentElement ?? null) : containerRef.current; } }), [given]);
-  const look = useFlowTheme(host, props.theme);
+  const written = useRef<Written | undefined>(undefined);
+  const look = useTheme(containerRef, props.theme, written);
   const markedKey = useMemo(() => markedThemeKey(look.theme, look.scheme), [look]);
   const markedTheme = useMemo(() => look.theme, [markedKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  const themed = useMemo(() => (given ? themeStyle(look.theme, look.scheme) : undefined), [given, look]);
+  const themed = useMemo(() => (props.theme !== undefined ? themeStyle(look.theme, look.scheme) : undefined), [props.theme !== undefined, look]); // eslint-disable-line react-hooks/exhaustive-deps
+  written.current = themed && { names: Object.keys(themed), own: containerStyle as Record<string, unknown> | undefined };
   const { scene, positions, laidPositions } = useMapScene(shown, arrival.positions, manual.key === layoutResetKey ? manual.points : NO_MOVES, {
     overlays: sceneOverlays, style, locale, lanes, activityLabels, selfLoops, lod: props.lod, theme: markedTheme, scheme: look.scheme,
   });

@@ -86,6 +86,12 @@ interface Read {
   key: string;
 }
 
+/** Variables a component writes on its own element (`names`) over the host's inline values of them (`own`). */
+export interface Written {
+  names: readonly string[];
+  own?: Readonly<Record<string, unknown>>;
+}
+
 /**
  * The theme of a component: `setting` (a preset's name or changes over a
  * preset) over the `--wf-*` CSS variables of `host` (what its rules and its
@@ -98,20 +104,41 @@ interface Read {
  * export stays in the light scheme unless given `scheme: "dark"`.
  */
 export function useFlowTheme(host: RefObject<Element | null>, setting?: ThemeSetting): FlowTheme {
+  return useTheme(host, setting);
+}
+
+/**
+ * `useFlowTheme` for a component that writes the theme's variables on `host`
+ * itself (`written`): while the variables are read, those it wrote are set
+ * aside (the host's own inline values put back), so the host's show.
+ */
+export function useTheme(host: RefObject<Element | null>, setting?: ThemeSetting, written?: RefObject<Written | undefined>): FlowTheme {
   const [read, setRead] = useState<Read>(() => ({ scheme: liveScheme(typeof document !== "undefined" ? document : undefined), key: "" }));
   useLayoutEffect(() => {
-    const element = host.current;
+    const element = host.current as HTMLElement | null;
     if (!element) return;
+    const observer = typeof MutationObserver !== "undefined" ? new MutationObserver(() => update()) : undefined;
     const update = () => {
       const scheme = liveScheme(element.ownerDocument);
+      const aside = written?.current;
+      const inline = element.style;
+      const saved = inline?.cssText;
+      for (const name of aside?.names ?? []) {
+        const own = aside!.own?.[name];
+        if (own == null) inline.removeProperty(name);
+        else inline.setProperty(name, String(own));
+      }
       const style = getComputedStyle(element);
       const variables = themeFromVariables((name) => style.getPropertyValue(name), scheme, cssColor);
+      if (aside?.names.length) {
+        inline.cssText = saved;
+        observer?.takeRecords();
+      }
       const json = JSON.stringify(variables);
       const key = json === "{}" ? "" : json;
       setRead((previous) => (previous.scheme === scheme && previous.key === key ? previous : { scheme, variables: key ? variables : undefined, key }));
     };
     update();
-    const observer = typeof MutationObserver !== "undefined" ? new MutationObserver(update) : undefined;
     for (let el: Element | null = element; el; el = el.parentElement) observer?.observe(el, { attributes: true, attributeFilter: ["class", "style", "data-theme"] });
     const media = typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia("(prefers-color-scheme: dark)") : undefined;
     media?.addEventListener?.("change", update);
@@ -119,8 +146,9 @@ export function useFlowTheme(host: RefObject<Element | null>, setting?: ThemeSet
       observer?.disconnect();
       media?.removeEventListener?.("change", update);
     };
-  }, [host]);
-  const settingKey = JSON.stringify(setting ?? null);
+  }, [host, written]);
+  // The setting by its content: a new object with the same content is the same setting.
+  const settingKey = useMemo(() => JSON.stringify(setting ?? null), [setting]);
   const theme = useMemo(() => resolveTheme(literalSetting(setting), read.variables), [settingKey, read]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const found = developing() ? checkTheme(theme) : [];
