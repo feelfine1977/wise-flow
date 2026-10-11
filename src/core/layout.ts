@@ -120,11 +120,10 @@ export const GROUP_PADDING = { top: 44, left: 20, bottom: 20, right: 20 };
 
 export function sizeOf(node: FlowNode, o: LayoutOptions): NodeSize {
   const s = typeof o.nodeSize === "function" ? o.nodeSize(node) : o.nodeSize;
-  // A size that is not finite counts as none, as a spacing does (`gap`).
   return s && Number.isFinite(s.width) && Number.isFinite(s.height) ? s : defaultNodeSize(node);
 }
 
-/** A spacing option, or its default where it is not a finite number. */
+/** A spacing, or its default where it is not a finite number. */
 export const gap = (v: number | undefined, fallback: number): number => (Number.isFinite(v) ? v! : fallback);
 
 /**
@@ -318,7 +317,7 @@ function guard<T>(promise: Promise<T>, ms: number, signal: AbortSignal, stop?: (
       reject(error);
     };
     const abort = () => end(signal.reason);
-    // A timer fires at once beyond 2³¹ − 1 ms; a longer timeout (Infinity) waits that long.
+    // Timers fire at once beyond 2³¹ − 1 ms.
     const timer = setTimeout(() => end(new LayoutTimeout(`layout timed out after ${ms} ms`)), Math.min(ms, 2 ** 31 - 1));
     const clear = () => {
       clearTimeout(timer);
@@ -496,7 +495,7 @@ function dagreInput(p: Prepared, o: LayoutOptions): DagreInput {
       const s = sizeOf(n, o);
       return [n.id, s.width, s.height, inGroup(n.group)];
     }),
-    // Dagre would make a node of its own, without a size, for an end that is not there.
+    // Dagre would add a node without a size for a missing end.
     edges: p.edges.filter((e) => e.source !== e.target && nodeIds.has(e.source) && nodeIds.has(e.target)).map((e) => [e.id, e.source, e.target]),
   };
 }
@@ -517,8 +516,7 @@ interface DagreGraph {
  * Dagre worker runs this function's source as it is.
  */
 export function dagreJob(dagre: { Graph: new (options: object) => DagreGraph; layout(graph: DagreGraph): void }, input: DagreInput): DagreOutput {
-  // Graphlib reads an empty name as none, keeps \x00 and \x01 for itself and stores names as keys of plain
-  // objects, where a member of Object.prototype reads or writes the prototype: such names get \x02 in front.
+  // Graphlib reads "" as no name, keeps \x00 and \x01, and keys plain objects (a prototype member would write the prototype).
   const k = (id: string) => (!id || id < "\x03" || id in Object.prototype ? "\x02" + id : id);
   const g = new dagre.Graph({ compound: input.compound, multigraph: true });
   g.setGraph(input.graph);
