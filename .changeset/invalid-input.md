@@ -84,3 +84,7 @@ layout timed out at the start.
 
 `validateBpmn` reads sub-processes and lanes nested deeper than the call
 stack reaches, as `importBpmn` does; it overflowed the stack before.
+
+`describeClause` and `changesCases` read an `any` group without `clauses` as
+an empty group; they threw a `TypeError` before, and with them
+`<FilterChips/>` and `<ProcessMap filters>`.

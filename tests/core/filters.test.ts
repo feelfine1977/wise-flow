@@ -177,6 +177,12 @@ describe("filters", () => {
     expect(filterEquals([future, bare], [bare, future])).toBe(true);
   });
 
+  it("describes a group without clauses as an empty group, which changes no cases", () => {
+    const bare = { kind: "any" } as unknown as FilterClause;
+    for (const locale of ["en", "de"] as const) expect(describeClause(bare, locale)).toBe(describeClause({ kind: "any", clauses: [] }, locale));
+    expect(changesCases(bare)).toBe(false);
+  });
+
   it("produces the clause of a map action for every target", () => {
     expect(clauseForTarget({ kind: "node", ids: ["clear_invoice"] }, "keep", graph)).toEqual({ kind: "activity", op: "contains", activity: "clear_invoice" });
     expect(clauseForTarget({ kind: "node", ids: ["clear_invoice"] }, "exclude", graph)).toEqual({ kind: "activity", op: "never", activity: "clear_invoice" });

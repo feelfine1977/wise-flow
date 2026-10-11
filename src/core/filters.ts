@@ -213,7 +213,7 @@ export function removeClause(f: Filter | FilterClause[] | undefined, index: numb
 /** True for clauses that change the content of cases rather than their selection. */
 export function changesCases(c: FilterClause): boolean {
   if (c.kind === "time") return (c.field ?? c.mode) === "events_inside";
-  if (c.kind === "any") return c.clauses.some(changesCases);
+  if (c.kind === "any") return (c.clauses ?? []).some(changesCases);
   return false;
 }
 
@@ -269,7 +269,7 @@ export function describeClause(c: FilterClause, locale: Locale = "en", labelOf: 
     case "slice":
       return t(locale, "clause.slice", { slicing: c.slicing, key: Array.isArray(c.key) ? c.key.map(String).join(" · ") : String(c.key) });
     case "any":
-      return t(locale, "clause.any", { clauses: c.clauses.map((x) => describeClause(x, locale, labelOf)).join(" | ") });
+      return t(locale, "clause.any", { clauses: (c.clauses ?? []).map((x) => describeClause(x, locale, labelOf)).join(" | ") });
     default:
       return t(locale, "clause.unknown", { kind: String((c as { kind: string }).kind) });
   }

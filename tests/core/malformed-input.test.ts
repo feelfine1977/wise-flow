@@ -710,7 +710,7 @@ function junkClause(c: MalformedCase, depth: number): FilterClause {
     () => ({ kind: "constraint", constraint: junkString(c.rng), state: c.rng.pick(["violating", "satisfied", "in_scope", "out_of_scope", "maybe"]), label: c.rng.chance() ? junkString(c.rng) : undefined }),
     () => ({ kind: "slice", slicing: junkString(c.rng), key: c.rng.pick([junkString(c.rng), junkValue(c.rng), null, { a: 1 }]) }),
     () => ({ kind: "any", clauses: depth < 2 ? Array.from({ length: c.rng.int(0, 3) }, () => junkClause(c, depth + 1)) : [] }),
-    () => ({ kind: c.rng.pick(["unknown", "", "ANY"]) }),
+    () => ({ kind: c.rng.pick(["unknown", "", "ANY", "any"]) }),
   ])();
   return clause as unknown as FilterClause;
 }
