@@ -213,12 +213,12 @@ describe("the labels of deviations on the P2P map with all overlays", () => {
         const label = scene.geometry.shapes[i].label;
         if (m.kind === "selfLoop" && label) labels.push([m.id, label]);
       });
-      expect(labels.filter(([id]) => id.startsWith("arc:"))).toHaveLength(12);
-      expect(labels.filter(([id]) => id.startsWith("badge:")).length).toBeGreaterThan(0);
+      // Twelve arc pills; badges on Clear Invoice, Record Invoice Receipt and Cancel Invoice Receipt; the manual touches chip
+      // in the Purchase order group; the labels of three repeated paths and of the singularity loop on Record Invoice Receipt.
+      const count = (kind: string) => labels.filter(([id]) => id.startsWith(`${kind}:`)).length;
+      expect(["arc", "badge", "chip", "selfLoop"].map(count)).toEqual([12, 3, 1, 4]);
       for (const [i, [id, box]] of labels.entries()) {
         expect(labels.filter(([, other], j) => j !== i && meets(box, other)).map(([o]) => o), id).toEqual([]);
-        // Chips are placed in their group; where they meet an activity is not decided here.
-        if (id.startsWith("chip:")) continue;
         expect(Object.entries(scene.positions.nodes).filter(([, b]) => meets(b, box)).map(([n]) => n), id).toEqual([]);
       }
     });
