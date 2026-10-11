@@ -244,6 +244,29 @@ describe("detail shares", () => {
     }
   });
 
+  it("rank a self-loop by its count also when it is larger than every other path's", () => {
+    const graph: FlowGraph = {
+      nodes: [
+        { id: "start", kind: "event", label: "Start", tags: ["start"] },
+        { id: "z", kind: "activity", label: "Z", metrics: { cases: 100 } },
+        { id: "end", kind: "event", label: "End", tags: ["end"] },
+      ],
+      edges: [
+        { id: "start->z", kind: "follows", source: "start", target: "z", metrics: { count: 100 } },
+        { id: "z->end", kind: "follows", source: "z", target: "end", metrics: { count: 90 } },
+        { id: "z->z", kind: "follows", source: "z", target: "z", metrics: { count: 500 } },
+      ],
+    };
+    // By count: z->z (500), start->z (100), z->end (90).
+    const first = abstract(graph, byShares(1, 1 / 3));
+    expect(ids(first.edges.filter((e) => !hasTag(e, ANCHOR_TAG)))).toEqual(["z->z"]);
+    expect(first.meta?.shown?.weakestByFrequency).toBe(500);
+    const two = abstract(graph, byShares(1, 2 / 3));
+    expect(ids(two.edges.filter((e) => !hasTag(e, ANCHOR_TAG)))).toEqual(["start->z", "z->z"]);
+    expect(two.meta?.shown).toMatchObject({ weakestByFrequency: 100, anchorsOnly: 1 });
+    expect(two.meta?.shown?.strongestNotShown).toBeUndefined();
+  });
+
   it("win over thresholds given with them", () => {
     const both = abstract(globalScene, { activityDetail: 0.5, pathDetail: 0.1, minNodeShare: 0.9, minEdgeShare: 0.9, keepConnected: false });
     expect(both).toEqual(abstract(globalScene, byShares(0.5, 0.1)));

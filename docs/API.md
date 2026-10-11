@@ -234,7 +234,8 @@ overlays, with `meta.shown` added.
   (`edgeMetric` replaces count). A path whose rank lies within the share
   `pathDetail` is shown when both its ends are; its rank is its place in the
   whole graph, so a path does not disappear when more activities are shown.
-  Self-loops enter through the paths share only. Constraint edges are shown
+  Self-loops enter through the paths share only, ranked by their count also
+  when it passes every other path's. Constraint edges are shown
   between shown nodes.
 - **The guarantee.** At every pair of shares every shown activity lies on a
   directed way from a start event to an end event that uses shown paths only.

@@ -367,6 +367,8 @@ export interface Thresholded {
   edges: FlowEdge[];
   edgeStrength: Map<string, number>;
   nodeStrength: Map<string, number>;
+  /** The strength of every measured path before a self-loop's is capped at 1, so that paths rank by count. */
+  edgeRank: Map<string, number>;
   /** The marks after the collapse: the graph's own, then those given beside it. */
   marks: Overlay[];
   /** The nodes and paths protected marks sit on, the ends of such paths included. */
@@ -409,7 +411,7 @@ export function thresholded(graph: FlowGraph, options: AbstractOptions = {}): Th
   const edgeCandidates = options.edgeMetric ? [options.edgeMetric, ...EDGE_METRICS] : EDGE_METRICS;
   const nodeCandidates = options.nodeMetric ? [options.nodeMetric, ...NODE_METRICS] : NODE_METRICS;
   const follows = base.edges.filter((e) => e.kind === "follows" && e.source !== e.target);
-  const edgeStrength = new Map<string, number>();
+  const edgeRank = new Map<string, number>();
   for (const side of comparison ? [edgeCandidates, sideA(edgeCandidates)] : [edgeCandidates]) {
     const measured = measuredStrengths(follows, side, relativeTo);
     let loopDenominator: number | undefined;
@@ -419,10 +421,10 @@ export function thresholded(graph: FlowGraph, options: AbstractOptions = {}): Th
         loopDenominator ??= loopStrengthDenominator(follows, side, relativeTo);
         v = strengthOfLoop(e, loopDenominator, side);
       }
-      if (v !== undefined) edgeStrength.set(e.id, edgeStrength.has(e.id) ? Math.max(edgeStrength.get(e.id)!, v) : v);
+      if (v !== undefined) edgeRank.set(e.id, Math.max(edgeRank.get(e.id) ?? 0, v));
     }
   }
-  for (const e of base.edges) if (!edgeStrength.has(e.id)) edgeStrength.set(e.id, 1);
+  const edgeStrength = new Map(base.edges.map((e) => [e.id, Math.min(1, edgeRank.get(e.id) ?? 1)]));
   const scalable = base.nodes.filter((n) => !isStructuralNode(n));
   const nodeStrength = strengthsOf(scalable, nodeCandidates, relativeTo, comparison);
   for (const n of base.nodes) if (!nodeStrength.has(n.id)) nodeStrength.set(n.id, 1);
@@ -444,7 +446,7 @@ export function thresholded(graph: FlowGraph, options: AbstractOptions = {}): Th
       keptIds.has(e.target) &&
       (e.kind !== "follows" || required.has(e.id) || (edgeStrength.get(e.id) ?? 1) >= minEdgeShare),
   );
-  return { base, nodes, edges, edgeStrength, nodeStrength, marks, protectedIds, keepIds, required, comparison };
+  return { base, nodes, edges, edgeStrength, nodeStrength, edgeRank, marks, protectedIds, keepIds, required, comparison };
 }
 
 const tagged = <T extends FlowNode | FlowEdge>(el: T): T => ({ ...el, tags: [...new Set([...(el.tags ?? []), RECONNECTED_TAG])] });
@@ -640,14 +642,14 @@ export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowG
   const { minEdgeShare = 0, minNodeShare = 0, keepConnected = true, collapse = false, relativeTo = "max" } = options;
   const byDetail = options.activityDetail !== undefined || options.pathDetail !== undefined;
   const kept = thresholded(graph, options);
-  const { base, nodeStrength, edgeStrength, required, keepIds, protectedIds, comparison } = kept;
+  const { base, nodeStrength, edgeStrength, edgeRank, required, keepIds, protectedIds, comparison } = kept;
   let { nodes, edges } = kept;
   const meta: Partial<ShownMeta> = {};
   // Whether an element would be shown without the protected marks.
   let passes: (id: string) => boolean;
   if (byDetail) {
     const nodeEvents = strengthsOf(base.nodes.filter((n) => !isStructuralNode(n)), ["events"], relativeTo, comparison, 0);
-    const s = selectByDetail({ base, nodeStrength, nodeEvents, edgeStrength, activityDetail: options.activityDetail ?? 1, pathDetail: options.pathDetail ?? 1, required });
+    const s = selectByDetail({ base, nodeStrength, nodeEvents, edgeStrength: edgeRank, activityDetail: options.activityDetail ?? 1, pathDetail: options.pathDetail ?? 1, required });
     ({ nodes, edges } = s);
     passes = (id) => s.byShare.has(id) || s.frequent.has(id) || s.anchors.has(id) || keepIds.has(id);
     const shownIds = new Set(edges.map((e) => e.id));
@@ -751,10 +753,11 @@ function loopStrengthDenominator(follows: FlowEdge[], candidates: string[], rela
   return denominator;
 }
 
+/** A self-loop's strength against the other paths', not capped at 1. */
 function strengthOfLoop(e: FlowEdge, denominator: number, candidates: string[]): number {
   const v = firstMetric(e, candidates);
   if (v === undefined) return 1;
-  return denominator > 0 ? Math.min(1, v / denominator) : 1;
+  return denominator > 0 ? v / denominator : 1;
 }
 
 interface DiffOptions {

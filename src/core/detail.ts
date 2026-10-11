@@ -56,7 +56,7 @@ export class MinHeap<T> {
 
 export interface DetailInput {
   base: FlowGraph;
-  /** Relative strength of every node and edge, 1 where nothing was measured. */
+  /** Relative strength of every node and edge, 1 where nothing was measured; a self-loop's may pass 1. */
   nodeStrength: Map<string, number>;
   /** The second key of the activities' rank: their events, relative. */
   nodeEvents: Map<string, number>;
