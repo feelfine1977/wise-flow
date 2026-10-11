@@ -5,7 +5,7 @@ The executable CI contract and release procedure are in [docs/CI.md](../docs/CI.
 | Directory | Purpose | Command |
 | --- | --- | --- |
 | `core/` | Node algorithms, seeded graph invariants, deterministic layout, filters, overlays, Canvas geometry, SVG/BPMN | `npm run test:core` |
-| `support/` | Seeded generators for searching tests: random stream, graph families, positions and viewports, event schedules, shrinking | imported by `core/` and `react/` tests |
+| `support/` | Seeded generators for searching tests: random stream, graph families, positions and viewports, event schedules, shrinking; fake layout workers and engines for lifecycle tests | imported by `core/` and `react/` tests |
 | `react/` | jsdom callbacks, keyboard interaction, state replacement and renderer lifecycles | `npm run test:components` |
 | `tooling/` | Negative checks for architecture boundaries, the source lint, workflow policies and artifact budgets | `npm run test:tooling` |
 | `package/` | Separate consumer of the actual npm tarball; NodeNext types and real browser assets/lifecycle | `npm run test:package` |
@@ -67,6 +67,22 @@ for (const seed of seeds(caseCount(20))) {
   however slow, and shares no code with what it checks.
 - A search that finds nothing is a result too: say what was searched, how many
   cases ran, and what kinds of input the generators cannot produce.
+
+A model-based test drives a lifecycle with random schedules instead of random
+input: `react/LayoutLifecycle.test.tsx` (the hook and the layout module) and
+`react/MapLifecycle.test.tsx` (the map) draw operations on a fake clock from
+`schedule`, apply them to the real code with the fake workers of
+`support/workers.ts`, and after every step compare the state with a small
+model of what must be true. `FakeLayoutWorker` stands in for `Worker` at an
+ELK and a Dagre URL and answers a layout only when the schedule says so, also
+after it was terminated; `HeldEngine` is an ELK instance a caller supplies,
+answered the same way, which the layout module cannot interrupt. Every answer
+carries its serial number in its coordinates (`replyOf`), and
+`layoutSignature` names the inputs an answer was computed for, so a test can
+tell whether what a map shows is the answer for its current request. The
+failure message names the invariant, the seed and the step, and prints the
+schedule so far; shrink such a schedule by hand or with `shrinkList` over its
+operations.
 
 ## Strict visual CI and deliberate approval
 
