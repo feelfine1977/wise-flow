@@ -5,7 +5,7 @@ The executable CI contract and release procedure are in [docs/CI.md](../docs/CI.
 | Directory | Purpose | Command |
 | --- | --- | --- |
 | `core/` | Node algorithms, seeded graph invariants, deterministic layout, filters, overlays, Canvas geometry, SVG/BPMN | `npm run test:core` |
-| `support/` | Seeded generators for searching tests: random stream, graph families, positions and viewports, event schedules, shrinking, event logs and their directly-follows graphs, BPMN-lite models, mutated BPMN files; fake layout workers and engines for lifecycle tests; a recording 2D context that says which element inked which canvas pixels | imported by `core/` and `react/` tests |
+| `support/` | Seeded generators for searching tests: random stream, graph families, positions and viewports, event schedules, shrinking, event logs and their directly-follows graphs, BPMN-lite models, mutated BPMN files; fake layout workers and engines for lifecycle tests; a recording 2D context that says which element inked which canvas pixels; the ladder of abstraction settings with scenes of four magnitudes, and readings of what a map drew with the properties they must hold | imported by `core/` and `react/` tests and the story "Thresholds and sizes" |
 | `react/` | jsdom callbacks, keyboard interaction, state replacement and renderer lifecycles | `npm run test:components` |
 | `tooling/` | Negative checks for architecture boundaries, the source lint, workflow policies and artifact budgets | `npm run test:tooling` |
 | `package/` | Separate consumer of the actual npm tarball; NodeNext types and real browser assets/lifecycle | `npm run test:package` |
@@ -89,6 +89,38 @@ for (const seed of seeds(caseCount(20))) {
   however slow, and shares no code with what it checks.
 - A search that finds nothing is a result too: say what was searched, how many
   cases ran, and what kinds of input the generators cannot produce.
+
+How a map reads across its controls is measured, not looked at.
+`ladder.ts` holds the 24 rungs of the controls (activities and paths at 0 %,
+the default 1 % and 3 %, 5 %, 10 %, 25 % and 50 %; keep connected on and
+off; stages shown and collapsed), the map's pipeline (`shownGraph`: collapse,
+then thresholds), the committed scenes with their constraint overlays, and
+`generatedScene(seed, magnitude)`: a seeded log near 100 events whose counts
+are multiplied by a whole factor to 10², 10⁴, 10⁶ or 10⁷ events, so that the
+map's shape is the same at every magnitude and only the numbers change.
+`reading.ts` turns what a renderer drew into a `Reading` (cards, texts with
+their boxes and sizes, badges, path lines with width and colour, self-loops,
+the note on withheld paths, the legend's printed ends): `readCanvas` records
+a Canvas draw, `react/map-reading.ts` reads the React map's DOM.
+`checkReading` holds a reading at the fitted view and one with everything
+any zoom draws against the scene: the map is not empty, with keep connected
+every activity lies between the start and the end, the cards and paths are
+the abstraction's, no card covers another, no arc label, path count or badge
+covers a card or another of them, texts drawn at the fitted view are at least
+9 px on screen and are shed in the documented order, path widths and colours
+follow the legend, whose ends are the scene's, printed counts read back within
+their precision (`parsePrinted`), and the note says how many paths it shows of
+how many. `findingOf` names the failures that are open decisions; every other
+failure fails the search. `pictureOf` draws a rung with its failures marked;
+`savePicture` (`pictures.ts`) writes it under `reports/thresholds/`, and the
+tests attach it to their report (`annotate`, copied to `.vitest-attachments/`).
+`core/thresholds.test.ts` reads the Canvas drawing of every rung of the
+committed scenes (laid out by ELK) and of 20 seeds at the four magnitudes,
+and checks 200 random pairs of settings for elements that come back higher
+up; `react/Thresholds.test.tsx` reads the React map and the Canvas map
+(Dagre layouts) at every committed rung and one rung of each generated scene,
+and changes the controls while layouts run. The story "Thresholds and sizes"
+shows a scene's ladder with what the test measures under each map.
 
 A model-based test drives a lifecycle with random schedules instead of random
 input: `react/LayoutLifecycle.test.tsx` (the hook and the layout module) and
