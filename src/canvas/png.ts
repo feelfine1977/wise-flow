@@ -3,7 +3,7 @@
  * canvas, in the same figure frame and with the same legend as `toSVG`.
  */
 import { type EdgeBudget, type FigurePreset, type Scene, type ShownEdges, budgetEdges, figureFrame, figureMetrics, formatCount, opacityTokens, t, textTokens } from "../core/index.js";
-import { type DrawContext, drawLegend, drawScene } from "./draw.js";
+import { type DrawContext, drawLegend, drawScene, fontOf } from "./draw.js";
 import { prepareScene } from "./scene.js";
 import { type CanvasTokens, defaultTokens } from "./tokens.js";
 
@@ -89,7 +89,7 @@ export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
   ctx.scale(k, k);
   if (scene.title) {
     ctx.fillStyle = tokens.ink;
-    ctx.font = `${textTokens.figureTitle.weight} ${textTokens.figureTitle.size}px ${tokens.font}`;
+    ctx.font = fontOf(textTokens.figureTitle, tokens.font);
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
     ctx.fillText(scene.title, pad, figureMetrics.titleBaseline);
@@ -99,7 +99,7 @@ export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
       const cases = typeof meta.cases === "number" ? formatCount(meta.cases, locale) : "–";
       const events = typeof meta.events === "number" ? formatCount(meta.events, locale) : "–";
       ctx.fillStyle = tokens.neutral;
-      ctx.font = `${textTokens.figureText.size}px ${tokens.font}`;
+      ctx.font = fontOf(textTokens.figureText, tokens.font);
       ctx.fillText(t(locale, "export.context", { label, cases, events }), pad, figureMetrics.contextBaseline);
     }
   }
@@ -118,7 +118,7 @@ export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
   }
   if (frame.note || frame.key.lines.length) {
     ctx.fillStyle = tokens.ink;
-    ctx.font = `${textTokens.figureText.size}px ${tokens.font}`;
+    ctx.font = fontOf(textTokens.figureText, tokens.font);
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
     if (frame.note) ctx.fillText(frame.note.text, frame.note.x, frame.note.y);

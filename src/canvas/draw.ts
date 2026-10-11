@@ -81,7 +81,7 @@ export const emptyState: DrawState = { selection: { nodes: [], edges: [], groups
 const CULL_ABOVE = 1500;
 
 /** The CSS font of a text role, or of a size and weight. */
-const fontOf = (role: { size: number; weight?: number }, family: string) => `${role.weight ? `${role.weight} ` : ""}${role.size}px ${family}`;
+export const fontOf = (role: { size: number; weight?: number }, family: string) => `${role.weight ? `${role.weight} ` : ""}${role.size}px ${family}`;
 
 /** An opacity as the two hex digits of an alpha channel. */
 const alpha = (opacity: number) => Math.round(opacity * 255).toString(16).padStart(2, "0");
