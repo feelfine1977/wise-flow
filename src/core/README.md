@@ -11,12 +11,13 @@ Framework-free TypeScript; runs in Node and in the browser. No DOM, no React.
 | `layout-key.ts` | Internal: the key of a layout's inputs (nodes with resolved sizes, edges, groups, options) |
 | `label-sizing.ts` | Pure zoom-to-label sizes, shape scale and screen-pixel conversion; opt-in host display policy |
 | `tokens.ts` | the design token table: colours of both schemes, palettes, font stack, node sizes, the arrowhead rule, pattern twins (`patternTwin`), hatching, every size, radius, stroke, dash, text size and weight, opacity, spacing step and z-order by role, and the CSS variables of `tokens.css` (`tokenVariables`, written by `npm run tokens`); imports nothing |
-| `style.ts` | `buildScales`, palettes with pattern twins, contrast helpers, level-of-detail rules, `patternDefs` |
+| `theme.ts` | the `Theme` type (colour roles with the dark scheme's changes, data palettes, fonts, text, radius, stroke and spacing tables, density, rules), `defaultTheme` (the token table), `themeColors` |
+| `style.ts` | `buildScales` in a theme's palettes, `themePalette`, palettes with pattern twins, contrast helpers, level-of-detail rules, `patternDefs` |
 | `overlays.ts` | constraint presets → overlays, `canonicalOverlays`, `overlayGeometry`, `describeOverlay` |
 | `overlay-geometry.ts` | placement of overlays already in canonical order: badge slots, arcs (the course crossing the fewest other nodes, the label clear of nodes, other labels and group titles), self-loops, hatch, tint, chips |
 | `overlay-marks.ts` | `overlayMarks`: one resolved mark per placed overlay (box or path, fill, stroke, dash, arrowhead, texts, layer, zoom threshold); `overlayColor`, `tintColor`, `arcWidth`, `overlayArrow` |
 | `observed-loops.ts` | `followsSelfLoops`, `withFollowsSelfLoops`, `withObservedSelfLoops`: follows edges from a node to itself as self-loop overlays |
-| `scene.ts` | `buildScene`: graph and positions resolved once into activity references, lane bands, scales, the overlays to show, level-of-detail rules, overlay geometry, overlay, node and edge marks and the legend |
+| `scene.ts` | `buildScene`: graph and positions resolved once, in a theme and colour scheme, into activity references, lane bands, scales, the overlays to show, level-of-detail rules, overlay geometry, overlay, node, edge and group marks, the colours of the paint roles and the legend |
 | `views.ts` | `buildViews`, `resolveViews`: named views of one map with shared scale domains |
 | `selection.ts` | `Selection` transitions (`selectElement`, `selectMany`), `selectionShape`, `relatedToSelection`, `describeSelection` |
 | `map-controller.ts` | Internal: the map controller. `mapStep` applies a click, key, hover, focus or menu event to the interaction state (selection, focus of paths, abstraction, view, keyboard position, hover, actions menu) and returns the next state, the live region's sentence and the intents for the host; `announceChange`; the actions menu's keyboard (`menuKey`, `firstEntry`) and header (`menuHeading`); `clickSelection`; `mapEmphasis` (focus in effect, what stays bright) |
