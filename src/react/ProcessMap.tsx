@@ -351,7 +351,8 @@ function ProcessMapInner(props: ProcessMapProps) {
     .join(" ");
   const hasStages = (baseGraph.groups ?? []).some((g) => g.kind === "stage") || !!abstraction.collapse;
   const showFilters = props.filters !== undefined || props.onFilterChange !== undefined;
-  const activeDescendant = focused ? (index.edges.has(focused) ? `wf-edge-${focused}` : `wf-node-${focused}`) : undefined;
+  // The table view renders neither the element list nor the map's elements: it names none of them.
+  const activeDescendant = focused && view !== "table" ? (index.edges.has(focused) ? `wf-edge-${focused}` : `wf-node-${focused}`) : undefined;
 
   const sidePanel = showPaths ? (
     <div className="wf-process-map__side">

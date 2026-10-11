@@ -212,6 +212,22 @@ describe("the hidden element list of a large Canvas map", () => {
     expect(named()).toBe("wf-node-a");
   });
 
+  it.each(["canvas", "svg"] as const)("names no element in the table view and the keyboard position again in the map view (%s)", (renderer) => {
+    const { graph, positions } = seeded(12, { seed: 4 });
+    const m = mountMap(graph, positions, { renderer, controls: true, describedLimit: 5 });
+    act(() => m.map.focus());
+    m.key("Home");
+    expect(m.active()).toBe("wf-node-n0");
+    // The table view renders neither the element list nor the map's elements.
+    fireEvent.click(m.getByRole("button", { name: "Table view" }));
+    expect(m.map.getAttribute("data-renderer")).toBe("table");
+    expect(m.container.querySelector('[id="wf-node-n0"]')).toBeNull();
+    expect(m.active()).toBeNull();
+    fireEvent.click(m.getByRole("button", { name: "Map view" }));
+    expect(m.active()).toBe("wf-node-n0");
+    expect(m.container.querySelector('[id="wf-node-n0"]')).not.toBeNull();
+  });
+
   it.each<[Locale, string]>([
     ["en", "Large map with 20,000 activities and 30,000 paths. The map lists the element at the keyboard position and its neighbours; the table view lists all of them."],
     ["de", "Große Karte mit 20.000 Aktivitäten und 30.000 Pfaden. Die Karte führt das Element an der Tastaturposition und seine Nachbarn auf; die Tabellenansicht führt alle auf."],
