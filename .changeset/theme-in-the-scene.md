@@ -16,7 +16,8 @@ scheme, as before. `buildScales`, `overlayMarks`, `overlayColor`,
 `tintColor`, `arcWidth`, `edgeColor`, `edgeMarks`, `nodeMark`, `nodeMarks` and
 `edgeMark` take an optional theme; `themePalette` names a palette of a theme,
 and `ColorSpec.palette` also accepts `neutral`, `shortfall` and `performance`
-(`sequential` and `sequentialBlue` keep working). Without `tokens`, the
+(`sequential` and `sequentialBlue` keep working). `patternDefs` takes the
+hatching's colour as an optional third argument. Without `tokens`, the
 Canvas drawing, its legend and the PNG export take the scene's colours and
 font.
 

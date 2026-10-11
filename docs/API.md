@@ -294,7 +294,7 @@ export function contrastText(background: string): string;  // ≥ 4.5 : 1 on eve
 export interface LodRules { labels; edgeLabels; badges; arcs; chips; hatch; selfLoops }  // minimum zoom per element
 export function lodAt(zoom: number, rules?: Partial<LodRules>): Record<keyof LodRules, boolean>;
 export function lodForSize(nodeCount: number, base?: Partial<LodRules>): LodRules;
-export function patternDefs(prefix?: string, ink?: string): string;   // <pattern> tiles of the twins and the hatching; ink defaults to colorTokens.ink
+export function patternDefs(prefix?: string, ink?: string, outOfScope?: string): string;   // <pattern> tiles of the twins and the hatching; ink and outOfScope default to colorTokens.ink and .outOfScope
 ```
 
 Categorical colours are stable by hashed key and come with a pattern twin
