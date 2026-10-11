@@ -586,8 +586,10 @@ layout is unavailable; the map shows a provisional arrangement." (string
 `map.layoutUnavailable`, English and German) and `data-layout-status` is
 `"error"`. Other layout errors are shown as before.
 
-Stylesheets: `@wise/flow/tokens.css` (design tokens, light and dark),
-`@wise/flow/style.css` (components) and `@xyflow/react/dist/style.css`.
+Stylesheets: `@wise/flow/tokens.css` (design tokens, light and dark) and
+`@wise/flow/style.css` (components and React Flow's styles, in the cascade
+layer `wf`), or, on a page with an unlayered reset, `@wise/flow/style.unlayered.css`
+after `@wise/flow/react-flow.css` (see "Styling contract").
 `tokens.css` defines `--wf-font`, `--wf-font-mono`, the themed colours
 (`--wf-paper`, `--wf-surface`, `--wf-ink`, `--wf-ink-muted`, `--wf-line`,
 `--wf-line-strong`, `--wf-focus`, `--wf-on-focus`, `--wf-selection`,
@@ -1571,6 +1573,113 @@ the drawing. A constraint arc is not an observed process route.
 `repositionNodes` keeps supplied edge identities, directions and metrics unchanged. It routes around all visible boxes, including a moved box obstructing an unrelated edge; self loops remain node-anchored overlays. During an overlapping drag, an unroutable edge falls back to a clipped direct route rather than throwing. Positions and routes are immutable, and bounds include the rerouted edges. Manual placement is local to the mounted map unless the host persists it.
 
 Custom child controls should import `useReactFlow`, `useNodesInitialized` and `useStore` from `@wise/flow/react`, so they share the renderer's context even when a host resolves different Node/browser entry points of React Flow.
+
+## Styling contract
+
+The interactive DOM map (`<ProcessMap/>` with the React Flow renderer) and the
+panels around it carry data attributes a host stylesheet can select: every part
+has `data-wf-part`, and where the table lists them `data-wf-kind` and
+`data-wf-state`. The state is a space-separated list of `selected`, `focused`,
+`hovered`, `dimmed`, `outOfScope` and `reconnected`; select one with `~=`. The
+classes the elements had before stay; they are not part of the contract.
+
+CSS written against these selectors changes only the interactive DOM map and the panels around it. It does not change the Canvas map (used automatically above 2,000 elements), SVG or PNG exports, or the BPMN diagram. Anything that must look the same everywhere belongs in the theme or a rule.
+
+| `data-wf-part` | Element | `data-wf-kind` | `data-wf-state` |
+| --- | --- | --- | --- |
+| `map` | the map's container | | |
+| `node` | a node of the map | `activity`, `stage`, `gateway`, `event`, `note` | `selected`, `focused`, `hovered`, `dimmed`, `outOfScope`, `reconnected` |
+| `node-band` | the stage band at the left edge of an activity or stage | | |
+| `node-label` | the name of a node (each name line holds one line of it) | | |
+| `node-count` | the number line of a node | | |
+| `group` | a group box or lane band | `stage`, `lane`, `pool` | `selected` |
+| `group-label` | the label of a group | | |
+| `edge` | a path between two nodes (SVG group) | `follows`, `constraint`, `flow` | `selected`, `focused`, `hovered`, `dimmed`, `reconnected` |
+| `edge-path` | the drawn line of a path | | |
+| `edge-label` | the count label of a path | | |
+| `mark` | a deviation mark (SVG group) | `badge`, `chip`, `arc`, `selfLoop`, `hatch` | `hovered` |
+| `controls` | the zoom controls (React Flow's and the Canvas map's) | | |
+| `abstraction-panel` | the sliders and toggles of `<AbstractionControls/>` | | |
+| `legend` | `<Legend/>` | | |
+| `status` | the status panel (arranging, layout error) and the note on withheld paths | | |
+| `menu` | the actions menu | | |
+| `menu-item` | an entry of the actions menu; `focused` is the active one | | `focused` |
+| `tooltip` | the activity tooltip, the Canvas map's tooltip and the timeline's | | |
+| `table` | `<TableAlternative/>` | | |
+| `table-row` | a row of a node or path in the table alternative | | `selected` |
+| `filters` | `<FilterChips/>` | | |
+| `filter-chip` | one chip of `<FilterChips/>` | | |
+| `path-list` | `<PathList/>` | | |
+| `timeline` | `<TraceTimeline/>`, as a chart and as a table | | |
+| `timeline-event` | an event of the timeline | | |
+
+`docs/styling-contract.json` lists the same parts, kinds and states. A tooling
+test (`tests/tooling/styling-contract.test.mjs`) renders the fixtures of every
+node, edge, group and overlay kind in these states and fails when an entry is
+not drawn, not listed here, or drawn but not listed. Removing an entry is a
+breaking change for the host stylesheets written against it.
+
+```css
+/* An unlayered host stylesheet; it wins over the library's rules wherever it is loaded. */
+[data-wf-part="node"][data-wf-state~="selected"] { outline: 2px solid #7a3cff; }
+[data-wf-part="edge"][data-wf-kind="follows"] [data-wf-part="edge-path"] { stroke: #444; }
+[data-wf-part="mark"][data-wf-kind="badge"] text { font-size: 12px; }
+```
+
+**Stylesheets.** `@wise/flow/style.css` puts React Flow's stylesheet and the
+library's rules into the cascade layer `wf`, React Flow's in the sublayer
+`wf.react-flow` below the library's. Any rule of the host outside a layer wins
+over both, whatever its specificity and wherever it is loaded, so host CSS needs
+no specificity contest. Load `@wise/flow/tokens.css` next to it, and do not load
+React Flow's stylesheet (`@xyflow/react/dist/style.css` or
+`@wise/flow/react-flow.css`) as well: outside a layer, it would win over the
+library's rules where they overlap.
+
+An unlayered reset wins over layered rules just as well. The browser lane shows
+it (`tests/browser/styling.spec.ts`): with a reset like Tailwind 3's preflight
+(`*, ::before, ::after { border-width: 0; border-style: solid }`) on the page,
+an activity's border disappears under `style.css`. For such a page,
+`@wise/flow/style.unlayered.css` holds the library's rules without a layer, as
+`style.css` did before; load it after the reset and after React Flow's
+stylesheet (`@wise/flow/react-flow.css`). Under it, a host rule needs the
+specificity of the library's rule it overrides and the later place, and the
+stroke of a path is set by React Flow's rule for `.react-flow__edge-path`, so a
+host rule for it needs two attribute selectors, as in the example above. A reset
+that sits in a layer of its own (Tailwind 4 puts its preflight into the layer
+`base`) works with `style.css` once the page declares that layer before `wf`
+(`@layer base, wf;` ahead of both stylesheets): the first mention of a layer
+fixes its place, and a later layer wins.
+
+Which to use: `style.css`, unless the page has a reset outside any layer; then
+`style.unlayered.css`.
+
+**What the stylesheet now sets instead of inline styles.** No inline style on an
+element of the map sets a property a host rule may want to change:
+
+- A path's stroke colour, stroke width, dash and dimmed opacity were inline
+  styles of its line. The edge now carries the scene's values as the custom
+  properties `--wf-edge-color`, `--wf-edge-width` and `--wf-edge-dash`; the
+  stylesheet draws the line from them (through React Flow's
+  `--xy-edge-stroke`, `--xy-edge-stroke-selected` and `--xy-edge-stroke-width`)
+  and from the edge's state: the focus colour when selected, hovered or
+  focused, opacity 0.25 when dimmed. A focused path's width (at least 3) is
+  the value of `--wf-edge-width`, as before.
+- The paints of marks that follow the theme (`var(--wf-ink)` and the other
+  tokens) were inline styles of their SVG elements. They are now classes, one
+  per property and token: `wf-fill-ink`, `wf-fill-ink-muted`, `wf-fill-paper`,
+  `wf-fill-surface`, `wf-fill-line`, `wf-fill-out-of-scope`, `wf-fill-focus`,
+  and the same with `wf-stroke-`. Paints from a value stay presentation
+  attributes, which any rule overrides. The BPMN view's marks keep their
+  inline paints.
+- The position of `<Badges/>` (top-right corner) and of the map's marker and
+  pattern definitions are now in the stylesheet (`.wf-badges`, `.wf-mark-defs`).
+
+What stays inline is geometry and stacking (positions, the box of an activity
+with labels, the overlay layers' z-index, the place of menus and tooltips) and
+the scene's values handed to the stylesheet as custom properties
+(`--wf-node-color`, `--wf-group-color`, `--wf-tint` and the edge's three).
+The legend's samples and the table's swatches show data colours inline; they
+are panels, not elements of the map.
 
 ## Deprecated names
 
