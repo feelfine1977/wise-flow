@@ -9,11 +9,12 @@ import { type Theme, defaultTheme } from "./theme.js";
 import { type Arrowhead, arrowheadTokens, dashTokens, opacityTokens } from "./tokens.js";
 
 /**
- * A colour by role. `ink`, `inkMuted`, `paper`, `surface`, `line` and
- * `outOfScope` are tokens the renderer resolves (and may theme); `value` is
- * the mark's `color` and `onValue` the text colour on it.
+ * A colour by role. `ink`, `inkMuted`, `paper`, `surface`, `line`,
+ * `lineStrong`, `cueStripe`, `cueFoot` and `outOfScope` are tokens the
+ * renderer resolves (and may theme); `value` is the mark's `color` and
+ * `onValue` the text colour on it.
  */
-export type MarkPaint = "ink" | "inkMuted" | "paper" | "surface" | "line" | "outOfScope" | "value" | "onValue";
+export type MarkPaint = "ink" | "inkMuted" | "paper" | "surface" | "line" | "lineStrong" | "cueStripe" | "cueFoot" | "outOfScope" | "value" | "onValue";
 
 export interface MarkFill {
   paint: MarkPaint;
@@ -225,7 +226,8 @@ function overlayMark(s: OverlayShape, locale: Locale, theme: Theme, measure: Tex
       const share = (v: number) => Math.max(0, Math.min(1, v / span));
       return {
         ...mark,
-        radius: radiusTokens.chip,
+        // A full radius is half the chip's height.
+        radius: Math.min(radiusTokens.chip, s.height / 2),
         fill: { paint: "paper" },
         stroke: { paint: "value", width: strokeTokens.chip },
         texts: [...(p.glyph ? [plain(p.glyph, s.x + padding)] : []), fitMarkText({ ...plain("", textX), ...chipText(o, locale), maxWidth: s.width - 2 * padding - (p.glyph ? glyph : 0) - (g ? gauge : 0) }, textTokens.chipLead.weight, measure)],

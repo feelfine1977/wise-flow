@@ -25,6 +25,7 @@ const graph: FlowGraph = {
     { id: "b->end", kind: "follows", source: "b", target: "end", metrics: { count: 5 } },
   ],
   groups: [{ id: "g", kind: "stage", label: "Stage" }],
+  meta: { cases: 20 },
 };
 const positions = createPositions(
   {
@@ -48,12 +49,15 @@ describe("the parity readers", () => {
   it("read the SVG export's elements from their attributes", () => {
     const drawn = svg();
     expect([...drawn.keys()].sort()).toEqual(["edge:a->b", "edge:b->end", "edge:start->a", "group:g", "mark:badge:a:0", "node:a", "node:b", "node:end", "node:start"]);
-    expect(drawn.get("node:a")).toMatchObject({ box: { x: 100, y: 0, width: 180, height: 48 }, props: { fill: "#ffffff", outlineWidth: "2", dash: "none", radius: "6", band: expect.stringMatching(/^#[0-9a-f]{6} 8$/) } });
-    expect(drawn.get("node:a")!.texts.map((t) => [t.text, t.size])).toEqual([["Approve", 12], ["10", 9]]);
-    // Start and end events: a circle of the box's half width, outlined 2 and 3 in the ink.
-    expect(drawn.get("node:start")).toMatchObject({ box: { x: 0, y: 6, width: 36, height: 36 }, props: { outline: "#1f1f1f", outlineWidth: "2", radius: "18" } });
-    expect(drawn.get("node:end")!.props.outlineWidth).toBe("3");
-    expect(drawn.get("group:g")).toMatchObject({ box: { x: 80, y: -40, width: 520, height: 120 }, props: { dash: "6 4", outlineWidth: "1.5", radius: "10" } });
+    // A card: on paper, outlined 1 in the neutral line colour, the band, and the cue: 10 of 20 cases, half of 171 (85.5) to the pixel.
+    expect(drawn.get("node:a")).toMatchObject({ box: { x: 100, y: 0, width: 180, height: 48 }, props: { fill: "#ffffff", outline: "#8c94a1", outlineWidth: "1", dash: "none", radius: "4", band: expect.stringMatching(/^#[0-9a-f]{6} 8$/), cue: "#e6e8ec 86", cueFoot: "#5f6672 86" } });
+    expect(drawn.get("node:a")!.texts.map((t) => [t.text, t.size, t.weight, t.paint])).toEqual([["Approve", 13, 500, "#1f1f1f"], ["10", 11, 600, "#1f1f1f"], ["· 50 %", 11, 400, "#5b6270"]]);
+    // A quarter: 42.75.
+    expect(drawn.get("node:b")!.props).toMatchObject({ cue: "#e6e8ec 43", cueFoot: "#5f6672 43" });
+    // Start and end events: a circle of the box's half width, outlined 1 and 2 in the ink; no cue.
+    expect(drawn.get("node:start")).toMatchObject({ box: { x: 0, y: 6, width: 36, height: 36 }, props: { outline: "#1f1f1f", outlineWidth: "1", radius: "18", cue: "none", cueFoot: "none" } });
+    expect(drawn.get("node:end")!.props.outlineWidth).toBe("2");
+    expect(drawn.get("group:g")).toMatchObject({ box: { x: 80, y: -40, width: 520, height: 120 }, props: { fill: "none", outline: "#cfd4dc", dash: "none", outlineWidth: "1", radius: "8" } });
     // An edge's box is its route's: from the right of `a` to the left of `b` at their middle.
     expect(drawn.get("edge:a->b")!.box).toEqual({ x: 280, y: 24, width: 120, height: 0 });
   });
@@ -72,8 +76,8 @@ describe("the parity readers", () => {
       png: readPng((createCanvas) => toPNGCanvas(given, { scale: 1, createCanvas }), prepareScene(graph, positions, { ...given, lodBySize: false }), bandKinds, measure),
     };
     const color = banded.scales.categorical("g").color.toLowerCase();
-    // A stage band runs along the flow: outlined left and right in the line colour, its rule 3 wide along its top.
-    expect(read.svg.get("group:g")!.props).toMatchObject({ fill: `${color}@0.06`, outline: "#cfd4dc", outlineWidth: "1", dash: "none", outlineSides: "right left", rule: `${color} 3`, radius: "0" });
+    // A stage band runs along the flow: outlined left and right in the line colour, its rule 2 wide along its top.
+    expect(read.svg.get("group:g")!.props).toMatchObject({ fill: `${color}@0.06`, outline: "#cfd4dc", outlineWidth: "1", dash: "none", outlineSides: "right left", rule: `${color} 2`, radius: "0" });
     expect(differences([{ name: "bands", kinds: bandKinds, svg: read.svg, others: { canvas: read.canvas, png: read.png } }])).toEqual([]);
   });
 
@@ -89,6 +93,22 @@ describe("the parity readers", () => {
     // One entry per width the scene gives its edges, which together hold all three edges.
     expect(new Set(added.map((d) => [d.renderer, d.kind, d.property, Number(d.other) - Number(d.svg)].join(" ")))).toEqual(new Set(["canvas edge:follows outlineWidth 1"]));
     expect(added.reduce((n, d) => n + d.elements, 0)).toBe(3);
+  });
+
+  it("report a frequency cue one renderer draws a pixel or more longer, and none within a pixel", () => {
+    const prepared = prepareScene(graph, positions, { overlays });
+    const longer = (by: number): PreparedScene => ({
+      ...prepared,
+      nodes: prepared.nodes.map((n) => {
+        const c = n.mark.cue;
+        return c?.stripe ? { ...n, mark: { ...n.mark, cue: { ...c, stripe: { ...c.stripe, box: { ...c.stripe.box, width: c.stripe.box.width + by } } } } } : n;
+      }),
+    });
+    expect(differences([{ name: "small", kinds, svg: svg(), others: { canvas: canvas(longer(0.4)) } }])).toEqual([]);
+    expect(differences([{ name: "small", kinds, svg: svg(), others: { canvas: canvas(longer(2)) } }]).map((d) => [d.kind, d.property, d.svg, d.other])).toEqual([
+      ["node:activity", "cue", "#e6e8ec 43", "#e6e8ec 45"],
+      ["node:activity", "cue", "#e6e8ec 86", "#e6e8ec 88"],
+    ]);
   });
 
   it("report a shadow that one renderer casts and the SVG export does not", () => {

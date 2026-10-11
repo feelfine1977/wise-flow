@@ -21,20 +21,20 @@ test('tokens.css is the file the generator writes from the token table', () => {
 
 test('the table gives the stylesheet its text, radius, stroke, dash, opacity, z-order, size and spacing roles as variables', () => {
   const { light } = variables;
-  assert.equal(light['--wf-text-panel'], '12px');
+  assert.equal(light['--wf-text-panel'], '13px');
   assert.equal(light['--wf-weight-legend-item'], '600');
-  assert.equal(light['--wf-leading-activity-name'], '18px');
-  assert.equal(light['--wf-text-comparison-note'], '0.875rem');
-  assert.equal(light['--wf-radius-key'], '3px');
+  assert.equal(light['--wf-leading-activity-name'], '16px');
+  assert.equal(light['--wf-text-comparison-note'], '13px');
+  assert.equal(light['--wf-radius-key'], '4px');
   assert.equal(light['--wf-radius-pill'], '999px');
-  assert.equal(light['--wf-stroke-selection'], '3px');
+  assert.equal(light['--wf-stroke-selection'], '2px');
   assert.equal(light['--wf-dash-timeline-anchor'], '4 3');
   assert.equal(light['--wf-opacity-dimmed'], '0.35');
   // Nodes and groups take their outlines, tints and texts from their marks, not from these.
   for (const role of ['--wf-text-node-label', '--wf-weight-stage-label', '--wf-stroke-node', '--wf-stroke-group', '--wf-opacity-group-fill', '--wf-radius-circle']) assert.equal(light[role], undefined, role);
   assert.equal(light['--wf-z-menu'], '30');
   assert.equal(light['--wf-size-side-list'], '380px');
-  assert.deepEqual(Object.entries(light).filter(([k]) => k.startsWith('--wf-space-')), [['--wf-space-1', '2px'], ['--wf-space-1-5', '3px'], ['--wf-space-2', '4px'], ['--wf-space-3', '6px'], ['--wf-space-4', '8px'], ['--wf-space-5', '10px'], ['--wf-space-6', '12px'], ['--wf-space-7', '14px'], ['--wf-space-8', '16px']]);
+  assert.deepEqual(Object.entries(light).filter(([k]) => k.startsWith('--wf-space-')), [['--wf-space-1', '2px'], ['--wf-space-1-5', '3px'], ['--wf-space-2', '4px'], ['--wf-space-3', '6px'], ['--wf-space-4', '8px'], ['--wf-space-5', '10px'], ['--wf-space-6', '12px'], ['--wf-space-8', '16px']]);
 });
 
 test('the check names a changed, a missing and an extra variable and a missing block', () => {
@@ -42,7 +42,7 @@ test('the check names a changed, a missing and an extra variable and a missing b
   assert.deepEqual(tokenDifferences(changed, variables), [':root: --wf-ink is #222222, the table has #1f1f1f']);
   const missing = css.replace(/\n\s*--wf-note-height: 60px;/, '');
   assert.deepEqual(tokenDifferences(missing, variables), [':root: --wf-note-height missing, the table has 60px']);
-  const extra = css.replace('--wf-radius: 6px;', '--wf-radius: 6px;\n  --wf-cat-0: #0072b2;');
+  const extra = css.replace('--wf-radius: 4px;', '--wf-radius: 4px;\n  --wf-cat-0: #0072b2;');
   assert.deepEqual(tokenDifferences(extra, variables), [':root: --wf-cat-0 is not in the table']);
   const darkChanged = css.replace(/(:root\[data-theme="dark"\] \{[^}]*--wf-paper: )#16181d/, '$1#000000');
   assert.deepEqual(tokenDifferences(darkChanged, variables), [':root[data-theme="dark"]: --wf-paper is #000000, the table has #16181d']);
@@ -61,6 +61,8 @@ test('the check names a dark block outside its media query and a variable in a b
     ':root:not([data-theme="light"]): --wf-ink-muted is not in a block of the table',
     ':root:not([data-theme="light"]): --wf-line is not in a block of the table',
     ':root:not([data-theme="light"]): --wf-line-strong is not in a block of the table',
+    ':root:not([data-theme="light"]): --wf-cue-stripe is not in a block of the table',
+    ':root:not([data-theme="light"]): --wf-cue-foot is not in a block of the table',
     ':root:not([data-theme="light"]): --wf-selection is not in a block of the table',
     ':root:not([data-theme="light"]): --wf-hover is not in a block of the table',
   ]);
@@ -70,21 +72,21 @@ test('the check names a dark block outside its media query and a variable in a b
 
 test('the check ignores comments, quotes, spacing and the case of hex digits', () => {
   const restyled = css
-    .replace('--wf-font: Inter, "Segoe UI", Helvetica, Arial, sans-serif;', "--wf-font:   Inter, 'Segoe UI',  Helvetica, Arial, sans-serif ; /* the stack */")
+    .replace('--wf-font: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;', "--wf-font:   system-ui, -apple-system, 'Segoe UI',  Roboto, Helvetica, Arial, sans-serif ; /* the stack */")
     .replace('--wf-fail: #d55e00;', '--wf-fail: #D55E00;');
   assert.deepEqual(tokenDifferences(restyled, variables), []);
 });
 
 test('the table states the default node sizes the CSS variables carry', () => {
   assert.deepEqual(tokens.nodeSizeTokens, {
-    activity: { width: 180, height: 48 },
-    stage: { width: 200, height: 56 },
+    activity: { width: 180, height: 64 },
+    stage: { width: 200, height: 64 },
     gateway: { width: 44, height: 44 },
     event: { width: 36, height: 36 },
     note: { width: 160, height: 60 },
   });
   assert.equal(variables.light['--wf-node-width'], '180px');
-  assert.equal(variables.light['--wf-stage-height'], '56px');
+  assert.equal(variables.light['--wf-stage-height'], '64px');
   assert.equal(variables.light['--wf-gateway-width'], '44px');
 });
 

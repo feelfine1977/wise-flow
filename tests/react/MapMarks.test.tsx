@@ -145,10 +145,10 @@ describe("overlay marks in the React Flow map", () => {
 describe("Badges", () => {
   it("draws badges leftwards from the top-right corner of the element they are placed in", () => {
     const { container } = render(<Badges badges={[{ kind: "badge", target: "x", payload: { value: 1 } }, { kind: "badge", target: "x", payload: { glyph: "≥1", value: 0.25 } }]} locale="en" />);
-    // Slots of the core: −(22 + 4) + 2 for the first and −2 × (24 + 4) + 2 for the 24 px wide second, half above the corner.
+    // Slots of the core: −(22 + 4) + 2 for the first and −2 × (24 + 4) + 2 for the 24 px wide second, wholly above the corner: −22 − 2.
     expect([...container.querySelectorAll(".wf-badges .wf-badge rect")].map((r) => ["x", "y", "width"].map((a) => r.getAttribute(a)))).toEqual([
-      ["-24", "-11", "22"],
-      ["-54", "-11", "24"],
+      ["-24", "-24", "22"],
+      ["-54", "-24", "24"],
     ]);
   });
 });

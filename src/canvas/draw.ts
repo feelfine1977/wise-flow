@@ -8,7 +8,7 @@
  */
 import { type Arrowhead, type Box, type BoxSide, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type PatternLook, type Selection, type ShownEdges, type TextMeasure, type Theme, arrowheadExtent, arrowheadTokens, dimensionTokens, fixedColors, hatchTokens, legendLayout, legendMetrics, budgetEdges, defaultTheme, estimateTextWidth, lodAt, markArrowhead, patternTwin } from "../core/index.js";
 import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene.js";
-import { type CanvasTokens, sceneTokens } from "./tokens.js";
+import { type CanvasTokens, defaultTokens, sceneTokens } from "./tokens.js";
 
 /** The subset of the 2D context the renderer uses (stubbed in Node tests). */
 export interface DrawContext {
@@ -411,13 +411,19 @@ function drawNode(ctx: DrawContext, scene: PreparedScene, n: SceneNode, tokens: 
   } else {
     roundedRect(ctx, b, m.radius);
   }
-  // Activities with their names written out keep their fill on hover.
-  ctx.fillStyle = hovered && !n.activityLines ? tokens.surface : paintOf(m, m.fill, tokens);
+  // Hover, selection and focus change the outline, never the fill.
+  ctx.fillStyle = paintOf(m, m.fill, tokens);
   ctx.fill();
-  ctx.strokeStyle = selected || focused ? tokens.focus : paintOf(m, m.stroke.paint, tokens);
+  ctx.strokeStyle = selected || focused ? tokens.focus : hovered ? tokens.ink : paintOf(m, m.stroke.paint, tokens);
   ctx.lineWidth = m.stroke.width;
   ctx.stroke();
   ctx.setLineDash([]);
+  // The frequency cue lies inside the outline and under the band and the texts.
+  for (const part of [m.cue?.stripe, m.cue?.foot]) {
+    if (!part) continue;
+    ctx.fillStyle = paintOf(m, part.paint, tokens);
+    ctx.fillRect(part.box.x, part.box.y, part.box.width, part.box.height);
+  }
   if (m.band) {
     ctx.fillStyle = m.color;
     ctx.fillRect(b.x, b.y, m.band, b.height);
@@ -457,7 +463,7 @@ function drawNode(ctx: DrawContext, scene: PreparedScene, n: SceneNode, tokens: 
 function paintOf(mark: { color: string; onColor?: string }, paint: MarkPaint, tokens: CanvasTokens, hovered = false): string {
   if (paint === "value") return hovered ? tokens.focus : mark.color;
   if (paint === "onValue") return hovered ? fixedColors.paper : (mark.onColor ?? mark.color);
-  return tokens[paint];
+  return tokens[paint] ?? defaultTokens[paint]!;
 }
 
 function drawMark(ctx: DrawContext, scene: PreparedScene, m: OverlayMark, tokens: CanvasTokens, hovered: boolean, options: DrawOptions) {

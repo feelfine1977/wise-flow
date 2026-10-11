@@ -60,8 +60,8 @@ describe("the text measure", () => {
     expect(wrapText("  ", 40, { size: 10 }, tens)).toEqual([""]);
     const one = "Ask";
     expect(wrapText(one, 80, { size: 10 }, tens)[0]).toBe(one);
-    // The estimate at 14 px is 7.7 per character: 32 fit the 248 of a named activity.
-    expect(wrapActivityText("Change Approval for Purchase Order", 248)).toEqual(["Change Approval for Purchase", "Order"]);
+    // The estimate at 13 px is 7.15 per character: 29 fit 210.
+    expect(wrapActivityText("Change Approval for Purchase Order", 210)).toEqual(["Change Approval for Purchase", "Order"]);
     expect(wrapActivityText("漢字漢字漢字", 28).join("")).toBe("漢字漢字漢字");
   });
 
@@ -93,57 +93,63 @@ describe("the text measure of a browser", () => {
 describe("a scene built with a text measure", () => {
   const options = { style: elements.style, selfLoops: false, textMeasure: em } as const;
 
-  it("shortens node labels by it, so that the SVG export, the Canvas map and the PNG export write the same", () => {
+  it("shortens and wraps node labels by it, so that the SVG export, the Canvas map and the PNG export write the same", () => {
     const scene = buildScene(elements.graph, elements.positions, options);
-    const label = (id: string) => scene.nodeMarks.find((m) => m.id === id)!.texts[0].text;
-    // A start event leaves 32 at 9 px: two characters and the ellipsis. The note leaves 136 at 11 px: eleven and the ellipsis.
-    expect(label("start")).toBe("St…");
-    expect(label("n")).toBe("Ask the ven…");
-    // The activity leaves 110 at 12 px (180 less padding 24, outline 2 × 2, gap 6 and "1.2k" 4 × 9): eight and the ellipsis.
-    expect(label("a")).toBe("Check in…");
+    const texts = (id: string) => scene.nodeMarks.find((m) => m.id === id)!.texts.map((t) => t.text);
+    // A start event's label below it has 96 at 11 px: "Start" fits. The note leaves 136 at 11 px: eleven and the ellipsis.
+    expect(texts("start")).toEqual(["Start"]);
+    expect(texts("n")).toEqual(["Ask the ven…"]);
+    // The activity's name has 154 at 13 px (180 less the padding 24 and the outline 2 × 1): "Check invoice" is 169, so it wraps.
+    expect(texts("a")).toEqual(["Check", "invoice", "1,234", "· –"]);
     expect(scene.textMeasure).toBe(em);
     // Without one the scene takes the estimate.
     expect(buildScene(elements.graph, elements.positions, { style: elements.style }).nodeMarks.find((m) => m.id === "n")!.texts[0].text).toBe("Ask the vendor twice");
 
     const svg = toSVG({ graph: elements.graph, positions: elements.positions, style: elements.style, selfLoops: false }, { textMeasure: em, legend: false });
-    expect(svg).toContain(">St…</text>");
     expect(svg).toContain(">Ask the ven…</text>");
+    expect(svg).toContain(">Check</text>");
     const canvas = recording();
     drawScene(canvas.ctx, prepareScene(elements.graph, elements.positions, { ...options, lodBySize: false }), { x: 0, y: 0, zoom: 1, width: 1000, height: 600 }, undefined, { cull: false });
-    expect(canvas.texts).toEqual(expect.arrayContaining(["St…", "Ask the ven…", "Check in…"]));
+    expect(canvas.texts).toEqual(expect.arrayContaining(["Ask the ven…", "Check", "invoice"]));
     expect(canvas.texts).not.toContain("Ask the vendor twice");
     const png = recording();
     toPNGCanvas({ graph: elements.graph, positions: elements.positions, style: elements.style, selfLoops: false }, { textMeasure: em, legend: false, scale: 1, createCanvas: (w, h) => ({ width: w, height: h, getContext: () => png.ctx }) });
-    expect(png.texts).toEqual(expect.arrayContaining(["St…", "Ask the ven…"]));
+    expect(png.texts).toEqual(expect.arrayContaining(["Ask the ven…", "Check", "invoice"]));
   });
 
-  it("gives a label the room the interactive map gives it: inside a solid outline and before the count on its line", () => {
-    const scene = buildScene(elements.graph, elements.positions, { ...options, textMeasure: tens });
-    const room = (id: string) => scene.nodeMarks.find((m) => m.id === id)!.texts.find((t) => t.role === "label")!.maxWidth;
-    // 180 less the padding 16 + 8, the outline 2 on both sides, the gap 6 and "1.2k" at 10 per character.
-    expect(room("a")).toBe(106);
-    // A stage: outlined 3 wide, "4 · 1.5k" after it.
-    expect(room("s")).toBe(200 - 24 - 6 - 6 - 80);
-    // A re-added activity is outlined dashed over its box and has no count; a note has no count either.
-    expect(room("r")).toBe(156);
-    expect(room("n")).toBe(136);
+  it("gives a card's name the room the interactive map gives it: inside the padding and a solid outline", () => {
+    // One unit per character: a word one unit wider than the room breaks before its last character.
+    const ones: TextMeasure = (s) => Array.from(s).length;
+    const long = (n: number) => "a".repeat(n);
+    const graph: FlowGraph = { ...elements.graph, nodes: elements.graph.nodes.map((n) => (n.id === "a" ? { ...n, label: long(155) } : n.id === "r" ? { ...n, label: long(157) } : n.id === "s" ? { ...n, label: long(175) } : n)) };
+    const scene = buildScene(graph, elements.positions, { ...options, textMeasure: ones });
+    const name = (id: string) => scene.nodeMarks.find((m) => m.id === id)!.texts.filter((t) => t.role === "nameLine").map((t) => t.text.length);
+    // 180 less the padding 16 + 8 and the outline 1 on both sides.
+    expect(name("a")).toEqual([154, 1]);
+    // A stage: 200 less the same.
+    expect(name("s")).toEqual([174, 1]);
+    // A re-added activity is outlined dashed over its box: 156.
+    expect(name("r")).toEqual([156, 1]);
+    // An event's label has 96 below it, a note's 136.
+    const room = (id: string) => scene.nodeMarks.find((m) => m.id === id)!.texts[0].maxWidth;
+    expect([room("start"), room("n")]).toEqual([96, 136]);
   });
 
-  it("wraps activity names by it and sizes their boxes with the same measure", () => {
+  it("wraps activity names by it and sizes their boxes once, whatever the measure", () => {
     const graph: FlowGraph = { nodes: [{ id: "cap", kind: "activity", label: "Change Approval for Purchase Order", metrics: { cases: 4400 } }], edges: [] };
     const names: ActivityLabelOptions = { mode: "names", references: {} };
-    // 248 at 14 px holds 17 characters of a full em; the estimate holds 32.
+    // The room of 280 less 26 holds 19 characters of a full em at 13 px; the estimate holds 35.
     const box = activityNodeSize(graph.nodes[0], names, em);
-    expect(box).toEqual({ width: 280, height: 20 + 3 * 18 + 16 });
-    expect(activityNodeSize(graph.nodes[0], names)).toEqual({ width: 280, height: 20 + 2 * 18 + 16 });
+    expect(box).toEqual({ width: 280, height: 64 });
+    expect(activityNodeSize(graph.nodes[0], names)).toEqual(box);
     const positions: Positions = { nodes: { cap: { x: 0, y: 0, ...box } }, groups: {}, edges: {}, bounds: { x: 0, y: 0, ...box }, engine: "given", direction: "RIGHT" } as Positions;
     const lines = (measure?: TextMeasure) => buildScene(graph, positions, { activityLabels: names, textMeasure: measure }).nodeMarks[0].texts.map((t) => t.text);
-    expect(lines(em)).toEqual(["Change Approval", "for Purchase", "Order", "4.4k cases"]);
-    expect(lines()).toEqual(["Change Approval for Purchase", "Order", "4.4k cases"]);
+    expect(lines(em)).toEqual(["Change Approval for", "Purchase Order", "4,400", "· –"]);
+    expect(lines()).toEqual(["Change Approval for Purchase Order", "4,400", "· –"]);
     const canvas = recording();
     drawScene(canvas.ctx, prepareScene(graph, positions, { activityLabels: names, textMeasure: em, lodBySize: false }), { x: 0, y: 0, zoom: 1, width: 400, height: 200 }, undefined, { cull: false });
-    expect(canvas.texts).toEqual(["Change Approval", "for Purchase", "Order", "4.4k cases"]);
-    expect(prepareScene(graph, positions, { activityLabels: names, textMeasure: em }).nodes[0].activityLines).toEqual({ name: ["Change Approval", "for Purchase", "Order"], counts: ["4.4k cases"] });
+    expect(canvas.texts).toEqual(["Change Approval for", "Purchase Order", "4,400", "· –"]);
+    expect(prepareScene(graph, positions, { activityLabels: names, textMeasure: em }).nodes[0].activityLines).toEqual({ name: ["Change Approval for", "Purchase Order"], counts: ["4,400 · –"] });
   });
 
   it("sizes a chip by it, its bold label measured in bold", () => {
@@ -171,14 +177,14 @@ describe("a scene built with a text measure", () => {
   it("shortens the legend's texts and widens the figure for its note by it", () => {
     const badge: Overlay = { kind: "badge", target: "a", payload: { glyph: "●", value: 0.2 } };
     const scene = buildScene(elements.graph, elements.positions, { ...options, overlays: [badge] });
-    // 164 at 9.5 px: sixteen characters and the ellipsis; by the estimate (5.225 each) thirty and the ellipsis.
+    // 164 at 11 px: thirteen characters and the ellipsis; by the estimate (6.05 each) twenty-six and the ellipsis.
     const key = legendLayout(scene.legend, { measure: scene.textMeasure }).rows.find((r) => r.row.kind === "key" && r.row.key === "badge")!;
-    expect(key.texts).toEqual(["Constraint badge…"]);
-    expect(legendLayout(scene.legend).rows.find((r) => r.row.kind === "key" && r.row.key === "badge")!.texts).toEqual(["Constraint badge with shortfal…"]);
-    expect(toSVG({ graph: elements.graph, positions: elements.positions, overlays: [badge], style: elements.style, selfLoops: false }, { textMeasure: em })).toContain(">Constraint badge…</text>");
+    expect(key.texts).toEqual(["Constraint ba…"]);
+    expect(legendLayout(scene.legend).rows.find((r) => r.row.kind === "key" && r.row.key === "badge")!.texts).toEqual(["Constraint badge with shor…"]);
+    expect(toSVG({ graph: elements.graph, positions: elements.positions, overlays: [badge], style: elements.style, selfLoops: false }, { textMeasure: em })).toContain(">Constraint ba…</text>");
     const canvas = recording();
     drawLegend(canvas.ctx, prepareScene(elements.graph, elements.positions, { ...options, overlays: [badge] }), 0, 0, 188);
-    expect(canvas.texts).toContain("Constraint badge…");
+    expect(canvas.texts).toContain("Constraint ba…");
     // "Showing 1 of 6 flows" at 11 px is 20 × 11 wide, wider than a map of one 50 wide node.
     const one: FlowGraph = { nodes: [{ id: "x", kind: "activity", label: "X" }], edges: [] };
     const box = { x: 0, y: 0, width: 50, height: 40 };

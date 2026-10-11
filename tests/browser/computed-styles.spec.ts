@@ -19,7 +19,18 @@ import { fileURLToPath } from "node:url";
  * once more when the legend began to list only the kinds of marks the map
  * draws: the legends of the stage map, the overlay catalogue and the BPMN view
  * lost their row for re-added paths (a `dd` and its glyph), which those maps do
- * not draw; every other element is the same. Geometry
+ * not draw; every other element is the same. They were recorded once more
+ * when activities became cards and the token table's sizes, weights, radii
+ * and strokes moved onto their scales: activities and stages are cards (a
+ * 1px outline in the strong line colour, corners of 4, the frequency cue's
+ * two spans, the name's lines and the number line with the cases semibold and
+ * the share muted), hovered nodes are outlined in the ink with their fill
+ * kept, groups are hairlines without a tint with a muted title, the dot grid
+ * behind the map is gone, every font is the system stack and every text 11,
+ * 13 or 15px at 400 to 600, and the hovered and right-clicked activity is
+ * "Record Invoice Receipt", since the legend now covers "Clear Invoice" at the
+ * fitted view. Tables, the timeline, the Canvas map and the BPMN view have
+ * their elements as before, in the new font and text sizes. Geometry
  * that depends on the fonts of the machine (widths, heights, positions) is left
  * out, so the record holds on every operating system.
  */
@@ -58,7 +69,7 @@ const SCENES: Scene[] = [
     map: true,
     act: async (page) => {
       await page.locator('.react-flow__node[data-id="record_goods_receipt"]').click();
-      await page.locator('.react-flow__node[data-id="clear_invoice"]').click({ button: "right" });
+      await page.locator('.react-flow__node[data-id="record_invoice_receipt"]').click({ button: "right" });
       await expect(page.getByRole("menu")).toBeVisible();
     },
   },
@@ -79,8 +90,8 @@ const SCENES: Scene[] = [
     map: true,
     act: async (page) => {
       await page.mouse.move(0, 0);
-      await page.locator('.react-flow__node[data-id="clear_invoice"]').hover();
-      await expect(page.locator('.react-flow__node[data-id="clear_invoice"] .wf-node--hovered')).toHaveCount(1);
+      await page.locator('.react-flow__node[data-id="record_invoice_receipt"]').hover();
+      await expect(page.locator('.react-flow__node[data-id="record_invoice_receipt"] .wf-node--hovered')).toHaveCount(1);
     },
   },
   {

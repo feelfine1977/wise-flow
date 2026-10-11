@@ -102,8 +102,9 @@ export function contrastText(background: string): string {
 /** Something of a theme that falls short of what `checkTheme` asks. */
 export interface ThemeDeviation {
   /**
-   * `text`: text against its ground under 4.5 : 1. `line`: a line against the
-   * paper under 3 : 1. `rampOrder`: the path ramp not monotonic in luminance.
+   * `text`: text against its ground under 4.5 : 1 (ink on the frequency cue's
+   * stripe under 7 : 1). `line`: a line against the paper under 3 : 1 (the
+   * cue's foot under 4.5 : 1). `rampOrder`: the path ramp not monotonic in luminance.
    * `rampStart`: its low end against the paper under 3 : 1. `textSize`,
    * `strokeWidth`: a table entry under the theme's minimum. `color`: a colour
    * that is not a literal.
@@ -127,6 +128,11 @@ const TEXT: [ColorToken, ColorToken][] = [["ink", "paper"], ["inkMuted", "paper"
  * whose meaning a label or a neighbour carries too.
  */
 const LINES: ColorToken[] = ["lineStrong", "neutral", "focus"];
+/**
+ * The frequency cue: text on its stripe keeps 7 : 1 (the muted ink 4.5 : 1),
+ * and its foot stands out from the card's paper at 4.5 : 1.
+ */
+const CUE: ["text" | "line", ColorToken, ColorToken, number][] = [["text", "ink", "cueStripe", 7], ["text", "inkMuted", "cueStripe", 4.5], ["line", "cueFoot", "paper", 4.5]];
 const TEXT_CONTRAST = 4.5;
 const LINE_CONTRAST = 3;
 /** Points per layout unit (a CSS pixel). */
@@ -144,7 +150,8 @@ function over(color: string, ground?: string): string {
 
 /**
  * What of a theme falls short, in both schemes: text against its ground at
- * least 4.5 : 1, lines against the paper at least 3 : 1, the path ramp
+ * least 4.5 : 1 (ink on the frequency cue's stripe 7 : 1), lines against the
+ * paper at least 3 : 1 (the cue's foot 4.5 : 1), the path ramp
  * (`palette.neutral`) monotonic in luminance with its low end at least 3 : 1
  * against the paper, no text size or stroke width of the tables under the
  * theme's `minimum`, and every colour a literal. A translucent colour is
@@ -166,6 +173,7 @@ export function checkTheme(theme: Theme): ThemeDeviation[] {
     };
     for (const [text, ground] of TEXT) check("text", `${text} on ${ground}`, c[text], c[ground], TEXT_CONTRAST);
     for (const line of LINES) check("line", `${line} on paper`, c[line], c.paper, LINE_CONTRAST);
+    for (const [kind, a, b, minimum] of CUE) check(kind, `${a} on ${b}`, c[a], c[b], minimum);
     if (ramp.length) check("rampStart", "palette.neutral", ramp[0], c.paper, LINE_CONTRAST);
   }
   for (const [role, style] of Object.entries(theme.text)) {

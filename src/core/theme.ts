@@ -12,6 +12,9 @@ import { type ColorToken, type PatternId, type PatternLook, PATTERNS, colorToken
 /** The colour scheme a scene is resolved in. */
 export type ColorScheme = "light" | "dark";
 
+/** The place of an activity's frequency cue (`Theme.frequencyCue`). */
+export type FrequencyCue = "both" | "behind" | "bottom" | "none";
+
 /** A table of the token table's shape with any values of the same types. */
 type Values<T> = T extends number ? number : T extends string ? string : T extends readonly (infer U)[] ? readonly Values<U>[] : { readonly [K in keyof T]: Values<T[K]> };
 
@@ -50,6 +53,12 @@ export interface Theme {
   opacity: Values<typeof opacityTokens>;
   /** Spacing: multiples of `unit` (`spaceTokens`). */
   space: Values<typeof spaceTokens>;
+  /**
+   * Where an activity's card shows its frequency cue, the share of all cases:
+   * a stripe `behind` its texts, a foot along its `bottom` edge, `both`, or
+   * `none`.
+   */
+  frequencyCue: FrequencyCue;
   /** How much room the map's elements take; the renderers draw `comfortable`. */
   density: "comfortable" | "compact";
   /** The smallest text and stroke the theme's tables may hold, in points at the figure's output size (one layout unit is 0.75 pt); `checkTheme` reports what is smaller. */
@@ -58,7 +67,7 @@ export interface Theme {
   rules: readonly never[];
 }
 
-/** Today's look: the token table as a theme. */
+/** The default look: the token table as a theme. */
 export const defaultTheme: Theme = {
   color: colorTokens,
   dark: darkColorTokens,
@@ -77,6 +86,7 @@ export const defaultTheme: Theme = {
   stroke: strokeTokens,
   opacity: opacityTokens,
   space: spaceTokens,
+  frequencyCue: "both",
   density: "comfortable",
   minimum: minimumTokens,
   rules: [],

@@ -15,12 +15,12 @@ function recording() {
 
 const at = { x: 0, y: 0, zoom: 1, width: 900, height: 200 };
 
-/** Outline 3, radius 9 and labels at 15 instead of 2, 6 and 12. */
+/** Cards outlined 3 wide with corners of 9 and names at 15 on lines of 18, instead of 1, 4, 13 and 16. */
 const second: Theme = {
   ...defaultTheme,
-  stroke: { ...defaultTheme.stroke, node: 3 },
+  stroke: { ...defaultTheme.stroke, node: 3, stage: 3 },
   radius: { ...defaultTheme.radius, node: 9 },
-  text: { ...defaultTheme.text, nodeLabel: { size: 15 } },
+  text: { ...defaultTheme.text, activityName: { size: 15, weight: 500, lineHeight: 18 }, stageLabel: { size: 15, weight: 600 } },
 };
 
 describe("the theme of a scene", () => {
@@ -35,21 +35,22 @@ describe("the theme of a scene", () => {
     const scene = buildScene(graph, positions, { theme: second });
     const activity = scene.nodeMarks.find((m) => m.id === "a")!;
     expect([activity.stroke.width, activity.radius, activity.texts[0].size]).toEqual([3, 9, 15]);
-    // The stage keeps its own outline (3) and its label the node label's size.
+    // The stage's card has its own outline and name.
     const stage = scene.nodeMarks.find((m) => m.id === "s")!;
     expect([stage.stroke.width, stage.radius, stage.texts[0].size]).toEqual([3, 9, 15]);
 
     const svg = toSVG({ graph, positions }, { theme: second, legend: false });
-    expect(svg).toContain('<rect x="100" y="0" width="180" height="40" rx="9" fill="#ffffff" stroke="#8c8c8c" stroke-width="3"/>');
-    expect(svg).toContain('<text x="116" y="24.5" font-size="15" fill="#1f1f1f">Check invoice</text>');
+    expect(svg).toContain('<rect x="100" y="0" width="180" height="40" rx="9" fill="#ffffff" stroke="#8c94a1" stroke-width="3"/>');
+    // The block of 18 + 14 lies (40 − 6 − 3 − 32) / 2 below the outline of 3; the baseline centres the capitals in the line: 2.5 + (18 + 10.5) / 2.
+    expect(svg).toContain('<text x="116" y="16.75" font-size="15" font-weight="500" fill="#1f1f1f">Check invoice</text>');
 
     const { ctx, log } = recording();
     drawScene(ctx, prepareScene(graph, positions, { theme: second, lodBySize: false }), at, undefined, { cull: false });
     const calls = log.join("\n");
-    // The activity's corner arcs have radius 9, its outline is 3 wide and its label is written at 15.
+    // The activity's corner arcs have radius 9, its outline is 3 wide and its name is written at 15.
     expect(calls).toContain("arc([271,9,9,");
-    expect(calls).toContain('strokeStyle="#8c8c8c"\nlineWidth=3');
-    expect(calls).toContain(`font="15px ${defaultTheme.font.family}"`);
+    expect(calls).toContain('strokeStyle="#8c94a1"\nlineWidth=3');
+    expect(calls).toContain(`font="500 15px ${defaultTheme.font.family}"`);
   });
 
   it("resolves the dark scheme's colour roles in the scene, the SVG export and the Canvas calls", () => {
@@ -61,15 +62,16 @@ describe("the theme of a scene", () => {
 
     const svg = toSVG({ graph, positions }, { scheme: "dark", legend: false });
     expect(svg).toMatch(/^<svg[^>]*><defs>.*<\/defs><rect x="0" y="0" width="[\d.]+" height="[\d.]+" fill="#16181d"\/>/);
-    expect(svg).toContain('<rect x="100" y="0" width="180" height="40" rx="6" fill="#16181d" stroke="#8c8c8c" stroke-width="2"/>');
+    expect(svg).toContain('<rect x="100" y="0" width="180" height="40" rx="4" fill="#16181d" stroke="#6b7280" stroke-width="1"/>');
     expect(svg).toContain('fill="#ececec">Check invoice</text>');
-    expect(svg).toContain('fill="#a7adb8">1.2k</text>');
+    expect(svg).toContain('fill="#ececec">1,234</text>');
+    expect(svg).toContain('fill="#a7adb8">· –</text>');
 
     const { ctx, log } = recording();
     drawScene(ctx, prepareScene(graph, positions, { scheme: "dark", lodBySize: false }), at, undefined, { cull: false });
     const calls = log.join("\n");
     expect(calls.split("\n").slice(0, 8)).toContain('fillStyle="#16181d"');
-    expect(calls).toContain('fillStyle="#ececec"\nfont="12px');
+    expect(calls).toContain('fillStyle="#ececec"\nfont="500 13px');
   });
 
   it("resolves the data colours through the theme's palettes and colour roles", () => {

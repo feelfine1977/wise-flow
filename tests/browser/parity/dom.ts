@@ -3,7 +3,7 @@
  * and geometry, in flow coordinates. `readDomInPage` runs in the page and
  * returns plain values; `readDom` turns them into a `Drawing`.
  */
-import { type Drawing, type DrawnText, bbox, dash, num, paint, shadow } from "./drawn";
+import { type Drawing, type DrawnText, bbox, cue, dash, num, paint, shadow } from "./drawn";
 
 type Box = { x: number; y: number; width: number; height: number };
 
@@ -16,6 +16,9 @@ export interface DomElement {
   radius?: number;
   shadow?: string;
   band?: { color: string; width: number };
+  /** A card's frequency cue: its stripe and its foot. */
+  cue?: { color: string; width: number };
+  cueFoot?: { color: string; width: number };
   rule?: { color: string; width: number };
   texts: { text: string; size: number; weight: number; color: string }[];
 }
@@ -133,11 +136,15 @@ export function readDomInPage(tints: { id: string; target: string }[]): DomEleme
 
   for (const wrapper of document.querySelectorAll<HTMLElement>(".react-flow__node:not(.react-flow__node-wfGroup)")) {
     const el = wrapper.querySelector<HTMLElement>(":scope > .wf-node")!;
-    const node = htmlElement(`node:${wrapper.dataset.id}`, el, ".wf-marks, .react-flow__handle, .wf-node__band, .wf-node__outline");
+    const node = htmlElement(`node:${wrapper.dataset.id}`, el, ".wf-marks, .react-flow__handle, .wf-node__band, .wf-node__outline, .wf-node__cue");
     const band = el.querySelector<HTMLElement>(":scope > .wf-node__band");
     const shape = el.querySelector<SVGGraphicsElement>(":scope > .wf-node__outline > *");
     const fill = shape ? { color: getComputedStyle(shape).fill, opacity: Number(getComputedStyle(shape).fillOpacity) * node.fill.opacity } : node.fill;
-    out.push({ ...node, ...drawnOutline(shape), fill, band: band ? { color: getComputedStyle(band).backgroundColor, width: band.offsetWidth } : undefined });
+    const part = (selector: string) => {
+      const p = el.querySelector<HTMLElement>(`:scope > ${selector}`);
+      return p ? { color: getComputedStyle(p).backgroundColor, width: rectBox(p).width } : undefined;
+    };
+    out.push({ ...node, ...drawnOutline(shape), fill, band: band ? { color: getComputedStyle(band).backgroundColor, width: band.offsetWidth } : undefined, cue: part(".wf-node__cue:not(.wf-node__cue-foot)"), cueFoot: part(".wf-node__cue-foot") });
   }
   for (const wrapper of document.querySelectorAll<HTMLElement>(".react-flow__node-wfGroup")) {
     const el = wrapper.querySelector<HTMLElement>(":scope > .wf-group")!;
@@ -207,7 +214,11 @@ export function readDom(elements: DomElement[], kinds: Map<string, string>): Dra
     }
     if (e.radius !== undefined) props.radius = num(e.radius);
     if (!kind.startsWith("mark:") && !kind.startsWith("edge:")) props.shadow = shadow(e.shadow);
-    if (kind.startsWith("node:")) props.band = e.band ? `${paint(e.band.color)} ${num(e.band.width)}` : "none";
+    if (kind.startsWith("node:")) {
+      props.band = e.band ? `${paint(e.band.color)} ${num(e.band.width)}` : "none";
+      props.cue = cue(e.cue && paint(e.cue.color), e.cue?.width);
+      props.cueFoot = cue(e.cueFoot && paint(e.cueFoot.color), e.cueFoot?.width);
+    }
     if (kind.endsWith(":band")) {
       props.outlineSides = o?.sides ?? "none";
       props.rule = e.rule ? `${paint(e.rule.color)} ${num(e.rule.width)}` : "none";

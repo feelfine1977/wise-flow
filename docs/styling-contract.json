@@ -5,6 +5,8 @@
     "map": {},
     "node": { "kinds": ["activity", "stage", "gateway", "event", "note"], "states": ["selected", "focused", "hovered", "dimmed", "outOfScope", "reconnected"] },
     "node-band": {},
+    "node-cue": {},
+    "node-cue-foot": {},
     "node-label": {},
     "node-count": {},
     "group": { "kinds": ["stage", "lane", "pool"], "states": ["selected"] },

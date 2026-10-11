@@ -132,9 +132,9 @@ describe("buildScene", () => {
       // Anchored 18 left of c's top-right corner (500, 0), radius 14.
       "selfLoop:c:2": { x: 480, y: -23, width: 45, height: 37, path: "M482 0 C482 -28 528 12 500 12", labelX: 506, labelY: -6, minZoom: defaultLod.selfLoops },
       "selfLoop:c:3": { x: 480, y: -23, width: 45, height: 37, path: "M482 0 C482 -28 528 12 500 12", labelX: 506, labelY: -6, minZoom: defaultLod.selfLoops },
-      // Slot 0 at the right end of the top edge: x = right − (width + 4) + 2, centred on the edge.
-      "badge:a:4": { x: 76, y: -11, width: 22, height: 22, path: undefined, labelX: undefined, labelY: undefined, minZoom: defaultLod.badges },
-      "badge:b:5": { x: 274, y: -11, width: 24, height: 22, path: undefined, labelX: undefined, labelY: undefined, minZoom: defaultLod.badges },
+      // Slot 0 at the right end of the top edge: x = right − (width + 4) + 2, wholly above the edge: y = −22 − 2.
+      "badge:a:4": { x: 76, y: -24, width: 22, height: 22, path: undefined, labelX: undefined, labelY: undefined, minZoom: defaultLod.badges },
+      "badge:b:5": { x: 274, y: -24, width: 24, height: 22, path: undefined, labelX: undefined, labelY: undefined, minZoom: defaultLod.badges },
       // Map chips start at the top-left of the margin: y = −10 − 164 + 4.
       [`chip:${MAP_TARGET}:6`]: { x: -10, y: -170, width: 60, height: 24, path: undefined, labelX: undefined, labelY: undefined, minZoom: defaultLod.chips },
     });

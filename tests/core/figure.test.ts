@@ -122,8 +122,8 @@ describe("legendLayout", () => {
     ]);
     expect(layout.chips.map((c) => c.y)).toEqual([194]);
     expect(layout.height).toBe(222);
-    // The estimate at 9.5 px is 5.225 per character: thirty and the ellipsis fit 188 − 24.
-    expect(layout.rows.map((r) => r.texts)).toEqual([[], [], ["invoice", "payment"], ["Constraint badge with shortfal…"], ["Re-added path"], ["⊂ Scope", "All cases"]]);
+    // The estimate at 11 px is 6.05 per character: twenty-six and the ellipsis fit 188 − 24.
+    expect(layout.rows.map((r) => r.texts)).toEqual([[], [], ["invoice", "payment"], ["Constraint badge with shor…"], ["Re-added path"], ["⊂ Scope", "All cases"]]);
     // Narrower, by another measure of 10 per character: 150 − 24 holds eleven characters and the ellipsis.
     const tens = legendLayout(legend, { measure: (t) => Array.from(t).length * 10, width: 150 });
     expect(tens.rows[4].texts).toEqual(["Re-added pa…"]);

@@ -5,7 +5,7 @@
       "renderer": "dom",
       "kind": "mark:tint",
       "property": "radius",
-      "svg": "10",
+      "svg": "8",
       "other": "0",
       "fixtures": [
         "stageBands"
@@ -16,8 +16,8 @@
       "renderer": "dom",
       "kind": "mark:tint",
       "property": "radius",
-      "svg": "10",
-      "other": "6",
+      "svg": "8",
+      "other": "4",
       "fixtures": [
         "stages"
       ],

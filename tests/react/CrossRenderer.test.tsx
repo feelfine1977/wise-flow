@@ -68,7 +68,7 @@ async function fromReact({ graph, positions, activityLabels, locale, textMeasure
   await waitFor(() => expect(container.querySelectorAll(".wf-edge").length).toBe(drawable.length));
   const nodes = new Map<string, string[]>();
   for (const el of container.querySelectorAll<HTMLElement>(".react-flow__node .wf-node")) {
-    nodes.set(el.id.replace(/^wf-node-/, ""), [...el.querySelectorAll(".wf-node__label, .wf-node__meta, .wf-activity-name > span, .wf-activity-counts > span")].map((t) => t.textContent ?? ""));
+    nodes.set(el.id.replace(/^wf-node-/, ""), [...el.querySelectorAll(".wf-node__label, .wf-activity-name > span, .wf-activity-counts > span")].map((t) => t.textContent ?? ""));
   }
   const edges = new Map<string, string[]>();
   for (const el of container.querySelectorAll<SVGGElement>("g.wf-edge")) {
@@ -140,15 +140,15 @@ describe("SVG, Canvas and React agree on the committed fixtures, with the estima
 
   it("writes what the map shows for each kind", () => {
     const { nodes, edges } = renderers.annotated.svg;
-    // Activities: label and cases; notes: their label, cut to 136 at 6.05 per character.
-    expect(nodes.get("clear_invoice")).toEqual(["Clear Invoice", expect.stringMatching(/^\d+k$/)]);
+    // Activities: name, cases and their share of the log's (183,677 of 251,734: 72.97 %); notes: their label, cut to 136 at 6.05 per character.
+    expect(nodes.get("clear_invoice")).toEqual(["Clear Invoice", "183,677", "· 73 %"]);
     expect(nodes.get("note")).toEqual(["Invoices are cleared …"]);
     expect(edges.get("goods->clear")).toEqual([]);
     expect(edges.get("note->clear")).toEqual(["3"]);
-    // Gateways show their glyph; stages their members before the cases; flow edges their count.
+    // Gateways show their glyph; stages their name, cases and share; flow edges their count.
     const lite = renderers.lite.svg;
     expect(new Set(shown.lite.nodes.filter((n) => n.kind === "gateway").map((n) => lite.nodes.get(n.id)?.join("")))).toEqual(new Set(["×"]));
-    expect(renderers.stages.svg.nodes.get("payment")?.[1]).toMatch(/^\d+ · /);
+    expect(renderers.stages.svg.nodes.get("payment")?.slice(1)).toEqual([expect.stringMatching(/^\d{1,3}(,\d{3})*$/), expect.stringMatching(/^· \d+ %$/)]);
     expect(shown.lite.edges.filter((e) => e.kind === "flow").every((e) => lite.edges.get(e.id)?.length === 1)).toBe(true);
   });
 
@@ -156,10 +156,11 @@ describe("SVG, Canvas and React agree on the committed fixtures, with the estima
     // The note leaves 136 at 11 px: 21 characters of 6.05 and the ellipsis by the estimate, 11 and it at a full em.
     expect(renderers.annotated.react.nodes.get("note")).toEqual(["Invoices are cleared …"]);
     expect(renderers["annotated measured"].react.nodes.get("note")).toEqual(["Invoices ar…"]);
-    // A name wraps at 248 at 14 px: 32 characters of 7.7 by the estimate, 17 at a full em; the cases follow, in the locale.
+    // A name wraps at 254 at 13 px: 35 characters of 7.15 by the estimate, 19 at a full em; the cases (4,377) and their share
+    // of the log's 251,734 (1.74 %) follow, in the locale.
     const lines = (name: string) => renderers[name].react.nodes.get("change_approval_for_purchase_order");
-    expect(lines("names en")).toEqual(["Change Approval for Purchase", "Order", "4.4k cases"]);
-    expect(lines("names en measured")?.slice(0, 3)).toEqual(["Change Approval", "for Purchase", "Order"]);
-    expect(lines("names de")).toEqual(["Change Approval for Purchase", "Order", "4,4k cases"]);
+    expect(lines("names en")).toEqual(["Change Approval for Purchase Order", "4,377", "· 2 %"]);
+    expect(lines("names en measured")).toEqual(["Change Approval for", "Purchase Order", "4,377", "· 2 %"]);
+    expect(lines("names de")).toEqual(["Change Approval for Purchase Order", "4.377", "· 2 %"]);
   });
 });

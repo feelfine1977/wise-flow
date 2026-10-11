@@ -59,16 +59,16 @@ test("an unlayered reset wins over the layered stylesheet, and the unlayered sty
   await openMap(page);
   const node = '.react-flow__node[data-id="clear_invoice"] .wf-node';
   const border = ["border-top-width", "border-top-style"];
-  expect(await computed(page, node, border)).toEqual(["2px", "solid"]);
+  expect(await computed(page, node, border)).toEqual(["1px", "solid"]);
   // The part of Tailwind 3's preflight that every element meets.
   await addSheet(page, "*, ::before, ::after { box-sizing: border-box; border-width: 0; border-style: solid; border-color: #e5e7eb; }");
   expect(await computed(page, node, border)).toEqual(["0px", "solid"]);
   // `@wise/flow/style.unlayered.css` (a copy of the source) after the reset.
   await addSheet(page, UNLAYERED, true);
-  expect(await computed(page, node, border)).toEqual(["2px", "solid"]);
+  expect(await computed(page, node, border)).toEqual(["1px", "solid"]);
 });
 
-test("a focused path is drawn at least 3 wide in the focus colour", async ({ page }) => {
+test("a focused path is drawn at least 2 wide in the focus colour", async ({ page }) => {
   await openMap(page);
   const map = page.locator(".wf-process-map");
   await map.focus();
@@ -79,5 +79,5 @@ test("a focused path is drawn at least 3 wide in the focus colour", async ({ pag
   const [stroke, width] = await computed(page, `[id="${id}"] [data-wf-part="edge-path"]`, ["stroke", "stroke-width"]);
   const focus = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--wf-focus").trim());
   expect(stroke).toBe(`rgb(${[1, 3, 5].map((i) => parseInt(focus.slice(i, i + 2), 16)).join(", ")})`);
-  expect(parseFloat(width)).toBeGreaterThanOrEqual(3);
+  expect(parseFloat(width)).toBeGreaterThanOrEqual(2);
 });

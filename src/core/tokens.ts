@@ -20,7 +20,12 @@ export const colorTokens = {
   inkStrong: "#000000",
   /** Hairlines and tracks. */
   line: "#cfd4dc",
+  /** Outlines that stand out: an activity's card. */
   lineStrong: "#8c94a1",
+  /** The frequency cue's stripe behind an activity's texts: ink keeps 7 : 1 on it, the muted ink 4.5 : 1. */
+  cueStripe: "#e6e8ec",
+  /** The frequency cue's foot along an activity's bottom edge: 4.5 : 1 on the paper. */
+  cueFoot: "#5f6672",
   /** Accent: focus, selection and hover outlines. */
   focus: "#0072b2",
   /** Text on the accent colour. */
@@ -48,6 +53,8 @@ export const darkColorTokens: Partial<Record<ColorToken, string>> = {
   inkMuted: "#a7adb8",
   line: "#3a3f49",
   lineStrong: "#6b7280",
+  cueStripe: "#2c3038",
+  cueFoot: "#8f96a3",
   selection: "rgba(86, 180, 233, 0.22)",
   hover: "rgba(255, 255, 255, 0.07)",
 };
@@ -69,123 +76,145 @@ export const paletteTokens = {
 } as const;
 
 export const fontTokens = {
-  family: "Inter, 'Segoe UI', Helvetica, Arial, sans-serif",
+  family: "system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
   mono: "'JetBrains Mono', 'SFMono-Regular', Menlo, monospace",
 } as const;
 
 /** Default box of each node kind, in layout units. */
 export const nodeSizeTokens = {
-  activity: { width: 180, height: 48 },
-  stage: { width: 200, height: 56 },
+  activity: { width: 180, height: 64 },
+  stage: { width: 200, height: 64 },
   gateway: { width: 44, height: 44 },
   event: { width: 36, height: 36 },
   note: { width: 160, height: 60 },
 } as const;
 
-/** Text by role: size in layout units (or a CSS length), weight, line height. */
+/**
+ * Text by role: size in layout units, weight, line height. Sizes are on the
+ * scale 11, 13 and 15, weights 400, 500 and 600.
+ */
 export const textTokens = {
-  nodeLabel: { size: 12 },
-  stageLabel: { size: 12, weight: 600 },
-  nodeCount: { size: 9 },
-  eventLabel: { size: 9 },
-  gatewayGlyph: { size: 14, weight: 700 },
+  /** @deprecated No longer read: an activity's card writes its name in `activityName`. */
+  nodeLabel: { size: 13 },
+  /** A stage node's name on its card. */
+  stageLabel: { size: 13, weight: 600 },
+  /** @deprecated No longer read: an activity's card writes its cases in `activityNumber`. */
+  nodeCount: { size: 11 },
+  eventLabel: { size: 11 },
+  gatewayGlyph: { size: 15, weight: 600 },
   noteLabel: { size: 11 },
-  activityName: { size: 14, weight: 500, lineHeight: 18 },
-  activityNumber: { size: 12, lineHeight: 16 },
-  pathLabel: { size: 10 },
-  groupLabel: { size: 14, weight: 600 },
-  badge: { size: 10, weight: 700 },
-  badgeValue: { size: 10 },
-  chip: { size: 10 },
-  chipLead: { size: 10, weight: 700 },
+  /** An activity's name on its card, on up to two lines. */
+  activityName: { size: 13, weight: 500, lineHeight: 16 },
+  /** The cases on a card's number line. */
+  activityNumber: { size: 11, weight: 600, lineHeight: 14 },
+  /** The share of all cases after them. */
+  activityShare: { size: 11 },
+  pathLabel: { size: 11 },
+  groupLabel: { size: 13, weight: 600 },
+  badge: { size: 11, weight: 600 },
+  badgeValue: { size: 11 },
+  chip: { size: 11 },
+  chipLead: { size: 11, weight: 600 },
   arcLabel: { size: 11 },
-  selfLoopLabel: { size: 10 },
-  attribution: { size: 9 },
-  legendTitle: { size: 13, weight: 700 },
+  selfLoopLabel: { size: 11 },
+  attribution: { size: 11 },
+  legendTitle: { size: 13, weight: 600 },
   legendItem: { size: 11, weight: 600 },
-  legendValue: { size: 10 },
-  legendKey: { size: 9.5 },
-  legendChip: { size: 10, weight: 600 },
-  figureTitle: { size: 18, weight: 700 },
+  legendValue: { size: 11 },
+  legendKey: { size: 11 },
+  legendChip: { size: 11, weight: 600 },
+  figureTitle: { size: 15, weight: 600 },
   figureText: { size: 11 },
-  panel: { size: 12 },
-  panelHeading: { size: 12, weight: 700 },
+  panel: { size: 13 },
+  panelHeading: { size: 13, weight: 600 },
   panelTitle: { size: 13 },
   panelNote: { size: 11 },
-  panelLabel: { size: 10, weight: 700 },
-  panelKey: { size: 10 },
-  panelSymbol: { size: 14 },
+  panelLabel: { size: 11, weight: 600 },
+  panelKey: { size: 11 },
+  panelSymbol: { size: 15 },
   panelPlain: { weight: 400 },
   tooltip: { size: 11 },
   activityTooltip: { size: 13 },
-  timelineAxis: { size: 10 },
+  timelineAxis: { size: 11 },
   timelineLabel: { size: 11 },
-  timelineNote: { size: 10 },
-  timelineMark: { size: 8 },
-  comparisonValue: { size: 14 },
-  comparisonNote: { size: "0.875rem" },
-  comparisonDenominator: { size: "0.8rem", weight: 400 },
+  timelineNote: { size: 11 },
+  timelineMark: { size: 11 },
+  comparisonValue: { size: 15 },
+  comparisonNote: { size: 13 },
+  comparisonDenominator: { size: 13, weight: 400 },
   comparisonTab: { weight: 600 },
   comparisonCaption: { weight: 600 },
   comparisonRowHeader: { weight: 500 },
-} as const satisfies Record<string, { size?: number | string; weight?: number; lineHeight?: number }>;
+} as const satisfies Record<string, { size?: number; weight?: number; lineHeight?: number }>;
 
-/** Corner radii by element; `node` and `large` (groups, panels) are `--wf-radius` and `--wf-radius-lg`. */
+/**
+ * Corner radii by element, on the scale 4, 8 and full (`pill`, which a mark
+ * resolves to half its height, and `circle`); `node` and `large` (groups,
+ * panels) are `--wf-radius` and `--wf-radius-lg`.
+ */
 export const radiusTokens = {
-  node: 6,
-  large: 10,
-  band: 3,
-  swatch: 2,
+  node: 4,
+  large: 8,
+  band: 4,
+  swatch: 4,
   control: 4,
   tooltip: 4,
-  key: 3,
+  key: 4,
   pill: 999,
   circle: "50%",
-  filterChip: 12,
-  legendGradient: 3,
-  activityTooltip: 6,
-  comparisonBar: 2,
-  tint: 10,
-  hatch: 6,
-  chip: 12,
+  filterChip: 999,
+  legendGradient: 4,
+  activityTooltip: 4,
+  comparisonBar: 4,
+  tint: 8,
+  hatch: 4,
+  chip: 999,
   canvasSelection: 8,
-  timelineEvent: 5,
-  timelineViolation: 6.5,
+  timelineEvent: 4,
+  timelineViolation: 8,
 } as const;
 
-/** Stroke widths by element and state, in layout units. */
+/**
+ * Stroke widths by element and state, in layout units, on the scale 1 and 2.
+ * Not strokes of the scale: `pathMin` to `pathMax`, the range a path's width
+ * encodes its cases in, `arcCoverage`, the width an arc adds for its coverage,
+ * and `pathHit`, the width of a path the pointer hits, which is not drawn.
+ */
 export const strokeTokens = {
-  node: 2,
-  stage: 3,
-  eventStart: 2,
-  eventEnd: 3,
-  gateway: 1.5,
-  note: 2,
+  node: 1,
+  stage: 1,
+  eventStart: 1,
+  eventEnd: 2,
+  gateway: 1,
+  note: 1,
   focus: 2,
-  selection: 3,
-  canvasSelection: 6,
-  group: 1.5,
-  canvasGroupSelected: 2.5,
-  band: 3,
-  halo: 3,
-  path: 1.5,
+  selection: 2,
+  canvasSelection: 2,
+  group: 1,
+  canvasGroupSelected: 2,
+  band: 2,
+  halo: 2,
+  path: 1,
   pathMin: 1,
   pathMax: 8,
-  canvasPathHighlight: 2.5,
-  pathFocus: 3,
+  canvasPathHighlight: 2,
+  pathFocus: 2,
   pathHit: 14,
   arc: 2,
   arcCoverage: 8,
-  selfLoop: 2.5,
-  badge: 1.5,
-  chip: 2,
-  filterChip: 2,
-  legendGradient: 0.5,
-  tab: 3,
-  timelineSpan: 1.5,
+  selfLoop: 2,
+  badge: 1,
+  chip: 1,
+  filterChip: 1,
+  legendGradient: 1,
+  tab: 2,
+  timelineSpan: 1,
   timelineViolation: 2,
   minimapNode: 2,
 } as const;
+
+/** The strokes of the table that are not drawn at a width of the scale (see `strokeTokens`). */
+export const unscaledStrokes = ["pathMin", "pathMax", "arcCoverage", "pathHit"] as const;
 
 /** Dash patterns by meaning, in layout units. */
 export const dashTokens = {
@@ -207,7 +236,8 @@ export const opacityTokens = {
   tint: 0.18,
   hatch: 0.55,
   arc: 0.9,
-  groupFill: 0.06,
+  /** Stage groups are outlined without a tint. */
+  groupFill: 0,
   bandFill: 0.06,
   bandOddFill: 0.02,
   groupStroke: 0.5,
@@ -216,7 +246,7 @@ export const opacityTokens = {
 } as const;
 
 /** Spacing: multiples of `unit`; the stylesheet reads `--wf-space-<step>`. */
-export const spaceTokens = { unit: 2, steps: [1, 1.5, 2, 3, 4, 5, 6, 7, 8] } as const;
+export const spaceTokens = { unit: 2, steps: [1, 1.5, 2, 3, 4, 5, 6, 8] } as const;
 
 /** Stacking order of the map's elements and of the layers above the map. */
 export const zTokens = {
@@ -266,6 +296,10 @@ export const dimensionTokens = {
   zoomButtonWidth: 28,
   zoomButtonHeight: 26,
   backgroundGap: 24,
+  /** Height of the frequency cue's foot along an activity's bottom edge. */
+  cueFoot: 3,
+  /** Width an event's label below its circle is shortened to. */
+  eventLabel: 96,
 } as const;
 
 /** Sizes of the node and edge marks, in layout units. */
@@ -396,15 +430,14 @@ export function patternTwin(pattern: PatternId): PatternShape {
  * `size`, in the out-of-scope colour; the live map's elements stripe their
  * background with the same width every `domPeriod`.
  */
-export const hatchTokens = { size: 8, width: 2, domPeriod: 7 } as const;
+export const hatchTokens = { size: 8, width: 1, domPeriod: 7 } as const;
 
 /**
  * The smallest text and stroke a look may draw, in points at the figure's
  * output size (one layout unit is one CSS pixel, 0.75 pt). The default look's
- * are the smallest it draws: the trace timeline's marks at 8 px and the
- * outline of the legend's ramp at 0.5 px.
+ * are the smallest of its scales: text at 11 px and strokes of 1 px.
  */
-export const minimumTokens = { text: 6, stroke: 0.375 } as const;
+export const minimumTokens = { text: 8.25, stroke: 0.75 } as const;
 
 /**
  * What the print theme changes in the table: white paper and surfaces, no
@@ -423,8 +456,6 @@ export const printTokens = {
   },
   patterns: ["diagonal", "dots", "crosshatch", "horizontal", "vertical", "diagonal-reverse", "grid"],
   pattern: { strokeOpacity: 1, dotOpacity: 1 },
-  text: { nodeCount: { size: 10 }, eventLabel: { size: 10 }, attribution: { size: 10 }, legendKey: { size: 10 }, timelineMark: { size: 10 } },
-  stroke: { legendGradient: 1 },
   opacity: { tint: 0, groupFill: 0, bandFill: 0, bandOddFill: 0 },
   minimum: { text: 7, stroke: 0.75 },
 } as const satisfies Record<string, unknown> & { patterns: readonly PatternId[] };
@@ -454,7 +485,7 @@ export const designTokens = {
 } as const;
 
 /** Colours with a CSS variable: the ones a stylesheet or the Canvas renderer reads. */
-export const themedColors: readonly ColorToken[] = ["paper", "surface", "ink", "inkMuted", "line", "lineStrong", "focus", "onFocus", "selection", "hover", "neutral", "outOfScope", "warn", "fail"];
+export const themedColors: readonly ColorToken[] = ["paper", "surface", "ink", "inkMuted", "line", "lineStrong", "cueStripe", "cueFoot", "focus", "onFocus", "selection", "hover", "neutral", "outOfScope", "warn", "fail"];
 
 /** Name of the CSS variable of a colour token: `--wf-` and the name in kebab case. */
 export function cssVariable(name: string): string {
@@ -495,7 +526,7 @@ const styledRoles = {
   dash: "timelineAnchor bpmnOutOfScope",
   opacity: "dimmed dimmedPath disabled",
   z: "comparisonRowHeader comparisonHeader comparisonCorner overlayPanel bpmnTable bpmnPanel sideList tooltip canvasTooltip bpmnNavigation menu activityTooltip",
-  size: "mapMinHeight viewMapMinHeight handle panelMaxWidth controlLabel controlOutput legendSwatchWidth legendSwatchHeight legendSample legendGlyph legendGradient searchMinWidth tableSwatch tooltipMaxWidth canvasTooltipMaxWidth activityTooltipMaxWidth bpmnTableTop watermarkClearance sideList menuMinWidth menuMaxWidth filterChipMinHeight zoomButtonWidth zoomButtonHeight",
+  size: "mapMinHeight viewMapMinHeight handle panelMaxWidth controlLabel controlOutput legendSwatchWidth legendSwatchHeight legendSample legendGlyph legendGradient searchMinWidth tableSwatch tooltipMaxWidth canvasTooltipMaxWidth activityTooltipMaxWidth bpmnTableTop watermarkClearance sideList menuMinWidth menuMaxWidth filterChipMinHeight zoomButtonWidth zoomButtonHeight cueFoot",
 } as const;
 
 /** The CSS variables of `tokens.css`: all of them in the light scheme, the ones that change in the dark scheme. */

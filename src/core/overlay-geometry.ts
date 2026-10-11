@@ -95,7 +95,7 @@ export function groupTitles(groups: readonly FlowGroup[], positions: Positions):
 
 /**
  * Geometry of overlays that are already in canonical order (see
- * `canonicalOverlays`); shape ids carry the position in that order. Badge slots along the top edge of the
+ * `canonicalOverlays`); shape ids carry the position in that order. Badge slots above the top edge of the
  * node, arcs as cubic curves above (or, for reverse arcs, below) the map, self-loops
  * at the top-right corner, hatch and tint over the element's box, chips inside groups.
  * An arc takes another height or side only where that crosses fewer other nodes;
@@ -149,7 +149,8 @@ export function placeOverlays(
         const slot = badgeCount.get(o.target) ?? 0;
         badgeCount.set(o.target, slot + 1);
         const width = p.glyph ? Math.max(badge, 10 + p.glyph.length * 7) : badge;
-        const b = clampBox({ x: box.x + box.width - (slot + 1) * (width + 4) + 2, y: box.y - badge / 2, width, height: badge });
+        // Wholly above the element, clear of its outline and its name.
+        const b = clampBox({ x: box.x + box.width - (slot + 1) * (width + 4) + 2, y: box.y - badge - 2, width, height: badge });
         shapes.push({ id, overlay: o, kind: o.kind, ...b, minZoom: lod.badges });
         return;
       }

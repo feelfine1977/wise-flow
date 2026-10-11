@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
-import { type FlowGraph, buildScene, dashTokens, dimensionTokens, opacityTokens, radiusTokens, spaceTokens, strokeTokens, textTokens, toSVG, tokenVariables, zTokens } from "../../src/index";
+import { type FlowGraph, buildScene, dashTokens, defaultTheme, dimensionTokens, fontTokens, opacityTokens, printTheme, radiusTokens, spaceTokens, strokeTokens, textTokens, toSVG, tokenVariables, zTokens } from "../../src/index";
+import { unscaledStrokes } from "../../src/core/tokens";
 import { type DrawContext, drawLegend, drawScene, prepareScene } from "../../src/canvas/index";
 import { graph, positions } from "./overlay-kinds";
 
@@ -38,15 +39,15 @@ function selected() {
   return log.join("\n");
 }
 
-// The values below are the ones the renderers drew before the table named them.
+// The values below are on the scales: text 11, 13 and 15, weights 400, 500 and 600, radii 4, 8 and full, strokes 1 and 2.
 const today = {
-  groupLabel: { size: 14, weight: 600 },
-  nodeLabel: 12,
-  pathLabel: 10,
+  groupLabel: { size: 13, weight: 600 },
+  nodeLabel: 13,
+  pathLabel: 11,
   legendItem: { size: 11, weight: 600 },
-  stroke: { node: 2, group: 1.5, halo: 3 },
+  stroke: { node: 1, group: 1, halo: 2 },
   dash: [6, 4],
-  radius: { node: 6, large: 10, band: 3 },
+  radius: { node: 4, large: 8, band: 4 },
   dimmed: 0.35,
 };
 
@@ -68,8 +69,9 @@ describe("the role tables", () => {
     expect(textTokens.nodeLabel.size).toBe(today.nodeLabel);
     expect(textTokens.pathLabel.size).toBe(today.pathLabel);
     expect(textTokens.legendItem).toEqual(today.legendItem);
-    expect(textTokens.activityName).toEqual({ size: 14, weight: 500, lineHeight: 18 });
-    expect(textTokens.activityNumber).toEqual({ size: 12, lineHeight: 16 });
+    expect(textTokens.activityName).toEqual({ size: 13, weight: 500, lineHeight: 16 });
+    expect(textTokens.activityNumber).toEqual({ size: 11, weight: 600, lineHeight: 14 });
+    expect(textTokens.activityShare).toEqual({ size: 11 });
     expect({ node: strokeTokens.node, group: strokeTokens.group, halo: strokeTokens.halo }).toEqual(today.stroke);
     expect(dashTokens.group).toEqual(today.dash);
     expect({ reconnectedNode: dashTokens.reconnectedNode, reconnectedPath: dashTokens.reconnectedPath, note: dashTokens.note, constraint: dashTokens.constraint }).toEqual({ reconnectedNode: [4, 3], reconnectedPath: [6, 5], note: [2, 3], constraint: [2, 4] });
@@ -80,51 +82,68 @@ describe("the role tables", () => {
     expect(dimensionTokens.band).toBe(8);
   });
 
-  it("are what SVG, Canvas and the marks the interactive map draws read for a group: its label, outline and dash", () => {
+  it("hold only sizes, weights, radii and strokes of the scales, in the default look and in print", () => {
+    const off: string[] = [];
+    for (const theme of [defaultTheme, printTheme]) {
+      for (const [role, style] of Object.entries(theme.text) as [string, { size?: number | string; weight?: number }][]) {
+        if (style.size !== undefined && ![11, 13, 15].includes(style.size as number)) off.push(`text.${role}.size ${style.size}`);
+        if (style.weight !== undefined && ![400, 500, 600].includes(style.weight)) off.push(`text.${role}.weight ${style.weight}`);
+      }
+      // A full radius: a pill's (999, which a mark resolves to half its height) or a circle's.
+      for (const [role, r] of Object.entries(theme.radius)) if (![4, 8, 999, "50%"].includes(r)) off.push(`radius.${role} ${r}`);
+      const ranges: readonly string[] = unscaledStrokes;
+      for (const [role, w] of Object.entries(theme.stroke)) if (!ranges.includes(role) && ![1, 2].includes(w)) off.push(`stroke.${role} ${w}`);
+    }
+    expect(off).toEqual([]);
+    // Not strokes of the scale: the range a path's width encodes its cases in, the width an arc adds for its coverage, and the pointer's width on a path.
+    expect(unscaledStrokes).toEqual(["pathMin", "pathMax", "arcCoverage", "pathHit"]);
+    expect(fontTokens.family.split(",")[0]).toBe("system-ui");
+  });
+
+  it("are what SVG, Canvas and the marks the interactive map draws read for a group: its label and its solid outline", () => {
     let { svg, canvas } = drawn();
-    expect(svg).toContain(`stroke-width="1.5" stroke-dasharray="6 4"`);
-    expect(svg).toContain(`font-size="14" font-weight="600"`);
-    expect(canvas).toContain(`lineWidth=1.5\nsetLineDash([[6,4]])`);
-    expect(canvas).toContain(`font="600 14px`);
+    expect(svg).toContain(`stroke="#cfd4dc" stroke-width="1"/>`);
+    expect(svg).toContain(`font-size="13" font-weight="600" fill="#5b6270"`);
+    expect(canvas).toContain(`lineWidth=1\nsetLineDash([[]])`);
+    expect(canvas).toContain(`font="600 13px`);
     set(textTokens, "groupLabel", { size: 17, weight: 800 });
     set(strokeTokens, "group", 2.75);
-    set(dashTokens, "group", [9, 7]);
     ({ svg, canvas } = drawn());
-    expect(svg).toContain(`stroke-width="2.75" stroke-dasharray="9 7"`);
+    expect(svg).toContain(`stroke="#cfd4dc" stroke-width="2.75"/>`);
     expect(svg).toContain(`font-size="17" font-weight="800"`);
-    expect(canvas).toContain(`lineWidth=2.75\nsetLineDash([[9,7]])`);
+    expect(canvas).toContain(`lineWidth=2.75\nsetLineDash([[]])`);
     expect(canvas).toContain(`font="800 17px`);
-    // The interactive map draws the group's mark, which the stylesheet no longer sizes.
+    // The interactive map draws the group's mark, which the stylesheet no longer sizes; no group is dashed.
     const [mark] = buildScene(graph, positions).groupMarks;
-    expect([mark.stroke.width, mark.stroke.dash, mark.texts[0].size, mark.texts[0].weight]).toEqual([2.75, [9, 7], 17, 800]);
+    expect([mark.stroke.width, mark.stroke.dash, mark.texts[0].size, mark.texts[0].weight]).toEqual([2.75, undefined, 17, 800]);
     expect(stylesheet).not.toMatch(/--wf-(stroke-group|text-group-label|weight-group-label)\b/);
   });
 
-  it("are what SVG, Canvas and the marks the interactive map draws read for an activity: its outline, radius, label and band, and the stylesheet for the band's corners", () => {
+  it("are what SVG, Canvas and the marks the interactive map draws read for an activity: its outline, radius, name and band, and the stylesheet for the band's corners", () => {
     set(strokeTokens, "node", 2.25);
     set(radiusTokens, "node", 7.5);
     set(radiusTokens, "band", 1.25);
-    set(textTokens, "nodeLabel", { size: 12.5 });
+    set(textTokens, "activityName", { size: 12.5, weight: 500, lineHeight: 16 });
     const { svg, canvas } = drawn();
-    expect(svg).toContain(`<rect x="0" y="0" width="100" height="40" rx="7.5" fill="#ffffff" stroke="#E69F00" stroke-width="2.25"/>`);
-    expect(svg).toContain(`<rect x="0" y="0" width="8" height="40" rx="1.25" fill="#E69F00"/>`);
-    expect(svg).toContain(`font-size="12.5"`);
+    expect(svg).toContain(`<rect x="0" y="0" width="100" height="40" rx="7.5" fill="#ffffff" stroke="#8c94a1" stroke-width="2.25"/>`);
+    expect(svg).toContain(`<rect x="0" y="0" width="8" height="40" class="wf-band" rx="1.25" fill="#E69F00"/>`);
+    expect(svg).toContain(`font-size="12.5" font-weight="500"`);
     expect(canvas).toContain(`lineWidth=2.25`);
-    expect(canvas).toContain(`font="12.5px`);
+    expect(canvas).toContain(`font="500 12.5px`);
     const mark = buildScene(graph, positions).nodeMarks.find((m) => m.id === "a")!;
     expect([mark.stroke.width, mark.radius, mark.texts[0].size]).toEqual([2.25, 7.5, 12.5]);
     expect(rule(".wf-node")).toContain("border: var(--wf-node-stroke) solid var(--wf-node-outline);");
     expect(rule(".wf-node")).toContain("border-radius: var(--wf-node-radius);");
-    expect(stylesheet).not.toMatch(/--wf-(stroke-node|text-node-label)\b/);
+    expect(stylesheet).not.toMatch(/--wf-(stroke-node|text-node-label|text-activity-name)\b/);
     expect(tokenVariables().light).toMatchObject({ "--wf-radius-band": "1.25px" });
     expect(rule(".wf-node__band")).toContain("border-radius: var(--wf-radius-band) 0 0 var(--wf-radius-band);");
   });
 
   it("give the Canvas selection ring its own width, its inner edge on the element, whatever the stylesheet's ring", () => {
-    // Today: 6 wide, centred 3 outside the activity, with corners of 8.
-    expect(selected()).toContain(`lineWidth=6\nsetLineDash([[]])\nbeginPath([])\nmoveTo([5,-3])\nlineTo([95,-3])`);
+    // 2 wide, centred 1 outside the activity (0, 0, 100 × 40), with corners of 8.
+    expect(selected()).toContain(`lineWidth=2\nsetLineDash([[]])\nbeginPath([])\nmoveTo([7,-1])\nlineTo([93,-1])`);
     set(strokeTokens, "selection", 5);
-    expect(selected()).toContain(`lineWidth=6\nsetLineDash([[]])\nbeginPath([])\nmoveTo([5,-3])\nlineTo([95,-3])`);
+    expect(selected()).toContain(`lineWidth=2\nsetLineDash([[]])\nbeginPath([])\nmoveTo([7,-1])\nlineTo([93,-1])`);
     set(strokeTokens, "canvasSelection", 10);
     expect(selected()).toContain(`lineWidth=10\nsetLineDash([[]])\nbeginPath([])\nmoveTo([3,-5])\nlineTo([97,-5])`);
   });

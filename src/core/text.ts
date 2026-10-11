@@ -72,6 +72,22 @@ export function wrapText(text: string, width: number, font: { size: number; weig
   return lines.length === 1 && lines[0] === text ? [text] : lines.length ? lines : [""];
 }
 
+/**
+ * At most `max` lines of `text` at most `width` wide (`wrapText`); when more
+ * would be needed, the last line holds the rest of the text shortened with an
+ * ellipsis (`truncateText`).
+ */
+export function wrapLines(text: string, width: number, font: { size: number; weight?: number }, max: number, measure: TextMeasure = estimateTextWidth): string[] {
+  const lines = wrapText(text, width, font, measure);
+  if (lines.length <= max) return lines;
+  // The lines before the last are a start of the text with its spaces made single.
+  const words = text.trim().split(/\s+/u).join(" ");
+  const kept = lines.slice(0, max - 1);
+  const rest = words.slice(kept.reduce((at, line) => words.indexOf(line, at) + line.length, 0)).trimStart();
+  // An ellipsis follows the last character it shortens to, not a space.
+  return [...kept, truncateText(rest, Math.max(font.size, width), font, measure).replace(/\s+…$/u, "…")];
+}
+
 /** The text a mark text draws: shortened to its `maxWidth` when it has one. */
 export function fitText(text: MarkText, measure: TextMeasure = estimateTextWidth): string {
   return text.maxWidth === undefined ? text.text : truncateText(text.text, text.maxWidth, { size: text.size, weight: text.weight }, measure);

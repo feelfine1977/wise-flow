@@ -64,12 +64,19 @@ describe("arcs that cross no other activity", () => {
    * before arcs began to choose their course and their label's place. The
    * overlay kinds' SVG was recorded again when groups became marks of the
    * scene: only its stage group's outline changed, drawn at full opacity.
+   * Recorded again when activities became cards and the sizes, radii and
+   * strokes moved onto their scales: the arcs' marks are unchanged (the rows'
+   * marks keep their digest); of the overlay kinds' other marks the tint has a
+   * radius of 8 (10), the hatch 4 (6), the self-loop is 2 wide (2.5), badges
+   * lie wholly above their activity (y −24 for −11) outlined 1 wide, and
+   * badge, chip and self-loop texts are 11 px with weights of 600 (10 px, 700).
+   * In the SVG of both, activities are cards and groups solid hairlines.
    */
   const recorded = {
-    kindsMarks: "4a6335a979e8e5cac63a82f3c4e8c6fd4e3bf945d67f8ae86f3a25fa5433ba9c",
-    kindsSvg: "ed20b73ee513ff1287c12f304af437a256ca6acef9a91c77142b824d37791a16",
+    kindsMarks: "084ad792614c3badbd8ed164e7a585260edc8418d4c574edc26f142cf87bbfdb",
+    kindsSvg: "610c7e42d09324460e6043abbad391303ffdf9297882a7afcf167c750c57f905",
     rowsMarks: "d5bc4e4d1fb81fcdfb77ecbe2c7d97bc1ce1304a39a759c952a531194b84ec7f",
-    rowsSvg: "f956d0cdbd76a1e869e78685fde53686457f254fdc164a06541504d6982b853f",
+    rowsSvg: "ea599083144fb6425c65bdab4715fc1b58e4b2390e6d573edfd9fd47a0af541a",
   };
 
   it("keep the marks they had", () => {

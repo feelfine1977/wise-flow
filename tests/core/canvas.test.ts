@@ -232,8 +232,9 @@ describe("activity label Canvas and PNG rendering", () => {
     expect(scene.graph).toBe(g);
     expect(scene.nodeById.get("quantity")?.node.label).toBe("Change Quantity");
     expect(texts).toContain("A02");
-    expect(texts).toContain("1.1k items");
-    expect(texts).not.toContain("2.2k events");
+    // The card's number line: the cases in full, no events; without the log's cases no share.
+    expect(texts).toEqual(expect.arrayContaining(["1,107", "· –"]));
+    expect(texts.join(" ")).not.toMatch(/2[.,]2k|2,198/);
     expect(opacity.find((text) => text.text === "A02")?.alpha).toBe(1);
     expect(texts).toContain("↻ 13 transitions");
     const pngContext = recordingContext();

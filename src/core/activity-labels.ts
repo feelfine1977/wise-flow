@@ -1,8 +1,8 @@
 import { type Locale, formatCompact, formatCount } from "./format.js";
 import { type NodeSize, defaultNodeSize } from "./layout.js";
 import { type FlowGraph, type FlowNode, metric } from "./model.js";
-import { type TextMeasure, estimateTextWidth, wrapText } from "./text.js";
-import { textTokens } from "./tokens.js";
+import { type TextMeasure, estimateTextWidth, wrapLines, wrapText } from "./text.js";
+import { spaceTokens, strokeTokens, textTokens } from "./tokens.js";
 
 const { activityName: nameText, activityNumber: numberText } = textTokens;
 
@@ -11,7 +11,7 @@ export interface ActivityLabelOptions {
   mode: "names" | "ids";
   references: Record<string, string>;
   names?: Record<string, string>;
-  /** Default true; hiding counts does not change the reserved node size. */
+  /** Default true; hiding the number line does not change the reserved node size. */
   showCounts?: boolean;
   /** Plural unit for the cases metric. Default "cases". */
   caseLabel?: string;
@@ -70,23 +70,26 @@ export function activityDescription(node: FlowNode, options: ActivityLabelOption
   return [reference ? `${reference} — ` : "", node.label, ". ", activityCounts(node, options, locale, true), "."].join("");
 }
 
+/** The room a card of `width` gives its texts in the default theme: inside its padding and outline. */
+const cardRoom = (width: number) => width - 12 * spaceTokens.unit - 2 * strokeTokens.node;
+
+/** The lines of an activity's card in the default theme: its name on up to two lines (`wrapLines`), and its cases in `options.caseLabel`. */
 export function activityLabelLines(node: FlowNode, options: ActivityLabelOptions, width: number, locale: Locale = "en", measure: TextMeasure = estimateTextWidth) {
   return {
-    name: wrapActivityText(activityLabel(node, options), width - 32, nameText.size, measure),
-    counts: wrapActivityText(activityNodeCounts(node, options, locale), width - 32, numberText.size, measure),
+    name: wrapLines(activityLabel(node, options), cardRoom(width), nameText, 2, measure),
+    counts: wrapActivityText(activityNodeCounts(node, options, locale), cardRoom(width), numberText.size, measure),
   };
 }
 
-/** Call before layout, with the text measure of the scene. Hover/focus/count visibility never affect these dimensions. */
-export function activityNodeSize(node: FlowNode, options: ActivityLabelOptions, measure: TextMeasure = estimateTextWidth): NodeSize {
+/**
+ * Call before layout. An activity's card reserves its two name lines and its
+ * number line whatever its name, so its size is fixed once: 140 wide for
+ * references, 280 for names, as high as the default activity. Hover, focus and
+ * whether the number line is shown never change it.
+ */
+export function activityNodeSize(node: FlowNode, options: ActivityLabelOptions, _measure: TextMeasure = estimateTextWidth): NodeSize {
   if (node.kind !== "activity") return defaultNodeSize(node);
-  const width = options.mode === "ids" ? 140 : 280;
-  // IDs get a fixed title row even when called before the reference inventory exists.
-  const nameRows = options.mode === "ids" ? 1 : wrapActivityText(activityLabel(node, options), width - 32, nameText.size, measure).length;
-  // Reserve the chosen metric even when the checkbox is off.
-  const countRowsIn = (locale: Locale) => wrapActivityText(activityNodeCounts(node, options, locale), width - 32, numberText.size, measure).length;
-  const countRows = Math.max(1, countRowsIn("en"), countRowsIn("de"));
-  return { width, height: 20 + nameRows * nameText.lineHeight + countRows * numberText.lineHeight };
+  return { width: options.mode === "ids" ? 140 : 280, height: defaultNodeSize(node).height };
 }
 
 /** Visible canonical key, independent of the optional colour/constraint legend. */

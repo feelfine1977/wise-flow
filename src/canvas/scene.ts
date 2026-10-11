@@ -11,7 +11,6 @@ import {
   type TextMeasure,
   type ThemeSetting,
   activityLabel,
-  activityLabelLines,
   activityNodeCounts,
   type Box,
   type EdgeMark,
@@ -171,7 +170,7 @@ export function prepareScene(graph: FlowGraph, givenPositions: Positions, option
 
 /** Retained geometry for a scene the core has built (`buildScene`). */
 export function retainScene(scene: FlowScene): PreparedScene {
-  const { positions, locale, geometry, marks, activityLabels, theme, textMeasure } = scene;
+  const { positions, locale, geometry, marks, activityLabels, theme } = scene;
   const shapesByTarget = new Map<string, OverlayShape[]>();
   for (const s of geometry.shapes) {
     if (!shapesByTarget.has(s.overlay.target)) shapesByTarget.set(s.overlay.target, []);
@@ -195,7 +194,8 @@ export function retainScene(scene: FlowScene): PreparedScene {
       color: mark.color,
       pattern: mark.pattern,
       label: labels ? activityLabel(n, labels) : n.label,
-      activityLines: labels ? activityLabelLines(n, labels, mark.box.width, locale, textMeasure) : undefined,
+      // The lines the card writes, not wrapped again.
+      activityLines: labels ? { name: mark.texts.filter((t) => t.role === "nameLine").map((t) => t.text), counts: labels.showCounts === false ? [] : [mark.texts.filter((t) => t.role === "countLine" || t.role === "share").map((t) => t.text).join(" ")] } : undefined,
       // The count the mark writes, not formatted again.
       meta: labels ? (labels.showCounts === false ? undefined : activityNodeCounts(n, labels, locale)) : (mark.texts.find((t) => t.role === "count")?.text ?? nodeCount(n, locale)),
       hatched: shapes.some((s) => s.kind === "hatch"),

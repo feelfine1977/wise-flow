@@ -43,8 +43,8 @@ describe("what the elements of a scene share", () => {
     expect(node("a2").stroke).toBe(node("a1").stroke);
     expect(node("r2").stroke).toBe(node("r1").stroke);
     // Re-added activities are dashed, so their outline differs from the others'.
-    expect(node("a1").stroke).toEqual({ paint: "value", width: 2 });
-    expect(node("r1").stroke).toEqual({ paint: "value", width: 2, dash: [4, 3] });
+    expect(node("a1").stroke).toEqual({ paint: "lineStrong", width: 1 });
+    expect(node("r1").stroke).toEqual({ paint: "lineStrong", width: 1, dash: [4, 3] });
     expect(node("r1").stroke).not.toBe(node("a1").stroke);
     for (const m of scene.nodeMarks) {
       expect(Object.isFrozen(m.stroke)).toBe(true);
@@ -80,7 +80,7 @@ describe("what the elements of a scene share", () => {
     for (const id of ["s1", "s2", "r1", "r2"]) expect(retained(id).badges).toBe(none);
     // The activities' cases are the count their marks write; an event's cases are not written on the map.
     expect(retained("a1").meta).toBe("7");
-    expect(retained("a1").mark.texts.map((t) => t.text)).toEqual(["A1", "7"]);
+    expect(retained("a1").mark.texts.map((t) => t.text)).toEqual(["A1", "7", "· –"]);
     expect(retained("s2").meta).toBe("9");
     expect(retained("s2").mark.texts.map((t) => t.role)).toEqual(["label"]);
     expect(retained("r1").meta).toBeUndefined();

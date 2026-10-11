@@ -124,7 +124,9 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
   const geometry = placeOverlays(overlays, positions, { ...(options.overlayGeometry ?? {}), lod }, groupTitles(graph.groups ?? [], positions), measure, theme.text);
   const marks = overlayMarks(geometry.shapes, locale, marked, measure);
   const scales = buildScales(graph, style, marked);
-  const nodes = nodeMarks(graph, positions, scales, { locale, activityLabels, theme: marked, measure });
+  // Elements a hatch covers are outside the scope the host evaluates; the state resolves here and reaches every renderer.
+  const outOfScope = new Set(overlays.filter((o) => o.kind === "hatch").map((o) => o.target));
+  const nodes = nodeMarks(graph, positions, scales, { locale, activityLabels, theme: marked, measure, outOfScope });
   const edges = edgeMarks(graph, positions, scales, locale, marked);
   return {
     graph,

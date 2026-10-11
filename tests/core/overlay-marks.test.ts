@@ -16,9 +16,9 @@ describe("overlay marks", () => {
     const base = { inMap: true, layer: "above", title: "", radius: 0, texts: [] };
     expect(scene.marks.map(data)).toEqual([
       // Over the box of stage s2, below the edges, from every zoom.
-      { ...base, id: "tint:s2:0", kind: "tint", layer: "below", box: { x: 190, y: -10, width: 320, height: 60 }, minZoom: 0, color: "#fd8d3c", onColor: "#000000", title: "Balance — 50 % above", radius: 10, fill: { paint: "value", opacity: 0.18 } },
+      { ...base, id: "tint:s2:0", kind: "tint", layer: "below", box: { x: 190, y: -10, width: 320, height: 60 }, minZoom: 0, color: "#fd8d3c", onColor: "#000000", title: "Balance — 50 % above", radius: 8, fill: { paint: "value", opacity: 0.18 } },
       // Without a value the colour is neutral; the hatching is 0.55 opaque, as on the map.
-      { ...base, id: "hatch:a:1", kind: "hatch", box: { x: 0, y: 0, width: 100, height: 40 }, minZoom: defaultLod.hatch, color: "#8c8c8c", onColor: "#000000", title: "Scope — Out of scope", radius: 6, fill: { paint: "outOfScope", pattern: "outOfScope", opacity: 0.55 } },
+      { ...base, id: "hatch:a:1", kind: "hatch", box: { x: 0, y: 0, width: 100, height: 40 }, minZoom: defaultLod.hatch, color: "#8c8c8c", onColor: "#000000", title: "Scope — Out of scope", radius: 4, fill: { paint: "outOfScope", pattern: "outOfScope", opacity: 0.55 } },
       // Width 2 + 8 × coverage 0.5; label at the apex (250, 0.75 × −88 − 8); between the edges and the nodes.
       {
         ...base, id: "arc:a->c:2", kind: "arc", layer: "between", box: { x: 50, y: -88, width: 400, height: 88 }, minZoom: defaultLod.arcs, color: "#fdd0a2", onColor: "#000000",
@@ -33,39 +33,40 @@ describe("overlay marks", () => {
       },
       {
         ...base, id: "selfLoop:c:4", kind: "selfLoop", box: { x: 480, y: -23, width: 45, height: 37 }, minZoom: defaultLod.selfLoops, color: "#d94801", onColor: "#000000",
-        path: "M482 0 C482 -28 528 12 500 12", stroke: { paint: "value", width: 2.5 }, arrow: { size: 12, overhang: 0.1 },
-        texts: [{ ...ink, text: "↻ 75 %", x: 506, y: -6, size: 10, anchor: "start", baseline: "alphabetic" }],
+        path: "M482 0 C482 -28 528 12 500 12", stroke: { paint: "value", width: 2 }, arrow: { size: 12, overhang: 0.1 },
+        texts: [{ ...ink, text: "↻ 75 %", x: 506, y: -6, size: 11, anchor: "start", baseline: "alphabetic" }],
       },
-      // A badge without a glyph shows a dot and its share once, beside it.
+      // A badge without a glyph shows a dot and its share once, beside it; wholly above the box, 2 clear of it (−22 − 2).
       {
-        ...base, id: "badge:a:5", kind: "badge", box: { x: 76, y: -11, width: 22, height: 22 }, minZoom: defaultLod.badges, color: "#7f2704", onColor: "#ffffff",
-        radius: 11, fill: { paint: "value" }, stroke: { paint: "paper", width: 1.5 },
+        ...base, id: "badge:a:5", kind: "badge", box: { x: 76, y: -24, width: 22, height: 22 }, minZoom: defaultLod.badges, color: "#7f2704", onColor: "#ffffff",
+        radius: 11, fill: { paint: "value" }, stroke: { paint: "paper", width: 1 },
         texts: [
-          { text: "●", x: 87, y: 0.5, size: 10, weight: 700, anchor: "middle", baseline: "middle", paint: "onValue", halo: false },
-          { ...ink, text: "100 %", x: 102, y: 0.5, size: 10, anchor: "start", baseline: "middle" },
+          { text: "●", x: 87, y: -12.5, size: 11, weight: 600, anchor: "middle", baseline: "middle", paint: "onValue", halo: false },
+          { ...ink, text: "100 %", x: 102, y: -12.5, size: 11, anchor: "start", baseline: "middle" },
         ],
       },
       {
-        ...base, id: "badge:b:6", kind: "badge", box: { x: 274, y: -11, width: 24, height: 22 }, minZoom: defaultLod.badges, color: "#fdd0a2", onColor: "#000000",
-        radius: 11, fill: { paint: "value" }, stroke: { paint: "paper", width: 1.5 },
+        ...base, id: "badge:b:6", kind: "badge", box: { x: 274, y: -24, width: 24, height: 22 }, minZoom: defaultLod.badges, color: "#fdd0a2", onColor: "#000000",
+        radius: 11, fill: { paint: "value" }, stroke: { paint: "paper", width: 1 },
         texts: [
-          { text: "≥1", x: 286, y: 0.5, size: 10, weight: 700, anchor: "middle", baseline: "middle", paint: "onValue", halo: false },
-          { ...ink, text: "25 %", x: 302, y: 0.5, size: 10, anchor: "start", baseline: "middle" },
+          { text: "≥1", x: 286, y: -12.5, size: 11, weight: 600, anchor: "middle", baseline: "middle", paint: "onValue", halo: false },
+          { ...ink, text: "25 %", x: 302, y: -12.5, size: 11, anchor: "start", baseline: "middle" },
         ],
       },
       // Map-level chips are listed with the legend, not drawn on the map.
       {
         ...base, id: `chip:${MAP_TARGET}:7`, kind: "chip", inMap: false, box: { x: -10, y: -170, width: 60, height: 24 }, minZoom: defaultLod.chips, color: "#8c8c8c", onColor: "#000000", title: "Scope",
-        radius: 12, fill: { paint: "paper" }, stroke: { paint: "value", width: 2 },
-        texts: [{ text: "Scope", x: -2, y: -157.5, size: 10, anchor: "start", baseline: "middle", paint: "ink", halo: false, maxWidth: 44 }],
+        // A full radius is half the chip's height.
+        radius: 12, fill: { paint: "paper" }, stroke: { paint: "value", width: 1 },
+        texts: [{ text: "Scope", x: -2, y: -157.5, size: 11, anchor: "start", baseline: "middle", paint: "ink", halo: false, maxWidth: 44 }],
       },
       {
         ...base, id: "chip:s2:8", kind: "chip", box: { x: 442, y: -4, width: 60, height: 24 }, minZoom: defaultLod.chips, color: "#8c8c8c", onColor: "#000000", title: "Late",
-        radius: 12, fill: { paint: "paper" }, stroke: { paint: "value", width: 2 },
+        radius: 12, fill: { paint: "paper" }, stroke: { paint: "value", width: 1 },
         // The glyph, then the text 2 characters (12.4 px) further.
         texts: [
-          { text: "◔", x: 450, y: 8.5, size: 10, anchor: "start", baseline: "middle", paint: "ink", halo: false },
-          { text: "Late", x: 462.4, y: 8.5, size: 10, anchor: "start", baseline: "middle", paint: "ink", halo: false, maxWidth: 31.6 },
+          { text: "◔", x: 450, y: 8.5, size: 11, anchor: "start", baseline: "middle", paint: "ink", halo: false },
+          { text: "Late", x: 462.4, y: 8.5, size: 11, anchor: "start", baseline: "middle", paint: "ink", halo: false, maxWidth: 31.6 },
         ],
       },
     ]);
@@ -79,22 +80,22 @@ describe("overlay marks", () => {
     const marks = ["s2", "s1"].map((target) => buildScene(graph, positions, { overlays: chips, selfLoops: false, locale: "de" }).marks.find((m) => m.overlay.target === target)!);
     const r = (n: number) => Math.round(n * 100) / 100;
     const rounded = <T,>(o: T): T => JSON.parse(JSON.stringify(o), (_, v) => (typeof v === "number" ? r(v) : v));
-    // 16 px padding, 12.4 px glyph, 46 px gauge and "Touches: 2.1 ⌀" (14 characters of 5.5 by the estimate at 10 px): 151.4 wide,
-    // right-aligned 8 px inside s2 (190 + 320 − 8 − 151.4) and 6 px below its top.
+    // 16 px padding, 12.4 px glyph, 46 px gauge and "Touches: 2.1 ⌀" (14 characters of 6.05 by the estimate at 11 px): 159.1 wide,
+    // right-aligned 8 px inside s2 (190 + 320 − 8 − 159.1) and 6 px below its top.
     expect(rounded(marks[0])).toMatchObject({
-      box: { x: 350.6, y: -4, width: 151.4, height: 24 },
+      box: { x: 342.9, y: -4, width: 159.1, height: 24 },
       color: "#fd8d3c",
       title: "Touches — 2.1 ⌀",
       texts: [
-        { text: "◔", x: 358.6, y: 8.5 },
-        { lead: "Touches: ", text: "2.1 ⌀", x: 417, y: 8.5, maxWidth: 77 },
+        { text: "◔", x: 350.9, y: 8.5 },
+        { lead: "Touches: ", text: "2.1 ⌀", x: 409.3, y: 8.5, maxWidth: 84.7 },
       ],
       // The scale runs to threshold + width (3): the mean fills 2.1 / 3, the tick sits at 2 / 3.
-      gauge: { x: 371, y: 5, width: 40, height: 6, value: 0.7, threshold: 0.67 },
+      gauge: { x: 363.3, y: 5, width: 40, height: 6, value: 0.7, threshold: 0.67 },
     });
-    // Without a text the chip shows its share after the label, in the scene's locale: 16 + 10 × 5.5 = 71 wide,
-    // right-aligned in s1 (−10 + 120 − 8 − 71).
-    expect(rounded(marks[1])).toMatchObject({ box: { x: 31, y: -4, width: 71, height: 24 }, texts: [{ lead: "Late: ", text: "25 %", x: 39 }] });
+    // Without a text the chip shows its share after the label, in the scene's locale: 16 + 10 × 6.05 = 76.5 wide,
+    // right-aligned in s1 (−10 + 120 − 8 − 76.5).
+    expect(rounded(marks[1])).toMatchObject({ box: { x: 25.5, y: -4, width: 76.5, height: 24 }, texts: [{ lead: "Late: ", text: "25 %", x: 33.5 }] });
     expect(marks[1].gauge).toBeUndefined();
   });
 

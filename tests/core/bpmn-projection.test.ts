@@ -59,9 +59,9 @@ describe("the overlay projection onto a BPMN diagram", () => {
     return { element, position, show, scale, className, marker };
   };
 
-  it("attaches a badge to its task at its slot, half above the top edge, from the badge zoom, legible at every zoom", () => {
-    // 22 px wide in the first slot from the right: 100 + 100 - 26 + 2 = 176, 100 - 11 = 89, offset from the task at (100, 100).
-    expect(box("badge")).toEqual({ element: "Task_A", position: { top: -11, left: 76 }, show: { minZoom: 0.3 }, scale: { min: 0.8, max: 1.2 }, className: "wf-badge", marker: "wf-bpmn--badge" });
+  it("attaches a badge to its task at its slot, wholly above the top edge, from the badge zoom, legible at every zoom", () => {
+    // 22 px wide in the first slot from the right: 100 + 100 - 26 + 2 = 176, 100 - 22 - 2 = 76, offset from the task at (100, 100).
+    expect(box("badge")).toEqual({ element: "Task_A", position: { top: -24, left: 76 }, show: { minZoom: 0.3 }, scale: { min: 0.8, max: 1.2 }, className: "wf-badge", marker: "wf-bpmn--badge" });
   });
 
   it("covers the task with a tint below its shape at every zoom, scaled with the diagram", () => {
