@@ -20,3 +20,6 @@ such a box or route out as if it were missing; `coversGraph` no longer
 counts such a box, so `<ProcessMap/>` lays the graph out instead of drawing
 the given positions. Before, the numbers were written into the SVG and the
 BPMN diagram interchange and given to the map's elements.
+
+`layout` with Dagre (asked for, or as the fallback) places a node and routes
+an edge whose id is the empty string; it failed with a `TypeError` before.

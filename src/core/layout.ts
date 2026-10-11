@@ -510,25 +510,27 @@ interface DagreGraph {
  * Dagre worker runs this function's source as it is.
  */
 export function dagreJob(dagre: { Graph: new (options: object) => DagreGraph; layout(graph: DagreGraph): void }, input: DagreInput): DagreOutput {
+  // Graphlib reads an empty name as none and keeps \x00 and \x01 for itself: such names get \x02 in front.
+  const k = (id: string) => (!id || id < "\x03" ? "\x02" + id : id);
   const g = new dagre.Graph({ compound: input.compound, multigraph: true });
   g.setGraph(input.graph);
   g.setDefaultEdgeLabel(() => ({}));
-  for (const [id, label] of input.groups) g.setNode(id, { label, clusterLabelPos: "top" });
-  for (const [id, , parent] of input.groups) if (parent) g.setParent(id, parent);
+  for (const [id, label] of input.groups) g.setNode(k(id), { label, clusterLabelPos: "top" });
+  for (const [id, , parent] of input.groups) if (parent) g.setParent(k(id), k(parent));
   for (const [id, width, height, parent] of input.nodes) {
-    g.setNode(id, { width, height });
-    if (parent) g.setParent(id, parent);
+    g.setNode(k(id), { width, height });
+    if (parent) g.setParent(k(id), k(parent));
   }
-  for (const [id, source, target] of input.edges) g.setEdge(source, target, { minlen: 1 }, id);
+  for (const [id, source, target] of input.edges) g.setEdge(k(source), k(target), { minlen: 1 }, k(id));
   dagre.layout(g);
   const boxes: DagreOutput["boxes"] = {};
   const edges: DagreOutput["edges"] = {};
   for (const [id] of [...input.groups, ...input.nodes]) {
-    const v = g.node(id) as DagreOutput["boxes"][string] | undefined;
+    const v = g.node(k(id)) as DagreOutput["boxes"][string] | undefined;
     if (v) boxes[id] = { x: v.x, y: v.y, width: v.width, height: v.height };
   }
   for (const [id, source, target] of input.edges) {
-    const v = g.edge({ v: source, w: target, name: id }) as { points?: XY[] } | undefined;
+    const v = g.edge({ v: k(source), w: k(target), name: k(id) }) as { points?: XY[] } | undefined;
     if (v?.points) edges[id] = v.points.map((pt) => ({ x: pt.x, y: pt.y }));
   }
   return { boxes, edges };

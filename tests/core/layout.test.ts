@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { globalScene, vendorScene } from "../../fixtures/bpic2019";
-import { type Box, abstract, coversGraph, filterPositions, layout, layoutUnion, unionGraph } from "../../src/index";
+import { type Box, type FlowGraph, abstract, coversGraph, filterPositions, layout, layoutUnion, unionGraph } from "../../src/index";
 
 function contains(outer: Box, inner: Box, slack = 0.5): boolean {
   return (
@@ -44,6 +44,29 @@ describe("layout", () => {
     }
     const timedOut = await layout(small, { timeoutMs: 0 });
     expect(timedOut.engine).toBe("dagre");
+  });
+});
+
+describe("layout of empty ids", () => {
+  // The node "" and the edge "" from it; "\u0000" is the name graphlib gives its root.
+  const graph: FlowGraph = {
+    nodes: [
+      { id: "", kind: "activity", label: "Nameless" },
+      { id: "\u0000", kind: "activity", label: "Zero" },
+      { id: "b", kind: "activity", label: "B" },
+    ],
+    edges: [
+      { id: "", kind: "follows", source: "", target: "b" },
+      { id: "\u0000", kind: "follows", source: "\u0000", target: "b" },
+      { id: "b->", kind: "follows", source: "b", target: "" },
+    ],
+  };
+
+  it.each(["dagre", "elk"] as const)("places every node and routes every edge with %s", async (engine) => {
+    const p = await layout(graph, { engine });
+    for (const id of ["", "\u0000", "b"]) expect(Object.values(p.nodes[id]).every(Number.isFinite), JSON.stringify(id)).toBe(true);
+    expect(new Set([p.nodes[""].x, p.nodes["\u0000"].x, p.nodes.b.x]).size + new Set([p.nodes[""].y, p.nodes["\u0000"].y, p.nodes.b.y]).size).toBeGreaterThan(3);
+    for (const id of ["", "\u0000", "b->"]) expect(p.edges[id]?.points.length, JSON.stringify(id)).toBeGreaterThanOrEqual(2);
   });
 });
 
