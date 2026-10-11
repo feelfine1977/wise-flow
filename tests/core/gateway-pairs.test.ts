@@ -93,7 +93,7 @@ describe("validateGateways", () => {
       expect(validateGraph(g)).toEqual([]);
       expect(validateGateways(g)).toEqual([]);
       const game = playTokens(g);
-      expect(game).toMatchObject({ complete: true, completes: true, stuck: [], unsafe: [] });
+      expect(game).toMatchObject({ complete: true, completes: true, stuck: [], unsafe: [], trapped: [], dead: [] });
     }
   });
 });
