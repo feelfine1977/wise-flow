@@ -9,8 +9,8 @@ radius, stroke and spacing tables, a density and a list of rules (empty for
 now); `defaultTheme` is the token table and `themeColors` resolves a scheme.
 `buildScene(graph, positions, { theme, scheme })` resolves every mark's
 outline, dash, radius, text style and data colour in it and carries the
-colours of the paint roles (`FlowScene.theme`, `scheme`, `colors`). `toSVG`
-and `toPNG` take `theme` and `scheme`, `prepareScene` and `<ProcessMap/>` take
+colours of the paint roles (`FlowScene.theme`, `scheme`, `colors`). `toSVG`,
+`toPNG` and `prepareScene` take `theme` and `scheme`, `<ProcessMap/>` takes
 `theme`; without them everything draws in the default theme and the light
 scheme, as before. `buildScales`, `overlayMarks`, `overlayColor`,
 `tintColor`, `arcWidth`, `edgeColor`, `edgeMarks`, `nodeMark`, `nodeMarks` and

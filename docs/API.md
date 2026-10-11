@@ -424,8 +424,8 @@ the PNG export draw these values, so a theme reaches all of them alike; the
 interactive map draws the marks too and paints the roles with the CSS
 variables of `tokens.css`, whose dark blocks hold the same values as the
 dark scheme. `defaultTheme` is the token table, and a scene without a theme
-draws as before. `toSVG` and `toPNG` take `theme` and `scheme`,
-`prepareScene` and `<ProcessMap/>` take `theme`.
+draws as before. `toSVG`, `toPNG` and `prepareScene` take `theme` and
+`scheme`, `<ProcessMap/>` takes `theme`.
 
 ## Overlays
 
@@ -1218,7 +1218,7 @@ renderer above `canvasThreshold` elements; the container carries
 export interface PreparedScene extends FlowScene { shapes: OverlayShape[]; nodes: SceneNode[]; edges: SceneEdge[];
   groups: SceneGroup[]; bounds: Box; hit: HitIndex; size: number; nodeById; edgeById; groupById; shapeById; labelCache }
 export function prepareScene(g: FlowGraph, p: Positions, o?: { activityLabels?; style?; overlays?; lod?; lodBySize?: boolean; locale?;
-  lanes?: LaneMode; bands?: LaneBand[]; overlayGeometry?; selfLoops?: boolean }): PreparedScene;
+  lanes?: LaneMode; bands?: LaneBand[]; overlayGeometry?; selfLoops?: boolean; theme?: Theme; scheme?: ColorScheme }): PreparedScene;
 export interface DrawContext { /* the subset of CanvasRenderingContext2D the routines use */ }
 export interface View { x: number; y: number; zoom: number; width: number; height: number }
 export interface DrawState { selection: Selection; hovered?: string | null; focused?: string | null; bright?: { nodes: Set<string>; edges: Set<string> };
