@@ -97,6 +97,7 @@ export {
   defaultLod,
   defaultStyle,
   diffStyle,
+  shortfallStyle,
 } from "./style.js";
 export type {
   PatternId,

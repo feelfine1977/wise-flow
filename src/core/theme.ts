@@ -7,7 +7,7 @@
  * preset's name or as changes over a preset (`resolveTheme`), and writes it as
  * CSS variables too (`themeFromVariables`), which the React components read.
  */
-import { type ColorToken, type PatternId, type PatternLook, PATTERNS, colorTokens, cssVariable, darkColorTokens, fontTokens, minimumTokens, opacityTokens, paletteTokens, patternTokens, printTokens, radiusTokens, spaceTokens, strokeTokens, textTokens, tokenVariables } from "./tokens.js";
+import { type ColorToken, type PatternId, type PatternLook, categoricalPatterns, colorTokens, cssVariable, darkColorTokens, darkPaletteTokens, fontTokens, minimumTokens, opacityTokens, paletteTokens, patternTokens, printTokens, radiusTokens, spaceTokens, strokeTokens, textTokens, tokenVariables } from "./tokens.js";
 
 /** The colour scheme a scene is resolved in. */
 export type ColorScheme = "light" | "dark";
@@ -17,7 +17,7 @@ type Values<T> = T extends number ? number : T extends string ? string : T exten
 
 /** The data palettes: ramps from low to high, and the categorical colours in the order of the pattern twins. */
 export interface ThemePalettes {
-  /** Paths and activities without a measure. */
+  /** Paths by cases, from few to many: the path ramp of the default style. */
   neutral: readonly string[];
   /** Expectation shortfall shares, light to dark. */
   shortfall: readonly string[];
@@ -35,6 +35,8 @@ export interface Theme {
   /** The colour roles the dark scheme changes. */
   dark: Readonly<Partial<Record<ColorToken, string>>>;
   palette: Readonly<ThemePalettes>;
+  /** The palettes the dark scheme changes: in the default theme the path ramp, which runs dim to bright. */
+  darkPalette?: Readonly<Partial<ThemePalettes>>;
   /** The pattern twin of each categorical colour, in the palette's order. */
   patterns: readonly PatternId[];
   /** How the pattern twins are drawn: tile, line width, dot radius and their opacities (`patternTokens`). */
@@ -63,13 +65,14 @@ export const defaultTheme: Theme = {
   color: colorTokens,
   dark: darkColorTokens,
   palette: {
-    neutral: [colorTokens.neutral],
+    neutral: paletteTokens.neutral,
     shortfall: paletteTokens.sequential,
     performance: paletteTokens.sequentialBlue,
     diverging: paletteTokens.diverging,
     categorical: paletteTokens.categorical,
   },
-  patterns: PATTERNS,
+  darkPalette: darkPaletteTokens,
+  patterns: categoricalPatterns,
   pattern: patternTokens,
   font: fontTokens,
   text: textTokens,
@@ -105,7 +108,7 @@ function merge<T>(base: T, changes: unknown): T {
 }
 
 /** For print: white paper, no tints, an opaque pattern on every categorical colour, ramps that start at 3 : 1 on the paper, no text under 7 pt and no stroke under 0.75 pt; no dark scheme. */
-export const printTheme: Theme = merge({ ...defaultTheme, dark: {} }, printTokens);
+export const printTheme: Theme = merge({ ...defaultTheme, dark: {}, darkPalette: {} }, printTokens);
 
 /** The presets by name. */
 export const themePresets: Readonly<Record<ThemePreset, Theme>> = { default: defaultTheme, print: printTheme };
@@ -127,11 +130,11 @@ export function colorChannels(css: string): [number, number, number, number] | u
   return [r, g, b, a].every(Number.isFinite) ? [r, g, b, a] : undefined;
 }
 
-/** Changes with the colours that are not literals left out, and the palettes with a stop that is not `#rgb` or `#rrggbb` (they are interpolated from hex). */
+/** Changes with the colours that are not literals left out, and the palettes (of both schemes) with a stop that is not `#rgb` or `#rrggbb` (they are interpolated from hex). */
 function literalColors(changes: ThemeOverrides): ThemeOverrides {
   const keep = (roles: Partial<Record<ColorToken, string>> | undefined) => roles && Object.fromEntries(Object.entries(roles).filter(([, v]) => typeof v === "string" && colorChannels(v)));
-  const palette = changes.palette && Object.fromEntries(Object.entries(changes.palette).filter(([, stops]) => stops?.every((s) => /^#([\da-f]{3}){1,2}$/i.test(s))));
-  return { ...changes, color: keep(changes.color), dark: keep(changes.dark), palette };
+  const hex = (palettes: Partial<ThemePalettes> | undefined) => palettes && Object.fromEntries(Object.entries(palettes).filter(([, stops]) => stops?.every((s) => /^#([\da-f]{3}){1,2}$/i.test(s))));
+  return { ...changes, color: keep(changes.color), dark: keep(changes.dark), palette: hex(changes.palette), darkPalette: hex(changes.darkPalette) };
 }
 
 /**
@@ -151,6 +154,11 @@ export function resolveTheme(setting?: ThemeSetting, variables?: ThemeOverrides)
 /** The colour of every role in a scheme: the light roles with the dark scheme's changes over them. */
 export function themeColors(theme: Theme, scheme: ColorScheme = "light"): Readonly<Record<ColorToken, string>> {
   return scheme === "dark" ? { ...theme.color, ...theme.dark } : theme.color;
+}
+
+/** The palettes in a scheme: the light ones with the dark scheme's changes over them. */
+export function themePalettes(theme: Theme, scheme: ColorScheme = "light"): Readonly<ThemePalettes> {
+  return scheme === "dark" ? { ...theme.palette, ...theme.darkPalette } : theme.palette;
 }
 
 // ---------------------------------------------------------------------------
@@ -227,10 +235,10 @@ export function themeFromVariables(read: (name: string) => string, scheme: Color
 /**
  * What of a theme the marks are built from in a scheme: everything but the
  * colours they name by role, which renderers look up when they draw, and the
- * fonts. The neutral and the constraint colour are drawn into the marks.
- * Two themes with the same key give the same marks.
+ * fonts. The neutral colour, the accent and the scheme's palettes are drawn
+ * into the marks. Two themes with the same key give the same marks.
  */
 export function markedThemeKey(theme: Theme, scheme: ColorScheme): string {
   const colors = themeColors(theme, scheme);
-  return JSON.stringify({ ...theme, color: [colors.neutral, colors.mechanism], dark: undefined, font: undefined });
+  return JSON.stringify({ ...theme, color: [colors.neutral, colors.accent], dark: undefined, palette: themePalettes(theme, scheme), darkPalette: undefined, font: undefined });
 }

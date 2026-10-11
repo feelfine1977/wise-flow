@@ -108,7 +108,7 @@ describe("the legends of SVG, Canvas and React", () => {
   it("list one key per kind of mark drawn and none for a kind not drawn", () => {
     // The presets add badges, arcs (some in reverse), hatching and map-level chips;
     // the follows self-loops are on by default, and the abstraction re-adds paths.
-    expect(keysOf(legends.overlays.legend)).toEqual(["●", "⌒", "⌒┄", "↻", "▨", "┄"]);
+    expect(keysOf(legends.overlays.legend)).toEqual(["●", "⌒", "⇐", "↻", "▨", "┄"]);
     expect(legends.overlays.react.chips).toBeGreaterThan(0);
     expect(keysOf(legends.plain.legend)).toEqual(["↻", "┄"]);
     expect(legends.plain.react.chips).toBe(0);

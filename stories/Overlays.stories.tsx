@@ -80,7 +80,7 @@ export const examples: Record<string, Example> = {
 /** One overlay of every kind, written by hand. */
 export const rawKinds: Overlay[] = [
   { kind: "badge", target: "create_po", payload: { label: "badge", glyph: "≥1", value: 0.42, text: "42 % missing" } },
-  { kind: "arc", target: "create_po->clear_invoice", payload: { label: "arc", source: "create_po", target: "clear_invoice", value: 0.6, coverage: 0.8, glyph: "⏱", text: "60 % late" } },
+  { kind: "arc", target: "create_po->clear_invoice", payload: { label: "arc", source: "create_po", target: "clear_invoice", value: 0.6, coverage: 0.8, evaluated: 1000, glyph: "⏱", text: "60 % late" } },
   { kind: "hatch", target: "service_entry", payload: { label: "hatch", text: "outside scope" } },
   { kind: "tint", target: "invoice", payload: { label: "tint", value: 0.7 } },
   { kind: "chip", target: "receipt", payload: { label: "chip", text: "mean 2.4 · threshold 2", value: 0.3, gauge: { value: 2.4, threshold: 2, width: 4 } } },

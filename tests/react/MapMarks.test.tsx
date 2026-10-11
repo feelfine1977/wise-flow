@@ -116,9 +116,9 @@ describe("overlay marks in the React Flow map", () => {
     const { container } = render(<div style={{ width: 800, height: 400 }}><ProcessMap graph={graph} positions={positions} {...plain} /></div>);
     await waitFor(() => expect(container.querySelector("#wf-node-a")).not.toBeNull());
     const a = container.querySelector<HTMLElement>("#wf-node-a")!;
-    // Value 0.5 is #fd8d3c on the sequential palette, at the tint opacity 0.18.
+    // Whatever its value, the accent #b84a00 (184, 74, 0), at the tint opacity 0.18.
     expect(a.classList.contains("wf-node--tinted")).toBe(true);
-    expect(a.style.getPropertyValue("--wf-tint")).toBe("linear-gradient(rgba(253, 141, 60, 0.18), rgba(253, 141, 60, 0.18))");
+    expect(a.style.getPropertyValue("--wf-tint")).toBe("linear-gradient(rgba(184, 74, 0, 0.18), rgba(184, 74, 0, 0.18))");
     expect(container.querySelector<HTMLElement>("#wf-node-b")!.classList.contains("wf-node--tinted")).toBe(false);
   });
 
@@ -143,12 +143,13 @@ describe("overlay marks in the React Flow map", () => {
 });
 
 describe("Badges", () => {
-  it("draws badges leftwards from the top-right corner of the element they are placed in", () => {
+  it("draws badges leftwards from the top-right corner of the element they are placed in, wholly above it", () => {
     const { container } = render(<Badges badges={[{ kind: "badge", target: "x", payload: { value: 1 } }, { kind: "badge", target: "x", payload: { glyph: "≥1", value: 0.25 } }]} locale="en" />);
-    // Slots of the core: −(22 + 4) + 2 for the first and −2 × (24 + 4) + 2 for the 24 px wide second, half above the corner.
+    // Pills of the core, 18 tall and 2 above the corner: "● · 100 %" and "≥1 · 25 %", each 9 characters of 5.5 and 6 on
+    // either side (61.5), the second 4 left of the first.
     expect([...container.querySelectorAll(".wf-badges .wf-badge rect")].map((r) => ["x", "y", "width"].map((a) => r.getAttribute(a)))).toEqual([
-      ["-24", "-11", "22"],
-      ["-54", "-11", "24"],
+      ["-61.5", "-20", "61.5"],
+      ["-127", "-20", "61.5"],
     ]);
   });
 });

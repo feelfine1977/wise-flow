@@ -480,6 +480,15 @@ function drawMark(ctx: DrawContext, scene: PreparedScene, m: OverlayMark, tokens
     if (m.arrow && end?.last && end.beforeLast) arrowhead(ctx, end.beforeLast, end.last, markArrowhead(m.arrow), color);
   }
   ctx.globalAlpha = 1;
+  if (m.pill) {
+    const { box, radius, fill, stroke } = m.pill;
+    roundedRect(ctx, box, radius);
+    ctx.fillStyle = paintOf(m, fill.paint, tokens, hovered);
+    ctx.fill();
+    ctx.strokeStyle = paintOf(m, stroke.paint, tokens, hovered);
+    ctx.lineWidth = stroke.width;
+    ctx.stroke();
+  }
   if (m.gauge) {
     const g = m.gauge;
     roundedRect(ctx, g, g.height / 2);

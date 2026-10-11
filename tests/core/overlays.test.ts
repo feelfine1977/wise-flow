@@ -163,7 +163,10 @@ it("includes explicit arc labels in geometry bounds even for vertically aligned 
   const displayLabel = "63% of evaluated purchase-order items miss the configured constraint";
   const geometry = overlayGeometry([{ kind: "arc", target: "a", payload: { source: "a", target: "b", value: 0.63, displayLabel } }], positions);
   const shape = geometry.shapes[0];
-  expect(shape.width).toBeGreaterThanOrEqual(displayLabel.length * 11);
-  expect(geometry.bounds.y).toBeLessThanOrEqual(shape.labelY! - 14);
-  expect(geometry.bounds.x).toBeLessThanOrEqual(shape.labelX! - displayLabel.length * 11 / 2);
+  // The pill: 68 characters at 0.55 of 11 each and 6 on either side, 18 tall, centred on the label's point.
+  const { x, y, width, height } = shape.label!;
+  expect([x - shape.labelX! + 423.4 / 2, y - shape.labelY! + 9, width - 423.4, height]).toEqual([expect.closeTo(0, 9), 0, expect.closeTo(0, 9), 18]);
+  expect(shape.width).toBeGreaterThanOrEqual(423.4);
+  expect(geometry.bounds.y).toBeLessThanOrEqual(shape.label!.y);
+  expect(geometry.bounds.x).toBeLessThanOrEqual(shape.label!.x);
 });

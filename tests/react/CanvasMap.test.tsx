@@ -38,8 +38,9 @@ describe("ProcessMap with the Canvas renderer", () => {
     const positions = await layout(vendor, { engine: "dagre" });
     const graph: FlowGraph = { ...vendor, overlays: constraints };
     const nodes = new Set(vendor.nodes.map((n) => n.id));
-    const expected = constraints.filter((o) => o.kind === "badge" && nodes.has(o.target)).map((o) => String(o.payload?.glyph)).sort();
-    expect(expected.length).toBeGreaterThan(0);
+    expect(constraints.filter((o) => o.kind === "badge" && nodes.has(o.target)).map((o) => String(o.payload?.glyph)).sort()).toEqual(["∅", "≤1", "≥1"]);
+    // Each badge writes its glyph and its share in its pill: the vendor's three constraints fall short for 6, 7 and 20 % of its cases.
+    const expected = ["∅ · 6 %", "≤1 · 7 %", "≥1 · 20 %"];
     const recorder = textRecorder();
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => recorder.ctx as unknown as CanvasRenderingContext2D);
     render(

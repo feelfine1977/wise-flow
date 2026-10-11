@@ -2,7 +2,7 @@
  * What the SVG export drew: its string parsed into elements, each map element
  * read from its attributes.
  */
-import { type Drawing, type Drawn, type DrawnText, bbox, dash, num, paint } from "./drawn";
+import { type Drawing, type Drawn, type DrawnText, bbox, dash, num, paint, pillOf } from "./drawn";
 
 interface El {
   tag: string;
@@ -178,7 +178,8 @@ export function readSvg(svg: string, markIds: string[]): Drawing {
       }
       out.set(`group:${g.attrs["data-id"]}`, { box: boxOf(shape), props, texts });
     } else if (hasClass(g, "wf-edge")) {
-      out.set(`edge:${g.attrs["data-id"]}`, { box: boxOf(shape), props: { fill: fillOf(shape), ...outline(shape) }, texts });
+      const props = { fill: fillOf(shape), ...outline(shape), join: shape.attrs["stroke-linejoin"] ?? "miter", arrow: shape.attrs["marker-end"] ? "yes" : "no" };
+      out.set(`edge:${g.attrs["data-id"]}`, { box: boxOf(shape), props, texts });
     } else if (hasClass(g, "wf-node")) {
       const band = parts.find((p, i) => i > 0 && p.tag === "rect" && !p.attrs.fill.startsWith("url("));
       const props = { fill: fillOf(shape), radius: radiusOf(shape), shadow: shadowOf(filters, g, shape), band: band ? `${fillOf(band)} ${num(Number(band.attrs.width))}` : "none", ...outline(shape) };
@@ -188,6 +189,9 @@ export function readSvg(svg: string, markIds: string[]): Drawing {
       if (id === undefined) throw new Error("the export draws more marks than the scene has");
       const props: Record<string, string> = { fill: fillOf(shape), ...outline(shape) };
       if (shape.tag === "rect") props.radius = radiusOf(shape);
+      if (hasClass(g, "wf-arc") || hasClass(g, "wf-selfloop")) props.arrow = shape.attrs["marker-end"] ? "yes" : "no";
+      const pill = parts.find((p) => hasClass(p, "wf-pill"));
+      if (pill) props.pill = pillOf(boxOf(pill)!, fillOf(pill), { paint: strokeOf(pill), width: Number(pill.attrs["stroke-width"] ?? 1) }, radiusOf(pill));
       out.set(`mark:${id}`, { box: boxOf(shape), props, texts });
     }
   }

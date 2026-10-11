@@ -81,15 +81,27 @@ const observed: Variant = {
  * before the count it writes on their line; thirteen labels of the global and
  * the vendor map are cut one to four characters shorter. `plain` writes no
  * label at its zoom, has no chip and kept its digest.
+ * Recorded once more when paths began to be drawn in neutrals by their count
+ * and deviations in the one accent; compared group by group, with the colours
+ * (`fill`, `stroke`), the pattern twins and the dashes of nodes, groups and
+ * edges left out, every node, group and edge is the same: paths take the
+ * grey of their count, constraint edges the accent; activities, stage nodes
+ * and groups take the colour and twin of the six-colour stage palette, and
+ * groups lose their dash. Every overlay group changed (the accent, arcs one
+ * width with their label in a pill, badges as pills above their activity,
+ * labels placed apart), the legend (the path colour's ramp and values, the
+ * stage swatches, the key texts and the reverse-order glyph ⇐), and the
+ * figure's height where the marks' extent moved it (962 where it was 963).
  */
+
 const before: Record<string, string> = {
-  overlays: "352dd9a0fb878118624ee4912dddd94b8b1aefffa78b98334b2891c9b76ced87",
-  stagesGerman: "41b63599f33a54ea4c5b38bd57bbf1e373bc2ec0e68395efd98b8b6dfc339c7a",
-  vendor: "cf04ca65d5cabc6886cf08ea306f73305d80a2771e858f12efbc19656237e4f3",
-  unfiltered: "d428da55677180be1caa1f3dc584d7f2a8eb88cd9ae0ea5cca4f89cd072e0c6b",
-  plain: "ffd703c091b76fd841cedbad8a61b324bd62f873034b0c237e3b66fb6197b8ba",
+  overlays: "714cd4bee727fc6a10de72a1056d7377752881f59ed03668d437f70f6477b682",
+  stagesGerman: "b69f558447f1a90f22ae7979f3c4e086f33aa8897e27fa2a882d34742e5ba32d",
+  vendor: "ab390d05e69e126131d88cf073b9befc47a08fa8e8f15c804187d85c6a891a22",
+  unfiltered: "d480b717542bc905721efcde3aa121731f2eda6ee8b606e9fe44bee26aa4f170",
+  plain: "1938da1b5adf73a06df4a5be8b260e53fb624c1091b8954a2c8436797a2e4430",
 };
-const beforeObserved = "3aa9ded0485cbcb6d9eb77fa04956ff336c5234c084638888b1a7c42dc537ae8";
+const beforeObserved = "d87d897df5002db564e20a17f9e7f9bdc05943157698d54bb63c7525ccb03e16";
 
 describe("toSVG on the committed fixtures", () => {
   it("matches the recorded output once follows self-loops are hidden", () => {

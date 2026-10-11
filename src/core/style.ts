@@ -7,7 +7,7 @@ import { scaleLinear, scaleLog, scaleSqrt } from "d3-scale";
 import { hatchSvg, patternTwinSvg, svgMarkup } from "./mark-svg.js";
 import { type FlowEdge, type FlowGraph, type FlowNode, metric } from "./model.js";
 import type { StringKey } from "./strings.js";
-import { type ColorScheme, type Theme, type ThemePalettes, colorChannels, defaultTheme, themeColors } from "./theme.js";
+import { type ColorScheme, type Theme, type ThemePalettes, colorChannels, defaultTheme, themeColors, themePalettes } from "./theme.js";
 import { type ColorToken, type PatternId, type PatternLook, PATTERNS, colorTokens, paletteTokens, strokeTokens } from "./tokens.js";
 
 export { type PatternId, type PatternLook, PATTERNS } from "./tokens.js";
@@ -103,7 +103,8 @@ export function contrastText(background: string): string {
 export interface ThemeDeviation {
   /**
    * `text`: text against its ground under 4.5 : 1. `line`: a line against the
-   * paper under 3 : 1. `rampOrder`: the path ramp not monotonic in luminance.
+   * paper under 3 : 1. `rampOrder`: the path ramp of a scheme not rising in
+   * contrast against the paper from stop to stop.
    * `rampStart`: its low end against the paper under 3 : 1. `textSize`,
    * `strokeWidth`: a table entry under the theme's minimum. `color`: a colour
    * that is not a literal.
@@ -119,14 +120,14 @@ export interface ThemeDeviation {
   minimum?: number;
 }
 
-/** Text and the grounds it is drawn on. */
-const TEXT: [ColorToken, ColorToken][] = [["ink", "paper"], ["inkMuted", "paper"], ["ink", "surface"], ["inkMuted", "surface"], ["onFocus", "focus"]];
+/** Text and the grounds it is drawn on; deviations write their labels in the accent on the paper. */
+const TEXT: [ColorToken, ColorToken][] = [["ink", "paper"], ["inkMuted", "paper"], ["ink", "surface"], ["inkMuted", "surface"], ["onFocus", "focus"], ["accent", "paper"]];
 /**
  * Lines that carry meaning: outlines that stand out, paths without a measure,
- * focus and selection. `line` is left out: it draws hairlines and tracks
- * whose meaning a label or a neighbour carries too.
+ * focus and selection, and deviations. `line` is left out: it draws hairlines
+ * and tracks whose meaning a label or a neighbour carries too.
  */
-const LINES: ColorToken[] = ["lineStrong", "neutral", "focus"];
+const LINES: ColorToken[] = ["lineStrong", "neutral", "focus", "accent"];
 const TEXT_CONTRAST = 4.5;
 const LINE_CONTRAST = 3;
 /** Points per layout unit (a CSS pixel). */
@@ -144,9 +145,10 @@ function over(color: string, ground?: string): string {
 
 /**
  * What of a theme falls short, in both schemes: text against its ground at
- * least 4.5 : 1, lines against the paper at least 3 : 1, the path ramp
- * (`palette.neutral`) monotonic in luminance with its low end at least 3 : 1
- * against the paper, no text size or stroke width of the tables under the
+ * least 4.5 : 1, lines against the paper at least 3 : 1, the path ramp of the
+ * scheme (`palette.neutral`, in the dark scheme with `darkPalette` over it)
+ * monotonic in luminance, each stop with more contrast against the paper than
+ * the one before, and its low end at least 3 : 1 against it, no text size or stroke width of the tables under the
  * theme's `minimum`, and every colour a literal. A translucent colour is
  * measured as drawn over its ground. Empty when nothing does.
  */
@@ -155,11 +157,11 @@ export function checkTheme(theme: Theme): ThemeDeviation[] {
   for (const table of ["color", "dark"] as const) {
     for (const [role, value] of Object.entries(theme[table])) if (value !== undefined && !colorChannels(value)) out.push({ kind: "color", subject: `${table}.${role}`, value });
   }
-  const ramp = theme.palette.neutral;
-  const steps = ramp.slice(1).map((c, i) => Math.sign(relativeLuminance(c) - relativeLuminance(ramp[i])));
-  if (steps.some((s) => s !== steps[0] || !s)) out.push({ kind: "rampOrder", subject: "palette.neutral", value: ramp.join(" ") });
   for (const scheme of ["light", "dark"] as const) {
     const c = themeColors(theme, scheme);
+    // Each stop of the path ramp stands out more from the paper than the one before (against a paper that is a colour).
+    const ramp = themePalettes(theme, scheme).neutral;
+    if (colorChannels(c.paper) && ramp.slice(1).some((v, i) => !(contrastRatio(v, c.paper) > contrastRatio(ramp[i], c.paper)))) out.push({ kind: "rampOrder", scheme, subject: "palette.neutral", value: ramp.join(" ") });
     const check = (kind: "text" | "line" | "rampStart", subject: string, a: string, b: string, minimum: number) => {
       const r = contrastRatio(over(a, b), over(b));
       if (r < minimum) out.push({ kind, scheme, subject, value: twoDecimals(r), minimum });
@@ -202,6 +204,8 @@ export interface ColorSpec {
   /** Metric for sequential and diverging palettes. */
   metric?: string;
   palette?: PaletteName;
+  /** How a sequential palette runs over its domain: evenly (`linear`, the default) or by the square root, as path width does (`sqrt`). */
+  scale?: "linear" | "sqrt";
   /** Domain: two numbers for sequential, three for diverging (negative, centre, positive). */
   domain?: number[];
   /** Categorical colour by group, kind or a tag prefix (`tag:layer:`). */
@@ -238,10 +242,18 @@ export const defaultLod: LodRules = {
   selfLoops: 0.25,
 };
 
+/** Paths by cases: width and colour on the same square-root scale of the count, on the neutral ramp; activities by stage. */
 export const defaultStyle: StyleSpec = {
   edgeWidth: { metric: "count", scale: "sqrt", range: [strokeTokens.pathMin, strokeTokens.pathMax] },
-  edgeColor: { metric: "violationShare", palette: "sequential", domain: [0, 1] },
+  edgeColor: { metric: "count", palette: "neutral", scale: "sqrt" },
   nodeColor: { by: "group", palette: "categorical" },
+};
+
+/** Paths coloured by their expectation shortfall share on the shortfall palette (the default style up to 0.6), width by cases. */
+export const shortfallStyle: StyleSpec = {
+  edgeWidth: defaultStyle.edgeWidth,
+  edgeColor: { metric: "violationShare", palette: "sequential", domain: [0, 1] },
+  nodeColor: defaultStyle.nodeColor,
 };
 
 /** Style for diff maps: width from the slice, colour from the delta of the shortfall share. */
@@ -383,9 +395,12 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
           ? [0, 1]
           : (extentOf(follows.map((e) => metric(e, edgeSpec.metric!, NaN))) ?? [0, 1]));
     domains.edgeColor = domain;
+    // By the square root, a value is placed on the ramp where its square root lies between those of the domain's ends.
+    const root = edgeSpec.scale === "sqrt" && domain.length === 2 ? scaleSqrt().domain(domain[0] === domain[1] ? [0, domain[1] || 1] : domain) : undefined;
     edgeColorFn = (e) => {
       const v = e.metrics?.[edgeSpec.metric!];
-      return typeof v === "number" && Number.isFinite(v) ? color(v, palette, domain) : neutral;
+      if (typeof v !== "number" || !Number.isFinite(v)) return neutral;
+      return root ? interpolatePalette(themePalette(theme, palette), root(v)) : color(v, palette, domain);
     };
   }
 

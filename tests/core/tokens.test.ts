@@ -31,7 +31,8 @@ function markerTriangle(svg: string, id: string) {
 describe("the token table", () => {
   it("is where the fixed colours, the palettes, the node sizes and the Canvas defaults come from", () => {
     for (const [name, value] of Object.entries(fixedColors)) expect(colorTokens[name as keyof typeof colorTokens], name).toBe(value);
-    expect(palettes.categorical).toEqual(["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00", "#F0E442", "#999999"]);
+    // Okabe–Ito without orange (#E69F00) and vermilion (#D55E00), which would read as the accent.
+    expect(palettes.categorical).toEqual(["#0072B2", "#009E73", "#CC79A7", "#56B4E9", "#F0E442", "#999999"]);
     expect(DEFAULT_SIZES.activity).toEqual({ width: 180, height: 48 });
     expect(defaultTokens).toEqual({
       font: "Inter, 'Segoe UI', Helvetica, Arial, sans-serif",

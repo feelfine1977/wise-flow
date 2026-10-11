@@ -4,7 +4,7 @@
  * drawn in, in the coordinates the map is drawn in.
  */
 import { type DrawContext, type DrawOptions, type PreparedScene, type View, drawScene } from "../../../src/canvas/index";
-import { type Drawing, type Drawn, type DrawnText, bbox, dash, num, paint } from "./drawn";
+import { type Drawing, type Drawn, type DrawnText, bbox, dash, num, paint, pillOf } from "./drawn";
 
 /** A traced shape: its points (control points included), its arcs and its line segments. */
 interface Shape {
@@ -16,13 +16,14 @@ interface Shape {
 }
 
 export type Op =
-  | { op: "fill" | "stroke"; paint: string; width: number; dash: string; shadow: string; shape: Shape }
+  | { op: "fill" | "stroke"; paint: string; width: number; dash: string; join: string; shadow: string; shape: Shape }
   | { op: "text"; text: string; x: number; y: number; size: number; weight: number; paint: string; halo: boolean };
 
 interface State {
   fillStyle: unknown;
   strokeStyle: unknown;
   lineWidth: number;
+  lineJoin: string;
   font: string;
   globalAlpha: number;
   dash: number[];
@@ -55,7 +56,7 @@ function fontOf(font: string): { size: number; weight: number } {
  */
 export function recordingContext(measure: (text: string, font: string) => number) {
   const ops: (Op & { scales: number })[] = [];
-  let state: State = { fillStyle: "#000000", strokeStyle: "#000000", lineWidth: 1, font: "10px sans-serif", globalAlpha: 1, dash: [], shadowColor: "rgba(0, 0, 0, 0)", shadowBlur: 0, shadowOffsetX: 0, shadowOffsetY: 0 };
+  let state: State = { fillStyle: "#000000", strokeStyle: "#000000", lineWidth: 1, lineJoin: "miter", font: "10px sans-serif", globalAlpha: 1, dash: [], shadowColor: "rgba(0, 0, 0, 0)", shadowBlur: 0, shadowOffsetX: 0, shadowOffsetY: 0 };
   const saved: State[] = [];
   let path: Shape = { points: [], arcs: [], lines: [] };
   let at: [number, number] | undefined;
@@ -107,10 +108,10 @@ export function recordingContext(measure: (text: string, font: string) => number
       point(x, y);
       point(x + w, y + h);
     },
-    fill: () => ops.push({ op: "fill", paint: paintOf(state.fillStyle, state.globalAlpha), width: 0, dash: "none", shadow: shadowOf(state), shape: path, scales }),
-    stroke: () => ops.push({ op: "stroke", paint: paintOf(state.strokeStyle, state.globalAlpha), width: state.lineWidth, dash: dash(state.dash), shadow: shadowOf(state), shape: path, scales }),
+    fill: () => ops.push({ op: "fill", paint: paintOf(state.fillStyle, state.globalAlpha), width: 0, dash: "none", join: "none", shadow: shadowOf(state), shape: path, scales }),
+    stroke: () => ops.push({ op: "stroke", paint: paintOf(state.strokeStyle, state.globalAlpha), width: state.lineWidth, dash: dash(state.dash), join: state.lineJoin, shadow: shadowOf(state), shape: path, scales }),
     fillRect: (x: number, y: number, w: number, h: number) =>
-      ops.push({ op: "fill", paint: paintOf(state.fillStyle, state.globalAlpha), width: 0, dash: "none", shadow: shadowOf(state), shape: { points: [[x, y], [x + w, y + h]], arcs: [], lines: [] }, scales }),
+      ops.push({ op: "fill", paint: paintOf(state.fillStyle, state.globalAlpha), width: 0, dash: "none", join: "none", shadow: shadowOf(state), shape: { points: [[x, y], [x + w, y + h]], arcs: [], lines: [] }, scales }),
     fillText: (text: string, x: number, y: number) => ops.push({ op: "text", text, x, y, ...fontOf(state.font), paint: paintOf(state.fillStyle, state.globalAlpha), halo: false, scales }),
     strokeText: (text: string, x: number, y: number) => ops.push({ op: "text", text, x, y, ...fontOf(state.font), paint: paintOf(state.strokeStyle, state.globalAlpha), halo: true, scales }),
     measureText: (text: string) => ({ width: measure(text, state.font) }),
@@ -189,6 +190,15 @@ export function readOps(kind: string, ops: Op[]): Drawn | undefined {
   }
   // A mark drawn as a rounded box (its corners are arcs, of radius 0 too) has a radius; a path has none.
   if (kind.startsWith("mark:") && first.shape.arcs.length) props.radius = radiusOf(first.shape);
+  // A path's corners and its arrowhead: a triangle filled after it.
+  const others = drawn.filter((o) => !same(o.shape, first.shape));
+  if (kind.startsWith("edge:")) props.join = stroke?.join ?? "none";
+  if (kind.startsWith("edge:") || kind === "mark:arc" || kind === "mark:selfLoop") props.arrow = others.some((o) => o.op === "fill" && !o.shape.arcs.length && o.shape.points.length === 3) ? "yes" : "no";
+  // The pill a label is written in: a rounded box, filled and outlined (a chip's gauge track is only filled).
+  const rounded = kind.startsWith("mark:") ? others.filter((o) => o.shape.arcs.length) : [];
+  const outlined = rounded.find((o) => o.op === "stroke");
+  const pill = outlined ? rounded.filter((o) => same(o.shape, outlined.shape)) : [];
+  if (pill.length) props.pill = pillOf(shapeBox(pill[0].shape)!, pill.find((o) => o.op === "fill")?.paint, outlined, radiusOf(pill[0].shape));
   return { box: shapeBox(first.shape), props, texts };
 }
 

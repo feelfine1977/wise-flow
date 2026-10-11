@@ -80,23 +80,25 @@ describe("the role tables", () => {
     expect(dimensionTokens.band).toBe(8);
   });
 
-  it("are what SVG, Canvas and the marks the interactive map draws read for a group: its label, outline and dash", () => {
+  it("are what SVG, Canvas and the marks the interactive map draws read for a group: its label and outline, never a dash", () => {
     let { svg, canvas } = drawn();
-    expect(svg).toContain(`stroke-width="1.5" stroke-dasharray="6 4"`);
+    expect(svg).toContain(`rx="10" fill="#0072B2" fill-opacity="0.06" stroke="#0072B2" stroke-width="1.5"/>`);
     expect(svg).toContain(`font-size="14" font-weight="600"`);
-    expect(canvas).toContain(`lineWidth=1.5\nsetLineDash([[6,4]])`);
+    expect(canvas).toContain(`lineWidth=1.5\nsetLineDash([[]])`);
     expect(canvas).toContain(`font="600 14px`);
     set(textTokens, "groupLabel", { size: 17, weight: 800 });
     set(strokeTokens, "group", 2.75);
+    // A dash means "not directly observed": the group's dash is read by nothing.
     set(dashTokens, "group", [9, 7]);
     ({ svg, canvas } = drawn());
-    expect(svg).toContain(`stroke-width="2.75" stroke-dasharray="9 7"`);
+    expect(svg).toContain(`rx="10" fill="#0072B2" fill-opacity="0.06" stroke="#0072B2" stroke-width="2.75"/>`);
+    expect(svg).not.toContain(`stroke-dasharray="9 7"`);
     expect(svg).toContain(`font-size="17" font-weight="800"`);
-    expect(canvas).toContain(`lineWidth=2.75\nsetLineDash([[9,7]])`);
+    expect(canvas).toContain(`lineWidth=2.75\nsetLineDash([[]])`);
     expect(canvas).toContain(`font="800 17px`);
     // The interactive map draws the group's mark, which the stylesheet no longer sizes.
     const [mark] = buildScene(graph, positions).groupMarks;
-    expect([mark.stroke.width, mark.stroke.dash, mark.texts[0].size, mark.texts[0].weight]).toEqual([2.75, [9, 7], 17, 800]);
+    expect([mark.stroke.width, mark.stroke.dash, mark.texts[0].size, mark.texts[0].weight]).toEqual([2.75, undefined, 17, 800]);
     expect(stylesheet).not.toMatch(/--wf-(stroke-group|text-group-label|weight-group-label)\b/);
   });
 
@@ -106,8 +108,9 @@ describe("the role tables", () => {
     set(radiusTokens, "band", 1.25);
     set(textTokens, "nodeLabel", { size: 12.5 });
     const { svg, canvas } = drawn();
-    expect(svg).toContain(`<rect x="0" y="0" width="100" height="40" rx="7.5" fill="#ffffff" stroke="#E69F00" stroke-width="2.25"/>`);
-    expect(svg).toContain(`<rect x="0" y="0" width="8" height="40" rx="1.25" fill="#E69F00"/>`);
+    // Stage s1 hashes to the fourth of the six categorical colours, #56B4E9.
+    expect(svg).toContain(`<rect x="0" y="0" width="100" height="40" rx="7.5" fill="#ffffff" stroke="#56B4E9" stroke-width="2.25"/>`);
+    expect(svg).toContain(`<rect x="0" y="0" width="8" height="40" rx="1.25" fill="#56B4E9"/>`);
     expect(svg).toContain(`font-size="12.5"`);
     expect(canvas).toContain(`lineWidth=2.25`);
     expect(canvas).toContain(`font="12.5px`);

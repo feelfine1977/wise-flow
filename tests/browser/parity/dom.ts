@@ -3,7 +3,7 @@
  * and geometry, in flow coordinates. `readDomInPage` runs in the page and
  * returns plain values; `readDom` turns them into a `Drawing`.
  */
-import { type Drawing, type DrawnText, bbox, dash, num, paint, shadow } from "./drawn";
+import { type Drawing, type DrawnText, bbox, dash, num, paint, pillOf, shadow } from "./drawn";
 
 type Box = { x: number; y: number; width: number; height: number };
 
@@ -17,6 +17,11 @@ export interface DomElement {
   shadow?: string;
   band?: { color: string; width: number };
   rule?: { color: string; width: number };
+  /** A path's corners and whether it ends in an arrowhead. */
+  join?: string;
+  arrow?: boolean;
+  /** The pill a mark's label is written in. */
+  pill?: { box: Box; fill: string; stroke: string; width: number; radius: number };
   texts: { text: string; size: number; weight: number; color: string }[];
 }
 
@@ -153,6 +158,8 @@ export function readDomInPage(tints: { id: string; target: string }[]): DomEleme
       box: boxOf(svgPoints(path, pathPoints(path.getAttribute("d") ?? ""))),
       fill: { color: cs.fill === "none" ? "none" : cs.fill, opacity: 1 },
       outline: { color: cs.stroke, width: parseFloat(cs.strokeWidth), style: cs.strokeDasharray, opacity: Number(cs.opacity) * Number(cs.strokeOpacity), sides: "" },
+      join: cs.strokeLinejoin,
+      arrow: !!path.getAttribute("marker-end"),
       texts: textsOf(g, "title"),
     });
   }
@@ -169,8 +176,13 @@ export function readDomInPage(tints: { id: string; target: string }[]): DomEleme
         if (c.textContent) texts.push({ text: c.textContent, size: parseFloat(style.fontSize), weight: Number(style.fontWeight), color: style.fill });
       }
     }
+    const pill = g.querySelector<SVGRectElement>(":scope > rect.wf-pill");
+    const ps = pill && getComputedStyle(pill);
+    const p = (k: string) => Number(pill?.getAttribute(k) ?? 0);
     out.push({
       key: `mark:${g.dataset.overlayId}`,
+      arrow: shape.tagName === "path" ? !!shape.getAttribute("marker-end") : undefined,
+      pill: pill && ps ? { box: boxOf(svgPoints(pill, [[p("x"), p("y")], [p("x") + p("width"), p("y") + p("height")]])), fill: ps.fill, stroke: ps.stroke, width: parseFloat(ps.strokeWidth), radius: p("rx") } : undefined,
       box: boxOf(svgPoints(shape, points)),
       fill: { color: cs.fill, opacity: Number(cs.fillOpacity) },
       outline: cs.stroke === "none" ? undefined : { color: cs.stroke, width: parseFloat(cs.strokeWidth), style: cs.strokeDasharray, opacity: Number(cs.strokeOpacity), sides: "" },
@@ -208,6 +220,9 @@ export function readDom(elements: DomElement[], kinds: Map<string, string>): Dra
     if (e.radius !== undefined) props.radius = num(e.radius);
     if (!kind.startsWith("mark:") && !kind.startsWith("edge:")) props.shadow = shadow(e.shadow);
     if (kind.startsWith("node:")) props.band = e.band ? `${paint(e.band.color)} ${num(e.band.width)}` : "none";
+    if (kind.startsWith("edge:")) props.join = e.join ?? "none";
+    if (kind.startsWith("edge:") || kind === "mark:arc" || kind === "mark:selfLoop") props.arrow = e.arrow ? "yes" : "no";
+    if (e.pill) props.pill = pillOf(e.pill.box, paint(e.pill.fill), { paint: paint(e.pill.stroke), width: e.pill.width }, e.pill.radius);
     if (kind.endsWith(":band")) {
       props.outlineSides = o?.sides ?? "none";
       props.rule = e.rule ? `${paint(e.rule.color)} ${num(e.rule.width)}` : "none";

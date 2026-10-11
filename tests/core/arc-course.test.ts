@@ -18,10 +18,13 @@ function cubic(path: string): (t: number) => { x: number; y: number } {
   };
 }
 
-/** Nodes other than its ends that an arc's stroke touches, at 4,000 points along it. */
+/** What an arc keeps clear of other nodes: half its width (1.5) and 4 of paper. */
+const CLEAR = 4.75;
+
+/** Nodes other than its ends that an arc's stroke and the paper it keeps around it touch, at 4,000 points along it. */
 function crossedBy(mark: OverlayMark, nodes: Record<string, Box>): string[] {
   const at = cubic(mark.path!);
-  const half = mark.stroke!.width / 2;
+  const half = CLEAR;
   const ends = [mark.overlay.payload?.source, mark.overlay.payload?.target];
   const hit = new Set<string>();
   for (let i = 0; i <= 4000; i++) {
@@ -64,12 +67,15 @@ describe("arcs that cross no other activity", () => {
    * before arcs began to choose their course and their label's place. The
    * overlay kinds' SVG was recorded again when groups became marks of the
    * scene: only its stage group's outline changed, drawn at full opacity.
+   * All four were recorded again when deviations began to be drawn in the
+   * one accent, arcs at one width with their label in a pill and badges as
+   * pills above their activity; the arcs keep their courses here.
    */
   const recorded = {
-    kindsMarks: "4a6335a979e8e5cac63a82f3c4e8c6fd4e3bf945d67f8ae86f3a25fa5433ba9c",
-    kindsSvg: "ed20b73ee513ff1287c12f304af437a256ca6acef9a91c77142b824d37791a16",
-    rowsMarks: "d5bc4e4d1fb81fcdfb77ecbe2c7d97bc1ce1304a39a759c952a531194b84ec7f",
-    rowsSvg: "f956d0cdbd76a1e869e78685fde53686457f254fdc164a06541504d6982b853f",
+    kindsMarks: "6267e490d8bd17a052c6ba79d2c9ef604e0a1368fdb10ea59757ccb7db0581f8",
+    kindsSvg: "4431509497ba710d221f2db9d76cf2eed0fa068fe9abf7f7cd3c057f58e04463",
+    rowsMarks: "55073591d99d66322f0ba2ebeeb66c33f673f02226299ae35538e84114bded51",
+    rowsSvg: "b1f94ef922240bc0601db9835e33cd5bcf38f206fb5f06c64b8b1fbf7d42d8fe",
   };
 
   it("keep the marks they had", () => {
@@ -89,11 +95,8 @@ describe("arcs that cross no other activity", () => {
 });
 
 const meets = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
-/** The rectangle an arc's label may cover: 11 per character and 4 on either side, from 14 above its baseline to 4 below. */
-const labelBox = (m: OverlayMark): Box => {
-  const t = m.texts[0];
-  return { x: t.x - t.text.length * 5.5 - 4, y: t.y - 14, width: t.text.length * 11 + 8, height: 18 };
-};
+/** The pill an arc's label is written in. */
+const labelBox = (m: OverlayMark): Box => m.pill!.box;
 /** An arc's mark with another path, to ask what that course crosses. */
 const along = (m: OverlayMark, path: string): OverlayMark => ({ ...m, path });
 const nodesOf = (boxes: Record<string, Box>): FlowGraph["nodes"] => Object.keys(boxes).map((id) => ({ id, kind: "activity", label: id.toUpperCase() }));
@@ -132,12 +135,24 @@ describe("the course of an arc", () => {
     expect(scene([...Object.keys(boxes)].reverse()).marks).toEqual(scene().marks);
   });
 
-  it("moves the label along the arc to the nearest point where it covers no activity", () => {
+  it("puts the label on the arc's middle where it covers no activity", () => {
     const [mark] = arcs(scene());
-    // In the middle (350, 114) and at the next six points, 1/32 apart, its 74 × 18 box reaches into f;
-    // at t = 3/8 the arc is at (239.84, 126.88) and the label 8 above it clears f.
-    expect(mark.texts[0]).toMatchObject({ text: "⏱ 50 %", x: 239.84375, y: 118.875 });
+    // "late 50 %": 9 characters of 0.55 × 11 and 6 on either side, 66.45 wide and 18 tall, centred on the middle (350, 122),
+    // below f (80–110).
+    expect(mark.texts[0]).toMatchObject({ text: "late 50 %", x: 350, y: 122.5 });
+    expect(mark.pill!.box).toEqual({ x: 350 - 66.45 / 2, y: 113, width: 66.45, height: 18 });
     expect(Object.values(boxes).filter((b) => meets(b, labelBox(mark)))).toEqual([]);
+  });
+
+  it("moves the label along the arc to the nearest point where it covers no activity", () => {
+    // g sits just above the middle of the course: 4.75 clear of the arc, but in the way of the pill's top (113).
+    const withG = { ...boxes, g: { x: 330, y: 100, width: 40, height: 15 } };
+    const [mark] = arcs(buildScene({ nodes: nodesOf(withG), edges: [] }, createPositions({ nodes: withG, groups: {}, edges: {} }, "given", "RIGHT"), { overlays: [arc("a", "b")] }));
+    expect(mark.path).toBe("M50 200 C50 96 650 96 650 200");
+    // At 1/32 on either side of the middle the pill (±33.2 around 321.9 and 378.1) still reaches g (330–370); at t = 7/16 the
+    // arc is at (50 + 600 × 0.40674, 200 − 104 × 0.73828) = (294.04, 123.22) and the pill ends at 327.27, clear of g.
+    expect(mark.texts[0]).toMatchObject({ text: "late 50 %", x: 294.04296875, y: 123.71875 });
+    expect(Object.values(withG).filter((b) => meets(b, labelBox(mark)))).toEqual([]);
   });
 });
 
@@ -157,20 +172,21 @@ describe("the course of an arc on the map's lowest row", () => {
     // The default height 0.22 × 600 = 132, from the bottoms (240) downwards: the middle at 240 + 0.75 × 132 = 339, the label 14 below it.
     expect(mark.path).toBe("M50 240 C50 372 650 372 650 240");
     expect(crossed).toEqual([]);
-    expect(mark.texts[0]).toMatchObject({ x: 350, y: 353 });
+    // The label's pill centred on the middle (350, 339).
+    expect(mark.texts[0]).toMatchObject({ x: 350, y: 339.5 });
   });
 
   it("rises over an activity at the top of the map when only a taller course clears it", () => {
     // f spans 150–550 × 100–190 above the row and is the map's top; d and e sit under a and b, so every course below crosses them.
     const boxes = { a, b, f: { x: 150, y: 100, width: 400, height: 90 }, d: { x: 0, y: 260, width: 100, height: 30 }, e: { x: 600, y: 260, width: 100, height: 30 } };
     // Over f's left edge (x = 150, t ≈ 0.2596) a course of height h is at 200 − 3t(1 − t)h ≈ 200 − 0.5766h; it clears f's top
-    // with its stroke from h ≈ 182. Of the default 132 and its steps of 14, 174 still reaches f and 188 is the nearest clear one.
+    // with the 4.75 it keeps from h ≈ 181.7. Of the default 132 and its steps of 14, 174 still reaches f and 188 is the nearest clear one.
     for (const h of [76, 90, 104, 118, 132, 146, 160, 174]) expect(crossedBy(along(course(boxes).mark, `M50 200 C50 ${200 - h} 650 ${200 - h} 650 200`), boxes), `at ${h}`).toEqual(["f"]);
     const { mark, crossed } = course(boxes);
     expect(mark.path).toBe("M50 200 C50 12 650 12 650 200");
     expect(crossed).toEqual([]);
-    // Its middle at 200 − 0.75 × 188 = 59, the label 8 above it.
-    expect(mark.texts[0]).toMatchObject({ x: 350, y: 51 });
+    // Its middle at 200 − 0.75 × 188 = 59, the label's pill centred on it.
+    expect(mark.texts[0]).toMatchObject({ x: 350, y: 59.5 });
   });
 
   it("keeps its default course when every other crosses as many activities", () => {
@@ -195,9 +211,10 @@ describe("the label of an arc", () => {
     const graph: FlowGraph = { nodes: nodesOf(boxes), edges: [] };
     const [first, second] = arcs(buildScene(graph, positions(), { overlays: [arc("p", "q", { constraintId: "lag" }), arc("p", "q", { constraintId: "order", glyph: "⇒", value: 0.25 })] }));
     expect(second.path).toBe(first.path);
-    // The first at the middle, (550, 95 − 8); the second at t = 7/16, the nearest point where its box clears the first's.
-    expect(first.texts[0]).toMatchObject({ text: "⏱ 50 %", x: 550, y: 87 });
-    expect(second.texts[0]).toMatchObject({ text: "⇒ 25 %", x: 456.73828125, y: 88.640625 });
+    // The first on the middle, (550, 95); the second ("order 25 %", 72.5 wide) at t = 7/16, (456.74, 96.64), the nearest point
+    // where its pill clears the first's (516.8–583.2): at 15/32 it would end at 539.4, at 17/32 start at 560.6.
+    expect(first.texts[0]).toMatchObject({ text: "late 50 %", x: 550, y: 95.5 });
+    expect(second.texts[0]).toMatchObject({ text: "order 25 %", x: 456.73828125, y: 97.140625 });
     expect(meets(labelBox(first), labelBox(second))).toBe(false);
   });
 
@@ -205,8 +222,8 @@ describe("the label of an arc", () => {
     // The title "Stage" of a group whose corner is at (505, 67) is written at (517, 89) and covers 517–559 × 75–93.
     const graph: FlowGraph = { nodes: nodesOf(boxes), edges: [], groups: [{ id: "g", kind: "stage", label: "Stage" }] };
     const [mark] = arcs(buildScene(graph, positions({ g: { x: 505, y: 67, width: 200, height: 100 } }), { overlays: [arc("p", "q")] }));
-    // In the middle and at 15/32 the label's box reaches the title; at 17/32 it starts at 559.8.
-    expect(mark.texts[0]).toMatchObject({ x: 596.81396484375, y: 87.41015625 });
+    // In the middle the pill (516.8–583.2 × 86–104) reaches the title; at 17/32 the arc is at (596.81, 95.41) and the pill starts at 563.6.
+    expect(mark.texts[0]).toMatchObject({ x: 596.81396484375, y: 95.91015625 });
   });
 });
 
@@ -245,8 +262,9 @@ describe("arcs on the BPIC map of the P2P story", () => {
     const marks = arcs(scene);
     // SVG: each arc's path and label as the mark has them.
     const svg = toSVG({ graph: shown, positions, overlays }, { legend: false });
-    const written = [...svg.matchAll(/<g class="wf-overlay wf-arc"><title>[^<]*<\/title><path d="([^"]+)"[^>]*\/><text x="([^"]+)" y="([^"]+)"/g)].map((m) => [m[1], Number(m[2]), Number(m[3])]);
-    expect(written).toEqual(marks.map((m) => [m.path, Number(m.texts[0].x.toFixed(2)), Number(m.texts[0].y.toFixed(2))]));
+    const written = [...svg.matchAll(/<g class="wf-overlay wf-arc"><title>[^<]*<\/title><path d="([^"]+)"[^>]*\/><rect class="wf-pill"[^>]*\/><text x="([^"]+)" y="([^"]+)"/g)].map((m) => [m[1], Number(m[2]), Number(m[3])]);
+    // A label is given by its middle and written on a baseline 0.3 × its size (11) lower.
+    expect(written).toEqual(marks.map((m) => [m.path, Number(m.texts[0].x.toFixed(2)), Number((m.texts[0].y + 3.3).toFixed(2))]));
     // Canvas map and PNG: the prepared scene holds the same marks, and each arc is stroked along its path.
     const prepared = prepareScene(shown, positions, { overlays, lodBySize: false });
     expect(arcs(prepared)).toEqual(marks);

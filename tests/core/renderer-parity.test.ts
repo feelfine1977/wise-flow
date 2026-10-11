@@ -35,7 +35,10 @@ const positions = createPositions(
   "dagre",
   "RIGHT",
 );
-const overlays = [{ kind: "badge" as const, target: "a", payload: { glyph: "!", value: 0.5 } }];
+const overlays = [
+  { kind: "badge" as const, target: "a", payload: { glyph: "!", value: 0.5 } },
+  { kind: "arc" as const, target: "a->b", payload: { constraintType: "lag", source: "a", target: "b", value: 0.35, evaluated: 820 } },
+];
 const scene = buildScene(graph, positions, { overlays });
 const kinds = kindsOf(scene);
 const measure = (text: string, font: string) => estimateTextWidth(text, { size: Number(/([\d.]+)px/.exec(font)?.[1] ?? 10) });
@@ -47,15 +50,19 @@ const png = () => readPng((createCanvas) => toPNGCanvas({ graph, positions, over
 describe("the parity readers", () => {
   it("read the SVG export's elements from their attributes", () => {
     const drawn = svg();
-    expect([...drawn.keys()].sort()).toEqual(["edge:a->b", "edge:b->end", "edge:start->a", "group:g", "mark:badge:a:0", "node:a", "node:b", "node:end", "node:start"]);
+    expect([...drawn.keys()].sort()).toEqual(["edge:a->b", "edge:b->end", "edge:start->a", "group:g", "mark:arc:a->b:0", "mark:badge:a:1", "node:a", "node:b", "node:end", "node:start"]);
     expect(drawn.get("node:a")).toMatchObject({ box: { x: 100, y: 0, width: 180, height: 48 }, props: { fill: "#ffffff", outlineWidth: "2", dash: "none", radius: "6", band: expect.stringMatching(/^#[0-9a-f]{6} 8$/) } });
     expect(drawn.get("node:a")!.texts.map((t) => [t.text, t.size])).toEqual([["Approve", 12], ["10", 9]]);
     // Start and end events: a circle of the box's half width, outlined 2 and 3 in the ink.
     expect(drawn.get("node:start")).toMatchObject({ box: { x: 0, y: 6, width: 36, height: 36 }, props: { outline: "#1f1f1f", outlineWidth: "2", radius: "18" } });
     expect(drawn.get("node:end")!.props.outlineWidth).toBe("3");
-    expect(drawn.get("group:g")).toMatchObject({ box: { x: 80, y: -40, width: 520, height: 120 }, props: { dash: "6 4", outlineWidth: "1.5", radius: "10" } });
-    // An edge's box is its route's: from the right of `a` to the left of `b` at their middle.
-    expect(drawn.get("edge:a->b")!.box).toEqual({ x: 280, y: 24, width: 120, height: 0 });
+    expect(drawn.get("group:g")).toMatchObject({ box: { x: 80, y: -40, width: 520, height: 120 }, props: { dash: "none", outlineWidth: "1.5", radius: "10" } });
+    // An edge's box is its route's: from the right of `a` to the left of `b` at their middle; rounded corners and an arrowhead.
+    expect(drawn.get("edge:a->b")).toMatchObject({ box: { x: 280, y: 24, width: 120, height: 0 }, props: { join: "round", arrow: "yes", dash: "none" } });
+    // The arc from the top of `a` to the top of `b`, 300 apart, 66 high: its pill "late 35 % of 820" (16 characters of
+    // 0.55 × 11 and 6 on either side, 108.8 wide, 18 tall) centred on its middle (340, −49.5), in the accent on paper.
+    expect(drawn.get("mark:arc:a->b:0")).toMatchObject({ props: { outline: "#b84a00@0.9", outlineWidth: "1.5", dash: "none", arrow: "yes", pill: "285.6,-58.5,108.8,18 #ffffff #b84a00 1.5 r9" } });
+    expect(drawn.get("mark:arc:a->b:0")!.texts).toEqual([{ text: "late 35 % of 820", size: 11, weight: 400, paint: "#b84a00" }]);
   });
 
   it("find the Canvas map and the PNG export drawing as the SVG export does", () => {
@@ -89,6 +96,22 @@ describe("the parity readers", () => {
     // One entry per width the scene gives its edges, which together hold all three edges.
     expect(new Set(added.map((d) => [d.renderer, d.kind, d.property, Number(d.other) - Number(d.svg)].join(" ")))).toEqual(new Set(["canvas edge:follows outlineWidth 1"]));
     expect(added.reduce((n, d) => n + d.elements, 0)).toBe(3);
+  });
+
+  it("report a pill or a corner that one renderer draws otherwise", () => {
+    const prepared = prepareScene(graph, positions, { overlays });
+    // The Canvas map outlines the pill one unit wider than the scene says.
+    const thicker: PreparedScene = { ...prepared, marks: prepared.marks.map((m) => (m.pill ? { ...m, pill: { ...m.pill, stroke: { ...m.pill.stroke, width: m.pill.stroke.width + 1 } } } : m)) };
+    const found = differences([{ name: "small", kinds, svg: svg(), others: { canvas: canvas(thicker) } }]);
+    expect(found.map((d) => [d.renderer, d.kind, d.property, d.svg, d.other, d.elements])).toEqual([
+      ["canvas", "mark:arc", "pill", "285.6,-58.5,108.8,18 #ffffff #b84a00 1.5 r9", "285.6,-58.5,108.8,18 #ffffff #b84a00 2.5 r9", 1],
+    ]);
+    // An export whose paths have sharp corners and no arrowhead.
+    const sharp = readSvg(toSVG({ graph, positions, overlays }).replace(/ stroke-linejoin="round" marker-end="url\(#wf-arrow\)"/g, ""), exportedMarks(scene));
+    expect(differences([{ name: "small", kinds, svg: sharp, others: { canvas: canvas() } }]).map((d) => [d.kind, d.property, d.svg, d.other, d.elements])).toEqual([
+      ["edge:follows", "arrow", "no", "yes", 3],
+      ["edge:follows", "join", "miter", "round", 3],
+    ]);
   });
 
   it("report a shadow that one renderer casts and the SVG export does not", () => {

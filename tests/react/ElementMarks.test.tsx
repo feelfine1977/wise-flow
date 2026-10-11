@@ -117,10 +117,11 @@ describe("the look of nodes and groups, from their marks", () => {
     const diamond = node("g").querySelector(".wf-node__outline > path")!;
     expect([diamond.getAttribute("d"), diamond.getAttribute("stroke-width"), diamond.getAttribute("class")]).toEqual(["M22 0L44 22L22 44L0 22Z", "1.5", "wf-fill-paper wf-stroke-ink"]);
     expect(["--wf-text-size", "--wf-text-weight"].map((p) => prop(node("g").querySelector(".wf-node__label")!, p))).toEqual(["14px", "700"]);
-    // A note dotted 2 and 3 on the surface colour, a re-added activity dashed 4 and 3.
+    // A note on the surface colour with a solid border 2 wide; only the re-added activity is dashed, 4 and 3.
+    expect(look("n")).toEqual(["var(--wf-surface)", "#8c8c8c", "2px", "6px"]);
+    expect(node("n").querySelector(".wf-node__outline")).toBeNull();
     const dashed = (id: string) => node(id).querySelector(".wf-node__outline > rect")!;
-    expect(["width", "height", "rx", "stroke", "stroke-width", "stroke-dasharray", "class"].map((a) => dashed("n").getAttribute(a))).toEqual(["160", "60", "6", "#8c8c8c", "2", "2 3", "wf-fill-surface"]);
-    expect(dashed("r").getAttribute("stroke-dasharray")).toBe("4 3");
+    expect(["width", "height", "rx", "stroke", "stroke-width", "stroke-dasharray", "class"].map((a) => dashed("r").getAttribute(a))).toEqual(["180", "40", "6", "#8c8c8c", "2", "4 3", "wf-fill-paper"]);
   });
 
   it("draws a second theme's outline, radius and text size", async () => {
@@ -135,7 +136,7 @@ describe("the look of nodes and groups, from their marks", () => {
     expect([prop(a, "--wf-node-stroke"), prop(a, "--wf-node-radius"), prop(a.querySelector(".wf-node__label")!, "--wf-text-size")]).toEqual(["3px", "9px", "15px"]);
   });
 
-  it("gives a box group its tint and a dashed outline, a band its outline on two sides and its rule", async () => {
+  it("gives a box group its tint and a solid outline, a band its outline on two sides and its rule", async () => {
     const grouped: FlowGraph = { ...graph, nodes: graph.nodes.map((n) => ({ ...n, group: n.id === "a" ? "order" : n.id === "s" ? "pay" : undefined })), groups: [{ id: "order", kind: "stage", label: "Order" }, { id: "pay", kind: "stage", label: "Payment" }] };
     const boxes = { ...positions, groups: { order: { x: 90, y: -10, width: 200, height: 70 }, pay: { x: 390, y: -10, width: 220, height: 76 } } };
     const draw = async (lanes: "none" | "stages") => {
@@ -150,7 +151,7 @@ describe("the look of nodes and groups, from their marks", () => {
     const box = await draw("none");
     expect([prop(box.group, "--wf-group-fill"), prop(box.group, "--wf-group-radius")]).toEqual(["0.06", "10px"]);
     const outline = box.group.querySelector(".wf-group__outline > rect")!;
-    expect(["width", "height", "rx", "fill", "stroke-width", "stroke-dasharray"].map((a) => outline.getAttribute(a))).toEqual(["200", "70", "10", "none", "1.5", "6 4"]);
+    expect(["width", "height", "rx", "fill", "stroke-width", "stroke-dasharray"].map((a) => outline.getAttribute(a))).toEqual(["200", "70", "10", "none", "1.5", null]);
     expect(["--wf-text-size", "--wf-text-weight", "--wf-text-paint"].map((p) => prop(box.group.querySelector(".wf-group__label")!, p))).toEqual(["14px", "600", "var(--wf-ink)"]);
     box.unmount();
     const band = await draw("stages");

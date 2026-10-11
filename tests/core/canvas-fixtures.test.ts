@@ -127,14 +127,22 @@ function exported(fixture: Fixture, scene: Partial<Scene>, options: PngOptions):
  * every culled one holds the same calls as before but written texts: that chip's
  * text keeps three more characters ("Manual touches in the order stag…", where
  * it was "… s…"), and thirteen labels are cut shorter, as in the SVG export.
+ * Recorded once more when paths began to be drawn in neutrals by their count
+ * and deviations in the one accent. The drawing routines changed only in
+ * drawing an arc label's pill; the scenes they draw differ, compared field by
+ * field, only in the colours and pattern twins of activities and groups (the
+ * six-colour stage palette), the colours of paths (the grey of their count;
+ * constraint edges the accent), the dashes of notes, constraint edges and
+ * groups (none), the overlay marks and the legend's rows; so only those calls
+ * changed, with the pattern tiles of the twins now drawn.
  */
 const before = {
-  mapGlobalStages: "d76e93bad8a63a57a8fcceaff31a7f4dd7beb53c41264c6ab7b8080e2a963d49",
-  mapVendorIds: "8875a2eda7732d28910672b13161ae68586279383539a328867670ea4e77cc60",
-  mapUnfiltered: "97ce3dbff21175509f842a29fd38f33d96f5ea8257d08272968da41882f76ada",
-  pngGlobalTitle: "42edde5cfb8e0fbae72e8bffc7f197d6bef6776698c3e0f3ca26106b427fa938",
-  pngVendorIds: "b93ae6dd21d853239fa06f357a9c0b366981de5d1642843af5ad38a7202e5a76",
-  pngUnfilteredGerman: "317d9e42f7fa9fe3ca849559feb07fb648be15acc1f125676a558b763830bdd6",
+  mapGlobalStages: "39987ea44bdcba0534122850e90344d0b10d8f8a01e15d61b0054abb09b2a404",
+  mapVendorIds: "f0fdc0759a44ff795910be11a7cde616f7fc044e7ce691d2d3d0d673698a3361",
+  mapUnfiltered: "bc65d2022688d6f6581523ccb035f497e1a2ef42ab2df982a35b5c435c0b5eb2",
+  pngGlobalTitle: "191f75284f4023aabc1307b4df41c7868f3384d1963c2e4b9e0b662174f33dd4",
+  pngVendorIds: "7e471d385a0bcf5aba7c4d6fba5cb938ae19c2cefa361ae9b9662e556538bcbd",
+  pngUnfilteredGerman: "e817d3e10754b79694acc0e2a22953ca15ed85523a08307f02dfd98ee58f6587",
 };
 
 /**
@@ -148,12 +156,17 @@ const before = {
  * map's outline: only its stroke's width changed, 2 where it was 1.5.
  * Recorded once more, for the three strips with the labels this changes, when
  * the drawing began to write the texts the scene's measure fitted (as above).
+ * Recorded once more, for all four, when paths began to be drawn in neutrals
+ * and deviations in the one accent (as above). Two arcs of the global
+ * fixture reached into its strip with their label's box; now no arc does, so
+ * the strips of the global and the unfiltered fixture, which differ only in
+ * their arcs, draw the same calls.
  */
 const culledBefore = {
-  culledGlobal: "a6a60651617897d2b4f711ee2eeee6211b9222cf7e68d0703f51fa20b95a32b8",
-  culledGlobalStages: "c76a53a11b53f41729f8e9cc0f9c806663dc8c9aaf48bccd9f5215e85b4ff443",
-  culledVendorIds: "1152631216a5e5d5a93721de8645abb74c1d9f00b5b8b693515ccf8485bee91a",
-  culledUnfiltered: "ba15b9663fd4c666ed9ef5e4a7713c93ec45d7f94c1fa29c26199e33035f09cb",
+  culledGlobal: "d7018d1ae0f47fb1de25bb9123039a53d844272ecf3b09081358c1fe8e07144a",
+  culledGlobalStages: "a7a20a53bea7dd4f9ae9811548cd9b5993e2f355737edeca3275e56b81a8de96",
+  culledVendorIds: "7432a62bf97e1e1c6ae86c164a967535b76fa4df59bf9d612604386217c00610",
+  culledUnfiltered: "d7018d1ae0f47fb1de25bb9123039a53d844272ecf3b09081358c1fe8e07144a",
 };
 
 describe("Canvas drawing on the committed fixtures", () => {

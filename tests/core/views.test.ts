@@ -43,7 +43,9 @@ describe("views", () => {
     expect(finance.style.edgeWidth?.domain).toEqual(compliance.style.edgeWidth?.domain);
     expect(finance.style.edgeWidth?.domain).toEqual(logistics.style.edgeWidth?.domain);
     expect(finance.scales.domains.edgeWidth).toEqual(compliance.scales.domains.edgeWidth);
-    expect(finance.style.edgeColor?.domain).toEqual([0, 1]);
+    // The default style colours paths by the count too: colour and width share the count's domain.
+    expect(finance.style.edgeColor?.metric).toBe("count");
+    expect(finance.style.edgeColor?.domain).toEqual(finance.style.edgeWidth?.domain);
     expect(logistics.style.edgeColor?.metric).toBe("medianLagHours");
     expect(logistics.scales.domains.edgeColor).toEqual(set.domains["edgeColor:medianLagHours"]);
     // The automation view doubles `events`; its node domain covers the doubled values.

@@ -170,8 +170,9 @@ describe("the theme of a map", () => {
     expect(vi.mocked(buildScene).mock.calls.length).toBe(built);
     expect(layouts.mock.calls.length).toBe(laid);
 
-    // The activities of the first stage are outlined in its colour, 2 wide by default and 3 wide once the host says so.
-    const outlined = (width: number) => strokes().filter((s) => s.stroke === "#0072B2" && s.width === width).length;
+    // The activities of the invoice stage are outlined in its colour (the third categorical colour, #CC79A7, by its key's
+    // hash), 2 wide by default and 3 wide once the host says so.
+    const outlined = (width: number) => strokes().filter((s) => s.stroke === "#CC79A7" && s.width === width).length;
     expect([outlined(2) > 0, outlined(3)]).toEqual([true, 0]);
     act(() => host.classList.add("sized"));
     await waitFor(() => expect(outlined(3)).toBeGreaterThan(0));

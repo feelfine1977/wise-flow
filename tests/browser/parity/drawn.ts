@@ -83,6 +83,15 @@ export function paint(css: string | undefined | null, opacity = 1): string {
   return a < 1 ? `${color}@${a}` : color;
 }
 
+/**
+ * A label's pill as one value: its box (to one decimal, from the two the SVG
+ * export writes), fill, outline paint and width, and corner radius.
+ */
+export function pillOf(box: { x: number; y: number; width: number; height: number }, fill: string | undefined, stroke: { paint: string; width: number } | undefined, radius: number | string): string {
+  const one = (n: number) => String(Number(Number(n.toFixed(2)).toFixed(1)));
+  return [[box.x, box.y, box.width, box.height].map(one).join(","), fill ?? "none", stroke ? `${stroke.paint} ${num(stroke.width)}` : "none", `r${typeof radius === "number" ? num(radius) : radius}`].join(" ");
+}
+
 /** A dash pattern as its lengths separated by spaces, `none` without one. */
 export function dash(lengths: readonly number[] | string | undefined | null): string {
   if (lengths === undefined || lengths === null) return "none";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type FlowGraph, type Theme, buildScene, createPositions, defaultTheme, themeColors, toSVG } from "../../src/index";
+import { type FlowGraph, type Theme, buildScene, createPositions, defaultTheme, shortfallStyle, themeColors, toSVG } from "../../src/index";
 import { type DrawContext, drawScene, prepareScene } from "../../src/canvas/index";
 import { graph, positions } from "./element-kinds";
 
@@ -99,16 +99,18 @@ describe("the theme of a scene", () => {
     );
     const theme: Theme = {
       ...defaultTheme,
-      color: { ...defaultTheme.color, mechanism: "#abcdef" },
-      // Every key gets the same colour whatever its hash; shortfall runs from black to white.
-      palette: { ...defaultTheme.palette, categorical: Array(8).fill("#123456"), shortfall: ["#000000", "#ffffff"] },
+      color: { ...defaultTheme.color, accent: "#abcdef" },
+      // Every key gets the same colour whatever its hash; the path ramp runs from black to white, and so does shortfall.
+      palette: { ...defaultTheme.palette, categorical: Array(8).fill("#123456"), neutral: ["#000000", "#ffffff"], shortfall: ["#000000", "#ffffff"] },
     };
     const scene = buildScene(g, p, { theme });
     expect(scene.nodeMarks.map((m) => m.color)).toEqual(["#123456", "#123456"]);
     expect(scene.groupMarks.map((m) => m.color)).toEqual(["#123456", "#123456"]);
-    // 0.5 of the way from 0 to 255 is 127.5, which rounds to 0x80; the badge's 0.25 gives 63.75, 0x40.
-    expect(scene.edgeMarks.map((m) => m.color)).toEqual(["#808080", "#abcdef"]);
-    expect(scene.marks.find((m) => m.kind === "badge")!.color).toBe("#404040");
+    // The one path is the strongest, at the ramp's end; the constraint edge and the badge are in the accent.
+    expect(scene.edgeMarks.map((m) => m.color)).toEqual(["#ffffff", "#abcdef"]);
+    expect(scene.marks.find((m) => m.kind === "badge")!.color).toBe("#abcdef");
+    // In the shortfall style, 0.5 of the way from 0 to 255 is 127.5, which rounds to 0x80.
+    expect(buildScene(g, p, { theme, style: shortfallStyle }).edgeMarks.map((m) => m.color)).toEqual(["#808080", "#abcdef"]);
     expect(scene.scales.legend.find((l) => l.kind === "sequential")).toMatchObject({ stops: ["#000000", "#ffffff"] });
   });
 });

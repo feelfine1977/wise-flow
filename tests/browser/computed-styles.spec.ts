@@ -19,7 +19,13 @@ import { fileURLToPath } from "node:url";
  * once more when the legend began to list only the kinds of marks the map
  * draws: the legends of the stage map, the overlay catalogue and the BPMN view
  * lost their row for re-added paths (a `dd` and its glyph), which those maps do
- * not draw; every other element is the same. Geometry
+ * not draw; every other element is the same. They were recorded once more
+ * when paths began to be drawn in the grey of their count and deviations in
+ * the one accent: paths, arcs, badges, chips, self-loops and tints changed
+ * their paints, arcs and badges gained their label pills, groups lost their
+ * dash, and activities, groups, legend swatches and table swatches took the
+ * six-colour stage palette and its pattern twins (compared with every story
+ * of the old and the new build in both schemes). Geometry
  * that depends on the fonts of the machine (widths, heights, positions) is left
  * out, so the record holds on every operating system.
  */

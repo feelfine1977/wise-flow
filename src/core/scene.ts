@@ -6,7 +6,7 @@
  * and colour scheme, and what the legend lists.
  */
 import { type ActivityLabelOptions, activityReferences } from "./activity-labels.js";
-import { type EdgeMark, type GroupMark, type NodeMark, edgeMarks, groupMarks, nodeMarks } from "./element-marks.js";
+import { type EdgeMark, type GroupMark, type NodeMark, edgeColor, edgeMarks, groupMarks, nodeMarks } from "./element-marks.js";
 import { type SceneLegend, legendOfScene } from "./figure.js";
 import type { Locale } from "./format.js";
 import { type Box, type Positions, type XY, unionBoxes } from "./layout.js";
@@ -19,7 +19,7 @@ import { canonicalOverlays } from "./overlays.js";
 import { repositionNodes } from "./routing.js";
 import { type LodRules, type Scales, type StyleSpec, buildScales, defaultLod, defaultStyle, lodForSize } from "./style.js";
 import { type TextMeasure, estimateTextWidth } from "./text.js";
-import { type ColorScheme, type Theme, defaultTheme, themeColors } from "./theme.js";
+import { type ColorScheme, type Theme, defaultTheme, themeColors, themePalettes } from "./theme.js";
 import type { ColorToken } from "./tokens.js";
 
 export interface FlowSceneOptions {
@@ -112,8 +112,8 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
   const theme = options.theme ?? defaultTheme;
   const scheme = options.scheme ?? "light";
   const colors = themeColors(theme, scheme);
-  // The marks draw the neutral and the constraint colour of the scheme; every other paint they name by role.
-  const marked = scheme === "light" ? theme : { ...theme, color: colors };
+  // The marks draw the neutral colour, the accent and the palettes of the scheme; every other paint they name by role.
+  const marked = scheme === "light" ? theme : { ...theme, color: colors, palette: themePalettes(theme, scheme) };
   const measure = options.textMeasure ?? estimateTextWidth;
   const laid = laneBands(graph, givenPositions, { lanes: options.lanes ?? "none" });
   const positions = options.moved ? repositionNodes(graph, laid.positions, options.moved) : laid.positions;
@@ -121,11 +121,21 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
   const overlays = canonicalOverlays(shownOverlays(graph, options.overlays ?? graph.overlays ?? [], options, locale));
   const rules = { ...(style.lod ?? {}), ...(options.lod ?? {}) };
   const lod = options.lodBySize ? lodForSize(graph.nodes.length, rules) : { ...defaultLod, ...rules };
-  const geometry = placeOverlays(overlays, positions, { ...(options.overlayGeometry ?? {}), lod }, groupTitles(graph.groups ?? [], positions), measure, theme.text);
-  const marks = overlayMarks(geometry.shapes, locale, marked, measure);
+  const geometry = placeOverlays(overlays, positions, { locale, ...(options.overlayGeometry ?? {}), lod }, groupTitles(graph.groups ?? [], positions), measure, theme.text);
   const scales = buildScales(graph, style, marked);
   const nodes = nodeMarks(graph, positions, scales, { locale, activityLabels, theme: marked, measure });
   const edges = edgeMarks(graph, positions, scales, locale, marked);
+  const groups = groupMarks(graph, positions, laid.bands, scales, marked);
+  // A self-loop that stands for a path takes the path's colour; a tint follows the corners of what it covers.
+  const byId = new Map(graph.edges.map((e) => [e.id, e]));
+  const radii = new Map<string, number>([...nodes, ...groups].map((m) => [m.id, m.radius]));
+  const marks = overlayMarks(geometry.shapes, locale, marked, measure, {
+    pathColor: (id) => {
+      const edge = byId.get(id);
+      return edge && edgeColor(edge, scales, marked);
+    },
+    radius: (id) => radii.get(id),
+  });
   return {
     graph,
     positions,
@@ -144,7 +154,7 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
     marks,
     nodeMarks: nodes,
     edgeMarks: edges,
-    groupMarks: groupMarks(graph, positions, laid.bands, scales, marked),
+    groupMarks: groups,
     legend: legendOfScene({ scales, marks, nodeMarks: nodes, edgeMarks: edges, locale }),
     bounds: unionBoxes([positions.bounds, ...marks.filter((m) => m.inMap).map((m) => m.box)]),
   };

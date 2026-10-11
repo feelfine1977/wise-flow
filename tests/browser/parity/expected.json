@@ -1,27 +1,4 @@
 {
   "description": "Differences between what the SVG export drew and what the DOM map, the Canvas map and the PNG export drew on the parity stories, as tests/browser/parity.spec.ts finds them: per renderer, element kind, property and pair of values, the fixtures and the number of elements. Box coordinates are offsets from the SVG export's. The test fails on a difference this list lacks and on an entry it no longer finds, so the list can only shrink with the drawing.",
-  "differences": [
-    {
-      "renderer": "dom",
-      "kind": "mark:tint",
-      "property": "radius",
-      "svg": "10",
-      "other": "0",
-      "fixtures": [
-        "stageBands"
-      ],
-      "elements": 1
-    },
-    {
-      "renderer": "dom",
-      "kind": "mark:tint",
-      "property": "radius",
-      "svg": "10",
-      "other": "6",
-      "fixtures": [
-        "stages"
-      ],
-      "elements": 1
-    }
-  ]
+  "differences": []
 }
