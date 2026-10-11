@@ -13,12 +13,12 @@
 // artifacts/bench/ (or --out). It reports time and fails only when a case
 // cannot run; the counted-work tests of the test suite are the gate.
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { arch, cpus, freemem, loadavg, platform, release, totalmem } from 'node:os';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { gzipSync } from 'node:zlib';
+import { libraryJavaScriptGzipBytes } from '../../scripts/check-budgets.mjs';
 import { catalogue, settings } from './cases.mjs';
 import { markdown, summarise } from './report.mjs';
 
@@ -144,12 +144,6 @@ async function browserRunner() {
   };
 }
 
-function libraryGzipBytes() {
-  const workers = ['elk-worker.min.js', 'dagre-worker.min.js'].map((name) => join(dist, name));
-  const files = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? files(join(dir, e.name)) : [join(dir, e.name)]));
-  return files(dist).filter((p) => p.endsWith('.js') && !workers.includes(p)).reduce((sum, p) => sum + gzipSync(readFileSync(p)).length, 0);
-}
-
 const git = (...a) => execFileSync('git', a, { cwd: root, encoding: 'utf8' }).trim();
 const load = () => loadavg().map((v) => Number(v.toFixed(2)));
 
@@ -197,7 +191,7 @@ async function main() {
     machine: { cpu: cpus()[0]?.model ?? 'unknown', cores, memoryGB: Number((totalmem() / 2 ** 30).toFixed(1)), freeMemoryGB: Number((freemem() / 2 ** 30).toFixed(1)), platform: platform(), release: release(), arch: arch(), loadBefore, loadAfter, loaded },
     runtime: { node: process.version, v8: process.versions.v8 },
     browser: { name: 'Chromium', version: browser?.version ?? 'not run', playwright: JSON.parse(readFileSync(join(root, 'node_modules/playwright/package.json'), 'utf8')).version },
-    library: { javaScriptGzipBytes: libraryGzipBytes() },
+    library: { javaScriptGzipBytes: libraryJavaScriptGzipBytes(dist) },
   };
   const run = { meta, results };
   const reference = JSON.parse(readFileSync(join(here, 'reference.json'), 'utf8'));
