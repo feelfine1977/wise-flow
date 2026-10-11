@@ -430,6 +430,25 @@ const lower = (v: string) => (v.startsWith("#") ? v.toLowerCase() : v);
 const cssFont = (v: string) => v.replace(/'/g, '"');
 const kebab = (name: string) => name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
 
+/** The words of a space-separated list. */
+type Words<S extends string, A = never> = S extends `${infer H} ${infer T}` ? Words<T, A | H> : A | S;
+/** The text roles that set `K`. */
+type TextWith<K extends string> = { [R in keyof typeof textTokens]: (typeof textTokens)[R] extends Record<K, unknown> ? R : never }[keyof typeof textTokens];
+/** The roles each prefix may list. */
+type StyledRoles = {
+  text: TextWith<"size">;
+  weight: TextWith<"weight">;
+  leading: TextWith<"lineHeight">;
+  radius: keyof typeof radiusTokens;
+  stroke: keyof typeof strokeTokens;
+  dash: keyof typeof dashTokens;
+  opacity: keyof typeof opacityTokens;
+  z: keyof typeof zTokens;
+  size: keyof typeof dimensionTokens;
+};
+/** `T` where every list names roles of its table; a list with another word is `never` and fails to compile. */
+type Listed<T extends Record<keyof StyledRoles, string>> = { [P in keyof StyledRoles]: [Words<T[P]>] extends [StyledRoles[P]] ? T[P] : never };
+
 /** The roles the stylesheet reads, by variable prefix. */
 const styledRoles = {
   text: "nodeLabel nodeCount eventLabel noteLabel activityName activityNumber pathLabel groupLabel legendItem legendValue attribution panel panelHeading panelTitle panelNote panelLabel panelKey panelSymbol tooltip activityTooltip timelineAxis timelineLabel timelineNote comparisonValue comparisonNote comparisonDenominator",
@@ -473,7 +492,7 @@ export function tokenVariables(): { light: Record<string, string>; dark: Record<
     size: (r) => px(dimensionTokens[r as keyof typeof dimensionTokens]),
   };
   for (const [prefix, value] of Object.entries(tables)) {
-    for (const role of styledRoles[prefix as keyof typeof styledRoles].split(" ")) light[`--wf-${prefix}-${kebab(role)}`] = value(role);
+    for (const role of (styledRoles satisfies Listed<typeof styledRoles>)[prefix as keyof typeof styledRoles].split(" ")) light[`--wf-${prefix}-${kebab(role)}`] = value(role);
   }
   for (const step of spaceTokens.steps) light[`--wf-space-${String(step).replace(".", "-")}`] = px(step * spaceTokens.unit);
   const dark: Record<string, string> = {};
