@@ -709,7 +709,9 @@ graph's `meta`, its parts joined by " · ": the label (`label` or `scene`), the
 cases ("251,734 cases"), the period (`period`, two dates or `{ from, to }`),
 the filters (`filters`, a filter or a list of clauses, in the words of the
 filter chips; an empty one reads "filter: none") and how much of the model is
-shown ("16 of 42 activities, 35 of 656 paths shown", from `meta.model`). A
+shown ("16 of 42 activities, 35 of 656 paths shown", from `meta.model`; the
+activities of a collapsed stage count as shown, and a map with one leaves the
+paths out, since its merged paths are not the model's). A
 part whose data is missing is left out, and a graph without any of it has no
 caption: nothing is invented. In SVG the caption is a `<g class="wf-caption">`.
 `toSVG`, `toPNG` and the Canvas `drawLegend` draw from these.

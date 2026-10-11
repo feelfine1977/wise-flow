@@ -53,8 +53,9 @@ The legend is a key and the numbers say what they are.
   print as exact.
 - **Caption.** `toSVG` and `toPNG` write a caption line under the figure from
   the graph's `meta`: label, cases, period, filters and how much of the model
-  is shown ("16 of 42 activities, 35 of 656 paths shown"); a part without
-  data is left out. `figureCaption` (new), `ExportOptions.caption`,
+  is shown ("16 of 42 activities, 35 of 656 paths shown"; a collapsed
+  stage's activities count as shown, and the paths of a map with merged
+  stages are left out); a part without data is left out. `figureCaption` (new), `ExportOptions.caption`,
   `PngOptions.caption`, `FigureFrameOptions.caption`, `FigureFrame.caption`.
   `abstract` records `meta.model` (`ModelOutline`, new): the activities,
   paths and group order of the graph before abstraction.

@@ -4,6 +4,7 @@
  * the activity key sit in an exported figure.
  */
 import { type ActivityLabelOptions, activityKeyLines } from "./activity-labels.js";
+import { collapsedActivityIds } from "./collapsed-members.js";
 import { asFilter, describeClause } from "./filters.js";
 import { type Locale, formatCount } from "./format.js";
 import type { Box } from "./layout.js";
@@ -262,8 +263,10 @@ const counted = (v: unknown) => typeof v === "number" && Number.isFinite(v);
  * (`label` or `scene`), its cases, its period (`period`, two dates), the
  * filters in effect (`filters`, a filter or a list of clauses; an empty one
  * reads "filter: none") and how much of the model is shown ("7 of 12
- * activities, 13 of 31 paths shown", from `meta.model`). A part whose data is
- * missing is left out; without any, there is no caption.
+ * activities, 13 of 31 paths shown", from `meta.model`; a collapsed stage
+ * shows its activities, and with one the paths are left out: merged paths are
+ * not the model's). A part whose data is missing is left out; without any,
+ * there is no caption.
  */
 export function figureCaption(graph: FlowGraph, locale: Locale = "en", labelOf?: (id: string) => string): string | undefined {
   const meta = graph.meta ?? {};
@@ -279,9 +282,17 @@ export function figureCaption(graph: FlowGraph, locale: Locale = "en", labelOf?:
     parts.push(clauses.length ? t(locale, "caption.filters", { filters: clauses.map((c) => describeClause(c, locale, labelOf)).join("; ") }) : t(locale, "caption.noFilters"));
   }
   const model = meta.model ?? {};
+  // A collapsed stage shows its activities; its merged paths are not the model's, so their share is not known.
+  const activities = new Set<string>();
+  let collapsed = false;
+  for (const n of graph.nodes) {
+    const members = n.kind === "stage" ? collapsedActivityIds(graph, n.id) : undefined;
+    if (members) collapsed = true;
+    for (const id of members ?? (n.kind === "activity" ? [n.id] : [])) activities.add(id);
+  }
   const shown = [
-    counted(model.activities) && t(locale, "caption.activities", { shown: formatCount(graph.nodes.filter((n) => n.kind === "activity").length, locale), total: formatCount(model.activities!, locale) }),
-    counted(model.paths) && t(locale, "caption.paths", { shown: formatCount(graph.edges.filter((e) => e.kind === "follows" && e.source !== e.target).length, locale), total: formatCount(model.paths!, locale) }),
+    counted(model.activities) && t(locale, "caption.activities", { shown: formatCount(activities.size, locale), total: formatCount(model.activities!, locale) }),
+    counted(model.paths) && !collapsed && t(locale, "caption.paths", { shown: formatCount(graph.edges.filter((e) => e.kind === "follows" && e.source !== e.target).length, locale), total: formatCount(model.paths!, locale) }),
   ].filter((p): p is string => !!p);
   if (shown.length) parts.push(t(locale, "caption.shown", { parts: shown.join(", ") }));
   return parts.length ? parts.join(" · ") : undefined;

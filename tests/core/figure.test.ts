@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { globalScene } from "../../fixtures/bpic2019";
-import { type FlowGraph, type LegendItem, type Overlay, type Positions, type SceneLegend, MAP_TARGET, abstract, buildScene, figureCaption, figureFrame, layout, legendLayout, legendOfScene, sceneLegend, toSVG } from "../../src/index";
+import { type FlowGraph, type LegendItem, type Overlay, type Positions, type SceneLegend, MAP_TARGET, abstract, buildScene, collapseGroups, figureCaption, figureFrame, layout, legendLayout, legendOfScene, sceneLegend, toSVG } from "../../src/index";
 import { type DrawContext, drawLegend, prepareScene, toPNGCanvas } from "../../src/canvas/index";
 
 const width: LegendItem = { kind: "width", title: "legend.edgeWidth", metric: "count", domain: [1, 9], range: [1, 8] };
@@ -334,6 +334,21 @@ describe("the caption of an export", () => {
     const ctx = new Proxy({}, { get: (_t, key) => (key === "fillText" ? (s: string) => texts.push(s) : key === "createLinearGradient" || key === "createPattern" ? undefined : () => ({ width: 0 })), set: () => true });
     toPNGCanvas({ graph: shown, positions }, { scale: 1, createCanvas: (w, h) => ({ width: w, height: h, getContext: () => ctx }) });
     expect(texts.join(" ")).toContain(written.join(" "));
+  });
+
+  it("counts the activities inside collapsed stages as shown and leaves out the paths, which merged paths cannot be counted against", () => {
+    // Every activity of the fixture sits in one of its five stages: collapsed, all 42 are on the map.
+    const staged = abstract(globalScene, { collapse: "all" });
+    expect(staged.nodes.filter((n) => n.kind === "activity")).toEqual([]);
+    expect(figureCaption(staged)).toBe("All purchase order items · 251,734 cases · 1948-01-26 – 2020-04-09 · 42 of 42 activities shown");
+    // One stage collapsed: its 3 activities and the 3 that stay.
+    const g: FlowGraph = {
+      nodes: ["a", "b", "c", "x", "y", "z"].map((id) => ({ id, kind: "activity", label: id, group: "abc".includes(id) ? "s" : undefined })),
+      edges: [{ id: "ax", kind: "follows", source: "a", target: "x" }, { id: "bx", kind: "follows", source: "b", target: "x" }],
+      groups: [{ id: "s", kind: "stage", label: "S" }],
+      meta: { model: { activities: 9, paths: 20 } },
+    };
+    expect(figureCaption(collapseGroups(g, ["s"]))).toBe("6 of 9 activities shown");
   });
 
   it("invents nothing for a graph without meta", () => {
