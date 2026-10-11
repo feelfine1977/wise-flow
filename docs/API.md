@@ -431,7 +431,9 @@ export const patternTokens: { size: 6; strokeWidth: 1; strokeOpacity: 0.6; dotRa
 export function patternTwin(p: PatternId): { size; lines: [x1, y1, x2, y2][]; dots: [cx, cy][] };
 export const hatchTokens: { size: 8; width: 1; domPeriod: 7 };
 export const designTokens: { color; darkColor; palette; darkPalette; font; nodeSize; size; textSize; text; radius; stroke; dash; opacity; space; z;
-  dimension; arrowhead; pattern; hatch; minimum; print };   // darkPalette: the palettes the dark scheme changes (the path ramp)
+  dimension; arrowhead; pattern; hatch; minimum; rule; print };   // darkPalette: the palettes the dark scheme changes (the path ramp)
+// designTokens.rule: what a theme's rules draw at (see "Rules")
+//   { strokeWeight: { thin: 1; strong: 2 }; radius: { s: 4; m: 8 }; opacity: { min: 0.2; max: 1 }; textMax: 15; weights: [400, 500, 600] }
 export const themedColors: readonly ColorToken[];                  // the colours with a CSS variable
 export function cssVariable(name: string): string;                 // "inkMuted" → "--wf-ink-muted"
 export function tokenVariables(): { light: Record<string, string>; dark: Record<string, string> };
@@ -513,7 +515,7 @@ export interface Theme {
   frequencyCue: FrequencyCue;                             // where a card shows its share of all cases; default "both"
   density: "comfortable" | "compact";                     // the renderers draw comfortable whatever it says
   minimum: { text: number; stroke: number };              // pt at the layout's own size (1 layout unit = 0.75 pt)
-  rules: readonly never[];                                // none yet
+  rules: readonly ThemeRule[];                            // ordered restyling by part, kind, tag and state; none in the presets (see "Rules")
 }
 export type FrequencyCue = "both" | "behind" | "bottom" | "none";   // the stripe behind the texts, the foot along the bottom edge
 export const defaultTheme: Theme;                          // the token table: the default look
@@ -526,8 +528,8 @@ export function resolveTheme(setting?: ThemeSetting, variables?: ThemeOverrides)
 export function themeColors(theme: Theme, scheme?: ColorScheme): Readonly<Record<ColorToken, string>>;  // the light roles with the scheme's changes
 export function checkTheme(theme: Theme): ThemeDeviation[];   // empty when nothing falls short
 export type PatternLook = { readonly [K in keyof typeof patternTokens]: number };
-export interface ThemeDeviation { kind: "text" | "line" | "rampOrder" | "rampStart" | "textSize" | "strokeWidth" | "color";
-  scheme?: ColorScheme; subject: string; value: number | string; minimum?: number }
+export interface ThemeDeviation { kind: "text" | "line" | "rampOrder" | "rampStart" | "textSize" | "strokeWidth" | "color" | "rule";
+  scheme?: ColorScheme; subject: string; value: number | string; minimum?: number }   // rule: subject "rules[1].set.strokeWeight"
 ```
 
 Appearance is scene data. `buildScene(graph, positions, { theme, scheme })`
@@ -596,7 +598,8 @@ a text size or stroke width of the tables under the
 theme's `minimum` (in pt, one layout unit being 0.75 pt), and a colour that
 is not a literal. Both presets pass in both schemes; the default's `minimum`
 is the smallest of its scales (8.25 pt: text at 11 px; 0.75 pt: strokes of
-1 px). The React components log what
+1 px). It reports every entry of a rule that is unknown or out of range
+(`kind: "rule"`, see "Rules"). The React components log what
 it finds once per theme in development (`process.env.NODE_ENV` other than
 `production`), and decide nothing from it. A translucent colour is measured
 as it is drawn: mixed with its ground, and the ground with white.
@@ -1810,7 +1813,8 @@ export function buildScene(g: FlowGraph, p: Positions, o?: FlowSceneOptions): Fl
 export function followsSelfLoops(g: FlowGraph, o?: { locale?: Locale; observed?: { caseLabel?: string } }): Overlay[];
 export function withFollowsSelfLoops(g: FlowGraph, overlays: Overlay[], o?: { locale?; observed? }): Overlay[];
 
-export type MarkPaint = "ink" | "inkMuted" | "paper" | "surface" | "line" | "lineStrong" | "cueStripe" | "cueFoot" | "outOfScope" | "value" | "onValue";
+export type MarkPaint = "ink" | "inkMuted" | "paper" | "surface" | "line" | "lineStrong" | "cueStripe" | "cueFoot" | "outOfScope" | "value" | "onValue"
+  | `#${string}`;   // a colour a theme's rule sets: #rrggbb, #rrggbbaa below full alpha, drawn as it is
 export interface MarkFill { paint: MarkPaint; pattern?: "outOfScope"; opacity?: number }
 export interface MarkStroke { paint: MarkPaint; width: number; opacity?: number; dash?: number[] }
 export interface MarkText { text: string; x: number; y: number; size: number; weight?: number; anchor: "start" | "middle" | "end";
@@ -1819,7 +1823,8 @@ export interface MarkGauge { x: number; y: number; width: number; height: number
 export interface OverlayMark { id: string; kind: OverlayKind; overlay: Overlay; box: Box; layer: "below" | "between" | "above"; inMap: boolean;
   minZoom: number; color: string; onColor: string; title: string; radius: number; path?: string; fill?: MarkFill;
   stroke?: MarkStroke; arrow?: { size: number; overhang: number }; texts: MarkText[]; gauge?: MarkGauge; edgeId?: string;
-  pill?: { box: Box; radius: number; fill: MarkFill; stroke: MarkStroke } }   // pill: the box an arc's label is written in
+  pill?: { box: Box; radius: number; fill: MarkFill; stroke: MarkStroke };   // pill: the box an arc's label is written in
+  opacity?: number }   // the whole mark's, where a theme's rule sets one
 export function overlayMarks(shapes: OverlayShape[], locale?: Locale, theme?: Theme, measure?: TextMeasure,
   context?: { pathColor?: (edgeId: string) => string | undefined; radius?: (target: string) => number | undefined }): OverlayMark[];
 export function overlayColor(o: Overlay, theme?: Theme): string;           // the theme's accent, whatever the value
@@ -1840,13 +1845,13 @@ export interface ElementText extends MarkText { role: "label" | "glyph" | "count
 export interface NodeCue { share: number; stripe?: { box: Box; paint: MarkPaint }; foot?: { box: Box; paint: MarkPaint } }
 export interface NodeMark { id: string; kind: NodeKind; node: FlowNode; box: Box; shape: "box" | "circle" | "diamond"; radius: number;
   color: string; pattern: PatternId; fill: MarkPaint; stroke: { paint: MarkPaint; width: number; dash?: number[] }; band?: number;
-  cue?: NodeCue; texts: ElementText[]; reconnected: boolean; outOfScope: boolean; title?: string }
+  cue?: NodeCue; texts: ElementText[]; reconnected: boolean; outOfScope: boolean; title?: string; opacity?: number }
 export interface EdgeMark { id: string; kind: EdgeKind; edge: FlowEdge; points: XY[]; color: string; width: number; dash?: number[];
-  texts: ElementText[]; reconnected: boolean }
+  texts: ElementText[]; reconnected: boolean; notEvaluated?: boolean; opacity?: number }   // opacity: line, arrowhead and label
 export type BoxSide = "top" | "right" | "bottom" | "left";
 export interface GroupMark { id: string; kind: GroupKind; group: FlowGroup; box: Box; color: string; pattern: PatternId; band?: LaneBand;
   radius: number; fill: MarkFill; stroke: { paint: MarkPaint; width: number; dash?: number[]; sides?: BoxSide[] };
-  rule?: { paint: MarkPaint; width: number; side: BoxSide }; texts: ElementText[]; chipAnchor: XY }
+  rule?: { paint: MarkPaint; width: number; side: BoxSide }; texts: ElementText[]; chipAnchor: XY; opacity?: number }
 export function nodeMark(n: FlowNode, box: Box, o: { color: string; pattern: PatternId; locale?: Locale; total?: number; outOfScope?: boolean;
   activityLabels?: ActivityLabelOptions; theme?: Theme; measure?: TextMeasure }): NodeMark;   // total: the log's cases
 export function edgeMark(e: FlowEdge, points: XY[], o: { color: string; width: number; locale?: Locale; theme?: Theme }): EdgeMark;
@@ -2212,6 +2217,142 @@ const svg = toSVG({ graph, positions }, { theme: look.theme });
 
 The element must be mounted when the component that calls the hook mounts.
 In development the hook logs what `checkTheme` finds, once per finding.
+
+## Rules
+
+A host restyles the map in two tiers. **Tier one, rules in the theme**, reaches
+every renderer: rules are part of the theme, resolved when the scene is built
+and, for the interactive states, by one core function both maps call, so they
+change the interactive DOM map, the Canvas map, the SVG export and the PNG
+export alike. **Tier two, CSS against the styling contract's selectors** (next
+section), changes only the interactive DOM map and the panels around it.
+
+```ts
+export interface ThemeRule { match: RuleMatch; set: RuleSet }
+export type RuleMatch =
+  | { part: "node"; kind?: NodeKind; tag?: string; state?: RuleState }
+  | { part: "edge"; kind?: EdgeKind; tag?: string; state?: "reconnected" | InteractiveState }
+  | { part: "group"; kind?: GroupKind; state?: "selected" }
+  | { part: "mark"; kind?: OverlayKind; state?: "hovered" };   // badge, chip, arc, selfLoop, tint, hatch
+export type RulePart = RuleMatch["part"];
+export type InteractiveState = "selected" | "focused" | "hovered" | "dimmed";
+export type RuleState = "outOfScope" | "reconnected" | InteractiveState;
+export interface RuleSet {
+  fill?: string;                          // a literal colour (#rgb, #rrggbb, #rrggbbaa, rgb(), rgba()) or a colour role (ink, accent, …)
+  fillOpacity?: number;                   // 0 to 1
+  stroke?: string;                        // the outline's colour; a path's line's
+  strokeWeight?: "thin" | "strong";       // 1 or 2
+  dash?: "solid" | "unobserved";          // unobserved: the dash of what was not directly observed
+  radius?: "s" | "m" | "full";            // 4, 8, half the box's shorter side
+  opacity?: number;                       // the whole element's, clamped to 0.2 to 1
+  text?: { name?: RuleText; count?: RuleText; share?: RuleText; label?: RuleText };
+  cue?: FrequencyCue;                     // the place of a card's frequency cue
+}
+export interface RuleText { size?: number; weight?: 400 | 500 | 600; color?: string }   // size from the theme's smallest text to 15
+export type RuleTextRole = "name" | "count" | "share" | "label";
+export function ruleTextRole(role?: string): RuleTextRole;   // nameLine → name, countLine → count, share → share, any other → label
+export interface StateStyle { fill?: MarkPaint; stroke?: MarkPaint; width?: number; dash?: number[]; opacity?: number;
+  texts?: Partial<Record<RuleTextRole, MarkPaint>> }       // dash [] is solid
+export function stateStyle(scene: { theme: Theme; colors: Record<ColorToken, string> }, part: RulePart,
+  mark: NodeMark | EdgeMark | GroupMark | OverlayMark, states: { selected?; focused?; hovered?; dimmed?: boolean }): StateStyle | undefined;
+export function markInState<M extends NodeMark | GroupMark | OverlayMark>(m: M, s: StateStyle | undefined): M;
+```
+
+`theme.rules` is an ordered list of `{ match, set }`. A rule matches an element
+of its `part` and, where it names them, of its `kind`, carrying its `tag` (nodes
+and paths carry tags; groups and marks do not) and in its `state`. `set` is a
+closed set of properties: there is no field for a shape, a pattern twin, an
+arrowhead, a shadow, a gradient, motion or any geometry, so none of them can be
+changed. The default look is written without rules, and neither preset has any.
+
+**Order.** An element is drawn in its kind's default look, then with what every
+matching rule without a state sets, in the order of the list (a later rule
+overrides an earlier one), then with what every matching rule of a state the
+element is in sets, again in order. So a state's rule overrides the others
+wherever it stands in the list. Entries of a text merge by role: a later rule
+that sets a name's colour keeps an earlier rule's size.
+
+**Where each state resolves.** `outOfScope` (an element a hatch overlay covers)
+and `reconnected` (re-added to keep the map connected) are resolved when the
+scene is built: the mark builders apply the rules, so the result is in
+`scene.nodeMarks`, `edgeMarks`, `groupMarks` and `marks` and reaches both
+exports. `selected`, `focused`, `hovered` and `dimmed` exist only in the
+interactive maps: `stateStyle(scene, part, mark, states)` gives what the
+rules of the states an element is in set over its mark, and the DOM map and
+the Canvas map both draw the states from it. Without such a rule (it returns
+nothing) they draw a state as they do by default: hover, selection and focus
+in the outline, dimmed at the theme's `dimmed` opacity. A rule of these states
+replaces only what it sets: a selected activity keeps its selection ring, but
+its outline is the rule's. These rules set paints only: `fill`, `fillOpacity`,
+`stroke`, `strokeWeight`, `dash`, `opacity` and a text's `color`; corners,
+texts' sizes and weights and the cue's place are fixed when the scene's texts
+are fitted.
+
+**What each part draws.** Nodes take every property: `radius` on a box (an
+event's circle and a gateway's diamond keep theirs), `text.name`, `count` and
+`share` on a card, `label` on an event's or a note's label and a gateway's
+glyph, `cue` on a card. Paths take `stroke`, `dash`, `opacity` and
+`text.label` (their count): their width is their cases and is not set by a
+rule. Groups take all but `cue`; a band keeps its square corners and solid
+sides. Marks take all but `cue`, and only the colour of their texts, since
+their boxes are placed around their texts: a hatch keeps its pattern and a
+tint follows the corners of what it covers.
+
+**Validation.** `checkTheme` lists every entry of a rule that is unknown or out
+of range as a deviation of kind `rule`, with the entry's place as its subject
+(`rules[1].set.strokeWeight`): a rule that is not `{ match, set }`, an unknown
+part, kind, state or property, a tag on a group or a mark, a property its part
+or its interactive state does not draw, a colour that is neither a literal nor
+a colour role, a fill opacity outside 0 to 1, a text size under the theme's
+minimum or over 15, a weight other than 400, 500 or 600, a value not among the
+named ones. Such a rule changes nothing. An `opacity` outside 0.2 to 1 is
+clamped to it, and listed too. Colour roles are drawn in the scene's scheme:
+`"accent"` is `#b84a00` in the light scheme and `#ff8c42` in the dark one.
+
+**Tier one, worked example.** Activities tagged `manual` get a strong outline,
+gateways a pale fill, re-added paths their own colour, and dimmed paths are
+fainter, in the DOM map, the Canvas map and both exports:
+
+```ts
+const theme: ThemeSetting = {
+  rules: [
+    { match: { part: "node", kind: "gateway" }, set: { fill: "#fff3c4" } },
+    { match: { part: "node", tag: "manual" }, set: { strokeWeight: "strong", radius: "m", text: { name: { weight: 600 } } } },
+    { match: { part: "edge", state: "reconnected" }, set: { stroke: "#b42318" } },
+    { match: { part: "edge", state: "dimmed" }, set: { opacity: 0.2 } },
+  ],
+};
+<ProcessMap graph={graph} theme={theme} />;           // the DOM map, or the Canvas map above 2,000 elements
+const svg = toSVG({ graph, positions }, { theme });   // and toPNG with the same theme
+```
+
+Rules are part of the theme, resolved when the scene is built and, for the
+interactive states, by the one core function both maps call, so they change
+the interactive DOM map, the Canvas map, the SVG export and the PNG export
+alike.
+
+**Tier two, worked example.** A host stylesheet against the styling contract
+(next section):
+
+```css
+[data-wf-part="node"][data-wf-kind="activity"][data-wf-state~="hovered"] { box-shadow: 0 0 0 3px #fde68a; }
+```
+
+CSS written against these selectors changes only the interactive DOM map and the panels around it. It does not change the Canvas map (used automatically above 2,000 elements), SVG or PNG exports, or the BPMN diagram. Anything that must look the same everywhere belongs in the theme or a rule.
+
+**In the renderers.** Every mark carries what the rules set: a paint a rule
+sets is a literal (`MarkPaint` `#rrggbb`, `#rrggbbaa`), and `opacity` on a node,
+edge, group or overlay mark is the whole element's (the SVG export writes it on
+the element's group). With rules, `markedThemeKey` holds every colour, so a
+colour a rule names by role builds the scene again when it changes. The DOM map
+gives a node, a group and an edge the state style in its data (`state` of
+`ActivityNodeData`, `GroupNodeData` and `FollowsEdgeData`, with the node's and
+the group's mark already drawn in it by `markInState`); the stylesheet draws a
+state's outline from `--wf-state-outline` where it is set, and leaves out the
+dimmed look where a rule sets the opacity (`--wf-node-opacity`,
+`--wf-edge-opacity`, `--wf-group-opacity`). A path's label carries its size and
+paint as `--wf-text-size`, `--wf-text-weight` and `--wf-text-paint`. A hovered
+overlay mark is drawn as `markInState` gives it in both maps.
 
 ## Styling contract
 

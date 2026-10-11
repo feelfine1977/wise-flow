@@ -40,7 +40,8 @@ read what it resolves and do not decide it again.
 | Overlay marks (`core/overlay-marks.ts`) | `FlowScene.marks`, `OverlayMark` | per placed overlay: box or path, fill, stroke, dash, arrowhead, texts, layer, zoom threshold, whether it is on the map (§2.5) | SVG export, Canvas drawing, React nodes and `OverlayLayer`, BPMN projection |
 | Node, edge and group marks (`core/element-marks.ts`) | `FlowScene.nodeMarks`, `FlowScene.edgeMarks`, `FlowScene.groupMarks` | outline, fill, border, band, texts and their level of detail; an activity's or a stage's card: its name on up to two lines, its number line (cases and their share of the log's), its frequency cue and whether it is out of scope; edge route, colour, dash, count label; a group's tint, outline, band sides and rule, title and chip anchor (§2.5) | SVG export, Canvas drawing, React node, edge and group components |
 | Text measure (`core/text.ts`) | `TextMeasure`, `estimateTextWidth`, `truncateText`, `wrapText`; `buildScene(…, { textMeasure })`; `canvasTextMeasure` (Canvas) | how wide a text is, where it is shortened and how it wraps: node labels, chip texts and their boxes, activity names and boxes, the legend's texts, the figure's note and activity key, measured once when the scene is built (§2.5) | the mark builders, the overlay geometry, the legend layout and the figure frame; the renderers write the fitted texts |
-| Theme (`core/theme.ts`, `checkTheme` in `core/style.ts`) | `Theme`, `defaultTheme`, `printTheme`, `resolveTheme`, `themeColors`, `checkTheme`; `buildScene(…, { theme, scheme })` | what the marks are drawn in: colour roles with the dark scheme's changes, the data palettes and the pattern twins' order and look, fonts, text, radius, stroke, opacity and spacing tables, the place of the frequency cue, density, the smallest text and stroke, rules (none yet); the presets (`defaultTheme` is the token table, `printTheme` its `printTokens` over it); a setting as changes over a preset over the host's CSS variables; the CSS variable of every part; what of a theme falls short (§2.4) | the scene and its mark builders and scales; through the scene the SVG export, Canvas drawing, PNG export and React components; `useFlowTheme` (React), which reads the variables |
+| Theme (`core/theme.ts`, `checkTheme` in `core/style.ts`) | `Theme`, `defaultTheme`, `printTheme`, `resolveTheme`, `themeColors`, `checkTheme`; `buildScene(…, { theme, scheme })` | what the marks are drawn in: colour roles with the dark scheme's changes, the data palettes and the pattern twins' order and look, fonts, text, radius, stroke, opacity and spacing tables, the place of the frequency cue, density, the smallest text and stroke, rules (none in the presets); the presets (`defaultTheme` is the token table, `printTheme` its `printTokens` over it); a setting as changes over a preset over the host's CSS variables; the CSS variable of every part; what of a theme falls short (§2.4) | the scene and its mark builders and scales; through the scene the SVG export, Canvas drawing, PNG export and React components; `useFlowTheme` (React), which reads the variables |
+| Rules (`core/rules.ts`) | `ThemeRule`, `stateStyle`, `markInState`; `checkTheme` | which rules of a theme apply (the others reported), what they set on an element by part, kind, tag and state in their order with a state's rules last, and the paints, widths, dashes, radii and opacities they resolve to; for the interactive states, what the maps draw over a mark (§2.4) | the node, edge, group and overlay mark builders; `drawScene` (Canvas); the React map's elements |
 | Edge budget (`core/edge-budget.ts`) | `budgetEdges(scene, budget, protection, inView)` → `EdgeSelection`; `edgeBudgetAdapter(clock)` (internal) | which edges in view a budget draws: protected edges (an overlay mark on them, selected, at the keyboard position, on a highlighted path), then weight, then id; or exactly the edges a map reported (`ShownEdges`); the adaptive budget's step, moved by the timed frames of gestures and only at rest (§4) | `drawScene` and `CanvasRenderer` (Canvas, `toPNG`), `useFlowElements` (React Flow), `toSVG` |
 | Mark SVG (`core/mark-svg.ts`) | `markSvg`, `svgMarkup` | the SVG elements of a mark | SVG export, React map, BPMN view |
 | Legend and figure frame (`core/figure.ts`) | `FlowScene.legend` (`legendOfScene`), `LegendRow`, `legendLayout`, `figureFrame`, `figureCaption` | the legend's typed rows from what the scene draws (the measure and its unit, the scales titled by metric and unit, a key per kind of mark drawn), their heights and texts at the export's width, the exported figure's frame, its caption line and the note on withheld edges in it (§2.6) | `toSVG`, `toPNG`, Canvas `drawLegend`, `<Legend/>` |
@@ -234,7 +235,7 @@ draw a role differently, the table holds both values under two names.
 roles of the light scheme and what the dark scheme changes, the data palettes
 (`neutral`, `shortfall`, `performance`, `diverging`, `categorical`), the fonts,
 the text, radius, stroke and spacing tables, a density and a list of rules
-(empty for now); `defaultTheme` is the token table. `buildScene` takes
+(none in either preset); `defaultTheme` is the token table. `buildScene` takes
 `{ theme, scheme }` and resolves the marks in it once: outline widths, dashes,
 radii and text styles from the theme's tables, data colours through its
 palettes (the scales and overlay colours read them, so no fixed hex value of
@@ -275,6 +276,22 @@ theme's variables that the stylesheet reads on its element, and gives its
 pattern twins the theme's ink and pattern look. `checkTheme`
 reports contrasts (a translucent colour over its ground), the path ramp,
 sizes and non-literal colours as data; the components log it in development.
+
+**Rules.** A theme's `rules` (`rules.ts`) restyle elements by part (node,
+edge, group, mark), kind, tag and state within a closed set of properties
+(fill, fill opacity, stroke, stroke weight, dash, radius, opacity, the size,
+weight and colour of each text role, the place of the frequency cue); the
+type has no field for shapes, pattern twins, arrowheads, shadows, gradients or
+geometry. The mark builders apply them when the scene is built: the rules
+without a state in their order, then those of the states the element is in
+there (`outOfScope`, `reconnected`), so the marks, and through them the
+exports, carry the result; a colour role is drawn in the scheme's colour, a
+paint a rule sets is a literal in the mark. `stateStyle` gives what the rules
+of the interactive states (`selected`, `focused`, `hovered`, `dimmed`) set
+over a mark; the DOM map and the Canvas map both draw a state from it, and
+where it gives nothing they draw the state as by default. A rule `checkTheme`
+reports (an unknown entry or a value out of range) changes nothing; an
+opacity is clamped to 0.2 to 1.
 
 ### 2.5 Overlays
 An overlay is data, not drawing: `{ kind, target, payload }` where kind is

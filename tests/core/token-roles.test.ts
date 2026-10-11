@@ -164,7 +164,8 @@ describe("the role tables", () => {
     expect(canvas).toContain(`globalAlpha=0.3`);
     expect(canvas).toContain(`font="650 11.5px`);
     expect(tokenVariables().light).toMatchObject({ "--wf-text-path-label": "10.5px", "--wf-stroke-halo": "3.5px", "--wf-opacity-dimmed": "0.3", "--wf-text-legend-item": "11.5px", "--wf-weight-legend-item": "650" });
-    expect(rule(".wf-edge-label")).toContain("font-size: var(--wf-text-path-label);");
+    // The label's own size (the scene's, which a theme's rule may change) comes first, the role's after it.
+    expect(rule(".wf-edge-label")).toContain("font-size: var(--wf-text-size, var(--wf-text-path-label));");
     expect(rule(".wf-edge-label")).toContain("stroke-width: var(--wf-stroke-halo);");
     expect(rule(".wf-node--dimmed")).toContain("opacity: var(--wf-opacity-dimmed);");
     expect(rule(".wf-legend dt")).toContain("font-size: var(--wf-text-legend-item);");

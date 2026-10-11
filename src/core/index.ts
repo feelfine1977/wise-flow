@@ -160,6 +160,8 @@ export type {
   FrequencyCue,
 } from "./theme.js";
 export { checkTheme, type ThemeDeviation } from "./style.js";
+export { stateStyle, markInState, ruleTextRole } from "./rules.js";
+export type { ThemeRule, RuleMatch, RuleSet, RuleText, RuleTextRole, RuleState, RulePart, InteractiveState, StateStyle } from "./rules.js";
 
 export {
   constraintOverlays,

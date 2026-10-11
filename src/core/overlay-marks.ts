@@ -6,16 +6,18 @@ import type { OverlayShape } from "./overlay-geometry.js";
 import { contrastText, hexToRgb } from "./style.js";
 import { type StringKey, t } from "./strings.js";
 import { type TextMeasure, estimateTextWidth, fitMarkText } from "./text.js";
+import { ruleDash, ruleRadius, ruleSet, ruleText, ruleWidth, rulePaint } from "./rules.js";
 import { type Theme, defaultTheme } from "./theme.js";
-import { type Arrowhead, arrowheadTokens, opacityTokens } from "./tokens.js";
+import { type Arrowhead, arrowheadTokens, dashTokens, opacityTokens } from "./tokens.js";
 
 /**
  * A colour by role. `ink`, `inkMuted`, `paper`, `surface`, `line`,
  * `lineStrong`, `cueStripe`, `cueFoot` and `outOfScope` are tokens the
  * renderer resolves (and may theme); `value` is the mark's `color` and
- * `onValue` the text colour on it.
+ * `onValue` the text colour on it. A colour a theme's rule sets is a literal
+ * `#rrggbb` (`#rrggbbaa` below full alpha), drawn as it is.
  */
-export type MarkPaint = "ink" | "inkMuted" | "paper" | "surface" | "line" | "lineStrong" | "cueStripe" | "cueFoot" | "outOfScope" | "value" | "onValue";
+export type MarkPaint = "ink" | "inkMuted" | "paper" | "surface" | "line" | "lineStrong" | "cueStripe" | "cueFoot" | "outOfScope" | "value" | "onValue" | `#${string}`;
 
 export interface MarkFill {
   paint: MarkPaint;
@@ -96,6 +98,8 @@ export interface OverlayMark {
   pill?: { box: Box; radius: number; fill: MarkFill; stroke: MarkStroke };
   /** The follows edge the overlay stands for. */
   edgeId?: string;
+  /** The whole mark's opacity, where a theme's rule sets one. */
+  opacity?: number;
 }
 
 /** Colour of an overlay: the theme's accent, the one hue of deviations, whatever its value. */
@@ -198,7 +202,28 @@ export interface OverlayMarkContext {
 
 /** One mark per shape, in the shapes' order, with the sizes and colours of a theme and texts fitted by a measure. */
 export function overlayMarks(shapes: OverlayShape[], locale: Locale = "en", theme: Theme = defaultTheme, measure: TextMeasure = estimateTextWidth, context: OverlayMarkContext = {}): OverlayMark[] {
-  return shapes.map((s) => overlayMark(s, locale, theme, measure, context));
+  return shapes.map((s) => ruled(overlayMark(s, locale, theme, measure, context), theme));
+}
+
+/**
+ * A mark with what the theme's rules set on its kind: its fill (a hatch keeps
+ * its pattern), outline, corners (a tint follows what it covers), opacity and
+ * the colour of its texts.
+ */
+function ruled(m: OverlayMark, theme: Theme): OverlayMark {
+  const set = ruleSet(theme, "mark", m.kind, undefined, []);
+  if (!set) return m;
+  const colors = theme.color;
+  const { fill, stroke } = m;
+  const filled = set.fill !== undefined || set.fillOpacity !== undefined;
+  return {
+    ...m,
+    ...(fill && !fill.pattern && filled && { fill: { paint: rulePaint(set.fill, undefined, fill.paint, colors, m.color), opacity: set.fillOpacity ?? (set.fill === undefined ? fill.opacity : undefined) } }),
+    ...(stroke && { stroke: { ...stroke, paint: rulePaint(set.stroke, undefined, stroke.paint, colors, m.color), width: ruleWidth(set, stroke.width), dash: ruleDash(set, stroke.dash, dashTokens.reconnectedNode) } }),
+    radius: m.kind === "tint" || m.path !== undefined ? m.radius : ruleRadius(set, m.radius, m.box),
+    opacity: set.opacity,
+    texts: m.texts.map((t) => ruleText(t, set, "label", colors, m.color)),
+  };
 }
 
 function overlayMark(s: OverlayShape, locale: Locale, theme: Theme, measure: TextMeasure, context: OverlayMarkContext): OverlayMark {

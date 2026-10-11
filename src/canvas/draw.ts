@@ -6,7 +6,7 @@
  * a recording stub in tests. When the scene is large, only the elements the
  * scene's R-tree finds in the viewport are read, in the order of a full draw.
  */
-import { type Arrowhead, type Box, type BoxSide, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type PatternLook, type Selection, type ShownEdges, type TextMeasure, type Theme, arrowheadExtent, arrowheadTokens, dimensionTokens, fixedColors, hatchTokens, legendLayout, legendMetrics, budgetEdges, defaultTheme, estimateTextWidth, lodAt, markArrowhead, patternTwin } from "../core/index.js";
+import { type Arrowhead, type Box, type BoxSide, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type PatternLook, type Selection, type ShownEdges, type StateStyle, type TextMeasure, type Theme, arrowheadExtent, arrowheadTokens, dimensionTokens, fixedColors, hatchTokens, legendLayout, legendMetrics, budgetEdges, defaultTheme, estimateTextWidth, lodAt, markArrowhead, markInState, patternTwin, ruleTextRole, stateStyle } from "../core/index.js";
 import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene.js";
 import { type CanvasTokens, sceneTokens } from "./tokens.js";
 
@@ -326,22 +326,27 @@ function drawGroup(ctx: DrawContext, scene: PreparedScene, g: SceneGroup, tokens
   const b = m.box;
   const { stroke, rule } = m;
   const paint = (p: MarkPaint) => paintOf(m, p, tokens);
+  // What the theme's rules for the selected state set replaces the selection's outline.
+  const s = stateStyle(scene, "group", m, { selected });
+  const fill = s?.fill ? paint(s.fill) : withAlpha(paint(m.fill.paint), m.fill.opacity);
+  const alpha = s?.opacity ?? m.opacity;
+  if (alpha !== undefined) ctx.globalAlpha = alpha;
   if (stroke.sides) {
-    ctx.fillStyle = withAlpha(paint(m.fill.paint), m.fill.opacity);
+    ctx.fillStyle = fill;
     ctx.fillRect(b.x, b.y, b.width, b.height);
-    ctx.strokeStyle = paint(stroke.paint);
-    ctx.lineWidth = stroke.width;
+    ctx.strokeStyle = paint(s?.stroke ?? stroke.paint);
+    ctx.lineWidth = s?.width ?? stroke.width;
     ctx.setLineDash(stroke.dash ?? []);
     ctx.beginPath();
     for (const s of stroke.sides) side(ctx, b, s);
     ctx.stroke();
   } else {
     roundedRect(ctx, b, m.radius);
-    ctx.fillStyle = withAlpha(paint(m.fill.paint), m.fill.opacity);
+    ctx.fillStyle = fill;
     ctx.fill();
-    ctx.strokeStyle = selected ? tokens.focus : paint(stroke.paint);
-    ctx.lineWidth = selected ? strokeTokens.canvasGroupSelected : stroke.width;
-    ctx.setLineDash(stroke.dash ?? []);
+    ctx.strokeStyle = s?.stroke ? paint(s.stroke) : selected ? tokens.focus : paint(stroke.paint);
+    ctx.lineWidth = s?.width ?? (selected ? strokeTokens.canvasGroupSelected : stroke.width);
+    ctx.setLineDash(s?.dash ?? stroke.dash ?? []);
     ctx.stroke();
     ctx.setLineDash([]);
   }
@@ -353,26 +358,27 @@ function drawGroup(ctx: DrawContext, scene: PreparedScene, g: SceneGroup, tokens
     ctx.stroke();
   }
   if (stroke.sides && selected) {
-    ctx.strokeStyle = tokens.focus;
-    ctx.lineWidth = strokeTokens.canvasGroupSelected;
+    ctx.strokeStyle = s?.stroke ? paint(s.stroke) : tokens.focus;
+    ctx.lineWidth = s?.width ?? strokeTokens.canvasGroupSelected;
     ctx.beginPath();
     ctx.rect(b.x + 1, b.y + 1, b.width - 2, b.height - 2);
     ctx.stroke();
   }
-  for (const tx of m.texts) drawText(ctx, scene, tx, paintOf(m, tx.paint, tokens), tokens);
+  for (const tx of m.texts) drawText(ctx, scene, tx, paint(s?.texts?.label ?? tx.paint), tokens);
+  if (alpha !== undefined) ctx.globalAlpha = 1;
 }
 
-function drawEdge(ctx: DrawContext, e: SceneEdge, tokens: CanvasTokens, theme: Theme, highlighted: boolean, dimmed: boolean) {
+function drawEdge(ctx: DrawContext, e: SceneEdge, tokens: CanvasTokens, theme: Theme, highlighted: boolean, dimmed: boolean, s: StateStyle | undefined) {
   const m = e.mark;
   const pts = m.points;
   if (pts.length < 2) return;
-  ctx.globalAlpha = dimmed ? theme.opacity.dimmedPath : 1;
-  const color = highlighted ? tokens.focus : m.color;
+  ctx.globalAlpha = s?.opacity ?? (dimmed ? theme.opacity.dimmedPath : (m.opacity ?? 1));
+  const color = s?.stroke ? paintOf(m, s.stroke, tokens) : highlighted ? tokens.focus : m.color;
   ctx.strokeStyle = color;
   ctx.lineWidth = highlighted ? Math.max(m.width, theme.stroke.canvasPathHighlight) : m.width;
   ctx.lineJoin = "round";
   ctx.lineCap = "butt";
-  ctx.setLineDash(m.dash ?? []);
+  ctx.setLineDash(s?.dash ?? m.dash ?? []);
   ctx.beginPath();
   ctx.moveTo(pts[0].x, pts[0].y);
   for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
@@ -393,8 +399,10 @@ function drawNode(ctx: DrawContext, scene: PreparedScene, n: SceneNode, tokens: 
   const focused = state.focused === id;
   const hovered = state.hovered === id;
   const dimmed = !n.activityLines && !!state.bright && !state.bright.nodes.has(id);
-  ctx.globalAlpha = dimmed ? scene.theme.opacity.dimmed : 1;
-  ctx.setLineDash(m.stroke.dash ?? []);
+  // What the theme's rules for these states set replaces how they are drawn by default.
+  const s = stateStyle(scene, "node", m, { selected, focused, hovered, dimmed });
+  ctx.globalAlpha = s?.opacity ?? (dimmed ? scene.theme.opacity.dimmed : (m.opacity ?? 1));
+  ctx.setLineDash(s?.dash ?? m.stroke.dash ?? []);
   const cx = b.x + b.width / 2;
   const cy = b.y + b.height / 2;
   if (m.shape === "circle") {
@@ -412,10 +420,10 @@ function drawNode(ctx: DrawContext, scene: PreparedScene, n: SceneNode, tokens: 
     roundedRect(ctx, b, m.radius);
   }
   // Hover, selection and focus change the outline, never the fill.
-  ctx.fillStyle = paintOf(m, m.fill, tokens);
+  ctx.fillStyle = paintOf(m, s?.fill ?? m.fill, tokens);
   ctx.fill();
-  ctx.strokeStyle = selected || focused ? tokens.focus : hovered ? tokens.ink : paintOf(m, m.stroke.paint, tokens);
-  ctx.lineWidth = m.stroke.width;
+  ctx.strokeStyle = s?.stroke ? paintOf(m, s.stroke, tokens) : selected || focused ? tokens.focus : hovered ? tokens.ink : paintOf(m, m.stroke.paint, tokens);
+  ctx.lineWidth = s?.width ?? m.stroke.width;
   ctx.stroke();
   ctx.setLineDash([]);
   // The frequency cue lies inside the outline and under the band and the texts.
@@ -433,7 +441,7 @@ function drawNode(ctx: DrawContext, scene: PreparedScene, n: SceneNode, tokens: 
       ctx.fillRect(b.x, b.y, m.band, b.height);
     }
   }
-  for (const tx of m.texts) if (!tx.lod || lod[tx.lod]) drawText(ctx, scene, tx, paintOf(m, tx.paint, tokens), tokens);
+  for (const tx of m.texts) if (!tx.lod || lod[tx.lod]) drawText(ctx, scene, tx, paintOf(m, s?.texts?.[ruleTextRole(tx.role)] ?? tx.paint, tokens), tokens);
   if (selected) {
     // The ring's inner edge lies on the element: its centre line is half its width outside.
     const out = strokeTokens.canvasSelection / 2;
@@ -463,29 +471,31 @@ function drawNode(ctx: DrawContext, scene: PreparedScene, n: SceneNode, tokens: 
 function paintOf(mark: { color: string; onColor?: string }, paint: MarkPaint, tokens: CanvasTokens, hovered = false): string {
   if (paint === "value") return hovered ? tokens.focus : mark.color;
   if (paint === "onValue") return hovered ? fixedColors.paper : (mark.onColor ?? mark.color);
-  return tokens[paint]!;
+  return paint[0] === "#" ? paint : tokens[paint as keyof CanvasTokens]!;
 }
 
-function drawMark(ctx: DrawContext, scene: PreparedScene, m: OverlayMark, tokens: CanvasTokens, hovered: boolean, options: DrawOptions) {
+function drawMark(ctx: DrawContext, scene: PreparedScene, given: OverlayMark, tokens: CanvasTokens, hovered: boolean, options: DrawOptions) {
+  const m = hovered ? markInState(given, stateStyle(scene, "mark", given, { hovered })) : given;
+  const alpha = m.opacity ?? 1;
   // The pattern tile is drawn before the path is traced.
   const fill = m.fill && ((m.fill.pattern && hatchPattern(ctx, tokens, options)) || paintOf(m, m.fill.paint, tokens, hovered));
   const end = m.path !== undefined ? tracePath(ctx, m.path) : (roundedRect(ctx, m.box, m.radius), undefined);
   if (m.fill && fill) {
     ctx.fillStyle = fill;
-    ctx.globalAlpha = m.fill.opacity ?? 1;
+    ctx.globalAlpha = alpha * (m.fill.opacity ?? 1);
     ctx.fill();
   }
   if (m.stroke) {
     const color = paintOf(m, m.stroke.paint, tokens, hovered);
     ctx.strokeStyle = color;
     ctx.lineWidth = m.stroke.width;
-    ctx.globalAlpha = m.stroke.opacity ?? 1;
+    ctx.globalAlpha = alpha * (m.stroke.opacity ?? 1);
     ctx.setLineDash(m.stroke.dash ?? []);
     ctx.stroke();
     ctx.setLineDash([]);
     if (m.arrow && end?.last && end.beforeLast) arrowhead(ctx, end.beforeLast, end.last, markArrowhead(m.arrow), color);
   }
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = alpha;
   if (m.pill) {
     const { box, radius, fill, stroke } = m.pill;
     roundedRect(ctx, box, radius);
@@ -506,6 +516,13 @@ function drawMark(ctx: DrawContext, scene: PreparedScene, m: OverlayMark, tokens
     ctx.fillRect(g.x + g.threshold * g.width - 1, g.y - 1, 2, g.height + 2);
   }
   for (const tx of m.texts) drawText(ctx, scene, tx, paintOf(m, tx.paint, tokens, hovered), tokens);
+  if (alpha !== 1) ctx.globalAlpha = 1;
+}
+
+/** What the theme's rules set on a path in its interactive states. */
+function edgeState(scene: PreparedScene, e: SceneEdge, state: DrawState): StateStyle | undefined {
+  const id = e.edge.id;
+  return stateStyle(scene, "edge", e.mark, { selected: state.selection.edges.includes(id), focused: state.focused === id, hovered: state.hovered === id, dimmed: !!state.bright && !state.bright.edges.has(id) });
 }
 
 const RANK: Record<HitItem["kind"], number> = { group: 0, overlay: 1, edge: 2, node: 3 };
@@ -577,9 +594,9 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
   each(scene.edges, "edge", edgeId, (e, i) => {
     if (withheld && !withheld.drawn.has(i)) return;
     const id = e.edge.id;
-    const highlighted = state.selection.edges.includes(id) || state.hovered === id;
+    const [selected, hovered] = [state.selection.edges.includes(id), state.hovered === id];
     const dimmed = !!state.bright && !state.bright.edges.has(id);
-    drawEdge(ctx, e, tokens, scene.theme, highlighted, dimmed);
+    drawEdge(ctx, e, tokens, scene.theme, selected || hovered, dimmed, edgeState(scene, e, state));
     edges++;
   });
   marks("between");
@@ -594,7 +611,11 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
 
   each(scene.edges, "edge", edgeId, (e, i) => {
     if ((withheld && !withheld.drawn.has(i)) || (state.bright && !state.bright.edges.has(e.edge.id))) return;
-    for (const tx of e.mark.texts) if (!tx.lod || lod[tx.lod]) drawText(ctx, scene, tx, paintOf(e.mark, tx.paint, tokens), tokens);
+    const s = edgeState(scene, e, state);
+    const alpha = s?.opacity ?? e.mark.opacity;
+    if (alpha !== undefined) ctx.globalAlpha = alpha;
+    for (const tx of e.mark.texts) if (!tx.lod || lod[tx.lod]) drawText(ctx, scene, tx, paintOf(e.mark, s?.texts?.label ?? tx.paint, tokens), tokens);
+    if (alpha !== undefined) ctx.globalAlpha = 1;
   });
   ctx.restore();
   return { nodes, edges, shapes, culled: cull, ...(withheld && { withheld }) };

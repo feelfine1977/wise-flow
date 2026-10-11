@@ -109,7 +109,7 @@ function drawGroups(ctx: Ctx): string {
     const paint = (p: MarkPaint) => paintOf(ctx, m.color, m.color, p);
     const fill = `fill="${paint(m.fill.paint)}" fill-opacity="${m.fill.opacity ?? 1}"`;
     const { stroke, rule } = m;
-    out.push(`<g class="wf-group${m.band ? " wf-group-band" : ""}" data-id="${esc(m.id)}">`);
+    out.push(`<g class="wf-group${m.band ? " wf-group-band" : ""}" data-id="${esc(m.id)}"${opacity(m)}>`);
     if (stroke.sides) {
       out.push(rect(b, fill));
       out.push(`<path d="${sidesPath(b, stroke.sides)}" stroke="${paint(stroke.paint)}" stroke-width="${num(stroke.width)}" fill="none"/>`);
@@ -125,6 +125,9 @@ function drawGroups(ctx: Ctx): string {
 
 const byId = <T extends { id: string }>(a: T, b: T) => (a.id < b.id ? -1 : 1);
 
+/** The opacity a theme's rule set on an element, as an attribute of its group. */
+const opacity = (m: { opacity?: number }) => (m.opacity === undefined ? "" : ` opacity="${m.opacity}"`);
+
 /** Texts of a node or edge mark that its level of detail shows at the export's zoom. */
 function shownTexts(ctx: Ctx, texts: ElementText[]): ElementText[] {
   return texts.filter((t) => !t.lod || ctx.lod[t.lod]);
@@ -136,7 +139,7 @@ function drawEdges(ctx: Ctx): string {
   for (const m of ctx.scene.edgeMarks.filter((_, i) => !withheld || withheld.drawn.has(i)).sort(byId)) {
     const dash = m.dash ? ` stroke-dasharray="${m.dash.join(" ")}"` : "";
     const d = m.points.map((p, i) => `${i === 0 ? "M" : "L"}${num(p.x)} ${num(p.y)}`).join("");
-    out.push(`<g class="wf-edge" data-id="${esc(m.id)}"><path d="${d}" fill="none" stroke="${m.color}" stroke-width="${num(m.width)}" stroke-linejoin="round"${dash} marker-end="url(#wf-arrow)"/>`);
+    out.push(`<g class="wf-edge" data-id="${esc(m.id)}"${opacity(m)}><path d="${d}" fill="none" stroke="${m.color}" stroke-width="${num(m.width)}" stroke-linejoin="round"${dash} marker-end="url(#wf-arrow)"/>`);
     for (const tx of shownTexts(ctx, m.texts)) out.push(markText(ctx, m.color, m.color, tx));
     out.push(`</g>`);
   }
@@ -149,7 +152,7 @@ function drawNodes(ctx: Ctx): string {
     const b = m.box;
     const paint = (p: MarkPaint) => paintOf(ctx, m.color, m.color, p);
     const stroke = `fill="${paint(m.fill)}" stroke="${paint(m.stroke.paint)}" stroke-width="${num(m.stroke.width)}"${m.stroke.dash ? ` stroke-dasharray="${m.stroke.dash.join(" ")}"` : ""}`;
-    out.push(`<g class="wf-node wf-node-${m.kind}" data-id="${esc(m.id)}">`);
+    out.push(`<g class="wf-node wf-node-${m.kind}" data-id="${esc(m.id)}"${opacity(m)}>`);
     const cx = b.x + b.width / 2;
     const cy = b.y + b.height / 2;
     if (m.shape === "circle") {
@@ -184,7 +187,7 @@ const markOptions = (ctx: Ctx): MarkSvgOptions => ({
 });
 
 function paintOf(ctx: Ctx, color: string, onColor: string, paint: MarkPaint): string {
-  return paint === "value" ? color : paint === "onValue" ? onColor : ctx.colors[paint];
+  return paint === "value" ? color : paint === "onValue" ? onColor : paint[0] === "#" ? paint : ctx.colors[paint as ColorToken];
 }
 
 function markText(ctx: Ctx, color: string, onColor: string, m: MarkText): string {

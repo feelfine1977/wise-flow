@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type FlowGraph, buildScene, createPositions, estimateTextWidth, toSVG } from "../../src/index";
+import { type FlowGraph, type Theme, buildScene, createPositions, defaultTheme, estimateTextWidth, toSVG } from "../../src/index";
 import { type PreparedScene, prepareScene, toPNGCanvas } from "../../src/canvas/index";
 import { readCanvasMap, readPng } from "../browser/parity/canvas";
 import { type Listed, checkExpected, dash, differences, exportedMarks, kindsOf, paint, shadow } from "../browser/parity/drawn";
@@ -86,6 +86,31 @@ describe("the parity readers", () => {
     // A stage band runs along the flow: outlined left and right in the line colour, its rule 2 wide along its top.
     expect(read.svg.get("group:g")!.props).toMatchObject({ fill: `${color}@0.06`, outline: "#cfd4dc", outlineWidth: "1", dash: "none", outlineSides: "right left", rule: `${color} 2`, radius: "0" });
     expect(differences([{ name: "bands", kinds: bandKinds, svg: read.svg, others: { canvas: read.canvas, png: read.png } }])).toEqual([]);
+  });
+
+  it("read what a theme's rules set alike from the three, an element's opacity in each of its paints", () => {
+    const theme = {
+      ...defaultTheme,
+      rules: [
+        { match: { part: "node", kind: "activity" }, set: { fill: "#fef3c7", strokeWeight: "strong", radius: "full", opacity: 0.5, text: { name: { color: "#1d4ed8" } } } },
+        { match: { part: "edge" }, set: { stroke: "#b42318", opacity: 0.4, dash: "unobserved" } },
+        { match: { part: "group" }, set: { fill: "#e0f2fe", fillOpacity: 0.5, stroke: "#0369a1", radius: "s" } },
+        { match: { part: "mark", kind: "badge" }, set: { fill: "#fff7ed", opacity: 0.8 } },
+      ],
+    } as Theme;
+    const given = { graph, positions, overlays };
+    const read = {
+      svg: readSvg(toSVG(given, { theme }), exportedMarks(buildScene(graph, positions, { overlays, theme }))),
+      canvas: readCanvasMap(prepareScene(graph, positions, { overlays, theme }), kinds, measure),
+      png: readPng((createCanvas) => toPNGCanvas(given, { scale: 1, createCanvas, theme }), prepareScene(graph, positions, { overlays, lodBySize: false, theme }), kinds, measure),
+    };
+    // The card at half its opacity: its fill, outline (2 wide, corners of half its height), band and cue fade alike, and its name in the rule's colour.
+    expect(read.svg.get("node:a")!.props).toMatchObject({ fill: "#fef3c7@0.5", outline: "#8c94a1@0.5", outlineWidth: "2", radius: "24", cue: "#e6e8ec@0.5 85", cueFoot: "#5f6672@0.5 85" });
+    expect(read.svg.get("node:a")!.texts[0]).toEqual({ text: "Approve", size: 13, weight: 500, paint: "#1d4ed8@0.5" });
+    expect(read.svg.get("edge:a->b")!.props).toMatchObject({ outline: "#b42318@0.4", dash: "6 5" });
+    expect(read.svg.get("group:g")!.props).toMatchObject({ fill: "#e0f2fe@0.5", outline: "#0369a1", radius: "4" });
+    expect(read.svg.get("mark:badge:a:1")!.props).toMatchObject({ fill: "#fff7ed@0.8", outline: "#b84a00@0.8" });
+    expect(differences([{ name: "rules", kinds, svg: read.svg, others: { canvas: read.canvas, png: read.png } }])).toEqual([]);
   });
 
   it("report a stroke width changed in one renderer as a difference the list lacks", () => {

@@ -101,6 +101,17 @@ export function cue(color: string | undefined, length: number | undefined): stri
   return color === undefined || length === undefined ? "none" : `${color} ${Math.round(length)}`;
 }
 
+/**
+ * An element drawn at an opacity: every paint of its properties and texts
+ * (`#rrggbb` and `pattern`, with or without `@alpha`) multiplied by `alpha`,
+ * as a Canvas context's global alpha draws them. The element itself at 1.
+ */
+export function faded(drawn: Drawn, alpha: number): Drawn {
+  if (alpha >= 1) return drawn;
+  const fade = (value: string) => value.replace(/(#[0-9a-f]{6}|pattern)(?:@([\d.]+))?/g, (_, color: string, a?: string) => paint(color, Number(a ?? 1) * alpha));
+  return { ...drawn, props: Object.fromEntries(Object.entries(drawn.props).map(([k, v]) => [k, fade(v)])), texts: drawn.texts.map((t) => ({ ...t, paint: fade(t.paint) })) };
+}
+
 /** A dash pattern as its lengths separated by spaces, `none` without one. */
 export function dash(lengths: readonly number[] | string | undefined | null): string {
   if (lengths === undefined || lengths === null) return "none";

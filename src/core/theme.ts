@@ -7,6 +7,7 @@
  * preset's name or as changes over a preset (`resolveTheme`), and writes it as
  * CSS variables too (`themeFromVariables`), which the React components read.
  */
+import type { ThemeRule } from "./rules.js";
 import { type ColorToken, type PatternId, type PatternLook, categoricalPatterns, colorTokens, cssVariable, darkColorTokens, darkPaletteTokens, fontTokens, minimumTokens, opacityTokens, paletteTokens, patternTokens, printTokens, radiusTokens, spaceTokens, strokeTokens, textTokens, tokenVariables } from "./tokens.js";
 
 /** The colour scheme a scene is resolved in. */
@@ -65,8 +66,12 @@ export interface Theme {
   density: "comfortable" | "compact";
   /** The smallest text and stroke the theme's tables may hold, in points at the figure's output size (one layout unit is 0.75 pt); `checkTheme` reports what is smaller. */
   minimum: { readonly text: number; readonly stroke: number };
-  /** Rules that restyle elements; there are none yet. */
-  rules: readonly never[];
+  /**
+   * Rules that restyle elements by part, kind, tag and state, in order
+   * (`ThemeRule`); the presets have none. A rule `checkTheme` reports changes
+   * nothing.
+   */
+  rules: readonly ThemeRule[];
 }
 
 /** The default look: the token table as a theme. */
@@ -246,9 +251,10 @@ export function themeFromVariables(read: (name: string) => string, scheme: Color
  * What of a theme the marks are built from in a scheme: everything but the
  * colours they name by role, which renderers look up when they draw, and the
  * fonts. The neutral colour, the accent and the scheme's palettes are drawn
- * into the marks. Two themes with the same key give the same marks.
+ * into the marks, and with rules every colour (a rule's colour role is drawn
+ * as the scheme's colour). Two themes with the same key give the same marks.
  */
 export function markedThemeKey(theme: Theme, scheme: ColorScheme): string {
   const colors = themeColors(theme, scheme);
-  return JSON.stringify({ ...theme, color: [colors.neutral, colors.accent], dark: undefined, palette: themePalettes(theme, scheme), darkPalette: undefined, font: undefined });
+  return JSON.stringify({ ...theme, color: theme.rules.length ? colors : [colors.neutral, colors.accent], dark: undefined, palette: themePalettes(theme, scheme), darkPalette: undefined, font: undefined });
 }

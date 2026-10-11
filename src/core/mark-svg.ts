@@ -49,6 +49,7 @@ function textElement(mark: OverlayMark, m: MarkText, o: MarkSvgOptions): SvgElem
 export function markSvg(m: OverlayMark, o: MarkSvgOptions): SvgElement {
   const attrs: [string, string][] = [["class", `wf-overlay wf-${m.kind.toLowerCase()}`]];
   if (m.edgeId) attrs.push(["data-edge-id", m.edgeId]);
+  if (m.opacity !== undefined) attrs.push(["opacity", String(m.opacity)]);
   const children: SvgElement[] = [{ tag: "title", attrs: [], children: [m.title] }];
   const stroke: [string, string][] = m.stroke ? [["stroke", o.paint(m, m.stroke.paint)], ["stroke-width", num(m.stroke.width)]] : [];
   if (m.stroke?.opacity !== undefined) stroke.push(["stroke-opacity", String(m.stroke.opacity)]);
