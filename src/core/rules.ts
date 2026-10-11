@@ -100,6 +100,8 @@ const NAMED: Partial<Record<Key, readonly string[]>> = {
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const own = (o: object, key: unknown) => typeof key === "string" && Object.prototype.hasOwnProperty.call(o, key);
+/** An object's entries without those left undefined, which the optional fields of a rule's type allow. */
+const entries = (o: object): [string, unknown][] => Object.entries(o).filter(([, v]) => v !== undefined);
 const shown = (v: unknown): number | string => (typeof v === "number" || typeof v === "string" ? v : String(JSON.stringify(v)));
 
 /** A literal colour or a colour role of the theme. */
@@ -121,12 +123,12 @@ function problems(theme: Theme, rule: unknown, at: string): Problem[] {
   const { match, set } = rule;
   if (!own(PARTS, match.part)) return bad(".match.part", match.part), out;
   const part = PARTS[match.part as RulePart];
-  for (const [key, value] of Object.entries(match)) {
+  for (const [key, value] of entries(match)) {
     const ok = key === "part" || (key === "kind" ? part.kinds.includes(value as string) : key === "state" ? part.states.includes(value as string) : key === "tag" && part.tags && typeof value === "string");
     if (!ok) bad(`.match.${key}`, value);
   }
   const interactive = INTERACTIVE.includes(match.state as string);
-  for (const [key, value] of Object.entries(set)) {
+  for (const [key, value] of entries(set)) {
     const path = `.set.${key}`;
     if (!part.set.includes(key as Key) || (interactive && !PAINTS.includes(key))) bad(path, value);
     else if (key === "fill" || key === "stroke") {
@@ -136,12 +138,12 @@ function problems(theme: Theme, rule: unknown, at: string): Problem[] {
     } else if (key === "opacity") {
       const { min, max } = ruleTokens.opacity;
       if (typeof value !== "number" || !Number.isFinite(value)) bad(path, value);
-      else if (value < min || value > max) bad(path, value, { minimum: min, clamped: true });
+      else if (value < min || value > max) bad(path, value, value < min ? { minimum: min, clamped: true } : { clamped: true });
     } else if (key === "text") {
       if (!isObject(value)) bad(path, value);
-      else for (const [role, style] of Object.entries(value)) {
+      else for (const [role, style] of entries(value)) {
         if (!part.texts.includes(role as RuleTextRole) || !isObject(style)) bad(`${path}.${role}`, style);
-        else for (const [name, v] of Object.entries(style)) textProblem(theme, `${path}.${role}.${name}`, name, v, match.part === "mark" || interactive, bad);
+        else for (const [name, v] of entries(style)) textProblem(theme, `${path}.${role}.${name}`, name, v, match.part === "mark" || interactive, bad);
       }
     } else if (!NAMED[key as Key]!.includes(value as string)) bad(path, value);
   }
@@ -206,10 +208,10 @@ export function ruleSet(theme: Theme, part: RulePart, kind: string, tags: readon
       let text = out?.text;
       if (set.text) {
         const merged: Record<string, RuleText> = { ...text };
-        for (const [role, r] of Object.entries(set.text)) merged[role] = { ...merged[role], ...r };
+        for (const [role, r] of entries(set.text)) merged[role] = { ...merged[role], ...Object.fromEntries(entries(r as RuleText)) };
         text = merged;
       }
-      out = { ...out, ...set, text };
+      out = { ...out, ...Object.fromEntries(entries(set)), text };
     }
   }
   return out;

@@ -113,6 +113,18 @@ describe("a theme's rules", () => {
     expect(ops.some((o) => o.alpha === 0.25)).toBe(false);
   });
 
+  it("ignore an entry left undefined, which the type allows, rather than refuse the rule or undo an earlier one", () => {
+    const rules = [
+      { match: { part: "node", kind: "activity" }, set: { fill: "#fff3c4", text: { name: { size: 15 } } } },
+      { match: { part: "node", kind: undefined, tag: undefined, state: undefined }, set: { stroke: "#111111", fill: undefined, opacity: undefined, text: { name: { size: undefined, color: "#222222" }, label: undefined } } },
+    ];
+    expect(checkTheme(withRules(rules)).filter((d) => d.kind === "rule")).toEqual([]);
+    const a = node(scene(rules), "a");
+    // The second rule matches every node: its outline and name colour apply, the first rule's fill and size stay.
+    expect([a.fill, a.stroke.paint, a.opacity]).toEqual(["#fff3c4", "#111111", undefined]);
+    expect(a.texts.find((t) => t.role === "nameLine")).toMatchObject({ size: 15, paint: "#222222" });
+  });
+
   it("name colours by role, drawn in the scheme's colour", () => {
     const rules = [{ match: { part: "node", kind: "activity" }, set: { text: { name: { color: "accent", weight: 600 } } } }];
     const name = (scheme: "light" | "dark") => node(scene(rules, scheme), "a").texts.find((t) => t.role === "nameLine")!;
@@ -204,6 +216,8 @@ describe("rules that are unknown or out of range", () => {
     expect(node(scene(faint), "n").opacity).toBe(0.2);
     expect(node(scene([{ match: { part: "node", kind: "note" }, set: { opacity: 3 } }]), "n").opacity).toBe(1);
     expect(checkTheme(withRules(faint)).filter((d) => d.kind === "rule")).toEqual([{ kind: "rule", subject: "rules[0].set.opacity", value: 0.05, minimum: 0.2 }]);
+    // Above the range there is no minimum to report.
+    expect(checkTheme(withRules([{ match: { part: "node", kind: "note" }, set: { opacity: 3 } }])).filter((d) => d.kind === "rule")).toEqual([{ kind: "rule", subject: "rules[0].set.opacity", value: 3 }]);
   });
 });
 
