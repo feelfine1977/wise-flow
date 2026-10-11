@@ -364,4 +364,15 @@ describe("the theme of a map", () => {
     expect(warn.mock.calls[0][1]).toContainEqual({ kind: "text", scheme: "light", subject: "inkMuted on paper", value: 2.81, minimum: 4.5 });
   });
 
+  it("logs nothing in production", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubEnv("NODE_ENV", "production");
+    try {
+      // A finding not logged before: in development it would be.
+      resolved({ color: { inkMuted: "#a0a0a0" } });
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });
