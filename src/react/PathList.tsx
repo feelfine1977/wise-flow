@@ -11,14 +11,13 @@ import {
   type Selection,
   type StringKey,
   formatCount,
-  formatMetricValue,
   indexGraph,
-  metricMeanNote,
   pathBetween,
   pathRows,
   pathsFor,
   t,
 } from "../core/index.js";
+import { formatMetric } from "./describe.js";
 
 export interface PathListProps {
   graph: FlowGraph;
@@ -50,11 +49,7 @@ const COLUMNS: Column[] = [
 
 /** A row's value as the metric registry writes it: a lower bound as "at least …", a mean of merged paths with what it is. */
 function cell(row: PathRow, key: PathSortKey, locale: Locale): string {
-  const value = (name: Exclude<PathSortKey, "label">) => {
-    const basis = row.metricBasis?.[name];
-    const text = formatMetricValue(name, row[name], locale, { basis });
-    return basis === "mean" && text !== "–" ? `${text} (${metricMeanNote(name, locale)})` : text;
-  };
+  const value = (name: Exclude<PathSortKey, "label">) => formatMetric(name, row[name], locale, row.metricBasis?.[name]);
   if (key === "label") return "";
   if (key === "cases") return row.cases !== undefined ? `${value("cases")}${row.share !== undefined ? ` (${value("share")})` : ""}` : row.share !== undefined ? value("share") : "–";
   return value(key);

@@ -2,7 +2,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { globalScene } from "../../fixtures/bpic2019";
 import { type FlowGraph, collapseGroups, createPositions } from "../../src/index";
-import { ProcessMap, TableAlternative, describeNode } from "../../src/react/index";
+import { PathList, ProcessMap, TableAlternative, describeNode } from "../../src/react/index";
 
 afterEach(cleanup);
 
@@ -65,5 +65,13 @@ describe("a collapsed stage in the map and the table", () => {
     cleanup();
     render(<TableAlternative graph={collapsed} locale="de" />);
     expect(row("S")).toEqual(expect.arrayContaining(["mindestens 1", "mindestens 50 %"]));
+  });
+
+  it("writes lower bounds and means in the path list's cells", () => {
+    const { container } = render(<PathList graph={collapsed} focus="S" locale="en" />);
+    const cells = [...container.querySelectorAll("td")].map((td) => td.textContent);
+    // The merged path S → X: two transitions, at least one case, a mean of the medians 10 h and 20 h.
+    expect(cells).toEqual(expect.arrayContaining(["2", "at least 1", "15 h (mean of medians)"]));
+    expect(cells).not.toContain("15 h");
   });
 });
