@@ -34,6 +34,14 @@ test('a stylesheet fails on a pixel length, a font size or weight, a radius, a s
   assert.deepEqual(css('.a { width: calc(100% - 16px); }'), ['pixel length: width: calc(100% - 16px)']);
 });
 
+test('a stylesheet fails on a weight keyword and on a literal in a variable\'s fallback', () => {
+  assert.deepEqual(css('.a { font-weight: bold; }'), ['font weight: font-weight: bold']);
+  assert.deepEqual(css('.a { font-weight: normal; }'), ['font weight: font-weight: normal']);
+  assert.deepEqual(css('.a { font-size: var(--wf-text-panel, 12px); }'), ['pixel length: font-size: var(--wf-text-panel, 12px)']);
+  assert.deepEqual(css('.a { opacity: var(--wf-opacity-dimmed, 0.35); }'), ['opacity: opacity: var(--wf-opacity-dimmed, 0.35)']);
+  assert.deepEqual(css('.a { font-size: smaller; font-weight: inherit; }'), []);
+});
+
 test('a stylesheet passes with tokens, hairlines, none and relative layout', () => {
   assert.deepEqual(
     css(`.a {
@@ -72,6 +80,14 @@ test('a module fails on a drawn literal: Canvas state, a dash, markup attributes
   assert.deepEqual(module('const RECONNECTED_DASH = Object.freeze([4, 3]);'), ['1 RECONNECTED_DASH']);
   assert.deepEqual(module('const e = <circle r={violates ? 6.5 : 5} strokeWidth={1.5} />;', 'src/x.tsx'), ['1 r', '1 strokeWidth']);
   assert.deepEqual(module('const s = { zIndex: hovered ? 5 : 0 };'), ['1 zIndex']);
+});
+
+test('a module fails on a JSX attribute written as a string and on a radius or border width in a style object', () => {
+  assert.deepEqual(module('const e = <path strokeWidth="2" strokeDasharray="4 3" />;', 'src/x.tsx'), ['1 strokeWidth', '1 strokeDasharray']);
+  assert.deepEqual(module('const e = <text fontSize="12" />;', 'src/x.tsx'), ['1 fontSize']);
+  assert.deepEqual(module('const e = <div style={{ borderRadius: 4, borderTopLeftRadius: 2, borderWidth: 2, outlineWidth: 3 }} />;', 'src/x.tsx'), ['1 borderRadius', '1 borderTopLeftRadius', '1 borderWidth', '1 outlineWidth']);
+  assert.deepEqual(module('el.style.borderRadius = 4;').length, 1);
+  assert.deepEqual(module('const e = <path strokeWidth="1" opacity="0" style={{ borderRadius: radiusTokens.control }} />;', 'src/x.tsx'), []);
 });
 
 test('a module passes with tokens, hairlines and layout arithmetic', () => {

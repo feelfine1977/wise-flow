@@ -33,16 +33,12 @@ const CSS_PROPERTIES = [
   { test: /^opacity$/, what: 'opacity', allow: [0, 1] },
   { test: /^z-index$/, what: 'z-order', allow: [0] },
 ];
-const FONT_KEYWORDS = /^(inherit|initial|unset|bold|bolder|lighter|normal|smaller|larger)$/;
+/** Keywords that take a value from elsewhere; `bold` or `normal` is a weight literal, `smaller` and `larger` are relative sizes. */
+const KEYWORDS = { 'font-size': /^(inherit|initial|unset|smaller|larger)$/, 'font-weight': /^(inherit|initial|unset)$/ };
 
-/** `value` without its `var()` references, nested fallbacks included. */
+/** `value` without its `var()` references; a fallback is kept, since it is drawn when the variable is missing. */
 function withoutVariables(value) {
-  let out = value;
-  for (let prev; prev !== out; ) {
-    prev = out;
-    out = out.replace(/var\(--[\w-]+(,[^()]*)?\)/g, '');
-  }
-  return out;
+  return value.replace(/var\(--[\w-]+\s*,?/g, '(');
 }
 
 /** Literals of a stylesheet: `[{ line, rule, text }]`. */
@@ -57,9 +53,10 @@ export function cssLiterals(css, values) {
     const text = `${property}: ${raw.trim()}`;
     if ([...value.matchAll(/(-?\d*\.?\d+)px\b/g)].some((px) => !allowed(values.px, px[1]))) out.push({ line, rule: 'pixel length', text });
     const checked = CSS_PROPERTIES.find((p) => p.test.test(property));
-    if (!checked || FONT_KEYWORDS.test(value)) continue;
+    if (!checked || KEYWORDS[property]?.test(value)) continue;
     const numbers = [...value.matchAll(/-?\d*\.?\d+(%|rem|em|px)?/g)].filter((n) => n[1] || !allowed(checked.allow, n[0]));
-    if (numbers.length && !out.some((o) => o.line === line && o.text === text)) out.push({ line, rule: checked.what, text });
+    const keyword = property === 'font-weight' && /\b(bold|bolder|lighter|normal)\b/.test(value);
+    if ((numbers.length || keyword) && !out.some((o) => o.line === line && o.text === text)) out.push({ line, rule: checked.what, text });
   }
   return out;
 }
@@ -68,7 +65,10 @@ export function cssLiterals(css, values) {
 // Modules
 
 /** Object keys, JSX attributes and assigned properties whose value is drawn as a size, stroke, radius, dash, weight, opacity or z-order. */
-const DRAW_KEYS = new Set(['fontSize', 'fontWeight', 'weight', 'size', 'strokeWidth', 'lineWidth', 'nodeStrokeWidth', 'interactionWidth', 'strokeOpacity', 'fillOpacity', 'opacity', 'globalAlpha', 'radius', 'rx', 'ry', 'r', 'dash', 'strokeDasharray', 'zIndex']);
+const DRAW_KEYS = new Set(['fontSize', 'fontWeight', 'weight', 'size', 'strokeWidth', 'lineWidth', 'nodeStrokeWidth', 'interactionWidth', 'strokeOpacity', 'fillOpacity', 'opacity', 'globalAlpha', 'radius', 'rx', 'ry', 'r', 'dash', 'strokeDasharray', 'zIndex', 'borderWidth', 'outlineWidth']);
+/** Radii of React style objects: `borderRadius` and its corners. */
+const RADIUS_KEY = /^border(Top|Bottom|Start|End)?(Left|Right|Start|End)?Radius$/;
+const drawKey = (name) => !!name && (DRAW_KEYS.has(name) || RADIUS_KEY.test(name));
 /** Calls whose arguments at these positions are drawn as such: `true` for every argument. */
 const DRAW_CALLS = { setLineDash: true, roundedRect: [2], outline: [1, 2], ink: [3], halo: [3] };
 /** Constants named for what they hold. */
@@ -117,13 +117,16 @@ export function tsLiterals(source, file, values) {
       const text = node.text;
       for (const px of text.matchAll(/(?<![\w.$}-])(-?\d*\.?\d+)px\b/g)) if (!allowed(values.px, px[1])) report(node, 'pixel length in a string');
       for (const a of text.matchAll(SVG_ATTRIBUTES)) if (/\d/.test(a[2]) && a[2].split(/[\s,]+/).some((n) => !allowed(values.number, n))) report(node, `${a[1]} in markup`);
-    } else if (ts.isPropertyAssignment(node) && DRAW_KEYS.has(nameOf(node.name))) {
+    } else if (ts.isPropertyAssignment(node) && drawKey(nameOf(node.name))) {
       drawn(node.initializer, nameOf(node.name));
     } else if (ts.isPropertyAssignment(node) && nameOf(node.name) === 'width' && ts.isObjectLiteralExpression(node.parent) && ts.isPropertyAssignment(node.parent.parent) && nameOf(node.parent.parent.name) === 'stroke') {
       drawn(node.initializer, 'stroke width');
-    } else if (ts.isJsxAttribute(node) && DRAW_KEYS.has(nameOf(node.name)) && node.initializer) {
-      drawn(node.initializer, nameOf(node.name));
-    } else if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isPropertyAccessExpression(node.left) && DRAW_KEYS.has(node.left.name.text)) {
+    } else if (ts.isJsxAttribute(node) && drawKey(nameOf(node.name)) && node.initializer) {
+      // A string attribute such as strokeWidth="2" holds its numbers as text.
+      if (ts.isStringLiteral(node.initializer)) {
+        if ((node.initializer.text.match(/-?\d*\.?\d+/g) ?? []).some((n) => !allowed(values.number, n))) report(node, nameOf(node.name));
+      } else drawn(node.initializer, nameOf(node.name));
+    } else if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isPropertyAccessExpression(node.left) && drawKey(node.left.name.text)) {
       drawn(node.right, node.left.name.text);
     } else if (ts.isCallExpression(node)) {
       const callee = ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text : nameOf(node.expression);
