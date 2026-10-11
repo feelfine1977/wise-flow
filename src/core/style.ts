@@ -123,7 +123,7 @@ export interface ThemeDeviation {
 }
 
 /** Text and the grounds it is drawn on; deviations write their labels in the accent on the paper. */
-const TEXT: [ColorToken, ColorToken][] = [["ink", "paper"], ["inkMuted", "paper"], ["ink", "surface"], ["inkMuted", "surface"], ["onFocus", "focus"], ["accent", "paper"]];
+const TEXT: [ColorToken, ColorToken][] = [["ink", "paper"], ["inkMuted", "paper"], ["ink", "surface"], ["inkMuted", "surface"], ["onFocus", "focus"], ["onPressed", "pressed"], ["accent", "paper"]];
 /**
  * Lines that carry meaning: outlines that stand out, paths without a measure,
  * focus and selection, and deviations. `line` is left out: it draws hairlines
@@ -178,6 +178,8 @@ export function checkTheme(theme: Theme): ThemeDeviation[] {
     for (const line of LINES) check("line", `${line} on paper`, c[line], c.paper, LINE_CONTRAST);
     for (const [kind, a, b, minimum] of CUE) check(kind, `${a} on ${b}`, c[a], c[b], minimum);
     if (ramp.length) check("rampStart", "palette.neutral", ramp[0], c.paper, LINE_CONTRAST);
+    // The pattern twins are drawn in the pattern ink over every stage colour.
+    for (const stage of themePalettes(theme, scheme).categorical) if (colorChannels(stage)) check("line", `patternInk on ${stage}`, c.patternInk, stage, LINE_CONTRAST);
   }
   for (const [role, style] of Object.entries(theme.text)) {
     const size = (style as { size?: number | string }).size;

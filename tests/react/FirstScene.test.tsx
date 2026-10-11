@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import type { ELK, ElkNode } from "elkjs/lib/elk-api.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type FlowGraph, type LayoutOptions, type Positions, createPositions } from "../../src/index";
@@ -226,7 +226,7 @@ describe("the view when the layout arrives", () => {
     await act(() => new Promise((resolve) => setTimeout(resolve, 1000)));
     if (zoomIn) {
       const fitted = viewport(container).zoom;
-      fireEvent.click(container.querySelector(".react-flow__controls-zoomin")!);
+      fireEvent.click(within(container).getByRole("button", { name: "Zoom in" }));
       await waitFor(() => expect(viewport(container).zoom).toBeGreaterThan(fitted));
     }
     const before = viewport(container);

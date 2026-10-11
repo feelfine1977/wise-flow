@@ -396,8 +396,10 @@ eight.
 ## Design tokens
 
 ```ts
-export const colorTokens: { paper; surface; ink; inkMuted; inkStrong; line; lineStrong; cueStripe; cueFoot; focus; onFocus; selection; hover;
-  neutral; outOfScope; accent; severity; mechanism; reservoir; pass; warn; fail };   // the light scheme; accent: deviations
+export const colorTokens: { paper; surface; ink; inkMuted; inkStrong; line; lineStrong; cueStripe; cueFoot; focus; onFocus; pressed; onPressed;
+  patternInk; selection; hover; neutral; outOfScope; accent; severity; mechanism; reservoir; pass; warn; fail };   // the light scheme; accent: deviations
+// pressed, onPressed: a pressed toggle of the panels and its text (light #0072b2 and #ffffff, dark #0b1f2e and #ececec);
+// patternInk: the ink of the pattern twins on the stage colours (light #1f1f1f, the light ink; dark #101114)
 export const darkColorTokens: Partial<Record<ColorToken, string>>; // what the dark scheme changes
 export const paletteTokens: { neutral; sequential; sequentialBlue; diverging; categorical };  // `palettes` is this object
 export const fontTokens: { family; mono };                         // "system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
@@ -583,12 +585,14 @@ the theme `useFlowTheme` resolves for its container.
 
 **`checkTheme(theme)`** returns what falls short, as data, in both schemes:
 text against its ground under 4.5 : 1 (`ink` and `inkMuted` on `paper` and on
-`surface`, `onFocus` on `focus`, `accent` on `paper`, where deviations write
+`surface`, `onFocus` on `focus`, `onPressed` on `pressed`, `accent` on `paper`, where deviations write
 their labels, `inkMuted` on `cueStripe`) and ink on the frequency cue's
 stripe under 7 : 1 (`ink` on `cueStripe`), a line against the paper under 3 : 1
 (`lineStrong`, `neutral`, `focus`, `accent`; `line` draws hairlines and tracks whose
 meaning a label or a neighbour carries too, and is not checked) and the cue's
-foot under 4.5 : 1 (`cueFoot` on `paper`), the path
+foot under 4.5 : 1 (`cueFoot` on `paper`), the pattern ink under 3 : 1 on a
+colour of the scheme's categorical palette (kind `line`, subject
+`patternInk on #F0E442`), the path
 ramp of each scheme (`palette.neutral`, in the dark scheme with `darkPalette`
 over it) not rising in contrast against the paper from stop to stop
 (`rampOrder`, with its scheme) or its low end under 3 : 1 against the paper,
@@ -906,6 +910,7 @@ export function ProcessMap(props: {
   lod?: Partial<LodRules>; locale?: Locale; layout?: LayoutOptions; selfLoops?: boolean;
   view?: "map" | "table"; onViewChange?: (v: "map" | "table") => void;
   ariaLabel?: string; className?: string; containerStyle?: CSSProperties; fitView?: boolean; children?: ReactNode;
+  fitInsets?: Partial<Insets>;   // kept clear when the view is fitted; default: clear of the panels over the map (see "Controls and panels")
   // 0.3
   focus?: Focus | null; defaultFocus?: Focus; onFocusChange?: (f: Focus | undefined) => void; pathList?: boolean; paths?: FlowPaths;
   filters?: Filter | FilterClause[]; filterPreview?: FilterPreview | Record<string, unknown>; onFilterChange?: (f: Filter) => void;
@@ -928,7 +933,13 @@ export function TraceTimeline(props: { traces: Trace[]; anchor?: string; annotat
   width?; rowHeight?; colorKey?; onSelect?; table?: boolean }): JSX.Element;
 export function AbstractionControls(props), Legend(props), OverlayLayer(props);
 export interface LegendProps { scales?: Scales; overlays?: Overlay[]; locale?: Locale; chips?: ReactNode;
-  legend?: SceneLegend }   // the rows it renders: the scene's legend; without it sceneLegend(scales, overlays)
+  legend?: SceneLegend;   // the rows it renders: the scene's legend; without it sceneLegend(scales, overlays)
+  expanded?: boolean; defaultExpanded?: boolean;   // the whole key (controlled, or where it starts; default false: the one-line strip)
+  onExpandedChange?: (expanded: boolean) => void; onAnnounce?: (text: string) => void }   // see "Controls and panels"
+export interface AbstractionControlsProps { value; onChange; locale?; hasStages?; view?; onViewChange?;
+  counts?: { activities?: KeptCount; paths?: KeptCount } }   // what the sliders keep; the readouts say "7 of 12"
+export interface KeptCount { shown: number; total: number }
+export function ZoomControl(props: ZoomControlProps): JSX.Element;   // see "Controls and panels"
 export function useFlowGraph(g, o?), useStableLayout(scenes, o?), useOverlays(items, o?), usePrefersReducedMotion();
 export type LayoutStatus = "idle" | "pending" | "ready" | "error";
 export interface StableLayout { positions: Positions | undefined; status: LayoutStatus; error?: Error;
@@ -1041,8 +1052,9 @@ layer `wf`), or, on a page with an unlayered reset, `@wise/flow/style.unlayered.
 after `@wise/flow/react-flow.css` (see "Styling contract").
 `tokens.css` defines `--wf-font`, `--wf-font-mono`, the themed colours
 (`--wf-paper`, `--wf-surface`, `--wf-ink`, `--wf-ink-muted`, `--wf-line`,
-`--wf-line-strong`, `--wf-focus`, `--wf-on-focus`, `--wf-selection`,
-`--wf-hover`, `--wf-neutral`, `--wf-out-of-scope`, `--wf-warn`, `--wf-fail`),
+`--wf-line-strong`, `--wf-focus`, `--wf-pressed`, `--wf-on-pressed`,
+`--wf-pattern-ink`, `--wf-selection`, `--wf-hover`, `--wf-neutral`,
+`--wf-out-of-scope`, `--wf-warn`, `--wf-fail`) and `--wf-color-scheme`,
 `--wf-radius`, `--wf-radius-lg`, `--wf-shadow` and the default node boxes
 (`--wf-node-width` and `--wf-node-height` for activities, `--wf-stage-*`,
 `--wf-gateway-*`, `--wf-event-*` and `--wf-note-*` with `-width` and
@@ -1232,7 +1244,8 @@ export function BpmnView(props: {
   viewerOptions?: Record<string, unknown>; ariaLabel?; className?; containerStyle?; children?;
 } & { ref?: Ref<BpmnViewHandle> }): JSX.Element;
 export interface BpmnSelection { tasks: string[]; flows: string[]; lanes: string[] }
-export interface BpmnViewHandle { viewer(): unknown; saveXML(): Promise<string | undefined>; saveSVG(): Promise<string | undefined>; fit(): void }
+export interface BpmnViewHandle { viewer(): unknown; saveXML(): Promise<string | undefined>; saveSVG(): Promise<string | undefined>;
+  fit(insets?: Partial<Insets>): void }   // the diagram inside the view less the insets; default clear of the view's panels (see "Controls and panels")
 export function ViewSwitcher(props: { views: ViewSet; mode?: "single" | "grid"; onModeChange?; activeView?; onActiveViewChange?;
   columns?; locale?; selection?; onSelect?; onHover?; legend?; lod?; minimap?; className?; containerStyle?;
   edgeBudget?: EdgeBudget | "adaptive"; theme?: ThemeSetting }): JSX.Element;   // from @wise/flow/react; edgeBudget and theme are passed to every view's map
@@ -1546,9 +1559,10 @@ export function CanvasMap(props: { scene: PreparedScene | undefined; state: Draw
   edgeBudget?: EdgeBudget | "adaptive";   // default "adaptive"
   clock?: () => number;   // ms, read by the adaptive edge budget; default performance.now; read when the map mounts
   onAnnounce?: (text: string) => void; onEdgesShown?: (shown: ShownEdges | undefined) => void;
-  theme?: ThemeSetting }   // its colours and font, over its --wf-* variables; see "Theme of a map in a page"
+  theme?: ThemeSetting;   // its colours and font, over its --wf-* variables; see "Theme of a map in a page"
+  fitInsets?: Partial<Insets> }   // kept clear when the view is fitted; default: clear of the panels over the map (see "Controls and panels")
   & { ref?: Ref<CanvasMapHandle> }): JSX.Element;
-export interface CanvasMapHandle { centerOn(id, zoom?); fit(); zoomBy(factor); screenBox(id): Box | undefined; renderer(): CanvasRenderer | null;
+export interface CanvasMapHandle { centerOn(id, zoom?); fit(insets?: Partial<Insets>); zoomBy(factor); screenBox(id): Box | undefined; renderer(): CanvasRenderer | null;
   moved(): boolean }   // true when the view changed since the map was last fitted
 ```
 
@@ -1604,12 +1618,13 @@ export class CanvasRenderer { constructor(canvas: HTMLCanvasElement, o?: { token
   drawOptions: RendererDrawOptions;   // DrawOptions without tokens; edgeBudget may also be "adaptive"
   beginGesture(); endGesture();   // a pan or zoom gesture; see "Edge budget"
   resize(w, h); setScene(s); getScene(); setState(patch: Partial<DrawState>); getState(); setTokens(t);
-  getViewport(); setViewport(v, notify?); fit(padding?); panBy(dx, dy); zoomBy(factor, centre?); centerOn(point, zoom?);
+  getViewport(); setViewport(v, notify?); fit(padding?, insets?: Partial<Insets>); panBy(dx, dy); zoomBy(factor, centre?); centerOn(point, zoom?);
   toFlow(x, y); toScreen(x, y); screenBox(id); hitAt(x, y, tolerancePx?): HitItem | undefined; requestDraw(); draw(); dispose();
   onViewportChange?: (v: Viewport) => void; lastDraw?: { nodes; edges; shapes; culled; withheld?; ms };
   onDraw?: (stats: { nodes; edges; shapes; culled; withheld?; ms }) => void }   // called after every draw
-export interface CanvasTokens { font; paper; surface; ink; inkMuted; line; lineStrong; cueStripe?; cueFoot?; focus; selection; neutral; outOfScope }
-// cueStripe and cueFoot: the frequency cue's colours; drawScene takes the scene's, in its scheme, where tokens a host builds leave them out
+export interface CanvasTokens { font; paper; surface; ink; inkMuted; line; lineStrong; cueStripe?; cueFoot?; patternInk?; focus; selection; neutral; outOfScope }
+// cueStripe and cueFoot: the frequency cue's colours; patternInk: the pattern twins' ink (it was `ink`); drawScene, drawLegend
+// and toPNG take the scene's, in its scheme, where tokens a host builds leave them out
 export const defaultTokens: CanvasTokens;   // from the token table (`colorTokens`, `fontTokens`); without `tokens` a draw takes the scene's colours and font
 export function readTokens(element: Element | null | undefined, overrides?: Partial<CanvasTokens>): CanvasTokens;   // from the CSS variables (`cssVariable(key)`), as they are; <CanvasMap/> reads them with useFlowTheme instead
 export interface PngOptions { preset?: FigurePreset; width?; scale?; background?; legend?; padding?; lodZoom?; tokens?; createCanvas?; context?;
@@ -2125,7 +2140,8 @@ error instead of silently drawing a connection through a task.
 
 `BpmnView.navigation` defaults to `controls`. Hosts with their own Map/Model/Table
 switch can pass `controls={false} navigation` to keep zoom, whole-model fit and
-readable-size buttons. Readable size centres the selected task, or the first
+readable-size buttons: the zoom control of the maps (`<ZoomControl/>`, see
+"Controls and panels") with the readable size as a fifth icon button. Readable size centres the selected task, or the first
 task if none is selected. The bpmn.io attribution remains visible.
 
 Arc `payload.displayLabel` may supply a complete, unambiguous result label,
@@ -2213,6 +2229,125 @@ const svg = toSVG({ graph, positions }, { theme: look.theme });
 The element must be mounted when the component that calls the hook mounts.
 In development the hook logs what `checkTheme` finds, once per finding.
 
+## Controls and panels
+
+The DOM map, the Canvas map and the BPMN view share one zoom control and one
+set of panel primitives, styled through the tokens and carrying the data
+attributes of the styling contract.
+
+```ts
+export interface ZoomControlProps { zoom?: number; locale?: Locale; onZoomIn(): void; onZoomOut(): void; onFit(): void;
+  fitLabel?: string;   // default "Fit the map" / "Karte einpassen"
+  label?: string;      // the group's name; default "Zoom"
+  disabled?: boolean; children?: ReactNode; className?: string }
+export function ZoomControl(props: ZoomControlProps): JSX.Element;   // @wise/flow/react
+// @wise/flow: the fitted view, used by all three
+export interface Insets { top: number; right: number; bottom: number; left: number }
+export interface FitView { x: number; y: number; zoom: number }
+export interface FitOptions { insets?: Partial<Insets>; padding?: number; minZoom?: number; maxZoom?: number }   // padding default 0.08
+export function fitViewport(bounds: Box, area: { width; height }, options?: FitOptions): FitView;
+export function panelInsets(panels: readonly Box[], area: { width; height }, bounds: Box, options?: Omit<FitOptions, "insets"> & { gap?: number }): Insets;
+```
+
+**Zoom.** `<ZoomControl/>` is a group (`role="group"`, named "Zoom", in the
+BPMN view "Model zoom controls") of icon buttons with accessible names (zoom
+in, zoom out, fit) and, between them, the current zoom as a percentage
+(`data-wf-part="zoom-level"`); the BPMN view adds the readable size as a fifth
+icon button ("Readable size"). The React Flow map renders it in a React Flow
+panel at the bottom left and no longer renders React Flow's `<Controls/>`
+(no element `.react-flow__controls` remains; `data-wf-part="controls"` is on
+the zoom control). The Canvas map's three text buttons (+, −, ⤢) in a group
+named "Fit the map" and the BPMN view's text pills are this control too. The
+zoom steps are as before: × 1.2 on the maps, × 1.25 (up to 4, down to 0.05)
+in the BPMN view.
+
+**Fit.** `fit` takes insets: the screen pixels kept clear along each side.
+`fitViewport` centres the bounds in the area less the insets, with `padding`
+of their size around them, and clamps the zoom; `panelInsets` chooses, for
+each panel over a map, to keep it clear across the area (an inset left or
+right, on its side) or along it (at the top or the bottom), whichever leaves
+the larger zoom, and adds `gap`. By default every fit (when a layout arrives,
+the fit button, `CanvasMapHandle.fit()`, `BpmnViewHandle.fit()`) keeps clear
+of the panels over the map: the abstraction panel, the legend, the zoom
+control, the status and the note on withheld paths, and a host's React Flow
+panels (`.react-flow__panel`, `.wf-overlay-panel`, `.wf-bpmn__panel`), with a
+gap of 8 px, so that no panel covers an activity at the fitted zoom.
+`fitInsets` on `<ProcessMap/>` and `<CanvasMap/>`, and `fit(insets)` on the
+handles and on `CanvasRenderer`, set the insets instead. The React Flow map
+fits React Flow's node bounds with 4 % of their size on each side (the
+`padding: 0.08` React Flow's `fitView` took) between the zoom 0.05 and 3; its
+fit button now fits as the map does after a layout (it took React Flow's
+default padding of 0.1). The BPMN view fits the diagram's shapes and labels
+with 2 % of their size on each side, up to the zoom 1 as bpmn-js's
+`fit-viewport` does; where no panel is in the way it still uses
+`fit-viewport`.
+
+**Legend.** `<Legend/>` opens as a one-line strip: the measure and its unit
+("Frequency · cases · share of 251,734 cases"), the path width's three
+samples, and a button ("Show the whole legend", `aria-expanded`) that
+expands it to the whole key (the title, the measure, the scales, the stages,
+the keys and the map-level chips, as before) and collapses it again ("Show
+the legend as one line"). The change is announced: in the map's live region
+(`onAnnounce`, which `<ProcessMap/>` and `<BpmnView/>` pass), otherwise in a
+live region of the legend ("The whole legend is shown.", "The legend is shown
+as one line."). `defaultExpanded` opens it in full; `expanded` with
+`onExpandedChange` controls it. The legends of `<ViewSwitcher/>`'s grid and
+of the BPMN view are strips too. `toSVG` and `toPNG` always draw the whole
+key. Keys pressed on a control of a panel (the legend's toggle, a slider, a
+button) are the control's: the map's keyboard no longer takes them (Enter on
+the legend's toggle expands it instead of opening the actions menu, the
+arrow keys move a slider).
+
+**Sliders.** `<AbstractionControls/>` reads `counts`: its readouts say what
+each slider keeps, "7 of 12" activities and "13 of 31" paths (German "7 von
+12"), and each slider's value text says the threshold too ("10 %: 7 of 12
+activities shown"); without `counts` they show the threshold as before. The
+map passes the activities and stages and the paths of the shown graph, of
+the graph before the thresholds (after collapsing stages). The sliders are
+drawn from the tokens: a track (`--wf-size-slider-track`) in the ink up to
+the thumb and in the line colour after it, and a round thumb
+(`--wf-size-slider-thumb`) outlined in the ink.
+
+**Primitives.** Modelled on the actions menu: a panel (`.wf-panel`: paper,
+a hairline in `--wf-line`, the large radius and, over the interactive map,
+`--wf-shadow`; the exports draw their legend flat), a button (`.wf-button`:
+paper with a `--wf-line-strong` outline and the control radius, no longer the
+surface colour and a pill; `.wf-button--icon` without an outline until
+hovered or focused; pressed toggles in `--wf-pressed` with `--wf-on-pressed`
+outlined in `--wf-focus`, where they were filled with the focus colour), a
+chip (`.wf-panel-chip`, the filter chips) and a tooltip (`.wf-tooltip`:
+paper, a hairline and `--wf-shadow-menu`; the activity tooltip, the Canvas
+map's tooltip and the timeline's, which was ink with paper text). The table
+alternative has the paper as its ground and its search field and pager are
+drawn in the tokens. Every button of the panels carries
+`data-wf-part="button"`.
+
+**Dark scheme.** Every control has its own values in the dark scheme: the
+zoom control and the panels are paper, darker than the surface; React Flow's
+attribution has no ground of its own; the pressed toggle is `pressed`
+(#0b1f2e, darker than the surface); the table has its paper and its header
+the surface; tooltips are paper. The browser draws native controls (check
+boxes, scroll bars, the search field) in the scheme of the tokens:
+`tokens.css` sets `--wf-color-scheme` (`light`, in the dark blocks `dark`),
+which the stylesheet gives the map, its panels, the tables, the BPMN view, the
+switcher, the timeline and the comparison as `color-scheme`, and
+`themeVariables` writes it for the scheme too. The pattern twins of the
+stages are drawn in `patternInk` by all four renderers (the DOM map, the
+Canvas map and both exports), in the dark scheme #101114, at least 3.64 : 1
+on every stage colour, where they were drawn in the ink: black in the DOM map
+and light (#ececec, down to 1.12 : 1 on yellow) in the Canvas map and the
+exports. Group outlines take the scheme's `line` as before.
+
+New tokens: the colours `pressed`, `onPressed` and `patternInk` (with their
+`--wf-*` variables in both schemes; pressed toggles and the selected tab of
+`<ViewSwitcher/>` were `--wf-focus` with `--wf-on-focus`, which nothing reads
+any more and `tokens.css` no longer defines; the role `onFocus` stays in the
+theme and in `checkTheme`), `--wf-color-scheme`, the sizes `icon`
+(16), `sliderTrack` (4) and `sliderThumb` (16), and the stroke `icon` (2).
+New strings: `map.zoom`, `map.zoomLevel`, `legend.expand`, `legend.collapse`,
+`legend.expanded`, `legend.collapsed`, `controls.kept`,
+`controls.activitiesKept`, `controls.pathsKept`, in English and German.
+
 ## Styling contract
 
 The interactive DOM map (`<ProcessMap/>` with the React Flow renderer) and the
@@ -2239,7 +2374,9 @@ CSS written against these selectors changes only the interactive DOM map and the
 | `edge-path` | the drawn line of a path | | |
 | `edge-label` | the count label of a path | | |
 | `mark` | a deviation mark of the map or of a legend (SVG group); a `tint` is the background of its node, and the BPMN diagram's marks carry no attributes | `badge`, `chip`, `arc`, `selfLoop`, `hatch` | `hovered` |
-| `controls` | the zoom controls (React Flow's and the Canvas map's) | | |
+| `controls` | the zoom control (`<ZoomControl/>`) of the DOM map, the Canvas map and the BPMN view | | |
+| `button` | a button of the panels: the zoom control's, the legend's toggle, the abstraction panel's toggles, the table's pager, the filters' "clear" | | |
+| `zoom-level` | the current zoom in the zoom control | | |
 | `abstraction-panel` | the sliders and toggles of `<AbstractionControls/>` | | |
 | `legend` | `<Legend/>` | | |
 | `status` | the status panel (arranging, layout error) and the note on withheld paths | | |

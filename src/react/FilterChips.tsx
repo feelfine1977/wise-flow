@@ -1,5 +1,6 @@
 import { type Filter, type FilterClause, type FilterPreview, type Locale, asFilter, changesCases, describeClause, describePreview, formatCount, normalizeFilterPreview, removeClause, t } from "../core/index.js";
 import { part } from "./parts.js";
+import { Button } from "./primitives.js";
 
 export interface FilterChipsProps {
   /** The filter of the contract (`{ and: [...] }`) or its clauses. */
@@ -60,7 +61,7 @@ export function FilterChips({ filter, preview, locale = "en", labelOf = (id) => 
           return (
             <li
               key={`${i}-${text}`}
-              className={`wf-chip wf-filter-chip${changes ? " wf-filter-chip--changes" : ""}`}
+              className={`wf-chip wf-panel-chip wf-filter-chip${changes ? " wf-filter-chip--changes" : ""}`}
               data-kind={c.kind}
               {...part("filter-chip")}
               data-changes-cases={changes || undefined}
@@ -85,9 +86,9 @@ export function FilterChips({ filter, preview, locale = "en", labelOf = (id) => 
         })}
       </ul>
       {showClear && f.and.length > 0 ? (
-        <button type="button" className="wf-button wf-filters__clear" onClick={clear}>
+        <Button className="wf-filters__clear" onClick={clear}>
           {t(locale, "filters.clear")}
-        </button>
+        </Button>
       ) : null}
     </div>
   );

@@ -427,7 +427,7 @@ function drawNode(ctx: DrawContext, scene: PreparedScene, n: SceneNode, tokens: 
   if (m.band) {
     ctx.fillStyle = m.color;
     ctx.fillRect(b.x, b.y, m.band, b.height);
-    const pattern = patternFor(ctx, m.pattern, tokens.ink, scene.theme.pattern, options);
+    const pattern = patternFor(ctx, m.pattern, tokens.patternInk ?? scene.colors.patternInk, scene.theme.pattern, options);
     if (pattern) {
       ctx.fillStyle = pattern;
       ctx.fillRect(b.x, b.y, m.band, b.height);
@@ -522,7 +522,7 @@ const nodeId = (n: SceneNode) => n.node.id;
 export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, state: DrawState = emptyState, options: DrawOptions = {}): { nodes: number; edges: number; shapes: number; culled: boolean; withheld?: EdgeSelection } {
   // Tokens a host built without the frequency cue's colours take the scene's, in its scheme.
   const given = options.tokens;
-  const tokens = given ? { ...given, cueStripe: given.cueStripe ?? scene.colors.cueStripe, cueFoot: given.cueFoot ?? scene.colors.cueFoot } : sceneTokens(scene);
+  const tokens = given ? { ...given, cueStripe: given.cueStripe ?? scene.colors.cueStripe, cueFoot: given.cueFoot ?? scene.colors.cueFoot, patternInk: given.patternInk ?? scene.colors.patternInk } : sceneTokens(scene);
   const lodZoom = options.lodZoom ?? view.zoom;
   const lod = lodAt(lodZoom, scene.lod);
   const cull = options.cull ?? scene.size > CULL_ABOVE;
@@ -671,7 +671,7 @@ export function drawLegend(ctx: DrawContext, scene: PreparedScene, x: number, y:
         const ey = cy + i * m.entry;
         ctx.fillStyle = e.color;
         ctx.fillRect(x, ey, swatchWidth, swatchHeight);
-        const pattern = patternFor(ctx, e.pattern, tokens.ink, scene.theme.pattern, options);
+        const pattern = patternFor(ctx, e.pattern, tokens.patternInk ?? scene.colors.patternInk, scene.theme.pattern, options);
         if (pattern) {
           ctx.fillStyle = pattern;
           ctx.fillRect(x, ey, swatchWidth, swatchHeight);

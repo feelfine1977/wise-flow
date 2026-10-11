@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -49,6 +49,11 @@ describe("BpmnView", () => {
   });
 });
 
+/** The legends of the grid open as strips; their toggles expand them to the whole key. */
+function expandLegends(container: HTMLElement) {
+  for (const legend of container.querySelectorAll<HTMLElement>(".wf-views__legend")) fireEvent.click(within(legend).getByRole("button", { name: "Show the whole legend" }));
+}
+
 describe("ViewSwitcher", () => {
   it("renders tabs for every view and the same positions in the grid", async () => {
     const base = abstract(globalScene, { minNodeShare: 0.05, minEdgeShare: 0.1 });
@@ -98,6 +103,7 @@ describe("ViewSwitcher", () => {
     expect(base.nodes.filter((n) => n.kind === "event").map((n) => n.tags)).toEqual([["start"], ["end"]]);
     const keys = [...(loops ? ["↻"] : []), ...(readded ? ["┄"] : []), "○", "◉"];
     await waitFor(() => expect(container.querySelectorAll(".wf-views__legend").length).toBe(2));
+    expandLegends(container);
     for (const legend of container.querySelectorAll(".wf-views__legend")) {
       expect([...legend.querySelectorAll(".wf-legend__glyph")].map((g) => g.textContent)).toEqual(keys);
     }
@@ -117,6 +123,7 @@ describe("ViewSwitcher", () => {
       </div>,
     );
     await waitFor(() => expect(container.querySelectorAll(".wf-views__legend").length).toBe(1));
+    expandLegends(container);
     const glyphs = [...container.querySelectorAll(".wf-views__legend .wf-legend__glyph")].map((g) => g.textContent);
     expect(glyphs.filter((g) => g === "●")).toEqual(["●"]);
   });

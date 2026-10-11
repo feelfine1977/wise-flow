@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { constraintItems, globalScene, vendorScene, vendorSceneKey } from "../../fixtures/bpic2019";
 import { type DrawContext, drawLegend, prepareScene } from "../../src/canvas/index";
@@ -62,6 +62,8 @@ async function fromReact({ graph, positions, overlays, locale }: Fixture): Promi
     </div>,
   );
   const region = await waitFor(() => screen.getByRole("region", { name: locale === "de" ? "Legende" : "Legend" }));
+  // The panel opens as a strip; its toggle shows the whole key.
+  fireEvent.click(within(region).getByRole("button", { name: locale === "de" ? "Ganze Legende zeigen" : "Show the whole legend" }));
   const texts: string[] = [];
   const walker = document.createTreeWalker(region, NodeFilter.SHOW_TEXT);
   for (let n = walker.nextNode(); n; n = walker.nextNode()) {

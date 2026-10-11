@@ -1,7 +1,8 @@
 import { type CSSProperties, useId, useMemo, useRef, useState } from "react";
-import { type EdgeBudget, type FlowScene, type Locale, type LodRules, type ThemeSetting, type ViewSet, buildScene, filterPositions, legendOfScene, t } from "../core/index.js";
+import { type EdgeBudget, type FlowScene, type Locale, type LodRules, type ThemeSetting, type ViewSet, buildScene, filterPositions, legendOfScene, t, themeColors } from "../core/index.js";
 import { markedThemeKey } from "../core/theme.js";
 import { Legend } from "./Legend.js";
+import { Button } from "./primitives.js";
 import { PatternTheme } from "./patterns.js";
 import { ProcessMap } from "./ProcessMap.js";
 import { useFlowTheme } from "./theme.js";
@@ -65,7 +66,7 @@ export function ViewSwitcher({ views, mode: modeProp, onModeChange, activeView, 
   // The legends of the grid are drawn in the maps' theme.
   const root = useRef<HTMLDivElement>(null);
   const { theme: look, scheme } = useFlowTheme(root, theme);
-  const patternTheme = useMemo(() => ({ ink: look.color.ink, look: look.pattern }), [look]);
+  const patternTheme = useMemo(() => ({ ink: themeColors(look, scheme).patternInk, look: look.pattern }), [look, scheme]);
   // One legend per distinct style, of what the maps of its views draw: the first view's scales and a key for a kind any of them draws.
   // Built again only when what the marks are built from changes, as the maps' scenes.
   const markedKey = useMemo(() => markedThemeKey(look, scheme), [look, scheme]);
@@ -83,12 +84,10 @@ export function ViewSwitcher({ views, mode: modeProp, onModeChange, activeView, 
       <div className="wf-views__bar">
         <div role="tablist" aria-label={t(locale, "views.title")} className="wf-views__tabs">
           {views.views.map((v) => (
-            <button
+            <Button
               key={v.id}
-              type="button"
               role="tab"
               id={`${id}-tab-${v.id}`}
-              className="wf-button"
               aria-selected={mode === "single" && v.id === current?.id}
               aria-controls={`${id}-panel-${v.id}`}
               title={v.description}
@@ -98,13 +97,13 @@ export function ViewSwitcher({ views, mode: modeProp, onModeChange, activeView, 
               }}
             >
               {v.label}
-            </button>
+            </Button>
           ))}
         </div>
         <div className="wf-views__mode">
-          <button type="button" className="wf-button" aria-pressed={mode === "grid"} onClick={() => setMode(mode === "grid" ? "single" : "grid")}>
+          <Button pressed={mode === "grid"} onClick={() => setMode(mode === "grid" ? "single" : "grid")}>
             {mode === "grid" ? t(locale, "views.single") : t(locale, "views.grid")}
-          </button>
+          </Button>
           <span className="wf-views__note">{t(locale, "views.shared")}</span>
         </div>
       </div>

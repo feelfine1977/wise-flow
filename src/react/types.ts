@@ -14,6 +14,7 @@ import type {
   FlowNode,
   FlowPaths,
   GroupMark,
+  Insets,
   Focus,
   LaneBand,
   LaneMode,
@@ -195,6 +196,13 @@ export interface ProcessMapProps {
   containerStyle?: React.CSSProperties;
   /** Fit the view after layout. Default true. */
   fitView?: boolean;
+  /**
+   * Room kept clear along each side of the map when its view is fitted, in
+   * screen pixels. By default the fitted map keeps clear of the panels over it
+   * (the abstraction panel, the legend, the zoom control, notes and a host's
+   * React Flow panels), so that none covers an activity.
+   */
+  fitInsets?: Partial<Insets>;
   /**
    * Activity or stage whose paths are shown (predecessors and successors bright,
    * the rest dimmed, side list), or two activity ids for the path between them.

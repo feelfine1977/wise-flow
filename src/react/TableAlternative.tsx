@@ -4,6 +4,7 @@ import { clickSelection } from "../core/map-controller.js";
 import { formatMetric, metricColumns, metricLabel } from "./describe.js";
 import type { Selection } from "./types.js";
 import { part } from "./parts.js";
+import { Button } from "./primitives.js";
 
 export interface TableAlternativeProps {
   graph: FlowGraph;
@@ -47,15 +48,15 @@ function usePage<T>(rows: T[], text: (row: T) => string, query: string, pageSize
   const go = (to: number) => setPage({ query, at: to });
   const pager = (
     <div className="wf-table__pager">
-      <button type="button" className="wf-button" disabled={at === 0} onClick={() => go(at - 1)}>
+      <Button disabled={at === 0} onClick={() => go(at - 1)}>
         {t(locale, "table.previous")}
-      </button>
+      </Button>
       <span role="status">
         {matching.length ? t(locale, "table.rows", { from: formatCount(from + 1, locale), to: formatCount(from + shown.length, locale), total: formatCount(matching.length, locale) }) : t(locale, "table.empty")}
       </span>
-      <button type="button" className="wf-button" disabled={at >= last} onClick={() => go(at + 1)}>
+      <Button disabled={at >= last} onClick={() => go(at + 1)}>
         {t(locale, "table.next")}
-      </button>
+      </Button>
     </div>
   );
   // The header is the first row.

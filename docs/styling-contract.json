@@ -16,6 +16,8 @@
     "edge-label": {},
     "mark": { "kinds": ["badge", "chip", "arc", "selfLoop", "hatch"], "states": ["hovered"] },
     "controls": {},
+    "button": {},
+    "zoom-level": {},
     "abstraction-panel": {},
     "legend": {},
     "status": {},

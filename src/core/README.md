@@ -29,6 +29,7 @@ Framework-free TypeScript; runs in Node and in the browser. No DOM, no React.
 | `routing.ts` | `routeSequenceFlows` (orthogonal obstacle router), `repositionNodes` |
 | `hit.ts` | `HitIndex` (rbush) over nodes, groups, edge segments and overlay shapes |
 | `figure.ts` | `legendOfScene`, `sceneLegend`, `legendLayout`, `figureFrame`, `figureCaption`: the legend's typed rows (`LegendRow`: the measure, the scales by metric and unit, a key per kind of mark drawn, the chips) from what a scene draws, their heights and texts at the export's width, and the figure frame of the exports (header, map, legend column, caption line, activity key, output size for a preset) |
+| `viewport.ts` | `fitViewport`, `panelInsets`: the fitted view of a map inside its area less insets, and the insets that keep it clear of the panels over it |
 | `text.ts` | `TextMeasure`, `estimateTextWidth`, `truncateText`, `wrapText`, `fitText`, `fitLead`: the one measure of text widths a scene is built with, and the rules that shorten and wrap text by it |
 | `export.ts` | `toSVG`: draws a `buildScene` scene, its marks and its legend in the figure frame |
 | `format.ts` | deterministic number and duration formatting (`formatPathCount` for paths), `Locale` |

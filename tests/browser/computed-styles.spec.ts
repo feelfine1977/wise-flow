@@ -42,6 +42,15 @@ import { fileURLToPath } from "node:url";
  * the keys in a row that wraps, one per badge glyph and for the start and the
  * end), the paths' stroke widths, now their cases, and the colours of the
  * stages Purchase order, Invoice and Payment wherever they are painted changed.
+ * They were recorded once more when the controls became one set: React Flow's
+ * controls are gone and every map, the Canvas map and the BPMN view draw one
+ * zoom control (icon buttons, the current zoom), the legend is a one-line
+ * strip until it is expanded, buttons are paper with the control radius (a
+ * pressed one in the pressed colour), the sliders are drawn from the tokens
+ * and their readouts say what they keep, tooltips (the timeline's too) are
+ * panels, the tables have the paper as their ground, React Flow's attribution
+ * has none of its own, and the hovered and right-clicked activity is "Clear
+ * Invoice" again, which the legend no longer covers at the fitted view.
  * Geometry
  * that depends on the fonts of the machine (widths, heights, positions) is left
  * out, so the record holds on every operating system.
@@ -81,7 +90,7 @@ const SCENES: Scene[] = [
     map: true,
     act: async (page) => {
       await page.locator('.react-flow__node[data-id="record_goods_receipt"]').click();
-      await page.locator('.react-flow__node[data-id="record_invoice_receipt"]').click({ button: "right" });
+      await page.locator('.react-flow__node[data-id="clear_invoice"]').click({ button: "right" });
       await expect(page.getByRole("menu")).toBeVisible();
     },
   },
@@ -102,8 +111,8 @@ const SCENES: Scene[] = [
     map: true,
     act: async (page) => {
       await page.mouse.move(0, 0);
-      await page.locator('.react-flow__node[data-id="record_invoice_receipt"]').hover();
-      await expect(page.locator('.react-flow__node[data-id="record_invoice_receipt"] .wf-node--hovered')).toHaveCount(1);
+      await page.locator('.react-flow__node[data-id="clear_invoice"]').hover();
+      await expect(page.locator('.react-flow__node[data-id="clear_invoice"] .wf-node--hovered')).toHaveCount(1);
     },
   },
   {

@@ -30,6 +30,12 @@ export const colorTokens = {
   focus: "#0072b2",
   /** Text on the accent colour. */
   onFocus: "#ffffff",
+  /** Background of a pressed toggle of the panels (outlined in `focus`). */
+  pressed: "#0072b2",
+  /** Text on a pressed toggle. */
+  onPressed: "#ffffff",
+  /** Ink of the pattern twins on the stage colours: 3 : 1 or more on each colour of the categorical palette. */
+  patternInk: "#1f1f1f",
   selection: "rgba(0, 114, 178, 0.14)",
   hover: "rgba(0, 0, 0, 0.05)",
   neutral: "#8c8c8c",
@@ -60,6 +66,11 @@ export const darkColorTokens: Partial<Record<ColorToken, string>> = {
   selection: "rgba(86, 180, 233, 0.22)",
   hover: "rgba(255, 255, 255, 0.07)",
   accent: "#ff8c42",
+  /** Darker than the surface, so that no control of the dark scheme is lighter than the panels it sits on. */
+  pressed: "#0b1f2e",
+  onPressed: "#ececec",
+  /** Dark on the stage colours, as in the light scheme: 3.64 : 1 or more on each. */
+  patternInk: "#101114",
 };
 
 /**
@@ -224,6 +235,8 @@ export const strokeTokens = {
   filterChip: 1,
   legendGradient: 1,
   tab: 2,
+  /** The lines of the icons on the panels' buttons. */
+  icon: 2,
   timelineSpan: 1,
   timelineViolation: 2,
   minimapNode: 2,
@@ -315,6 +328,11 @@ export const dimensionTokens = {
   filterChipMinHeight: 24,
   zoomButtonWidth: 28,
   zoomButtonHeight: 26,
+  /** An icon on a button of the panels. */
+  icon: 16,
+  /** A slider's track and its thumb. */
+  sliderTrack: 4,
+  sliderThumb: 16,
   backgroundGap: 24,
   /** Height of the frequency cue's foot along an activity's bottom edge. */
   cueFoot: 3,
@@ -513,7 +531,7 @@ export const designTokens = {
 } as const;
 
 /** Colours with a CSS variable: the ones a stylesheet or the Canvas renderer reads. */
-export const themedColors: readonly ColorToken[] = ["paper", "surface", "ink", "inkMuted", "line", "lineStrong", "cueStripe", "cueFoot", "focus", "onFocus", "selection", "hover", "neutral", "outOfScope", "warn", "fail"];
+export const themedColors: readonly ColorToken[] = ["paper", "surface", "ink", "inkMuted", "line", "lineStrong", "cueStripe", "cueFoot", "focus", "pressed", "onPressed", "patternInk", "selection", "hover", "neutral", "outOfScope", "warn", "fail"];
 
 /** Name of the CSS variable of a colour token: `--wf-` and the name in kebab case. */
 export function cssVariable(name: string): string {
@@ -550,11 +568,11 @@ const styledRoles = {
   weight: "legendItem panelHeading panelLabel panelPlain comparisonTab comparisonCaption comparisonRowHeader comparisonDenominator",
   leading: "activityName activityNumber",
   radius: "band swatch control tooltip key pill filterChip legendGradient activityTooltip comparisonBar",
-  stroke: "focus selection halo filterChip tab timelineViolation",
+  stroke: "focus selection halo filterChip tab icon timelineViolation",
   dash: "timelineAnchor bpmnOutOfScope",
   opacity: "dimmed dimmedPath disabled",
   z: "comparisonRowHeader comparisonHeader comparisonCorner overlayPanel bpmnTable bpmnPanel sideList tooltip canvasTooltip bpmnNavigation menu activityTooltip",
-  size: "mapMinHeight viewMapMinHeight handle panelMaxWidth controlLabel controlOutput legendSwatchWidth legendSwatchHeight legendSample legendGlyph legendGradient searchMinWidth tableSwatch tooltipMaxWidth canvasTooltipMaxWidth activityTooltipMaxWidth bpmnTableTop watermarkClearance sideList menuMinWidth menuMaxWidth filterChipMinHeight zoomButtonWidth zoomButtonHeight cueFoot",
+  size: "mapMinHeight viewMapMinHeight handle panelMaxWidth controlLabel controlOutput legendSwatchWidth legendSwatchHeight legendSample legendGlyph legendGradient searchMinWidth tableSwatch tooltipMaxWidth canvasTooltipMaxWidth activityTooltipMaxWidth bpmnTableTop watermarkClearance sideList menuMinWidth menuMaxWidth filterChipMinHeight zoomButtonWidth zoomButtonHeight cueFoot icon sliderTrack sliderThumb",
 } as const;
 
 /** The CSS variables of `tokens.css`: all of them in the light scheme, the ones that change in the dark scheme. */
@@ -590,7 +608,9 @@ export function tokenVariables(): { light: Record<string, string>; dark: Record<
     for (const role of (styledRoles satisfies Listed<typeof styledRoles>)[prefix as keyof typeof styledRoles].split(" ")) light[`--wf-${prefix}-${kebab(role)}`] = value(role);
   }
   for (const step of spaceTokens.steps) light[`--wf-space-${String(step).replace(".", "-")}`] = px(step * spaceTokens.unit);
-  const dark: Record<string, string> = {};
+  // The scheme the browser draws the panels' native controls (sliders, check boxes, search fields, scroll bars) in.
+  light["--wf-color-scheme"] = "light";
+  const dark: Record<string, string> = { "--wf-color-scheme": "dark" };
   for (const name of themedColors) {
     const v = darkColorTokens[name];
     if (v !== undefined) dark[cssVariable(name)] = lower(v);

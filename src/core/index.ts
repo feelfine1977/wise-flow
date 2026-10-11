@@ -423,6 +423,16 @@ export type {
 } from "./overlay-marks.js";
 
 export type {
+  Insets,
+  FitView,
+  FitOptions,
+} from "./viewport.js";
+export {
+  fitViewport,
+  panelInsets,
+} from "./viewport.js";
+
+export type {
   TextMeasure,
 } from "./text.js";
 export {

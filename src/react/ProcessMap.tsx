@@ -1,6 +1,5 @@
 import {
   Background,
-  Controls,
   MiniMap,
   Panel,
   ReactFlow,
@@ -13,7 +12,7 @@ import {
   type OnNodesChange,
 } from "@xyflow/react";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { type AbstractOptions, type ElementRef, type FlowGraph, type Positions, type XY, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, defaultStyle, dimensionTokens, formatCount, lodAt, spaceTokens, strokeTokens, t } from "../core/index.js";
+import { type AbstractOptions, type ElementRef, type FlowGraph, type Insets, type Positions, type XY, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, defaultStyle, dimensionTokens, fitViewport, formatCount, lodAt, spaceTokens, strokeTokens, t, themeColors } from "../core/index.js";
 import { type MapContext, mapEmphasis, menuHeading } from "../core/map-controller.js";
 import { markedThemeKey, themeStyle } from "../core/theme.js";
 import { ActivityTooltip } from "./ActivityTooltip.js";
@@ -35,6 +34,7 @@ import { nodeTypes } from "./nodes.js";
 import { OverlayLayer } from "./OverlayLayer.js";
 import { part } from "./parts.js";
 import { PathList } from "./PathList.js";
+import { ZoomControl, clearOfPanels } from "./primitives.js";
 import { TableAlternative } from "./TableAlternative.js";
 import { type Written, useTheme } from "./theme.js";
 import { type ProcessMapProps, type Selection, type WfEdge, type WfGroupNode, type WfNode } from "./types.js";
@@ -42,6 +42,9 @@ import { type ProcessMapProps, type Selection, type WfEdge, type WfGroupNode, ty
 const DEFAULT_CANVAS_THRESHOLD = 2000;
 const DEFAULT_DESCRIBED_LIMIT = 500;
 const TABLE_PAGE_SIZE = 100;
+/** The React Flow map's zoom range, and the room its fitted view leaves around the nodes on each side, relative to their size. */
+const FLOW_ZOOM = { minZoom: 0.05, maxZoom: 3 };
+const FLOW_FIT_PADDING = 0.04;
 
 const NO_MOVES: Readonly<Record<string, XY>> = {};
 
@@ -93,6 +96,7 @@ function ProcessMapInner(props: ProcessMapProps) {
     className,
     containerStyle,
     fitView = true,
+    fitInsets,
     lanes = "none",
     pathList = true,
     contextMenu = true,
@@ -120,8 +124,8 @@ function ProcessMapInner(props: ProcessMapProps) {
   const markedTheme = useMemo(() => look.theme, [markedKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const themed = useMemo(() => (props.theme !== undefined ? themeStyle(look.theme, look.scheme) : undefined), [props.theme !== undefined, look]); // eslint-disable-line react-hooks/exhaustive-deps
   written.current = themed && { names: Object.keys(themed), own: containerStyle as Record<string, unknown> | undefined };
-  // The pattern twins of the activities and the legend are drawn in the theme's ink, as its \`pattern\` says.
-  const patternTheme = useMemo(() => ({ ink: look.theme.color.ink, look: look.theme.pattern }), [look.theme]);
+  // The pattern twins of the activities and the legend are drawn in the theme's pattern ink of the scheme, as its \`pattern\` says.
+  const patternTheme = useMemo(() => ({ ink: themeColors(look.theme, look.scheme).patternInk, look: look.theme.pattern }), [look]);
   const textMeasure = useTextMeasure(props.textMeasure, look.theme.font.family);
   const sizedLayoutOptions = useMemo(() => activityLabels && !layoutOptions?.nodeSize ? {
     ...layoutOptions, nodeSize: (node: FlowGraph["nodes"][number]) => activityNodeSize(node, activityLabels, textMeasure),
@@ -200,6 +204,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   const zoom = useCanvas ? canvasViewport.zoom : rfZoom;
   const lod = lodAt(zoom, scene.lod);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<CanvasMapHandle>(null);
 
   // Actions menu
@@ -279,6 +284,16 @@ function ProcessMapInner(props: ProcessMapProps) {
     flowStore.setState({ fitViewQueued: false });
   };
   const { anchor } = fit;
+  // The React Flow map fitted inside its area less the insets that keep it clear of the panels over it.
+  const fitFlow = useCallback((insets?: Partial<Insets>) => {
+    const main = mainRef.current;
+    const bounds = rf.getNodesBounds(rf.getNodes());
+    if (!main || !(bounds.width > 0) || !(bounds.height > 0)) return;
+    const { width, height } = flowStore.getState();
+    const clear = insets ?? fitInsets ?? clearOfPanels(main, bounds, FLOW_FIT_PADDING, FLOW_ZOOM);
+    moved.current = false;
+    void rf.setViewport(fitViewport(bounds, { width, height }, { padding: FLOW_FIT_PADDING, insets: clear, ...FLOW_ZOOM }), { duration: reducedMotion ? 0 : 200 });
+  }, [rf, flowStore, reducedMotion, fitInsets]);
   useLayoutEffect(() => {
     const box = anchor && positions?.nodes[anchor.id];
     if (!anchor || !box || (!arrival.moving && arrival.positions !== anchor.to)) return;
@@ -294,11 +309,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   }, [anchor, arrival.positions]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!fitView || !positions || useCanvas || anchor) return;
-    const options = { padding: 0.08, duration: reducedMotion ? 0 : 200 };
-    const handles = [50, 400].map((ms) => window.setTimeout(() => {
-      moved.current = false;
-      void rf.fitView(options);
-    }, ms));
+    const handles = [50, 400].map((ms) => window.setTimeout(() => fitFlow(), ms));
     return () => handles.forEach((h) => window.clearTimeout(h));
   }, [fitKey, fitView, nodesInitialized, useCanvas]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -328,6 +339,9 @@ function ProcessMapInner(props: ProcessMapProps) {
   // Keys on the map and in its menu; Escape that closes the menu goes no further.
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
+      // Keys on a control of a panel (the legend's toggle, a slider, a button) are the control's, not the map's.
+      const target = e.target as Element;
+      if (target !== e.currentTarget && target.closest?.(".wf-panel") && !target.closest('[role="menu"]')) return;
       const step = dispatch({ type: "key", key: e.key, shiftKey: e.shiftKey, altKey: e.altKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey });
       if (step.handled) e.preventDefault();
       if (e.key === "Escape" && step.intents.some((i) => i.kind === "returnFocus")) e.stopPropagation();
@@ -347,9 +361,6 @@ function ProcessMapInner(props: ProcessMapProps) {
     const height = (box?.height ?? 0) * viewport.zoom;
     return { x: point.x + 12, y: point.y + height / 2 + 8, above: point.y - height / 2 - 8 };
   }, [elementScreenPoint, useCanvas, positions, rfZoom, rfX, rfY, canvasViewport]);
-
-  // React Flow's zoom controls take no attributes of their own.
-  useEffect(() => void containerRef.current?.querySelector(".react-flow__controls")?.setAttribute("data-wf-part", "controls"));
 
   const descId = useId();
   const liveId = useId();
@@ -390,9 +401,18 @@ function ProcessMapInner(props: ProcessMapProps) {
     />
   ) : null;
   const legendElement = legend ? (
-    <Legend scales={scales} legend={scene.legend} locale={locale} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} />) : undefined} />
+    <Legend scales={scales} legend={scene.legend} locale={locale} onAnnounce={controller.announce} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} />) : undefined} />
   ) : null;
-  const controlsElement = controls ? <AbstractionControls value={abstraction} onChange={setAbstraction} locale={locale} hasStages={hasStages} view={view} onViewChange={setView} /> : null;
+  // What the sliders keep: the activities (and stages) and paths of the shown graph, of the graph before the thresholds.
+  const kept = useMemo(() => {
+    const shownNode = (n: FlowGraph["nodes"][number]) => n.kind === "activity" || n.kind === "stage";
+    const path = (e: FlowGraph["edges"][number]) => e.kind === "follows";
+    return {
+      activities: { shown: shown.nodes.filter(shownNode).length, total: baseGraph.nodes.filter(shownNode).length },
+      paths: { shown: shown.edges.filter(path).length, total: baseGraph.edges.filter(path).length },
+    };
+  }, [shown, baseGraph]);
+  const controlsElement = controls ? <AbstractionControls value={abstraction} onChange={setAbstraction} locale={locale} hasStages={hasStages} view={view} onViewChange={setView} counts={kept} /> : null;
   const statusElement = notice ? (
     <div className="wf-panel" {...part("status")} role="status">
       {notice}
@@ -450,6 +470,7 @@ function ProcessMapInner(props: ProcessMapProps) {
                 locale={locale}
                 fitKey={fitKey}
                 fitView={fitView}
+                fitInsets={fitInsets}
                 describe={canvas.describe}
                 {...canvasHandlers}
                 onViewportChange={setCanvasViewport}
@@ -470,7 +491,7 @@ function ProcessMapInner(props: ProcessMapProps) {
           </>
         ) : (
           <>
-            <div className="wf-process-map__main">
+            <div ref={mainRef} className="wf-process-map__main">
               <ReactFlow<WfNode | WfGroupNode, WfEdge>
                 nodes={flow.nodes}
                 edges={flow.edges}
@@ -483,8 +504,8 @@ function ProcessMapInner(props: ProcessMapProps) {
                 selectNodesOnDrag={false}
                 {...flowHandlers}
                 onMoveStart={(event) => event && userMove()}
-                minZoom={0.05}
-                maxZoom={3}
+                minZoom={FLOW_ZOOM.minZoom}
+                maxZoom={FLOW_ZOOM.maxZoom}
                 panOnScroll
                 zoomOnScroll={false}
                 zoomOnPinch
@@ -497,7 +518,21 @@ function ProcessMapInner(props: ProcessMapProps) {
               >
                 {backgroundGrid ? <Background gap={dimensionTokens.backgroundGap} size={1} /> : null}
                 <MarkDefs />
-                <Controls showInteractive={false} onZoomIn={userMove} onZoomOut={userMove} onFitView={() => void (moved.current = false)} />
+                <Panel position="bottom-left">
+                  <ZoomControl
+                    zoom={rfZoom}
+                    locale={locale}
+                    onZoomIn={() => {
+                      userMove();
+                      void rf.zoomIn();
+                    }}
+                    onZoomOut={() => {
+                      userMove();
+                      void rf.zoomOut();
+                    }}
+                    onFit={() => fitFlow()}
+                  />
+                </Panel>
                 {minimap ? <MiniMap pannable zoomable nodeStrokeWidth={strokeTokens.minimapNode} /> : null}
                 {positions ? (
                   <OverlayLayer

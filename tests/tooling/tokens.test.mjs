@@ -55,6 +55,7 @@ test('the check names a dark block outside its media query and a variable in a b
   assert.notEqual(unwrapped, css);
   assert.deepEqual(tokenDifferences(unwrapped, variables), [
     '@media (prefers-color-scheme: dark) :root:not([data-theme="light"]): block missing',
+    ':root:not([data-theme="light"]): --wf-color-scheme is not in a block of the table',
     ':root:not([data-theme="light"]): --wf-paper is not in a block of the table',
     ':root:not([data-theme="light"]): --wf-surface is not in a block of the table',
     ':root:not([data-theme="light"]): --wf-ink is not in a block of the table',
@@ -63,6 +64,9 @@ test('the check names a dark block outside its media query and a variable in a b
     ':root:not([data-theme="light"]): --wf-line-strong is not in a block of the table',
     ':root:not([data-theme="light"]): --wf-cue-stripe is not in a block of the table',
     ':root:not([data-theme="light"]): --wf-cue-foot is not in a block of the table',
+    ':root:not([data-theme="light"]): --wf-pressed is not in a block of the table',
+    ':root:not([data-theme="light"]): --wf-on-pressed is not in a block of the table',
+    ':root:not([data-theme="light"]): --wf-pattern-ink is not in a block of the table',
     ':root:not([data-theme="light"]): --wf-selection is not in a block of the table',
     ':root:not([data-theme="light"]): --wf-hover is not in a block of the table',
   ]);

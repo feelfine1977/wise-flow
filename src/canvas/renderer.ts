@@ -4,7 +4,7 @@
  * scene's R-tree. Pointer and keyboard handling belong to the host (the
  * React wrapper), which calls `panBy`, `zoomBy`, `hitAt` and `setState`.
  */
-import { type Box, type EdgeBudget, type HitItem, type XY, emptySelection } from "../core/index.js";
+import { type Box, type EdgeBudget, type HitItem, type Insets, type XY, emptySelection, fitViewport } from "../core/index.js";
 import { type EdgeBudgetAdapter, edgeBudgetAdapter } from "../core/edge-budget.js";
 import { type DrawContext, type DrawOptions, type DrawState, type View, drawScene } from "./draw.js";
 import type { PreparedScene } from "./scene.js";
@@ -113,14 +113,12 @@ export class CanvasRenderer {
     if (notify) this.onViewportChange?.(this.viewport);
   }
 
-  /** Fit the scene bounds into the canvas with a relative padding. */
-  fit(padding = 0.08): void {
+  /** Fit the scene bounds into the canvas less `insets` (screen pixels kept clear along each side), with a relative padding. */
+  fit(padding = 0.08, insets?: Partial<Insets>): void {
     if (!this.scene || this.width === 0 || this.height === 0) return;
     const b = this.scene.bounds;
     if (b.width <= 0 || b.height <= 0) return;
-    const zoom = Math.min(this.width / (b.width * (1 + 2 * padding)), this.height / (b.height * (1 + 2 * padding)));
-    const z = Math.min(this.maxZoom, Math.max(this.minZoom, zoom));
-    this.setViewport({ zoom: z, x: this.width / 2 - (b.x + b.width / 2) * z, y: this.height / 2 - (b.y + b.height / 2) * z });
+    this.setViewport(fitViewport(b, this.size, { padding, insets, minZoom: this.minZoom, maxZoom: this.maxZoom }));
   }
 
   panBy(dx: number, dy: number): void {
