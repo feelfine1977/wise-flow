@@ -105,7 +105,7 @@ describe("exporting with a budget", () => {
 });
 
 describe("the note in the figure frame", () => {
-  const legend: SceneLegend = { items: [], keys: [], chips: [] };
+  const legend: SceneLegend = { title: "Legend", rows: [], items: [], keys: [], chips: [] };
   const framed = { graph: { nodes: [], edges: [] }, locale: "en" as const, bounds: { x: 0, y: 0, width: 400, height: 50 }, legend };
 
   it("adds a row under the map and the legend", () => {

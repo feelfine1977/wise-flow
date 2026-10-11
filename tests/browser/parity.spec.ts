@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { readFileSync, writeFileSync } from "node:fs";
-import { type ColorScheme, type FlowGraph, type LaneMode, type Overlay, type Positions, type Theme, buildScene, estimateTextWidth, themeColors, toSVG } from "../../src/index";
+import { textMeasures } from "../../fixtures/text-measures";
+import { type ActivityLabelOptions, type ColorScheme, type FlowGraph, type LaneMode, type Locale, type Overlay, type Positions, type Theme, buildScene, estimateTextWidth, themeColors, toSVG } from "../../src/index";
 import { prepareScene, toPNGCanvas } from "../../src/canvas/index";
 import { readCanvasMap, readPng } from "./parity/canvas";
 import { readDom, readDomInPage } from "./parity/dom";
@@ -28,6 +29,8 @@ const FIXTURES: { name: string; story: string; scheme?: ColorScheme }[] = [
   { name: "kinds", story: "parity--element-kinds" },
   { name: "secondTheme", story: "parity--second-theme" },
   { name: "hostVariables", story: "parity--host-variables" },
+  { name: "names", story: "parity--names" },
+  { name: "namesGerman", story: "parity--names-german" },
   { name: "smallDark", story: "parity--small", scheme: "dark" },
   { name: "roleLanesDark", story: "parity--role-lanes", scheme: "dark" },
   { name: "kindsDark", story: "parity--element-kinds", scheme: "dark" },
@@ -38,6 +41,9 @@ interface StoryScene {
   overlays: Overlay[];
   lanes?: LaneMode;
   theme?: Theme;
+  activityLabels?: ActivityLabelOptions;
+  locale?: Locale;
+  measure?: string;
   positions: Positions;
 }
 
@@ -52,10 +58,11 @@ test("the DOM map, the Canvas map, the SVG export and the PNG export draw the co
     await page.emulateMedia({ colorScheme: scheme });
     await page.goto(`/iframe.html?id=${story}&viewMode=story`);
     const json = await page.locator('[data-testid="wf-parity-scene"]').textContent({ timeout: 60_000 });
-    const { graph, overlays, lanes, theme, positions } = JSON.parse(json!) as StoryScene;
-    const given = { graph, positions, overlays, lanes };
-    const look = { theme, scheme };
-    const scene = buildScene(graph, positions, { overlays, lanes, ...look });
+    const { graph, overlays, lanes, theme, activityLabels, locale, measure: named, positions } = JSON.parse(json!) as StoryScene;
+    const given = { graph, positions, overlays, lanes, activityLabels, locale };
+    // The scene in the story's theme and scheme, its texts measured by the measure the story gave the map.
+    const look = { theme, scheme, textMeasure: textMeasures[named ?? "estimate"] };
+    const scene = buildScene(graph, positions, { overlays, lanes, activityLabels, locale, ...look });
     const kinds = kindsOf(scene);
     await expect(page.locator(".react-flow__node")).toHaveCount(scene.nodeMarks.length + Object.keys(scene.positions.groups).length);
     await expect(page.locator("g.wf-edge")).toHaveCount(scene.edgeMarks.length);
@@ -63,8 +70,8 @@ test("the DOM map, the Canvas map, the SVG export and the PNG export draw the co
     const svg = readSvg(toSVG(given, look), exportedMarks(scene));
     const tints = scene.marks.filter((m) => m.kind === "tint").map((m) => ({ id: m.id, target: m.overlay.target }));
     const dom = readDom(await page.evaluate(readDomInPage, tints), kinds);
-    const canvas = readCanvasMap(prepareScene(graph, positions, { overlays, lanes, ...look }), kinds, measure);
-    const png = readPng((createCanvas) => toPNGCanvas(given, { scale: 1, createCanvas, ...look }), prepareScene(graph, positions, { overlays, lanes, lodBySize: false, ...look }), kinds, measure);
+    const canvas = readCanvasMap(prepareScene(graph, positions, { overlays, lanes, activityLabels, locale, ...look }), kinds, measure);
+    const png = readPng((createCanvas) => toPNGCanvas(given, { scale: 1, createCanvas, ...look }), prepareScene(graph, positions, { overlays, lanes, activityLabels, locale, lodBySize: false, ...look }), kinds, measure);
     for (const [renderer, drawing] of Object.entries({ svg, dom, canvas, png }) as [string, Drawing][]) {
       expect(drawing.size, `${name}: ${renderer} drew elements`).toBeGreaterThan(0);
     }
@@ -73,6 +80,9 @@ test("the DOM map, the Canvas map, the SVG export and the PNG export draw the co
     expect(svg.get(`node:${activity.id}`)!.props.fill, `${name}: the scheme's paper`).toBe(name === "hostVariables" ? "#fdf6e3" : scheme === "dark" ? "#16181d" : "#ffffff");
     if (name === "secondTheme") expect([svg, dom].map((d) => d.get(`node:${activity.id}`)!.props.outlineWidth), `${name}: the theme's outline`).toEqual(["3", "3"]);
     if (name === "hostVariables") await hostVariablesReached(page, theme!, toSVG(given, look), dom.get(`node:${activity.id}`)!.props);
+    // The measure reached what was compared: it wraps the activity names into more lines than the estimate.
+    const lines = (s: typeof scene) => s.nodeMarks.flatMap((m) => m.texts.filter((t) => t.role === "nameLine")).length;
+    if (named) expect(lines(scene), `${name}: the measure's lines`).toBeGreaterThan(lines(buildScene(graph, positions, { overlays, lanes, activityLabels, locale })));
     fixtures.push({ name, kinds, svg, others: { dom, canvas, png } });
   }
   const found = differences(fixtures);

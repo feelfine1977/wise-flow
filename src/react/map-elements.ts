@@ -5,9 +5,9 @@
  * read. Rendering only: the interaction state comes from the controller.
  */
 import { MarkerType } from "@xyflow/react";
-import { useCallback, useMemo } from "react";
-import { type ActivityLabelOptions, type EdgeBudget, type ElementRef, type FlowGraph, type FlowScene, type GraphIndex, type HitItem, type Locale, type Overlay, type OverlayMark, type Positions, type Selection, arrowheadTokens, budgetEdges, describeOverlay, indexGraph, zTokens } from "../core/index.js";
-import type { DrawState, PreparedScene } from "../canvas/index.js";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { type ActivityLabelOptions, type EdgeBudget, type ElementRef, type FlowGraph, type FlowScene, type GraphIndex, type HitItem, type Locale, type Overlay, type OverlayMark, type Positions, type Selection, type TextMeasure, arrowheadTokens, budgetEdges, describeOverlay, indexGraph, zTokens } from "../core/index.js";
+import { type DrawState, type PreparedScene, canvasTextMeasure } from "../canvas/index.js";
 import { retainScene } from "../canvas/scene.js";
 import { describeIndexedEdge } from "../core/describe.js";
 import { FIRST_STEP } from "../core/edge-budget.js";
@@ -17,6 +17,24 @@ import { GROUP_PREFIX } from "./map-pointer.js";
 import type { WfEdge, WfGroupNode, WfNode } from "./types.js";
 
 type Bright = { nodes: Set<string>; edges: Set<string> } | undefined;
+
+/**
+ * The text measure of a live map: the given one, or the browser's in the
+ * font family (Canvas `measureText`, the estimate without a 2D canvas),
+ * created again once the page's fonts have loaded.
+ */
+export function useTextMeasure(given: TextMeasure | undefined, family: string): TextMeasure {
+  const fonts = typeof document === "undefined" ? undefined : document.fonts;
+  const [loaded, setLoaded] = useState(() => !fonts || fonts.status === "loaded");
+  useEffect(() => {
+    let live = true;
+    if (!loaded) void fonts?.ready.then(() => live && setLoaded(true));
+    return () => {
+      live = false;
+    };
+  }, [fonts, loaded]);
+  return useMemo(() => given ?? canvasTextMeasure(family), [given, family, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
+}
 
 /** ARIA descriptions of the shown elements, read through one index of the shown graph. */
 export function useElementDescriptions(shown: FlowGraph, overlays: Overlay[], locale: Locale, activityLabels: ActivityLabelOptions | undefined) {

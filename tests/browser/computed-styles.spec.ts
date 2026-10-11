@@ -15,7 +15,11 @@ import { fileURLToPath } from "node:url";
  * 18px where it was 50% of its 36px box; a box group draws its dashed outline
  * as an SVG rectangle (`svg.wf-group__outline`) instead of a border; a group
  * covered by a tint keeps its own tint below it; a band sets the border style
- * of all four sides and the width of the two it outlines. Geometry
+ * of all four sides and the width of the two it outlines. They were recorded
+ * once more when the legend began to list only the kinds of marks the map
+ * draws: the legends of the stage map, the overlay catalogue and the BPMN view
+ * lost their row for re-added paths (a `dd` and its glyph), which those maps do
+ * not draw; every other element is the same. Geometry
  * that depends on the fonts of the machine (widths, heights, positions) is left
  * out, so the record holds on every operating system.
  */

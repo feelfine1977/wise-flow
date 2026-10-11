@@ -46,9 +46,12 @@ a change that adds one fixes the drawing instead. Set `FLOW_PARITY_FOUND` to a
 file name to write what was found. The readers and the check are tested in Node
 by `core/renderer-parity.test.ts`.
 
-The Canvas recordings measure text with the core's estimate, as the Node tests
-do, so they shorten labels as the SVG export does; a browser's font metrics can
-shorten them differently on a live Canvas map.
+Every renderer writes the texts the scene's text measure fitted, so the
+Canvas recordings and a live Canvas map shorten labels as the SVG export does.
+Two stories write BPIC global with activity names, in English with the
+estimate and in German with another measure (`fixtures/text-measures.ts`),
+which the test gives the exports too; it checks that the measure reached what
+it compares (more name lines than the estimate).
 
 A second test opens the interactive map and the live Canvas map side by side
 under the same four variables, with no theme and one activity selected, records

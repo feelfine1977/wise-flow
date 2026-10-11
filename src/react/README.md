@@ -18,7 +18,7 @@ and `bpmn-js/dist/assets/bpmn-font/css/bpmn.css`.
 | `edges.tsx` | follows / constraint / flow edge component on the layout routes |
 | `OverlayLayer.tsx` | arcs between the edges and the nodes (in React Flow's edge label layer), self-loops above the nodes |
 | `AbstractionControls.tsx` | sliders, stage toggle, keep-connected, table toggle |
-| `Legend.tsx` | scales, overlay glyphs and map-level chips |
+| `Legend.tsx` | the rows of the scene's legend: scales, the keys of the marks drawn and map-level chips |
 | `TableAlternative.tsx` | activities, paths and overlays as tables; rows select with the map controller's `clickSelection` |
 | `TraceTimeline.tsx` | events per case on a time axis, anchor alignment, annotations, table alternative |
 | `controller.ts` | Internal: `useMapController`, the core's map controller with controlled or internal `selection`, `focus`, `abstraction` and `view`, the host callbacks, the live region and the intents (running a chosen action, revealing a node, placing the menu, returning the focus) |

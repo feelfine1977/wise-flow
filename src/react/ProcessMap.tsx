@@ -27,7 +27,7 @@ import { FilterChips } from "./FilterChips.js";
 import { useArrival, useEdgesShown, useEdgesShownAcross, useFlowGraph, useMapScene, usePrefersReducedMotion, useStableLayout } from "./hooks.js";
 import { Legend } from "./Legend.js";
 import { useMenuActions } from "./map-actions.js";
-import { useCanvasElements, useElementDescriptions, useFlowElements } from "./map-elements.js";
+import { useCanvasElements, useElementDescriptions, useFlowElements, useTextMeasure } from "./map-elements.js";
 import { GROUP_PREFIX, canvasPointer, flowPointer, overlayPointer } from "./map-pointer.js";
 import { MarkDefs, MarkFigure } from "./marks.js";
 import { PatternTheme } from "./patterns.js";
@@ -108,9 +108,23 @@ function ProcessMapInner(props: ProcessMapProps) {
   const activityLabels = useMemo(() => props.activityLabels ? {
     ...props.activityLabels, references: activityReferences(graph, props.activityLabels.references),
   } : undefined, [graph, props.activityLabels]);
+  // The theme: the setting over the CSS variables of the map's element (its own and those it inherits) over the preset,
+  // in the page's scheme. Given a setting, the map writes the theme's variables on its element, and sets them aside
+  // while it reads the element's. The scene is built again only when the marks change; colours are painted from the theme,
+  // and its font reaches the scene through the text measure.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const written = useRef<Written | undefined>(undefined);
+  const look = useTheme(containerRef, props.theme, written);
+  const markedKey = useMemo(() => markedThemeKey(look.theme, look.scheme), [look]);
+  const markedTheme = useMemo(() => look.theme, [markedKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const themed = useMemo(() => (props.theme !== undefined ? themeStyle(look.theme, look.scheme) : undefined), [props.theme !== undefined, look]); // eslint-disable-line react-hooks/exhaustive-deps
+  written.current = themed && { names: Object.keys(themed), own: containerStyle as Record<string, unknown> | undefined };
+  // The pattern twins of the activities and the legend are drawn in the theme's ink, as its \`pattern\` says.
+  const patternTheme = useMemo(() => ({ ink: look.theme.color.ink, look: look.theme.pattern }), [look.theme]);
+  const textMeasure = useTextMeasure(props.textMeasure, look.theme.font.family);
   const sizedLayoutOptions = useMemo(() => activityLabels && !layoutOptions?.nodeSize ? {
-    ...layoutOptions, nodeSize: (node: FlowGraph["nodes"][number]) => activityNodeSize(node, activityLabels),
-  } : layoutOptions, [layoutOptions, activityLabels]);
+    ...layoutOptions, nodeSize: (node: FlowGraph["nodes"][number]) => activityNodeSize(node, activityLabels, textMeasure),
+  } : layoutOptions, [layoutOptions, activityLabels, textMeasure]);
 
   // Selection, focus of paths, abstraction and view (each controlled or internal), keyboard position,
   // hover, the actions menu and the live region: the core's map controller.
@@ -148,20 +162,8 @@ function ProcessMapInner(props: ProcessMapProps) {
   const [manual, setManual] = useState<{ key: ProcessMapProps["layoutResetKey"]; points: Record<string, XY> }>({ key: layoutResetKey, points: {} });
   // Graph overlays and the given ones; the scene keeps those it can place and adds the follows self-loops.
   const sceneOverlays = useMemo(() => (extraOverlays ? [...(shown.overlays ?? []), ...extraOverlays] : undefined), [shown, extraOverlays]);
-  // The theme: the setting over the CSS variables of the map's element (its own and those it inherits) over the preset,
-  // in the page's scheme. Given a setting, the map writes the theme's variables on its element, and sets them aside
-  // while it reads the element's. The scene is built again only when the marks change; colours and the font are painted from the theme.
-  const containerRef = useRef<HTMLDivElement>(null);
-  const written = useRef<Written | undefined>(undefined);
-  const look = useTheme(containerRef, props.theme, written);
-  const markedKey = useMemo(() => markedThemeKey(look.theme, look.scheme), [look]);
-  const markedTheme = useMemo(() => look.theme, [markedKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  const themed = useMemo(() => (props.theme !== undefined ? themeStyle(look.theme, look.scheme) : undefined), [props.theme !== undefined, look]); // eslint-disable-line react-hooks/exhaustive-deps
-  written.current = themed && { names: Object.keys(themed), own: containerStyle as Record<string, unknown> | undefined };
-  // The pattern twins of the activities and the legend are drawn in the theme's ink, as its \`pattern\` says.
-  const patternTheme = useMemo(() => ({ ink: look.theme.color.ink, look: look.theme.pattern }), [look.theme]);
   const { scene, positions, laidPositions } = useMapScene(shown, arrival.positions, manual.key === layoutResetKey ? manual.points : NO_MOVES, {
-    overlays: sceneOverlays, style, locale, lanes, activityLabels, selfLoops, lod: props.lod, theme: markedTheme, scheme: look.scheme,
+    overlays: sceneOverlays, style, locale, lanes, activityLabels, selfLoops, lod: props.lod, theme: markedTheme, scheme: look.scheme, textMeasure,
   });
   const { scales, overlays, geometry } = scene;
   // One index of the shown graph: every description, label and lookup by id reads it.

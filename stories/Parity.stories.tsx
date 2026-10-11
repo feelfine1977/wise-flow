@@ -3,7 +3,8 @@ import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react"
 import { constraintItems, globalScene } from "../fixtures/bpic2019";
 import { p2pStages, withSceneMetrics } from "../fixtures/p2p_stages";
 import { liteFromStages } from "../src/bpmn/index";
-import { type FlowGraph, type LaneMode, type Overlay, type Positions, type Theme, abstract, constraintOverlays, defaultTheme, layout, overlaysFor } from "../src/index";
+import { textMeasures } from "../fixtures/text-measures";
+import { type ActivityLabelOptions, type FlowGraph, type LaneMode, type Locale, type Overlay, type Positions, type Theme, abstract, activityNodeSize, constraintOverlays, defaultTheme, layout, overlaysFor } from "../src/index";
 import { useFlowTheme } from "../src/react/index";
 import { ProcessMap } from "./maps";
 import { catalogueGraph, examples, rawKinds } from "./Overlays.stories";
@@ -20,12 +21,20 @@ const meta: Meta = {
 };
 export default meta;
 
-/** What the map draws: a graph with its overlays and lanes, laid out by Dagre, in a theme. */
+/**
+ * What the map draws: a graph with its overlays and lanes, laid out by Dagre,
+ * in a theme, with activity names written out in a locale, its texts measured
+ * by a measure of `fixtures/text-measures.ts` named here (the estimate without
+ * one, which the browser lane's exports use too, rather than the map's default).
+ */
 export interface ParityScene {
   graph: FlowGraph;
   overlays: Overlay[];
   lanes?: LaneMode;
   theme?: Theme;
+  activityLabels?: ActivityLabelOptions;
+  locale?: Locale;
+  measure?: string;
   positions: Positions;
 }
 
@@ -79,6 +88,8 @@ const scenes: Record<string, () => Omit<ParityScene, "positions"> & { variables?
   kinds: () => ({ graph: kinds, overlays: [] }),
   secondTheme: () => ({ ...scenes.small(), theme: secondTheme }),
   hostVariables: () => ({ ...scenes.small(), variables: hostVariables }),
+  names: () => ({ graph: global, overlays: overlaysFor(constraintItems(), { graph: global }), activityLabels: { mode: "names", references: {} } }),
+  namesGerman: () => ({ graph: global, overlays: overlaysFor(constraintItems(), { graph: global }), activityLabels: { mode: "names", references: {} }, locale: "de", measure: "wide" }),
 };
 
 function Parity({ name }: { name: string }) {
@@ -88,7 +99,9 @@ function Parity({ name }: { name: string }) {
   useEffect(() => {
     let live = true;
     const given = scenes[name]();
-    void layout(given.graph, { engine: "dagre" }).then((positions) => live && setScene({ ...given, positions }));
+    const labels = given.activityLabels;
+    const measure = textMeasures[given.measure ?? "estimate"];
+    void layout(given.graph, { engine: "dagre", nodeSize: labels && ((node) => activityNodeSize(node, labels, measure)) }).then((positions) => live && setScene({ ...given, positions }));
     return () => {
       live = false;
     };
@@ -110,6 +123,9 @@ function Parity({ name }: { name: string }) {
           overlays={scene.overlays}
           lanes={scene.lanes}
           theme={scene.theme}
+          activityLabels={scene.activityLabels}
+          locale={scene.locale}
+          textMeasure={textMeasures[scene.measure ?? "estimate"]}
           renderer="svg"
           fitView={false}
           controls={false}
@@ -149,3 +165,5 @@ function LiveMaps() {
   );
 }
 export const HostVariablesLive: StoryObj = { name: "element kinds under a host's CSS variables, live in the DOM and on the Canvas", render: () => <LiveMaps /> };
+export const Names: StoryObj = { name: "BPIC global with activity names", render: () => <Parity name="names" /> };
+export const NamesGerman: StoryObj = { name: "BPIC global with activity names in German, measured wide", render: () => <Parity name="namesGerman" /> };

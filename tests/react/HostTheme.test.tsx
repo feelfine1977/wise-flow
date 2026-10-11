@@ -65,7 +65,8 @@ function recorder() {
     measureText: (text: string) => ({ width: text.length * 6 }),
   };
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => ctx as unknown as CanvasRenderingContext2D);
-  return { label: () => texts.filter((t) => t.text === "Record Goods Receipt").map((t) => t.fill), strokes: () => strokes };
+  // The label is shortened to the room before its count by the scene's measure, the estimate's or the stub's.
+  return { label: () => texts.filter((t) => t.text.startsWith("Record Goods Rec")).map((t) => t.fill), strokes: () => strokes };
 }
 
 /** Renders `useFlowTheme` on an element of class `host` and reports what it resolves. */

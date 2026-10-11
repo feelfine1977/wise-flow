@@ -1,11 +1,12 @@
 /**
- * Drawing routines of the canvas renderer. They take the retained scene, a
- * viewport and the interaction state and issue plain 2D context calls, so
+ * Drawing routines of the canvas renderer, and the text measure of a browser
+ * (`canvasTextMeasure`). They take the retained scene, a viewport and the
+ * interaction state and issue plain 2D context calls, so
  * that they run on a screen canvas, an offscreen canvas (PNG export) and on
  * a recording stub in tests. When the scene is large, only the elements the
  * scene's R-tree finds in the viewport are read, in the order of a full draw.
  */
-import { type Arrowhead, type Box, type BoxSide, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type PatternLook, type Selection, type ShownEdges, type Theme, arrowheadExtent, arrowheadTokens, dimensionTokens, fitChars, fitLead, fixedColors, formatCompact, formatNumber, formatShare, hatchTokens, legendLayout, legendMetrics, budgetEdges, lodAt, markArrowhead, patternTwin, t, truncateText } from "../core/index.js";
+import { type Arrowhead, type Box, type BoxSide, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type PatternLook, type Selection, type ShownEdges, type TextMeasure, type Theme, arrowheadExtent, arrowheadTokens, dimensionTokens, fixedColors, hatchTokens, legendLayout, legendMetrics, budgetEdges, defaultTheme, estimateTextWidth, lodAt, markArrowhead, patternTwin } from "../core/index.js";
 import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene.js";
 import { type CanvasTokens, sceneTokens } from "./tokens.js";
 
@@ -83,6 +84,29 @@ const CULL_ABOVE = 1500;
 
 /** The CSS font of a text role, or of a size and weight. */
 export const fontOf = (role: { size: number; weight?: number }, family: string) => `${role.weight ? `${role.weight} ` : ""}${role.size}px ${family}`;
+
+/**
+ * A text measure backed by Canvas `measureText` in `family` (default the
+ * default theme's font). Widths are kept per font and text. Without a context
+ * (no document, or a canvas without 2D) it is `estimateTextWidth`. Create it
+ * once the page's fonts have loaded (`document.fonts.ready`), or widths are
+ * those of a fallback font.
+ */
+export function canvasTextMeasure(family: string = defaultTheme.font.family, context?: Pick<DrawContext, "font" | "measureText"> | null): TextMeasure {
+  const ctx = context ?? (typeof document === "undefined" ? null : (document.createElement("canvas").getContext("2d") as DrawContext | null));
+  if (!ctx) return estimateTextWidth;
+  const widths = new Map<string, number>();
+  return (text, font) => {
+    const css = fontOf(font, family);
+    const key = `${css}\n${text}`;
+    let width = widths.get(key);
+    if (width === undefined) {
+      ctx.font = css;
+      widths.set(key, (width = ctx.measureText(text).width));
+    }
+    return width;
+  };
+}
 
 /** An opacity as the two hex digits of an alpha channel. */
 const alpha = (opacity: number) => Math.round(opacity * 255).toString(16).padStart(2, "0");
@@ -260,27 +284,14 @@ function hatchPattern(ctx: DrawContext, tokens: CanvasTokens, options: DrawOptio
   return out;
 }
 
-/** `truncateText` with the context's measure in its current font, cached per scene. */
-function truncate(ctx: DrawContext, scene: PreparedScene, text: string, maxWidth: number, font: { size: number; weight?: number } = { size: 0 }): string {
-  const key = `${font.size} ${font.weight ?? ""} ${text} ${Math.round(maxWidth)}`;
-  const cached = scene.labelCache.get(key);
-  if (cached !== undefined) return cached;
-  const out = truncateText(text, maxWidth, font, (s) => ctx.measureText(s).width);
-  scene.labelCache.set(key, out);
-  return out;
-}
-
-/**
- * Write a mark text in `color`, shortened to its width (by the core rule with the context's
- * measure unless `fit` says otherwise); a lead is written bold before it.
- */
-function drawText(ctx: DrawContext, scene: PreparedScene, tx: MarkText, color: string, tokens: CanvasTokens, fit?: (text: string) => string) {
+/** Write a mark text in `color`, as the scene fitted it; a lead is written bold before it. */
+function drawText(ctx: DrawContext, scene: PreparedScene, tx: MarkText, color: string, tokens: CanvasTokens) {
   const font = (weight?: number) => fontOf({ size: tx.size, weight }, tokens.font);
   ctx.fillStyle = color;
   ctx.font = font(tx.weight);
   ctx.textAlign = tx.anchor === "start" ? "left" : tx.anchor === "end" ? "right" : "center";
   ctx.textBaseline = tx.baseline;
-  const { lead, text } = fitLead(tx, fit ?? ((s) => (tx.maxWidth === undefined ? s : truncate(ctx, scene, s, tx.maxWidth, tx))));
+  const { lead, text } = tx;
   let x = tx.x;
   if (lead) {
     ctx.font = font(scene.theme.text.chipLead.weight);
@@ -479,7 +490,7 @@ function drawMark(ctx: DrawContext, scene: PreparedScene, m: OverlayMark, tokens
     ctx.fillStyle = paintOf(m, "ink", tokens, hovered);
     ctx.fillRect(g.x + g.threshold * g.width - 1, g.y - 1, 2, g.height + 2);
   }
-  for (const tx of m.texts) drawText(ctx, scene, tx, paintOf(m, tx.paint, tokens, hovered), tokens, (s) => fitChars(s, tx.maxWidth));
+  for (const tx of m.texts) drawText(ctx, scene, tx, paintOf(m, tx.paint, tokens, hovered), tokens);
 }
 
 const RANK: Record<HitItem["kind"], number> = { group: 0, overlay: 1, edge: 2, node: 3 };
@@ -573,68 +584,72 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
 }
 
 /**
- * The scene's legend for the PNG export: scales with their pattern twins,
- * the keys of the overlay kinds present and the map-level chips. Returns the
- * height used, `legendLayout(scene.legend).height`.
+ * The scene's legend for the PNG export: its rows (`FlowScene.legend`) with
+ * the pattern twins of the swatches and their texts shortened by the scene's
+ * measure (`legendLayout`). Returns the height used.
  */
 export function drawLegend(ctx: DrawContext, scene: PreparedScene, x: number, y: number, width: number, tokens: CanvasTokens = sceneTokens(scene), options: Pick<DrawOptions, "createCanvas"> = {}): number {
-  const L = scene.locale;
   const textTokens = scene.theme.text;
-  const layout = legendLayout(scene.legend);
+  const layout = legendLayout(scene.legend, { measure: scene.textMeasure, width, text: textTokens });
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = tokens.ink;
   const { legendTitle, legendItem, legendValue, legendKey, legendChip } = textTokens;
   const { legendSampleExport: sample, legendGradient: ramp, legendSwatchWidth: swatchWidth, legendSwatchHeight: swatchHeight } = dimensionTokens;
-  ctx.font = fontOf(legendTitle, tokens.font);
-  ctx.fillText(t(L, "legend.title"), x, y + 14);
-  for (const { item: it, y: top } of layout.items) {
-    ctx.fillStyle = tokens.ink;
-    ctx.font = fontOf(legendItem, tokens.font);
-    ctx.fillText(t(L, it.title), x, y + top + 11);
+  const write = (role: { size: number; weight?: number }, s: string, tx: number, ty: number) => {
+    ctx.font = fontOf(role, tokens.font);
+    ctx.fillText(s, tx, ty);
+  };
+  write(legendTitle, scene.legend.title, x, y + 14);
+  let keys = false;
+  for (const { row, y: top, texts } of layout.rows) {
     const cy = y + top + legendMetrics.itemTitle;
-    if (it.kind === "width") {
-      const [lo, hi] = it.range;
+    if (row.kind === "key" || row.kind === "chip") {
+      if (!keys) ctx.fillStyle = tokens.ink;
+      keys = true;
+      if (row.kind === "key") {
+        write(legendValue, row.glyph, x, y + top + 10);
+        write(legendKey, texts[0], x + 22, y + top + 10);
+      } else {
+        write(legendChip, texts[0], x, y + top + 10);
+        write(legendKey, texts[1], x, y + top + legendMetrics.chipLabel + 10);
+      }
+      continue;
+    }
+    ctx.fillStyle = tokens.ink;
+    write(legendItem, row.title, x, y + top + 11);
+    if (row.kind === "width") {
       ctx.strokeStyle = tokens.neutral;
       ctx.setLineDash([]);
-      ctx.lineWidth = lo;
-      ctx.beginPath();
-      ctx.moveTo(x, cy + 6);
-      ctx.lineTo(x + sample, cy + 6);
-      ctx.stroke();
-      ctx.lineWidth = hi;
-      ctx.beginPath();
-      ctx.moveTo(x + width / 2, cy + 6);
-      ctx.lineTo(x + width / 2 + sample, cy + 6);
-      ctx.stroke();
+      for (const [i, s] of row.samples.entries()) {
+        ctx.lineWidth = s.width;
+        ctx.beginPath();
+        ctx.moveTo(x + (i * width) / 2, cy + 6);
+        ctx.lineTo(x + (i * width) / 2 + sample, cy + 6);
+        ctx.stroke();
+      }
       ctx.fillStyle = tokens.ink;
       ctx.font = fontOf(legendValue, tokens.font);
-      ctx.fillText(formatCompact(it.domain[0], L), x + 46, cy + 10);
-      ctx.fillText(formatCompact(it.domain[1], L), x + width / 2 + 46, cy + 10);
-    } else if (it.kind === "sequential" || it.kind === "diverging") {
+      for (const [i, s] of row.samples.entries()) ctx.fillText(s.text, x + (i * width) / 2 + 46, cy + 10);
+    } else if (row.kind === "ramp") {
       if (ctx.createLinearGradient) {
         const grad = ctx.createLinearGradient(x, 0, x + width - 10, 0);
-        it.stops.forEach((c, i) => grad.addColorStop(i / (it.stops.length - 1), c));
+        row.stops.forEach((c, i) => grad.addColorStop(i / (row.stops.length - 1), c));
         ctx.fillStyle = grad;
       } else {
-        ctx.fillStyle = it.stops[Math.floor(it.stops.length / 2)];
+        ctx.fillStyle = row.stops[Math.floor(row.stops.length / 2)];
       }
       ctx.fillRect(x, cy, width - 10, ramp);
-      const share = /share/i.test(it.metric);
-      const f = (v: number) => (share ? formatShare(v, L) : formatNumber(v, 1, L));
       ctx.fillStyle = tokens.ink;
       ctx.font = fontOf(legendValue, tokens.font);
+      const aligns: CanvasTextAlign[] = row.values.length === 3 ? ["left", "center", "right"] : ["left", "right"];
+      row.values.forEach((v, i) => {
+        ctx.textAlign = aligns[i];
+        ctx.fillText(v, x + ((width - 10) * (aligns[i] === "left" ? 0 : aligns[i] === "center" ? 1 : 2)) / 2, cy + 22);
+      });
       ctx.textAlign = "left";
-      ctx.fillText(f(it.domain[0]), x, cy + 22);
-      if (it.domain.length === 3) {
-        ctx.textAlign = "center";
-        ctx.fillText(f(it.domain[1]), x + (width - 10) / 2, cy + 22);
-      }
-      ctx.textAlign = "right";
-      ctx.fillText(f(it.domain[it.domain.length - 1]), x + width - 10, cy + 22);
-      ctx.textAlign = "left";
-    } else if (it.kind === "categorical") {
-      it.entries.forEach((e, i) => {
+    } else {
+      row.entries.forEach((e, i) => {
         const ey = cy + i * legendMetrics.entry;
         ctx.fillStyle = e.color;
         ctx.fillRect(x, ey, swatchWidth, swatchHeight);
@@ -644,24 +659,10 @@ export function drawLegend(ctx: DrawContext, scene: PreparedScene, x: number, y:
           ctx.fillRect(x, ey, swatchWidth, swatchHeight);
         }
         ctx.fillStyle = tokens.ink;
-        ctx.font = fontOf(legendValue, tokens.font);
-        ctx.fillText(truncate(ctx, scene, e.key, width - 24), x + 20, ey + 10);
+        write(legendValue, texts[i], x + 20, ey + 10);
       });
     }
   }
-  ctx.fillStyle = tokens.ink;
-  for (const { key, y: top } of layout.keys) {
-    ctx.font = fontOf(legendValue, tokens.font);
-    ctx.fillText(key.glyph, x, y + top + 10);
-    ctx.font = fontOf(legendKey, tokens.font);
-    ctx.fillText(truncate(ctx, scene, t(L, key.title), width - 24), x + 22, y + top + 10);
-  }
-  for (const { chip, y: top } of layout.chips) {
-    const p = chip.payload ?? {};
-    ctx.font = fontOf(legendChip, tokens.font);
-    ctx.fillText(truncate(ctx, scene, `${p.glyph ?? ""} ${p.label ?? ""}`.trim(), width - 4), x, y + top + 10);
-    ctx.font = fontOf(legendKey, tokens.font);
-    ctx.fillText(truncate(ctx, scene, String(p.text ?? ""), width - 4), x, y + top + legendMetrics.chipLabel + 10);
-  }
+  if (!keys) ctx.fillStyle = tokens.ink;
   return layout.height;
 }

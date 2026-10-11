@@ -34,3 +34,7 @@ types, an exclusive split and merge, a rejection loop behind an exclusive
 element) for the import tests and the "overlays on a model" story; one
 task id equals a fixture activity id, the labels match fixture labels, and
 "Approve Invoice" has no counterpart, so the mapping shows all three cases.
+
+`text-measures.ts` — a text measure other than the core's estimate (0.7 em
+per character), which the parity stories give to the map and the browser
+lane to the exports by name.

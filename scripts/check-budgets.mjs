@@ -6,6 +6,10 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../', import.meta.url));
 /** The layout workers in `dist`: assets a Web Worker loads, not library modules. */
 export const workers = ['elk-worker.min.js', 'dagre-worker.min.js'];
+/** The sum of the files' sizes compressed one by one with gzip, as the library is measured. */
+export function gzipBytes(paths) {
+  return paths.reduce((sum, path) => sum + gzipSync(readFileSync(path)).length, 0);
+}
 function filesAt(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? filesAt(resolve(dir, entry.name)) : [resolve(dir, entry.name)]);
 }
@@ -21,7 +25,7 @@ export function checkBudgets() {
   const assets = JSON.parse(readFileSync(resolve(artifactDir, 'consumer-assets.json'), 'utf8'));
   const workerPaths = workers.map(name => resolve(root, 'dist', name));
   const measured = {
-    libraryJavaScriptGzipBytes: filesAt(resolve(root, 'dist')).filter(path => path.endsWith('.js') && !workerPaths.includes(path)).reduce((sum, path) => sum + gzipSync(readFileSync(path)).length, 0),
+    libraryJavaScriptGzipBytes: gzipBytes(filesAt(resolve(root, 'dist')).filter(path => path.endsWith('.js') && !workerPaths.includes(path))),
     workerBytes: workerPaths.reduce((sum, path) => sum + statSync(path).size, 0),
     consumerAllJavaScriptGzipBytes: assets.allJavaScriptGzipBytes,
     tarballBytes: statSync(resolve(artifactDir, `wise-flow-${pkg.version}.tgz`)).size,

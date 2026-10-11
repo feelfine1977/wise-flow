@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type Overlay, buildScene, toSVG } from "../../src/index";
+import { type Overlay, type TextMeasure, buildScene, toSVG } from "../../src/index";
 import { type DrawContext, type DrawState, defaultTokens, drawScene, prepareScene, toPNGCanvas } from "../../src/canvas/index";
 import * as elements from "./element-kinds";
 import { graph, overlays, positions } from "./overlay-kinds";
@@ -124,19 +124,20 @@ describe("Canvas overlay marks", () => {
     const scene = prepareScene(graph, positions, { overlays: [chip], selfLoops: false, lodBySize: false });
     const { ctx, ops } = drawingContext();
     drawScene(ctx, scene, { x: 0, y: 0, zoom: 1, width: 1000, height: 600 }, undefined, { cull: false });
-    // Track 40 × 6 at (361.2, 5) with radius 3 in the line colour, 0.7 of it filled, the tick at 2 / 3.
-    expect(startingAt(ops, "M364.2,5")).toEqual([{ op: "fill", path: expect.stringContaining("A398.2,8,3"), color: defaultTokens.line, alpha: 1 }]);
-    const track = ops.findIndex((o) => o.path?.startsWith("M364.2,5"));
+    // The chip ends at 502 and is 151.4 wide: padding 16, glyph 12.4, gauge 46 and 14 characters of 5.5 by the estimate, so it starts at 350.6.
+    // Track 40 × 6 at (371, 5) with radius 3 in the line colour, 0.7 of it filled, the tick at 2 / 3.
+    expect(startingAt(ops, "M374,5")).toEqual([{ op: "fill", path: expect.stringContaining("A408,8,3"), color: defaultTokens.line, alpha: 1 }]);
+    const track = ops.findIndex((o) => o.path?.startsWith("M374,5"));
     expect(ops.slice(track + 1).filter((o) => o.op === "fillRect")).toEqual([
-      { op: "fillRect", path: "R361.2,5,28,6", color: "#fd8d3c", alpha: 1 },
-      { op: "fillRect", path: "R386.87,4,2,8", color: "#1f1f1f", alpha: 1 },
+      { op: "fillRect", path: "R371,5,28,6", color: "#fd8d3c", alpha: 1 },
+      { op: "fillRect", path: "R396.67,4,2,8", color: "#1f1f1f", alpha: 1 },
     ]);
     // The lead in bold, the text after its measured width (9 characters × 6 in this context).
     const texts = ops.filter((o) => o.op === "fillText" && !["A", "B", "C"].includes(o.text ?? "") && !o.text?.startsWith("Stage"));
     expect(texts.map(({ text, at, font: f }) => ({ text, at, font: f }))).toEqual([
-      { text: "◔", at: [348.8, 8.5], font: font("10px") },
-      { text: "Touches: ", at: [407.2, 8.5], font: font("700 10px") },
-      { text: "2.1 ⌀", at: [461.2, 8.5], font: font("10px") },
+      { text: "◔", at: [358.6, 8.5], font: font("10px") },
+      { text: "Touches: ", at: [417, 8.5], font: font("700 10px") },
+      { text: "2.1 ⌀", at: [471, 8.5], font: font("10px") },
     ]);
   });
 
@@ -213,8 +214,8 @@ describe("Canvas overlay marks", () => {
 });
 
 describe("Canvas node and edge marks", () => {
-  const drawElements = (state?: DrawState, zoom = 1, given = elements.graph) => {
-    const scene = prepareScene(given, elements.positions, { style: elements.style, selfLoops: false, lodBySize: false });
+  const drawElements = (state?: DrawState, zoom = 1, given = elements.graph, textMeasure?: TextMeasure) => {
+    const scene = prepareScene(given, elements.positions, { style: elements.style, selfLoops: false, lodBySize: false, textMeasure });
     const { ctx, ops } = drawingContext();
     drawScene(ctx, scene, { x: 0, y: 0, zoom, width: 1000, height: 600 }, state, { cull: false });
     return ops;
@@ -273,10 +274,14 @@ describe("Canvas node and edge marks", () => {
     expect(written(drawElements(undefined, 0.1)).map((t) => t.text)).toEqual(["+", "Ask the vendor twice"]);
   });
 
-  it("cuts labels by the core rule with the context's measure, without room for the count below them", () => {
+  it("writes labels as the scene's measure cut them, whatever the context measures", () => {
     const long = { ...elements.graph, nodes: elements.graph.nodes.map((n) => (n.id === "a" ? { ...n, label: "Change Approval for Purchase Order" } : n)) };
-    // 6 per character: 25 and the ellipsis fit the 156 of a 180 wide node.
-    expect(written(drawElements(undefined, 1, long)).find((t) => t.at?.[0] === 116)?.text).toBe("Change Approval for Purch…");
+    const label = (measure?: TextMeasure) => written(drawElements(undefined, 1, long, measure)).find((t) => t.at?.[0] === 116)?.text;
+    // The context measures 6 per character. A 180 wide node leaves its label 152 inside the padding and the outline,
+    // less the count "1.2k" and the gap of 6 before it: by the estimate (6.6 at 12 px, 4.95 at 9 px) 126.2, so 18 and the ellipsis.
+    expect(label()).toBe("Change Approval fo…");
+    // A measure of 6 per character: 122, so 19 and the ellipsis.
+    expect(label((s) => Array.from(s).length * 6)).toBe("Change Approval for…");
   });
 
   it("draws the marks it is given rather than the other node and edge fields", () => {

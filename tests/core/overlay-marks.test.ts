@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type FlowGraph, type Overlay, type OverlayMark, MAP_TARGET, arcWidth, buildScene, defaultLod, fitChars, fitLead, overlayArrow, overlayColor, tintColor } from "../../src/index";
+import { type FlowGraph, type Overlay, type OverlayMark, MAP_TARGET, arcWidth, buildScene, defaultLod, fitLead, overlayArrow, overlayColor, tintColor, truncateText } from "../../src/index";
 import { graph, overlays, positions } from "./overlay-kinds";
 
 const ink = { paint: "ink", halo: true } as const;
@@ -79,31 +79,31 @@ describe("overlay marks", () => {
     const marks = ["s2", "s1"].map((target) => buildScene(graph, positions, { overlays: chips, selfLoops: false, locale: "de" }).marks.find((m) => m.overlay.target === target)!);
     const r = (n: number) => Math.round(n * 100) / 100;
     const rounded = <T,>(o: T): T => JSON.parse(JSON.stringify(o), (_, v) => (typeof v === "number" ? r(v) : v));
-    // 16 px padding, 12.4 px glyph, 46 px gauge and 6.2 px per character of "Touches: 2.1 ⌀" (14): 161.2 wide,
-    // right-aligned 8 px inside s2 (190 + 320 − 8 − 161.2) and 6 px below its top.
+    // 16 px padding, 12.4 px glyph, 46 px gauge and "Touches: 2.1 ⌀" (14 characters of 5.5 by the estimate at 10 px): 151.4 wide,
+    // right-aligned 8 px inside s2 (190 + 320 − 8 − 151.4) and 6 px below its top.
     expect(rounded(marks[0])).toMatchObject({
-      box: { x: 340.8, y: -4, width: 161.2, height: 24 },
+      box: { x: 350.6, y: -4, width: 151.4, height: 24 },
       color: "#fd8d3c",
       title: "Touches — 2.1 ⌀",
       texts: [
-        { text: "◔", x: 348.8, y: 8.5 },
-        { lead: "Touches: ", text: "2.1 ⌀", x: 407.2, y: 8.5, maxWidth: 86.8 },
+        { text: "◔", x: 358.6, y: 8.5 },
+        { lead: "Touches: ", text: "2.1 ⌀", x: 417, y: 8.5, maxWidth: 77 },
       ],
       // The scale runs to threshold + width (3): the mean fills 2.1 / 3, the tick sits at 2 / 3.
-      gauge: { x: 361.2, y: 5, width: 40, height: 6, value: 0.7, threshold: 0.67 },
+      gauge: { x: 371, y: 5, width: 40, height: 6, value: 0.7, threshold: 0.67 },
     });
-    // Without a text the chip shows its share after the label, in the scene's locale: 16 + 10 × 6.2 = 78 wide,
-    // right-aligned in s1 (−10 + 120 − 8 − 78).
-    expect(rounded(marks[1])).toMatchObject({ box: { x: 24, y: -4, width: 78, height: 24 }, texts: [{ lead: "Late: ", text: "25 %", x: 32 }] });
+    // Without a text the chip shows its share after the label, in the scene's locale: 16 + 10 × 5.5 = 71 wide,
+    // right-aligned in s1 (−10 + 120 − 8 − 71).
+    expect(rounded(marks[1])).toMatchObject({ box: { x: 31, y: -4, width: 71, height: 24 }, texts: [{ lead: "Late: ", text: "25 %", x: 39 }] });
     expect(marks[1].gauge).toBeUndefined();
   });
 
   it("fits a lead and its text into their width together", () => {
-    const text = (maxWidth: number) => fitLead({ lead: "Manual touches: ", text: "2.1", x: 0, y: 0, size: 10, anchor: "start", baseline: "middle", paint: "ink", halo: false, maxWidth }, (s) => fitChars(s, maxWidth));
-    // floor((w + 4) / 6.2) characters, the last one an ellipsis.
-    expect(text(120)).toEqual({ lead: "Manual touches: ", text: "2.1" });
-    expect(text(110)).toEqual({ lead: "Manual touches: ", text: "2…" });
-    expect(text(100)).toEqual({ lead: "Manual touches:…", text: "" });
+    const text = (maxWidth: number) => fitLead({ lead: "Manual touches: ", text: "2.1", x: 0, y: 0, size: 10, anchor: "start", baseline: "middle", paint: "ink", halo: false, maxWidth }, (s) => truncateText(s, maxWidth, { size: 10 }));
+    // 5.5 per character by the estimate: all 19 fit 110; 17 and the ellipsis fit 100, 15 and it 90, 6 and it 40.
+    expect(text(110)).toEqual({ lead: "Manual touches: ", text: "2.1" });
+    expect(text(100)).toEqual({ lead: "Manual touches: ", text: "2…" });
+    expect(text(90)).toEqual({ lead: "Manual touches:…", text: "" });
     expect(text(40)).toEqual({ lead: "Manual…", text: "" });
   });
 
