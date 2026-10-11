@@ -30,6 +30,7 @@ import { useMenuActions } from "./map-actions.js";
 import { useCanvasElements, useElementDescriptions, useFlowElements } from "./map-elements.js";
 import { GROUP_PREFIX, canvasPointer, flowPointer, overlayPointer } from "./map-pointer.js";
 import { MarkDefs, MarkFigure } from "./marks.js";
+import { PatternTheme } from "./patterns.js";
 import { nodeTypes } from "./nodes.js";
 import { OverlayLayer } from "./OverlayLayer.js";
 import { part } from "./parts.js";
@@ -157,6 +158,8 @@ function ProcessMapInner(props: ProcessMapProps) {
   const markedTheme = useMemo(() => look.theme, [markedKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const themed = useMemo(() => (props.theme !== undefined ? themeStyle(look.theme, look.scheme) : undefined), [props.theme !== undefined, look]); // eslint-disable-line react-hooks/exhaustive-deps
   written.current = themed && { names: Object.keys(themed), own: containerStyle as Record<string, unknown> | undefined };
+  // The pattern twins of the activities and the legend are drawn in the theme's ink, as its \`pattern\` says.
+  const patternTheme = useMemo(() => ({ ink: look.theme.color.ink, look: look.theme.pattern }), [look.theme]);
   const { scene, positions, laidPositions } = useMapScene(shown, arrival.positions, manual.key === layoutResetKey ? manual.points : NO_MOVES, {
     overlays: sceneOverlays, style, locale, lanes, activityLabels, selfLoops, lod: props.lod, theme: markedTheme, scheme: look.scheme,
   });
@@ -397,7 +400,7 @@ function ProcessMapInner(props: ProcessMapProps) {
     </div>
   ) : null;
 
-  return (
+  const map = (
     <div
       ref={containerRef}
       className={`wf-process-map ${lodClasses}${showPaths ? " wf-process-map--side" : ""}${className ? ` ${className}` : ""}`}
@@ -522,6 +525,7 @@ function ProcessMapInner(props: ProcessMapProps) {
       </div>
     </div>
   );
+  return <PatternTheme.Provider value={patternTheme}>{map}</PatternTheme.Provider>;
 }
 
 /**

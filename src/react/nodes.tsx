@@ -1,9 +1,9 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { memo } from "react";
-import { type ElementText, type GroupMark, type LayoutDirection, type NodeMark, type Overlay, type SvgElement, colorTokens, defaultNodeSize, fitText, groupMark, hasTag, nodeMark } from "../core/index.js";
+import { memo, useContext } from "react";
+import { type ElementText, type GroupMark, type LayoutDirection, type NodeMark, type Overlay, type SvgElement, defaultNodeSize, fitText, groupMark, hasTag, nodeMark } from "../core/index.js";
 import { ElementMarks, MARK_IDS, MarkFigure, mapMark, marksAtOrigin, paintCss, svgReact } from "./marks.js";
 import { part } from "./parts.js";
-import { PatternSwatch } from "./patterns.js";
+import { PatternSwatch, PatternTheme } from "./patterns.js";
 import type { ActivityNodeData, GroupNodeData, WfGroupNode, WfNode } from "./types.js";
 
 /** The marks the element carries, from the scene. */
@@ -125,9 +125,10 @@ function Lines({ mark, role, className }: { mark: NodeMark; role: "nameLine" | "
 }
 
 function Band({ mark }: { mark: NodeMark }) {
+  const { ink, look } = useContext(PatternTheme);
   return mark.band ? (
     <span className="wf-node__band" style={{ ["--wf-node-band" as string]: px(mark.band) }} {...part("node-band")} aria-hidden="true">
-      <PatternSwatch pattern={mark.pattern} ink={colorTokens.ink} />
+      <PatternSwatch pattern={mark.pattern} ink={ink} look={look} />
     </span>
   ) : null;
 }

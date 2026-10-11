@@ -1,7 +1,9 @@
-import { type CSSProperties, useId, useState } from "react";
-import { type EdgeBudget, type Locale, type LodRules, type ThemeSetting, type ViewSet, t } from "../core/index.js";
+import { type CSSProperties, useId, useMemo, useRef, useState } from "react";
+import { type EdgeBudget, type Locale, type LodRules, type ThemeSetting, type ViewSet, buildScales, defaultTheme, t } from "../core/index.js";
 import { Legend } from "./Legend.js";
+import { PatternTheme } from "./patterns.js";
 import { ProcessMap } from "./ProcessMap.js";
+import { useFlowTheme } from "./theme.js";
 import { type Selection, emptySelection } from "./types.js";
 
 export interface ViewSwitcherProps {
@@ -64,9 +66,13 @@ export function ViewSwitcher({ views, mode: modeProp, onModeChange, activeView, 
     const key = JSON.stringify(v.style);
     if (!legendStyles.has(key)) legendStyles.set(key, v);
   }
+  // The legends of the grid are drawn in the maps' theme.
+  const root = useRef<HTMLDivElement>(null);
+  const { theme: look } = useFlowTheme(root, theme);
+  const patternTheme = useMemo(() => ({ ink: look.color.ink, look: look.pattern }), [look]);
 
   return (
-    <div className={`wf-views${className ? ` ${className}` : ""}`} style={containerStyle} data-mode={mode}>
+    <div ref={root} className={`wf-views${className ? ` ${className}` : ""}`} style={containerStyle} data-mode={mode}>
       <div className="wf-views__bar">
         <div role="tablist" aria-label={t(locale, "views.title")} className="wf-views__tabs">
           {views.views.map((v) => (
@@ -130,11 +136,13 @@ export function ViewSwitcher({ views, mode: modeProp, onModeChange, activeView, 
           ))}
           {legend ? (
             <div className="wf-views__legends">
-              {[...legendStyles.values()].map((v) => (
-                <div key={v.id} className="wf-views__legend">
-                  <Legend scales={v.scales} overlays={v.overlays} locale={locale} />
-                </div>
-              ))}
+              <PatternTheme.Provider value={patternTheme}>
+                {[...legendStyles.values()].map((v) => (
+                  <div key={v.id} className="wf-views__legend">
+                    <Legend scales={look === defaultTheme ? v.scales : buildScales(v.graph, v.style, look)} overlays={v.overlays} locale={locale} />
+                  </div>
+                ))}
+              </PatternTheme.Provider>
             </div>
           ) : null}
         </div>

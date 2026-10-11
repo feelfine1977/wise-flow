@@ -1,5 +1,6 @@
-import { type Locale, type Overlay, type Scales, type SceneLegend, colorTokens, formatCompact, formatNumber, formatShare, sceneLegend, t } from "../core/index.js";
-import { PatternSwatch } from "./patterns.js";
+import { type Locale, type Overlay, type Scales, type SceneLegend, formatCompact, formatNumber, formatShare, sceneLegend, t } from "../core/index.js";
+import { useContext } from "react";
+import { PatternSwatch, PatternTheme } from "./patterns.js";
 import { part } from "./parts.js";
 
 export interface LegendProps {
@@ -15,6 +16,7 @@ export interface LegendProps {
 /** Legend for the scales in use and the overlay glyphs; always visible in a map. */
 export function Legend({ scales, overlays = [], locale = "en", chips, legend }: LegendProps) {
   const { items, keys } = legend ?? sceneLegend(scales.legend, overlays);
+  const { ink, look } = useContext(PatternTheme);
   return (
     <div className="wf-panel wf-legend" {...part("legend")} role="region" aria-label={t(locale, "legend.title")}>
       <h3>{t(locale, "legend.title")}</h3>
@@ -38,7 +40,7 @@ export function Legend({ scales, overlays = [], locale = "en", chips, legend }: 
                 {item.entries.map((e) => (
                   <dd key={e.key} className="wf-legend__cat">
                     <span className="wf-legend__swatch" style={{ background: e.color }}>
-                      <PatternSwatch pattern={e.pattern} ink={colorTokens.ink} />
+                      <PatternSwatch pattern={e.pattern} ink={ink} look={look} />
                     </span>
                     {e.key}
                   </dd>

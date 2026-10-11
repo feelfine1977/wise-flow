@@ -271,6 +271,38 @@ describe("the theme of a map", () => {
     expect(layouts.mock.calls.length).toBe(laid);
   });
 
+  it("draws the pattern twins of the DOM map and of the switcher's legends in the theme's ink, as the theme says", async () => {
+    const positions = await layout(vendor, { engine: "dagre" });
+    document.head.appendChild(rules);
+    rules.textContent = ".host, .host * { --wf-ink: #123456; }";
+    const patterns = (root: Element) => [...root.querySelectorAll(".wf-node__band pattern > path, .wf-legend__swatch pattern > path")].map((p) => [p.getAttribute("stroke"), p.getAttribute("stroke-opacity")]);
+    const map = (theme?: ThemeSetting) => (
+      <div className="host">
+        <ProcessMap graph={vendor} positions={positions} renderer="svg" controls={false} theme={theme} />
+      </div>
+    );
+    const view = render(map());
+    await waitFor(() => expect(patterns(view.container).length).toBeGreaterThan(1));
+    expect(new Set(patterns(view.container).map(String))).toEqual(new Set(["#123456,0.6"]));
+    // Print draws them opaque, and the setting's ink goes over the host's.
+    view.rerender(map({ preset: "print", color: { ink: "#000000" } }));
+    await waitFor(() => expect(new Set(patterns(view.container).map(String))).toEqual(new Set(["#000000,1"])));
+    cleanup();
+
+    // The legends of the grid are drawn in the theme too: print's stage colours, each with an opaque pattern.
+    const views = resolveViews(vendor, [{ id: "a", label: "A" }, { id: "b", label: "B", style: { edgeColor: { metric: "count", palette: "performance" } } }], positions);
+    const grid = render(<div className="host"><ViewSwitcher views={views} mode="grid" theme="print" edgeBudget="all" /></div>);
+    const legends = grid.container.querySelector(".wf-views__legends")!;
+    const swatches = [...legends.querySelectorAll<HTMLElement>(".wf-legend__swatch")];
+    expect(swatches.length).toBeGreaterThan(1);
+    // The print palette, in the form jsdom writes a background: #0072B2, #E69F00, #009E73, #CC79A7, #56B4E9, #D55E00, #F0E442.
+    const print = ["rgb(0, 114, 178)", "rgb(230, 159, 0)", "rgb(0, 158, 115)", "rgb(204, 121, 167)", "rgb(86, 180, 233)", "rgb(213, 94, 0)", "rgb(240, 228, 66)"];
+    for (const s of swatches) expect(print).toContain(s.style.background);
+    expect(swatches.map((s) => s.querySelector("pattern > path, pattern > circle")?.getAttribute("stroke-opacity") ?? s.querySelector("pattern > circle")?.getAttribute("fill-opacity"))).toEqual(swatches.map(() => "1"));
+    // Print's performance ramp, light to dark: #3a7bbf to #08306b.
+    expect([...legends.querySelectorAll<HTMLElement>(".wf-legend__gradient")].map((g) => g.style.background)).toContain("linear-gradient(to right, #3a7bbf, #08519c, #08306b)");
+  });
+
   it("logs what checkTheme finds once, in development", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     resolved();
