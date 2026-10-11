@@ -237,4 +237,29 @@ describe("edge budget in the Canvas drawing", () => {
     renderer.draw();
     expect(renderer.hitAt(80, 20)?.kind).toBe("edge");
   });
+
+  it("does not hit an edge the last draw withheld while a new scene waits for its first draw", () => {
+    // h on the left, t1 up and t2 down on the right; with a budget of 1 only the heavier path, h->t1, is drawn.
+    const boxes = { h: { x: 0, y: 100, width: 100, height: 40 }, t1: { x: 400, y: 0, width: 100, height: 40 }, t2: { x: 400, y: 200, width: 100, height: 40 } };
+    const positions = createPositions({ nodes: boxes, groups: {}, edges: {} }, "given", "RIGHT");
+    const nodes = ["h", "t1", "t2"].map((id): FlowNode => ({ id, kind: "activity", label: id }));
+    const heavy = follows("h->t1", "h", "t1", 100);
+    const light = follows("h->t2", "h", "t2", 1);
+    const { ctx } = recorder();
+    const canvas = { width: 0, height: 0, style: {}, getContext: () => ctx } as unknown as HTMLCanvasElement;
+    const renderer = new CanvasRenderer(canvas, { devicePixelRatio: 1, draw: { cull: false, edgeBudget: 1 } });
+    renderer.resize(600, 300);
+    renderer.setViewport({ x: 0, y: 0, zoom: 1 });
+    renderer.setScene(prepareScene({ nodes, edges: [heavy, light] }, positions, { lodBySize: false }));
+    renderer.draw();
+    // On the light path's line (100,120 to 400,220) and on the heavy one's (100,120 to 400,20).
+    const onLight = () => renderer.hitAt(250, 170)?.id;
+    const onHeavy = () => renderer.hitAt(250, 70)?.id;
+    expect([onLight(), onHeavy()]).toEqual([undefined, "h->t1"]);
+    // The same map with its paths in the other order, not drawn yet: still the light one is not hit.
+    renderer.setScene(prepareScene({ nodes, edges: [light, heavy] }, positions, { lodBySize: false }));
+    expect([onLight(), onHeavy()]).toEqual([undefined, "h->t1"]);
+    renderer.draw();
+    expect([onLight(), onHeavy()]).toEqual([undefined, "h->t1"]);
+  });
 });
