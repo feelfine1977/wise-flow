@@ -65,8 +65,8 @@ Test: `tests/core/malformed-input.test.ts` › "positions, routing and lanes".
 | `filterPositions` | `.` | Not documented. | Returns; numbers that are not finite pass through to the result. |
 | `coversGraph` | `.` | A box counts when its four numbers are finite (since this change). | Returns. |
 | `straightRoute` | `.` | Not documented. | Returns; numbers that are not finite pass through to the result. |
-| `repositionNodes` | `.` | Unroutable geometry: a clipped direct route; an edge without an id is routed (since this change); boxes that are not finite are left out of routing (since this change). | Returns; plain `Error` "Cannot route …" (documented). |
-| `routeSequenceFlows` | `.` | Unroutable geometry raises a descriptive error; boxes that are not finite are left out (since this change). | Returns, or the documented plain `Error`. |
+| `repositionNodes` | `.` | Unroutable geometry: a clipped direct route; an edge without an id is routed (since this change); boxes that are not finite are left out of routing (since this change); a target no route reaches gets its fallback at once (since this change). | Returns; plain `Error` "Cannot route …" (documented). |
+| `routeSequenceFlows` | `.` | Unroutable geometry raises a descriptive error; boxes that are not finite are left out; a target no route reaches is given up at once (both since this change). | Returns, or the documented plain `Error`. |
 | `laneGroups` | `.` | Not documented. | Returns. |
 | `laneAssignment` | `.` | Not documented. | Returns. |
 | `laneModel` | `.` | Groups on a cycle of parents have no leaf; their nodes follow their neighbours (since this change). | Returns. |
@@ -378,8 +378,139 @@ Labels, ids, kinds, tags, metric names and overlay texts holding `<`, `>`,
 `&`, quotes and script-like text are text in the SVG export, the BPMN XML,
 the tooltip, the table cells, the legend, the map chips, the Canvas element
 list, the live region and the descriptions: `tests/react/MarkupSafety.test.tsx`.
-No source file inserts raw HTML (`innerHTML`, `outerHTML`,
-`insertAdjacentHTML`, `dangerouslySetInnerHTML`, `document.write`); the SVG
-export and `svgMarkup` build markup as strings and escape every text and
-value that comes with the data, and the BPMN view hands bpmn-js DOM
-elements, never strings, as overlays.
+
+No source file inserts raw HTML: a search of `src/` for `innerHTML`,
+`outerHTML`, `insertAdjacentHTML`, `dangerouslySetInnerHTML`,
+`document.write`, `createContextualFragment`, `DOMParser`, `srcdoc`,
+`href`, `eval` and `new Function` finds nothing. What comes closest, judged
+one by one:
+
+| Where | What | Judgement |
+| --- | --- | --- |
+| `src/core/export.ts` (`toSVG`), `src/core/overlay-marks.ts` (`svgMarkup`) | Build SVG as a string. | Safe: every text and attribute value that comes with the data is escaped (`&`, `<`, `>`, `"`); the node kind in `class` since this change. Attribute names are the library's own. |
+| `src/react/marks.tsx` (`svgDom`) | Builds the overlay marks of the BPMN view as DOM: `createElementNS`, `setAttribute`, `style.setProperty`, text nodes. | Safe: no markup is parsed; attribute names are the library's own, data reaches only values and text nodes. |
+| `src/bpmn/bpmn-js.ts`, `src/react/BpmnView.tsx` | Hand bpmn-js overlays (`overlays.add`) and markers (`canvas.addMarker`). | Safe: overlays are DOM elements, never strings (`ViewerOverlay.html: HTMLElement`); a marker is a class name of the library's own (`wf-bpmn--…`). |
+| `src/bpmn/export.ts` (`exportBpmn`) | Writes XML through bpmn-moddle. | Safe: moddle escapes text and attribute values; the XML is read back in the markup test. |
+| `src/canvas/` | Draws text with `fillText`. | Safe: a canvas draws text as pixels. |
+
+## Findings
+
+Where the documentation is silent about invalid input, or says something the
+searching tests contradict. Each is a proposal for the owner; none of them
+changes the public behaviour here.
+
+1. **Unknown kinds.** `validateGraph` does not report a node, edge, group or
+   overlay kind outside `NodeKind`, `EdgeKind`, `GroupKind` and
+   `OverlayKind`; the documentation does not say what such an element does.
+   Today an unknown node kind gets the activity's size and box (without the
+   activity labels) in the scene, the SVG export and the Canvas map, and
+   reaches React Flow as a node type it does not have, which React Flow
+   draws as its default node; an unknown edge kind is drawn as an ordinary
+   edge; an unknown overlay kind has no mark.
+   *Proposal:* a `validateGraph` warning `unknown kind` per element, and one
+   sentence in the API document: an unknown node kind is drawn as an
+   activity, an unknown edge kind as `follows`, an unknown group kind as a
+   `stage` without lane, an unknown overlay kind not at all.
+2. **Metric values.** Missing, negative, not finite and string-typed metric
+   values pass validation (pinned in `tests/core/generators.test.ts`).
+   `metric` documents the fallback for a value that is not a finite number;
+   nothing says what a negative count or share means for widths, shares,
+   `abstract` and the tables. *Proposal:* a `validateGraph` warning
+   `metric not a finite number` (strings included) and `negative metric`,
+   and a sentence that every reader of metrics goes through `metric` and
+   reads a negative count or share as 0.
+3. **Missing and empty ids.** `validateGraph` does not report an element
+   without an id or with the empty id. Both are now drawn, laid out and
+   exported, but React logs key warnings for a missing id, and two such
+   elements are the same element to every table keyed by id. *Proposal:* a
+   missing or non-string id is an error (`missing id`), the empty id a
+   warning.
+4. **Layout of a graph validation rejects.** `layout`, `layoutUnion`,
+   `createLayoutScope`, `buildViews` and `layoutBpmn` document
+   `LayoutUnavailableError`, timeouts and aborts; on a graph `validateGraph`
+   rejects they may also reject with the engine's own plain error (ELK on
+   edges to missing nodes and on missing ids, Dagre on cycles of group
+   parents). *Proposal:* document that a graph validation rejects may make
+   the layout reject with the engine's error, and that a host validates
+   first. (A typed `InvalidGraphError` would be a new public name: an option
+   for the owner, not proposed here.)
+5. **React keys.** Every component that lists elements logs React's key
+   warning for two elements with one id (which validation reports) or an
+   element without an id (finding 3); so do `TraceTimeline` for two traces
+   with one case id and `FlowComparison` for two cohorts with one id, which
+   are not documented as invalid. Rendering is otherwise intact.
+   *Proposal:* document that ids, case ids and cohort ids are unique and that
+   a graph validation rejects is drawn as far as it goes; key repeated ids
+   apart (id and position) only if the owner wants the warnings gone.
+6. **A host's numbers that are not sound.** Not documented, observed in the
+   searches: `ViewSwitcher` passes a `columns` that is not a positive whole
+   number to the grid's CSS; `ContextMenu` at a position that is not finite
+   gives React's style warning; `AbstractionControls` with a threshold that
+   is not a number gives React's `NaN` attribute warning; `TableAlternative`
+   and `<ProcessMap/>` say nothing about a `pageSize`, `describedLimit`,
+   `canvasThreshold` or `edgeBudget` that is zero, negative or fractional;
+   `abstract` says nothing about thresholds outside [0, 1].
+   *Proposal:* one rule in the API document — a count is read as a whole
+   number at least 1 (`columns`, `pageSize`) or 0 (`describedLimit`,
+   `edgeBudget`), a share is clamped to [0, 1], anything not finite is the
+   default — and the three components follow it.
+7. **Options that overflow.** `overlayGeometry` promises that shapes never
+   extend beyond `overlayMargin()`, `figureFrame` and `toPNGCanvas` say
+   nothing about their range; with an arc height, width, padding or scale
+   near 10³⁰⁸ (or a padding of 10⁻³²⁰ on an empty map) they return sizes that
+   are not finite, and `toPNGCanvas` asks for a canvas of infinite size.
+   `buildScales` does the same for a domain or range that is not finite, and
+   `laneBands` for junk padding or gaps. *Proposal:* document the ranges
+   (`scale` in (0, 16], sizes below 10⁶) and read a value outside as the
+   default, as `layout` now does for spacing and node size.
+8. **Geometry helpers pass numbers that are not finite through.**
+   `unionBoxes`, `positionsBounds`, `createPositions`, `filterPositions`,
+   `straightRoute`, `stackLanes`, `spanLanes`, `nodeMark`, `edgeMark`,
+   `markArrowhead`, `arrowheadExtent`, `overlayMargin`, `labelScreenPx`,
+   `labelUnitsAt` (for its target) and `roundPositions` return `NaN` or an
+   infinity where their input had one. `unionBoxes` contradicts its own
+   sentence in part: it ignores a box without a non-negative size, but not
+   one whose `x` or `y` is not finite. Scenes and exports no longer let such
+   numbers through (since this change). *Proposal:* document "finite in,
+   finite out" for these helpers, and have `unionBoxes` ignore a box whose
+   four numbers are not finite, as `coversGraph` does.
+9. **Errors that are tested but not documented.** `liteFromStages` throws a
+   plain `Error` "liteFromStages: duplicate id …"; `validateBpmn` rejects
+   text that is not BPMN with the parser's plain `Error`, as `importBpmn`
+   does. *Proposal:* document both, in the words used for `importBpmn`.
+10. **Statistics and payloads.** `constraintOverlays` and `overlaysFor`
+    document "not applicable" without evaluated cases, but not junk
+    statistics (negative, not finite or string counts) or unknown constraint
+    types; they return overlays with neutral colours today.
+    *Proposal:* document that such statistics count as not evaluated.
+11. **The many pure functions marked "Not documented"** in the tables above
+    all return for every case. *Proposal:* one sentence at the top of the API
+    document: every function takes any value of its declared types, throws
+    only the errors its section names, and treats a missing or non-finite
+    number as missing.
+
+## Open decisions
+
+**Ids named like members of `Object.prototype`** (`__proto__`,
+`constructor`, `toString`, …; `tests/core/prototype-ids.test.ts`). Validation
+accepts them, and Dagre lays them out (since this change), but `Positions`
+and many tables of the library are plain objects keyed by id: a `__proto__`
+box is not stored as the record's own, so `filterPositions` drops it and
+`toSVG` throws a `TypeError`; `createIdResolver` throws a `TypeError` for an
+activity mapped under such an id, and the BPMN round trip loses the node. A
+host meets this only when a backend names an activity so; `JSON.parse` does
+create an own `__proto__` key. Options:
+
+- **A.** `validateGraph` reports such an id as an error (`reserved id`), and
+  the API document says ids must not name a member of `Object.prototype`.
+  Small, no change for any other graph; the host must rename.
+- **B.** Every record keyed by id inside the library is created without a
+  prototype (`Object.create(null)`) or is a `Map`, and lookups use own
+  properties only. Supports every id; touches many modules and the size
+  budget; `Positions` built by a host as an object literal still cannot hold
+  `__proto__` as its own key, so the public type would need a note too.
+- **C.** Leave it, and document that such ids are not supported.
+
+**React's key warnings** (finding 5) and **the host's unsound numbers**
+(finding 6) change what a host sees in the console and the DOM; they wait for
+the owner with the proposals above.
