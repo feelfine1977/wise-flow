@@ -21,15 +21,17 @@ test('tokens.css is the file the generator writes from the token table', () => {
 
 test('the table gives the stylesheet its text, radius, stroke, dash, opacity, z-order, size and spacing roles as variables', () => {
   const { light } = variables;
-  assert.equal(light['--wf-text-activity-name'], '14px');
-  assert.equal(light['--wf-weight-activity-name'], '500');
+  assert.equal(light['--wf-text-panel'], '12px');
+  assert.equal(light['--wf-weight-legend-item'], '600');
   assert.equal(light['--wf-leading-activity-name'], '18px');
   assert.equal(light['--wf-text-comparison-note'], '0.875rem');
-  assert.equal(light['--wf-radius-circle'], '50%');
+  assert.equal(light['--wf-radius-key'], '3px');
   assert.equal(light['--wf-radius-pill'], '999px');
-  assert.equal(light['--wf-stroke-group'], '1.5px');
+  assert.equal(light['--wf-stroke-selection'], '3px');
   assert.equal(light['--wf-dash-timeline-anchor'], '4 3');
-  assert.equal(light['--wf-opacity-group-fill'], '0.06');
+  assert.equal(light['--wf-opacity-dimmed'], '0.35');
+  // Nodes and groups take their outlines, tints and texts from their marks, not from these.
+  for (const role of ['--wf-text-node-label', '--wf-weight-stage-label', '--wf-stroke-node', '--wf-stroke-group', '--wf-opacity-group-fill', '--wf-radius-circle']) assert.equal(light[role], undefined, role);
   assert.equal(light['--wf-z-menu'], '30');
   assert.equal(light['--wf-size-side-list'], '380px');
   assert.deepEqual(Object.entries(light).filter(([k]) => k.startsWith('--wf-space-')), [['--wf-space-1', '2px'], ['--wf-space-1-5', '3px'], ['--wf-space-2', '4px'], ['--wf-space-3', '6px'], ['--wf-space-4', '8px'], ['--wf-space-5', '10px'], ['--wf-space-6', '12px'], ['--wf-space-7', '14px'], ['--wf-space-8', '16px']]);

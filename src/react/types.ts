@@ -13,6 +13,7 @@ import type {
   FlowGroup,
   FlowNode,
   FlowPaths,
+  GroupMark,
   Focus,
   LaneBand,
   LaneMode,
@@ -31,6 +32,7 @@ import type {
   Selection,
   ShownEdges,
   StyleSpec,
+  Theme,
 } from "../core/index.js";
 import { emptySelection } from "../core/index.js";
 
@@ -74,6 +76,8 @@ export type GroupNodeData = {
   description: string;
   /** The group is drawn as a lane band (see `lanes`). */
   band?: LaneBand;
+  /** What the group looks like (`FlowScene.groupMarks`); resolved from the fields above without it. */
+  mark?: GroupMark;
 };
 
 export type WfNode = Node<ActivityNodeData, "activity" | "stage" | "gateway" | "event" | "note">;
@@ -110,6 +114,12 @@ export interface ProcessMapProps {
   /** Overlays in addition to `graph.overlays`. */
   overlays?: Overlay[];
   style?: StyleSpec;
+  /**
+   * What the map's nodes, groups, paths and marks are drawn in: their outlines,
+   * radii, text styles and data palettes. Default `defaultTheme`. The theme's
+   * colour roles are drawn through the CSS variables of `tokens.css`.
+   */
+  theme?: Theme;
   /** Controlled abstraction options. */
   abstraction?: AbstractOptions;
   defaultAbstraction?: AbstractOptions;

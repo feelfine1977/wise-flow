@@ -157,7 +157,7 @@ export const radiusTokens = {
 export const strokeTokens = {
   node: 2,
   stage: 3,
-  eventStart: 1.5,
+  eventStart: 2,
   eventEnd: 3,
   gateway: 1.5,
   note: 2,
@@ -451,15 +451,15 @@ type Listed<T extends Record<keyof StyledRoles, string>> = { [P in keyof StyledR
 
 /** The roles the stylesheet reads, by variable prefix. */
 const styledRoles = {
-  text: "nodeLabel nodeCount eventLabel noteLabel activityName activityNumber pathLabel groupLabel legendItem legendValue attribution panel panelHeading panelTitle panelNote panelLabel panelKey panelSymbol tooltip activityTooltip timelineAxis timelineLabel timelineNote comparisonValue comparisonNote comparisonDenominator",
-  weight: "stageLabel gatewayGlyph activityName groupLabel legendItem panelHeading panelLabel panelPlain comparisonTab comparisonCaption comparisonRowHeader comparisonDenominator",
+  text: "pathLabel legendItem legendValue attribution panel panelHeading panelTitle panelNote panelLabel panelKey panelSymbol tooltip activityTooltip timelineAxis timelineLabel timelineNote comparisonValue comparisonNote comparisonDenominator",
+  weight: "legendItem panelHeading panelLabel panelPlain comparisonTab comparisonCaption comparisonRowHeader comparisonDenominator",
   leading: "activityName activityNumber",
-  radius: "band swatch control tooltip key pill circle filterChip legendGradient activityTooltip comparisonBar",
-  stroke: "node stage eventEnd focus selection group band halo filterChip tab timelineViolation",
+  radius: "band swatch control tooltip key pill filterChip legendGradient activityTooltip comparisonBar",
+  stroke: "focus selection halo filterChip tab timelineViolation",
   dash: "timelineAnchor bpmnOutOfScope",
-  opacity: "dimmed dimmedPath disabled groupFill bandFill bandOddFill",
+  opacity: "dimmed dimmedPath disabled",
   z: "comparisonRowHeader comparisonHeader comparisonCorner overlayPanel bpmnTable bpmnPanel sideList tooltip canvasTooltip bpmnNavigation menu activityTooltip",
-  size: "band mapMinHeight viewMapMinHeight handle panelMaxWidth controlLabel controlOutput legendSwatchWidth legendSwatchHeight legendSample legendGlyph legendGradient searchMinWidth tableSwatch tooltipMaxWidth canvasTooltipMaxWidth activityTooltipMaxWidth bpmnTableTop watermarkClearance sideList menuMinWidth menuMaxWidth filterChipMinHeight zoomButtonWidth zoomButtonHeight",
+  size: "mapMinHeight viewMapMinHeight handle panelMaxWidth controlLabel controlOutput legendSwatchWidth legendSwatchHeight legendSample legendGlyph legendGradient searchMinWidth tableSwatch tooltipMaxWidth canvasTooltipMaxWidth activityTooltipMaxWidth bpmnTableTop watermarkClearance sideList menuMinWidth menuMaxWidth filterChipMinHeight zoomButtonWidth zoomButtonHeight",
 } as const;
 
 /** The CSS variables of `tokens.css`: all of them in the light scheme, the ones that change in the dark scheme. */

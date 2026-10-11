@@ -50,8 +50,8 @@ describe("the parity readers", () => {
     expect([...drawn.keys()].sort()).toEqual(["edge:a->b", "edge:b->end", "edge:start->a", "group:g", "mark:badge:a:0", "node:a", "node:b", "node:end", "node:start"]);
     expect(drawn.get("node:a")).toMatchObject({ box: { x: 100, y: 0, width: 180, height: 48 }, props: { fill: "#ffffff", outlineWidth: "2", dash: "none", radius: "6", band: expect.stringMatching(/^#[0-9a-f]{6} 8$/) } });
     expect(drawn.get("node:a")!.texts.map((t) => [t.text, t.size])).toEqual([["Approve", 12], ["10", 9]]);
-    // Start and end events: a circle of the box's half width, outlined 1.5 and 3 in the ink.
-    expect(drawn.get("node:start")).toMatchObject({ box: { x: 0, y: 6, width: 36, height: 36 }, props: { outline: "#1f1f1f", outlineWidth: "1.5", radius: "18" } });
+    // Start and end events: a circle of the box's half width, outlined 2 and 3 in the ink.
+    expect(drawn.get("node:start")).toMatchObject({ box: { x: 0, y: 6, width: 36, height: 36 }, props: { outline: "#1f1f1f", outlineWidth: "2", radius: "18" } });
     expect(drawn.get("node:end")!.props.outlineWidth).toBe("3");
     expect(drawn.get("group:g")).toMatchObject({ box: { x: 80, y: -40, width: 520, height: 120 }, props: { dash: "6 4", outlineWidth: "1.5", radius: "10" } });
     // An edge's box is its route's: from the right of `a` to the left of `b` at their middle.

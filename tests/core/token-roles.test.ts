@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
-import { type FlowGraph, dashTokens, dimensionTokens, opacityTokens, radiusTokens, spaceTokens, strokeTokens, textTokens, toSVG, tokenVariables, zTokens } from "../../src/index";
+import { type FlowGraph, buildScene, dashTokens, dimensionTokens, opacityTokens, radiusTokens, spaceTokens, strokeTokens, textTokens, toSVG, tokenVariables, zTokens } from "../../src/index";
 import { type DrawContext, drawLegend, drawScene, prepareScene } from "../../src/canvas/index";
 import { graph, positions } from "./overlay-kinds";
 
@@ -80,7 +80,7 @@ describe("the role tables", () => {
     expect(dimensionTokens.band).toBe(8);
   });
 
-  it("are what SVG, Canvas and the stylesheet read for a group: its label, outline and dash", () => {
+  it("are what SVG, Canvas and the marks the interactive map draws read for a group: its label, outline and dash", () => {
     let { svg, canvas } = drawn();
     expect(svg).toContain(`stroke-width="1.5" stroke-dasharray="6 4"`);
     expect(svg).toContain(`font-size="14" font-weight="600"`);
@@ -94,13 +94,13 @@ describe("the role tables", () => {
     expect(svg).toContain(`font-size="17" font-weight="800"`);
     expect(canvas).toContain(`lineWidth=2.75\nsetLineDash([[9,7]])`);
     expect(canvas).toContain(`font="800 17px`);
-    expect(tokenVariables().light).toMatchObject({ "--wf-text-group-label": "17px", "--wf-weight-group-label": "800", "--wf-stroke-group": "2.75px" });
-    expect(rule(".wf-group")).toContain("border: var(--wf-stroke-group) dashed");
-    expect(rule(".wf-group__label")).toContain("font-size: var(--wf-text-group-label);");
-    expect(rule(".wf-group__label")).toContain("font-weight: var(--wf-weight-group-label);");
+    // The interactive map draws the group's mark, which the stylesheet no longer sizes.
+    const [mark] = buildScene(graph, positions).groupMarks;
+    expect([mark.stroke.width, mark.stroke.dash, mark.texts[0].size, mark.texts[0].weight]).toEqual([2.75, [9, 7], 17, 800]);
+    expect(stylesheet).not.toMatch(/--wf-(stroke-group|text-group-label|weight-group-label)\b/);
   });
 
-  it("are what SVG, Canvas and the stylesheet read for an activity: its outline, radius, label and band", () => {
+  it("are what SVG, Canvas and the marks the interactive map draws read for an activity: its outline, radius, label and band, and the stylesheet for the band's corners", () => {
     set(strokeTokens, "node", 2.25);
     set(radiusTokens, "node", 7.5);
     set(radiusTokens, "band", 1.25);
@@ -111,10 +111,12 @@ describe("the role tables", () => {
     expect(svg).toContain(`font-size="12.5"`);
     expect(canvas).toContain(`lineWidth=2.25`);
     expect(canvas).toContain(`font="12.5px`);
-    expect(tokenVariables().light).toMatchObject({ "--wf-stroke-node": "2.25px", "--wf-radius": "7.5px", "--wf-radius-band": "1.25px", "--wf-text-node-label": "12.5px" });
-    expect(rule(".wf-node")).toContain("border: var(--wf-stroke-node) solid");
-    expect(rule(".wf-node")).toContain("border-radius: var(--wf-radius);");
-    expect(rule(".wf-node")).toContain("font-size: var(--wf-text-node-label);");
+    const mark = buildScene(graph, positions).nodeMarks.find((m) => m.id === "a")!;
+    expect([mark.stroke.width, mark.radius, mark.texts[0].size]).toEqual([2.25, 7.5, 12.5]);
+    expect(rule(".wf-node")).toContain("border: var(--wf-node-stroke) solid var(--wf-node-outline);");
+    expect(rule(".wf-node")).toContain("border-radius: var(--wf-node-radius);");
+    expect(stylesheet).not.toMatch(/--wf-(stroke-node|text-node-label)\b/);
+    expect(tokenVariables().light).toMatchObject({ "--wf-radius-band": "1.25px" });
     expect(rule(".wf-node__band")).toContain("border-radius: var(--wf-radius-band) 0 0 var(--wf-radius-band);");
   });
 

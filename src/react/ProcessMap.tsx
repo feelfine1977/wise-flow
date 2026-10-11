@@ -146,7 +146,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   // Graph overlays and the given ones; the scene keeps those it can place and adds the follows self-loops.
   const sceneOverlays = useMemo(() => (extraOverlays ? [...(shown.overlays ?? []), ...extraOverlays] : undefined), [shown, extraOverlays]);
   const { scene, positions, laidPositions } = useMapScene(shown, arrival.positions, manual.key === layoutResetKey ? manual.points : NO_MOVES, {
-    overlays: sceneOverlays, style, locale, lanes, activityLabels, selfLoops, lod: props.lod,
+    overlays: sceneOverlays, style, locale, lanes, activityLabels, selfLoops, lod: props.lod, theme: props.theme,
   });
   const { scales, overlays, geometry } = scene;
   // One index of the shown graph: every description, label and lookup by id reads it.

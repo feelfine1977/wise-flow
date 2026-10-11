@@ -80,7 +80,7 @@ export function useFlowElements(input: FlowInput) {
   const { enabled, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, nodesDraggable, edgeBudget, highlighted } = input;
   const { overlaysByTarget, groupIndex, memberCount, describeElement, index } = descriptions;
   const { scales } = scene;
-  const bands = useMemo(() => new Map(scene.bands.map((b) => [b.id, b])), [scene.bands]);
+  const groupMarks = useMemo(() => new Map(scene.groupMarks.map((m) => [m.id, m])), [scene.groupMarks]);
   // Marks below the edges are drawn by the element they cover, as its background; boxes above it by the
   // element too, so that they follow it; marks with a path run between elements in the overlay layer.
   const { covers, carried, between } = useMemo(() => {
@@ -134,7 +134,8 @@ export function useFlowElements(input: FlowInput) {
           marks: carried.get(g.id),
           origin: { x: box.x, y: box.y },
           description,
-          band: bands.get(g.id),
+          band: groupMarks.get(g.id)?.band,
+          mark: groupMarks.get(g.id),
         },
       });
     }
@@ -179,7 +180,7 @@ export function useFlowElements(input: FlowInput) {
       });
     }
     return out;
-  }, [positions, enabled, shown, scene, overlaysByTarget, covers, carried, scales, selection, hovered, focused, locale, bright, bands, groupIndex, memberCount, activityLabels, describeElement, nodesDraggable]);
+  }, [positions, enabled, shown, scene, overlaysByTarget, covers, carried, scales, selection, hovered, focused, locale, bright, groupMarks, groupIndex, memberCount, activityLabels, describeElement, nodesDraggable]);
 
   // Every edge of the scene is in view of React Flow; with no frame to time, adaptive keeps its first step.
   const withheld = useMemo(() => (enabled ? budgetEdges(scene, edgeBudget === "adaptive" ? FIRST_STEP : edgeBudget, { selection, focused, highlighted }) : undefined), [enabled, scene, edgeBudget, selection, focused, highlighted]);

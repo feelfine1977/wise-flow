@@ -104,6 +104,19 @@ export function readDomInPage(tints: { id: string; target: string }[]): DomEleme
       rule: inset ? { color: /^((?:rgba?|color)\([^)]*\))/.exec(inset)![1], width: Math.max(Math.abs(lengths[0] ?? 0), Math.abs(lengths[1] ?? 0)) } : undefined,
     };
   };
+  // An outline drawn as an SVG shape (where a border cannot draw it): its paints, its radius and its extent.
+  const drawnOutline = (shape: SVGGraphicsElement | null): Partial<DomElement> => {
+    if (!shape) return {};
+    const cs = getComputedStyle(shape);
+    const a = (k: string) => Number(shape.getAttribute(k) ?? 0);
+    const points: [number, number][] =
+      shape.tagName === "rect" ? [[a("x"), a("y")], [a("x") + a("width"), a("y") + a("height")]] : shape.tagName === "circle" ? [[a("cx") - a("r"), a("cy") - a("r")], [a("cx") + a("r"), a("cy") + a("r")]] : pathPoints(shape.getAttribute("d") ?? "");
+    return {
+      box: boxOf(svgPoints(shape, points)),
+      outline: cs.stroke === "none" ? undefined : { color: cs.stroke, width: parseFloat(cs.strokeWidth), style: cs.strokeDasharray, opacity: Number(cs.strokeOpacity), sides: "" },
+      radius: shape.tagName === "rect" ? a("rx") : shape.tagName === "circle" ? a("r") : 0,
+    };
+  };
   const out: DomElement[] = [];
   const htmlElement = (key: string, el: HTMLElement, skip: string): DomElement => {
     const cs = getComputedStyle(el);
@@ -120,13 +133,17 @@ export function readDomInPage(tints: { id: string; target: string }[]): DomEleme
 
   for (const wrapper of document.querySelectorAll<HTMLElement>(".react-flow__node:not(.react-flow__node-wfGroup)")) {
     const el = wrapper.querySelector<HTMLElement>(":scope > .wf-node")!;
-    const node = htmlElement(`node:${wrapper.dataset.id}`, el, ".wf-marks, .react-flow__handle, .wf-node__band");
+    const node = htmlElement(`node:${wrapper.dataset.id}`, el, ".wf-marks, .react-flow__handle, .wf-node__band, .wf-node__outline");
     const band = el.querySelector<HTMLElement>(":scope > .wf-node__band");
-    out.push({ ...node, band: band ? { color: getComputedStyle(band).backgroundColor, width: band.offsetWidth } : undefined });
+    const shape = el.querySelector<SVGGraphicsElement>(":scope > .wf-node__outline > *");
+    const fill = shape ? { color: getComputedStyle(shape).fill, opacity: Number(getComputedStyle(shape).fillOpacity) * node.fill.opacity } : node.fill;
+    out.push({ ...node, ...drawnOutline(shape), fill, band: band ? { color: getComputedStyle(band).backgroundColor, width: band.offsetWidth } : undefined });
   }
   for (const wrapper of document.querySelectorAll<HTMLElement>(".react-flow__node-wfGroup")) {
     const el = wrapper.querySelector<HTMLElement>(":scope > .wf-group")!;
-    out.push(htmlElement(`group:${wrapper.dataset.id!.replace(/^group:/, "")}`, el, ".wf-marks"));
+    const group = htmlElement(`group:${wrapper.dataset.id!.replace(/^group:/, "")}`, el, ".wf-marks, .wf-group__outline");
+    const { box: _, ...outline } = drawnOutline(el.querySelector<SVGGraphicsElement>(":scope > .wf-group__outline > *"));
+    out.push({ ...group, ...outline });
   }
   for (const g of document.querySelectorAll<SVGGElement>("g.wf-edge[data-id]")) {
     const path = g.querySelector<SVGPathElement>(".react-flow__edge-path")!;

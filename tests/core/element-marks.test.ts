@@ -16,9 +16,9 @@ describe("node marks", () => {
   it("resolves one mark per placed node with shape, colours, band, border and texts", () => {
     const base = { color: neutral, pattern: "solid", fill: "paper", reconnected: false };
     expect(scene.nodeMarks.map(strip)).toEqual([
-      // A start event: a circle in its box, its label inside at 9 px, cut to the circle's width less 4.
+      // A start event: a circle in its box outlined 2 wide, as the interactive map draws it, its label inside at 9 px, cut to the circle's width less 4.
       {
-        ...base, id: "start", kind: "event", box: positions.nodes.start, shape: "circle", radius: 18, stroke: { paint: "ink", width: 1.5 },
+        ...base, id: "start", kind: "event", box: positions.nodes.start, shape: "circle", radius: 18, stroke: { paint: "ink", width: 2 },
         texts: [text({ role: "label", text: "Start", x: 18, y: 20, size: 9, anchor: "middle", maxWidth: 32, lod: "labels" })],
       },
       // An activity: border in its colour, an 8 wide band, the label 16 in and centred, the cases in the lower right corner.

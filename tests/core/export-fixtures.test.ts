@@ -70,16 +70,18 @@ const observed: Variant = {
  * elements taken out the output is the same. Stage groups are outlined at full
  * opacity (they were at 0.5), as the Canvas map and the interactive map draw
  * them; bands are outlined in the line colour on the two sides between bands
- * (they were outlined all round in the neutral colour at 0.5).
+ * (they were outlined all round in the neutral colour at 0.5). Recorded once
+ * more when the start event took the interactive map's outline: only its
+ * circle's stroke width changed, 2 where it was 1.5.
  */
 const before: Record<string, string> = {
-  overlays: "9c124aad12f2801947edaaa48e1d365df35efe179a19aefb3e5cc2c514008ac6",
-  stagesGerman: "2d40dab4cf1a69b9b051f14a02ef85a35efc9009c1f76a16ba62e2740b5cb3cc",
-  vendor: "69962d6fc2f92e270bacdd40e02e5324a0f06f8fbcd502f3b91d777d67c95dee",
-  unfiltered: "2672238a6b4b8c386465d17289ad82fccaa17c70f52bcc42051c79ab4e9b0451",
-  plain: "e4f17efdeef5174c01b79b34ed7296776059b40de01771e2d0b148b0ed440de6",
+  overlays: "eba30056a4def362fe16d2e0ef531c34654730361eff640f2dfeb9c0e82209f4",
+  stagesGerman: "2e7e27987294098e0d71929349e7997b815c41e52a4b77d15ede7588d6b679a9",
+  vendor: "ada8175d0259c69aea8ad0929c1bc070cc498dddbbb23137d4219a0ece953525",
+  unfiltered: "b657d1334018a83a91b7e9ce4e3105456ae3ad303006725efb12e2862db38bc8",
+  plain: "ffd703c091b76fd841cedbad8a61b324bd62f873034b0c237e3b66fb6197b8ba",
 };
-const beforeObserved = "3e423ac703f8bebd502733d987665eccd2d713e9a1a7948a20ae429650426de3";
+const beforeObserved = "d1df0974b633a32a9ecdcdadc357b73f2192d5474a1b2d8a16025ed0d6503d12";
 
 describe("toSVG on the committed fixtures", () => {
   it("matches the recorded output once follows self-loops are hidden", () => {
