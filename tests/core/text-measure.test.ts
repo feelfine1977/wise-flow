@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type ActivityLabelOptions, type FlowGraph, type Overlay, type Positions, type TextMeasure, activityNodeSize, buildScene, estimateTextWidth, figureFrame, fitText, legendLayout, toSVG, truncateText, wrapActivityText, wrapText } from "../../src/index";
+import { type ActivityLabelOptions, type FlowGraph, type Overlay, type Positions, type TextMeasure, activityNodeSize, buildScene, defaultTheme, estimateTextWidth, figureFrame, fitText, legendLayout, toSVG, truncateText, wrapActivityText, wrapText } from "../../src/index";
 import { type DrawContext, canvasTextMeasure, drawLegend, drawScene, prepareScene, toPNGCanvas } from "../../src/canvas/index";
 import { leadMeasure } from "../../src/core/text";
 import * as elements from "./element-kinds";
@@ -153,6 +153,19 @@ describe("a scene built with a text measure", () => {
     // Padding 16, glyph 12.4, gauge 46, "Touches: " 9 × 7 in bold and "2.1 ⌀" 5 × 5.
     expect(mark.box.width).toBeCloseTo(162.4);
     expect(mark.texts[1]).toMatchObject({ lead: "Touches: ", text: "2.1 ⌀" });
+  });
+
+  it("sizes a chip at the theme's chip text, so that its text fits the box it gets", () => {
+    const share: Overlay = { kind: "chip", target: "s", payload: { glyph: "◔", value: 0.125, gauge: { value: 0.125, threshold: 0.1 } } };
+    const large = { ...defaultTheme, text: { ...defaultTheme.text, chip: { ...defaultTheme.text.chip, size: 20 } } };
+    const mark = buildScene(elements.graph, elements.positions, { ...options, overlays: [share], theme: large, textMeasure: tens }).marks.find((m) => m.kind === "chip")!;
+    // Padding 16, glyph 12.4, gauge 46 and "13 %" at 10 per character, whatever the size.
+    expect(mark.box.width).toBeCloseTo(114.4);
+    expect(mark.texts[1].text).toBe("13 %");
+    // At 20 px by the estimate: 4 × 11 = 44 for the text.
+    const estimated = buildScene(elements.graph, elements.positions, { ...options, overlays: [share], theme: large, textMeasure: undefined }).marks.find((m) => m.kind === "chip")!;
+    expect(estimated.box.width).toBeCloseTo(118.4);
+    expect(estimated.texts[1].text).toBe("13 %");
   });
 
   it("shortens the legend's texts and widens the figure for its note by it", () => {

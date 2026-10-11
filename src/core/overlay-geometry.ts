@@ -8,6 +8,7 @@ import { type FlowGroup, type Overlay, type OverlayKind, MAP_TARGET } from "./mo
 import { arcLabel, arcWidth, chipLayout, chipText } from "./overlay-marks.js";
 import { type LodRules, defaultLod } from "./style.js";
 import { type TextMeasure, estimateTextWidth, leadMeasure } from "./text.js";
+import type { Theme } from "./theme.js";
 import { textTokens } from "./tokens.js";
 
 export interface OverlayShape {
@@ -49,11 +50,18 @@ export function overlayMargin(options: OverlayGeometryOptions = {}): number {
   return Math.max(arc[1] + 24, badge + 8, (options.chipHeight ?? 24) + 8);
 }
 
+/** What a chip's text is measured by, in which text styles. */
+export interface ChipTextOptions {
+  /** Default `estimateTextWidth`. */
+  measure?: TextMeasure;
+  /** The chip's text and its bold lead, as the marks draw them (the scene's theme). Default the token table's. */
+  text?: Pick<Theme["text"], "chip" | "chipLead">;
+}
+
 /** A chip's width: padding, glyph, gauge and its text as the measure finds it, from 60 to 260. */
-function chipWidth(o: Overlay, measure: TextMeasure): number {
+function chipWidth(o: Overlay, { measure = estimateTextWidth, text: { chip, chipLead } = textTokens }: ChipTextOptions): number {
   const { lead = "", text } = chipText(o);
   const { padding, glyph, gauge } = chipLayout;
-  const { chip, chipLead } = textTokens;
   return Math.min(260, Math.max(60, 2 * padding + (o.payload?.glyph ? glyph : 0) + (o.payload?.gauge ? gauge : 0) + leadMeasure(measure, lead, chipLead.weight)(lead + text, chip)));
 }
 
@@ -106,8 +114,8 @@ export function placeOverlays(
   options: OverlayGeometryOptions = {},
   /** Boxes that arc labels keep clear of besides the nodes and each other (`groupTitles`). */
   titles: readonly Box[] = [],
-  /** What a chip's text is measured by. */
-  measure: TextMeasure = estimateTextWidth,
+  /** What a chip's text is measured by, in its text styles. */
+  chipTexts: ChipTextOptions = {},
 ): OverlayGeometry {
   const lod = { ...defaultLod, ...(options.lod ?? {}) };
   const badge = options.badgeSize ?? 22;
@@ -245,7 +253,7 @@ export function placeOverlays(
         return;
       }
       case "chip": {
-        const width = chipWidth(o, measure);
+        const width = chipWidth(o, chipTexts);
         if (o.target === MAP_TARGET) {
           const slot = chipCount.get(MAP_TARGET) ?? 0;
           chipCount.set(MAP_TARGET, slot + 1);
