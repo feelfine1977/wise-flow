@@ -256,3 +256,20 @@ describe("ProcessMap", () => {
     await waitFor(() => expect(workers).toEqual([{ layouts: 2, terminated: true }]));
   });
 });
+
+describe("the background of the map", () => {
+  it("draws no grid of dots unless the setting asks for one", async () => {
+    const draw = async (backgroundGrid?: boolean) => {
+      const { container, unmount } = render(
+        <div style={{ width: 800, height: 400 }}>
+          <ProcessMap graph={pair} positions={await layout(pair, { engine: "dagre" })} backgroundGrid={backgroundGrid} controls={false} legend={false} />
+        </div>,
+      );
+      await waitFor(() => expect(container.querySelectorAll(".react-flow__node")).toHaveLength(2));
+      const grid = container.querySelectorAll(".react-flow__background").length;
+      unmount();
+      return grid;
+    };
+    expect([await draw(), await draw(false), await draw(true)]).toEqual([0, 0, 1]);
+  });
+});

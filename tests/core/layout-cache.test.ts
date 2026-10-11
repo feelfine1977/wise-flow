@@ -26,10 +26,10 @@ describe("layout scope", () => {
     const { elk, calls } = countingElk();
     const scope = createLayoutScope();
     const first = await scope.layout(pair, { elk, engine: "elk" });
-    expect(first.nodes.b).toEqual({ x: 100, y: 0, width: 180, height: 48 });
+    expect(first.nodes.b).toEqual({ x: 100, y: 0, width: 180, height: 64 });
     // A new graph object and a new size callback with the same dimensions.
     const copy = structuredClone(pair);
-    expect(await scope.layout(copy, { elk, engine: "elk", nodeSize: () => ({ width: 180, height: 48 }) })).toBe(first);
+    expect(await scope.layout(copy, { elk, engine: "elk", nodeSize: () => ({ width: 180, height: 64 }) })).toBe(first);
     expect(calls()).toBe(1);
     expect(scope.size).toBe(1);
   });

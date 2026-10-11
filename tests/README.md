@@ -8,7 +8,7 @@ The executable CI contract and release procedure are in [docs/CI.md](../docs/CI.
 | `react/` | jsdom callbacks, keyboard interaction, state replacement and renderer lifecycles | `npm run test:components` |
 | `tooling/` | Negative checks for architecture boundaries, the source lint, workflow policies, artifact budgets and the token table and its generated `tokens.css`; the styling contract against the rendered fixtures and the API document; the emitted JavaScript without comments, the declarations with their documentation comments, and their maps | `npm run test:tooling` |
 | `package/` | Separate consumer of the actual npm tarball; NodeNext types and real browser assets/lifecycle | `npm run test:package` |
-| `browser/` | Production Storybook accessibility and keyboard tests, the map's paint order, host stylesheets against the styling contract and the cascade layer, the computed styles of the map and its panels against their record, and the parity of the four renderers, in a real browser | `npm run storybook:build` then `npm run test:browser` |
+| `browser/` | Production Storybook accessibility and keyboard tests, the map's paint order, host stylesheets against the styling contract and the cascade layer, the computed styles of the map and its panels against their record, the outline and fill of an activity's card when hovered, selected, focused and out of scope, and the parity of the four renderers, in a real browser | `npm run storybook:build` then `npm run test:browser` |
 | `visual/` | Ten behavior checks including six screenshots and the large Canvas scene | `npm run test:visual` |
 
 `npm run check` runs lint, typecheck, architecture/workflow guards, tooling tests
@@ -27,8 +27,9 @@ the Canvas map (recorded calls, one element at a time) and the PNG export
 (recorded calls of the whole figure, each given to the element that draws the
 same operation), in the theme the story wrote with its scene. Three stories
 are drawn a second time in the dark scheme: the map in a page that prefers it,
-the scene resolved in it; one story draws in a second theme (activities outlined
-3 wide with corners of 10, labels at 14); and one gives the map no theme but sets
+the scene resolved in it; one story draws in a second theme (cards outlined 3
+wide with corners of 10, names at 15, cases at 13, the frequency cue only as
+its foot); and one gives the map no theme but sets
 `--wf-paper`, `--wf-ink`, `--wf-focus` and `--wf-font` on its container (a hex
 colour and two colour names), and writes the theme `useFlowTheme` resolves there,
 which the other three renderers draw. The test checks that the scheme and
@@ -36,8 +37,10 @@ the theme reached what it compares, and for the host's variables that the theme
 holds them as literals, that the SVG export writes them (and no `var(`, `oklch(`
 or `color-mix(`) and that the DOM map paints its focus and writes its labels in
 them. For every node, edge, group and mark it compares the box,
-outline paint and width, dash, fill, radius, shadow, colour band, band rule and
-each text's string, size, weight and paint with the SVG export's, and for paths
+outline paint and width, dash, fill, radius, shadow, colour band, a card's
+frequency cue (the paint and the length, to the pixel, of its stripe and its
+foot), band rule and each text's string, size, weight and paint with the SVG
+export's, and for paths
 their line join and arrowhead, for arcs and self-loops their arrowhead and for
 a mark with a label pill the pill's box, fill, outline and radius. Every
 difference is listed in `browser/parity/expected.json` by renderer, element

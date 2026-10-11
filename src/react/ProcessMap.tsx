@@ -85,6 +85,7 @@ function ProcessMapInner(props: ProcessMapProps) {
     controls = true,
     legend = true,
     minimap = false,
+    backgroundGrid = false,
     locale = "en",
     layout: layoutOptions,
     selfLoops = true,
@@ -494,7 +495,7 @@ function ProcessMapInner(props: ProcessMapProps) {
                 disableKeyboardA11y
                 defaultEdgeOptions={{ type: "follows" }}
               >
-                <Background gap={dimensionTokens.backgroundGap} size={1} />
+                {backgroundGrid ? <Background gap={dimensionTokens.backgroundGap} size={1} /> : null}
                 <MarkDefs />
                 <Controls showInteractive={false} onZoomIn={userMove} onZoomOut={userMove} onFitView={() => void (moved.current = false)} />
                 {minimap ? <MiniMap pannable zoomable nodeStrokeWidth={strokeTokens.minimapNode} /> : null}

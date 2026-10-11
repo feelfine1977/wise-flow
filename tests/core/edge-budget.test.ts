@@ -168,8 +168,8 @@ describe("edge budget in the Canvas drawing", () => {
     // The drawn edges in list order: e1, e3 (40 each), e5 (50).
     expect(read()).toEqual(["e1", "e3", "e5"]);
     expect(stats).toMatchObject({ edges: 3, withheld: { shown: 3, total: 7 } });
-    // The labels written are the three counts.
-    expect(calls.filter((c) => c.startsWith("fillText")).map((c) => c.slice(9, -1).split(",")[0]).sort()).toEqual(["40", "40", "50", "a", "b", "c", "d"]);
+    // The labels written are the three counts and the cards' names, cases and shares (a dash for each: the graph has no cases).
+    expect(calls.filter((c) => c.startsWith("fillText")).map((c) => c.slice(9, -1).split(",")[0]).sort()).toEqual(["40", "40", "50", "a", "b", "c", "d", "· –", "· –", "· –", "· –", "–", "–", "–", "–"]);
   });
 
   it("chooses among the edges in view when the view is culled", () => {

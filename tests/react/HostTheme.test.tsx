@@ -170,15 +170,14 @@ describe("the theme of a map", () => {
     expect(vi.mocked(buildScene).mock.calls.length).toBe(built);
     expect(layouts.mock.calls.length).toBe(laid);
 
-    // The activities of the invoice stage are outlined in its colour (the third categorical colour, #CC79A7, by its key's
-    // hash), 2 wide by default and 3 wide once the host says so.
-    const outlined = (width: number) => strokes().filter((s) => s.stroke === "#CC79A7" && s.width === width).length;
-    expect([outlined(2) > 0, outlined(3)]).toEqual([true, 0]);
+    // The activities' cards are outlined in the strong line colour, 1 wide by default and 3 wide once the host says so.
+    const outlined = (width: number) => strokes().filter((s) => s.stroke === "#8c94a1" && s.width === width).length;
+    expect([outlined(1) > 0, outlined(3)]).toEqual([true, 0]);
     act(() => host.classList.add("sized"));
     await waitFor(() => expect(outlined(3)).toBeGreaterThan(0));
     expect(vi.mocked(buildScene).mock.calls.length).toBe(built + 1);
     expect(layouts.mock.calls.length).toBe(laid);
-    expect([outlined(2), label()]).toEqual([0, ["#123456"]]);
+    expect([outlined(1), label()]).toEqual([0, ["#123456"]]);
   });
 
   it("measures the texts in the font of the host's variables, and measures them again when it changes, without a layout", async () => {
@@ -192,14 +191,13 @@ describe("the theme of a map", () => {
       </div>,
     );
     const host = view.container.firstElementChild as HTMLElement;
-    // At 6 per character "Record Invoice Recei…" (126) fits before its count "318" (18) and "Record Invoice Receip…" (132) does not,
-    // so the label has 126 to 131 and "Record Goods Receipt" (120) is written in full.
+    // A card's name has 154 (180 less the padding 24 and the outline 2): at 6 per character "Record Goods Receipt" (120) fits one line.
     await waitFor(() => expect(texts()).toContain("Record Goods Receipt"));
     const built = vi.mocked(buildScene).mock.calls.length;
     const laid = layouts.mock.calls.length;
-    // At 12 per character the count "323" takes 36, 18 more, leaving 108 to 113: "Record G…" (108), not "Record Go…" (120).
+    // At 12 per character 12 fit a line: "Record Goods" (144), then "Receipt".
     act(() => host.classList.add("wide"));
-    await waitFor(() => expect(texts()).toContain("Record G…"));
+    await waitFor(() => expect(texts()).toEqual(expect.arrayContaining(["Record Goods", "Receipt"])));
     expect(texts()).not.toContain("Record Goods Receipt");
     expect(vi.mocked(buildScene).mock.calls.length).toBe(built + 1);
     expect(layouts.mock.calls.length).toBe(laid);

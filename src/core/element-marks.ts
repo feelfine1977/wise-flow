@@ -3,8 +3,8 @@
  * every renderer. Texts carry what is drawn: shortened to the width they are
  * limited to, or wrapped into lines, by the scene's text measure.
  */
-import { type ActivityLabelOptions, activityDescription, activityLabelLines } from "./activity-labels.js";
-import { type Locale, formatCompact } from "./format.js";
+import { type ActivityLabelOptions, activityDescription, activityLabel } from "./activity-labels.js";
+import { type Locale, formatCompact, formatCount, formatShare } from "./format.js";
 import { type Box, type Positions, type XY, straightRoute } from "./layout.js";
 import type { LaneBand } from "./lanes.js";
 import { type EdgeKind, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type GroupKind, type NodeKind, hasTag, metric } from "./model.js";
@@ -12,7 +12,7 @@ import { RECONNECTED_TAG } from "./aggregate.js";
 import { chipAnchor } from "./overlay-geometry.js";
 import type { MarkFill, MarkPaint, MarkText } from "./overlay-marks.js";
 import type { PatternId, Scales } from "./style.js";
-import { type TextMeasure, estimateTextWidth, truncateText } from "./text.js";
+import { type TextMeasure, estimateTextWidth, truncateText, wrapLines } from "./text.js";
 import { type Theme, defaultTheme } from "./theme.js";
 import { dashTokens, dimensionTokens } from "./tokens.js";
 
@@ -56,12 +56,25 @@ export function edgePoints(positions: Positions, edge: FlowEdge): XY[] | undefin
 /** A text of a node or an edge mark. */
 export interface ElementText extends MarkText {
   /**
-   * What the text is: the node's label, a gateway's glyph, a node's or an
-   * edge's count, or one line of an activity's name or counts.
+   * What the text is: the node's label, a gateway's glyph, an edge's count,
+   * one line of a card's name, or its number line: the cases (`countLine`)
+   * and their share of all cases (`share`).
    */
-  role: "label" | "glyph" | "count" | "nameLine" | "countLine";
+  role: "label" | "glyph" | "count" | "nameLine" | "countLine" | "share";
   /** Level-of-detail rule from which the text is drawn; drawn at every zoom without one. */
   lod?: "labels" | "edgeLabels";
+}
+
+/**
+ * The frequency cue of a card: its share of all cases as a flat stripe behind
+ * its texts and a foot along its bottom edge, each from the inner left edge
+ * (after the band) and `share` of the inner width long.
+ */
+export interface NodeCue {
+  /** The node's cases over the cases of the log (`graph.meta.cases`), from 0 to 1. */
+  share: number;
+  stripe?: { box: Box; paint: MarkPaint };
+  foot?: { box: Box; paint: MarkPaint };
 }
 
 export interface NodeMark {
@@ -80,9 +93,13 @@ export interface NodeMark {
   stroke: { paint: MarkPaint; width: number; dash?: number[] };
   /** Colour band of `band` width along the left edge, in `color` with its pattern twin. */
   band?: number;
+  /** An activity's or a stage's frequency cue, drawn under its texts; none without a share or at a share of 0. */
+  cue?: NodeCue;
   texts: ElementText[];
   /** Added back to keep the map connected; drawn dashed. */
   reconnected: boolean;
+  /** Outside the scope the host evaluates (a hatch overlay on it): its name is in the muted ink. */
+  outOfScope: boolean;
   /** Exact description for a tooltip, where the node shows a short form (activity labels). */
   title?: string;
 }
@@ -105,6 +122,10 @@ interface NodeMarkOptions {
   color: string;
   pattern: PatternId;
   locale?: Locale;
+  /** The cases of the log, which a card's share is of. */
+  total?: number;
+  /** Outside the scope the host evaluates. */
+  outOfScope?: boolean;
   /** Activity label options with references (see `activityReferences`). */
   activityLabels?: ActivityLabelOptions;
   /** The theme the mark's outline, radius and texts are resolved in. Default `defaultTheme`. */
@@ -163,18 +184,29 @@ function outline(paint: MarkPaint, width: number, dash?: readonly number[]): Nod
 // A dash means "not directly observed": only what was re-added to keep the map connected is dashed.
 const RECONNECTED_DASH = Object.freeze(dashTokens.reconnectedNode);
 
+/** A card's share of all cases: its cases over the log's; none without both or with a log of no cases. */
+export function caseShare(node: FlowNode, total: number | undefined): number | undefined {
+  const cases = metric(node, "cases", NaN);
+  return total! > 0 && cases >= 0 && cases < Infinity ? cases / total! : undefined;
+}
+
+/** Where a text's baseline lies in a line of `lineHeight`: its capitals centred in the line. */
+const baseline = (top: number, lineHeight: number, size: number) => top + (lineHeight + 0.7 * size) / 2;
+
 /** What one node looks like in its box. */
 export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): NodeMark {
-  const { stroke: strokeTokens, radius: radiusTokens, text: textTokens, space } = options.theme ?? defaultTheme;
+  const theme = options.theme ?? defaultTheme;
+  const { stroke: strokeTokens, radius: radiusTokens, text: textTokens, space } = theme;
   // Where a node's texts start and how much of its width they leave out: the stylesheet's padding of a node.
   const INSET = 8 * space.unit;
   const INSETS = INSET + 4 * space.unit;
   const locale = options.locale ?? "en";
   const measure = options.measure ?? estimateTextWidth;
   const reconnected = hasTag(node, RECONNECTED_TAG);
+  const outOfScope = options.outOfScope ?? false;
   const cx = box.x + box.width / 2;
   const cy = box.y + box.height / 2;
-  const mark = (shape: NodeMark["shape"], radius: number, stroke: NodeMark["stroke"], texts: ElementText[], fill: MarkPaint = "paper", band?: number, title?: string): NodeMark => ({
+  const mark = (shape: NodeMark["shape"], radius: number, stroke: NodeMark["stroke"], texts: ElementText[], fill: MarkPaint = "paper", band?: number, title?: string, cue?: NodeCue): NodeMark => ({
     id: node.id,
     kind: node.kind,
     node,
@@ -187,36 +219,67 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
     stroke,
     texts,
     reconnected,
+    outOfScope,
     band,
+    cue,
     title,
   });
   const dash = reconnected ? RECONNECTED_DASH : undefined;
   switch (node.kind) {
-    case "event":
-      return mark("circle", Math.min(box.width, box.height) / 2, outline("ink", hasTag(node, "end") ? strokeTokens.eventEnd : strokeTokens.eventStart, dash), [fitted(ink(node.label, cx, cy, textTokens.eventLabel.size, { role: "label", anchor: "middle", maxWidth: box.width - 4, lod: "labels" }), measure)]);
+    case "event": {
+      // The label sits below the circle, shortened to its width.
+      const label = textTokens.eventLabel;
+      const text = fitted(ink(node.label, cx, box.y + box.height + space.unit * 2 + label.size, label.size, { role: "label", anchor: "middle", baseline: "alphabetic", maxWidth: dimensionTokens.eventLabel, lod: "labels" }), measure);
+      return mark("circle", Math.min(box.width, box.height) / 2, outline("ink", hasTag(node, "end") ? strokeTokens.eventEnd : strokeTokens.eventStart, dash), [text], "paper", undefined, text.text === node.label ? undefined : node.label);
+    }
     case "gateway":
       return mark("diamond", 0, outline("ink", strokeTokens.gateway, dash), [ink(gatewayGlyph(node), cx, cy + 1, textTokens.gatewayGlyph.size, { role: "glyph", weight: textTokens.gatewayGlyph.weight, anchor: "middle" })]);
     case "note":
       return mark("box", radiusTokens.node, outline("value", strokeTokens.note), [fitted(ink(node.label, box.x + INSET, cy, textTokens.noteLabel.size, { role: "label", maxWidth: box.width - INSETS }), measure)], "surface");
     default: {
-      const stroke = outline("value", node.kind === "stage" ? strokeTokens.stage : strokeTokens.node, dash);
+      // The card: the name on up to two lines, the number line, the stage once as the band, the frequency cue.
+      const width = node.kind === "stage" ? strokeTokens.stage : strokeTokens.node;
+      const stroke = outline("lineStrong", width, dash);
       const labels = node.kind === "activity" ? options.activityLabels : undefined;
-      if (labels) {
-        const lines = activityLabelLines(node, labels, box.width, locale, measure);
-        const counts = labels.showCounts === false ? [] : lines.counts;
-        const left = (text: string, size: number, y: number, role: ElementText["role"]) => ink(text, box.x + INSET, y, size, { role, baseline: "alphabetic" });
-        const { activityName: nameText, activityNumber: numberText } = textTokens;
-        const names = lines.name.map((line, i) => left(line, nameText.size, box.y + 24 + i * nameText.lineHeight, "nameLine"));
-        return mark("box", radiusTokens.node, stroke, names.concat(counts.map((line, i) => left(line, numberText.size, box.y + 24 + lines.name.length * nameText.lineHeight + i * numberText.lineHeight, "countLine"))), "paper", dimensionTokens.band, activityDescription(node, labels, locale));
+      const name = labels ? activityLabel(node, labels) : node.label;
+      const nameText = node.kind === "stage" ? { ...textTokens.activityName, ...textTokens.stageLabel } : textTokens.activityName;
+      const { activityNumber: numberText, activityShare: shareText } = textTokens;
+      // The room the interactive map gives the texts: inside the padding and a solid outline (a dashed one is drawn over the box).
+      const room = box.width - INSETS - (dash ? 0 : 2 * width);
+      const lines = wrapLines(name, room, nameText, 2, measure);
+      const share = caseShare(node, options.total);
+      const counted = labels?.showCounts !== false;
+      // The texts as one block in the middle of the card above its foot.
+      const block = lines.length * nameText.lineHeight + (counted ? numberText.lineHeight : 0);
+      const top = box.y + width + (box.height - 2 * width - dimensionTokens.cueFoot - block) / 2;
+      const lod = labels ? undefined : ("labels" as const);
+      const x = box.x + INSET;
+      const texts = lines.map((line, i) => ink(line, x, baseline(top + i * nameText.lineHeight, nameText.lineHeight, nameText.size), nameText.size, { role: "nameLine", baseline: "alphabetic", weight: nameText.weight, paint: outOfScope ? "inkMuted" : "ink", lod }));
+      if (counted) {
+        const count = formatCount(metric(node, "cases", NaN), locale);
+        const y = baseline(top + lines.length * nameText.lineHeight, numberText.lineHeight, numberText.size);
+        texts.push(ink(count, x, y, numberText.size, { role: "countLine", baseline: "alphabetic", weight: numberText.weight, lod }));
+        texts.push(ink(`· ${share === undefined ? "–" : formatShare(share, locale)}`, x + measure(count, numberText) + 2 * space.unit, y, shareText.size, { role: "share", baseline: "alphabetic", paint: "inkMuted", lod }));
       }
-      const count = nodeCount(node, locale);
-      // The room the interactive map gives the label: inside the padding and a solid outline (a dashed one is
-      // drawn over the box), and before the count, which it writes after the label on its line.
-      const room = box.width - INSETS - (dash ? 0 : 2 * stroke.width) - (count ? measure(count, textTokens.nodeCount) + 3 * space.unit : 0);
-      const label = fitted(ink(node.label, box.x + INSET, cy, textTokens.nodeLabel.size, { role: "label", maxWidth: room, lod: "labels", weight: node.kind === "stage" ? textTokens.stageLabel.weight : undefined }), measure);
-      return mark("box", radiusTokens.node, stroke, count ? [label, ink(count, box.x + box.width - 6, box.y + box.height - 5, textTokens.nodeCount.size, { role: "count", anchor: "end", baseline: "alphabetic", paint: "inkMuted", lod: "labels" })] : [label], "paper", dimensionTokens.band);
+      // A name shortened to two lines is given whole to hover and assistive technology.
+      const cut = lines.join("").replace(/\s/gu, "") !== name.replace(/\s/gu, "");
+      const title = labels ? activityDescription(node, labels, locale) : cut ? name : undefined;
+      return mark("box", radiusTokens.node, stroke, texts, "paper", dimensionTokens.band, title, cue(box, width, share, theme));
     }
   }
+}
+
+/** The stripe and foot of a card's share inside its outline and after its band, as the theme places them. */
+function cue(box: Box, stroke: number, share: number | undefined, theme: Theme): NodeCue | undefined {
+  const place = theme.frequencyCue;
+  if (!(share! > 0) || place === "none") return undefined;
+  const { band, cueFoot } = dimensionTokens;
+  const part = (y: number, height: number, paint: MarkPaint) => ({ box: { x: box.x + band, y, width: Math.min(1, share!) * (box.width - band - stroke), height }, paint });
+  return {
+    share: share!,
+    stripe: place === "bottom" ? undefined : part(box.y + stroke, box.height - 2 * stroke, "cueStripe"),
+    foot: place === "behind" ? undefined : part(box.y + box.height - stroke - cueFoot, cueFoot, "cueFoot"),
+  };
 }
 
 const RECONNECTED_EDGE_DASH = Object.freeze(dashTokens.reconnectedPath);
@@ -249,12 +312,14 @@ function shareCounts<M extends { texts: ElementText[] }>(marks: M[]): M[] {
   return marks;
 }
 
-/** One mark per node with a box, in the graph's order. */
-export function nodeMarks(graph: FlowGraph, positions: Positions, scales: Scales, options: { locale?: Locale; activityLabels?: ActivityLabelOptions; theme?: Theme; measure?: TextMeasure } = {}): NodeMark[] {
+/** One mark per node with a box, in the graph's order; `outOfScope` holds the nodes outside the scope the host evaluates. */
+export function nodeMarks(graph: FlowGraph, positions: Positions, scales: Scales, options: { locale?: Locale; activityLabels?: ActivityLabelOptions; theme?: Theme; measure?: TextMeasure; outOfScope?: ReadonlySet<string> } = {}): NodeMark[] {
+  const cases = graph.meta?.cases;
+  const total = typeof cases === "number" ? cases : undefined;
   return shareCounts(
     graph.nodes.flatMap((n) => {
       const box = positions.nodes[n.id];
-      return box ? [nodeMark(n, box, { color: scales.nodeColor(n), pattern: scales.nodePattern(n), locale: options.locale, activityLabels: options.activityLabels, theme: options.theme, measure: options.measure })] : [];
+      return box ? [nodeMark(n, box, { color: scales.nodeColor(n), pattern: scales.nodePattern(n), locale: options.locale, activityLabels: options.activityLabels, theme: options.theme, measure: options.measure, total, outOfScope: options.outOfScope?.has(n.id) })] : [];
     }),
   );
 }
@@ -291,7 +356,7 @@ export interface GroupMark {
   band?: LaneBand;
   /** Corner radius of the box. */
   radius: number;
-  /** The group's tint: its colour at an opacity. */
+  /** The group's tint: its colour at an opacity (none for a box group in the default theme). */
   fill: MarkFill;
   /** Outline: around the whole box, or only along `sides`. */
   stroke: { paint: MarkPaint; width: number; dash?: number[]; sides?: BoxSide[] };
@@ -303,7 +368,7 @@ export interface GroupMark {
   chipAnchor: XY;
 }
 
-/** What one group looks like in its box: a tinted box with a solid outline, or a band outlined between the bands with a rule along its start. */
+/** What one group looks like in its box: a box outlined by a hairline, tinted as the theme's `groupFill` says (not by default), or a band outlined between the bands with a rule along its start. */
 export function groupMark(group: FlowGroup, box: Box, options: { color: string; pattern: PatternId; band?: LaneBand; theme?: Theme }): GroupMark {
   const { stroke, text, radius, opacity } = options.theme ?? defaultTheme;
   const band = options.band;
@@ -319,9 +384,9 @@ export function groupMark(group: FlowGroup, box: Box, options: { color: string; 
     band,
     radius: band ? 0 : radius.large,
     fill: { paint: "value", opacity: band ? (band.index % 2 ? opacity.bandOddFill : opacity.bandFill) : opacity.groupFill },
-    stroke: band ? { paint: "line", width: 1, sides: main ? ["left", "right"] : ["top", "bottom"] } : { paint: "value", width: stroke.group },
+    stroke: band ? { paint: "line", width: 1, sides: main ? ["left", "right"] : ["top", "bottom"] } : { paint: "line", width: stroke.group },
     rule: band && { paint: "value", width: stroke.band, side: main ? "top" : "left" },
-    texts: [ink(group.label, box.x + 12, box.y + 22, text.groupLabel.size, { role: "label", baseline: "alphabetic", weight: text.groupLabel.weight })],
+    texts: [ink(group.label, box.x + 12, box.y + 22, text.groupLabel.size, { role: "label", baseline: "alphabetic", weight: text.groupLabel.weight, paint: "inkMuted" })],
     chipAnchor: chipAnchor(box),
   };
 }

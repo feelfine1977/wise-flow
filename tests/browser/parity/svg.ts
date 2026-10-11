@@ -2,7 +2,7 @@
  * What the SVG export drew: its string parsed into elements, each map element
  * read from its attributes.
  */
-import { type Drawing, type Drawn, type DrawnText, bbox, dash, num, paint, pillOf } from "./drawn";
+import { type Drawing, type Drawn, type DrawnText, bbox, cue, dash, num, paint, pillOf } from "./drawn";
 
 interface El {
   tag: string;
@@ -181,8 +181,19 @@ export function readSvg(svg: string, markIds: string[]): Drawing {
       const props = { fill: fillOf(shape), ...outline(shape), join: shape.attrs["stroke-linejoin"] ?? "miter", arrow: shape.attrs["marker-end"] ? "yes" : "no" };
       out.set(`edge:${g.attrs["data-id"]}`, { box: boxOf(shape), props, texts });
     } else if (hasClass(g, "wf-node")) {
-      const band = parts.find((p, i) => i > 0 && p.tag === "rect" && !p.attrs.fill.startsWith("url("));
-      const props = { fill: fillOf(shape), radius: radiusOf(shape), shadow: shadowOf(filters, g, shape), band: band ? `${fillOf(band)} ${num(Number(band.attrs.width))}` : "none", ...outline(shape) };
+      // The band and the frequency cue's stripe and foot are rectangles of their own classes.
+      const part = (name: string) => parts.find((p) => hasClass(p, name));
+      const band = part("wf-band");
+      const [stripe, foot] = [part("wf-cue"), part("wf-cue-foot")];
+      const props = {
+        fill: fillOf(shape),
+        radius: radiusOf(shape),
+        shadow: shadowOf(filters, g, shape),
+        band: band ? `${fillOf(band)} ${num(Number(band.attrs.width))}` : "none",
+        cue: cue(stripe && fillOf(stripe), stripe && Number(stripe.attrs.width)),
+        cueFoot: cue(foot && fillOf(foot), foot && Number(foot.attrs.width)),
+        ...outline(shape),
+      };
       out.set(`node:${g.attrs["data-id"]}`, { box: boxOf(shape), props, texts });
     } else if (hasClass(g, "wf-overlay")) {
       const id = markIds[mark++];

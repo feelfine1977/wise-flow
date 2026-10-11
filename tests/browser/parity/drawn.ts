@@ -1,7 +1,7 @@
 /**
  * What a renderer drew, element by element, as values that can be compared
  * across renderers: the element's box, outline, dash, fill, radius, shadow,
- * colour band, band rule and texts. Each renderer's reader produces one
+ * colour band, frequency cue, band rule and texts. Each renderer's reader produces one
  * `Drawing`; `differences` compares one with the SVG export's and
  * `checkExpected` compares the differences with the committed list.
  */
@@ -90,6 +90,15 @@ export function paint(css: string | undefined | null, opacity = 1): string {
 export function pillOf(box: { x: number; y: number; width: number; height: number }, fill: string | undefined, stroke: { paint: string; width: number } | undefined, radius: number | string): string {
   const one = (n: number) => String(Number(Number(n.toFixed(2)).toFixed(1)));
   return [[box.x, box.y, box.width, box.height].map(one).join(","), fill ?? "none", stroke ? `${stroke.paint} ${num(stroke.width)}` : "none", `r${typeof radius === "number" ? num(radius) : radius}`].join(" ");
+}
+
+/**
+ * A part of a card's frequency cue (its stripe or its foot) as its paint and
+ * its length to the nearest pixel, `none` where it is not drawn: the
+ * renderers agree on it within a pixel.
+ */
+export function cue(color: string | undefined, length: number | undefined): string {
+  return color === undefined || length === undefined ? "none" : `${color} ${Math.round(length)}`;
 }
 
 /** A dash pattern as its lengths separated by spaces, `none` without one. */

@@ -6,7 +6,7 @@ import { type ProvisionalWork, provisionalLayout, reusePositions } from "../../s
 const activity = (id: string, group?: string): FlowNode => ({ id, kind: "activity", label: id.toUpperCase(), ...(group ? { group } : {}) });
 const edge = (source: string, target: string): FlowEdge => ({ id: `${source}->${target}`, kind: "follows", source, target });
 
-/** a → b, a → c, b → d, c → d with activities of 180 × 48. */
+/** a → b, a → c, b → d, c → d with activities of 180 × 64. */
 const diamond: FlowGraph = {
   nodes: ["a", "b", "c", "d"].map((id) => activity(id)),
   edges: [edge("a", "b"), edge("a", "c"), edge("b", "d"), edge("c", "d")],
@@ -18,27 +18,27 @@ const inside = (b: Box, outer: Box) => b.x >= outer.x && b.y >= outer.y && b.x +
 const overlaps = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 
 describe("provisional arrangement", () => {
-  // Ranks a 0, b and c 1, d 2; columns 180 wide, 64 apart; rank 1 is 48 + 28 + 48 = 124 high and the others are centred on it.
+  // Ranks a 0, b and c 1, d 2; columns 180 wide, 64 apart; rank 1 is 64 + 28 + 64 = 156 high and the others are centred on it.
   it("places nodes by longest-path rank along the flow and centres each rank", () => {
     const p = provisionalLayout(diamond);
     expect(p.engine).toBe("provisional");
     expect(p.direction).toBe("RIGHT");
-    expect(at(p, "a")).toEqual({ x: 0, y: 38 });
+    expect(at(p, "a")).toEqual({ x: 0, y: 46 });
     expect(at(p, "b")).toEqual({ x: 244, y: 0 });
-    expect(at(p, "c")).toEqual({ x: 244, y: 76 });
-    expect(at(p, "d")).toEqual({ x: 488, y: 38 });
-    expect(p.bounds).toEqual({ x: 0, y: 0, width: 668, height: 124 });
+    expect(at(p, "c")).toEqual({ x: 244, y: 92 });
+    expect(at(p, "d")).toEqual({ x: 488, y: 46 });
+    expect(p.bounds).toEqual({ x: 0, y: 0, width: 668, height: 156 });
   });
 
   it("respects the flow direction", () => {
-    // Down: rows 48 high and 64 apart, rank 1 is 180 + 28 + 180 = 388 wide.
+    // Down: rows 64 high and 64 apart, rank 1 is 180 + 28 + 180 = 388 wide.
     const down = provisionalLayout(diamond, { direction: "DOWN" });
-    expect([at(down, "a"), at(down, "b"), at(down, "c"), at(down, "d")]).toEqual([{ x: 104, y: 0 }, { x: 0, y: 112 }, { x: 208, y: 112 }, { x: 104, y: 224 }]);
-    // Left and up mirror the ranks along the flow: 668 and 272 long.
+    expect([at(down, "a"), at(down, "b"), at(down, "c"), at(down, "d")]).toEqual([{ x: 104, y: 0 }, { x: 0, y: 128 }, { x: 208, y: 128 }, { x: 104, y: 256 }]);
+    // Left and up mirror the ranks along the flow: 668 and 320 long.
     const left = provisionalLayout(diamond, { direction: "LEFT" });
-    expect([at(left, "a"), at(left, "b"), at(left, "d")]).toEqual([{ x: 488, y: 38 }, { x: 244, y: 0 }, { x: 0, y: 38 }]);
+    expect([at(left, "a"), at(left, "b"), at(left, "d")]).toEqual([{ x: 488, y: 46 }, { x: 244, y: 0 }, { x: 0, y: 46 }]);
     const up = provisionalLayout(diamond, { direction: "UP" });
-    expect([at(up, "a"), at(up, "b"), at(up, "d")]).toEqual([{ x: 104, y: 224 }, { x: 0, y: 112 }, { x: 104, y: 0 }]);
+    expect([at(up, "a"), at(up, "b"), at(up, "d")]).toEqual([{ x: 104, y: 256 }, { x: 0, y: 128 }, { x: 104, y: 0 }]);
     const along: Record<LayoutDirection, (b: Box) => number> = { RIGHT: (b) => b.x, LEFT: (b) => -b.x, DOWN: (b) => b.y, UP: (b) => -b.y };
     for (const direction of ["RIGHT", "LEFT", "DOWN", "UP"] as const) {
       const p = provisionalLayout(diamond, { direction, spacing: { node: 10, layer: 30 } });
@@ -60,26 +60,26 @@ describe("provisional arrangement", () => {
     expect([p.nodes.a.x, p.nodes.b.x, p.nodes.c.x]).toEqual([0, 244, 488]);
     // Straight routes for every edge between two boxes; none for the self-loop.
     expect(Object.keys(p.edges).sort()).toEqual(["a->b", "b->c", "c->a"]);
-    expect(p.edges["a->b"].points).toEqual([{ x: 180, y: 24 }, { x: 244, y: 24 }]);
+    expect(p.edges["a->b"].points).toEqual([{ x: 180, y: 32 }, { x: 244, y: 32 }]);
   });
 
   it("keeps stages in their order, each a box around its members", () => {
     // Start → [a → b] → [c → d] → end. The map's ranks: start, stage 1, stage 2, end. A stage holds two
-    // ranks of one activity: 180 + 64 + 180 + 40 = 464 wide, 48 + 64 = 112 high; events are 36 square.
+    // ranks of one activity: 180 + 64 + 180 + 40 = 464 wide, 64 + 44 + 20 = 128 high; events are 36 square.
     const g: FlowGraph = {
       nodes: [{ id: "start", kind: "event", label: "Start" }, activity("a", "s1"), activity("b", "s1"), activity("c", "s2"), activity("d", "s2"), { id: "end", kind: "event", label: "End" }],
       edges: [edge("start", "a"), edge("a", "b"), edge("b", "c"), edge("c", "d"), edge("d", "end"), edge("d", "a")],
       groups: [{ id: "s1", kind: "stage", label: "S1" }, { id: "s2", kind: "stage", label: "S2" }],
     };
     const p = provisionalLayout(g);
-    expect(p.groups.s1).toEqual({ x: 100, y: 0, width: 464, height: 112 });
-    expect(p.groups.s2).toEqual({ x: 628, y: 0, width: 464, height: 112 });
-    expect(at(p, "start")).toEqual({ x: 0, y: 38 });
+    expect(p.groups.s1).toEqual({ x: 100, y: 0, width: 464, height: 128 });
+    expect(p.groups.s2).toEqual({ x: 628, y: 0, width: 464, height: 128 });
+    expect(at(p, "start")).toEqual({ x: 0, y: 46 });
     expect(at(p, "a")).toEqual({ x: 120, y: 44 });
     expect(at(p, "b")).toEqual({ x: 364, y: 44 });
     expect(at(p, "c")).toEqual({ x: 648, y: 44 });
     expect(at(p, "d")).toEqual({ x: 892, y: 44 });
-    expect(at(p, "end")).toEqual({ x: 1156, y: 38 });
+    expect(at(p, "end")).toEqual({ x: 1156, y: 46 });
     // Without stage ordering a stage that only leads back is not held after the others.
     const back: FlowGraph = { ...g, edges: [edge("c", "a")] };
     expect(provisionalLayout(back).groups.s2.x).toBeGreaterThan(provisionalLayout(back).groups.s1.x);
@@ -169,7 +169,7 @@ describe("provisional arrangement", () => {
 
 describe("reused positions", () => {
   const before = createPositions(
-    { nodes: { a: { x: 0, y: 0, width: 180, height: 48 }, b: { x: 300, y: 0, width: 180, height: 48 } }, groups: {}, edges: { "a->b": { points: [{ x: 180, y: 24 }, { x: 300, y: 24 }] } } },
+    { nodes: { a: { x: 0, y: 0, width: 180, height: 64 }, b: { x: 300, y: 0, width: 180, height: 64 } }, groups: {}, edges: { "a->b": { points: [{ x: 180, y: 32 }, { x: 300, y: 32 }] } } },
     "elk",
     "RIGHT",
   );
@@ -181,31 +181,32 @@ describe("reused positions", () => {
     expect(p.nodes.a).toEqual(before.nodes.a);
     expect(p.nodes.b).toEqual(before.nodes.b);
     expect(p.edges["a->b"]).toBe(before.edges["a->b"]);
-    // The provisional arrangement of the new graph has z (0, 38), a (244, 38), b (488, 38), c (732, 0), d (732, 76).
-    // z is reached from a and keeps its offset from it (-244, 0); c and d from b (+244, -38 and +38).
+    // The provisional arrangement of the new graph has z (0, 46), a (244, 46), b (488, 46), c (732, 0), d (732, 92).
+    // z is reached from a and keeps its offset from it (-244, 0); c and d from b (+244, -46 and +46).
     expect(at(p, "z")).toEqual({ x: -244, y: 0 });
-    expect(at(p, "c")).toEqual({ x: 544, y: -38 });
-    expect(at(p, "d")).toEqual({ x: 544, y: 38 });
+    expect(at(p, "c")).toEqual({ x: 544, y: -46 });
+    expect(at(p, "d")).toEqual({ x: 544, y: 46 });
     expect(p.edges["b->c"].points).toHaveLength(2);
   });
 
   it("keeps a survivor's centre when its size changes, and places unconnected nodes by the first survivor", () => {
     const g: FlowGraph = { nodes: [activity("a"), activity("q"), activity("r")], edges: [edge("q", "r")] };
     const p = reusePositions(g, before, { nodeSize: { width: 100, height: 40 } })!;
-    expect(p.nodes.a).toEqual({ x: 40, y: 4, width: 100, height: 40 });
-    // Provisionally a (0, 0) and q (0, 68) share rank 0, r is at (164, 34); a moved by (40, 4) and so do q and r.
-    expect(at(p, "q")).toEqual({ x: 40, y: 72 });
-    expect(at(p, "r")).toEqual({ x: 204, y: 38 });
+    expect(p.nodes.a).toEqual({ x: 40, y: 12, width: 100, height: 40 });
+    // Provisionally a (0, 0) and q (0, 68) share rank 0, r is at (164, 34); a moved by (40, 12) and so do q and r.
+    expect(at(p, "q")).toEqual({ x: 40, y: 80 });
+    expect(at(p, "r")).toEqual({ x: 204, y: 46 });
   });
 
   it("encloses groups and keeps an earlier group box that still holds its members", () => {
-    const grouped = createPositions({ ...before, groups: { s: { x: -20, y: -44, width: 520, height: 112 } } }, "elk", "RIGHT");
+    const grouped = createPositions({ ...before, groups: { s: { x: -20, y: -44, width: 520, height: 128 } } }, "elk", "RIGHT");
     const g: FlowGraph = { nodes: [activity("a", "s"), activity("b", "s"), activity("c", "t")], edges: [edge("b", "c")], groups: [{ id: "s", kind: "stage", label: "S" }, { id: "t", kind: "stage", label: "T" }] };
     const p = reusePositions(g, grouped)!;
     expect(p.groups.s).toBe(grouped.groups.s);
-    // Provisionally b is at (20, 120) in stage s and c at (304, 82) in stage t: c keeps that offset from b.
-    expect(at(p, "c")).toEqual({ x: 584, y: -38 });
-    expect(p.groups.t).toEqual({ x: 564, y: -82, width: 220, height: 112 });
+    // Provisionally b is at (20, 136) in stage s (below a, 44 + 64 + 28) and c at (304, 90) in stage t, which is centred on s's
+    // 220: c keeps that offset from b.
+    expect(at(p, "c")).toEqual({ x: 584, y: -46 });
+    expect(p.groups.t).toEqual({ x: 564, y: -90, width: 220, height: 128 });
     expect(reusePositions(g, grouped, { groups: "ignore" })!.groups).toEqual({});
   });
 

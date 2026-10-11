@@ -100,8 +100,8 @@ describe("first scene", () => {
     // Listed for assistive technology at once: the activities (the list holds edges only at the keyboard position).
     expect([...container.querySelectorAll("[id^='wf-node-']")].map((e) => e.id).sort()).toEqual(["wf-node-a", "wf-node-b", "wf-node-c"]);
     expect(container.querySelector(".wf-process-map")!.getAttribute("data-layout-status")).toBe("pending");
-    // The next frame draws the labels and the straight edges from a's right side (180, 24) and b's (424, 24).
-    await waitFor(() => expect(calls).toEqual(expect.arrayContaining(["fillText A", "fillText B", "fillText C", "moveTo 180 24", "moveTo 424 24"])));
+    // The next frame draws the labels and the straight edges from a's right side (180, 32) and b's (424, 32).
+    await waitFor(() => expect(calls).toEqual(expect.arrayContaining(["fillText A", "fillText B", "fillText C", "moveTo 180 32", "moveTo 424 32"])));
   });
 
   it("is interactive while provisional", async () => {
@@ -193,14 +193,14 @@ describe("arrival of the layout", () => {
     );
     await waitFor(() => expect(held.calls).toHaveLength(1));
     expect(viewport(container)).toEqual({ x: 0, y: 0, zoom: 1 });
-    // The view's centre in its own size as React Flow measured it; the nearest of the centres a (90, 24), b (334, 24), c (578, 24).
+    // The view's centre in its own size as React Flow measured it; the nearest of the centres a (90, 32), b (334, 32), c (578, 32).
     const { width, height } = container.querySelector(".react-flow")!.getBoundingClientRect();
-    const before = { a: { x: 90, y: 24 }, b: { x: 334, y: 24 }, c: { x: 578, y: 24 } };
+    const before = { a: { x: 90, y: 32 }, b: { x: 334, y: 32 }, c: { x: 578, y: 32 } };
     const distance = (p: { x: number; y: number }) => (p.x - width / 2) ** 2 + (p.y - height / 2) ** 2;
     const anchor = (["a", "b", "c"] as const).reduce((best, id) => (distance(before[id]) < distance(before[best]) ? id : best));
     await act(async () => held.answer());
     // The layout puts a, b, c at y 1000, 1100, 1200 and x 500: the anchor's centre moves by the difference, and so does the view.
-    const after = { a: { x: 590, y: 1024 }, b: { x: 590, y: 1124 }, c: { x: 590, y: 1224 } };
+    const after = { a: { x: 590, y: 1032 }, b: { x: 590, y: 1132 }, c: { x: 590, y: 1232 } };
     expect(viewport(container)).toEqual({ x: before[anchor].x - after[anchor].x, y: before[anchor].y - after[anchor].y, zoom: 1 });
   });
 });
@@ -215,13 +215,13 @@ describe("the view when the layout arrives", () => {
       </div>,
     );
     await waitFor(() => expect(held.calls).toHaveLength(1));
-    // The provisional arrangement (668 × 48) is fitted: its centre (334, 24) is the view's centre.
+    // The provisional arrangement (668 × 64) is fitted: its centre (334, 32) is the view's centre.
     const { width, height } = container.querySelector(".react-flow")!.getBoundingClientRect();
     const centred = (v: { x: number; y: number; zoom: number }, c: { x: number; y: number }) => {
       expect(c.x * v.zoom + v.x).toBeCloseTo(width / 2);
       expect(c.y * v.zoom + v.y).toBeCloseTo(height / 2);
     };
-    await waitFor(() => centred(viewport(container), { x: 334, y: 24 }), { timeout: 2000 });
+    await waitFor(() => centred(viewport(container), { x: 334, y: 32 }), { timeout: 2000 });
     // The map fits twice (50 and 400 ms after the nodes render and again after they are measured): let those pass.
     await act(() => new Promise((resolve) => setTimeout(resolve, 1000)));
     if (zoomIn) {
@@ -236,8 +236,8 @@ describe("the view when the layout arrives", () => {
 
   it("is fitted to the layout when nobody moved it", async () => {
     const { container, before, centred } = await arrived(false);
-    // The layout spans (500, 1000) to (680, 1248): its centre (590, 1124) comes to the view's centre.
-    await waitFor(() => centred(viewport(container), { x: 590, y: 1124 }), { timeout: 2000 });
+    // The layout spans (500, 1000) to (680, 1264): its centre (590, 1132) comes to the view's centre.
+    await waitFor(() => centred(viewport(container), { x: 590, y: 1132 }), { timeout: 2000 });
     expect(viewport(container).zoom).not.toBe(before.zoom);
   });
 
@@ -246,9 +246,9 @@ describe("the view when the layout arrives", () => {
     await act(() => new Promise((resolve) => setTimeout(resolve, 500)));
     const after = viewport(container);
     expect(after.zoom).toBe(before.zoom);
-    // Zooming in keeps the centre: b (334, 24) stays the node nearest it and keeps its place on screen at (590, 1124).
+    // Zooming in keeps the centre: b (334, 32) stays the node nearest it and keeps its place on screen at (590, 1132).
     expect(590 * after.zoom + after.x).toBeCloseTo(334 * before.zoom + before.x);
-    expect(1124 * after.zoom + after.y).toBeCloseTo(24 * before.zoom + before.y);
+    expect(1132 * after.zoom + after.y).toBeCloseTo(32 * before.zoom + before.y);
   });
 
   it("keeps the zoom the user chose while the layout is still on its way", async () => {
@@ -292,9 +292,9 @@ describe("the Canvas view when the layout arrives", () => {
       expect(c.x * v.zoom + v.x).toBeCloseTo(width / 2);
       expect(c.y * v.zoom + v.y).toBeCloseTo(height / 2);
     };
-    await waitFor(() => centred({ x: 334, y: 24 }));
+    await waitFor(() => centred({ x: 334, y: 32 }));
     await act(async () => held.answer());
-    await waitFor(() => centred({ x: 590, y: 1124 }));
+    await waitFor(() => centred({ x: 590, y: 1132 }));
   });
 
   it("is fitted to the layout when the fit button was pressed after a zoom", async () => {
@@ -313,15 +313,15 @@ describe("the Canvas view when the layout arrives", () => {
       expect(c.x * v.zoom + v.x).toBeCloseTo(width / 2);
       expect(c.y * v.zoom + v.y).toBeCloseTo(height / 2);
     };
-    await waitFor(() => centred({ x: 334, y: 24 }));
+    await waitFor(() => centred({ x: 334, y: 32 }));
     const fitted = recorded.view.zoom;
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
     await waitFor(() => expect(recorded.view.zoom).toBeGreaterThan(fitted));
     fireEvent.click(screen.getByRole("button", { name: "Fit the map" }));
     await waitFor(() => expect(recorded.view.zoom).toBe(fitted));
     await act(async () => held.answer());
-    // Fitted, not kept: the layout (180 × 248) needs another zoom than the provisional arrangement (668 × 48).
-    await waitFor(() => centred({ x: 590, y: 1124 }));
+    // Fitted, not kept: the layout (180 × 264) needs another zoom than the provisional arrangement (668 × 64).
+    await waitFor(() => centred({ x: 590, y: 1132 }));
     expect(recorded.view.zoom).not.toBe(fitted);
   });
 
@@ -338,10 +338,10 @@ describe("the Canvas view when the layout arrives", () => {
     await waitFor(() => expect(held.calls).toHaveLength(1));
     await waitFor(() => expect(view).toEqual({ x: 0, y: 0, zoom: 1 }));
     const { width, height } = container.querySelector("canvas")!.getBoundingClientRect();
-    const before = { a: { x: 90, y: 24 }, b: { x: 334, y: 24 }, c: { x: 578, y: 24 } };
+    const before = { a: { x: 90, y: 32 }, b: { x: 334, y: 32 }, c: { x: 578, y: 32 } };
     const distance = (p: { x: number; y: number }) => (p.x - width / 2) ** 2 + (p.y - height / 2) ** 2;
     const anchor = (["a", "b", "c"] as const).reduce((best, id) => (distance(before[id]) < distance(before[best]) ? id : best));
-    const after = { a: { x: 590, y: 1024 }, b: { x: 590, y: 1124 }, c: { x: 590, y: 1224 } };
+    const after = { a: { x: 590, y: 1032 }, b: { x: 590, y: 1132 }, c: { x: 590, y: 1232 } };
     await act(async () => held.answer());
     await waitFor(() => expect(view).toEqual({ x: before[anchor].x - after[anchor].x, y: before[anchor].y - after[anchor].y, zoom: 1 }));
   });
@@ -357,7 +357,7 @@ describe("useStableLayout", () => {
     await waitFor(() => expect(held.calls).toHaveLength(1));
     await act(async () => held.answer());
     expect(result.current).toMatchObject({ status: "ready", provisional: false });
-    expect(result.current.positions!.nodes.a).toEqual({ x: 500, y: 1000, width: 180, height: 48 });
+    expect(result.current.positions!.nodes.a).toEqual({ x: 500, y: 1000, width: 180, height: 64 });
     expect(results.map((r) => r.positions!.engine)).toEqual(["provisional", "elk"]);
   });
 
@@ -375,7 +375,7 @@ describe("useStableLayout", () => {
     expect(interim.nodes.a).toEqual(first.nodes.a);
     expect(interim.nodes.b).toEqual(first.nodes.b);
     // Beside b along the flow: 180 + 64 to the right.
-    expect(interim.nodes.d).toEqual({ x: 500 + 180 + 64, y: 1100, width: 180, height: 48 });
+    expect(interim.nodes.d).toEqual({ x: 500 + 180 + 64, y: 1100, width: 180, height: 64 });
     await waitFor(() => expect(held.calls).toHaveLength(2));
     await act(async () => held.answer());
     expect(result.current.status).toBe("ready");

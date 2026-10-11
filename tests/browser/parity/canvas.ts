@@ -4,7 +4,7 @@
  * drawn in, in the coordinates the map is drawn in.
  */
 import { type DrawContext, type DrawOptions, type PreparedScene, type View, drawScene } from "../../../src/canvas/index";
-import { type Drawing, type Drawn, type DrawnText, bbox, dash, num, paint, pillOf } from "./drawn";
+import { type Drawing, type Drawn, type DrawnText, bbox, cue, dash, num, paint, pillOf } from "./drawn";
 
 /** A traced shape: its points (control points included), its arcs and its line segments. */
 interface Shape {
@@ -184,9 +184,17 @@ export function readOps(kind: string, ops: Op[]): Drawn | undefined {
     props.shadow = (fill ?? stroke)?.shadow ?? "none";
   }
   if (kind.startsWith("node:")) {
-    // The colour band: the first rectangle filled after the outline, in a colour.
-    const band = drawn.find((o) => o.op === "fill" && !same(o.shape, first.shape) && !o.paint.startsWith("pattern"));
+    // Rectangles filled after the outline in a colour: the colour band along the left edge, and the frequency cue after
+    // it, its stripe taller than half the outline and its foot lower.
+    const outer = shapeBox(first.shape)!;
+    const fills = drawn.filter((o) => o.op === "fill" && !same(o.shape, first.shape) && !o.paint.startsWith("pattern"));
+    const band = fills.find((o) => shapeBox(o.shape)!.x === outer.x);
+    const parts = fills.filter((o) => o !== band);
+    const stripe = parts.find((o) => shapeBox(o.shape)!.height > outer.height / 2);
+    const foot = parts.find((o) => shapeBox(o.shape)!.height <= outer.height / 2);
     props.band = band ? `${band.paint} ${num(shapeBox(band.shape)!.width)}` : "none";
+    props.cue = cue(stripe?.paint, stripe && shapeBox(stripe.shape)!.width);
+    props.cueFoot = cue(foot?.paint, foot && shapeBox(foot.shape)!.width);
   }
   // A mark drawn as a rounded box (its corners are arcs, of radius 0 too) has a radius; a path has none.
   if (kind.startsWith("mark:") && first.shape.arcs.length) props.radius = radiusOf(first.shape);

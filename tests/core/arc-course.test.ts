@@ -70,12 +70,19 @@ describe("arcs that cross no other activity", () => {
    * All four were recorded again when deviations began to be drawn in the
    * one accent, arcs at one width with their label in a pill and badges as
    * pills above their activity; the arcs keep their courses here.
+   * Recorded again when activities became cards and the sizes, radii and
+   * strokes moved onto their scales: the arcs' marks are unchanged (the rows'
+   * marks keep their digest); of the overlay kinds' other marks the tint has a
+   * radius of 8 (10), the hatch 4 (6), the self-loop is 2 wide (2.5), badges are
+   * outlined 1 wide, and badge, chip and self-loop texts are 11 px with weights
+   * of 600 (10 px, 700). In the SVG of both, activities are cards and groups
+   * solid hairlines.
    */
   const recorded = {
-    kindsMarks: "6267e490d8bd17a052c6ba79d2c9ef604e0a1368fdb10ea59757ccb7db0581f8",
-    kindsSvg: "4431509497ba710d221f2db9d76cf2eed0fa068fe9abf7f7cd3c057f58e04463",
-    rowsMarks: "55073591d99d66322f0ba2ebeeb66c33f673f02226299ae35538e84114bded51",
-    rowsSvg: "b1f94ef922240bc0601db9835e33cd5bcf38f206fb5f06c64b8b1fbf7d42d8fe",
+    kindsMarks: "e1d1e08f328d3f4ff005f1bac10de158cf4291fafe7caef5f9efec97ac96eadf",
+    kindsSvg: "b9edc5620d6d147ef99d1f33503a48a8ac3b1f19064a0ed70701cb79d7b47bfe",
+    rowsMarks: "e96c088a2c77eb0aab68e807e8d8f733d3ddc156cde9b25f66d8a4a0356fe408",
+    rowsSvg: "a2097b42ac2335f4d25790be1c0cc307be1786559c1f66dc33ee6c0a507718d6",
   };
 
   it("keep the marks they had", () => {

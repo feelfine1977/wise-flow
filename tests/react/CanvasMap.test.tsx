@@ -48,8 +48,8 @@ describe("ProcessMap with the Canvas renderer", () => {
         <ProcessMap graph={graph} positions={positions} renderer="canvas" edgeBudget="all" lod={{ badges: 0 }} controls={false} legend={false} />
       </div>,
     );
-    // The bold 10 px centred text is what the drawing routines write into a badge (a chip's bold label starts left).
-    const badges = () => recorder.frame().filter((t) => t.font.startsWith("700 10px") && t.align === "center").map((t) => t.text).sort();
+    // The semibold 11 px centred text is what the drawing routines write into a badge (a chip's semibold label starts left).
+    const badges = () => recorder.frame().filter((t) => t.font.startsWith("600 11px") && t.align === "center").map((t) => t.text).sort();
     await waitFor(() => expect(badges().length).toBeGreaterThan(0));
     expect(badges()).toEqual(expected);
   });

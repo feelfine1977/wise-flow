@@ -154,10 +154,13 @@ function drawNodes(ctx: Ctx): string {
     } else {
       out.push(rect(b, `rx="${num(m.radius)}" ${stroke}`));
     }
+    // The frequency cue lies inside the outline and under the band and the texts.
+    if (m.cue?.stripe) out.push(rect(m.cue.stripe.box, `class="wf-cue" fill="${paint(m.cue.stripe.paint)}"`));
+    if (m.cue?.foot) out.push(rect(m.cue.foot.box, `class="wf-cue-foot" fill="${paint(m.cue.foot.paint)}"`));
     if (m.band) {
       const band: Box = { x: b.x, y: b.y, width: m.band, height: b.height };
       const rx = ctx.scene.theme.radius.band;
-      out.push(rect(band, `rx="${rx}" fill="${m.color}"`));
+      out.push(rect(band, `class="wf-band" rx="${rx}" fill="${m.color}"`));
       if (m.pattern !== "solid") out.push(rect(band, `rx="${rx}" fill="url(#wf-pattern-${m.pattern})"`));
     }
     if (m.title) out.push(`<title>${esc(m.title)}</title>`);

@@ -47,7 +47,7 @@ describe("activity presentation", () => {
     expect(activityCounts({ ...missing, metrics: { cases: 0, events: 0 } }, { ...names, caseLabel: "" })).toBe("0 cases · 0 events");
   });
 
-  it("reserves wrapped names and a count row regardless of checkbox or missing reference inventory", () => {
+  it("reserves the card's two name lines and its number line regardless of checkbox, name or missing reference inventory", () => {
     for (const options of [names, ids]) {
       expect(activityNodeSize(graph.nodes[1], options)).toEqual(activityNodeSize(graph.nodes[1], { ...options, showCounts: false }));
     }
@@ -55,10 +55,13 @@ describe("activity presentation", () => {
     expect(activityNodeSize(graph.nodes[1], ids).width).toBe(140);
     const long: FlowNode = { ...graph.nodes[0], label: "Receive Order Confirmation with a long descriptive activity name" };
     const box = activityNodeSize(long, names);
+    // The room of 280 less 26 holds 35 characters at 13 px: the name takes both lines.
     const lines = activityLabelLines(long, names, box.width);
-    expect(lines.name.length).toBeGreaterThan(1);
-    expect(lines.name.join(" ")).toBe(long.label);
-    expect(box.height).toBeGreaterThanOrEqual(20 + lines.name.length * 18 + lines.counts.length * 16);
+    expect(lines.name).toEqual(["Receive Order Confirmation with a", "long descriptive activity name"]);
+    // The card's height holds two lines of 16 and the number line of 14 whatever the name, as the default activity's box does.
+    expect(box).toEqual({ width: 280, height: 64 });
+    expect(activityNodeSize(graph.nodes[1], names)).toEqual(box);
+    expect(box.height).toBe(defaultNodeSize(long).height);
     expect(activityNodeSize(graph.nodes[2], names)).toEqual(defaultNodeSize(graph.nodes[2]));
     expect(wrapActivityText("漢字漢字漢字", 28).join("")).toBe("漢字漢字漢字");
     expect(wrapActivityText("", 0)).toEqual([""]);

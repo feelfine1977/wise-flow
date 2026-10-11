@@ -124,26 +124,27 @@ describe("buildScene", () => {
     const scene = buildScene(graph, positions, { overlays: given });
     // Margin = max(140 + 24, 18 + 8, 24 + 8) = 164.
     expect(scene.geometry.margin).toBe(164);
-    const shapes = Object.fromEntries(scene.geometry.shapes.map(({ id, x, y, width, height, path, labelX, labelY, minZoom }) => [id, { x, y, width, height, path, labelX, labelY, minZoom }]));
+    const two = (n: number) => Math.round(n * 100) / 100;
+    const shapes = Object.fromEntries(scene.geometry.shapes.map(({ id, x, y, width, height, path, labelX, labelY, minZoom }) => [id, { x: two(x), y: two(y), width: two(width), height: two(height), path, labelX, labelY, minZoom }]));
     expect(shapes).toEqual({
       "tint:s2:0": { x: 190, y: -10, width: 320, height: 60, path: undefined, labelX: undefined, labelY: undefined, minZoom: 0 },
       // From the top centres (50, 0) and (450, 0); height max(40, 400 × 0.22) = 88; apex at 0.75 × −88. Without a value
       // or a glyph it has nothing to write, so no label.
       "arc:a->c:1": { x: 50, y: -66, width: 400, height: 66, path: "M50 0 C50 -88 450 -88 450 0", labelX: undefined, labelY: undefined, minZoom: defaultLod.arcs },
       // Anchored 18 left of c's top-right corner (500, 0), radius 14. The path's loop writes "↻ 50 %" (2 of its 4 cases)
-      // right of the corner, 33 wide; the repetition's "↻ 25 %" would cover it there and goes above the loop, at 482.
-      "selfLoop:c:2": { x: 480, y: -23, width: 59, height: 37, path: "M482 0 C482 -28 528 12 500 12", labelX: 506, labelY: -6, minZoom: defaultLod.selfLoops },
-      "selfLoop:c:3": { x: 480, y: -37, width: 45, height: 51, path: "M482 0 C482 -28 528 12 500 12", labelX: 482, labelY: -27, minZoom: defaultLod.selfLoops },
-      // Pills 18 tall, 2 above the box, ending at its right edge: a dot alone (5.5 + 12, at least 18 wide), "≥1 · 20 %" 61.5.
-      "badge:a:4": { x: 82, y: -20, width: 18, height: 18, path: undefined, labelX: undefined, labelY: undefined, minZoom: defaultLod.badges },
-      "badge:b:5": { x: 238.5, y: -20, width: 61.5, height: 18, path: undefined, labelX: undefined, labelY: undefined, minZoom: defaultLod.badges },
+      // right of the corner, 36.3 wide; the repetition's "↻ 25 %" would cover it there and goes above the loop, at 482.
+      "selfLoop:c:2": { x: 480, y: -23, width: 62.3, height: 37, path: "M482 0 C482 -28 528 12 500 12", labelX: 506, labelY: -6, minZoom: defaultLod.selfLoops },
+      "selfLoop:c:3": { x: 480, y: -38, width: 45, height: 52, path: "M482 0 C482 -28 528 12 500 12", labelX: 482, labelY: -27, minZoom: defaultLod.selfLoops },
+      // Pills 18 tall, 2 above the box, ending at its right edge: a dot alone (6.05 + 12, 18.05 wide), "≥1 · 20 %" 66.45.
+      "badge:a:4": { x: 81.95, y: -20, width: 18.05, height: 18, path: undefined, labelX: undefined, labelY: undefined, minZoom: defaultLod.badges },
+      "badge:b:5": { x: 233.55, y: -20, width: 66.45, height: 18, path: undefined, labelX: undefined, labelY: undefined, minZoom: defaultLod.badges },
       // Map chips start at the top-left of the margin: y = −10 − 164 + 4.
       [`chip:${MAP_TARGET}:6`]: { x: -10, y: -170, width: 60, height: 24, path: undefined, labelX: undefined, labelY: undefined, minZoom: defaultLod.chips },
     });
-    expect(scene.geometry.bounds).toEqual({ x: -10, y: -170, width: 549, height: 220 });
+    expect(scene.geometry.bounds).toEqual({ x: -10, y: -170, width: 552.3, height: 220 });
     // The map chip is listed with the legend, not drawn on the map, so the scene's bounds
-    // run from the arc's top (−66) to the positions' bottom (50) and the first self-loop's label's end (539).
-    expect(scene.bounds).toEqual({ x: -10, y: -66, width: 549, height: 116 });
+    // run from the arc's top (−66) to the positions' bottom (50) and the first self-loop's label's end (542.3).
+    expect(scene.bounds).toEqual({ x: -10, y: -66, width: 552.3, height: 116 });
     expect(buildScene(graph, positions, { selfLoops: false }).bounds).toEqual(positions.bounds);
   });
 

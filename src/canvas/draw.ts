@@ -411,13 +411,19 @@ function drawNode(ctx: DrawContext, scene: PreparedScene, n: SceneNode, tokens: 
   } else {
     roundedRect(ctx, b, m.radius);
   }
-  // Activities with their names written out keep their fill on hover.
-  ctx.fillStyle = hovered && !n.activityLines ? tokens.surface : paintOf(m, m.fill, tokens);
+  // Hover, selection and focus change the outline, never the fill.
+  ctx.fillStyle = paintOf(m, m.fill, tokens);
   ctx.fill();
-  ctx.strokeStyle = selected || focused ? tokens.focus : paintOf(m, m.stroke.paint, tokens);
+  ctx.strokeStyle = selected || focused ? tokens.focus : hovered ? tokens.ink : paintOf(m, m.stroke.paint, tokens);
   ctx.lineWidth = m.stroke.width;
   ctx.stroke();
   ctx.setLineDash([]);
+  // The frequency cue lies inside the outline and under the band and the texts.
+  for (const part of [m.cue?.stripe, m.cue?.foot]) {
+    if (!part) continue;
+    ctx.fillStyle = paintOf(m, part.paint, tokens);
+    ctx.fillRect(part.box.x, part.box.y, part.box.width, part.box.height);
+  }
   if (m.band) {
     ctx.fillStyle = m.color;
     ctx.fillRect(b.x, b.y, m.band, b.height);
@@ -457,7 +463,7 @@ function drawNode(ctx: DrawContext, scene: PreparedScene, n: SceneNode, tokens: 
 function paintOf(mark: { color: string; onColor?: string }, paint: MarkPaint, tokens: CanvasTokens, hovered = false): string {
   if (paint === "value") return hovered ? tokens.focus : mark.color;
   if (paint === "onValue") return hovered ? fixedColors.paper : (mark.onColor ?? mark.color);
-  return tokens[paint];
+  return tokens[paint]!;
 }
 
 function drawMark(ctx: DrawContext, scene: PreparedScene, m: OverlayMark, tokens: CanvasTokens, hovered: boolean, options: DrawOptions) {
@@ -514,7 +520,9 @@ const nodeId = (n: SceneNode) => n.node.id;
  * that callers (and tests) can check the culling.
  */
 export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, state: DrawState = emptyState, options: DrawOptions = {}): { nodes: number; edges: number; shapes: number; culled: boolean; withheld?: EdgeSelection } {
-  const tokens = options.tokens ?? sceneTokens(scene);
+  // Tokens a host built without the frequency cue's colours take the scene's, in its scheme.
+  const given = options.tokens;
+  const tokens = given ? { ...given, cueStripe: given.cueStripe ?? scene.colors.cueStripe, cueFoot: given.cueFoot ?? scene.colors.cueFoot } : sceneTokens(scene);
   const lodZoom = options.lodZoom ?? view.zoom;
   const lod = lodAt(lodZoom, scene.lod);
   const cull = options.cull ?? scene.size > CULL_ABOVE;

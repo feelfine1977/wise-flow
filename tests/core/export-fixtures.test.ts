@@ -92,16 +92,31 @@ const observed: Variant = {
  * labels placed apart), the legend (the path colour's ramp and values, the
  * stage swatches, the key texts and the reverse-order glyph ⇐), and the
  * figure's height where the marks' extent moved it (962 where it was 963).
+ * Recorded once more when activities became cards and the token table's
+ * sizes, weights, radii and strokes moved onto their scales. The default
+ * activity is 64 high (48), so the layout moves. Drawn on the positions of
+ * the earlier layout and compared element by element, the five variants
+ * differ only in what was named: the font stack (the system font first);
+ * activities and stages as cards on the same boxes (name, number line, a
+ * neutral outline, the band); stage groups and bands as hairlines without a
+ * tint (bands keep theirs) with a muted title; event labels below the circle;
+ * badges wholly above their activity; texts at 11, 13 and 15 px with weights
+ * of 600 at most, so chips and legend keys keep fewer characters; radii and
+ * strokes of 4, 8 and full, 1 and 2, and the label halo 2 wide; the hatch
+ * drawn with 1 px lines. Edge routes, colours, widths and labels, arc and
+ * self-loop courses, tints, hatching, the legend's rows and the figure's size
+ * are the same. Recorded together with the deviations in the one accent,
+ * since both changed the same overlay marks.
  */
 
 const before: Record<string, string> = {
-  overlays: "714cd4bee727fc6a10de72a1056d7377752881f59ed03668d437f70f6477b682",
-  stagesGerman: "b69f558447f1a90f22ae7979f3c4e086f33aa8897e27fa2a882d34742e5ba32d",
-  vendor: "ab390d05e69e126131d88cf073b9befc47a08fa8e8f15c804187d85c6a891a22",
-  unfiltered: "d480b717542bc905721efcde3aa121731f2eda6ee8b606e9fe44bee26aa4f170",
-  plain: "1938da1b5adf73a06df4a5be8b260e53fb624c1091b8954a2c8436797a2e4430",
+  overlays: "cf809a800870133ccaeef23d93bfe3429553ed54ea68a8cdc515264858a60def",
+  stagesGerman: "b9e098516fc2a3ad0b30b3b64af2286dd6c3f20ad504a6b575b9f3c58101f9dd",
+  vendor: "0b5a778a13398b05031e81274e20d9f84fcde753c0e0cfe22a6da6a4a338a87a",
+  unfiltered: "7a7cddbe2e674db92bd4d98301f008b3574cd802509d532003e69ccb80222ba4",
+  plain: "16e287bf1fa0dcff2f257effc7e0c0ba183999996cba2b8ee1d37318aa080f8b",
 };
-const beforeObserved = "d87d897df5002db564e20a17f9e7f9bdc05943157698d54bb63c7525ccb03e16";
+const beforeObserved = "a2f2affa6d2c2f0c6b2fad85330b7eec76227463baf51389eae3d764c2bfcbc7";
 
 describe("toSVG on the committed fixtures", () => {
   it("matches the recorded output once follows self-loops are hidden", () => {

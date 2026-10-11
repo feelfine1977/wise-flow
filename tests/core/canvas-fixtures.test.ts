@@ -135,14 +135,23 @@ function exported(fixture: Fixture, scene: Partial<Scene>, options: PngOptions):
  * constraint edges the accent), the dashes of notes, constraint edges and
  * groups (none), the overlay marks and the legend's rows; so only those calls
  * changed, with the pattern tiles of the twins now drawn.
+ * Recorded once more when activities became cards and the sizes, weights,
+ * radii and strokes moved onto their scales. The Canvas map draws the scene's
+ * marks, whose changes are those of the SVG export (see export-fixtures):
+ * the layout of 64 high activities, the cards, hairline groups, event labels
+ * below the circle, badges wholly above, the text and stroke scales and the
+ * system font. Its own calls change only where hover, selection and focus are
+ * drawn: a hovered node keeps its fill and is outlined in the ink, the
+ * selection ring is 2 wide, its inner edge on the element, and a selected
+ * group and a highlighted path are 2 wide.
  */
 const before = {
-  mapGlobalStages: "39987ea44bdcba0534122850e90344d0b10d8f8a01e15d61b0054abb09b2a404",
-  mapVendorIds: "f0fdc0759a44ff795910be11a7cde616f7fc044e7ce691d2d3d0d673698a3361",
-  mapUnfiltered: "bc65d2022688d6f6581523ccb035f497e1a2ef42ab2df982a35b5c435c0b5eb2",
-  pngGlobalTitle: "191f75284f4023aabc1307b4df41c7868f3384d1963c2e4b9e0b662174f33dd4",
-  pngVendorIds: "7e471d385a0bcf5aba7c4d6fba5cb938ae19c2cefa361ae9b9662e556538bcbd",
-  pngUnfilteredGerman: "e817d3e10754b79694acc0e2a22953ca15ed85523a08307f02dfd98ee58f6587",
+  mapGlobalStages: "9012b61416028aa0553df8b50ad90330ee5485cab93490c7fd06b51b865f7e06",
+  mapVendorIds: "ab603f02a764674d989396205aeeacd615b43be54687d89d850c3d3f1be82e1d",
+  mapUnfiltered: "599db51a265ab5b4e1751eb6a2e2585754b93d1128d3319d3866118ad6218263",
+  pngGlobalTitle: "e565ee6a0811652ccdd685b0cdd8ec7bd3001f356700e745b44e316274ca4ef0",
+  pngVendorIds: "a1553c432b95e4e2c0745f083de3a0c545c4df26c5ffc5441293ba986c13e253",
+  pngUnfilteredGerman: "f2f2b4cc0b8c75a8a70033986ca899f966946a3fc47552d4e3f9b68b4daf27ff",
 };
 
 /**
@@ -161,12 +170,16 @@ const before = {
  * fixture reached into its strip with their label's box; now no arc does, so
  * the strips of the global and the unfiltered fixture, which differ only in
  * their arcs, draw the same calls.
+ * Recorded once more when activities became cards (as above); the layout of
+ * 64 high activities moved the groups, so the strips of the global, the
+ * unfiltered and the vendor fixture were moved to cut every group again and
+ * to hold arcs.
  */
 const culledBefore = {
-  culledGlobal: "d7018d1ae0f47fb1de25bb9123039a53d844272ecf3b09081358c1fe8e07144a",
-  culledGlobalStages: "a7a20a53bea7dd4f9ae9811548cd9b5993e2f355737edeca3275e56b81a8de96",
-  culledVendorIds: "7432a62bf97e1e1c6ae86c164a967535b76fa4df59bf9d612604386217c00610",
-  culledUnfiltered: "d7018d1ae0f47fb1de25bb9123039a53d844272ecf3b09081358c1fe8e07144a",
+  culledGlobal: "2719c973f3455299542ccac1dba4cdc693f812660a13afce0c728ad83949acdd",
+  culledGlobalStages: "390b5250d3eb0a93f859a98aca578839f9f7bad43e05282ccb78a2e7540ecbce",
+  culledVendorIds: "ee7021e221c380b5187ea87818ddd26a8205b39e70a57a1f082d7a2beef89b10",
+  culledUnfiltered: "3f44b82a83564fa7daaf54e8e511f88c3324e3087e62b43840348b5d19351d04",
 };
 
 describe("Canvas drawing on the committed fixtures", () => {
@@ -183,10 +196,10 @@ describe("Canvas drawing on the committed fixtures", () => {
 
   it("records the pinned calls for views culled through the R-tree", () => {
     const views = {
-      culledGlobal: culled(fixtures.global, {}, { x: 0, y: 150, width: 2900, height: 330 }),
+      culledGlobal: culled(fixtures.global, {}, { x: 0, y: 200, width: 2900, height: 420 }),
       culledGlobalStages: culled(fixtures.global, { lanes: "stages" }, { x: 0, y: 300, width: 2900, height: 100 }),
-      culledVendorIds: culled(fixtures.vendor, { activityLabels: ids }, { x: 0, y: 100, width: 2500, height: 120 }),
-      culledUnfiltered: culled(fixtures.unfiltered, {}, { x: 0, y: 150, width: 2900, height: 330 }),
+      culledVendorIds: culled(fixtures.vendor, { activityLabels: ids }, { x: 0, y: 120, width: 2500, height: 130 }),
+      culledUnfiltered: culled(fixtures.unfiltered, {}, { x: 0, y: 200, width: 2900, height: 420 }),
     };
     for (const v of Object.values(views)) expect(v.drawn).toBeLessThan(v.total);
     expect(Object.fromEntries(Object.entries(views).map(([k, v]) => [k, v.digest]))).toEqual(culledBefore);
@@ -197,8 +210,8 @@ describe("Canvas drawing on the committed fixtures", () => {
       expect(drawn(fixtures.global, { lanes: "stages" }, edgeBudget)).toBe(before.mapGlobalStages);
       expect(drawn(fixtures.vendor, { activityLabels: ids }, edgeBudget)).toBe(before.mapVendorIds);
       expect(drawn(fixtures.unfiltered, {}, edgeBudget)).toBe(before.mapUnfiltered);
-      expect(culled(fixtures.global, {}, { x: 0, y: 150, width: 2900, height: 330 }, edgeBudget).digest).toBe(culledBefore.culledGlobal);
-      expect(culled(fixtures.unfiltered, {}, { x: 0, y: 150, width: 2900, height: 330 }, edgeBudget).digest).toBe(culledBefore.culledUnfiltered);
+      expect(culled(fixtures.global, {}, { x: 0, y: 200, width: 2900, height: 420 }, edgeBudget).digest).toBe(culledBefore.culledGlobal);
+      expect(culled(fixtures.unfiltered, {}, { x: 0, y: 200, width: 2900, height: 420 }, edgeBudget).digest).toBe(culledBefore.culledUnfiltered);
     }
     // A budget below the edges in view changes the calls.
     expect(drawn(fixtures.global, { lanes: "stages" }, 5)).not.toBe(before.mapGlobalStages);

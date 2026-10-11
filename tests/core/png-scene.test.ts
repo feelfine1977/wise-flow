@@ -22,7 +22,7 @@ function textRecorder() {
 }
 
 /** The bold 10 px centred text is what the drawing routines write into a badge (a chip's bold label starts left). */
-const badgeTexts = (texts: { text: string; font: string; align: CanvasTextAlign }[]) => texts.filter((t) => t.font.startsWith("700 10px") && t.align === "center").map((t) => t.text);
+const badgeTexts = (texts: { text: string; font: string; align: CanvasTextAlign }[]) => texts.filter((t) => t.font.startsWith("600 11px") && t.align === "center").map((t) => t.text);
 
 const vendor = abstract(vendorScene, { minEdgeShare: 0.02 });
 const constraints = overlaysFor(constraintItems(vendorSceneKey), { graph: vendor });
@@ -56,9 +56,9 @@ describe("toPNG reads the scene", () => {
       groups: {},
       edges: {},
     }, "dagre", "RIGHT");
-    // At zoom 1 every node label and every transition count once; at 0.21 node
-    // labels (from 0.2, not tightened to 0.23 for 70 nodes) but no counts (from 0.6).
-    const labels = ids.map((_, i) => `S${i}`);
+    // At zoom 1 every card's name and number line and every transition count once; at 0.21 the cards
+    // (from 0.2, not tightened to 0.23 for 70 nodes) but no counts (from 0.6). Without cases a card writes a dash for both numbers.
+    const labels = [...ids.map((_, i) => `S${i}`), ...ids.map(() => "–"), ...ids.map(() => "· –")];
     const all = [...labels, ...ids.slice(1).map(() => "5")].sort();
     const svgTexts = (svg: string) => [...svg.matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map((m) => m[1]).sort();
     for (const [options, expected] of [[{}, all], [{ preset: "single-column" as const }, all], [{ lodZoom: 0.21 }, [...labels].sort()]] as const) {

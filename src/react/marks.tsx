@@ -14,6 +14,9 @@ const TOKENS: Record<Exclude<MarkPaint, "value" | "onValue">, string> = {
   paper: "var(--wf-paper)",
   surface: "var(--wf-surface)",
   line: "var(--wf-line)",
+  lineStrong: "var(--wf-line-strong)",
+  cueStripe: "var(--wf-cue-stripe)",
+  cueFoot: "var(--wf-cue-foot)",
   outOfScope: "var(--wf-out-of-scope)",
 };
 

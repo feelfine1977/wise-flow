@@ -1,6 +1,6 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { memo, useContext } from "react";
-import { type ElementText, type GroupMark, type LayoutDirection, type NodeMark, type Overlay, type SvgElement, defaultNodeSize, groupMark, hasTag, nodeMark } from "../core/index.js";
+import { type ElementText, type GroupMark, type LayoutDirection, type MarkPaint, type NodeMark, type Overlay, type SvgElement, defaultNodeSize, groupMark, hasTag, nodeMark } from "../core/index.js";
 import { ElementMarks, MARK_IDS, MarkFigure, mapMark, marksAtOrigin, paintCss, svgReact } from "./marks.js";
 import { part } from "./parts.js";
 import { PatternSwatch, PatternTheme } from "./patterns.js";
@@ -112,18 +112,6 @@ function Text({ mark, role, className, hidden }: { mark: NodeMark; role: Element
   return t ? <span className={`${className}${lodClass(t)}`} style={textLook(t, mark)} {...part(role === "count" ? "node-count" : "node-label")} aria-hidden={hidden || undefined}>{t.text}</span> : null;
 }
 
-/** The lines of an activity's name or counts, written in the first line's style. */
-function Lines({ mark, role, className }: { mark: NodeMark; role: "nameLine" | "countLine"; className: string }) {
-  const lines = mark.texts.filter((t) => t.role === role);
-  return lines.length ? (
-    <span className={className} style={textLook(lines[0], mark)} {...part(role === "nameLine" ? "node-label" : "node-count")}>
-      {lines.map((t, i) => (
-        <span key={i}>{t.text}</span>
-      ))}
-    </span>
-  ) : null;
-}
-
 function Band({ mark }: { mark: NodeMark }) {
   const { ink, look } = useContext(PatternTheme);
   return mark.band ? (
@@ -133,52 +121,65 @@ function Band({ mark }: { mark: NodeMark }) {
   ) : null;
 }
 
-const Activity = memo(function Activity({ id, data, selected }: NodeProps<WfNode>) {
+/** The frequency cue where the mark places it: its stripe and its foot, inside the border. */
+function Cue({ mark }: { mark: NodeMark }) {
+  const { cue, box } = mark;
+  if (!cue) return null;
+  const border = drawnOutline(mark) ? 0 : mark.stroke.width;
+  const at = (b: { x: number; y: number; width: number; height: number }, paint: MarkPaint) => ({ left: px(b.x - box.x - border), top: px(b.y - box.y - border), width: px(b.width), height: px(b.height), background: paintCss(mark, paint) });
+  return (
+    <>
+      {cue.stripe ? <span className="wf-node__cue" style={at(cue.stripe.box, cue.stripe.paint)} {...part("node-cue")} aria-hidden="true" /> : null}
+      {cue.foot ? <span className="wf-node__cue wf-node__cue-foot" style={at(cue.foot.box, cue.foot.paint)} {...part("node-cue-foot")} aria-hidden="true" /> : null}
+    </>
+  );
+}
+
+/** A text of the card in its own style. */
+const Run = ({ t, mark, className, children }: { t: ElementText; mark: NodeMark; className?: string; children?: string }) => (
+  <span className={className} style={textLook(t, mark)}>
+    {children ?? t.text}
+  </span>
+);
+
+/**
+ * An activity or a stage as its card: the name on up to two lines and the
+ * number line (the cases, then their share), over the frequency cue, with the
+ * stage once as the band. The card has the size of its box in the scene.
+ */
+const Card = memo(function Card({ id, data, selected }: NodeProps<WfNode>) {
   const mark = markOf(data);
-  const lines = mark.texts.some((t) => t.role === "nameLine");
-  const count = mark.texts.find((t) => t.role === "count");
+  const names = mark.texts.filter((t) => t.role === "nameLine");
+  const count = mark.texts.find((t) => t.role === "countLine");
+  const share = mark.texts.find((t) => t.role === "share");
   return (
     <div
       id={`wf-node-${id}`}
-      {...attrs(mark, data, selected, lines ? " wf-node--activity-labels" : "")}
-      style={{ ...covered(mark, data), ...(lines ? { width: data.labelWidth, height: data.labelHeight } : {}) }}
-      title={lines ? undefined : data.description}
+      {...attrs(mark, data, selected, ` wf-node--card${data.activityLabels ? " wf-node--activity-labels" : ""}`)}
+      style={{ ...covered(mark, data), width: px(mark.box.width), height: px(mark.box.height) }}
+      // With activity labels the map shows its own tooltip, so the card has no native one.
+      title={data.activityLabels ? undefined : (mark.title ?? data.description)}
       data-kind={mark.kind}
     >
       {handles(data.direction)}
       <NodeOutline mark={mark} />
+      <Cue mark={mark} />
       <Band mark={mark} />
-      {lines ? (
-        <span className="wf-activity-copy">
-          <Lines mark={mark} role="nameLine" className="wf-activity-name" />
-          <Lines mark={mark} role="countLine" className="wf-activity-counts" />
-        </span>
-      ) : (
-        <>
-          <Text mark={mark} role="label" className="wf-node__label" />
-          {count ? <span className={`wf-node__meta${lodClass(count)}`} style={textLook(count, mark)} {...part("node-count")}>{data.meta ?? count.text}</span> : null}
-        </>
-      )}
-      {carried(data)}
-    </div>
-  );
-});
-
-const Stage = memo(function Stage({ id, data, selected }: NodeProps<WfNode>) {
-  const mark = markOf(data);
-  return (
-    <div
-      id={`wf-node-${id}`}
-      {...attrs(mark, data, selected)}
-      style={covered(mark, data)}
-      title={data.description}
-      data-kind="stage"
-    >
-      {handles(data.direction)}
-      <NodeOutline mark={mark} />
-      <Band mark={mark} />
-      <Text mark={mark} role="label" className="wf-node__label" />
-      <Text mark={mark} role="count" className="wf-node__meta" />
+      <span className={`wf-activity-copy${names[0] ? lodClass(names[0]) : ""}`}>
+        {names.length ? (
+          <span className="wf-activity-name" style={textLook(names[0], mark)} {...part("node-label")}>
+            {names.map((t, i) => (
+              <span key={i}>{t.text}</span>
+            ))}
+          </span>
+        ) : null}
+        {count ? (
+          <span className="wf-activity-counts" {...part("node-count")}>
+            <Run t={count} mark={mark}>{data.meta ?? count.text}</Run>
+            {share ? <Run t={share} mark={mark} className="wf-activity-share" /> : null}
+          </span>
+        ) : null}
+      </span>
       {carried(data)}
     </div>
   );
@@ -268,8 +269,8 @@ const Group = memo(function Group({ id, data, selected, width, height }: NodePro
 });
 
 export const nodeTypes = {
-  activity: Activity,
-  stage: Stage,
+  activity: Card,
+  stage: Card,
   gateway: Gateway,
   event: EventNode,
   note: Note,

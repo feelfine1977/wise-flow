@@ -79,6 +79,10 @@ test("the DOM map, the Canvas map, the SVG export and the PNG export draw the co
     const activity = scene.nodeMarks.find((m) => m.kind === "activity") ?? scene.nodeMarks.find((m) => m.fill === "paper")!;
     expect(svg.get(`node:${activity.id}`)!.props.fill, `${name}: the scheme's paper`).toBe(name === "hostVariables" ? "#fdf6e3" : scheme === "dark" ? "#16181d" : "#ffffff");
     if (name === "secondTheme") expect([svg, dom].map((d) => d.get(`node:${activity.id}`)!.props.outlineWidth), `${name}: the theme's outline`).toEqual(["3", "3"]);
+    // The frequency cue reached what was compared: all 1,000 cases of the small P2P on its first activity, the inner width
+    // 180 − 8 − 1 long; the second theme draws only the foot, inside its outline of 3.
+    if (name === "small") expect([svg, dom].map((d) => [d.get("node:create_po")!.props.cue, d.get("node:create_po")!.props.cueFoot]), `${name}: the cue`).toEqual([["#e6e8ec 171", "#5f6672 171"], ["#e6e8ec 171", "#5f6672 171"]]);
+    if (name === "secondTheme") expect([svg, dom].map((d) => [d.get("node:create_po")!.props.cue, d.get("node:create_po")!.props.cueFoot]), `${name}: the cue's place`).toEqual([["none", "#5f6672 169"], ["none", "#5f6672 169"]]);
     if (name === "hostVariables") await hostVariablesReached(page, theme!, toSVG(given, look), dom.get(`node:${activity.id}`)!.props);
     // The measure reached what was compared: it wraps the activity names into more lines than the estimate.
     const lines = (s: typeof scene) => s.nodeMarks.flatMap((m) => m.texts.filter((t) => t.role === "nameLine")).length;
@@ -111,7 +115,7 @@ async function hostVariablesReached(page: import("@playwright/test").Page, theme
     probe.style.color = "var(--wf-focus)";
     const focus = getComputedStyle(probe).color;
     probe.remove();
-    return { focus, font: getComputedStyle(document.querySelector(".wf-node__label")!).fontFamily };
+    return { focus, font: getComputedStyle(document.querySelector('[data-wf-part="node-label"]')!).fontFamily };
   });
   expect([paint(drawn.focus), drawn.font], "hostVariables: the DOM map's focus and font").toEqual(["#663399", "Georgia, serif"]);
 }
@@ -142,7 +146,7 @@ test("the live Canvas map draws a host's CSS variables as the DOM map does", asy
     // The outline is an SVG shape where a border cannot draw it, otherwise the node's border.
     const shape = node.querySelector(":scope > .wf-node__outline > *");
     const box = getComputedStyle(shape ?? node);
-    const text = getComputedStyle(node.querySelector(".wf-node__label")!);
+    const text = getComputedStyle(node.querySelector('[data-wf-part="node-label"] > span')!);
     return { paper: shape ? box.fill : box.backgroundColor, focus: shape ? box.stroke : box.borderTopColor, ink: text.color, font: text.fontFamily };
   });
   const canvas = await page.evaluate((text) => {

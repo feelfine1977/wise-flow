@@ -123,7 +123,9 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
   const lod = options.lodBySize ? lodForSize(graph.nodes.length, rules) : { ...defaultLod, ...rules };
   const geometry = placeOverlays(overlays, positions, { locale, ...(options.overlayGeometry ?? {}), lod }, groupTitles(graph.groups ?? [], positions), measure, theme.text);
   const scales = buildScales(graph, style, marked);
-  const nodes = nodeMarks(graph, positions, scales, { locale, activityLabels, theme: marked, measure });
+  // Elements a hatch covers are outside the scope the host evaluates; the state resolves here and reaches every renderer.
+  const outOfScope = new Set(overlays.filter((o) => o.kind === "hatch").map((o) => o.target));
+  const nodes = nodeMarks(graph, positions, scales, { locale, activityLabels, theme: marked, measure, outOfScope });
   const edges = edgeMarks(graph, positions, scales, locale, marked);
   const groups = groupMarks(graph, positions, laid.bands, scales, marked);
   // A self-loop that stands for a path takes the path's colour; a tint follows the corners of what it covers.

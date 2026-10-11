@@ -167,7 +167,7 @@ describe("arcs, their labels and dashes", () => {
       for (const [name, scene] of scenes({ scheme })) {
         for (const m of scene.marks.filter((x) => x.kind === "arc")) {
           arcs++;
-          expect(m.stroke, `${name}: ${m.id}`).toEqual({ paint: "value", width: 1.5, opacity: 0.9 });
+          expect(m.stroke, `${name}: ${m.id}`).toEqual({ paint: "value", width: 1, opacity: 0.9 });
           const label = m.texts.map((t) => t.text).join(" ");
           // The fixture's arcs carry the cases they were evaluated on; the overlay kinds' arcs have none.
           if (name !== "kinds") expect(label, `${name}: ${m.id}`).toMatch(/^(late|order|⇐) \d+(\.\d)? % of [\d,]+$/);
@@ -175,7 +175,7 @@ describe("arcs, their labels and dashes", () => {
             reverse++;
             expect(label.startsWith("⇐ "), `${name}: ${m.id} ${label}`).toBe(true);
           }
-          expect(m.pill, `${name}: ${m.id}`).toMatchObject({ fill: { paint: "paper" }, stroke: { paint: "value", width: 1.5 } });
+          expect(m.pill, `${name}: ${m.id}`).toMatchObject({ fill: { paint: "paper" }, stroke: { paint: "value", width: 1 } });
         }
         const dashed = [
           ...scene.nodeMarks.filter((m) => m.stroke.dash).map((m) => [m.id, m.reconnected] as const),

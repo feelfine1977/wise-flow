@@ -340,40 +340,40 @@ eight.
 ## Design tokens
 
 ```ts
-export const colorTokens: { paper; surface; ink; inkMuted; inkStrong; line; lineStrong; focus; onFocus; selection; hover; neutral; outOfScope;
-  accent; severity; mechanism; reservoir; pass; warn; fail };      // the light scheme; accent: deviations
+export const colorTokens: { paper; surface; ink; inkMuted; inkStrong; line; lineStrong; cueStripe; cueFoot; focus; onFocus; selection; hover;
+  neutral; outOfScope; accent; severity; mechanism; reservoir; pass; warn; fail };   // the light scheme; accent: deviations
 export const darkColorTokens: Partial<Record<ColorToken, string>>; // what the dark scheme changes
 export const paletteTokens: { neutral; sequential; sequentialBlue; diverging; categorical };  // `palettes` is this object
-export const fontTokens: { family; mono };                         // "Inter, 'Segoe UI', Helvetica, Arial, sans-serif"
-export const nodeSizeTokens: Record<NodeKind, { width; height }>;  // `DEFAULT_SIZES` is this object
-export const sizeTokens: { radius: 6; radiusLarge: 10; band: 8; shadow; shadowMenu };   // radius and band read the role tables below
-export const textSizeTokens: { label: 12; glyph: 14; small: 9; note: 11; edgeCount: 10; nameLine: 14; countLine: 12 };  // sizes of roles of textTokens
-export const textTokens: { nodeLabel; stageLabel; nodeCount; eventLabel; gatewayGlyph; noteLabel; activityName; activityNumber;
+export const fontTokens: { family; mono };                         // "system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+export const nodeSizeTokens: Record<NodeKind, { width; height }>;  // `DEFAULT_SIZES` is this object; activity 180 × 64, stage 200 × 64
+export const sizeTokens: { radius: 4; radiusLarge: 8; band: 8; shadow; shadowMenu };   // radius and band read the role tables below
+export const textSizeTokens: { label: 13; glyph: 15; small: 11; note: 11; edgeCount: 11; nameLine: 13; countLine: 11 };  // sizes of roles of textTokens
+export const textTokens: { nodeLabel; stageLabel; nodeCount; eventLabel; gatewayGlyph; noteLabel; activityName; activityNumber; activityShare;
   pathLabel; groupLabel; badge; badgeValue; chip; chipLead; arcLabel; selfLoopLabel; attribution; legendTitle; legendItem;
   legendValue; legendKey; legendChip; figureTitle; figureText; panel; panelHeading; panelTitle; panelNote; panelLabel; panelKey;
   panelSymbol; panelPlain; tooltip; activityTooltip; timelineAxis; timelineLabel; timelineNote; timelineMark; comparisonValue;
   comparisonNote; comparisonDenominator; comparisonTab; comparisonCaption; comparisonRowHeader };  // each { size?; weight?; lineHeight? }
-export const radiusTokens: { node: 6; large: 10; band; swatch; control; tooltip; key; pill; circle: "50%"; filterChip; legendGradient;
+export const radiusTokens: { node: 4; large: 8; band; swatch; control; tooltip; key; pill; circle: "50%"; filterChip; legendGradient;
   activityTooltip; comparisonBar; tint; hatch; chip; canvasSelection; timelineEvent; timelineViolation };
 export const strokeTokens: { node; stage; eventStart; eventEnd; gateway; note; focus; selection; canvasSelection; group;
   canvasGroupSelected; band; halo; path; pathMin; pathMax; canvasPathHighlight; pathFocus; pathHit; arc; arcCoverage; pill;
   selfLoop; badge; chip; filterChip; legendGradient; tab; timelineSpan; timelineViolation; minimapNode };   // arcCoverage is read by nothing
 export const dashTokens: { reconnectedNode; reconnectedPath; note; constraint; group; reverseArc; timelineAnchor; bpmnOutOfScope };  // readonly number arrays; note, constraint, group and reverseArc are read by nothing
 export const opacityTokens: { dimmed; dimmedPath; disabled; tint; hatch; arc; groupFill; bandFill; bandOddFill; groupStroke; legendRule; timelineGrid };
-export const spaceTokens: { unit: 2; steps: readonly [1, 1.5, 2, 3, 4, 5, 6, 7, 8] };
+export const spaceTokens: { unit: 2; steps: readonly [1, 1.5, 2, 3, 4, 5, 6, 8] };
 export const zTokens: { pathHovered; activityLabels; comparisonRowHeader; comparisonHeader; comparisonCorner; overlayPanel; bpmnTable;
   bpmnPanel; sideList; tooltip; canvasTooltip; bpmnNavigation; menu; activityTooltip; marksAbove };
 export const dimensionTokens: { band: 8; mapMinHeight; viewMapMinHeight; handle; panelMaxWidth; controlLabel; controlOutput;
   legendSwatchWidth; legendSwatchHeight; legendSample; legendSampleExport; legendGlyph; legendGradient; searchMinWidth; tableSwatch;
   tooltipMaxWidth; canvasTooltipMaxWidth; activityTooltipMaxWidth; bpmnTableTop; watermarkClearance; sideList; menuMinWidth;
-  menuMaxWidth; filterChipMinHeight; zoomButtonWidth; zoomButtonHeight; backgroundGap };
+  menuMaxWidth; filterChipMinHeight; zoomButtonWidth; zoomButtonHeight; backgroundGap; cueFoot: 3; eventLabel: 96 };
 export interface Arrowhead { size; box; length; width; overhang; outline }
 export const arrowheadTokens: { edge: Arrowhead; overlay: Arrowhead };
 export function arrowheadExtent(a: Arrowhead): { length; half; tip; outline };  // in user units
 export type PatternId; export const PATTERNS: PatternId[];          // also exported from the style module, as before
 export const patternTokens: { size: 6; strokeWidth: 1; strokeOpacity: 0.6; dotRadius: 1; dotOpacity: 0.7 };
 export function patternTwin(p: PatternId): { size; lines: [x1, y1, x2, y2][]; dots: [cx, cy][] };
-export const hatchTokens: { size: 8; width: 2; domPeriod: 7 };
+export const hatchTokens: { size: 8; width: 1; domPeriod: 7 };
 export const designTokens: { color; darkColor; palette; darkPalette; font; nodeSize; size; textSize; text; radius; stroke; dash; opacity; space; z;
   dimension; arrowhead; pattern; hatch; minimum; print };   // darkPalette: the palettes the dark scheme changes (the path ramp)
 export const themedColors: readonly ColorToken[];                  // the colours with a CSS variable
@@ -411,10 +411,21 @@ as `--wf-text-activity-name`), `--wf-radius-<role>`, `--wf-stroke-<role>`,
 `--wf-space-<step>` (`--wf-space-1` is 2px, `--wf-space-1-5` 3px, up to
 `--wf-space-8`, 16px) and `--wf-shadow-menu`. The marks, the Canvas drawing,
 the SVG and PNG exports and the React components read the table for the same
-roles. Where the renderers draw a role differently today, the table names both
+roles. Where the renderers draw a role differently, the table names both
 values (`legendSample` and `legendSampleExport`, `selection` and
-`canvasSelection`, …); every value is the one drawn before the table had it,
-so nothing drawn changed.
+`canvasSelection`, …).
+
+The table's sizes are on scales: text 11, 13 and 15 px with weights 400, 500
+and 600; radii 4, 8 and full (`pill`, which a mark resolves to half its
+height, and `circle`); strokes 1 and 2. The widths that encode or catch rather
+than draw a stroke of the scale are apart: `pathMin` to `pathMax`, the range of
+a path's width, `arcCoverage` and `pathHit`. A test fails on any other value.
+The default font stack starts with the system font. `nodeLabel` and
+`nodeCount` are no longer read: an activity's or a stage's card writes its
+name in `activityName` (a stage's in `stageLabel`), its cases in
+`activityNumber` and their share in `activityShare` (see "The activity
+card"); the two stay in the table, deprecated, so that themes which set them
+keep type-checking.
 
 The arrowhead rule is the live map's: an edge ends in a closed triangle 3
 long and 4.8 wide, outlined by 0.6 in its colour, its tip on the route's
@@ -443,11 +454,13 @@ export interface Theme {
   stroke: { [role in keyof typeof strokeTokens]: number };
   opacity: { [role in keyof typeof opacityTokens]: number };   // the tints are tint, groupFill, bandFill, bandOddFill
   space: { unit: number; steps: readonly number[] };
+  frequencyCue: FrequencyCue;                             // where a card shows its share of all cases; default "both"
   density: "comfortable" | "compact";                     // the renderers draw comfortable whatever it says
   minimum: { text: number; stroke: number };              // pt at the layout's own size (1 layout unit = 0.75 pt)
   rules: readonly never[];                                // none yet
 }
-export const defaultTheme: Theme;                          // the token table: today's look
+export type FrequencyCue = "both" | "behind" | "bottom" | "none";   // the stripe behind the texts, the foot along the bottom edge
+export const defaultTheme: Theme;                          // the token table: the default look
 export const printTheme: Theme;                            // defaultTheme with printTokens over it; no dark scheme
 export const themePresets: Readonly<Record<ThemePreset, Theme>>;
 export type ThemePreset = "default" | "print";
@@ -477,7 +490,7 @@ draws as before. `toSVG`, `toPNG` and `prepareScene` take `theme` and
 
 **Presets and settings.** A host sets a theme as a preset's name (`"default"`,
 `"print"`) or as changes over a preset: `{ preset: "default", radius: { node:
-4 }, text: { nodeLabel: { size: 13 } } }` changes those entries and keeps the
+8 }, text: { activityName: { size: 15 } } }` changes those entries and keeps the
 rest of the preset (`default` unless named); a list, such as a palette,
 replaces the preset's. Radii are named by element (`node`, `large`, …), as in
 `radiusTokens`. `density` is held in the theme, but every renderer draws
@@ -491,7 +504,7 @@ preset's colour stays), so every paint of an export is a literal.
 colours (`#rgb`, `#rrggbb`), from which values are interpolated; a palette
 with another stop is left out (the preset's palette stays).
 
-**`default`** is today's look, in a light and a dark scheme, each with its own
+**`default`** is the default look, in a light and a dark scheme, each with its own
 path ramp (`palette.neutral`, and `darkPalette.neutral` for the dark scheme)
 and its own accent (`color.accent`, `dark.accent`). **`print`** is
 for figures: white paper and surfaces, no tints (`opacity.tint`, `groupFill`,
@@ -500,8 +513,8 @@ for figures: white paper and surfaces, no tints (`opacity.tint`, `groupFill`,
 whose palest stop has 3 : 1 on the paper (`palette.neutral` three greys,
 `shortfall` three oranges, `performance` three blues), no text or stroke in
 its tables under 7 pt and 0.75 pt at the layout's own size (`minimum`; the
-default's 9 px counts and labels and 9.5 px legend keys are 10 px, the legend
-ramp's outline 1 px), and no dark scheme: it draws the same in both. The
+default's smallest text is 11 px and its thinnest stroke 1 px, so print keeps
+every size), and no dark scheme: it draws the same in both. The
 minimum is checked on the tables, at a scale of 1: an export given a narrower
 `width` or `preset` scales the whole figure, text included. Its legend sits beside
 the plot, as in every export. The values are the token table's `printTokens`.
@@ -515,17 +528,19 @@ the theme `useFlowTheme` resolves for its container.
 **`checkTheme(theme)`** returns what falls short, as data, in both schemes:
 text against its ground under 4.5 : 1 (`ink` and `inkMuted` on `paper` and on
 `surface`, `onFocus` on `focus`, `accent` on `paper`, where deviations write
-their labels), a line against the paper under 3 : 1
+their labels, `inkMuted` on `cueStripe`) and ink on the frequency cue's
+stripe under 7 : 1 (`ink` on `cueStripe`), a line against the paper under 3 : 1
 (`lineStrong`, `neutral`, `focus`, `accent`; `line` draws hairlines and tracks whose
-meaning a label or a neighbour carries too, and is not checked), the path
+meaning a label or a neighbour carries too, and is not checked) and the cue's
+foot under 4.5 : 1 (`cueFoot` on `paper`), the path
 ramp of each scheme (`palette.neutral`, in the dark scheme with `darkPalette`
 over it) not rising in contrast against the paper from stop to stop
 (`rampOrder`, with its scheme) or its low end under 3 : 1 against the paper,
 a text size or stroke width of the tables under the
 theme's `minimum` (in pt, one layout unit being 0.75 pt), and a colour that
 is not a literal. Both presets pass in both schemes; the default's `minimum`
-is the smallest it draws today (6 pt: the trace timeline's 8 px marks;
-0.375 pt: the legend ramp's 0.5 px outline). The React components log what
+is the smallest of its scales (8.25 pt: text at 11 px; 0.75 pt: strokes of
+1 px). The React components log what
 it finds once per theme in development (`process.env.NODE_ENV` other than
 `production`), and decide nothing from it. A translucent colour is measured
 as it is drawn: mixed with its ground, and the ground with white.
@@ -538,6 +553,63 @@ is 3.18, on `#0072B2`). Each ramp a path is coloured with (`neutral`,
 from the next, from 3 : 1 against the paper, so the palest path shows and no
 two classes fall together. A test checks these on the preset and on the path
 strokes of a print export, paths short by 0 to 100 % and one without a value.
+
+## The activity card
+
+Every renderer draws an activity, and a stage node (a collapsed stage), as
+one card that the scene resolves (`NodeMark`):
+
+- a box of the theme's `radius.node` (4) on the paper, outlined 1 wide
+  (`stroke.node`, a stage's `stroke.stage`) in the neutral `lineStrong`, with
+  no shadow; a re-added card is dashed;
+- the stage once, as the patterned band along the left edge (`band`, 8 wide,
+  in the stage's colour with its pattern twin); neither the outline nor the
+  fill takes the stage's colour;
+- the name on up to two lines (`nameLine`, `activityName`: 13 px, 500; a
+  stage's name in `stageLabel`, 600), wrapped by the scene's text measure;
+  a longer name ends its second line in an ellipsis, and the mark's `title`
+  holds the whole name, which the SVG export writes as `<title>` and the
+  interactive map as the card's `title` (its `aria-label` names it too);
+- the number line: the cases in full grouped digits, in the ink and
+  semibold (`countLine`, `activityNumber`: "1,000", German "1.000"), then
+  their share of all cases of the log, muted (`share`, `activityShare`:
+  "· 100 %"). The share is the node's `cases` over `graph.meta.cases`; a
+  missing value is "–". `activityLabels.showCounts: false` leaves the number
+  line out without changing the card's size;
+- the frequency cue (`cue`): a flat stripe behind the texts and a foot 3 high
+  along the bottom edge, both from the inner left edge (after the band) and
+  as long as the share times the inner width (the box less the band and the
+  outline on the right). The stripe is `cueStripe`, on which the ink keeps
+  7 : 1, the foot `cueFoot`, 4.5 : 1 on the paper. `Theme.frequencyCue` places
+  it: `"both"` (default), `"behind"` (the stripe), `"bottom"` (the foot) or
+  `"none"`. A card with a share of 0, or without one (no cases, or no
+  `meta.cases`), shows neither.
+
+The texts lie as one block in the middle of the card above the foot. A card
+outside the scope (a `hatch` overlay on it; `NodeMark.outOfScope`) keeps its
+solid outline, is hatched with 1 px lines and writes its name in the muted
+ink. Hover, selection and focus change the outline (hovered in the ink,
+selected in the focus colour with its ring, focused with the focus outline),
+never the fill. Badges sit wholly above the card, 2 clear of its top edge.
+
+The layout reserves the card's size once: the default activity is 180 × 64
+and the default stage node 200 × 64 (`nodeSizeTokens`), and with
+`activityLabels` `activityNodeSize` gives 280 × 64 for names and 140 × 64 for
+references, whatever the name and whether the number line is shown. The
+interactive map sizes the card to its box in the scene, so the layout's box
+is the box every renderer draws.
+
+A stage node's card shows its cases and their share; how many activities it
+holds ("4 activities") is in its description (`describeNode`), which is its
+accessible name and its hover title.
+
+Stage groups are outlined by a solid hairline (`line`, 1 wide) without a
+tint (`opacity.groupFill` 0; a theme that sets it tints them again), their
+title in the muted ink. Start and end events keep their circles (outlined 1
+and 2 wide); their label sits 4 below the circle, shortened to 96
+(`dimensionTokens.eventLabel`) with the whole label as `title`. The
+interactive map draws no grid of dots behind the map unless
+`backgroundGrid` is set.
 
 ## Overlays
 
@@ -584,7 +656,7 @@ box of a node other than its ends, the arc takes the course that crosses the few
 side, then on the other, each from the nearest height in steps of 14 (the
 further one first when two are equally near, up to 32 steps), within the
 margin. A tie keeps the earlier course. Every arc is solid and one width
-(`stroke.arc`, 1.5); its coverage is not drawn. A reverse-order arc runs
+(`stroke.arc`, 1); its coverage is not drawn. A reverse-order arc runs
 below the flow and its label starts with ⇐. The labels are placed after the
 badges and the chips: a self-loop's label right of its corner, or above the
 loop, or left of it, each a step higher where that is taken; an arc's label
@@ -697,6 +769,7 @@ export function ProcessMap(props: {
   textMeasure?: TextMeasure;   // what labels are shortened, names wrapped and boxes sized by; default the browser's (canvasTextMeasure)
   abstraction?: AbstractOptions; defaultAbstraction?: AbstractOptions; onAbstractionChange?: (o: AbstractOptions) => void;
   controls?: boolean; legend?: boolean; minimap?: boolean; renderer?: "auto" | "svg" | "canvas"; canvasThreshold?: number;
+  backgroundGrid?: boolean;   // a grid of dots behind the interactive map; default false
   selection?: Selection; onSelect?: (s: Selection) => void; onHover?: (id: string | null) => void;
   lod?: Partial<LodRules>; locale?: Locale; layout?: LayoutOptions; selfLoops?: boolean;
   view?: "map" | "table"; onViewChange?: (v: "map" | "table") => void;
@@ -1402,7 +1475,8 @@ export class CanvasRenderer { constructor(canvas: HTMLCanvasElement, o?: { token
   toFlow(x, y); toScreen(x, y); screenBox(id); hitAt(x, y, tolerancePx?): HitItem | undefined; requestDraw(); draw(); dispose();
   onViewportChange?: (v: Viewport) => void; lastDraw?: { nodes; edges; shapes; culled; withheld?; ms };
   onDraw?: (stats: { nodes; edges; shapes; culled; withheld?; ms }) => void }   // called after every draw
-export interface CanvasTokens { font; paper; surface; ink; inkMuted; line; lineStrong; focus; selection; neutral; outOfScope }
+export interface CanvasTokens { font; paper; surface; ink; inkMuted; line; lineStrong; cueStripe?; cueFoot?; focus; selection; neutral; outOfScope }
+// cueStripe and cueFoot: the frequency cue's colours; drawScene takes the scene's, in its scheme, where tokens a host builds leave them out
 export const defaultTokens: CanvasTokens;   // from the token table (`colorTokens`, `fontTokens`); without `tokens` a draw takes the scene's colours and font
 export function readTokens(element: Element | null | undefined, overrides?: Partial<CanvasTokens>): CanvasTokens;   // from the CSS variables (`cssVariable(key)`), as they are; <CanvasMap/> reads them with useFlowTheme instead
 export interface PngOptions { preset?: FigurePreset; width?; scale?; background?; legend?; padding?; lodZoom?; tokens?; createCanvas?; context?;
@@ -1522,11 +1596,11 @@ const activityLabels = {
 const nodeSize = (node: FlowNode) => activityNodeSize(node, activityLabels);
 ```
 
-Use `nodeSize` when providing precomputed positions, with the map's text measure as a third argument when it has one (`activityNodeSize(node, activityLabels, textMeasure)`). Names reserve 280px width and enough height for wrapped text; IDs reserve 140px. Hiding counts does not change dimensions. `useStableLayout` compares resolved dimensions, so equivalent callbacks do not trigger layout. Invalidate an explicit layout cache key when its inputs change.
+Use `nodeSize` when providing precomputed positions (`activityNodeSize(node, activityLabels, textMeasure)`; the measure no longer changes the size). Names reserve 280px width, IDs 140px, and both the card's height (64px: two name lines and the number line), whatever the name. Hiding counts does not change dimensions. `useStableLayout` compares resolved dimensions, so equivalent callbacks do not trigger layout. Invalidate an explicit layout cache key when its inputs change.
 
 `references` maps canonical activity IDs to display references. Persist the dictionary across filters; absent entries are retained and new entries are added without renumbering. References indicate identity, not execution order. Optional `names` supplies display aliases; the original graph is unchanged.
 
-Nodes show one secondary measure: distinct cases/items. Hover, focus and the export key show the original name plus exact item and event counts. Missing values are marked unavailable. Tooltips are dismissible with Escape and remain visible while their trigger or tooltip is hovered. Selecting an activity returns its canonical ID.
+Nodes show the card's number line: the distinct cases/items and their share of the log's cases (see "The activity card"). Hover, focus and the export key show the original name plus exact item and event counts in `caseLabel`. Missing values are marked unavailable. Tooltips are dismissible with Escape and remain visible while their trigger or tooltip is hovered. Selecting an activity returns its canonical ID.
 
 SVG and Canvas PNG exports include the canonical activity key even when the colour legend or node counts are hidden. Recorded self-loop labels describe transition occurrences; a case repeat share is reported only when the required case counts exist. Explicit constraint evidence remains separate.
 
@@ -1564,19 +1638,19 @@ fallback font's. Activity boxes are sized before layout by the same measure
 (`activityNodeSize(node, options, measure)`), so a map and its exports that
 share a measure share their boxes too.
 
-An activity's or a stage's label is fitted to the room the interactive map
+An activity's or a stage's name is wrapped into the room the interactive map
 gives it: the box less the padding (16 left, 8 right) and a solid outline on
-both sides, and less the count and the gap of 6 before it, since the map
-writes the count after the label on the same line. The SVG export and the
-Canvas map write the count in the lower right corner but cut the label at the
-same character.
+both sides, on up to two lines, the second shortened with an ellipsis where
+the name needs more (`wrapLines`, an internal rule over `wrapText` and
+`truncateText`).
 
 `truncateText` keeps the longest start of a text that fits with an ellipsis,
 at least one character (a width over the limit by less than a millionth, a
 rounding, fits). `wrapText` puts words on lines at most `width` wide (at
 least the font's size) and breaks a word wider than a line between
 characters; `wrapActivityText(value, width, fontSize?, measure?)`,
-`activityLabelLines(node, options, width, locale?, measure?)` and
+`activityLabelLines(node, options, width, locale?, measure?)` (the card's two
+name lines in the default theme, and the cases in `caseLabel`) and
 `activityKeyLines(graph, options, width, locale?, measure?)` apply it to
 activity names, counts and the export's key. A chip's label is measured in
 bold (`chipLead`) and its text in the chip's weight.
@@ -1603,7 +1677,7 @@ export function buildScene(g: FlowGraph, p: Positions, o?: FlowSceneOptions): Fl
 export function followsSelfLoops(g: FlowGraph, o?: { locale?: Locale; observed?: { caseLabel?: string } }): Overlay[];
 export function withFollowsSelfLoops(g: FlowGraph, overlays: Overlay[], o?: { locale?; observed? }): Overlay[];
 
-export type MarkPaint = "ink" | "inkMuted" | "paper" | "surface" | "line" | "outOfScope" | "value" | "onValue";
+export type MarkPaint = "ink" | "inkMuted" | "paper" | "surface" | "line" | "lineStrong" | "cueStripe" | "cueFoot" | "outOfScope" | "value" | "onValue";
 export interface MarkFill { paint: MarkPaint; pattern?: "outOfScope"; opacity?: number }
 export interface MarkStroke { paint: MarkPaint; width: number; opacity?: number; dash?: number[] }
 export interface MarkText { text: string; x: number; y: number; size: number; weight?: number; anchor: "start" | "middle" | "end";
@@ -1617,7 +1691,7 @@ export function overlayMarks(shapes: OverlayShape[], locale?: Locale, theme?: Th
   context?: { pathColor?: (edgeId: string) => string | undefined; radius?: (target: string) => number | undefined }): OverlayMark[];
 export function overlayColor(o: Overlay, theme?: Theme): string;           // the theme's accent, whatever the value
 export function tintColor(o: Overlay, theme?: Theme): string | undefined;  // the accent at the theme's tint opacity (TINT_OPACITY in the default theme), as CSS rgba(); none without a value
-export function arcWidth(o: Overlay, theme?: Theme): number;               // the theme's arc stroke (1.5), whatever the coverage
+export function arcWidth(o: Overlay, theme?: Theme): number;               // the theme's arc stroke (1), whatever the coverage
 export const TINT_OPACITY: number;                          // 0.18
 export const overlayArrow: { size: number; overhang: number }; // 12, tip 0.1 × size beyond the path (`arrowheadTokens.overlay`)
 export const chipLayout: { padding: 8; glyph: 12.4; gauge: 46; gaugeWidth: 40; gaugeHeight: 6; char: 6.2 };   // char: read by nothing
@@ -1629,21 +1703,22 @@ export function markSvg(m: OverlayMark, o: MarkSvgOptions): SvgElement;  // the 
 export function svgMarkup(e: SvgElement | string): string;
 export function fitChars(text: string, maxWidth?: number): string;        // deprecated: truncateText at a chip's 10 px
 
-export interface ElementText extends MarkText { role: "label" | "glyph" | "count" | "nameLine" | "countLine"; lod?: "labels" | "edgeLabels" }
+export interface ElementText extends MarkText { role: "label" | "glyph" | "count" | "nameLine" | "countLine" | "share"; lod?: "labels" | "edgeLabels" }
+export interface NodeCue { share: number; stripe?: { box: Box; paint: MarkPaint }; foot?: { box: Box; paint: MarkPaint } }
 export interface NodeMark { id: string; kind: NodeKind; node: FlowNode; box: Box; shape: "box" | "circle" | "diamond"; radius: number;
   color: string; pattern: PatternId; fill: MarkPaint; stroke: { paint: MarkPaint; width: number; dash?: number[] }; band?: number;
-  texts: ElementText[]; reconnected: boolean; title?: string }
+  cue?: NodeCue; texts: ElementText[]; reconnected: boolean; outOfScope: boolean; title?: string }
 export interface EdgeMark { id: string; kind: EdgeKind; edge: FlowEdge; points: XY[]; color: string; width: number; dash?: number[];
   texts: ElementText[]; reconnected: boolean }
 export type BoxSide = "top" | "right" | "bottom" | "left";
 export interface GroupMark { id: string; kind: GroupKind; group: FlowGroup; box: Box; color: string; pattern: PatternId; band?: LaneBand;
   radius: number; fill: MarkFill; stroke: { paint: MarkPaint; width: number; dash?: number[]; sides?: BoxSide[] };
   rule?: { paint: MarkPaint; width: number; side: BoxSide }; texts: ElementText[]; chipAnchor: XY }
-export function nodeMark(n: FlowNode, box: Box, o: { color: string; pattern: PatternId; locale?: Locale; activityLabels?: ActivityLabelOptions; theme?: Theme;
-  measure?: TextMeasure }): NodeMark;
+export function nodeMark(n: FlowNode, box: Box, o: { color: string; pattern: PatternId; locale?: Locale; total?: number; outOfScope?: boolean;
+  activityLabels?: ActivityLabelOptions; theme?: Theme; measure?: TextMeasure }): NodeMark;   // total: the log's cases
 export function edgeMark(e: FlowEdge, points: XY[], o: { color: string; width: number; locale?: Locale; theme?: Theme }): EdgeMark;
 export function groupMark(g: FlowGroup, box: Box, o: { color: string; pattern: PatternId; band?: LaneBand; theme?: Theme }): GroupMark;
-export function nodeMarks(g: FlowGraph, p: Positions, scales: Scales, o?: { locale?; activityLabels?; theme?; measure? }): NodeMark[];
+export function nodeMarks(g: FlowGraph, p: Positions, scales: Scales, o?: { locale?; activityLabels?; theme?; measure?; outOfScope?: ReadonlySet<string> }): NodeMark[];
 export function edgeMarks(g: FlowGraph, p: Positions, scales: Scales, locale?: Locale, theme?: Theme): EdgeMark[];
 export function groupMarks(g: FlowGraph, p: Positions, bands: readonly LaneBand[], scales: Scales, theme?: Theme): GroupMark[];
 export function edgeColor(e: FlowEdge, scales: Scales, theme?: Theme): string;      // constraint edges in the theme's accent
@@ -1723,14 +1798,15 @@ are self-loop overlays), both in the graph's order. A node mark says what
 the live map shows for its kind: the outline (`box` with a corner radius,
 the `circle` of an event, the `diamond` of a gateway), the fill and border
 with width and dash (notes solid on the surface colour, re-added elements
-dashed and nothing else, stages 3 wide, start events 2 and end events 3 wide), the colour band with its
-pattern twin (`band`, 8 wide; not on notes, events and gateways) and the
-texts: a gateway's glyph (×, + or ○) instead of its label, an event's label
-inside its circle at 9 px, a note's label at 11 px at every zoom, the
-label of activities and stages 16 in from the left (stages semibold) and
-their count in the lower right corner in the muted ink (`nodeCount`: the
-cases, for a stage its members before them), or with `activityLabels` the
-wrapped name and count lines and the exact description as `title`. An edge
+dashed and nothing else, start events 1 and end events 2 wide), and the texts: a gateway's
+glyph (×, + or ○) instead of its label, an event's label below its circle at
+11 px, a note's label at 11 px at every zoom. Activities and stages are
+cards (see "The activity card"): the band with its pattern twin, the
+frequency cue (`cue`), the name's lines 16 in from the left and the number
+line, from the labels' level of detail (with `activityLabels` at every zoom,
+the name or reference given by them and the exact description as `title`).
+`outOfScope` says that a hatch covers the node; `nodeMark` takes the log's
+cases as `total` and the state as `outOfScope`. An edge
 mark carries the route (`edgePoints`: the routed points, or a straight line
 between the two boxes where the positions have none), colour (`edgeColor`),
 width, dash (re-added `6 5`, and no other: a dash means "not directly
@@ -1759,14 +1835,15 @@ instead of being drawn twice; an arc is kept only when both its endpoints
 are on the map; and the Canvas map draws every graph overlay once.
 
 `groupMarks` holds one `GroupMark` per group with a box, in the graph's
-order. A group is a box with corners of 10, tinted in its categorical
-colour at 0.06 and outlined in it 1.5 wide, solid (it was dashed 6 and 4);
+order. A group is a box with corners of 8, tinted in its categorical
+colour at the theme's `groupFill` (0: no tint) and outlined by a solid
+hairline in the line colour, 1 wide;
 a group drawn as a lane band (`band`) is tinted at 0.06 (every other band
 at 0.02), outlined in the line colour 1 wide on the two sides between bands
 (`stroke.sides`: left and right along the flow, top and bottom across it)
-and ruled 3 wide in its colour along the side it starts at (`rule`: top or
+and ruled 2 wide in its colour along the side it starts at (`rule`: top or
 left). Its title is written 12 in from the left on a baseline 22 below the
-top, at 14 semibold in the ink, and `chipAnchor` is where its chips are
+top, at 13 semibold in the muted ink, and `chipAnchor` is where its chips are
 placed from: their right end 8 in from the right edge, the first 6 below the
 top. The SVG export, the Canvas map, the PNG export and `<ProcessMap/>` draw
 these marks; the Canvas scene's `SceneGroup.mark` is the group's mark.
@@ -2019,8 +2096,10 @@ CSS written against these selectors changes only the interactive DOM map and the
 | `map` | the map's container | | |
 | `node` | a node of the map | `activity`, `stage`, `gateway`, `event`, `note` | `selected`, `focused`, `hovered`, `dimmed`, `outOfScope`, `reconnected` |
 | `node-band` | the stage band at the left edge of an activity or stage | | |
+| `node-cue` | the frequency cue's stripe behind an activity's or stage's texts | | |
+| `node-cue-foot` | the frequency cue's foot along an activity's or stage's bottom edge | | |
 | `node-label` | the name of a node (each name line holds one line of it) | | |
-| `node-count` | the number line of a node | | |
+| `node-count` | the number line of a node: its cases, then their share | | |
 | `group` | a group box or lane band | `stage`, `lane`, `pool` | `selected` |
 | `group-label` | the label of a group | | |
 | `edge` | a path between two nodes (SVG group) | `follows`, `constraint`, `flow` | `selected`, `focused`, `hovered`, `dimmed`, `reconnected` |
@@ -2117,6 +2196,8 @@ are panels, not elements of the map.
 | Name | Replacement |
 | --- | --- |
 | `fitChars` | the mark's `text`, which the scene's text measure has fitted; `truncateText` to shorten another text |
+| `nodeLabel` | `textTokens.activityName` (`Theme.text.activityName`), the name on an activity's card; a stage node's name is `stageLabel` |
+| `nodeCount` | `textTokens.activityNumber` and `activityShare`, the cases and their share on a card's number line |
 
 ### `@wise/flow/canvas`
 

@@ -145,6 +145,8 @@ export interface ProcessMapProps {
   /** Show the legend panel. Default true. */
   legend?: boolean;
   minimap?: boolean;
+  /** Draw a grid of dots behind the interactive map. Default false. */
+  backgroundGrid?: boolean;
   /** `svg` renders on React Flow, `canvas` on the Canvas renderer; `auto` (default) picks canvas above `canvasThreshold` elements. */
   renderer?: "auto" | "svg" | "canvas";
   /** Elements (activities plus paths) above which `auto` uses the canvas. Default 2000. */

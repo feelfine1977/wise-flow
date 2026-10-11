@@ -87,7 +87,7 @@ try {
   await expect(page.locator('html')).toHaveAttribute('data-worker-layout', 'passed', { timeout: 30_000 });
   await expect(page.locator('.react-flow__node')).toHaveCount(2);
   // The layered stylesheet alone draws the map: React Flow's base styles, the library's borders, the scene's path colour.
-  assert.deepEqual(await page.locator('[data-wf-part="node"]').first().evaluate(e => [getComputedStyle(e).borderTopWidth, getComputedStyle(e).borderTopStyle]), ['2px', 'solid']);
+  assert.deepEqual(await page.locator('[data-wf-part="node"]').first().evaluate(e => [getComputedStyle(e).borderTopWidth, getComputedStyle(e).borderTopStyle]), ['1px', 'solid']);
   assert.equal(await page.locator('.react-flow__viewport').evaluate(e => getComputedStyle(e).transformOrigin), '0px 0px');
   assert.notEqual(await page.locator('[data-wf-part="edge-path"]').first().evaluate(e => getComputedStyle(e).stroke), 'rgb(177, 177, 183)');
   await expect(page.locator('[data-bpmn-status="ready"]')).toBeVisible();

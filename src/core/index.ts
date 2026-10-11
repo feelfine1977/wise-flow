@@ -155,6 +155,7 @@ export type {
   ThemeOverrides,
   ThemeSetting,
   ColorScheme,
+  FrequencyCue,
 } from "./theme.js";
 export { checkTheme, type ThemeDeviation } from "./style.js";
 
@@ -438,6 +439,7 @@ export {
 } from "./element-marks.js";
 export type {
   ElementText,
+  NodeCue,
   NodeMark,
   EdgeMark,
   GroupMark,

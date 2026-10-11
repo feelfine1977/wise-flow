@@ -100,18 +100,22 @@
   overflow: visible;
   pointer-events: none;
 }
-.wf-node__outline ~ .wf-node__label,
-.wf-node__outline ~ .wf-node__meta {
+.wf-node__outline ~ .wf-node__label {
   position: relative;
 }
 .wf-node__label,
-.wf-node__meta,
 .wf-group__label,
-.wf-activity-name,
-.wf-activity-counts {
+.wf-activity-name {
   font-size: var(--wf-text-size);
   font-weight: var(--wf-text-weight, var(--wf-weight-panel-plain));
   color: var(--wf-text-paint);
+}
+/* Hover, selection and focus change the outline, never the fill. */
+.wf-node--hovered {
+  border-color: var(--wf-ink);
+}
+.wf-node--hovered > .wf-node__outline > * {
+  stroke: var(--wf-ink);
 }
 .wf-node--selected {
   box-shadow: 0 0 0 var(--wf-stroke-selection) var(--wf-selection);
@@ -123,15 +127,6 @@
 .wf-node--focused {
   outline: var(--wf-stroke-focus) solid var(--wf-focus);
   outline-offset: var(--wf-space-1);
-}
-.wf-node--hovered {
-  background: var(--wf-surface);
-}
-.wf-node--outlined.wf-node--hovered {
-  background: none;
-}
-.wf-node--hovered > .wf-node__outline > * {
-  fill: var(--wf-surface);
 }
 .wf-node--dimmed {
   opacity: var(--wf-opacity-dimmed);
@@ -157,10 +152,6 @@
   overflow: hidden;
   white-space: nowrap;
 }
-.wf-node__meta {
-  margin-left: var(--wf-space-3);
-  font-variant-numeric: tabular-nums;
-}
 /* Marks that cover a node (tints) as background layers over its paper. */
 .wf-node--tinted {
   background-image: var(--wf-tint);
@@ -170,6 +161,15 @@
   height: var(--wf-event-height);
   padding: 0;
   justify-content: center;
+}
+/* An event's label sits below its circle, shortened by the scene to its width. */
+.wf-node--event > .wf-node__label {
+  position: absolute;
+  top: calc(100% + var(--wf-space-2));
+  left: 50%;
+  transform: translateX(-50%);
+  flex: none;
+  overflow: visible;
 }
 .wf-node--gateway {
   width: var(--wf-gateway-width);
@@ -243,6 +243,7 @@
 .wf-fill-paper { fill: var(--wf-paper); }
 .wf-fill-surface { fill: var(--wf-surface); }
 .wf-fill-line { fill: var(--wf-line); }
+.wf-fill-line-strong { fill: var(--wf-line-strong); }
 .wf-fill-out-of-scope { fill: var(--wf-out-of-scope); }
 .wf-fill-focus { fill: var(--wf-focus); }
 .wf-stroke-ink { stroke: var(--wf-ink); }
@@ -250,6 +251,7 @@
 .wf-stroke-paper { stroke: var(--wf-paper); }
 .wf-stroke-surface { stroke: var(--wf-surface); }
 .wf-stroke-line { stroke: var(--wf-line); }
+.wf-stroke-line-strong { stroke: var(--wf-line-strong); }
 .wf-stroke-out-of-scope { stroke: var(--wf-out-of-scope); }
 .wf-stroke-focus { stroke: var(--wf-focus); }
 /* Badges extend left from the top-right corner of their element. */
@@ -1096,17 +1098,26 @@
 .wf-comparison__method summary { cursor: pointer; color: var(--wf-ink); }
 .wf-comparison__method p { max-width: 75ch; }
 
-/* Opt-in activity labels use the dimensions reserved before layout. */
-.wf-process-map .wf-node--activity-labels {
-  align-items: flex-start;
-  padding: var(--wf-space-5) var(--wf-space-7) var(--wf-space-5) var(--wf-space-8);
-  opacity: 1;
-  background: var(--wf-node-fill);
+/*
+ * An activity's or a stage's card has the size of its box in the scene: the name on up to two lines and the number
+ * line as one block in the middle above the frequency cue's foot, the cue under the band and the texts.
+ */
+.wf-node--card {
+  padding-bottom: calc(var(--wf-space-2) + var(--wf-size-cue-foot));
+}
+.wf-node__cue {
+  position: absolute;
+}
+.wf-activity-copy {
+  position: relative;
+  flex: 1;
+  min-width: 0;
 }
 .wf-activity-copy, .wf-activity-name, .wf-activity-counts,
-.wf-activity-name > span, .wf-activity-counts > span {
+.wf-activity-name > span {
   display: block;
   white-space: pre;
+  overflow: hidden;
 }
 .wf-activity-name {
   line-height: var(--wf-leading-activity-name);
@@ -1114,6 +1125,14 @@
 .wf-activity-counts {
   line-height: var(--wf-leading-activity-number);
   font-variant-numeric: tabular-nums;
+}
+.wf-activity-counts > span {
+  font-size: var(--wf-text-size);
+  font-weight: var(--wf-text-weight, var(--wf-weight-panel-plain));
+  color: var(--wf-text-paint);
+}
+.wf-activity-share {
+  margin-left: var(--wf-space-2);
 }
 .wf-activity-tooltip {
   position: absolute;

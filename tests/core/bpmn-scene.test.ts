@@ -85,9 +85,9 @@ describe("the scene of a BPMN diagram", () => {
     expect(shape("arc:a:0").path).toBe("M150 100 C150 12 550 12 550 100");
     // Self-loop at the top right corner of B (300, 100, 100 × 80).
     expect(shape("selfLoop:approve:1").path).toBe("M382 100 C382 72 428 112 400 112");
-    // The first badge on A is a pill "● · 50 %" (8 characters of 5.5 and 6 on either side, 56 wide) ending at A's right
-    // edge (200 − 56), 18 tall and 2 above A's top (100 − 20).
-    expect(shape("badge:a:3")).toMatchObject({ x: 144, y: 80, width: 56, height: 18, minZoom: 0.5 });
+    // The first badge on A is a pill "● · 50 %" (8 characters of 6.05 and 6 on either side, 60.4 wide) ending at A's right
+    // edge (200 − 60.4), 18 tall and 2 above A's top (100 − 20).
+    expect(shape("badge:a:3")).toMatchObject({ x: expect.closeTo(139.6, 5), y: 80, width: expect.closeTo(60.4, 5), height: 18, minZoom: 0.5 });
   });
 
   it("sizes the level of detail by the nodes of the diagram's graph", () => {

@@ -145,11 +145,11 @@ describe("overlay marks in the React Flow map", () => {
 describe("Badges", () => {
   it("draws badges leftwards from the top-right corner of the element they are placed in, wholly above it", () => {
     const { container } = render(<Badges badges={[{ kind: "badge", target: "x", payload: { value: 1 } }, { kind: "badge", target: "x", payload: { glyph: "≥1", value: 0.25 } }]} locale="en" />);
-    // Pills of the core, 18 tall and 2 above the corner: "● · 100 %" and "≥1 · 25 %", each 9 characters of 5.5 and 6 on
-    // either side (61.5), the second 4 left of the first.
+    // Pills of the core, 18 tall and 2 above the corner: "● · 100 %" and "≥1 · 25 %", each 9 characters of 6.05 and 6 on
+    // either side (66.45), the second 4 left of the first.
     expect([...container.querySelectorAll(".wf-badges .wf-badge rect")].map((r) => ["x", "y", "width"].map((a) => r.getAttribute(a)))).toEqual([
-      ["-61.5", "-20", "61.5"],
-      ["-127", "-20", "61.5"],
+      ["-66.45", "-20", "66.45"],
+      ["-136.9", "-20", "66.45"],
     ]);
   });
 });

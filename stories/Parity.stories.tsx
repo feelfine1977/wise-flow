@@ -64,12 +64,13 @@ const kinds: FlowGraph = {
   ],
 };
 
-/** Another theme: activities and stages outlined 3 wide with corners of 10, node labels at 14 and counts at 11. */
+/** Another theme: cards outlined 3 wide with corners of 10, names at 15 on lines of 18, cases at 13, the cue only as the foot. */
 const secondTheme: Theme = {
   ...defaultTheme,
-  stroke: { ...defaultTheme.stroke, node: 3 },
+  stroke: { ...defaultTheme.stroke, node: 3, stage: 3 },
   radius: { ...defaultTheme.radius, node: 10 },
-  text: { ...defaultTheme.text, nodeLabel: { size: 14 }, nodeCount: { size: 11 } },
+  text: { ...defaultTheme.text, activityName: { size: 15, weight: 500, lineHeight: 18 }, activityNumber: { size: 13, weight: 600, lineHeight: 16 } },
+  frequencyCue: "bottom",
 };
 const stages = abstract(globalScene, { collapse: "all" });
 
@@ -84,7 +85,8 @@ const scenes: Record<string, () => Omit<ParityScene, "positions"> & { variables?
   global: () => ({ graph: global, overlays: overlaysFor(constraintItems(), { graph: global }) }),
   stageBands: () => ({ graph: global, overlays: overlaysFor(constraintItems(), { graph: global }), lanes: "stages" }),
   stages: () => ({ graph: stages, overlays: overlaysFor(constraintItems(), { graph: stages }) }),
-  roleLanes: () => ({ graph: liteFromStages(withSceneMetrics(p2pStages, globalScene), { lanes: "role" }), overlays: [], lanes: "roles" }),
+  // The model's activities carry the log's metrics, so its cards show their share of the log's cases.
+  roleLanes: () => ({ graph: { ...liteFromStages(withSceneMetrics(p2pStages, globalScene), { lanes: "role" }), meta: globalScene.meta }, overlays: [], lanes: "roles" }),
   kinds: () => ({ graph: kinds, overlays: [] }),
   secondTheme: () => ({ ...scenes.small(), theme: secondTheme }),
   hostVariables: () => ({ ...scenes.small(), variables: hostVariables }),

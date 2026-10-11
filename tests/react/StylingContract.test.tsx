@@ -58,7 +58,8 @@ afterAll(() => {
 
 describe("the styling contract", () => {
   it("draws every node and edge kind, selected, focused, hovered, dimmed, out of scope and reconnected", async () => {
-    const graph: FlowGraph = { ...kinds.graph, overlays: [{ kind: "hatch", target: "a", payload: { text: "Out of scope" } }] };
+    // With the log's cases, the cards draw their frequency cue.
+    const graph: FlowGraph = { ...kinds.graph, meta: { cases: 2468 }, overlays: [{ kind: "hatch", target: "a", payload: { text: "Out of scope" } }] };
     const selection = { nodes: ["a"], edges: ["start->a"], groups: [] };
     const { container, rerender } = render(<div style={{ width: 1200, height: 600 }}><ProcessMap graph={graph} positions={kinds.positions} style={kinds.style} selection={selection} lod={everything} {...plain} /></div>);
     await waitFor(() => expect(container.querySelector('[data-wf-part="edge"]')).not.toBeNull());

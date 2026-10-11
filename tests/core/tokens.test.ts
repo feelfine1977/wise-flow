@@ -33,15 +33,17 @@ describe("the token table", () => {
     for (const [name, value] of Object.entries(fixedColors)) expect(colorTokens[name as keyof typeof colorTokens], name).toBe(value);
     // Okabe–Ito without orange (#E69F00) and vermilion (#D55E00), which would read as the accent.
     expect(palettes.categorical).toEqual(["#0072B2", "#009E73", "#CC79A7", "#56B4E9", "#F0E442", "#999999"]);
-    expect(DEFAULT_SIZES.activity).toEqual({ width: 180, height: 48 });
+    expect(DEFAULT_SIZES.activity).toEqual({ width: 180, height: 64 });
     expect(defaultTokens).toEqual({
-      font: "Inter, 'Segoe UI', Helvetica, Arial, sans-serif",
+      font: "system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
       paper: "#ffffff",
       surface: "#f6f7f9",
       ink: "#1f1f1f",
       inkMuted: "#5b6270",
       line: "#cfd4dc",
       lineStrong: "#8c94a1",
+      cueStripe: "#e6e8ec",
+      cueFoot: "#5f6672",
       focus: "#0072b2",
       selection: "rgba(0, 114, 178, 0.14)",
       neutral: "#8c8c8c",
@@ -51,12 +53,13 @@ describe("the token table", () => {
 
   it("gives the CSS variables of both schemes", () => {
     const { light, dark } = tokenVariables();
-    expect(light["--wf-font"]).toBe('Inter, "Segoe UI", Helvetica, Arial, sans-serif');
+    expect(light["--wf-font"]).toBe('system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif');
     expect(light["--wf-ink-muted"]).toBe("#5b6270");
     expect(light["--wf-out-of-scope"]).toBe("#b0b0b0");
     expect(light["--wf-fail"]).toBe("#d55e00");
     expect(light["--wf-on-focus"]).toBe("#ffffff");
-    expect(light["--wf-radius-lg"]).toBe("10px");
+    expect(light["--wf-radius-lg"]).toBe("8px");
+    expect([light["--wf-cue-stripe"], light["--wf-cue-foot"], light["--wf-size-cue-foot"]]).toEqual(["#e6e8ec", "#5f6672", "3px"]);
     expect(light["--wf-note-width"]).toBe("160px");
     expect(light["--wf-mechanism"]).toBeUndefined();
     expect(dark).toEqual({
@@ -66,6 +69,8 @@ describe("the token table", () => {
       "--wf-ink-muted": "#a7adb8",
       "--wf-line": "#3a3f49",
       "--wf-line-strong": "#6b7280",
+      "--wf-cue-stripe": "#2c3038",
+      "--wf-cue-foot": "#8f96a3",
       "--wf-selection": "rgba(86, 180, 233, 0.22)",
       "--wf-hover": "rgba(255, 255, 255, 0.07)",
     });
@@ -112,7 +117,7 @@ describe("pattern twins", () => {
     expect(defs).toContain('<pattern id="wf-pattern-diagonal" width="6" height="6" patternUnits="userSpaceOnUse"><path d="M0 6L6 0" stroke="#1f1f1f" stroke-width="1" stroke-opacity="0.6"/></pattern>');
     expect(defs).toContain('<pattern id="wf-pattern-dots" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="3" cy="3" r="1" fill="#1f1f1f" fill-opacity="0.7"/></pattern>');
     expect(defs).toContain('<pattern id="wf-pattern-grid" width="6" height="6" patternUnits="userSpaceOnUse"><path d="M0 3L6 3M3 0L3 6" stroke="#1f1f1f" stroke-width="1" stroke-opacity="0.6"/></pattern>');
-    expect(defs).toContain('<pattern id="wf-pattern-outofscope" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M0 8L8 0" stroke="#b0b0b0" stroke-width="2"/></pattern>');
+    expect(defs).toContain('<pattern id="wf-pattern-outofscope" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M0 8L8 0" stroke="#b0b0b0" stroke-width="1"/></pattern>');
     expect(patternDefs("p", "#000000")).toContain('<pattern id="p-vertical" width="6" height="6" patternUnits="userSpaceOnUse"><path d="M3 0L3 6" stroke="#000000"');
     const svg = toSVG({ graph: elements.graph, positions: elements.positions }, { legend: false });
     expect(svg).toContain(defs);

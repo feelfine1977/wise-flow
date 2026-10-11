@@ -71,11 +71,11 @@ describe("BpmnView overlays from the scene", () => {
     const viewer = viewers.instances[0];
     await waitFor(() => expect(viewer.overlays.length).toBe(3));
     // Pills run leftwards from the right edge of the 100 px task, 18 tall and 2 above it: "● · 50 %" and "● · 25 %"
-    // (8 characters of 5.5 and 6 on either side, 56 wide) at 100 − 56 and 44 − 4 − 56; a dot alone 18 wide at 100 − 18.
-    expect(viewer.overlays.map((a) => [a.element, a.overlay.position.left, a.overlay.position.top]).sort()).toEqual([
-      ["Task_ApproveInvoice", 82, -20],
-      ["Task_CreatePO", -16, -20],
-      ["Task_CreatePO", 44, -20],
+    // (8 characters of 6.05 and 6 on either side, 60.4 wide) at 100 − 60.4 and 39.6 − 4 − 60.4; a dot alone 18.05 wide at 100 − 18.05.
+    expect(viewer.overlays.map((a) => [a.element, Math.round(a.overlay.position.left * 100) / 100, a.overlay.position.top]).sort()).toEqual([
+      ["Task_ApproveInvoice", 81.95, -20],
+      ["Task_CreatePO", -24.8, -20],
+      ["Task_CreatePO", 39.6, -20],
     ]);
   });
 
@@ -99,20 +99,20 @@ describe("BpmnView overlays from the scene", () => {
       const { element, overlay } = viewer.overlays.find((a) => a.overlay.html.className === className)!;
       return { id: element, ...overlay };
     };
-    // The badge's pill: "≥1 · 25 %", 61.5 wide, ending at the right edge of the task at (440, 140) and 2 above it
-    // (440 + 100 − 61.5, 140 − 20), shown from the default badge zoom 0.22 (eleven nodes leave it unchanged).
+    // The badge's pill: "≥1 · 25 %", 66.45 wide, ending at the right edge of the task at (440, 140) and 2 above it
+    // (440 + 100 − 66.45, 140 − 20), shown from the default badge zoom 0.22 (eleven nodes leave it unchanged).
     const badge = added("wf-badge");
-    expect([badge.id, badge.position, badge.show, badge.scale]).toEqual(["Task_CreatePO", { top: -20, left: 38.5 }, { minZoom: 0.22 }, { min: 0.8, max: 1.2 }]);
-    expect(badge.html.querySelector("svg")?.getAttribute("viewBox")).toBe("478.5 120 61.5 18");
+    expect([badge.id, badge.position, badge.show, badge.scale]).toEqual(["Task_CreatePO", { top: -20, left: expect.closeTo(33.55, 5) }, { minZoom: 0.22 }, { min: 0.8, max: 1.2 }]);
+    expect(badge.html.querySelector("svg")?.getAttribute("viewBox")).toBe("473.55 120 66.45 18");
     expect(badge.html.querySelector("rect")?.getAttribute("stroke")).toBe("#b84a00");
     // The tint covers the task from every zoom, scales with the diagram and is multiplied onto it.
     const tint = added("wf-tint wf-mark--below");
     expect([tint.id, tint.position, tint.show, tint.scale]).toEqual(["Task_CreatePO", { top: 0, left: 0 }, undefined, true]);
     expect(tint.html.querySelector("rect")?.getAttribute("fill-opacity")).toBe("0.18");
-    // The chip shows what the map's chip shows: glyph, gauge (track, fill and tick) and the label in bold.
+    // The chip shows what the map's chip shows: glyph, gauge (track, fill and tick) and the label in semibold.
     const drawn = added("wf-chip").html;
     expect(drawn.querySelectorAll("rect")).toHaveLength(4);
-    expect(drawn.querySelector("tspan")?.getAttribute("font-weight")).toBe("700");
+    expect(drawn.querySelector("tspan")?.getAttribute("font-weight")).toBe("600");
     const { container: map } = render(<Chip chip={chip} locale="en" />);
     expect(drawn.textContent).toBe(map.textContent);
     expect(drawn.textContent).toBe("Touches — 2.1 ⌀◔Touches: 2.1 ⌀");

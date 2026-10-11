@@ -37,10 +37,9 @@ describe("the presets", () => {
     expect([printTheme.opacity.tint, printTheme.opacity.groupFill, printTheme.opacity.bandFill, printTheme.opacity.bandOddFill]).toEqual([0, 0, 0, 0]);
     expect(printTheme.patterns).not.toContain("solid");
     expect(printTheme.minimum).toEqual({ text: 7, stroke: 0.75 });
-    // 7 pt is 9⅓ px: the default's 9 px counts and 9.5 px legend keys are 10 px in print.
-    expect([printTheme.text.nodeCount.size, printTheme.text.legendKey.size, printTheme.stroke.legendGradient]).toEqual([10, 10, 1]);
-    // Everything else is the default's.
-    expect([printTheme.text.nodeLabel, printTheme.radius, printTheme.font]).toEqual([defaultTheme.text.nodeLabel, defaultTheme.radius, defaultTheme.font]);
+    // 7 pt is 9⅓ px: the default's smallest text is 11 px and its thinnest stroke 1 px, so print keeps every size.
+    expect([printTheme.text, printTheme.stroke, printTheme.radius, printTheme.font]).toEqual([defaultTheme.text, defaultTheme.stroke, defaultTheme.radius, defaultTheme.font]);
+    expect(Math.min(...Object.values(printTheme.text).flatMap((t) => ("size" in t ? [t.size] : []))) * 0.75).toBeGreaterThanOrEqual(7);
   });
 
   it("keeps print apart in greyscale: every stage colour has its own pattern, drawn in ink that stands out from it, and every path ramp darkens from 3 : 1 on the paper", async () => {
@@ -85,8 +84,8 @@ describe("the presets", () => {
 
 describe("a theme set as changes over a preset", () => {
   it("changes only what it names, entry by entry, over the preset it names", () => {
-    const theme = resolveTheme({ preset: "print", density: "compact", radius: { node: 4 }, text: { nodeLabel: { size: 13 } }, color: { ink: "#111111" } });
-    expect([theme.density, theme.radius.node, theme.radius.large, theme.text.nodeLabel.size, theme.text.nodeCount.size]).toEqual(["compact", 4, 10, 13, 10]);
+    const theme = resolveTheme({ preset: "print", density: "compact", radius: { node: 8 }, text: { activityName: { size: 15 } }, color: { ink: "#111111" } });
+    expect([theme.density, theme.radius.node, theme.radius.large, theme.text.activityName, theme.text.activityNumber.size]).toEqual(["compact", 8, 8, { size: 15, weight: 500, lineHeight: 16 }, 11]);
     expect([theme.color.ink, theme.color.paper, theme.color.surface]).toEqual(["#111111", "#ffffff", "#ffffff"]);
     // A list replaces the preset's.
     expect(resolveTheme({ palette: { neutral: ["#777777", "#444444"] } }).palette.neutral).toEqual(["#777777", "#444444"]);
@@ -123,13 +122,13 @@ describe("the CSS variables of a theme", () => {
 
   it("read back as the parts of a theme, lengths in px, leaving out what tokens.css sets", () => {
     const css = tokensCss();
-    const set: Record<string, string> = { ...css.light, "--wf-paper": "#fdf6e3", "--wf-font": "Georgia, serif", "--wf-stroke-node": "3px", "--wf-radius": "4px", "--wf-text-node-label": "13px", "--wf-weight-group-label": "700", "--wf-opacity-tint": "0", "--wf-text-panel": "1rem" };
+    const set: Record<string, string> = { ...css.light, "--wf-paper": "#fdf6e3", "--wf-font": "Georgia, serif", "--wf-stroke-node": "3px", "--wf-radius": "8px", "--wf-text-node-label": "15px", "--wf-weight-group-label": "700", "--wf-opacity-tint": "0", "--wf-text-panel": "1rem" };
     const read = themeFromVariables((name) => set[name] ?? "", "light", (c) => c);
     expect(read).toEqual({
       color: { paper: "#fdf6e3" },
       font: { family: "Georgia, serif" },
-      text: { nodeLabel: { size: 13 }, groupLabel: { weight: 700 } },
-      radius: { node: 4 },
+      text: { nodeLabel: { size: 15 }, groupLabel: { weight: 700 } },
+      radius: { node: 8 },
       stroke: { node: 3 },
       opacity: { tint: 0 },
     });
@@ -143,7 +142,7 @@ describe("the CSS variables of a theme", () => {
   it("write every part of a theme", () => {
     const theme = resolveTheme({ font: { family: "'Iowan Old Style', serif" }, stroke: { node: 3 }, color: { paper: "#FDF6E3" } });
     const vars = themeVariables(theme, "light");
-    expect([vars["--wf-font"], vars["--wf-stroke-node"], vars["--wf-paper"], vars["--wf-radius"], vars["--wf-weight-stage-label"]]).toEqual(['"Iowan Old Style", serif', "3px", "#fdf6e3", "6px", "600"]);
+    expect([vars["--wf-font"], vars["--wf-stroke-node"], vars["--wf-paper"], vars["--wf-radius"], vars["--wf-weight-stage-label"]]).toEqual(['"Iowan Old Style", serif', "3px", "#fdf6e3", "4px", "600"]);
   });
 });
 
@@ -180,9 +179,12 @@ describe("checkTheme", () => {
       { kind: "text", scheme: "light", subject: "inkMuted on paper", value: 2.81, minimum: 4.5 },
       { kind: "text", scheme: "light", subject: "inkMuted on surface", value: 2.81, minimum: 4.5 },
       { kind: "line", scheme: "light", subject: "lineStrong on paper", value: 1.54, minimum: 3 },
+      // #9a9a9a (0.323) on the cue's stripe #e6e8ec (0.806): 0.856 / 0.373.
+      { kind: "text", scheme: "light", subject: "inkMuted on cueStripe", value: 2.29, minimum: 4.5 },
       { kind: "rampStart", scheme: "light", subject: "palette.neutral", value: 1.16, minimum: 3 },
       // In the dark scheme the paper is not a literal, so nothing is measured against it.
       { kind: "text", scheme: "dark", subject: "inkMuted on surface", value: 2.81, minimum: 4.5 },
+      { kind: "text", scheme: "dark", subject: "inkMuted on cueStripe", value: 2.29, minimum: 4.5 },
       { kind: "textSize", subject: "text.nodeCount", value: 6, minimum: 7 },
       { kind: "strokeWidth", subject: "stroke.node", value: 0.375, minimum: 0.75 },
     ]);
