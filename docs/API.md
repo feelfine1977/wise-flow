@@ -21,14 +21,27 @@ export interface FlowEdge { id: string; kind: EdgeKind; source: string; target: 
   metrics?: Record<string, number>; metricBasis?: Partial<Record<string, MetricBasis>>; tags?: string[]; payload?: unknown; }
 export type MetricBasis = "atLeast" | "mean";   // a lower bound, or a mean of merged values; exact without an entry
 export interface FlowGroup { id: string; kind: GroupKind; label: string; parent?: string; }
-export interface Overlay { kind: OverlayKind; target: string; payload?: OverlayPayload; }
+export interface Overlay { kind: OverlayKind; target: string; payload?: OverlayPayload;
+  protected?: boolean; }   // a deviation that stays visible at every level of detail (see Aggregation)
 export interface FlowGraph { nodes: FlowNode[]; edges: FlowEdge[]; groups?: FlowGroup[];
   overlays?: Overlay[]; meta?: FlowMeta; focus?: string; paths?: FlowPaths; }   // focus, paths: 0.3
-export interface FlowMeta { abstraction?: number | AbstractionMeta; model?: ModelOutline; [key: string]: unknown }
+export interface FlowMeta { abstraction?: number | AbstractionMeta; model?: ModelOutline; shown?: ShownMeta; [key: string]: unknown }
 export interface ModelOutline { activities?: number; paths?: number; groups?: string[];   // the model before abstraction
   pathMax?: Record<string, number> }   // the largest value of each metric over its paths: the upper end of the path width's scale
 export interface AbstractionMeta { minEdgeShare?: number; minNodeShare?: number; keepConnected?: boolean;
-  collapse?: string[] | "all" }
+  activityDetail?: number; pathDetail?: number; collapse?: string[] | "all" }
+export interface ShownMeta {                     // what `abstract` shows of the graph it abstracted
+  activities: { shown: number; of: number };     // activities and stages
+  paths: { shown: number; of: number };          // follows and flow edges, self-loops included; indirect paths apart
+  anchorsOnly?: number;                          // detail shares: paths shown only as anchors (tagged `anchor`)
+  keeps?: Record<string, string[]>;              // detail shares: per anchor-only path, the activities it keeps on a way
+  indirect?: number;                             // detail shares: indirect paths (tagged `indirect`)
+  weakestByFrequency?: number;                   // detail shares: the count of the weakest path shown by frequency
+  strongestNotShown?: number;                    // the count of the strongest path not shown
+  withoutPath?: number;                          // thresholds without keepConnected: shown activities with no path
+  marksNotShown: string[];                       // marks whose element is not shown, by id
+  forProtected: string[];                        // activities and paths shown only because a protected mark sits on them
+}
 
 export const MAP_TARGET = "__map";      // overlay target for map-level chips
 export function validateGraph(g: FlowGraph): GraphIssue[];
@@ -150,6 +163,8 @@ alone do not guarantee that a label fits its box or that labels never overlap.
 
 ```ts
 export interface AbstractOptions {
+  activityDetail?: number;      // share of activities shown by rank, 0 to 1 (1: all); wins over the thresholds
+  pathDetail?: number;          // share of paths shown by frequency, 0 to 1 (1: all between shown activities)
   minEdgeShare?: number;        // follows edges below this relative strength are removed
   minNodeShare?: number;        // activities and stages below this relative strength are removed
   keepConnected?: boolean;      // default true
@@ -157,16 +172,19 @@ export interface AbstractOptions {
   edgeMetric?: string;          // default count, then cases, then share
   nodeMetric?: string;          // default cases, then events, then share
   relativeTo?: "max" | "total"; // strength relative to the maximum (default) or the sum
-  keep?: string[];              // never removed
+  keep?: string[];              // node ids, and path ids with both ends, never removed
+  marks?: Overlay[];            // marks drawn beside the graph, read with its own
 }
+export const ANCHOR_TAG = "anchor";       // a path shown only to keep an activity on a way from start to end
+export const INDIRECT_TAG = "indirect";   // a path that stands for a way through activities not shown
 export function abstract(g: FlowGraph, o?: AbstractOptions): FlowGraph;
 export function collapseGroups(g: FlowGraph, groups: string[] | "all"): FlowGraph;
 export function isConnected(g: FlowGraph): boolean;
 export function diff(a: FlowGraph, b: FlowGraph, o?: { metrics?: string[] }): FlowGraph;
 ```
 
-Guarantees of `abstract`: events, gateways, constraint and flow edges are
-never removed; the thresholded part is monotone (a higher threshold yields a
+Guarantees of `abstract` with thresholds: events, gateways, constraint and flow edges are
+never removed, nor the elements of a protected mark (below); the thresholded part is monotone (a higher threshold yields a
 subset); with `keepConnected` the result is one connected component
 whenever the input is, restored by a maximum spanning forest over the
 strongest direct edges, then by the cheapest paths through removed nodes,
@@ -195,6 +213,94 @@ print as exact.
 `diff(a, b)` (baseline `a`, slice `b`) carries `b`'s metrics under their own
 names, `a`'s under `a_<metric>` and `b − a` under `delta_<metric>`; elements
 on one side only are tagged `only-a` / `only-b`, shared ones `both`.
+
+### Detail shares
+
+`activityDetail` and `pathDetail` select what a map shows by detail: 1 and 1
+show every activity and every path between shown activities with their
+counts; a lower share shows less, and every pair of shares is valid. Given
+either of them, the selection is by detail: `minNodeShare`, `minEdgeShare`
+and `keepConnected` are not read, and the share left out is 1. Thresholds
+work as before for a host that passes only them: on a graph that is not a
+comparison and has no protected mark, the same nodes, edges, groups and
+overlays, with `meta.shown` added.
+
+- **Activities** are ranked by cases, then events, then id (`nodeMetric`
+  replaces cases). A share `p` shows the `p` most frequent share by rank,
+  rounded up and at least one; activities with equal cases and events enter
+  together, so a position never cuts inside a tie. Events and gateways are
+  always shown.
+- **Paths** are ranked once over the whole graph by count, then id
+  (`edgeMetric` replaces count). A path whose rank lies within the share
+  `pathDetail` is shown when both its ends are; its rank is its place in the
+  whole graph, so a path does not disappear when more activities are shown.
+  Self-loops enter through the paths share only. Constraint edges are shown
+  between shown nodes.
+- **The guarantee.** At every pair of shares every shown activity lies on a
+  directed way from a start event to an end event that uses shown paths only.
+  Each activity has two **anchors**, chosen once per graph: its strongest
+  path from a more frequent node or from a start, and its strongest path to
+  a more frequent node or to an end (ties by id; events and gateways count
+  as more frequent than every activity, and among themselves by id; a
+  self-loop is never an anchor). An activity without such a path is
+  anchored by the way through less frequent activities whose rarest activity
+  is the most frequent possible (then the fewest steps, then the smallest
+  ids). A shown activity keeps its anchoring ways; where an anchoring node is
+  not shown (only when the activity is shown for a protected mark or
+  `keep`), its own anchoring ways follow, up to the first shown node. A path
+  on these ways between two shown nodes is shown, tagged `anchor` when it is
+  not within the paths share (`meta.shown.keeps` names the activities it
+  keeps); it is an ordinary observed path with its own count, not a
+  re-added one.
+- **Indirect paths.** Where such a way passes activities that are not shown,
+  the stretch between two shown nodes becomes one `follows` edge tagged
+  `indirect`, with the hidden activities in `payload`
+  (`{ hiddenActivities: n, via: [ids] }`) and without metrics: the only
+  element drawn that is not a path of the graph. Its id is
+  `<source>-><target>:indirect`; of two stretches between the same nodes the
+  one with fewer activities stands. The activities it passes stay hidden.
+  The whole-log fixture has none at any share.
+- **Monotony.** Within one state of the stage collapse, moving either share
+  towards more detail never removes an element, with one exception: an
+  indirect path is replaced by the paths it stood for (or a shorter indirect
+  one) when its activities come into view.
+- **Stages** are collapsed first, then ranked and anchored.
+- `keep` holds node ids, and path ids that stay with both their ends (a
+  selected or focused path, a highlighted route).
+
+**Protected marks.** A mark with `protected: true` keeps the element it sits
+on at every pair of shares and with thresholds: an activity (which then
+gets its anchors, so the guarantee holds), a path with both its ends, both
+activities of an arc. With stages collapsed it moves to the stage that holds
+its element and is never dropped. A mark that is not protected follows its
+element. `abstract` reads the graph's `overlays` and the `marks` given
+beside it; `<ProcessMap/>` hands it its `overlays` prop with the graph's,
+`buildViews` the marks of its views, `liteFromGraph` the graph's. A mark
+the rule is not given cannot be protected. Which deviations are protected is
+the host's choice.
+
+**What is shown** is recorded in `meta.shown` (`ShownMeta`): activities and
+paths shown of all, and for detail shares how many shown paths are anchors
+only and which activities each keeps, how many are indirect, the count of
+the weakest path shown by frequency and of the strongest path not shown;
+with thresholds and without `keepConnected`, how many shown activities have
+no path. `marksNotShown` names the marks whose element is not shown, by
+`<kind>:<target>:<n>`, `n` being the mark's place among the marks given
+(the graph's, then `marks`) in canonical order (`canonicalOverlays`);
+`forProtected` lists the activities and paths shown only because a
+protected mark sits on them. `meta.abstraction` records the shares
+(`activityDetail`, `pathDetail`) instead of the thresholds.
+
+**Comparisons.** In a graph made by `diff` (`meta.diff`), the strength and
+the rank of an element are the larger of its relative strength on side b
+(its own metrics) and on side a (`a_<metric>`), each relative to the
+strongest element of its side; an element neither side measured has
+strength 1. This holds for the detail shares and for thresholds: before,
+an element with side a's metrics only had strength 1 and no threshold
+removed it, so `diff(globalScene, vendorScene)` at thresholds of 100 % kept
+31 activities and 282 paths; it now keeps 1 activity and 1 path (2 paths with
+`keepConnected`). For graphs that are not comparisons an element nobody
+measured is never removed.
 
 ## Layout
 

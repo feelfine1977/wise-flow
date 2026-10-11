@@ -149,7 +149,9 @@ export function resolveViews(base: FlowGraph, views: ViewSpec[], positions: Posi
  * views on it, so that every view renders the same map at the same positions.
  */
 export async function buildViews(graph: FlowGraph, views: ViewSpec[], options: BuildViewsOptions = {}): Promise<ViewSet> {
-  const base = options.abstraction ? abstract(graph, options.abstraction) : graph;
+  // The abstraction sees the marks every view draws, so that a protected one keeps its element.
+  const marks = [...(options.abstraction?.marks ?? []), ...views.flatMap((v) => v.overlays ?? [])];
+  const base = options.abstraction ? abstract(graph, marks.length ? { ...options.abstraction, marks } : options.abstraction) : graph;
   const positions = options.positions ? filterPositions(options.positions, base) : await layout(base, options.layout);
   return resolveViews(base, views, positions, options);
 }

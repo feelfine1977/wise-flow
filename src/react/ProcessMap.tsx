@@ -139,12 +139,15 @@ function ProcessMapInner(props: ProcessMapProps) {
   const setAbstraction = useCallback((a: AbstractOptions) => void dispatch({ type: "setAbstraction", abstraction: a }), [dispatch]);
   const setView = (v: "map" | "table") => void dispatch({ type: "setView", view: v });
 
-  // Graph pipeline: collapse first (own layout), then thresholds (filter positions).
+  // Graph pipeline: the given marks join the graph's, so that the abstraction sees them all (a protected one keeps
+  // its element, a collapse moves it to its stage); then collapse first (own layout), then thresholds (filter positions).
+  const marksKey = useMemo(() => JSON.stringify(extraOverlays ?? []), [extraOverlays]);
+  const marked = useMemo(() => (extraOverlays?.length ? { ...graph, overlays: [...(graph.overlays ?? []), ...extraOverlays] } : graph), [graph, marksKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const collapseOnly = useMemo<AbstractOptions | undefined>(
     () => (abstraction.collapse ? { collapse: abstraction.collapse, keepConnected: false } : undefined),
     [abstraction.collapse],
   );
-  const baseGraph = useFlowGraph(graph, collapseOnly);
+  const baseGraph = useFlowGraph(marked, collapseOnly);
   const shown = useFlowGraph(baseGraph, { ...abstraction, collapse: false });
   const useCanvas = renderer === "canvas" || (renderer === "auto" && shown.nodes.length + shown.edges.length > canvasThreshold);
 
@@ -165,10 +168,9 @@ function ProcessMapInner(props: ProcessMapProps) {
   const arranging = (provisional && !unavailable) || arrival.moving;
   const notice = arranging ? t(locale, "map.arranging") : unavailable ? t(locale, "map.layoutUnavailable") : undefined;
   const [manual, setManual] = useState<{ key: ProcessMapProps["layoutResetKey"]; points: Record<string, XY> }>({ key: layoutResetKey, points: {} });
-  // Graph overlays and the given ones; the scene keeps those it can place and adds the follows self-loops.
-  const sceneOverlays = useMemo(() => (extraOverlays ? [...(shown.overlays ?? []), ...extraOverlays] : undefined), [shown, extraOverlays]);
+  // The shown graph's marks, the given ones among them; the scene keeps those it can place and adds the follows self-loops.
   const { scene, positions, laidPositions } = useMapScene(shown, arrival.positions, manual.key === layoutResetKey ? manual.points : NO_MOVES, {
-    overlays: sceneOverlays, style, locale, lanes, activityLabels, selfLoops, lod: props.lod, theme: markedTheme, scheme: look.scheme, textMeasure,
+    style, locale, lanes, activityLabels, selfLoops, lod: props.lod, theme: markedTheme, scheme: look.scheme, textMeasure,
   });
   const { scales, overlays, geometry } = scene;
   // One index of the shown graph: every description, label and lookup by id reads it.

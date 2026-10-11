@@ -16,6 +16,13 @@ describe("describeMap", () => {
     expect(text).toMatch(/Abstraction: activities above 25\s?%, paths above 50\s?%\./);
   });
 
+  it("says how much of the graph detail shares show", () => {
+    const shown = abstract(graph, { activityDetail: 0.5, pathDetail: 0 });
+    expect(describeMap(shown, [], "en")).toContain("Detail: 1 of 2 activities and 0 of 1 paths shown.");
+    expect(describeMap(shown, [], "de")).toContain("Detailgrad: 1 von 2 Aktivitäten und 0 von 1 Pfaden gezeigt.");
+    expect(describeMap(shown, [], "en")).not.toContain("Abstraction:");
+  });
+
   it("does not read a server threshold share as zero thresholds", () => {
     // A number in `meta.abstraction` is not the recorded object: it has no node and path shares.
     const text = describeMap({ ...graph, meta: { abstraction: 0.2 } }, [], "en");

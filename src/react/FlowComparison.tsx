@@ -43,12 +43,14 @@ const validCount = (value: unknown): value is number => typeof value === "number
 
 /**
  * Nothing was removed by abstraction: the server reports the threshold `0`, or
- * `abstract` recorded zero thresholds for activities and paths without collapsing
- * stages. Anything else, including a partial record, may have removed elements.
+ * `abstract` recorded zero thresholds or full detail shares for activities and
+ * paths without collapsing stages. Anything else, including a partial record,
+ * may have removed elements.
  */
 function unabstracted(abstraction: FlowMeta["abstraction"]): boolean {
   if (typeof abstraction === "number") return abstraction === 0;
-  return !!abstraction && typeof abstraction === "object" && abstraction.minNodeShare === 0 && abstraction.minEdgeShare === 0 && !abstraction.collapse;
+  if (!abstraction || typeof abstraction !== "object" || abstraction.collapse) return false;
+  return (abstraction.minNodeShare === 0 && abstraction.minEdgeShare === 0) || (abstraction.activityDetail === 1 && abstraction.pathDetail === 1);
 }
 
 function addEntry(entries: Map<string, Entry>, key: string, entry: Entry) {

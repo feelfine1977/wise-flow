@@ -64,7 +64,17 @@ export function describeMap(graph: FlowGraph, overlays: Overlay[], locale: Local
   const parts = [
     t(locale, "map.description", { nodes: graph.nodes.length, edges: graph.edges.length, groups: graph.groups?.length ?? 0 }),
   ];
-  if (abstraction) {
+  const shown = graph.meta?.shown;
+  if (abstraction?.activityDetail !== undefined && shown) {
+    parts.push(
+      t(locale, "map.detail", {
+        activities: formatCount(shown.activities.shown, locale),
+        allActivities: formatCount(shown.activities.of, locale),
+        paths: formatCount(shown.paths.shown, locale),
+        allPaths: formatCount(shown.paths.of, locale),
+      }),
+    );
+  } else if (abstraction) {
     parts.push(
       t(locale, "map.abstraction", {
         nodeShare: formatShare(abstraction.minNodeShare ?? 0, locale),

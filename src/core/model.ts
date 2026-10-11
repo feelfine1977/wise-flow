@@ -94,6 +94,12 @@ export interface Overlay {
   /** Node, edge or group id; `MAP_TARGET` for map-level chips. */
   target: string;
   payload?: OverlayPayload;
+  /**
+   * The deviation must stay visible at every level of detail: `abstract`
+   * always shows the activity, the path (with both its ends) or both
+   * activities of an arc it is on. Which deviations are protected is the host's choice.
+   */
+  protected?: boolean;
 }
 
 /**
@@ -123,12 +129,45 @@ export interface FlowPaths {
   outgoing: FlowPath[];
 }
 
-/** Thresholds `abstract` applied to a graph, recorded in `meta.abstraction`. */
+/** Thresholds or detail shares `abstract` applied to a graph, recorded in `meta.abstraction`. */
 export interface AbstractionMeta {
   minEdgeShare?: number;
   minNodeShare?: number;
   keepConnected?: boolean;
+  /** The share of activities shown (see `AbstractOptions.activityDetail`); with it the thresholds are not recorded. */
+  activityDetail?: number;
+  /** The share of paths shown by frequency (see `AbstractOptions.pathDetail`). */
+  pathDetail?: number;
   collapse?: string[] | "all";
+}
+
+/**
+ * What `abstract` shows of the graph it abstracted (with stages collapsed
+ * when asked), recorded in `meta.shown`. Counts of paths are of the graph's
+ * own paths (follows and flow edges, self-loops included); indirect paths are
+ * counted apart.
+ */
+export interface ShownMeta {
+  /** Activities and stages shown, of all. */
+  activities: { shown: number; of: number };
+  /** Paths shown, of all. */
+  paths: { shown: number; of: number };
+  /** Detail shares: the shown paths that are anchors only, outside the paths share (tagged `anchor`). */
+  anchorsOnly?: number;
+  /** Detail shares: for every anchor-only path, the activities (stages, gateways) it keeps on a way from start to end. */
+  keeps?: Record<string, string[]>;
+  /** Detail shares: the indirect paths (tagged `indirect`). */
+  indirect?: number;
+  /** Detail shares: the count of the weakest path shown by frequency; absent when none is. */
+  weakestByFrequency?: number;
+  /** Detail shares: the count of the strongest path not shown; absent when every path is shown. */
+  strongestNotShown?: number;
+  /** Thresholds without `keepConnected`: the shown activities that have no path to or from another node. */
+  withoutPath?: number;
+  /** The marks not shown because their element is not, by id (`kind:target:n`, see `abstract`). */
+  marksNotShown: string[];
+  /** The activities and paths shown only because a protected mark sits on them. */
+  forProtected: string[];
 }
 
 /**
@@ -140,6 +179,8 @@ export interface FlowMeta {
   abstraction?: number | AbstractionMeta;
   /** The model before any abstraction; `abstract` records it. */
   model?: ModelOutline;
+  /** What `abstract` shows of the graph; it records it. */
+  shown?: ShownMeta;
   [key: string]: unknown;
 }
 

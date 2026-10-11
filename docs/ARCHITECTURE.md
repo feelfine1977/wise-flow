@@ -23,7 +23,7 @@
 │          text · tokens · theme · style · hit · export ·     │
 │          views · selection · map-controller · actions ·     │
 │          paths · filters · format · metrics · strings ·     │
-│          viewport                                           │
+│          viewport · detail                                  │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -49,6 +49,7 @@ read what it resolves and do not decide it again.
 | Mark SVG (`core/mark-svg.ts`) | `markSvg`, `svgMarkup` | the SVG elements of a mark | SVG export, React map, BPMN view |
 | Legend and figure frame (`core/figure.ts`) | `FlowScene.legend` (`legendOfScene`), `LegendRow`, `legendLayout`, `figureFrame`, `figureCaption` | the legend's typed rows from what the scene draws (the measure and its unit, the scales titled by metric and unit, a key per kind of mark drawn), their heights and texts at the export's width, the exported figure's frame, its caption line and the note on withheld edges in it (§2.6) | `toSVG`, `toPNG`, Canvas `drawLegend`, `<Legend/>` |
 | Fitted view (`core/viewport.ts`) | `fitViewport(bounds, area, { insets, padding })`, `panelInsets(panels, area, bounds)` | the view that shows a map whole inside its area less insets, and the insets that keep it clear of the panels over it (each panel kept clear across or along the area, whichever leaves the larger zoom) | `ProcessMap` (React Flow), `CanvasRenderer.fit` and `CanvasMap`, `BpmnView` |
+| Selection by detail (`core/detail.ts`, through `abstract` in `core/aggregate.ts`) | `abstract(graph, { activityDetail, pathDetail, marks })` → `FlowGraph` with `meta.shown`; `ANCHOR_TAG`, `INDIRECT_TAG` | which activities and paths two detail shares show: activities by rank, paths by their rank in the whole graph, each shown activity's anchors (its strongest path from and to a more frequent node, or the way through rarer ones whose rarest is the most frequent), indirect paths for stretches through activities not shown, the elements of protected marks, and what is shown and what of the marks is not (§2.2) | `<ProcessMap/>` through `useFlowGraph`, `buildViews`, `liteFromGraph`; hosts |
 | Metric registry (`core/metrics.ts`) | `metricRegistry`, `formatMetricValue`, `elementMetric`, `metricLabelOf`, `channelTitle` | for each metric its name, unit and number format in English and German, and how a lower bound and a mean of merged values read (§2.2, §2.6) | the legend, the node and edge marks, the descriptions, `<TableAlternative/>`, `<PathList/>` |
 | Design tokens (`core/tokens.ts`) | `designTokens` and its parts, `patternTwin`, `tokenVariables` | colours, palettes, fonts, node sizes, the arrowhead rule, pattern twins, and every size, radius, stroke, dash, text size and weight, opacity, spacing step and z-order by role; `tokens.css` is generated from it and checked against it (§2.4) | marks, SVG export, Canvas drawing and `readTokens`, PNG export, React components, `tokens.css` and through it the stylesheet |
 | Graph index and positions (`core/model.ts`, `core/layout.ts`) | `indexGraph`, `createPositions` | lookups, adjacency, group ancestors, nested members, labels; positions whose bounds always match their contents (§2.1, §2.3) | selection, filters, paths, lanes, layout, every renderer |
@@ -120,7 +121,43 @@ part is monotone in the thresholds; the reconnection is bounded (paths
 between components plus one edge per open need) but not a global optimum,
 so the total element count may differ by one re-added edge between
 neighbouring thresholds. `diff(a, b)` returns a graph with `b`'s metrics,
-`a_<metric>` and `delta_<metric>`, one-sided elements tagged.
+`a_<metric>` and `delta_<metric>`, one-sided elements tagged. In such a
+comparison (`meta.diff`) an element's strength is the larger of its relative
+strength on side b and on side a (`a_<metric>`), each relative to the
+strongest element of its side, for thresholds and detail shares alike; an
+element neither side measured keeps strength 1.
+
+**Protected marks.** A mark (overlay) with `protected: true` keeps the
+element it sits on with thresholds and at every detail share: an activity, a
+path with both its ends, both activities of an arc. `abstract` reads the
+graph's overlays and the `marks` given beside it (collapsed with the graph,
+so a mark moves to the stage holding its element); `meta.shown` names the
+marks whose element is not shown and the elements shown only for a
+protected mark. `ProcessMap` merges its `overlays` prop into the graph
+before it abstracts, so marks inside and beside the graph behave alike in
+the DOM map and the Canvas map; `buildViews` passes its views' marks.
+
+**Detail shares** (`core/detail.ts`). Given `activityDetail` or
+`pathDetail`, `abstract` selects by detail instead of thresholds. Nodes are
+ranked once: events and gateways first by id, then activities by strength
+(cases), events, id. The activity share shows a prefix of that rank, rounded
+up, at least one, extended over a tie of cases and events. Paths (follows and
+flow edges) are ranked by strength, then id, over the whole graph; the paths
+share shows the paths whose rank lies within it and whose ends are shown.
+Every node has an anchoring way in (from a start or a node of lower rank)
+and out (to an end or a node of lower rank): its strongest direct path, else
+the way through nodes of higher rank that minimises the highest rank on it,
+then the steps, then ids (a search keyed by rarity · (n + 1) + steps). For
+each shown activity, and for each shown node where such a way stops, the
+ways are followed through anchoring nodes that are not shown to the first
+shown one; the walk is split at shown nodes into paths of the graph (shown,
+tagged `anchor` outside the paths share) and stretches through hidden
+nodes, each one `indirect` edge without metrics. Following the anchoring
+nodes strictly lowers the rank, so every shown activity reaches a start and
+an end by induction over the rank. The anchors depend on the graph only, the
+shown set grows with either share, and a walk split at more shown nodes
+keeps every path it had: so neither share removes an element as it grows,
+except an indirect edge whose activities come into view.
 
 **Joining components.** An edge costs a reconnecting path `1 + (1 −
 strength)`: 1 for the edge, so every removed node on a path adds at least 1
