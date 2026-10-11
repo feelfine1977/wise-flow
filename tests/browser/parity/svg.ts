@@ -71,6 +71,9 @@ function outline(e: El): Record<string, string> {
   return { outline: stroke, outlineWidth: num(Number(e.attrs["stroke-width"] ?? 1)), dash: dash(e.attrs["stroke-dasharray"]) };
 }
 
+/** A shadow is an SVG filter on the shape or its group; its value is the filter's reference. */
+const shadowOf = (g: El, shape: El) => g.attrs.filter ?? shape.attrs.filter ?? "none";
+
 /** Extent of a shape in the units it is drawn in. */
 function boxOf(e: El): Drawn["box"] {
   const a = (k: string) => Number(e.attrs[k] ?? 0);
@@ -118,22 +121,22 @@ export function readSvg(svg: string, markIds: string[]): Drawing {
     const [shape] = parts;
     const texts = textsOf(g);
     if (hasClass(g, "wf-group")) {
-      const props = { fill: fillOf(shape), radius: radiusOf(shape), shadow: "none", ...outline(shape) };
+      const props = { fill: fillOf(shape), radius: radiusOf(shape), shadow: shadowOf(g, shape), ...outline(shape) };
       if (hasClass(g, "wf-group-band")) {
         const rule = parts[1];
         Object.assign(props, { outlineSides: "top right bottom left", rule: `${strokeOf(rule)} ${num(Number(rule.attrs["stroke-width"]))}` });
       }
       out.set(`group:${g.attrs["data-id"]}`, { box: boxOf(shape), props, texts });
     } else if (hasClass(g, "wf-edge")) {
-      out.set(`edge:${g.attrs["data-id"]}`, { box: boxOf(shape), props: { fill: "none", ...outline(shape) }, texts });
+      out.set(`edge:${g.attrs["data-id"]}`, { box: boxOf(shape), props: { fill: fillOf(shape), ...outline(shape) }, texts });
     } else if (hasClass(g, "wf-node")) {
       const band = parts.find((p, i) => i > 0 && p.tag === "rect" && !p.attrs.fill.startsWith("url("));
-      const props = { fill: fillOf(shape), radius: radiusOf(shape), shadow: "none", band: band ? `${fillOf(band)} ${num(Number(band.attrs.width))}` : "none", ...outline(shape) };
+      const props = { fill: fillOf(shape), radius: radiusOf(shape), shadow: shadowOf(g, shape), band: band ? `${fillOf(band)} ${num(Number(band.attrs.width))}` : "none", ...outline(shape) };
       out.set(`node:${g.attrs["data-id"]}`, { box: boxOf(shape), props, texts });
     } else if (hasClass(g, "wf-overlay")) {
       const id = markIds[mark++];
       if (id === undefined) throw new Error("the export draws more marks than the scene has");
-      const props: Record<string, string> = { fill: shape.tag === "path" ? "none" : fillOf(shape), ...outline(shape) };
+      const props: Record<string, string> = { fill: fillOf(shape), ...outline(shape) };
       if (shape.tag === "rect") props.radius = radiusOf(shape);
       out.set(`mark:${id}`, { box: boxOf(shape), props, texts });
     }

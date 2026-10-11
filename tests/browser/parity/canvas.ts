@@ -16,7 +16,7 @@ interface Shape {
 }
 
 export type Op =
-  | { op: "fill" | "stroke"; paint: string; width: number; dash: string; shape: Shape }
+  | { op: "fill" | "stroke"; paint: string; width: number; dash: string; shadow: string; shape: Shape }
   | { op: "text"; text: string; x: number; y: number; size: number; weight: number; paint: string; halo: boolean };
 
 interface State {
@@ -26,10 +26,21 @@ interface State {
   font: string;
   globalAlpha: number;
   dash: number[];
+  shadowColor: string;
+  shadowBlur: number;
+  shadowOffsetX: number;
+  shadowOffsetY: number;
 }
 
 /** A paint of the context: a colour, or `pattern` for a pattern, at the global alpha. */
 const paintOf = (style: unknown, alpha: number) => paint(typeof style === "string" ? style : "pattern", alpha);
+
+/** The shadow a fill or stroke casts, as `shadow` in `drawn.ts` writes it. */
+function shadowOf(state: State): string {
+  const color = paint(state.shadowColor, state.globalAlpha);
+  if (color === "none" || (!state.shadowBlur && !state.shadowOffsetX && !state.shadowOffsetY)) return "none";
+  return [color, num(state.shadowOffsetX), num(state.shadowOffsetY), num(state.shadowBlur)].join(" ");
+}
 
 function fontOf(font: string): { size: number; weight: number } {
   const m = /^(?:(\d+)\s+)?([\d.]+)px/.exec(font.trim());
@@ -44,7 +55,7 @@ function fontOf(font: string): { size: number; weight: number } {
  */
 export function recordingContext(measure: (text: string, font: string) => number) {
   const ops: (Op & { scales: number })[] = [];
-  let state: State = { fillStyle: "#000000", strokeStyle: "#000000", lineWidth: 1, font: "10px sans-serif", globalAlpha: 1, dash: [] };
+  let state: State = { fillStyle: "#000000", strokeStyle: "#000000", lineWidth: 1, font: "10px sans-serif", globalAlpha: 1, dash: [], shadowColor: "rgba(0, 0, 0, 0)", shadowBlur: 0, shadowOffsetX: 0, shadowOffsetY: 0 };
   const saved: State[] = [];
   let path: Shape = { points: [], arcs: [], lines: [] };
   let at: [number, number] | undefined;
@@ -96,10 +107,10 @@ export function recordingContext(measure: (text: string, font: string) => number
       point(x, y);
       point(x + w, y + h);
     },
-    fill: () => ops.push({ op: "fill", paint: paintOf(state.fillStyle, state.globalAlpha), width: 0, dash: "none", shape: path, scales }),
-    stroke: () => ops.push({ op: "stroke", paint: paintOf(state.strokeStyle, state.globalAlpha), width: state.lineWidth, dash: dash(state.dash), shape: path, scales }),
+    fill: () => ops.push({ op: "fill", paint: paintOf(state.fillStyle, state.globalAlpha), width: 0, dash: "none", shadow: shadowOf(state), shape: path, scales }),
+    stroke: () => ops.push({ op: "stroke", paint: paintOf(state.strokeStyle, state.globalAlpha), width: state.lineWidth, dash: dash(state.dash), shadow: shadowOf(state), shape: path, scales }),
     fillRect: (x: number, y: number, w: number, h: number) =>
-      ops.push({ op: "fill", paint: paintOf(state.fillStyle, state.globalAlpha), width: 0, dash: "none", shape: { points: [[x, y], [x + w, y + h]], arcs: [], lines: [] }, scales }),
+      ops.push({ op: "fill", paint: paintOf(state.fillStyle, state.globalAlpha), width: 0, dash: "none", shadow: shadowOf(state), shape: { points: [[x, y], [x + w, y + h]], arcs: [], lines: [] }, scales }),
     fillText: (text: string, x: number, y: number) => ops.push({ op: "text", text, x, y, ...fontOf(state.font), paint: paintOf(state.fillStyle, state.globalAlpha), halo: false, scales }),
     strokeText: (text: string, x: number, y: number) => ops.push({ op: "text", text, x, y, ...fontOf(state.font), paint: paintOf(state.strokeStyle, state.globalAlpha), halo: true, scales }),
     measureText: (text: string) => ({ width: measure(text, state.font) }),
@@ -158,7 +169,7 @@ export function readOps(kind: string, ops: Op[]): Drawn | undefined {
     // The band's fill, its sides in the line colour and the rule along its start.
     const [fill, lines, rule] = drawn;
     const box = fill && shapeBox(fill.shape);
-    Object.assign(props, { fill: fill?.paint ?? "none", radius: "0", shadow: "none", ...outline(lines), outlineSides: lines && box ? sides(lines.shape, box) : "none", rule: rule ? `${rule.paint} ${num(rule.width)}` : "none" });
+    Object.assign(props, { fill: fill?.paint ?? "none", radius: "0", shadow: fill?.shadow ?? "none", ...outline(lines), outlineSides: lines && box ? sides(lines.shape, box) : "none", rule: rule ? `${rule.paint} ${num(rule.width)}` : "none" });
     return { box, props, texts };
   }
   const [first] = drawn;
@@ -169,7 +180,7 @@ export function readOps(kind: string, ops: Op[]): Drawn | undefined {
   Object.assign(props, { fill: fill?.paint ?? "none", ...outline(stroke) });
   if (kind.startsWith("node:") || kind.startsWith("group:")) {
     props.radius = radiusOf(first.shape);
-    props.shadow = "none";
+    props.shadow = (fill ?? stroke)?.shadow ?? "none";
   }
   if (kind.startsWith("node:")) {
     // The colour band: the first rectangle filled after the outline, in a colour.

@@ -305,7 +305,7 @@
       "kind": "node:activity",
       "property": "shadow",
       "svg": "none",
-      "other": "rgba(0, 0, 0, 0.12) 0px 1px 2px 0px",
+      "other": "#000000@0.12 0 1 2",
       "fixtures": [
         "global",
         "roleLanes",
@@ -334,7 +334,7 @@
       "kind": "node:event",
       "property": "shadow",
       "svg": "none",
-      "other": "rgba(0, 0, 0, 0.12) 0px 1px 2px 0px",
+      "other": "#000000@0.12 0 1 2",
       "fixtures": [
         "global",
         "roleLanes",
@@ -415,7 +415,7 @@
       "kind": "node:gateway",
       "property": "shadow",
       "svg": "none",
-      "other": "rgba(0, 0, 0, 0.12) 0px 1px 2px 0px",
+      "other": "#000000@0.12 0 1 2",
       "fixtures": [
         "roleLanes"
       ],
@@ -437,7 +437,7 @@
       "kind": "node:stage",
       "property": "shadow",
       "svg": "none",
-      "other": "rgba(0, 0, 0, 0.12) 0px 1px 2px 0px",
+      "other": "#000000@0.12 0 1 2",
       "fixtures": [
         "stages"
       ],

@@ -90,6 +90,23 @@ export function dash(lengths: readonly number[] | string | undefined | null): st
   return list.length && list.some((v) => v > 0) ? list.map(num).join(" ") : "none";
 }
 
+/**
+ * Shadows as paint and offsets, `#000000@0.12 0 1 2` for a shadow of that
+ * colour offset by 0 and 1 and blurred by 2 (with the spread after it where
+ * not 0), several separated by commas; `none` without one. Reads CSS
+ * `box-shadow` values with the colour first, as browsers compute them.
+ */
+export function shadow(css: string | undefined | null): string {
+  const s = (css ?? "").trim();
+  if (!s || s === "none") return "none";
+  const list = s.split(/,(?![^(]*\))/).map((one) => {
+    const color = /^((?:rgba?|color)\([^)]*\)|#[0-9a-f]+)/i.exec(one.trim())?.[1] ?? "#000000";
+    const [x = 0, y = 0, blur = 0, spread = 0] = (one.trim().slice(color.length).match(/-?[\d.]+(?=px)/g) ?? []).map(Number);
+    return [paint(color), num(x), num(y), num(blur), ...(spread ? [num(spread)] : [])].join(" ");
+  });
+  return list.join(", ");
+}
+
 /** Bounding box of points. */
 export function bbox(points: readonly (readonly [number, number])[]): Drawn["box"] {
   if (!points.length) return undefined;

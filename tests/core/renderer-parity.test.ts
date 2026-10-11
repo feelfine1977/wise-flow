@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { type FlowGraph, buildScene, createPositions, estimateTextWidth, toSVG } from "../../src/index";
 import { type PreparedScene, prepareScene, toPNGCanvas } from "../../src/canvas/index";
 import { readCanvasMap, readPng } from "../browser/parity/canvas";
-import { type Listed, checkExpected, dash, differences, exportedMarks, kindsOf, paint } from "../browser/parity/drawn";
+import { type Listed, checkExpected, dash, differences, exportedMarks, kindsOf, paint, shadow } from "../browser/parity/drawn";
 import { readSvg } from "../browser/parity/svg";
 
 /**
@@ -80,6 +80,37 @@ describe("the parity readers", () => {
     expect(added.reduce((n, d) => n + d.elements, 0)).toBe(3);
   });
 
+  it("report a shadow that one renderer casts and the SVG export does not", () => {
+    // The PNG export draws into a context that casts a shadow under everything.
+    const shaded = readPng(
+      (createCanvas) =>
+        toPNGCanvas(
+          { graph, positions, overlays },
+          {
+            scale: 1,
+            createCanvas: (width, height) => {
+              const canvas = createCanvas(width, height);
+              Object.assign(canvas.getContext() as object, { shadowColor: "rgba(0, 0, 0, 0.25)", shadowBlur: 4, shadowOffsetY: 2 });
+              return canvas;
+            },
+          },
+        ),
+      prepareScene(graph, positions, { overlays, lodBySize: false }),
+      kinds,
+      measure,
+    );
+    const found = differences([{ name: "small", kinds, svg: svg(), others: { png: shaded } }]).filter((d) => d.property === "shadow");
+    expect(found.map((d) => [d.kind, d.svg, d.other, d.elements])).toEqual([
+      ["group:stage", "none", "#000000@0.25 0 2 4", 1],
+      ["node:activity", "none", "#000000@0.25 0 2 4", 2],
+      ["node:event", "none", "#000000@0.25 0 2 4", 2],
+    ]);
+    // In the SVG export a shadow is a filter on the shape.
+    const filtered = readSvg(toSVG({ graph, positions, overlays }).replace('<rect x="100" y="0"', '<rect filter="url(#shade)" x="100" y="0"'), exportedMarks(scene));
+    expect(filtered.get("node:a")!.props.shadow).toBe("url(#shade)");
+    expect(filtered.get("node:b")!.props.shadow).toBe("none");
+  });
+
   it("fail the check for a listed difference that is gone or found on other elements", () => {
     const entry: Listed = { renderer: "dom", kind: "node:event", property: "outlineWidth", svg: "1.5", other: "2", fixtures: ["small"], elements: 2 };
     expect(checkExpected([], [entry])).toEqual({ added: [], gone: [entry], changed: [] });
@@ -106,5 +137,8 @@ describe("the parity readers", () => {
     expect(dash("6px, 4px")).toBe("6 4");
     expect(dash([])).toBe("none");
     expect(dash("none")).toBe("none");
+    expect(shadow("rgba(0, 0, 0, 0.12) 0px 1px 2px 0px")).toBe("#000000@0.12 0 1 2");
+    expect(shadow("rgb(0, 0, 0) 0px 0px 0px 3px, rgba(0, 0, 0, 0.12) 0px 1px 2px 0px")).toBe("#000000 0 0 0 3, #000000@0.12 0 1 2");
+    expect(shadow("none")).toBe("none");
   });
 });

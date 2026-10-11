@@ -3,7 +3,7 @@
  * and geometry, in flow coordinates. `readDomInPage` runs in the page and
  * returns plain values; `readDom` turns them into a `Drawing`.
  */
-import { type Drawing, type DrawnText, bbox, dash, num, paint } from "./drawn";
+import { type Drawing, type DrawnText, bbox, dash, num, paint, shadow } from "./drawn";
 
 type Box = { x: number; y: number; width: number; height: number };
 
@@ -189,7 +189,7 @@ export function readDom(elements: DomElement[], kinds: Map<string, string>): Dra
       props.dash = STYLES[o.style] ?? (/^[a-z]+$/.test(o.style) ? o.style : dash(o.style));
     }
     if (e.radius !== undefined) props.radius = num(e.radius);
-    if (!kind.startsWith("mark:") && !kind.startsWith("edge:")) props.shadow = e.shadow ?? "none";
+    if (!kind.startsWith("mark:") && !kind.startsWith("edge:")) props.shadow = shadow(e.shadow);
     if (kind.startsWith("node:")) props.band = e.band ? `${paint(e.band.color)} ${num(e.band.width)}` : "none";
     if (kind.endsWith(":band")) {
       props.outlineSides = o?.sides ?? "none";
