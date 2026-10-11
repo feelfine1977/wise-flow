@@ -207,6 +207,7 @@ describe("the Canvas map and the React Flow map agree on the drawn set", () => {
 // ---------------------------------------------------------------------------
 
 type FrameClass = "fast" | "neutral" | "slow";
+const CLASSES: readonly FrameClass[] = ["fast", "neutral", "slow"];
 /** A frame time: below 8.35 ms, between, or above 16.7 ms. */
 const frameMsOf = (rng: Random, kind: FrameClass) => (kind === "fast" ? rng.float(0, 8) : kind === "neutral" ? rng.float(9, 16) : rng.float(17, 80));
 
@@ -219,7 +220,11 @@ describe("exports at random moments of the Canvas map", () => {
     const scene: PreparedScene = prepareScene(graph, positions, { selfLoops: false });
     const all = scene.edgeMarks.map((m) => m.id);
     const figure = { graph, positions, selfLoops: false };
-    const bias = rng.pick(["fast", "neutral", "slow", "mixed"] as const);
+    // A turning case gives each drag, wheel or run of frames a class of its own, so that slow drags take the
+    // adaptive budget down and fast ones take it up again within one case.
+    const bias = rng.pick([...CLASSES, "mixed", "turning"] as const);
+    let leaning: FrameClass | "mixed" = bias === "turning" ? rng.pick(CLASSES) : bias;
+    const lean = () => (leaning = bias === "turning" ? rng.pick(CLASSES) : bias);
     quietCanvas();
     let now = 0;
     let frameMs = 25;
@@ -246,11 +251,12 @@ describe("exports at random moments of the Canvas map", () => {
       const event = rng.weighted([["drag", 4], ["release", 2], ["wheel", 2], ["budget", 2], ["select", 1], ["frames", 3], ["rest", 2]] as const);
       if (event === "drag") {
         if (!dragging) {
+          lean();
           fireEvent.pointerDown(host, { clientX: x, clientY: 400, button: 0, pointerId: 1 });
           dragging = true;
         }
         for (let k = rng.int(1, 6); k > 0; k--) {
-          frameMs = frameMsOf(rng, bias === "mixed" || !rng.chance(0.85) ? rng.pick(["fast", "neutral", "slow"] as const) : bias);
+          frameMs = frameMsOf(rng, leaning === "mixed" || !rng.chance(0.85) ? rng.pick(CLASSES) : leaning);
           fireEvent.pointerMove(host, { clientX: (x += 10), clientY: 400, pointerId: 1 });
           frame();
         }
@@ -261,14 +267,15 @@ describe("exports at random moments of the Canvas map", () => {
         fireEvent.wheel(host, { clientX: 600, clientY: 400, deltaY: rng.pick([10, -10]), ctrlKey: rng.chance() });
         frame();
       } else if (event === "budget") {
-        budget = rng.pick(["adaptive", 300, 500, 1000, 2000, "all"] as const);
+        budget = rng.weighted<EdgeBudget | "adaptive">([["adaptive", 4], [300, 1], [500, 1], [1000, 1], [2000, 1], ["all", 1]]);
         await act(async () => void view.rerender(tree()));
       } else if (event === "select") {
         state = { selection: { nodes: [], edges: rng.sample(all, rng.pick([0, 1, 20, 100])), groups: [] } };
         await act(async () => void view.rerender(tree()));
       } else if (event === "frames") {
+        lean();
         for (let k = rng.int(1, 6); k > 0; k--) {
-          frameMs = frameMsOf(rng, bias === "mixed" ? rng.pick(["fast", "neutral", "slow"] as const) : bias);
+          frameMs = frameMsOf(rng, leaning === "mixed" ? rng.pick(CLASSES) : leaning);
           frame();
         }
       } else {
