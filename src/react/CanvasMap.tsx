@@ -32,8 +32,8 @@ export interface CanvasMapProps {
   onEdgesShown?: (shown: ShownEdges | undefined) => void;
   /**
    * The colours and font the map is drawn in: a preset's name or changes over
-   * a preset, over the `--wf-*` CSS variables of the element that contains the
-   * map (`useFlowTheme`). Sizes, radii and strokes are the scene's.
+   * a preset, over the `--wf-*` CSS variables of the map's element, set there
+   * or inherited (`useFlowTheme`). Sizes, radii and strokes are the scene's.
    */
   theme?: ThemeSetting;
   className?: string;
@@ -98,8 +98,7 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
   const withheldKey = useRef("");
   const reportShown = useEdgesShown(onEdgesShown);
   // The colours and the font follow the theme, the host's CSS variables and the colour scheme.
-  const container = useMemo(() => ({ get current() { return hostRef.current?.parentElement ?? null; } }), []);
-  const look = useFlowTheme(container, theme);
+  const look = useFlowTheme(hostRef, theme);
   const tokens = useMemo(() => sceneTokens({ theme: look.theme, colors: themeColors(look.theme, look.scheme) }), [look]);
 
   useLayoutEffect(() => {

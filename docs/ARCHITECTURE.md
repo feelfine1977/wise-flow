@@ -238,7 +238,8 @@ and keeps only literal colours, so every paint of an export is a literal. The
 exports draw the `default` preset in the light scheme unless told otherwise
 and never read the page. Every part of a theme has one `--wf-*` variable
 (`themeVariables`, `themeFromVariables`); in a page, `useFlowTheme` (React)
-reads them from the map's container, leaves out what `tokens.css` sets, turns
+reads them on the map's element (set there or inherited; given a `theme`, the
+map writes its own there and reads its container's), leaves out what `tokens.css` sets, turns
 any CSS colour into a literal (one pixel of a canvas), takes the scheme
 `tokens.css` draws in, and follows changes of attributes and of the system's
 scheme. Colours read in the dark scheme are the `dark` roles, so an export in
@@ -420,7 +421,7 @@ to zoom, hover through the R-tree with a tooltip, click, right click), a
 hidden element list for assistive technology (above `describedLimit`, 500
 activities plus groups, only the keyboard position's neighbourhood, with the
 table view paged and searchable) and the zoom buttons, and draws in the
-colours and font `useFlowTheme` resolves for its container (§2.4), set on the
+colours and font `useFlowTheme` resolves for its element (§2.4), set on the
 renderer as its tokens when they change; its
 pointer callbacks become the map controller's events like React Flow's.
 `ProcessMap` switches to it above `canvasThreshold` (2,000 activities

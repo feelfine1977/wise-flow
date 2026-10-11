@@ -39,11 +39,13 @@ variables, and the exports take it too.
   dark scheme are the theme's `dark` roles. It returns `{ theme, scheme }`
   (`FlowTheme`), which an export takes to draw what the map draws.
 - `<ProcessMap theme>` takes a `ThemeSetting` (it took a `Theme`) and reads
-  the variables of its container; given a theme it writes the theme's
-  variables that the stylesheet reads on its element. A change of a colour or
+  the variables of its element, set there (`className`, `containerStyle`) or
+  inherited; given a theme it writes the theme's variables that the
+  stylesheet reads on its element, over its `containerStyle`, and reads
+  those of its container. A change of a colour or
   the font repaints the DOM map and the Canvas map without a new scene; a
   change of a size builds the scene once; neither lays the map out again.
   `<CanvasMap/>` and `<ViewSwitcher/>` take `theme`. `<CanvasMap/>` reads its
-  colours and font through `useFlowTheme` from the element that contains it,
-  no longer through `readTokens` on its own element; `readTokens` itself is
+  colours and font through `useFlowTheme` on its element, no longer through
+  `readTokens`; `readTokens` itself is
   unchanged.

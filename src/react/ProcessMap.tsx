@@ -147,14 +147,16 @@ function ProcessMapInner(props: ProcessMapProps) {
   const [manual, setManual] = useState<{ key: ProcessMapProps["layoutResetKey"]; points: Record<string, XY> }>({ key: layoutResetKey, points: {} });
   // Graph overlays and the given ones; the scene keeps those it can place and adds the follows self-loops.
   const sceneOverlays = useMemo(() => (extraOverlays ? [...(shown.overlays ?? []), ...extraOverlays] : undefined), [shown, extraOverlays]);
-  // The theme: the setting over the CSS variables of the map's container over the preset, in the page's scheme.
+  // The theme: the setting over the CSS variables of the map's element (its own and those it inherits) over the preset,
+  // in the page's scheme. Given a setting, the map writes the theme's variables on its element, so it reads its container's.
   // The scene is built again only when the marks change; colours and the font are painted from the theme.
   const containerRef = useRef<HTMLDivElement>(null);
-  const host = useMemo(() => ({ get current() { return containerRef.current?.parentElement ?? null; } }), []);
+  const given = props.theme !== undefined;
+  const host = useMemo(() => ({ get current() { return given ? (containerRef.current?.parentElement ?? null) : containerRef.current; } }), [given]);
   const look = useFlowTheme(host, props.theme);
   const markedKey = useMemo(() => markedThemeKey(look.theme, look.scheme), [look]);
   const markedTheme = useMemo(() => look.theme, [markedKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  const themed = useMemo(() => (props.theme === undefined ? undefined : themeStyle(look.theme, look.scheme)), [props.theme === undefined, look]); // eslint-disable-line react-hooks/exhaustive-deps
+  const themed = useMemo(() => (given ? themeStyle(look.theme, look.scheme) : undefined), [given, look]);
   const { scene, positions, laidPositions } = useMapScene(shown, arrival.positions, manual.key === layoutResetKey ? manual.points : NO_MOVES, {
     overlays: sceneOverlays, style, locale, lanes, activityLabels, selfLoops, lod: props.lod, theme: markedTheme, scheme: look.scheme,
   });
@@ -399,7 +401,7 @@ function ProcessMapInner(props: ProcessMapProps) {
     <div
       ref={containerRef}
       className={`wf-process-map ${lodClasses}${showPaths ? " wf-process-map--side" : ""}${className ? ` ${className}` : ""}`}
-      style={{ width: "100%", height: "100%", ...themed, ...containerStyle }}
+      style={{ width: "100%", height: "100%", ...containerStyle, ...themed }}
       role="group"
       {...part("map")}
       aria-label={ariaLabel ?? t(locale, "map.description", { nodes: shown.nodes.length, edges: shown.edges.length, groups: shown.groups?.length ?? 0 })}

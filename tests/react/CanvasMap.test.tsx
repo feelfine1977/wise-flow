@@ -55,12 +55,13 @@ describe("ProcessMap with the Canvas renderer", () => {
 });
 
 describe("the live Canvas map and the theme", () => {
-  // The map reads the variables of its container. jsdom resolves custom properties only on the element a
-  // rule matches, so the theme rules name the container; their values are those of `tokens.css`.
+  // The map reads the variables of its element, which inherits its container's. jsdom resolves custom properties
+  // only on the element a rule matches, so the theme rules name the container and everything in it, as a browser
+  // inherits them; their values are those of `tokens.css`.
   const theme = document.createElement("style");
   theme.textContent = [
-    '.host { --wf-ink: #1f1f1f; --wf-paper: #ffffff; }',
-    ':root[data-theme="dark"] .host { --wf-ink: #ececec; --wf-paper: #16181d; }',
+    '.host, .host * { --wf-ink: #1f1f1f; --wf-paper: #ffffff; }',
+    ':root[data-theme="dark"] .host, :root[data-theme="dark"] .host * { --wf-ink: #ececec; --wf-paper: #16181d; }',
   ].join("\n");
 
   afterEach(() => {
@@ -105,7 +106,7 @@ describe("the live Canvas map and the theme", () => {
     expect(listeners.length).toBeGreaterThan(0);
     // A scheme change shows in the computed variables only; jsdom does not evaluate the media query, so a rule
     // added to the theme stands in for it. No attribute changes, so only the media query's listener can redraw.
-    theme.textContent += "\n.host { --wf-ink: #dddddd; }";
+    theme.textContent += "\n.host, .host * { --wf-ink: #dddddd; }";
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(labels()).toEqual(["#1f1f1f"]);
     listeners.forEach((l) => l());

@@ -118,10 +118,12 @@ export interface ProcessMapProps {
    * What the map is drawn in: a preset's name (`"default"`, `"print"`) or
    * changes over a preset (`{ preset: "default", radius: { node: 4 } }`; a whole
    * `Theme` is such changes too). It overrides the `--wf-*` CSS variables of the
-   * map's container, which override the preset (`useFlowTheme`). Given, its
-   * colours, fonts and the sizes the stylesheet reads are written on the map's
-   * element as those variables, so the panels follow it too. Default: the
-   * `default` preset under the container's variables.
+   * map's element, set there or inherited, which override the preset
+   * (`useFlowTheme`). Given, its colours, fonts and the sizes the stylesheet
+   * reads are written on the map's element as those variables, over
+   * `containerStyle`, so the panels follow it too, and the variables of the
+   * map's container are read. Default: the `default` preset under the map's
+   * variables.
    */
   theme?: ThemeSetting;
   /** Controlled abstraction options. */

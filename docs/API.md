@@ -607,7 +607,7 @@ export function metricLabel(locale: Locale, metric: string): string;
 ```ts
 export function ProcessMap(props: {
   graph: FlowGraph; positions?: Positions; overlays?: Overlay[]; style?: StyleSpec;
-  theme?: ThemeSetting;   // a preset's name or changes over a preset, over the container's --wf-* variables; see "Theme of a map in a page"
+  theme?: ThemeSetting;   // a preset's name or changes over a preset, over the map's --wf-* variables; see "Theme of a map in a page"
   abstraction?: AbstractOptions; defaultAbstraction?: AbstractOptions; onAbstractionChange?: (o: AbstractOptions) => void;
   controls?: boolean; legend?: boolean; minimap?: boolean; renderer?: "auto" | "svg" | "canvas"; canvasThreshold?: number;
   selection?: Selection; onSelect?: (s: Selection) => void; onHover?: (id: string | null) => void;
@@ -1242,16 +1242,16 @@ export function CanvasMap(props: { scene: PreparedScene | undefined; state: Draw
   edgeBudget?: EdgeBudget | "adaptive";   // default "adaptive"
   clock?: () => number;   // ms, read by the adaptive edge budget; default performance.now; read when the map mounts
   onAnnounce?: (text: string) => void; onEdgesShown?: (shown: ShownEdges | undefined) => void;
-  theme?: ThemeSetting }   // its colours and font, over the container's --wf-* variables; see "Theme of a map in a page"
+  theme?: ThemeSetting }   // its colours and font, over its --wf-* variables; see "Theme of a map in a page"
   & { ref?: Ref<CanvasMapHandle> }): JSX.Element;
 export interface CanvasMapHandle { centerOn(id, zoom?); fit(); zoomBy(factor); screenBox(id): Box | undefined; renderer(): CanvasRenderer | null;
   moved(): boolean }   // true when the view changed since the map was last fitted
 ```
 
 `<CanvasMap/>` (and `<ProcessMap renderer="canvas"/>`) follows the theme: it
-draws in the colours and the font `useFlowTheme` resolves for the element that
-contains it (its `theme` prop over that element's `--wf-*` variables over the
-preset), and redraws, without preparing the scene again, when they change
+draws in the colours and the font `useFlowTheme` resolves for its element (its
+`theme` prop over that element's `--wf-*` variables, its own and inherited,
+over the preset), and redraws, without preparing the scene again, when they change
 (see "Theme of a map in a page"). Sizes, radii and strokes are the scene's.
 It no longer calls `readTokens`.
 
@@ -1779,7 +1779,7 @@ export interface FlowTheme { theme: Theme; scheme: ColorScheme }
 
 A host writes a map's theme as an object, as CSS variables, or both. The
 precedence is: the `theme` setting, then the `--wf-*` variables of the map's
-container, then the preset. `useFlowTheme` resolves it, and the map,
+element (set on it or on its container), then the preset. `useFlowTheme` resolves it, and the map,
 `<CanvasMap/>` and a host's export read what it resolves:
 
 - **Variables.** Every part of a theme has a variable: a colour role
@@ -1788,9 +1788,11 @@ container, then the preset. `useFlowTheme` resolves it, and the map,
   `--wf-weight-<role>` and `--wf-leading-<role>`, `--wf-radius-<role>` (and
   `--wf-radius`, `--wf-radius-lg` for the node's and the large radius),
   `--wf-stroke-<role>` and `--wf-opacity-<role>`, roles in kebab case.
-  Lengths are read in px. The map reads them on the element that contains
-  it, as set there or inherited; a value equal to what `tokens.css` sets is
-  `tokens.css`'s, not the host's, and is left out.
+  Lengths are read in px. The map reads them on its own element, as set
+  there (`className`, `containerStyle`) or inherited from its container;
+  given a `theme`, it writes its own there and reads its container's. A
+  value equal to what `tokens.css` sets is `tokens.css`'s, not the host's,
+  and is left out.
 - **Colours** in any CSS syntax (a name, `hsl()`, `oklch()`, `color-mix()`,
   …) become the literal the browser paints, read back from one pixel of a
   canvas: `#rrggbb`, or `rgba()` when translucent. The same holds for the
@@ -1808,8 +1810,9 @@ container, then the preset. `useFlowTheme` resolves it, and the map,
   a new layout.
 - **The DOM map** paints with the variables it inherits. Given a `theme`, the
   map writes the theme's colours, fonts and the sizes the stylesheet reads
-  (the variables of `tokens.css`) on its own element, so its panels follow it
-  too; without one it writes none.
+  (the variables of `tokens.css`) on its own element, over its
+  `containerStyle`, so its panels follow it too and draw what the Canvas map
+  draws; without one it writes none.
 - **Exports.** `toSVG(scene, { theme: look.theme })` draws what the map draws,
   in the light scheme; `scheme: look.scheme` draws the page's scheme.
 

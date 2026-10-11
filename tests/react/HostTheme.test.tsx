@@ -24,7 +24,8 @@ vi.mock("../../src/core/layout.js", async (importOriginal) => {
 const { buildScene } = await import("../../src/core/scene.js");
 const { vendorScene } = await import("../../fixtures/bpic2019");
 const { abstract, toSVG, layout } = await import("../../src/index");
-const { ProcessMap, useFlowTheme } = await import("../../src/react/index");
+const { CanvasMap, ProcessMap, emptySelection, useFlowTheme } = await import("../../src/react/index");
+const { prepareScene } = await import("../../src/canvas/index");
 const { cssColor } = await import("../../src/react/theme");
 type FlowTheme = import("../../src/react/index").FlowTheme;
 type ThemeSetting = import("../../src/index").ThemeSetting;
@@ -130,7 +131,8 @@ describe("the theme of a map", () => {
     const view = render(map());
     await waitFor(() => expect(label()).toEqual(["#1f1f1f"]));
     view.unmount();
-    rules.textContent = ".host { --wf-ink: #222222; }";
+    // As a browser inherits: the rule sets the container and everything in it.
+    rules.textContent = ".host, .host * { --wf-ink: #222222; }";
     const css = render(map());
     await waitFor(() => expect(label()).toEqual(["#222222"]));
     css.rerender(map({ color: { ink: "#333333" } }));
@@ -139,6 +141,9 @@ describe("the theme of a map", () => {
 
   it("repaints when a colour variable changes, without a layout or a new scene, and builds the scene once when a size changes", async () => {
     const { label, strokes } = recorder();
+    // The host changes its container's class; the rules set the container and everything in it, as a browser inherits.
+    document.head.appendChild(rules);
+    rules.textContent = ".inked, .inked * { --wf-ink: #123456; } .sized, .sized * { --wf-stroke-node: 3px; }";
     const view = render(
       <div className="host" style={{ width: 1200, height: 800 }}>
         <ProcessMap graph={vendor} layout={{ engine: "dagre" }} renderer="canvas" edgeBudget="all" controls={false} legend={false} />
@@ -151,7 +156,7 @@ describe("the theme of a map", () => {
     const built = vi.mocked(buildScene).mock.calls.length;
     expect(laid).toBeGreaterThan(0);
 
-    act(() => host.style.setProperty("--wf-ink", "#123456"));
+    act(() => host.classList.add("inked"));
     await waitFor(() => expect(label()).toEqual(["#123456"]));
     expect(vi.mocked(buildScene).mock.calls.length).toBe(built);
     expect(layouts.mock.calls.length).toBe(laid);
@@ -159,7 +164,7 @@ describe("the theme of a map", () => {
     // The activities of the first stage are outlined in its colour, 2 wide by default and 3 wide once the host says so.
     const outlined = (width: number) => strokes().filter((s) => s.stroke === "#0072B2" && s.width === width).length;
     expect([outlined(2) > 0, outlined(3)]).toEqual([true, 0]);
-    act(() => host.style.setProperty("--wf-stroke-node", "3px"));
+    act(() => host.classList.add("sized"));
     await waitFor(() => expect(outlined(3)).toBeGreaterThan(0));
     expect(vi.mocked(buildScene).mock.calls.length).toBe(built + 1);
     expect(layouts.mock.calls.length).toBe(laid);
@@ -181,6 +186,42 @@ describe("the theme of a map", () => {
     view.rerender(map({ color: { ink: "#444444" }, font: { family: "Georgia, serif" } }));
     await waitFor(() => expect(root().style.getPropertyValue("--wf-ink")).toBe("#444444"));
     expect(vi.mocked(buildScene).mock.calls.length).toBe(built);
+  });
+
+  it("draws the variables a host sets on the map's own element on the Canvas map too, and given a theme draws its variables there", async () => {
+    const { label } = recorder();
+    const positions = await layout(vendor, { engine: "dagre" });
+    document.head.appendChild(rules);
+    // As a browser inherits: the rule sets the map's element and everything in it.
+    rules.textContent = ".mine, .mine * { --wf-ink: #123456; }";
+    const map = (props: { className?: string; containerStyle?: React.CSSProperties; theme?: ThemeSetting }) => (
+      <div style={{ width: 1200, height: 800 }}>
+        <ProcessMap graph={vendor} positions={positions} renderer="canvas" edgeBudget="all" controls={false} legend={false} {...props} />
+      </div>
+    );
+    const view = render(map({ className: "mine" }));
+    await waitFor(() => expect(label()).toEqual(["#123456"]));
+    view.rerender(map({ containerStyle: { "--wf-ink": "#234567" } as React.CSSProperties }));
+    await waitFor(() => expect(label()).toEqual(["#234567"]));
+    // Given a theme, the map writes the theme's variables over its own: the DOM and the Canvas map draw the same ink.
+    view.rerender(map({ containerStyle: { "--wf-ink": "#234567" } as React.CSSProperties, theme: { color: { paper: "#fdf6e3" } } }));
+    const root = view.container.querySelector(".wf-process-map") as HTMLElement;
+    await waitFor(() => expect(root.style.getPropertyValue("--wf-paper")).toBe("#fdf6e3"));
+    await waitFor(() => expect(label()).toEqual(["#1f1f1f"]));
+    expect(root.style.getPropertyValue("--wf-ink")).toBe("#1f1f1f");
+  });
+
+  it("draws the variables a host sets on a Canvas map of its own", async () => {
+    const { label } = recorder();
+    const positions = await layout(vendor, { engine: "dagre" });
+    document.head.appendChild(rules);
+    rules.textContent = ".mine { --wf-ink: #123456; }";
+    render(
+      <div style={{ width: 1200, height: 800 }}>
+        <CanvasMap className="mine" scene={prepareScene(vendor, positions)} state={{ selection: emptySelection }} edgeBudget="all" />
+      </div>,
+    );
+    await waitFor(() => expect(label()).toEqual(["#123456"]));
   });
 
   it("takes its colours in the dark scheme as the dark roles, so an export stays light unless told to draw dark", () => {
