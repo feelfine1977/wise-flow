@@ -127,6 +127,8 @@ describe("the parity readers", () => {
     const elsewhere = { ...entry, fixtures: ["global", "small"] };
     expect(checkExpected([elsewhere], [entry]).changed).toHaveLength(1);
     expect(checkExpected([entry], [entry])).toEqual({ added: [], gone: [], changed: [] });
+    // A difference listed twice is listed once too often.
+    expect(checkExpected([entry], [entry, entry])).toEqual({ added: [], gone: [entry], changed: [] });
   });
 
   it("write paints and dashes alike from every renderer's notation", () => {

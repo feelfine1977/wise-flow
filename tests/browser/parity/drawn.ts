@@ -194,7 +194,11 @@ export function differences(fixtures: { name: string; kinds: Map<string, string>
   return [...listed.values()].map((l) => ({ ...l, fixtures: l.fixtures.sort() })).sort(order);
 }
 
-/** What the committed list says and what was found: new differences, listed ones that are gone, listed ones whose extent changed. */
+/**
+ * What the committed list says and what was found: new differences, listed
+ * ones that are gone (a second listing of one difference among them), listed
+ * ones whose extent changed.
+ */
 export function checkExpected(found: Listed[], expected: Listed[]): { added: Listed[]; gone: Listed[]; changed: { expected: Listed; found: Listed }[] } {
   const byKey = new Map(expected.map((e) => [keyOf(e), e]));
   const foundKeys = new Set(found.map(keyOf));
@@ -205,7 +209,14 @@ export function checkExpected(found: Listed[], expected: Listed[]): { added: Lis
     if (!e) added.push(f);
     else if (e.elements !== f.elements || [...e.fixtures].sort().join() !== f.fixtures.join()) changed.push({ expected: e, found: f });
   }
-  return { added, gone: expected.filter((e) => !foundKeys.has(keyOf(e))), changed };
+  const listed = new Set<string>();
+  const gone = expected.filter((e) => {
+    const k = keyOf(e);
+    const again = listed.has(k);
+    listed.add(k);
+    return again || !foundKeys.has(k);
+  });
+  return { added, gone, changed };
 }
 
 /** Element kinds by key: `node:event`, `edge:follows`, `group:stage:band`, `mark:arc`. */
