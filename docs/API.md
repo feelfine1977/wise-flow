@@ -508,6 +508,11 @@ export function t(locale: Locale, key: StringKey, vars?): string;
 export function metricLabel(locale: Locale, metric: string): string;
 ```
 
+`formatNumber` prints between 0 and 100 decimals: fewer are taken as 0, more
+as 100, a fraction is cut and `NaN` counts as 0; up to 0.3.5 a number
+outside threw a `RangeError`. A value that is not a finite number (`NaN`,
+an infinity, a string) prints as `–` in every formatter.
+
 ## React (`@wise/flow/react`)
 
 ```ts
@@ -1122,6 +1127,11 @@ export function normalizeFilterPreview(raw: Record<string, unknown> | FilterPrev
 export interface FilterTarget { kind: "node" | "edge" | "group" | "pair" | "set"; ids: string[] }
 export function clauseForTarget(target: FilterTarget, action: "keep" | "exclude", graph?: FlowGraph): FilterClause | FilterClause[] | undefined;
 ```
+
+`normalizeFilterPreview` reads numbers only where they are finite numbers,
+and the marginal removals (`perClause`, `per_clause`) only from a list, of
+its entries whose `clause` is a number; up to 0.3.5 anything else under that
+key threw a `TypeError`.
 
 Clauses combine by AND, an `any` group by OR. The canonical form resolves
 aliases (`mode` → `field`, `not_contains` → `never`), sorts value lists and

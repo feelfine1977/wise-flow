@@ -126,7 +126,7 @@ export function normalizeFilterPreview(raw: Record<string, unknown> | FilterPrev
     casesIn,
     casesOut,
     casesTotal: n(r.casesTotal ?? r.cases_total) ?? (casesIn !== undefined && casesOut !== undefined ? casesIn + casesOut : undefined),
-    perClause: per?.map((p) => ({ clause: p.clause, removedMarginally: n(p.removedMarginally ?? p.removed_marginally) ?? 0 })),
+    perClause: Array.isArray(per) ? per.filter((p) => typeof p?.clause === "number").map((p) => ({ clause: p.clause, removedMarginally: n(p.removedMarginally ?? p.removed_marginally) ?? 0 })) : undefined,
     inScopeByConstraint: (r.inScopeByConstraint ?? r.in_scope_by_constraint) as Record<string, number> | undefined,
   };
 }

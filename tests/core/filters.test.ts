@@ -157,6 +157,15 @@ describe("filters", () => {
     expect(describePreview({ casesIn: 7 })).toBe("7");
   });
 
+  it("reads the marginal removals only from a list, and only its entries that name a clause by number", () => {
+    // A backend may send anything under per_clause; what is not a list of entries with a numeric clause is not read.
+    for (const per of [12, "0", {}, true, null]) {
+      expect(normalizeFilterPreview({ cases_in: 5, per_clause: per })).toEqual({ casesIn: 5, casesOut: undefined, casesTotal: undefined, perClause: undefined, inScopeByConstraint: undefined });
+    }
+    const p = normalizeFilterPreview({ perClause: [null, 3, { clause: "1", removedMarginally: 4 }, { clause: 2, removed_marginally: "7" }, { clause: 0, removedMarginally: 9 }] });
+    expect(p?.perClause).toEqual([{ clause: 2, removedMarginally: 0 }, { clause: 0, removedMarginally: 9 }]);
+  });
+
   it("produces the clause of a map action for every target", () => {
     expect(clauseForTarget({ kind: "node", ids: ["clear_invoice"] }, "keep", graph)).toEqual({ kind: "activity", op: "contains", activity: "clear_invoice" });
     expect(clauseForTarget({ kind: "node", ids: ["clear_invoice"] }, "exclude", graph)).toEqual({ kind: "activity", op: "never", activity: "clear_invoice" });

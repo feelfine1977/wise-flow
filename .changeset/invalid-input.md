@@ -23,3 +23,11 @@ BPMN diagram interchange and given to the map's elements.
 
 `layout` with Dagre (asked for, or as the fallback) places a node and routes
 an edge whose id is the empty string; it failed with a `TypeError` before.
+
+`formatNumber` takes `decimals` between 0 and 100 (fewer as 0, more as 100);
+a number outside threw a `RangeError` before.
+
+`normalizeFilterPreview` reads `perClause` / `per_clause` only from a list,
+of its entries whose `clause` is a number; anything else under that key threw
+a `TypeError` before (also in `<FilterChips preview>` and `<ProcessMap
+filterPreview>`).
