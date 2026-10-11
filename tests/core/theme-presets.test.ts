@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { type Theme, buildScene, checkTheme, contrastRatio, defaultTheme, printTheme, resolveTheme, themeColors, toSVG } from "../../src/index";
+import { type FlowGraph, type Theme, buildScene, checkTheme, contrastRatio, defaultTheme, layout, printTheme, resolveTheme, themeColors, toSVG } from "../../src/index";
 import { type DrawContext, drawScene, prepareScene, toPNGCanvas } from "../../src/canvas/index";
 import { themeFromVariables, themeStyle, themeVariables } from "../../src/core/theme";
 import { graph, positions } from "./element-kinds";
@@ -43,18 +43,35 @@ describe("the presets", () => {
     expect([printTheme.text.nodeLabel, printTheme.radius, printTheme.font]).toEqual([defaultTheme.text.nodeLabel, defaultTheme.radius, defaultTheme.font]);
   });
 
-  it("keeps print's patterns apart in greyscale: every stage colour has its own pattern, drawn in ink that stands out from it, and the path ramp's greys differ step by step", () => {
+  it("keeps print apart in greyscale: every stage colour has its own pattern, drawn in ink that stands out from it, and every path ramp darkens from 3 : 1 on the paper", async () => {
     // The greyscale check: converted by luminance, two stage colours may look alike, so each must carry a pattern no
-    // other carries, and the pattern's ink must differ from the colour it is drawn on (3 : 1). The path ramp must
-    // darken step by step, each step at least 1.5 : 1 from the next, and start at 3 : 1 against the paper.
-    const { categorical, neutral } = printTheme.palette;
+    // other carries, and the pattern's ink, at the opacity print draws it, must differ from the colour it is drawn on
+    // (3 : 1). Each ramp a path is coloured with must darken step by step, each stop at least 1.5 : 1 from the next,
+    // and start at 3 : 1 against the paper, so that the palest path still shows and two classes do not fall together.
+    const { categorical } = printTheme.palette;
     const patterns = categorical.map((_, i) => printTheme.patterns[i % printTheme.patterns.length]);
     expect(new Set(patterns).size).toBe(categorical.length);
     expect(patterns).not.toContain("solid");
+    // Print draws its patterns opaque; the default's 0.6 would leave ink on #0072B2 at about 2 : 1.
+    expect([printTheme.pattern.strokeOpacity, printTheme.pattern.dotOpacity]).toEqual([1, 1]);
     for (const c of categorical) expect(contrast(printTheme.color.ink, c.toLowerCase()), c).toBeGreaterThanOrEqual(3);
-    expect(neutral.map(luminance)).toEqual([...neutral.map(luminance)].sort((a, b) => b - a));
-    for (let i = 1; i < neutral.length; i++) expect(contrast(neutral[i - 1], neutral[i])).toBeGreaterThanOrEqual(1.5);
-    expect(contrast(neutral[0], printTheme.color.paper)).toBeGreaterThanOrEqual(3);
+    for (const name of ["neutral", "shortfall", "performance"] as const) {
+      const ramp = printTheme.palette[name].map((c) => c.toLowerCase());
+      expect(ramp.map(luminance), name).toEqual([...ramp.map(luminance)].sort((a, b) => b - a));
+      for (let i = 1; i < ramp.length; i++) expect(contrast(ramp[i - 1], ramp[i]), `${name} ${i}`).toBeGreaterThanOrEqual(1.5);
+      expect(contrast(ramp[0], printTheme.color.paper), name).toBeGreaterThanOrEqual(3);
+    }
+    // What a print export draws: paths short by 0 to 100 %, and one without a value, all at 3 : 1 or more.
+    const shares = [0, 0.05, 0.1, 0.3, 0.5, 0.8, 1];
+    const paths: FlowGraph = {
+      nodes: ["s", ...shares.map((_, i) => `n${i}`)].map((id) => ({ id, kind: "activity" as const, label: id })),
+      edges: [...shares.map((v, i) => ({ id: `e${i}`, kind: "follows" as const, source: "s", target: `n${i}`, metrics: { count: 10, violationShare: v } })), { id: "x", kind: "follows" as const, source: "n0", target: "n1", metrics: { count: 10 } }],
+    };
+    const svg = toSVG({ graph: paths, positions: await layout(paths, { engine: "dagre" }) }, { theme: "print", legend: false });
+    const strokes = [...svg.matchAll(/<g class="wf-edge[^>]*>.*?stroke="(#[\da-f]{6})"/g)].map((m) => m[1]);
+    expect(strokes.length).toBe(shares.length + 1);
+    expect(svg).toMatch(/<pattern id="wf-pattern-diagonal"[^>]*><path[^>]*stroke-opacity="1"\/>/);
+    for (const s of strokes) expect(contrast(s, "#ffffff"), s).toBeGreaterThanOrEqual(3);
   });
 
   it("gives print's stage colours their patterns in the scene and drops the tints", () => {

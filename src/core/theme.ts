@@ -7,7 +7,7 @@
  * preset's name or as changes over a preset (`resolveTheme`), and writes it as
  * CSS variables too (`themeFromVariables`), which the React components read.
  */
-import { type ColorToken, type PatternId, PATTERNS, colorTokens, cssVariable, darkColorTokens, fontTokens, minimumTokens, opacityTokens, paletteTokens, printTokens, radiusTokens, spaceTokens, strokeTokens, textTokens, tokenVariables } from "./tokens.js";
+import { type ColorToken, type PatternId, type PatternLook, PATTERNS, colorTokens, cssVariable, darkColorTokens, fontTokens, minimumTokens, opacityTokens, paletteTokens, patternTokens, printTokens, radiusTokens, spaceTokens, strokeTokens, textTokens, tokenVariables } from "./tokens.js";
 
 /** The colour scheme a scene is resolved in. */
 export type ColorScheme = "light" | "dark";
@@ -37,6 +37,8 @@ export interface Theme {
   palette: Readonly<ThemePalettes>;
   /** The pattern twin of each categorical colour, in the palette's order. */
   patterns: readonly PatternId[];
+  /** How the pattern twins are drawn: tile, line width, dot radius and their opacities (`patternTokens`). */
+  pattern: PatternLook;
   font: { readonly family: string; readonly mono: string };
   /** Text by role: size, weight and line height (`textTokens`). */
   text: Values<typeof textTokens>;
@@ -68,6 +70,7 @@ export const defaultTheme: Theme = {
     categorical: paletteTokens.categorical,
   },
   patterns: PATTERNS,
+  pattern: patternTokens,
   font: fontTokens,
   text: textTokens,
   radius: radiusTokens,
@@ -101,7 +104,7 @@ function merge<T>(base: T, changes: unknown): T {
   return out as T;
 }
 
-/** For print: white paper, no tints, a pattern on every categorical colour, no text under 7 pt and no stroke under 0.75 pt; no dark scheme. */
+/** For print: white paper, no tints, an opaque pattern on every categorical colour, ramps that start at 3 : 1 on the paper, no text under 7 pt and no stroke under 0.75 pt; no dark scheme. */
 export const printTheme: Theme = merge({ ...defaultTheme, dark: {} }, printTokens);
 
 /** The presets by name. */

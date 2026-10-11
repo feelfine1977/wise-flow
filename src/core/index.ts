@@ -100,6 +100,7 @@ export {
 } from "./style.js";
 export type {
   PatternId,
+  PatternLook,
   ChannelSpec,
   ColorSpec,
   LodRules,

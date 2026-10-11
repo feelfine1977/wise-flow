@@ -8,9 +8,9 @@ import { hatchSvg, patternTwinSvg, svgMarkup } from "./mark-svg.js";
 import { type FlowEdge, type FlowGraph, type FlowNode, metric } from "./model.js";
 import type { StringKey } from "./strings.js";
 import { type ColorScheme, type Theme, type ThemePalettes, colorChannels, defaultTheme, themeColors } from "./theme.js";
-import { type ColorToken, type PatternId, PATTERNS, colorTokens, paletteTokens, strokeTokens } from "./tokens.js";
+import { type ColorToken, type PatternId, type PatternLook, PATTERNS, colorTokens, paletteTokens, strokeTokens } from "./tokens.js";
 
-export { type PatternId, PATTERNS } from "./tokens.js";
+export { type PatternId, type PatternLook, PATTERNS } from "./tokens.js";
 
 /** The palettes of the token table (`paletteTokens`). */
 export const palettes = paletteTokens;
@@ -471,7 +471,7 @@ function symmetricDomain(values: number[]): number[] {
   return [-m, 0, m];
 }
 
-/** SVG pattern definitions for the pattern twins and the out-of-scope hatching, usable in exports and in the DOM. */
-export function patternDefs(prefix = "wf-pattern", ink: string = fixedColors.ink, outOfScope: string = fixedColors.outOfScope): string {
-  return [...PATTERNS.map((p) => patternTwinSvg(`${prefix}-${p}`, p, ink)), hatchSvg(`${prefix}-outofscope`, outOfScope)].map(svgMarkup).join("");
+/** SVG pattern definitions for the pattern twins (drawn as `look` says) and the out-of-scope hatching, usable in exports and in the DOM. */
+export function patternDefs(prefix = "wf-pattern", ink: string = fixedColors.ink, outOfScope: string = fixedColors.outOfScope, look?: PatternLook): string {
+  return [...PATTERNS.map((p) => patternTwinSvg(`${prefix}-${p}`, p, ink, look)), hatchSvg(`${prefix}-outofscope`, outOfScope)].map(svgMarkup).join("");
 }
