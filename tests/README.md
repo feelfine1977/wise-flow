@@ -84,6 +84,15 @@ failure message names the invariant, the seed and the step, and prints the
 schedule so far; shrink such a schedule by hand or with `shrinkList` over its
 operations.
 
+The soak tests (`react/LayoutSoak.test.tsx`, `core/layout-soak.test.ts`) run
+thousands of mount, change and unmount cycles and compare the collected heap
+before and after. They need a garbage collection they can call and are
+skipped, with that reason, unless it is exposed:
+
+```sh
+NODE_OPTIONS=--expose-gc npx vitest run tests/react/LayoutSoak.test.tsx tests/core/layout-soak.test.ts
+```
+
 ## Strict visual CI and deliberate approval
 
 Strict visual tests use `updateSnapshots: "none"`; missing or changed baselines
