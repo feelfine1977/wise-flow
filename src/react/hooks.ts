@@ -217,8 +217,8 @@ export function useEdgesShown(onEdgesShown: ((shown: ShownEdges | undefined) => 
   }, []);
 }
 
-/** Reports for both renderers; a switch starts again from every edge drawn. */
-export function useEdgesShownAcross(onEdgesShown: ((shown: ShownEdges | undefined) => void) | undefined, canvas: boolean) {
+/** Reports for both renderers; a switch, and a Canvas map drawn again after the table view, start again from every edge drawn. */
+export function useEdgesShownAcross(onEdgesShown: ((shown: ShownEdges | undefined) => void) | undefined, canvas: boolean, mapShown = true) {
   const callback = useRef(onEdgesShown);
   useLayoutEffect(() => void (callback.current = onEdgesShown));
   const told = useRef<ShownEdges | undefined>(undefined);
@@ -229,5 +229,10 @@ export function useEdgesShownAcross(onEdgesShown: ((shown: ShownEdges | undefine
   useLayoutEffect(() => {
     if (told.current) tell(undefined);
   }, [canvas, tell]);
+  // A Canvas map that comes back reports only what it withholds, not that it withholds nothing.
+  const canvasShown = canvas && mapShown;
+  useLayoutEffect(() => {
+    if (canvasShown && told.current) tell(undefined);
+  }, [canvasShown, tell]);
   return onEdgesShown && tell;
 }

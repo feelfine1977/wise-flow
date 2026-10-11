@@ -119,4 +119,32 @@ describe("exporting what the map shows", () => {
     await waitFor(() => expect(reported.at(-1)).toBeUndefined());
     expect(note()).toBeUndefined();
   });
+
+  it("reports what the Canvas map draws when it is shown again after the table view", async () => {
+    quietCanvas();
+    const reported: (ShownEdges | undefined)[] = [];
+    const map = (view: "map" | "table", edgeBudget: number | "all") => (
+      <div style={{ width: 1200, height: 800 }}>
+        <ProcessMap graph={small.graph} positions={small.positions} controls={false} legend={false} fitView={false} selfLoops={false} contextMenu={false} pathList={false} renderer="canvas" view={view} edgeBudget={edgeBudget} onEdgesShown={(shown) => reported.push(shown)} />
+      </div>
+    );
+    const last = () => reported.at(-1) && [...reported.at(-1)!.edges].sort();
+    const view = render(map("map", 3));
+    await waitFor(() => expect(last()).toEqual(["h-t2", "h-t5", "h-t7"]));
+    // Back from the table view with the same budget, the map draws and reports the same three edges.
+    await act(async () => view.rerender(map("table", 3)));
+    await act(async () => view.rerender(map("map", 3)));
+    await waitFor(() => expect(note()).toBe("Showing 3 of 8 flows"));
+    await waitFor(() => expect(last()).toEqual(["h-t2", "h-t5", "h-t7"]));
+    // The budget changed while the table was shown: back on the map every edge is drawn, and the host
+    // hears so instead of keeping the three, which an export would otherwise draw with a note.
+    await act(async () => view.rerender(map("table", 3)));
+    await act(async () => view.rerender(map("table", "all")));
+    await act(async () => view.rerender(map("map", "all")));
+    await waitFor(() => expect(reported.at(-1)).toBeUndefined());
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 50)));
+    expect(reported.at(-1)).toBeUndefined();
+    expect(note()).toBeUndefined();
+    expect(svgEdges(toSVG(small, { edgeBudget: reported.at(-1) }))).toHaveLength(8);
+  });
 });

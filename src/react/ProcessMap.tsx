@@ -212,7 +212,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   // React Flow nodes and edges, or the Canvas scene, its state and the elements listed for assistive technology.
   const flow = useFlowElements({ enabled: !useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, nodesDraggable, edgeBudget, highlighted });
   // The Canvas map reports the edges it draws itself.
-  const tellShown = useEdgesShownAcross(props.onEdgesShown, useCanvas);
+  const tellShown = useEdgesShownAcross(props.onEdgesShown, useCanvas, view !== "table");
   const reportShown = useEdgesShown(useCanvas ? undefined : tellShown);
   useEffect(() => reportShown(flow.withheld, scene.edgeMarks), [flow.withheld, scene, reportShown]);
   // React Flow draws new nodes a commit later; until then the layout is not in place.
