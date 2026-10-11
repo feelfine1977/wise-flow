@@ -2306,7 +2306,8 @@ or its interactive state does not draw, a colour that is neither a literal nor
 a colour role, a fill opacity outside 0 to 1, a text size under the theme's
 minimum or over 15, a weight other than 400, 500 or 600, a value not among the
 named ones. Such a rule changes nothing. An `opacity` outside 0.2 to 1 is
-clamped to it, and listed too. Colour roles are drawn in the scene's scheme:
+clamped to it, and listed too. An entry left `undefined` is ignored, in the
+match and in the set: it neither refuses the rule nor undoes an earlier one. Colour roles are drawn in the scene's scheme:
 `"accent"` is `#b84a00` in the light scheme and `#ff8c42` in the dark one.
 
 **Tier one, worked example.** Activities tagged `manual` get a strong outline,
@@ -2350,7 +2351,9 @@ gives a node, a group and an edge the state style in its data (`state` of
 the group's mark already drawn in it by `markInState`); the stylesheet draws a
 state's outline from `--wf-state-outline` where it is set, and leaves out the
 dimmed look where a rule sets the opacity (`--wf-node-opacity`,
-`--wf-edge-opacity`, `--wf-group-opacity`). A path's label carries its size and
+`--wf-edge-opacity`, `--wf-group-opacity`). Without a rule for the dimmed
+state, a dimmed node or path is drawn at the dimmed look's opacity in place
+of one a rule set in the scene, in both maps. A path's label carries its size and
 paint as `--wf-text-size`, `--wf-text-weight` and `--wf-text-paint`. A hovered
 overlay mark is drawn as `markInState` gives it in both maps.
 
