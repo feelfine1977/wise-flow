@@ -176,6 +176,24 @@ function expected(scene: PreparedScene, view: View, state: DrawState, oracle: re
   return { visits, ...(kept ? { shown: kept.size, total: inView.length } : {}) };
 }
 
+/**
+ * `list:index` of every element whose extent meets the view, found by walking
+ * the scene's lists: every group and node, every mark on the map at or above
+ * its zoom, and every edge the budget keeps among those in view.
+ */
+function bruteForce(scene: PreparedScene, view: View, state: DrawState, budget?: number): string[] {
+  const visible = visibleExtent(view);
+  const meets = (list: ListName, index: number) => extentsOf(scene, { list, index }).some((e) => touch(e, visible));
+  const found: string[] = [];
+  scene.groups.forEach((_, i) => meets("groups", i) && found.push(`groups:${i}`));
+  scene.marks.forEach((m, i) => m.inMap && view.zoom >= m.minZoom && meets("marks", i) && found.push(`marks:${i}`));
+  scene.nodes.forEach((_, i) => meets("nodes", i) && found.push(`nodes:${i}`));
+  const inView = scene.edges.flatMap((_, i) => (meets("edges", i) ? [i] : []));
+  const kept = budget === undefined ? undefined : keptEdges(scene, inView, budget, state);
+  for (const i of inView) if (!kept || kept.has(i)) found.push(`edges:${i}`);
+  return found.sort();
+}
+
 // ---------------------------------------------------------------------------
 // Random scenes, states and views.
 
@@ -260,6 +278,8 @@ describe("the culled Canvas draw against a naive reference", () => {
         }
         const culled = record(scene, view, state, { cull: true, edgeBudget: budget });
         const want = expected(scene, view, state, oracle.visits, budget);
+        // The elements of the reference are those of a brute-force search over the scene's lists, so that one both draws leave out is missed too.
+        expect([...new Set(want.visits.map(keyOf))].sort(), `${label}: the uncull draw inks other elements than the search finds`).toEqual(bruteForce(scene, view, state, budget));
         const got = drawn(culled.visits);
         // Nothing that shows is skipped: every visit that inked the canvas in the uncull draw is drawn by the culled one, except a withheld edge.
         const gotLabels = new Set(labels(got));
