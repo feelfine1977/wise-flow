@@ -105,7 +105,7 @@ export function placeOverlays(
   positions: Positions,
   options: OverlayGeometryOptions = {},
   /** Boxes that arc labels keep clear of besides the nodes, the badges and each other (`groupTitles`, the paths' counts). */
-  titles: readonly Box[] = [],
+  obstacles: readonly Box[] = [],
 ): OverlayGeometry {
   const lod = { ...defaultLod, ...(options.lod ?? {}) };
   const badge = options.badgeSize ?? 22;
@@ -211,7 +211,7 @@ export function placeOverlays(
           for (let k = 0; k < 29 && least; k++) {
             const l = labelAt(0.5 + (k % 2 ? -1 : 1) * Math.ceil(k / 2) / 32);
             const r = rect(l);
-            const count = within(r).length + [...labels, ...titles].filter((b) => meets(b, r)).length;
+            const count = within(r).length + [...labels, ...obstacles].filter((b) => meets(b, r)).length;
             if (count < least) [label, least] = [l, count];
           }
           labels.push(rect(label));
