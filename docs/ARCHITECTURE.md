@@ -39,7 +39,7 @@ read what it resolves and do not decide it again.
 | Scene (`core/scene.ts`) | `buildScene(graph, positions, options)` → `FlowScene` | activity references, lane bands, scales, the overlays to show in canonical order with the follows self-loops, level-of-detail rules, overlay geometry, the marks and the legend, resolved once in a theme and colour scheme (§2.4, §2.6) | `toSVG`, `prepareScene` (Canvas, `toPNG`), `ProcessMap`, `BpmnView` (`bpmn/scene.ts` over the registry's boxes) |
 | Overlay marks (`core/overlay-marks.ts`) | `FlowScene.marks`, `OverlayMark` | per placed overlay: box or path, fill, stroke, dash, arrowhead, texts, layer, zoom threshold, whether it is on the map (§2.5) | SVG export, Canvas drawing, React nodes and `OverlayLayer`, BPMN projection |
 | Node, edge and group marks (`core/element-marks.ts`) | `FlowScene.nodeMarks`, `FlowScene.edgeMarks`, `FlowScene.groupMarks`, `truncateText` | outline, fill, border, band, texts and their level of detail; edge route, colour, dash, count label; a group's tint, outline, band sides and rule, title and chip anchor (§2.5) | SVG export, Canvas drawing, React node, edge and group components |
-| Theme (`core/theme.ts`, `checkTheme` in `core/style.ts`) | `Theme`, `defaultTheme`, `printTheme`, `resolveTheme`, `themeColors`, `checkTheme`; `buildScene(…, { theme, scheme })` | what the marks are drawn in: colour roles with the dark scheme's changes, the data palettes and the pattern twins' order, fonts, text, radius, stroke, opacity and spacing tables, density, the smallest text and stroke, rules (none yet); the presets (`defaultTheme` is the token table, `printTheme` its `printTokens` over it); a setting as changes over a preset over the host's CSS variables; the CSS variable of every part; what of a theme falls short (§2.4) | the scene and its mark builders and scales; through the scene the SVG export, Canvas drawing, PNG export and React components; `useFlowTheme` (React), which reads the variables |
+| Theme (`core/theme.ts`, `checkTheme` in `core/style.ts`) | `Theme`, `defaultTheme`, `printTheme`, `resolveTheme`, `themeColors`, `checkTheme`; `buildScene(…, { theme, scheme })` | what the marks are drawn in: colour roles with the dark scheme's changes, the data palettes and the pattern twins' order and look, fonts, text, radius, stroke, opacity and spacing tables, density, the smallest text and stroke, rules (none yet); the presets (`defaultTheme` is the token table, `printTheme` its `printTokens` over it); a setting as changes over a preset over the host's CSS variables; the CSS variable of every part; what of a theme falls short (§2.4) | the scene and its mark builders and scales; through the scene the SVG export, Canvas drawing, PNG export and React components; `useFlowTheme` (React), which reads the variables |
 | Edge budget (`core/edge-budget.ts`) | `budgetEdges(scene, budget, protection, inView)` → `EdgeSelection`; `edgeBudgetAdapter(clock)` (internal) | which edges in view a budget draws: protected edges (an overlay mark on them, selected, at the keyboard position, on a highlighted path), then weight, then id; or exactly the edges a map reported (`ShownEdges`); the adaptive budget's step, moved by the timed frames of gestures and only at rest (§4) | `drawScene` and `CanvasRenderer` (Canvas, `toPNG`), `useFlowElements` (React Flow), `toSVG` |
 | Mark SVG (`core/mark-svg.ts`) | `markSvg`, `svgMarkup` | the SVG elements of a mark | SVG export, React map, BPMN view |
 | Legend and figure frame (`core/figure.ts`) | `sceneLegend`, `legendLayout`, `figureFrame` | legend rows and heights, the exported figure's frame and the note on withheld edges in it (§2.6) | `toSVG`, `toPNG`, Canvas `drawLegend`, `<Legend/>` |
@@ -230,8 +230,9 @@ second theme, in the dark scheme and under a host's CSS variables through all
 four and compares what they drew.
 
 **Presets, settings and the page.** The presets are `default` (light and
-dark) and `print` (white paper, no tints, a pattern on every categorical
-colour, no text under 7 pt nor stroke under 0.75 pt, no dark scheme). A host
+dark) and `print` (white paper, no tints, an opaque pattern on every
+categorical colour, ramps that start at 3 : 1 on the paper, no text under
+7 pt nor stroke under 0.75 pt in its tables, no dark scheme). A host
 sets a theme as a preset's name or as changes over a preset; `resolveTheme`
 puts the setting over what the host wrote as CSS variables over the preset,
 and keeps only literal colours, so every paint of an export is a literal. The
@@ -239,7 +240,7 @@ exports draw the `default` preset in the light scheme unless told otherwise
 and never read the page. Every part of a theme has one `--wf-*` variable
 (`themeVariables`, `themeFromVariables`); in a page, `useFlowTheme` (React)
 reads them on the map's element (set there or inherited; given a `theme`, the
-map writes its own there and reads its container's), leaves out what `tokens.css` sets, turns
+map writes its own there and sets them aside while it reads), leaves out what `tokens.css` sets, turns
 any CSS colour into a literal (one pixel of a canvas), takes the scheme
 `tokens.css` draws in, and follows changes of attributes and of the system's
 scheme. Colours read in the dark scheme are the `dark` roles, so an export in
@@ -248,9 +249,10 @@ of the theme the marks are built from (`markedThemeKey`), so a change of a
 colour or the font repaints the DOM map (through the variables) and the
 Canvas map (its tokens) without a new scene; a change of a size builds the
 scene once; neither lays out again. Given a `theme`, the map writes the
-theme's variables that the stylesheet reads on its element. `checkTheme`
-reports contrasts, the path ramp, sizes and non-literal colours as data;
-the components log it in development.
+theme's variables that the stylesheet reads on its element, and gives its
+pattern twins the theme's ink and pattern look. `checkTheme`
+reports contrasts (a translucent colour over its ground), the path ramp,
+sizes and non-literal colours as data; the components log it in development.
 
 ### 2.5 Overlays
 An overlay is data, not drawing: `{ kind, target, payload }` where kind is
@@ -421,7 +423,8 @@ to zoom, hover through the R-tree with a tooltip, click, right click), a
 hidden element list for assistive technology (above `describedLimit`, 500
 activities plus groups, only the keyboard position's neighbourhood, with the
 table view paged and searchable) and the zoom buttons, and draws in the
-colours and font `useFlowTheme` resolves for its element (§2.4), set on the
+colours and font `useFlowTheme` resolves for its element (§2.4), inside
+`ProcessMap` the map's theme, set on the
 renderer as its tokens when they change; its
 pointer callbacks become the map controller's events like React Flow's.
 `ProcessMap` switches to it above `canvasThreshold` (2,000 activities

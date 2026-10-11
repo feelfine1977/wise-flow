@@ -6,16 +6,20 @@ A host sets the theme as a preset, as changes over a preset, or as CSS
 variables, and the exports take it too.
 
 - Presets `default` (today's look, light and dark) and `print` (`printTheme`:
-  white paper, no tints, a pattern twin on every categorical colour, a neutral
-  ramp of three greys, no text under 7 pt and no stroke under 0.75 pt, no dark
-  scheme), by name in `themePresets`. Their values are the token table's
+  white paper, no tints, an opaque pattern twin on every categorical colour,
+  neutral, shortfall and performance ramps of three stops that start at 3 : 1
+  on the paper, no text under 7 pt and no stroke under 0.75 pt in its tables
+  at the layout's own size, no dark scheme), by name in `themePresets`. Their values are the token table's
   (`printTokens`, `minimumTokens`, also in `designTokens`).
 - `ThemeSetting` is a preset's name or `ThemeOverrides`, any part of a theme
-  over a preset (`{ preset: "default", density: "compact", radius: { node: 4 } }`;
-  a whole `Theme` is one too). `resolveTheme(setting, variables)` puts the
+  over a preset (`{ preset: "default", radius: { node: 4 } }`; a whole `Theme`
+  is one too; `density` is held but every renderer draws `comfortable`). `resolveTheme(setting, variables)` puts the
   setting over what a host wrote as CSS variables over the preset and keeps
   only literal colours, and only palettes of hex stops.
 - `Theme` gains `patterns` (the pattern twin of each categorical colour),
+  `pattern` (how the twins are drawn, `PatternLook`, the `patternTokens`
+  table by default; `patternTwinSvg`, `patternDefs` and `<PatternSwatch/>`
+  take it as an optional last argument or `look` prop),
   `opacity` (the opacity table; the tints are `tint`, `groupFill`, `bandFill`,
   `bandOddFill`) and `minimum` (the smallest text and stroke, in pt). The
   marks, `tintColor`, the categorical scale, the Canvas map's dimming and the
@@ -24,8 +28,8 @@ variables, and the exports take it too.
 - `checkTheme(theme)` returns as `ThemeDeviation`s what falls short in either
   scheme: text contrast under 4.5 : 1, line contrast under 3 : 1, a path ramp
   that is not monotonic in luminance or starts under 3 : 1 against the paper,
-  text and strokes under the theme's minimum, colours that are not literals.
-  Both presets pass. The React components log its findings in development.
+  text and strokes under the theme's minimum, colours that are not literals;
+  a translucent colour is measured over its ground. Both presets pass. The React components log its findings in development.
 - `toSVG`, `toPNG` and `prepareScene` take a `ThemeSetting` as `theme`.
   Without one they draw the `default` preset in the light scheme, as before,
   and they never read the page: an export of a map in the dark scheme is
@@ -43,8 +47,12 @@ variables, and the exports take it too.
 - `<ProcessMap theme>` takes a `ThemeSetting` (it took a `Theme`) and reads
   the variables of its element, set there (`className`, `containerStyle`) or
   inherited; given a theme it writes the theme's variables that the
-  stylesheet reads on its element, over its `containerStyle`, and reads
-  those of its container. A change of a colour or
+  stylesheet reads on its element, over its `containerStyle`, and sets them
+  aside while it reads, so the setting goes over the host's variables. Its
+  pattern twins, and the legends of a `<ViewSwitcher/>` grid, are drawn in
+  the theme's ink (of the light scheme) and pattern look. Inside the map,
+  the Canvas map draws the map's theme: a variable set on `.wf-canvas-map`
+  alone no longer reaches it; set it on the map or its container. A change of a colour or
   the font repaints the DOM map and the Canvas map without a new scene; a
   change of a size builds the scene once; neither lays the map out again.
   `<CanvasMap/>` and `<ViewSwitcher/>` take `theme`. `<CanvasMap/>` reads its

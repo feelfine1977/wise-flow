@@ -294,7 +294,7 @@ export function contrastText(background: string): string;  // ≥ 4.5 : 1 on eve
 export interface LodRules { labels; edgeLabels; badges; arcs; chips; hatch; selfLoops }  // minimum zoom per element
 export function lodAt(zoom: number, rules?: Partial<LodRules>): Record<keyof LodRules, boolean>;
 export function lodForSize(nodeCount: number, base?: Partial<LodRules>): LodRules;
-export function patternDefs(prefix?: string, ink?: string, outOfScope?: string): string;   // <pattern> tiles of the twins and the hatching; ink and outOfScope default to colorTokens.ink and .outOfScope
+export function patternDefs(prefix?: string, ink?: string, outOfScope?: string, look?: PatternLook): string;   // <pattern> tiles of the twins and the hatching; ink and outOfScope default to colorTokens.ink and .outOfScope, look to patternTokens
 ```
 
 Categorical colours are stable by hashed key and come with a pattern twin
@@ -348,7 +348,7 @@ export const themedColors: readonly ColorToken[];                  // the colour
 export function cssVariable(name: string): string;                 // "inkMuted" → "--wf-ink-muted"
 export function tokenVariables(): { light: Record<string, string>; dark: Record<string, string> };
 export function arrowMarker(id: string, a: Arrowhead): SvgElement; // the <marker> of an arrowhead, in user units
-export function patternTwinSvg(id: string, p: PatternId, ink: string): SvgElement;
+export function patternTwinSvg(id: string, p: PatternId, ink: string, look?: PatternLook): SvgElement;   // look: a theme's `pattern`, default patternTokens
 export function hatchSvg(id: string, color: string): SvgElement;
 export function markArrowhead(arrow: { size; overhang }): Arrowhead;  // the rule for an overlay mark's arrow
 ```
@@ -403,14 +403,15 @@ export interface Theme {
   dark: Readonly<Partial<Record<ColorToken, string>>>;    // the roles the dark scheme changes
   palette: Readonly<ThemePalettes>;
   patterns: readonly PatternId[];                         // the pattern twin of each categorical colour, in the palette's order
+  pattern: PatternLook;                                   // how pattern twins are drawn: as patternTokens (tile, widths, opacities)
   font: { family: string; mono: string };
   text: { [role in keyof typeof textTokens]: { size?; weight?; lineHeight? } };   // as textTokens, any values
   radius: { [role in keyof typeof radiusTokens]: number | string };
   stroke: { [role in keyof typeof strokeTokens]: number };
   opacity: { [role in keyof typeof opacityTokens]: number };   // the tints are tint, groupFill, bandFill, bandOddFill
   space: { unit: number; steps: readonly number[] };
-  density: "comfortable" | "compact";                     // the renderers draw comfortable
-  minimum: { text: number; stroke: number };              // pt at the figure's output size (1 layout unit = 0.75 pt)
+  density: "comfortable" | "compact";                     // the renderers draw comfortable whatever it says
+  minimum: { text: number; stroke: number };              // pt at the layout's own size (1 layout unit = 0.75 pt)
   rules: readonly never[];                                // none yet
 }
 export const defaultTheme: Theme;                          // the token table: today's look
@@ -422,6 +423,7 @@ export type ThemeSetting = ThemePreset | ThemeOverrides;   // a whole Theme is a
 export function resolveTheme(setting?: ThemeSetting, variables?: ThemeOverrides): Theme;   // preset, then variables, then the setting
 export function themeColors(theme: Theme, scheme?: ColorScheme): Readonly<Record<ColorToken, string>>;  // the light roles with the scheme's changes
 export function checkTheme(theme: Theme): ThemeDeviation[];   // empty when nothing falls short
+export type PatternLook = { readonly [K in keyof typeof patternTokens]: number };
 export interface ThemeDeviation { kind: "text" | "line" | "rampOrder" | "rampStart" | "textSize" | "strokeWidth" | "color";
   scheme?: ColorScheme; subject: string; value: number | string; minimum?: number }
 ```
@@ -441,10 +443,12 @@ draws as before. `toSVG`, `toPNG` and `prepareScene` take `theme` and
 (see "Theme of a map in a page").
 
 **Presets and settings.** A host sets a theme as a preset's name (`"default"`,
-`"print"`) or as changes over a preset: `{ preset: "default", density:
-"compact", radius: { node: 4 }, text: { nodeLabel: { size: 13 } } }` changes
-those entries and keeps the rest of the preset (`default` unless named); a
-list, such as a palette, replaces the preset's. A whole `Theme` is such
+`"print"`) or as changes over a preset: `{ preset: "default", radius: { node:
+4 }, text: { nodeLabel: { size: 13 } } }` changes those entries and keeps the
+rest of the preset (`default` unless named); a list, such as a palette,
+replaces the preset's. Radii are named by element (`node`, `large`, …), as in
+`radiusTokens`. `density` is held in the theme, but every renderer draws
+`comfortable` for now. A whole `Theme` is such
 changes too, so code that passes one keeps working. `resolveTheme(setting,
 variables)` gives the theme: the preset, then `variables` (what a host wrote
 as CSS variables), then the setting. Colours must be literals (`#rgb`,
@@ -457,10 +461,14 @@ with another stop is left out (the preset's palette stays).
 **`default`** is today's look, in a light and a dark scheme. **`print`** is
 for figures: white paper and surfaces, no tints (`opacity.tint`, `groupFill`,
 `bandFill`, `bandOddFill` are 0), a pattern twin on every categorical colour
-(seven colours, seven patterns, none solid), a neutral ramp of three greys,
-no text under 7 pt and no stroke under 0.75 pt (`minimum`; the default's 9 px
-counts and labels and 9.5 px legend keys are 10 px, the legend ramp's outline
-1 px), and no dark scheme: it draws the same in both. Its legend sits beside
+(seven colours, seven patterns, none solid) drawn opaque (`pattern`), ramps
+whose palest stop has 3 : 1 on the paper (`palette.neutral` three greys,
+`shortfall` three oranges, `performance` three blues), no text or stroke in
+its tables under 7 pt and 0.75 pt at the layout's own size (`minimum`; the
+default's 9 px counts and labels and 9.5 px legend keys are 10 px, the legend
+ramp's outline 1 px), and no dark scheme: it draws the same in both. The
+minimum is checked on the tables, at a scale of 1: an export given a narrower
+`width` or `preset` scales the whole figure, text included. Its legend sits beside
 the plot, as in every export. The values are the token table's `printTokens`.
 
 **Exports.** `toSVG`, `toPNG` and `prepareScene` draw the `default` preset in
@@ -481,13 +489,17 @@ is not a literal. Both presets pass in both schemes; the default's `minimum`
 is the smallest it draws today (6 pt: the trace timeline's 8 px marks;
 0.375 pt: the legend ramp's 0.5 px outline). The React components log what
 it finds once per theme in development (`process.env.NODE_ENV` other than
-`production`), and decide nothing from it.
+`production`), and decide nothing from it. A translucent colour is measured
+as it is drawn: mixed with its ground, and the ground with white.
 
 **Greyscale.** In print, stage colours that look alike in grey are told apart
-by their patterns: each categorical colour has a pattern no other has, and
-the ink the pattern is drawn in reaches 3 : 1 against every one of them; the
-path ramp's greys darken step by step, each at least 1.5 : 1 from the next.
-A test checks these on the preset.
+by their patterns: each categorical colour has a pattern no other has, drawn
+opaque in the ink, which reaches 3 : 1 against every one of them (the lowest
+is 3.18, on `#0072B2`). Each ramp a path is coloured with (`neutral`,
+`shortfall`, `performance`) darkens step by step, each stop at least 1.5 : 1
+from the next, from 3 : 1 against the paper, so the palest path shows and no
+two classes fall together. A test checks these on the preset and on the path
+strokes of a print export, paths short by 0 to 100 % and one without a value.
 
 ## Overlays
 
@@ -1791,9 +1803,11 @@ element (set on it or on its container), then the preset. `useFlowTheme` resolve
   `--wf-stroke-<role>` and `--wf-opacity-<role>`, roles in kebab case.
   Lengths are read in px. The map reads them on its own element, as set
   there (`className`, `containerStyle`) or inherited from its container;
-  given a `theme`, it writes its own there and reads its container's. A
-  value equal to what `tokens.css` sets is `tokens.css`'s, not the host's,
-  and is left out.
+  given a `theme`, it writes the theme's there, and sets those aside while it
+  reads, so the setting goes over the host's variables and they go over the
+  preset. A value equal to what `tokens.css` sets is `tokens.css`'s, not the
+  host's, and is left out. Inside `<ProcessMap/>` the Canvas map draws the
+  map's theme: a variable set on `.wf-canvas-map` alone does not reach it.
 - **Colours** in any CSS syntax (a name, `hsl()`, `oklch()`, `color-mix()`,
   …) become the literal the browser paints, read back from one pixel of a
   canvas: `#rrggbb`, or `rgba()` when translucent. The same holds for the
@@ -1802,7 +1816,9 @@ element (set on it or on its container), then the preset. `useFlowTheme` resolve
 - **Scheme.** The scheme is the one `tokens.css` draws in: `data-theme` on the
   document's root, otherwise `prefers-color-scheme`. Colours read in the dark
   scheme are the theme's `dark` roles: an export, which draws the light
-  scheme unless told otherwise, does not inherit them.
+  scheme unless told otherwise, does not inherit them. A variable a host sets
+  for both schemes is therefore read as a dark role while the page is dark,
+  and an export then draws the preset's light colour for it.
 - **Changes.** The hook follows the `class`, `style` and `data-theme`
   attributes of the container and its ancestors and the system's colour
   scheme. A change of a colour or a font repaints the DOM map and the Canvas
@@ -1814,7 +1830,10 @@ element (set on it or on its container), then the preset. `useFlowTheme` resolve
   map writes the theme's colours, fonts and the sizes the stylesheet reads
   (the variables of `tokens.css`) on its own element, over its
   `containerStyle`, so its panels follow it too and draw what the Canvas map
-  draws; without one it writes none.
+  draws; without one it writes none. The pattern twins of its activities and
+  legend, and the legends of a `<ViewSwitcher/>` grid, are drawn in the
+  theme's ink (of the light scheme) and `pattern`; `PatternSwatch` takes the
+  look as `look`.
 - **Exports.** `toSVG(scene, { theme: look.theme })` draws what the map draws,
   in the light scheme; `scheme: look.scheme` draws the page's scheme.
 
