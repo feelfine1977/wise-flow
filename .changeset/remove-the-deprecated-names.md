@@ -2,7 +2,10 @@
 "@wise/flow": minor
 ---
 
-Removes the names that 0.3 marked `@deprecated`. This is a breaking change.
+Removes the names marked `@deprecated` on the way to this release. This is a
+breaking change: 0.3.5 exported fifteen of them and marked none deprecated,
+so a host moving from 0.3.5 meets them removed; the other three were added
+and deprecated before this release.
 
 `@wise/flow` no longer exports `FlowElement` (use `FlowNode | FlowEdge`),
 `isEdge` (`"source" in element`), `isStructuralNode`

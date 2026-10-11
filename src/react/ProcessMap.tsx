@@ -212,9 +212,11 @@ function ProcessMapInner(props: ProcessMapProps) {
   // React Flow nodes and edges, or the Canvas scene, its state and the elements listed for assistive technology.
   const flow = useFlowElements({ enabled: !useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, nodesDraggable, edgeBudget, highlighted });
   // The Canvas map reports the edges it draws itself.
-  const tellShown = useEdgesShownAcross(props.onEdgesShown, useCanvas);
+  const tellShown = useEdgesShownAcross(props.onEdgesShown, useCanvas, view !== "table");
   const reportShown = useEdgesShown(useCanvas ? undefined : tellShown);
-  useEffect(() => reportShown(flow.withheld, scene.edgeMarks), [flow.withheld, scene, reportShown]);
+  // A host that starts listening is told what the map withholds.
+  const listening = !!tellShown;
+  useEffect(() => reportShown(flow.withheld, scene.edgeMarks), [flow.withheld, scene, reportShown, listening]);
   // React Flow draws new nodes a commit later; until then the layout is not in place.
   const laidBy = useRef(new WeakMap<object, Positions | undefined>()).current;
   laidBy.set(flow.nodes, laidPositions);
@@ -307,14 +309,16 @@ function ProcessMapInner(props: ProcessMapProps) {
     [positions, rf, reducedMotion, useCanvas],
   );
   controller.screen.current = { reveal, place: elementScreenPoint, focus: () => containerRef.current?.focus() } satisfies MapScreen;
-  // Keys on the map and in its menu; Escape that closes the menu goes no further.
+  // Keys on the map and in its menu; Escape that closes the menu goes no further. The table view's keys are
+  // the table's (its rows, search field and pages, where no menu is shown); Escape from a row clears, as on the map.
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (view === "table" && (e.key !== "Escape" || (e.target as Element).tagName === "INPUT")) return;
       const step = dispatch({ type: "key", key: e.key, shiftKey: e.shiftKey, altKey: e.altKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey });
       if (step.handled) e.preventDefault();
       if (e.key === "Escape" && step.intents.some((i) => i.kind === "returnFocus")) e.stopPropagation();
     },
-    [dispatch],
+    [dispatch, view],
   );
 
   const tooltipTarget = hovered ?? (hasFocus ? focused : null);

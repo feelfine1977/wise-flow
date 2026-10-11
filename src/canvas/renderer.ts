@@ -42,6 +42,8 @@ export class CanvasRenderer {
   private disposed = false;
   private clock: () => number;
   private adapter: EdgeBudgetAdapter | undefined;
+  /** The scene the last draw drew: `lastDraw.withheld` holds positions in its edge marks. */
+  private drawnScene: PreparedScene | undefined;
   tokens: CanvasTokens;
   minZoom: number;
   maxZoom: number;
@@ -161,7 +163,9 @@ export class CanvasRenderer {
     if (!this.scene) return undefined;
     const p = this.toFlow(screenX, screenY);
     const cut = this.lastDraw?.withheld;
-    return this.scene.hit.at(p.x, p.y, tolerancePx / this.viewport.zoom).find((it) => !cut || it.kind !== "edge" || it.index === undefined || cut.drawn.has(it.index));
+    // A scene not drawn yet is answered by the ids the last draw drew.
+    const drawn = cut && this.drawnScene !== this.scene ? new Set([...cut.drawn].map((i) => this.drawnScene!.edgeMarks[i].id)) : undefined;
+    return this.scene.hit.at(p.x, p.y, tolerancePx / this.viewport.zoom).find((it) => !cut || it.kind !== "edge" || (drawn ? drawn.has(it.id) : it.index === undefined || cut.drawn.has(it.index)));
   }
 
   requestDraw(): void {
@@ -191,6 +195,7 @@ export class CanvasRenderer {
     else run(edgeBudget);
     ctx.restore();
     const ended = typeof performance !== "undefined" ? performance.now() : Date.now();
+    this.drawnScene = this.scene;
     this.lastDraw = { ...stats, ms: ended - started };
     this.onDraw?.(this.lastDraw);
   }

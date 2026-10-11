@@ -1,6 +1,7 @@
-import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import type { ELK, ElkNode } from "elkjs/lib/elk-api.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { type FlowEdge, type FlowGraph, type FlowNode, type Locale, createPositions } from "../../src/index";
+import { type FlowEdge, type FlowGraph, type FlowNode, type Locale, type ShownEdges, createPositions } from "../../src/index";
 import { ProcessMap } from "../../src/react/index";
 
 afterEach(() => {
@@ -38,6 +39,19 @@ function textCanvas() {
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => ctx as unknown as CanvasRenderingContext2D);
   return texts;
 }
+
+/** A 2D context that records the texts written by each draw (a draw starts by clearing the canvas). */
+function frameCanvas() {
+  const frames: string[][] = [];
+  const ctx = new Proxy({ measureText: (s: string) => ({ width: s.length * 6 }), createPattern: () => null, clearRect: () => void frames.push([]), fillText: (s: string) => frames[frames.length - 1]?.push(s) } as Record<string | symbol, unknown>, {
+    get: (target, key) => (key in target ? target[key] : () => {}),
+    set: (target, key, value) => ((target[key] = value), true),
+  });
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => ctx as unknown as CanvasRenderingContext2D);
+  return frames;
+}
+/** The count labels of a draw, sorted. */
+const counts = (frame: string[] | undefined) => [...new Set((frame ?? []).filter((s) => /^\d+$/.test(s)))].sort();
 
 const rfEdges = (container: HTMLElement) => [...container.querySelectorAll(".react-flow__edge")].map((e) => e.getAttribute("data-id")).sort();
 const note = () => screen.queryByTestId("wf-edge-note");
@@ -120,5 +134,103 @@ describe("edge budget on the Canvas map", () => {
       );
     });
     await waitFor(() => expect(note()).toBeNull());
+  });
+});
+
+function reducedMotion(reduce: boolean) {
+  vi.spyOn(window, "matchMedia").mockImplementation((query: string) => ({
+    matches: reduce && query.includes("reduce"), media: query, onchange: null,
+    addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => false,
+  }));
+}
+
+/** An ELK whose layouts finish when the test answers them: every node in one column, 100 apart. */
+function heldElk() {
+  const calls: { graph: ElkNode; resolve: (result: ElkNode) => void }[] = [];
+  const elk = { layout: (graph: ElkNode) => new Promise<ElkNode>((resolve) => calls.push({ graph, resolve })) } as unknown as ELK;
+  const answer = () => calls[0].resolve({ ...calls[0].graph, children: calls[0].graph.children!.map((child, i) => ({ ...child, x: 500, y: 100 * i })) });
+  return { elk, calls, answer };
+}
+
+const active = (map: HTMLElement) => map.getAttribute("aria-activedescendant");
+
+describe("edge budget and the keyboard", () => {
+  // Alt with an arrow key moves from the hub along its paths in the graph's order: h->t1 first, the lightest
+  // edge (10), which a budget of 3 withholds until the keyboard is on it.
+  it("draws the edge the keyboard moved onto in the React Flow map, and keeps the note's numbers", async () => {
+    const { container } = mount({ renderer: "svg", edgeBudget: 3 });
+    await waitFor(() => expect(rfEdges(container)).toEqual(["h->t2", "h->t5", "h->t7"]));
+    const map = screen.getByRole("group", { name: /Process map/ });
+    await act(async () => void fireEvent.keyDown(map, { key: "Home" }));
+    expect(active(map)).toBe("wf-node-h");
+    await act(async () => void fireEvent.keyDown(map, { key: "ArrowRight", altKey: true }));
+    expect(active(map)).toBe("wf-edge-h->t1");
+    // The focused edge is drawn in place of the weakest unprotected one, h->t2.
+    await waitFor(() => expect(rfEdges(container)).toEqual(["h->t1", "h->t5", "h->t7"]));
+    expect(document.getElementById("wf-edge-h->t1")).not.toBeNull();
+    expect(note()!.textContent).toBe("Showing 3 of 8 flows");
+  });
+
+  it("lists and draws the edge the keyboard moved onto in the Canvas map", async () => {
+    const frames = frameCanvas();
+    const { container } = mount({ renderer: "canvas", edgeBudget: 3, lod: { edgeLabels: 0 } });
+    await waitFor(() => expect(note()?.textContent).toBe("Showing 3 of 8 flows"));
+    await waitFor(() => expect(counts(frames.at(-1))).toEqual(["50", "60", "70"]));
+    const map = screen.getByRole("group", { name: /Process map/ });
+    await act(async () => void fireEvent.keyDown(map, { key: "Home" }));
+    await act(async () => void fireEvent.keyDown(map, { key: "ArrowRight", altKey: true }));
+    expect(active(map)).toBe("wf-edge-h->t1");
+    expect(container.querySelector("[id='wf-edge-h->t1']")).not.toBeNull();
+    // The next draw writes the focused edge's label in place of the weakest unprotected edge's.
+    await waitFor(() => expect(counts(frames.at(-1))).toEqual(["10", "60", "70"]));
+    expect(note()?.textContent).toBe("Showing 3 of 8 flows");
+  });
+});
+
+describe("edge budget across the first scene", () => {
+  // Without positions the map draws a provisional arrangement first; the budget chooses the same three
+  // edges there and once the layout has replaced it, so the note and the report to the host hold.
+  const shown = { edges: ["h->t2", "h->t5", "h->t7"], total: 8 };
+
+  it("keeps the note and reports the drawn edges once on the React Flow map", async () => {
+    reducedMotion(true);
+    const held = heldElk();
+    const reported: (ShownEdges | undefined)[] = [];
+    const { container } = render(
+      <div style={{ width: 1200, height: 800 }}>
+        <ProcessMap graph={small.graph} layout={{ elk: held.elk, engine: "elk" }} renderer="svg" edgeBudget={3} onEdgesShown={(s) => reported.push(s)} controls={false} legend={false} fitView={false} selfLoops={false} contextMenu={false} pathList={false} />
+      </div>,
+    );
+    const map = container.querySelector(".wf-process-map")!;
+    expect(map.getAttribute("data-layout-status")).toBe("pending");
+    expect(rfEdges(container)).toEqual(shown.edges);
+    expect(note()!.textContent).toBe("Showing 3 of 8 flows");
+    await waitFor(() => expect(reported).toEqual([shown]));
+    await act(async () => held.answer());
+    await waitFor(() => expect(map.getAttribute("data-layout-status")).toBe("ready"));
+    expect(rfEdges(container)).toEqual(shown.edges);
+    expect(note()!.textContent).toBe("Showing 3 of 8 flows");
+    expect(reported).toEqual([shown]);
+  });
+
+  it("keeps the note and reports the drawn edges once on the Canvas map", async () => {
+    reducedMotion(true);
+    textCanvas();
+    const held = heldElk();
+    const reported: (ShownEdges | undefined)[] = [];
+    const { container } = render(
+      <div style={{ width: 1200, height: 800 }}>
+        <ProcessMap graph={small.graph} layout={{ elk: held.elk, engine: "elk" }} renderer="canvas" edgeBudget={3} onEdgesShown={(s) => reported.push(s)} controls={false} legend={false} fitView={false} selfLoops={false} contextMenu={false} pathList={false} />
+      </div>,
+    );
+    const map = container.querySelector(".wf-process-map")!;
+    await waitFor(() => expect(note()?.textContent).toBe("Showing 3 of 8 flows"));
+    await waitFor(() => expect(reported).toEqual([shown]));
+    await act(async () => held.answer());
+    await waitFor(() => expect(map.getAttribute("data-layout-status")).toBe("ready"));
+    // The frame drawn on the layout reports nothing new.
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 50)));
+    expect(note()?.textContent).toBe("Showing 3 of 8 flows");
+    expect(reported).toEqual([shown]);
   });
 });

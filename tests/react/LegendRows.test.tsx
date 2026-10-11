@@ -1,9 +1,9 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { constraintItems, globalScene, vendorScene, vendorSceneKey } from "../../fixtures/bpic2019";
 import { type DrawContext, drawLegend, prepareScene } from "../../src/canvas/index";
-import { type FlowGraph, type Locale, type Overlay, type Positions, abstract, estimateTextWidth, layout, overlaysFor, toSVG } from "../../src/index";
-import { ProcessMap } from "../../src/react/index";
+import { type FlowGraph, type Locale, type Overlay, type Positions, abstract, createPositions, estimateTextWidth, layout, overlaysFor, toSVG } from "../../src/index";
+import { Chip, ProcessMap } from "../../src/react/index";
 
 /** The rows a legend writes, in order, and the texts of its map-level chips. */
 type Rows = { rows: string[]; chips: number; chipTexts?: string[] };
@@ -105,5 +105,19 @@ describe("the legends of SVG, Canvas and React", () => {
     expect(plain.slice(0, 2)).toEqual(["Legend", "Path width"]);
     expect(plain.slice(-4)).toEqual(["↻", "Repeated execution", "┄", "Re-added path"]);
     expect(legends.vendorGerman.svg.rows[0]).toBe("Legende");
+  });
+});
+
+describe("map-level chips", () => {
+  it("say what they show to assistive technology, in the legend and as a chip of their own", () => {
+    // The chip's label and reading, as the text of the chip reads them; the glyph is decoration.
+    const chip: Overlay = { kind: "chip", target: "__map", payload: { label: "Balance", text: "12 % over", glyph: "⚖" } };
+    const graph: FlowGraph = { nodes: [{ id: "a", kind: "activity", label: "A" }], edges: [] };
+    const positions = createPositions({ nodes: { a: { x: 0, y: 0, width: 100, height: 40 } }, groups: {}, edges: {} }, "given", "RIGHT");
+    const { container } = render(<ProcessMap graph={graph} positions={positions} overlays={[chip]} controls={false} fitView={false} />);
+    expect(within(container.querySelector<HTMLElement>(".wf-map-chips")!).getByRole("img", { name: "Balance: 12 % over" })).toBeTruthy();
+    cleanup();
+    render(<Chip chip={chip} locale="en" />);
+    expect(screen.getByRole("img", { name: "Balance: 12 % over" })).toBeTruthy();
   });
 });

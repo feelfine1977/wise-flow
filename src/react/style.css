@@ -553,6 +553,13 @@
 .wf-bpmn .djs-overlay .wf-mark--below {
   mix-blend-mode: multiply;
 }
+/* Tints and hatching cover their element: out of the overlay's flow and through to the pointer, so a click or a
+   hover reaches the element. */
+.wf-bpmn .djs-overlay > .wf-tint,
+.wf-bpmn .djs-overlay > .wf-hatch {
+  position: absolute;
+  pointer-events: none;
+}
 /* Hatched elements also get a dashed outline, so the scope does not rest on the pattern alone. */
 .wf-bpmn .djs-element.wf-bpmn--hatch .djs-visual > :first-child {
   stroke-dasharray: 4 3;

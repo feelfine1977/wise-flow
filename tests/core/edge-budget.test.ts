@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type FlowEdge, type FlowGraph, type FlowNode, type Overlay, budgetEdges, buildScene, createPositions } from "../../src/index";
+import { type FlowEdge, type FlowGraph, type FlowNode, type Overlay, budgetEdges, buildScene, createPositions, toSVG } from "../../src/index";
 import { CanvasRenderer, type DrawContext, type PreparedScene, drawScene, prepareScene } from "../../src/canvas/index";
 
 /** Activities in a row, 100 apart, each 60 × 40. */
@@ -44,6 +44,12 @@ describe("edge budget", () => {
     expect(budgetEdges(scene, Number.NaN)).toBeUndefined();
     expect(budgetEdges(scene, 3, {}, [0, 2, 6])).toBeUndefined();
     expect(budgetEdges(scene, 0, {}, [])).toBeUndefined();
+    // A host that keeps "no value" as null, as JavaScript state often does, gets every edge too.
+    const none = null as unknown as undefined;
+    expect(budgetEdges(scene, none)).toBeUndefined();
+    const svg = toSVG({ graph: scene.graph, positions: scene.positions, selfLoops: false }, { edgeBudget: none });
+    expect(svg.match(/<g class="wf-edge"/g)).toHaveLength(7);
+    expect(svg).not.toContain("wf-edge-note");
   });
 
   it("chooses among the edges in view only", () => {
@@ -82,6 +88,20 @@ describe("edge budget", () => {
     });
     // No edge has cases: every weight ties and the ids decide.
     expect(ids(byCases, budgetEdges(byCases, 2)?.drawn)).toEqual(["e0", "e1"]);
+  });
+
+  it("reads protection from the scene's marks and the weight from its style, also for edge marks it has seen", () => {
+    // The scene's order is known already; a scene object that shares its edge marks but not its marks
+    // or style is chosen from by its own: the arc of `marked` on e4, then the order by cases.
+    const arc: Overlay = { kind: "arc", target: "b->d", payload: { source: "b", target: "d", value: 0.2 } };
+    const marked = sceneOf(["a", "b", "c", "d"], scene.graph.edges, [arc]);
+    expect(ids(scene, budgetEdges(scene, 0)?.drawn)).toEqual([]);
+    expect(ids(scene, budgetEdges({ ...scene, marks: marked.marks }, 0)?.drawn)).toEqual(["e4"]);
+    expect(ids(marked, budgetEdges({ ...marked, marks: [] }, 0)?.drawn)).toEqual([]);
+    expect(ids(scene, budgetEdges({ ...scene, style: { edgeWidth: { metric: "cases" } } }, 2)?.drawn)).toEqual(["e0", "e1"]);
+    // And the scene itself is still chosen from by its own marks and style.
+    expect(ids(scene, budgetEdges(scene, 2)?.drawn)).toEqual(["e1", "e5"]);
+    expect(ids(marked, budgetEdges(marked, 0)?.drawn)).toEqual(["e4"]);
   });
 });
 
@@ -216,5 +236,30 @@ describe("edge budget in the Canvas drawing", () => {
     renderer.drawOptions = { cull: false };
     renderer.draw();
     expect(renderer.hitAt(80, 20)?.kind).toBe("edge");
+  });
+
+  it("does not hit an edge the last draw withheld while a new scene waits for its first draw", () => {
+    // h on the left, t1 up and t2 down on the right; with a budget of 1 only the heavier path, h->t1, is drawn.
+    const boxes = { h: { x: 0, y: 100, width: 100, height: 40 }, t1: { x: 400, y: 0, width: 100, height: 40 }, t2: { x: 400, y: 200, width: 100, height: 40 } };
+    const positions = createPositions({ nodes: boxes, groups: {}, edges: {} }, "given", "RIGHT");
+    const nodes = ["h", "t1", "t2"].map((id): FlowNode => ({ id, kind: "activity", label: id }));
+    const heavy = follows("h->t1", "h", "t1", 100);
+    const light = follows("h->t2", "h", "t2", 1);
+    const { ctx } = recorder();
+    const canvas = { width: 0, height: 0, style: {}, getContext: () => ctx } as unknown as HTMLCanvasElement;
+    const renderer = new CanvasRenderer(canvas, { devicePixelRatio: 1, draw: { cull: false, edgeBudget: 1 } });
+    renderer.resize(600, 300);
+    renderer.setViewport({ x: 0, y: 0, zoom: 1 });
+    renderer.setScene(prepareScene({ nodes, edges: [heavy, light] }, positions, { lodBySize: false }));
+    renderer.draw();
+    // On the light path's line (100,120 to 400,220) and on the heavy one's (100,120 to 400,20).
+    const onLight = () => renderer.hitAt(250, 170)?.id;
+    const onHeavy = () => renderer.hitAt(250, 70)?.id;
+    expect([onLight(), onHeavy()]).toEqual([undefined, "h->t1"]);
+    // The same map with its paths in the other order, not drawn yet: still the light one is not hit.
+    renderer.setScene(prepareScene({ nodes, edges: [light, heavy] }, positions, { lodBySize: false }));
+    expect([onLight(), onHeavy()]).toEqual([undefined, "h->t1"]);
+    renderer.draw();
+    expect([onLight(), onHeavy()]).toEqual([undefined, "h->t1"]);
   });
 });

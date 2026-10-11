@@ -61,10 +61,20 @@ export interface StableLayout {
 export function useStableLayout(scenes: FlowGraph | FlowGraph[] | undefined, options?: LayoutOptions): StableLayout {
   const list = useMemo(() => (scenes === undefined ? [] : Array.isArray(scenes) ? scenes : [scenes]), [scenes]);
   const union = useMemo(() => (list.length === 0 ? undefined : unionGraph(list)), [list]);
-  // Size callbacks count by the dimensions they return, so equivalent callbacks do not restart layout.
-  const inputs = union ? layoutInputKey(union, options ?? {}) : undefined;
+  // Size callbacks count by the dimensions they return, and an `elk` instance made anew on each render is the same
+  // engine, so equivalent options do not restart layout.
+  const inputs = union ? layoutInputKey(union, { ...options, elk: undefined }) : undefined;
   const [scope] = useState(createLayoutScope);
-  useEffect(() => () => scope.dispose(), [scope]);
+  // Released on unmount; mounted again before the task ends (StrictMode), the scope keeps its layouts and the
+  // layout that is running is joined again rather than started twice.
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      queueMicrotask(() => mounted.current || scope.dispose());
+    };
+  }, [scope]);
   const shown = useRef<Positions>(undefined);
   // What a request shows until its layout arrives.
   const request = useMemo(() => {
@@ -204,8 +214,12 @@ export function useArrival(positions: Positions | undefined, provisional: boolea
 /** Reports the edges a map draws to `onEdgesShown` when they change. */
 export function useEdgesShown(onEdgesShown: ((shown: ShownEdges | undefined) => void) | undefined) {
   const callback = useRef(onEdgesShown);
-  useLayoutEffect(() => void (callback.current = onEdgesShown));
   const last = useRef("");
+  useLayoutEffect(() => {
+    // Nobody listens: whoever listens next is told from every edge drawn.
+    if (!onEdgesShown) last.current = "";
+    callback.current = onEdgesShown;
+  });
   return useCallback((withheld: EdgeSelection | undefined, marks: readonly { id: string }[]) => {
     // Nobody listens: start again from every edge drawn.
     if (!callback.current) return void (last.current = "");
@@ -217,8 +231,8 @@ export function useEdgesShown(onEdgesShown: ((shown: ShownEdges | undefined) => 
   }, []);
 }
 
-/** Reports for both renderers; a switch starts again from every edge drawn. */
-export function useEdgesShownAcross(onEdgesShown: ((shown: ShownEdges | undefined) => void) | undefined, canvas: boolean) {
+/** Reports for both renderers; a switch, and a Canvas map drawn again after the table view, start again from every edge drawn. */
+export function useEdgesShownAcross(onEdgesShown: ((shown: ShownEdges | undefined) => void) | undefined, canvas: boolean, mapShown = true) {
   const callback = useRef(onEdgesShown);
   useLayoutEffect(() => void (callback.current = onEdgesShown));
   const told = useRef<ShownEdges | undefined>(undefined);
@@ -229,5 +243,10 @@ export function useEdgesShownAcross(onEdgesShown: ((shown: ShownEdges | undefine
   useLayoutEffect(() => {
     if (told.current) tell(undefined);
   }, [canvas, tell]);
+  // A Canvas map that comes back reports only what it withholds, not that it withholds nothing.
+  const canvasShown = canvas && mapShown;
+  useLayoutEffect(() => {
+    if (canvasShown && told.current) tell(undefined);
+  }, [canvasShown, tell]);
   return onEdgesShown && tell;
 }

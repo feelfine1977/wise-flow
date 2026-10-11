@@ -497,7 +497,8 @@ export interface StableLayout { positions: Positions | undefined; status: Layout
   provisional: boolean }   // true while `positions` are shown until the layout arrives (status "pending")
 export { nodeTypes, edgeTypes, describeNode, describeEdge, describeGroup, describeMap };
 export function midpoint(points: XY[]): XY;   // routeMidpoint
-// Node and edge data carry the scene's marks; without one the components resolve it from the other fields.
+// Node and edge data carry the scene's marks. Without one a component resolves it from `node` or `edge` with `color`, `width`,
+// `pattern`, `locale`, `labelWidth`/`labelHeight` (else the default size) and `activityLabels`; `label`, `reconnected` and `hatched` are not read.
 export type ActivityNodeData = { node; color; pattern; hatched; direction; focused; hovered; dimmed; locale; description;
   activityLabels?; labelWidth?; labelHeight?; meta?; mark?: NodeMark };
 export type FollowsEdgeData = { edge; route?; width; color; label?; reconnected; hovered; dimmed; focused; description; mark?: EdgeMark };
@@ -520,7 +521,9 @@ as long as they cover the graph. Follows self-loops become self-loop
 overlays. Keyboard: arrow keys move focus between activities, Alt with an
 arrow key along the paths, Space selects, Enter opens the actions menu
 (selects when `contextMenu` is false), Shift with an arrow key extends the
-selection, Escape clears, Home and End jump. `aria-activedescendant`
+selection, Escape clears, Home and End jump. In the table view the keys are
+the table's (its rows, search field and pages); only Escape from a row
+clears the selection there, as on the map. `aria-activedescendant`
 points at the focused node; every node, edge and group carries an
 `aria-label`; the map has a visually hidden description and a polite live
 region. `renderer: "auto"` draws on the Canvas renderer above
@@ -536,8 +539,11 @@ goes to), the ends of a path, their group, and their predecessors and
 successors. Every keyboard move re-centres it, so the keys reach every
 activity along the paths. The live region and the map's description then
 say how many activities and paths there are and that the table view lists
-all of them, and the table view shows 100 rows per page with a search field
-(`TableAlternative` with `pageSize`). At or below the limit nothing changes.
+all of them. Above the same limit the table view shows 100 rows per page with
+a search field (`TableAlternative` with `pageSize`), whichever renderer draws
+the map: a React Flow map above the limit gets the paged table too, while its
+own elements stay in the DOM as before. At or below the limit nothing
+changes.
 New strings `map.described.bounded`, `table.search`, `table.rows`,
 `table.previous` and `table.next` in English and German.
 
@@ -575,7 +581,13 @@ gives `"error"` with `positions` undefined, as before, except a
 `provisional: true`, status `"error"` and the error. Until this release
 `positions` held the previous result (or nothing) while a layout was pending.
 The hook aborts the layout of a request it no longer shows (changed scenes
-or options, unmount), which terminates its worker. It passes its own `signal`:
+or options, unmount), which terminates its worker; mounted again before the
+current task ends (StrictMode), it keeps its layouts and joins the layout
+that is running instead of starting it twice. A new `elk` instance alone does
+not lay out again, as up to 0.3.5, so an engine made on each render does not
+restart the layout it shows. The layouts it keeps for earlier inputs are kept
+per instance, though: returning to them with a new instance lays them out
+again, as 0.3.5 did. It passes its own `signal`:
 a `signal` in its options, or in `<ProcessMap layout>`, is replaced and has no
 effect there.
 
@@ -631,7 +643,10 @@ the others above the nodes (before, every mark it drew lay above the nodes);
 draws every mark. Custom node types draw `marks` and `origin`. `<Badges/>` and `<Chip/>` now draw SVG from the
 marks the core resolves for the overlays: badges extend left from the
 top-right corner of the element they are placed in, a chip has the size of
-its mark.
+its mark. A chip drawn on its own (`<Chip/>`, the legend's map-level chips) is
+an image named by its label and reading ("Balance: 12 % over"), the words its
+text gave assistive technology before; the marks an element carries are
+described with the element.
 
 ## Contract rules
 
@@ -816,7 +831,9 @@ into an SVG layer of the canvas; a box (badges, tints, hatching, chips) becomes
 a bpmn-js overlay on the element it names, at the offset of its box, holding
 the mark's SVG elements in an element classed `wf-<kind>` (marks below the
 edges also `wf-mark--below`, multiplied onto the shape; the element gets the
-marker `wf-bpmn--<kind>`, and hatched ones a dashed outline). Marks with text
+marker `wf-bpmn--<kind>`, and hatched ones a dashed outline). Tints and
+hatching cover their element without taking the pointer, so a click or a
+hover reaches the element, as before. Marks with text
 scale between 0.8 and 1.2, covers with the diagram; each is shown from its
 `minZoom`. Chips show what the map's chips show. Overlays are replaced without touching the
 diagram or the viewport when `overlays` change; overlay targets may be
@@ -929,7 +946,10 @@ set `filter-to` (all), `exclude` (any), `pin`. Filter actions carry the
 clause they add. `<ProcessMap/>` handles `filter-to`, `exclude` (through
 `onFilterChange`), `paths`, `collapse`, `expand` and `clear-focus` itself
 and passes every choice to `onAction`; `onContextMenu(target, actions)`
-may return replacement actions (with `run` handlers or not) or `false`.
+may return replacement actions (with `run` handlers or not) or `false`. When
+the menu opens on an element that was not selected, `onContextMenu` is asked
+before `onSelect` reports the selection the opening makes (up to 0.3.5,
+`onSelect` came first).
 
 ### Paths
 
@@ -1446,13 +1466,15 @@ focus of paths in effect (`mapEmphasis(...).bright.edges` while
 names). The edges a selection of activities merely brightens are not
 protected.
 
-`budgetEdges` returns undefined when the budget is `"all"`, undefined or
+`budgetEdges` returns undefined when the budget is `"all"`, undefined, null or
 not a number (`NaN`), or when it withholds nothing (no more edges in view than the budget, or every
 edge protected); otherwise the positions in `scene.edgeMarks` of the edges
 drawn, how many that is (`shown`) and how many were in view (`total`). The
 edges in view are `inView` (positions in `scene.edgeMarks`), or every edge
 of the scene without it. The order by weight is computed once per scene and
-kept with its `edgeMarks` while they live.
+kept with its `edgeMarks` while they live, together with the metric and the
+overlay marks it was read from: a scene object that shares the edge marks but
+has other `marks` or another `style` is ordered and protected by its own.
 
 `<ProcessMap edgeBudget/>` applies it in both renderers (default
 `"adaptive"`, below). The React Flow map has every edge of the
@@ -1495,7 +1517,8 @@ drawn while the view is at rest (a hover, a selection) are not timed.
 The React Flow map moves its elements with a transform and has no frame of
 its own to time; there `"adaptive"` keeps its first step, 2,000 edges, which
 below the Canvas threshold (2,000 activities plus paths) never withholds
-an edge.
+an edge. A map React Flow draws above it (`renderer="svg"`, or a higher
+`canvasThreshold`) withholds the edges beyond 2,000 by default.
 
 `CanvasRenderer` adapts when its `drawOptions.edgeBudget` is `"adaptive"`
 and its host reports gestures with `beginGesture()` and `endGesture()`
@@ -1521,10 +1544,12 @@ nothing when it names every edge in view.
 whenever the edges the map draws change: while the budget withholds edges,
 with their ids (`edges`, in the scene's order) and the number the map's note
 counts (`total`); with undefined once every edge is drawn again. It is not
-called while nothing was ever withheld. A culled Canvas map counts the edges
+called while nothing was ever withheld; a host that starts listening while
+edges are withheld is told them at once. A culled Canvas map counts the edges
 in its view, so a pan can change the value. When `<ProcessMap/>` switches
-renderer (`renderer="auto"` crossing its threshold), it is called with
-undefined and then with what the new renderer withholds, if anything.
+renderer (`renderer="auto"` crossing its threshold), and when it draws the
+Canvas map again after the table view, it is called with undefined and then
+with what the map then withholds, if anything.
 
 `toSVG`, `toPNG`, `toPNGCanvas` and `toPNGDataUrl` take `edgeBudget`:
 
@@ -1587,7 +1612,10 @@ point.
 
 ## Removed in the next version
 
-These names were deprecated in 0.3 and are gone; the one consumer used none of
+These names were deprecated on the way to this release and are gone. 0.3.5
+exported all of them except three types added since (`PatternShape`,
+`FollowsSelfLoopOptions`, `NodeMarkOptions`) and marked none deprecated, so a
+host moving from 0.3.5 meets them removed. The one consumer uses none of
 them. Each row names what to use instead.
 
 ### `@wise/flow`

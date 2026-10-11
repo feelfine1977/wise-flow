@@ -90,3 +90,19 @@ test('components and the stylesheet name colours by token, not by hex literal', 
     assert.deepEqual(read(path).match(/(?<![\w(&])#[0-9a-fA-F]{3,8}\b(?![\w-])/g) ?? [], [], path);
   }
 });
+
+test('every custom property a stylesheet, a component or a story reads is defined', () => {
+  const files = (dir, pattern) => readdirSync(fileURLToPath(new URL(dir, import.meta.url))).filter((n) => pattern.test(n)).map((n) => `${dir}${n}`);
+  const sources = [...files('../../src/react/', /\.(tsx?|css)$/), ...files('../../src/bpmn/', /\.ts$/), ...files('../../stories/', /\.tsx$/)];
+  assert.ok(sources.length > 30);
+  const defined = new Set(Object.keys(variables.light));
+  const read = new Map();
+  for (const path of sources) {
+    const text = readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8');
+    // Set on an element's style, or declared in a stylesheet.
+    for (const [, name] of text.matchAll(/["'](--wf-[\w-]+)["'](?:\s+as\s+string)?\]?\s*:/g)) defined.add(name);
+    for (const [, name] of text.matchAll(/^\s*(--wf-[\w-]+)\s*:/gm)) defined.add(name);
+    for (const [, name] of text.matchAll(/var\(\s*(--wf-[\w-]+)/g)) if (!read.has(name)) read.set(name, path);
+  }
+  assert.deepEqual([...read].filter(([name]) => !defined.has(name)).map(([name, path]) => `${name} in ${path}`), []);
+});

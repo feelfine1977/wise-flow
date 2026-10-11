@@ -94,7 +94,7 @@ export interface PreparedScene extends FlowScene {
   edgeById: Map<string, SceneEdge>;
   groupById: Map<string, SceneGroup>;
   shapeById: Map<string, OverlayShape>;
-  /** Cache of truncated labels per width, filled by the drawing routines. */
+  /** Cache of truncated labels per font and width, filled by the drawing routines. */
   labelCache: Map<string, string>;
 }
 

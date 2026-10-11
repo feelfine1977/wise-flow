@@ -583,9 +583,12 @@ function startJob(make: (signal: AbortSignal) => Promise<Positions>): Job {
  * before the current task ends (a component that mounts again).
  */
 function wait(job: Job, signals: (AbortSignal | undefined)[]): Promise<Positions> {
+  const listened = signals.filter((s): s is AbortSignal => s !== undefined);
+  // A finished layout is answered as it is; a newer request has nothing to stop.
+  const known = settled.get(job);
+  if (known && !listened.some((s) => s.aborted)) return Promise.resolve(known);
   job.waiting++;
   return new Promise((resolve, reject) => {
-    const listened = signals.filter((s): s is AbortSignal => s !== undefined);
     const leave = () => listened.forEach((s) => s.removeEventListener("abort", abort));
     const abort = () => {
       leave();
