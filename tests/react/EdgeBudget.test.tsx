@@ -185,6 +185,24 @@ describe("edge budget and the keyboard", () => {
     await waitFor(() => expect(counts(frames.at(-1))).toEqual(["10", "60", "70"]));
     expect(note()?.textContent).toBe("Showing 3 of 8 flows");
   });
+
+  it("draws a withheld edge only while the keyboard is on it, also beyond a budget that leaves no room", async () => {
+    // A budget of 0 draws no edge; the edge the keyboard is on is drawn beyond it, so the count grows by one.
+    const { container } = mount({ renderer: "svg", edgeBudget: 0 });
+    await waitFor(() => expect(note()?.textContent).toBe("Showing 0 of 8 flows"));
+    const map = screen.getByRole("group", { name: /Process map/ });
+    await act(async () => void fireEvent.keyDown(map, { key: "Home" }));
+    await act(async () => void fireEvent.keyDown(map, { key: "ArrowRight", altKey: true }));
+    expect(active(map)).toBe("wf-edge-h->t1");
+    expect(rfEdges(container)).toEqual(["h->t1"]);
+    expect(note()?.textContent).toBe("Showing 1 of 8 flows");
+    expect(live()).toBe("Focused: path Hub → T1. 10 transitions.");
+    // On to its end, the edge is withheld again.
+    await act(async () => void fireEvent.keyDown(map, { key: "ArrowRight", altKey: true }));
+    expect(active(map)).toBe("wf-node-t1");
+    expect(rfEdges(container)).toEqual([]);
+    expect(note()?.textContent).toBe("Showing 0 of 8 flows");
+  });
 });
 
 describe("edge budget across the first scene", () => {

@@ -88,13 +88,17 @@ describe("map controller: keyboard routes", () => {
       const r = step(s, key("ArrowRight", { altKey: true }));
       seen.push(r.state.active!);
       expect(r.intents).toEqual([]);
-      if (i === 0) expect(r.announcement).toBe("Focused: path A → B..");
+      if (i === 0) expect(r.announcement).toBe("Focused: path A → B.");
       s = { ...r.state, active: "a" };
     }
     expect(seen).toEqual(["ab", "ac", "ab"]);
     expect(step(state({ active: "b" }), key("ArrowDown", { altKey: true })).state.active).toBe("bd");
     expect(step(state({ active: "d" }), key("ArrowLeft", { altKey: true })).state.active).toBe("bd");
-    expect(step(state({ active: "d" }), key("ArrowUp", { altKey: true })).announcement).toBe("Focused: path B → D..");
+    expect(step(state({ active: "d" }), key("ArrowUp", { altKey: true })).announcement).toBe("Focused: path B → D.");
+    // One full stop after the description, which has its own, also with metrics and in German.
+    const counted: MapContext = { ...context, graph: { ...graph, edges: graph.edges.map((e) => (e.id === "ab" ? { ...e, metrics: { count: 1200 } } : e)) } };
+    expect(step(state({ active: "a" }), key("ArrowRight", { altKey: true }), counted).announcement).toBe("Focused: path A → B. 1,200 transitions.");
+    expect(step(state({ active: "a" }), key("ArrowRight", { altKey: true }), { ...counted, locale: "de" }).announcement).toBe("Fokus: Pfad A → B. 1.200 Übergänge.");
   });
 
   it("goes from a path to its end or its start with Alt and an arrow key", () => {

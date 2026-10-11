@@ -400,7 +400,9 @@ function keyStep(
     if (!list.length) return step({});
     const key = `${current}:${forward ? "out" : "in"}`;
     const index = ((state.cycle[key] ?? -1) + 1) % list.length;
-    return step({ active: list[index].id, cycle: { ...state.cycle, [key]: index } }, [], t(locale, "map.focused", { label: describeEdge(list[index], graph, locale) }));
+    // The description ends a sentence of its own; the announcement adds the full stop.
+    const label = describeEdge(list[index], graph, locale).replace(/\.$/, "");
+    return step({ active: list[index].id, cycle: { ...state.cycle, [key]: index } }, [], t(locale, "map.focused", { label }));
   }
   if (dir) {
     const start = current ?? edge?.target ?? null;
