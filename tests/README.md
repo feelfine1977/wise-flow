@@ -50,6 +50,12 @@ The Canvas recordings measure text with the core's estimate, as the Node tests
 do, so they shorten labels as the SVG export does; a browser's font metrics can
 shorten them differently on a live Canvas map.
 
+A second test opens the interactive map and the live Canvas map side by side
+under the same four variables, with no theme and one activity selected, records
+the Canvas context's calls in the page, and checks that the Canvas map fills the
+activity, outlines it in the focus colour and writes its name in the ink and
+the font the DOM map paints them in.
+
 ## Strict visual CI and deliberate approval
 
 Strict visual tests use `updateSnapshots: "none"`; missing or changed baselines

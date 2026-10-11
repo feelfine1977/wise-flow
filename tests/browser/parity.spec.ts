@@ -105,3 +105,42 @@ async function hostVariablesReached(page: import("@playwright/test").Page, theme
   });
   expect([paint(drawn.focus), drawn.font], "hostVariables: the DOM map's focus and font").toEqual(["#663399", "Georgia, serif"]);
 }
+
+/**
+ * The live Canvas map, which reads the host's variables itself, draws the
+ * activity in the paints the DOM map draws it in: its paper, its outline in
+ * the focus colour (it is selected), and its name in the ink and the font.
+ */
+test("the live Canvas map draws a host's CSS variables as the DOM map does", async ({ page }) => {
+  await page.addInitScript(() => {
+    const log: { op: string; text?: string; fill: unknown; stroke: unknown; font: string }[] = [];
+    (window as unknown as { wfCanvas: typeof log }).wfCanvas = log;
+    const proto = CanvasRenderingContext2D.prototype as unknown as Record<string, (...args: unknown[]) => unknown>;
+    for (const op of ["fill", "stroke", "fillText"]) {
+      const own = proto[op];
+      proto[op] = function (this: CanvasRenderingContext2D, ...args: unknown[]) {
+        log.push({ op, text: op === "fillText" ? String(args[0]) : undefined, fill: this.fillStyle, stroke: this.strokeStyle, font: this.font });
+        return own.apply(this, args);
+      };
+    }
+  });
+  await page.goto("/iframe.html?id=parity--host-variables-live&viewMode=story");
+  const label = "Check invoice";
+  await expect.poll(() => page.evaluate((text) => (window as unknown as { wfCanvas: { text?: string }[] }).wfCanvas.some((e) => e.text === text), label), { timeout: 60_000 }).toBe(true);
+  const dom = await page.evaluate(() => {
+    const node = document.querySelector('.wf-process-map[data-renderer="svg"] #wf-node-check')!;
+    // The outline is an SVG shape where a border cannot draw it, otherwise the node's border.
+    const shape = node.querySelector(":scope > .wf-node__outline > *");
+    const box = getComputedStyle(shape ?? node);
+    const text = getComputedStyle(node.querySelector(".wf-node__label")!);
+    return { paper: shape ? box.fill : box.backgroundColor, focus: shape ? box.stroke : box.borderTopColor, ink: text.color, font: text.fontFamily };
+  });
+  const canvas = await page.evaluate((text) => {
+    const log = (window as unknown as { wfCanvas: { op: string; text?: string; fill: string; stroke: string; font: string }[] }).wfCanvas;
+    const at = log.map((e) => e.text).lastIndexOf(text);
+    const before = log.slice(0, at);
+    return { paper: before.filter((e) => e.op === "fill").at(-1)!.fill, focus: before.filter((e) => e.op === "stroke").at(-1)!.stroke, ink: log[at].fill, font: log[at].font };
+  }, label);
+  expect({ paper: paint(dom.paper), focus: paint(dom.focus), ink: paint(dom.ink), font: dom.font }, "the DOM map in the host's variables").toEqual({ paper: "#fdf6e3", focus: "#663399", ink: "#2f4f4f", font: "Georgia, serif" });
+  expect({ paper: paint(canvas.paper), focus: paint(canvas.focus), ink: paint(canvas.ink), font: canvas.font.endsWith(" Georgia, serif") ? dom.font : canvas.font }, "the Canvas map in the DOM map's paints").toEqual({ paper: paint(dom.paper), focus: paint(dom.focus), ink: paint(dom.ink), font: dom.font });
+});

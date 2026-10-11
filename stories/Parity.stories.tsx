@@ -130,3 +130,22 @@ export const RoleLanes: StoryObj = { name: "role lanes", render: () => <Parity n
 export const ElementKinds: StoryObj = { name: "element kinds", render: () => <Parity name="kinds" /> };
 export const SecondTheme: StoryObj = { name: "small P2P in a second theme", render: () => <Parity name="secondTheme" /> };
 export const HostVariables: StoryObj = { name: "small P2P under a host's CSS variables", render: () => <Parity name="hostVariables" /> };
+
+/** The interactive map and the Canvas map side by side under the host's variables, with no theme, each with the activity selected. */
+function LiveMaps() {
+  const [positions, setPositions] = useState<Positions>();
+  useEffect(() => void layout(kinds, { engine: "dagre" }).then(setPositions), []);
+  const selection = { nodes: ["check"], edges: [], groups: [] };
+  return (
+    <div style={{ display: "flex", height: "100vh", width: "100vw", ...(hostVariables as CSSProperties) }}>
+      {positions
+        ? (["svg", "canvas"] as const).map((renderer) => (
+            <div key={renderer} style={{ flex: "1 1 0", minWidth: 0 }}>
+              <ProcessMap graph={kinds} positions={positions} renderer={renderer} selection={selection} fitView={false} controls={false} legend={false} contextMenu={false} pathList={false} />
+            </div>
+          ))
+        : null}
+    </div>
+  );
+}
+export const HostVariablesLive: StoryObj = { name: "element kinds under a host's CSS variables, live in the DOM and on the Canvas", render: () => <LiveMaps /> };
