@@ -381,7 +381,8 @@ a collapsed stage's merged path is read on the same scale (its cases are the
 largest of the merged paths', a summed count above the upper end is drawn at
 8). A host gives several maps one scale with `edgeWidth.max`, the upper end
 (`{ ...defaultStyle, edgeWidth: { ...defaultStyle.edgeWidth, max: 250000 } }`);
-`resolveViews` gives its views the strongest path of any of them. A `domain`
+`resolveViews` gives its views the strongest path of any of them, its own
+metrics included. A `domain`
 keeps the former reading: the range stretched over its values. The legend's
 width row says whose scale it is ("Path width: cases (count) · whole
 graph", German "· ganzer Graph"; "· shared scale" with `max`) and shows the
@@ -1212,8 +1213,9 @@ Every view renders the same graph (ids, elements, positions) with its own
 metrics (merged over the base graph's by id), overlays and style. With
 `shareScales` (default) the domain of a metric on a colour channel is its
 extent over all views, and every view's width runs from 0 to one upper end,
-the strongest path of any view before abstraction (`edgeWidth.max`, unless the
-view's style gives a `max` or a `domain`), so equal colours and widths mean
+the strongest path of any view before abstraction, or of a view's own merged
+metrics where they give more (`edgeWidth.max`, unless the view's style gives a
+`max` or a `domain`), so equal colours and widths mean
 equal numbers across the views; the filled-in domains and upper ends are
 returned in `views[i].style` and `domains` (`"edgeWidth:count"` as `[0,
 max]`, `"edgeColor:medianLagHours"`, …). Up to 0.3 the views shared the

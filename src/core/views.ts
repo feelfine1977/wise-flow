@@ -86,8 +86,9 @@ function extent(values: number[]): [number, number] | undefined {
  * merged with its own), its overlays and scales. With shared scales the domain
  * of a metric on a colour channel is the extent of that metric over all views,
  * and every view's width scale runs from 0 to the strongest path of any view
- * before abstraction (`ChannelSpec.max`), so the same colour or width means the
- * same number in every view.
+ * before abstraction, or of a view's own metrics where they give more
+ * (`ChannelSpec.max`), so the same colour or width means the same number in
+ * every view.
  */
 export function resolveViews(base: FlowGraph, views: ViewSpec[], positions: Positions, options: Pick<BuildViewsOptions, "shareScales"> = {}): ViewSet {
   const share = options.shareScales ?? true;
@@ -100,11 +101,12 @@ export function resolveViews(base: FlowGraph, views: ViewSpec[], positions: Posi
   // Paths count cases, or transitions where no view gives cases for them (as `buildScales` decides for one graph).
   const measured = (name: string) => edgeValues(name).some(Number.isFinite);
   const widthMetric = (name: string) => (name === "cases" && !measured("cases") && measured("count") ? "count" : name);
-  // The width scales of all views run from 0 to one upper end: the strongest path of any of them before abstraction.
+  // The width scales of all views run from 0 to one upper end: the strongest path of any of them before abstraction,
+  // or a view's own strongest path where its metrics give more (the base recorded its upper end before they were merged).
   const widthMax = (spec: ChannelSpec): number => {
     if (spec.max !== undefined) return spec.max;
     const key = `edgeWidth:${spec.metric}`;
-    if (!domains[key]) domains[key] = [0, graphs.reduce((m, g) => Math.max(m, pathScaleMax(g, spec.metric) ?? 0), 0) || 1];
+    if (!domains[key]) domains[key] = [0, graphs.reduce((m, g) => Math.max(m, pathScaleMax(g, spec.metric) ?? 0), extent(edgeValues(spec.metric))?.[1] ?? 0) || 1];
     return domains[key][1];
   };
   const colorDomain = (channel: "edgeColor" | "nodeColor", spec: ColorSpec): number[] | undefined => {

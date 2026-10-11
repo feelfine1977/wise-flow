@@ -160,4 +160,17 @@ describe("the scale's upper end given by the host", () => {
     expect(all.scales.edgeWidth(edge)).toBe(half.scales.edgeWidth(edge));
     expect(all.scales.edgeWidth(edge)).toBe(expected(30_000));
   });
+
+  it("shares an upper end that holds a view whose paths carry more than the base", () => {
+    const base = abstract(globalScene, { minEdgeShare: 0.03, minNodeShare: 0.01 });
+    const positions = { nodes: Object.fromEntries(base.nodes.map((n, i) => [n.id, { x: i * 200, y: 0, width: 180, height: 64 }])), groups: {}, edges: {}, bounds: { x: 0, y: 0, width: 1, height: 1 }, engine: "given" as const, direction: "RIGHT" as const };
+    // A second view whose paths carry twice the cases: the strongest of them, 389,642, is the upper end of both views.
+    const doubled = Object.fromEntries(base.edges.map((e) => [e.id, { cases: (e.metrics?.cases ?? 0) * 2 }]));
+    const set = resolveViews(base, [{ id: "all", label: "All" }, { id: "double", label: "Double", edgeMetrics: doubled }], positions);
+    expect(set.views.map((v) => v.style.edgeWidth?.max)).toEqual([389_642, 389_642]);
+    const width = (i: number, id: string) => set.views[i].scales.edgeWidth(set.views[i].graph.edges.find((e) => e.id === id)!);
+    const top = base.edges.find((e) => e.metrics?.cases === strongest)!.id;
+    // The base's strongest path is √(194,821 / 389,642) × 8 = 5.66 wide in the first view and 8 in the second, not 8 in both.
+    expect([width(0, top), width(1, top)]).toEqual([5.66, 8]);
+  });
 });
