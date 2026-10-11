@@ -5,6 +5,7 @@ The executable CI contract and release procedure are in [docs/CI.md](../docs/CI.
 | Directory | Purpose | Command |
 | --- | --- | --- |
 | `core/` | Node algorithms, seeded graph invariants, deterministic layout, filters, overlays, Canvas geometry, SVG/BPMN | `npm run test:core` |
+| `support/` | Seeded generators for searching tests: random stream, graph families, positions and viewports, event schedules, shrinking | imported by `core/` and `react/` tests |
 | `react/` | jsdom callbacks, keyboard interaction, state replacement and renderer lifecycles | `npm run test:components` |
 | `tooling/` | Negative checks for architecture boundaries, the source lint, workflow policies and artifact budgets | `npm run test:tooling` |
 | `package/` | Separate consumer of the actual npm tarball; NodeNext types and real browser assets/lifecycle | `npm run test:package` |
@@ -17,6 +18,53 @@ reviewed floors (the measured values rounded down). It refuses focused `.only`
 tests in CI. Reported coverage is not a claim of semantic completeness; graph
 routes still differ from observed variants and grouped metric approximations
 still require host evidence.
+
+## Searching tests: seeds, deep mode and reproduction
+
+A searching test draws its input from the generators in `support/` instead of
+writing it by hand: `createRandom(seed)` is the random stream (`int`, `pick`,
+`shuffle`, `weighted`, `sample`, `fork`); `families` in `graphs.ts` are graph
+shapes by size and seed (chain, layered, tree, cyclic, hub, components, stages,
+lanes, nested, overlaid, and long, German, right-to-left and markup-like
+labels), `invalidFamilies` plant defects and say which; `positionsOf` and
+`viewportOf` in `scenes.ts` arrange a graph (grid, layered, overlapping,
+extreme) and look at it (ordinary, tiny, huge, far away, extreme zoom);
+`schedule` and `interleave` in `schedules.ts` give event sequences on a fake
+clock. Generators are hand-written and seeded; a test adds no dependency.
+
+The shape of a searching test:
+
+```ts
+for (const seed of seeds(caseCount(20))) {
+  const graph = families.layered(30, seed);
+  expect(property(graph), caseLabel(seed, "layered 30")).toBe(true);
+}
+```
+
+- `caseCount(base)` is how many cases run: `base` by default, so the ordinary
+  gate stays within its time, and fifty times as many with `WISE_DEEP=1`
+  (`WISE_DEEP=3` runs a hundred and fifty times as many). Each searching test
+  is run in deep mode at least once before it is merged, and its deep run is
+  recorded with the seed range, the number of cases, the duration and the result.
+- `seeds(count)` are the seeds, `1 … count` by default and `WISE_SEED … ` when
+  set. Every assertion names its seed through `caseLabel(seed, detail)`, so the
+  failure prints `seed 17 (step 3); replay with WISE_SEED=17`. To reproduce one
+  case, run the test with `WISE_SEED=17` and the case count of one:
+
+  ```sh
+  WISE_SEED=17 npx vitest run tests/core/<file>.test.ts -t "<test name>"
+  ```
+
+- A fault that a search finds is first shrunk and then pinned: `shrinkCase`
+  in `shrink.ts` tries smaller sizes of the generated case and then
+  `shrinkGraph` removes nodes, edges, groups and overlays while the predicate
+  still fails (a predicate that throws counts as failing). The smallest case
+  becomes a small, named, deterministic regression test that does not use the
+  generators, and the fix follows it.
+- A naive reference implementation in a searching test is obviously correct
+  however slow, and shares no code with what it checks.
+- A search that finds nothing is a result too: say what was searched, how many
+  cases ran, and what kinds of input the generators cannot produce.
 
 ## Strict visual CI and deliberate approval
 
