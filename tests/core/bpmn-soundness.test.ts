@@ -9,7 +9,7 @@ import { playTokens } from "./token-game";
 // The models of the BPMN stories: the stage model (lanes by stage, role or none),
 // the hand-written small model and the model built from the log, at the story's
 // abstraction and over the range of its sliders, with AND gateways on and off.
-const sound = { complete: true, completes: true, stuck: [], unsafe: [] };
+const sound = { complete: true, completes: true, stuck: [], unsafe: [], trapped: [], dead: [] };
 const fromLog = (minNodeShare: number, minEdgeShare: number, andGateways: boolean) =>
   liteFromGraph(globalScene, { abstraction: { minNodeShare, minEdgeShare, keepConnected: true }, andGateways });
 const parallel = (g: FlowGraph) => g.nodes.filter((n) => hasTag(n, "and")).map((n) => n.id);

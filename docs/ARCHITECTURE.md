@@ -388,7 +388,8 @@ level (XOR split where a node has several successors, XOR join where it
 has several predecessors, on request an AND split and AND join as a pair
 around successors that follow each other in both orders and lead to one
 common node, loop markers for self-loops, start and end events kept or
-added, groups as lanes). Parallel gateways come only in pairs: a parallel
+added, every node then put on a path from a start to an end, groups as
+lanes). Parallel gateways come only in pairs: a parallel
 split and a parallel join enclose the same branches, each running from the
 split to the join without leaving the block; every other split and join is
 exclusive, so a generated model never waits at a join for a token that an
@@ -412,7 +413,12 @@ output. `importBpmn` reads supported BPMN 2.0 elements (tasks of all types,
 gateways, events, lanes, pools, expanded sub-processes as stages, sequence
 and message flows, annotations), reads positions from the DI and returns
 a task ↔ activity mapping table that `matchActivities` fills by id, label
-and alias and `applyMapping` applies to the graph. One vocabulary table
+and alias and `applyMapping` applies to the graph. A file that is not BPMN
+definitions is rejected with the parser's error; any other is imported, with
+what is wrong in it (the parser's warnings, flows without an end, coordinates
+that are not finite, and what `validateGraph` reports on the graph) in
+`warnings`. Elements are looked up by the moddle objects references resolve
+to, and nested containers are read on an explicit stack. One vocabulary table
 (`vocabulary.ts`: event definitions, gateway types, event roles, loop
 marker, default flow, generated gateways) is read by export and import.
 The id resolver (`ids.ts`) converts between FlowGraph ids, BPMN ids and

@@ -777,7 +777,7 @@ export function matchActivities(mapping: MappingRow[], activities: ActivityRef[]
 export function applyMapping(g: FlowGraph, mapping: MappingRow[] | Record<string, string>): FlowGraph;
 export function mappingIndex(mapping): { toTasks: Record<string, string[]>; toActivity: Record<string, string> };
 export function normalizeLabel(s: string): string;
-export function positionsFromDi(definitions: ModdleElement, ids: IdMap): Positions | undefined;
+export function positionsFromDi(definitions: ModdleElement, ids: IdMap, warnings?: string[]): Positions | undefined;
 
 // Ids: FlowGraph id ↔ BPMN id ↔ activity id. An element is named by its BPMN id, its FlowGraph id
 // and every activity id the mapping points at either of them (the alias rule).
@@ -832,6 +832,35 @@ not take, and no parallel split whose branches an exclusive merge lets
 through twice; `validateGateways` reports nothing on it. Without
 `andGateways` every gateway is XOR, as before.
 
+Lanes of `liteFromStages` with `lanes: "role"`: a lane per role, in the
+order the activities first use them; the split and join of a choice,
+parallel or optional stage sit in the stage's `role`, and a role that only
+such gateways use gets its lane after the others (up to 0.3.5 it had none,
+and the gateways named a missing group).
+
+Start and end of `liteFromGraph`: an added start event leads to the nodes
+without predecessors, else to those that start cases (`metrics.starts`),
+else to the node with the most cases; an added end event is reached from the
+nodes without successors, else from those that end cases (`metrics.ends`),
+else from the node with the most cases. Then every node is put on a path from
+a start event to an end event (or to a node without outgoing flows, where a
+case leaves the process): while some nodes are not reached from a start
+event, the first start event leads to those of them that the same rule picks
+among them, and while some cannot reach an end, those the rule picks among
+them lead to the first end event. So a part of the graph that only its own
+nodes lead into (two activities that follow each other, a loop) is entered
+from the start, and a part that only leads into itself is left to the end,
+and a graph without activities has a flow from the start to the end. Up to
+0.3.5 such parts had no flow from the start (their activities could never
+happen) or none to the end (a case that entered them could never end). A flow
+from the start or to the end carries `metrics.count` only where the node has
+a number for it (up to 0.3.5 it was `NaN`). With `selfLoops: "flow"`, a
+self-loop leaves through its node's exclusive split and returns through its
+exclusive join, like every other path, and a node with a self-loop is never
+the split or the join of a parallel pair; up to 0.3.5 the self-loop was a
+second outgoing flow of the task without a gateway, which BPMN reads as a
+parallel split, so every round added a case.
+
 Mapping of BPMN-lite to BPMN 2.0: activity and stage nodes → `bpmn:Task`
 (or the sub-type named by a tag: `userTask`, `serviceTask`, `manualTask`,
 `scriptTask`, `businessRuleTask`, `sendTask`, `receiveTask`,
@@ -860,7 +889,28 @@ extension ids.
 
 `importBpmn` also returns `positions` from the first `BPMNDiagram`
 (`engine: "di"`; `LayoutEngine` gained this value), which `<ProcessMap/>`
-accepts like any other positions.
+accepts like any other positions. A shape or a route whose coordinates are
+not finite numbers (`x="abc"`, `1e400`) is left out of them, and all
+positions are left out when the diagram's extent is not a finite number;
+each is reported in `warnings` (`positionsFromDi` pushes these to its
+optional `warnings` array).
+
+Broken files: `importBpmn` rejects only when the text cannot be read as BPMN
+definitions (not XML, truncated, another root element, a namespace that is
+not BPMN's). It then rejects with the parser's error, a plain `Error` whose
+message starts with `unparsable content` or `failed to parse document` and
+whose `warnings` lists what the parser found; any other rejection is a
+defect. Every other file is imported, and what is wrong with it is listed in
+`warnings`: the parser's warnings (unknown elements and attributes,
+duplicate ids, unresolved references), sequence flows without a flow node at
+an end, coordinates as above, and every issue `validateGraph` reports on the
+imported graph, as `<message>: <id>` (two elements with one `wise:flowId`, or
+two without an id, give one node id twice). Elements nested deeper than the
+call stack reaches (sub-processes, lanes) are read like any others. An
+element's empty `name` is exported and imported as an empty label; up to
+0.3.5 the export left it out and the import used the id. A sequence flow is
+marked `default` only when its source's `default` attribute names it; up to
+0.3.5 a flow without an id was marked whenever its source named no default.
 
 `<BpmnView/>` behaviour: bpmn-js is loaded on demand (NavigatedViewer, or
 Modeler with `mode="model"`); XML is imported once per `xml` value and the

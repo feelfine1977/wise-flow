@@ -188,6 +188,8 @@ export function liteFromStages(model: StageModel, options: LiteFromStagesOptions
   const end: FlowNode = { id: END_ID, kind: "event", label: options.endLabel ?? "End", group: lastLane, tags: ["end"] };
   nodes.unshift(start);
   nodes.push(end);
+  // A gateway in the lane of its stage's role that no activity has.
+  if (lanes === "role") for (const n of nodes) addGroup(n.group, n.group ?? "");
   if (segments.length === 0) {
     edges.push(flowEdge(START_ID, END_ID));
   } else {
@@ -299,25 +301,54 @@ export function liteFromGraph(graph: FlowGraph, options: LiteFromGraphOptions = 
   const hasStart = nodes.some((n) => n.kind === "event" && hasTag(n, "start"));
   const hasEnd = nodes.some((n) => n.kind === "event" && hasTag(n, "end"));
   const tasks = nodes.filter((n) => n.kind !== "event");
-  const pick = (dir: "in" | "out"): FlowNode[] => {
+  const pick = (dir: "in" | "out", among = tasks): FlowNode[] => {
     const degree = (n: FlowNode) => (dir === "in" ? idx.incoming : idx.outgoing).get(n.id)?.filter((e) => e.source !== e.target).length ?? 0;
-    const free = tasks.filter((n) => degree(n) === 0);
+    const free = among.filter((n) => degree(n) === 0);
     if (free.length) return free;
     const key = dir === "in" ? "starts" : "ends";
-    const marked = tasks.filter((n) => metric(n, key, 0) > 0);
+    const marked = among.filter((n) => metric(n, key, 0) > 0);
     if (marked.length) return marked;
-    const best = [...tasks].sort((a, b) => metric(b, "cases", 0) - metric(a, "cases", 0) || (a.id < b.id ? -1 : 1))[0];
+    const best = [...among].sort((a, b) => metric(b, "cases", 0) - metric(a, "cases", 0) || (a.id < b.id ? -1 : 1))[0];
     return best ? [best] : [];
+  };
+  const link = (dir: "in" | "out", event: string, targets: FlowNode[]) => {
+    for (const t of targets) {
+      const count = metric(t, dir === "in" ? "starts" : "ends", NaN) || metric(t, "cases", NaN);
+      const m = Number.isFinite(count) ? { count } : undefined;
+      edges.push(dir === "in" ? flowEdge(event, t.id, m) : flowEdge(t.id, event, m));
+    }
   };
   if (!hasStart) {
     const targets = pick("in");
     nodes.unshift({ id: START_ID, kind: "event", label: "Start", group: targets[0]?.group, tags: ["start"] });
-    for (const t of targets) edges.push(flowEdge(START_ID, t.id, { count: metric(t, "starts", NaN) || metric(t, "cases", NaN) }));
+    link("in", START_ID, targets);
   }
   if (!hasEnd) {
     const sources = pick("out");
     nodes.push({ id: END_ID, kind: "event", label: "End", group: sources[sources.length - 1]?.group, tags: ["end"] });
-    for (const s of sources) edges.push(flowEdge(s.id, END_ID, { count: metric(s, "ends", NaN) || metric(s, "cases", NaN) }));
+    link("out", END_ID, sources);
+  }
+  // Every node on a path from a start to an end (or a node without outgoing flows):
+  // what no start reaches is entered, and what reaches no end left, through `pick`'s nodes.
+  for (const dir of ["in", "out"] as const) {
+    const next = new Map<string, string[]>();
+    for (const e of edges) {
+      const [from, to] = dir === "in" ? [e.source, e.target] : [e.target, e.source];
+      (next.get(from) ?? next.set(from, []).get(from)!).push(to);
+    }
+    const events = nodes.filter((n) => n.kind === "event" && hasTag(n, dir === "in" ? "start" : "end"));
+    const sources = new Set(edges.map((e) => e.source));
+    const seen = new Set<string>();
+    const reach = (from: FlowNode[]) => {
+      for (const n of from) seen.add(n.id);
+      for (const id of seen) for (const m of next.get(id) ?? []) seen.add(m);
+    };
+    reach(dir === "in" ? events : [...events, ...nodes.filter((n) => !sources.has(n.id))]);
+    for (let rest = nodes.filter((n) => !seen.has(n.id)); rest.length; rest = rest.filter((n) => !seen.has(n.id))) {
+      const targets = pick(dir, rest);
+      link(dir, events[0].id, targets);
+      reach(targets);
+    }
   }
   for (const n of nodes) {
     if (n.kind === "event" && !n.group && lanes === "groups") {
@@ -329,11 +360,13 @@ export function liteFromGraph(graph: FlowGraph, options: LiteFromGraphOptions = 
   }
 
   // Gateways where a node has several successors or predecessors.
-  const adjacency = (list: FlowEdge[]) => {
+  // A self-loop flow leaves through the node's split and returns through its join.
+  const flowLoops = selfLoops === "flow";
+  const adjacency = (list: FlowEdge[], loops = false) => {
     const out = new Map<string, FlowEdge[]>();
     const inc = new Map<string, FlowEdge[]>();
     for (const e of list) {
-      if (e.source === e.target) continue;
+      if (e.source === e.target && !loops) continue;
       if (!out.has(e.source)) out.set(e.source, []);
       if (!inc.has(e.target)) inc.set(e.target, []);
       out.get(e.source)!.push(e);
@@ -359,7 +392,7 @@ export function liteFromGraph(graph: FlowGraph, options: LiteFromGraphOptions = 
   if (options.andGateways) {
     for (const n of nodes) {
       const branches = (out.get(n.id) ?? []).map((e) => e.target);
-      if (n.kind === "gateway" || !concurrent(branches)) continue;
+      if (n.kind === "gateway" || (flowLoops && loops.has(n.id)) || !concurrent(branches)) continue;
       const block = new Set(branches);
       const exits = new Set<string>();
       let entered = true;
@@ -369,13 +402,14 @@ export function liteFromGraph(graph: FlowGraph, options: LiteFromGraphOptions = 
       }
       const [join] = exits;
       const ins = inc.get(join)!;
-      if (!entered || exits.size !== 1 || join === n.id || byId.get(join)!.kind === "gateway" || block.size < branches.length || ins.length !== block.size || branches.some((b) => !ins.some((e) => e.source === b))) continue;
+      if (!entered || exits.size !== 1 || join === n.id || (flowLoops && loops.has(join)) || byId.get(join)!.kind === "gateway" || block.size < branches.length || ins.length !== block.size || branches.some((b) => !ins.some((e) => e.source === b))) continue;
       andSplits.add(n.id);
       andJoins.add(join);
       for (const b of branches) for (const e of out.get(b)!) if (block.has(e.target)) interleaved.add(e);
     }
-    [out, inc] = adjacency((edges = edges.filter((e) => !interleaved.has(e))));
+    edges = edges.filter((e) => !interleaved.has(e));
   }
+  [out, inc] = adjacency(edges, flowLoops);
   const splitOf = new Map<string, string>();
   const joinOf = new Map<string, string>();
   const gateways: FlowNode[] = [];
@@ -398,7 +432,6 @@ export function liteFromGraph(graph: FlowGraph, options: LiteFromGraphOptions = 
     }
   }
   const rerouted: FlowEdge[] = edges.map((e) => {
-    if (e.source === e.target) return e;
     const s = splitOf.get(e.source) ?? e.source;
     const t = joinOf.get(e.target) ?? e.target;
     if (s === e.source && t === e.target) return e;

@@ -158,7 +158,7 @@ export async function exportBpmn(graph: FlowGraph, options: ExportBpmnOptions = 
       el.set("text", n.label);
       artifacts.push(el);
     } else {
-      if (n.label && !isGeneratedGateway(n)) el.set("name", n.label);
+      if (!isGeneratedGateway(n)) el.set("name", n.label);
       if (n.kind === "event") {
         const defs = eventDefinitionTypes(n.tags ?? []);
         if (defs.length) el.set("eventDefinitions", defs.map((d) => moddle.create(d)));
