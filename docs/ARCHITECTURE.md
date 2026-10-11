@@ -148,8 +148,9 @@ paths rank by count); the paths share shows the paths whose rank lies within
 it and whose ends are shown. What no metric measured, as thresholds have it
 (an activity or note without one, a path without one, a flow edge), is shown
 at every share, a path when both its ends are.
-Every node has an anchoring way in (from a start or a node of lower rank)
-and out (to an end or a node of lower rank): its strongest direct path, else
+Every node has an anchoring way in (from a start or a node of lower rank
+that a start reaches) and out (to an end or a node of lower rank that
+reaches an end; the searches pass only such nodes): its strongest direct path, else
 the way through nodes of higher rank that minimises the highest rank on it,
 then the steps, then path ids (a search keyed by the highest rank passed
 finds that rank; a breadth-first search through nodes of no higher rank, its
@@ -158,9 +159,12 @@ each shown activity, and for each shown node where such a way stops, the
 ways are followed through anchoring nodes that are not shown to the first
 shown one; the walk is split at shown nodes into paths of the graph (shown,
 tagged `anchor` outside the paths share) and stretches through hidden
-nodes, each one `indirect` edge without metrics. Following the anchoring
-nodes strictly lowers the rank, so every shown activity reaches a start and
-an end by induction over the rank. The anchors depend on the graph only, the
+nodes, each one `indirect` edge without metrics, named by its way (one
+stretch, one edge). Following the anchoring nodes strictly lowers the rank,
+and a node a start reaches has a way in through such nodes (the last node
+before it on any way from a start that is not rarer than it is one), so
+every shown activity on a way in the graph reaches a start and an end by
+induction over the rank. The anchors depend on the graph only, the
 shown set grows with either share, and a walk split at more shown nodes
 keeps every path it had: so neither share removes an element as it grows,
 except an indirect edge whose activities come into view.

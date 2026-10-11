@@ -246,7 +246,10 @@ edges, groups and overlays, with `meta.shown` added.
   path from a more frequent node or from a start, and its strongest path to
   a more frequent node or to an end (ties by id; events and gateways count
   as more frequent than every activity, and among themselves by id; a
-  self-loop is never an anchor). An activity without such a path is
+  self-loop is never an anchor). Only a node that a start reaches counts for
+  the way in, and only one that reaches an end for the way out: an event
+  that ends no way, or a more frequent activity no start reaches, anchors
+  nothing. An activity without such a path is
   anchored by the way through less frequent activities whose rarest activity
   is the most frequent possible (then the fewest steps, then the smallest
   path ids from the activity on). A shown activity keeps its anchoring ways; where an anchoring node is
@@ -261,8 +264,9 @@ edges, groups and overlays, with `meta.shown` added.
   `indirect`, with the hidden activities in `payload`
   (`{ hiddenActivities: n, via: [ids] }`) and without metrics: the only
   element drawn that is not a path of the graph. Its id is
-  `<source>-><target>:indirect`; of two stretches between the same nodes the
-  one with fewer activities stands. The activities it passes stay hidden.
+  the way it stands for, `<source>-><hidden>->…-><target>:indirect`, so one
+  stretch is one indirect path and an indirect path that stays as a share
+  moves stands for the same way. The activities it passes stay hidden.
   The whole-log fixture has none at any share.
 - **Monotony.** Within one state of the stage collapse, moving either share
   towards more detail never removes an element, with one exception: an

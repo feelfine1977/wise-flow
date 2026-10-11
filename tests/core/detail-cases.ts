@@ -1,4 +1,4 @@
-import type { FlowEdge, FlowGraph, FlowNode } from "../../src/index";
+import type { FlowEdge, FlowGraph, FlowNode, Overlay } from "../../src/index";
 
 /** A seeded pseudo-random number generator (LCG) in [0, 1). */
 export function seeded(seed: number): () => number {
@@ -14,7 +14,9 @@ export function seeded(seed: number): () => number {
  * in three stage groups whose cases and events take few values (ties), every
  * activity on a way from a start to an end, chords that close cycles, self-loops,
  * sometimes a gateway and a path nobody measured, and an activity more frequent
- * than all others that is entered only from the rarest one.
+ * than all others that is entered only from the rarest one; sometimes an event
+ * that ends no way and one that no start reaches (each with strong paths), an
+ * activity nobody measured, a flow edge, and marks, protected and not.
  */
 export function detailGraph(seed: number): FlowGraph {
   const rnd = seeded(seed);
@@ -35,11 +37,11 @@ export function detailGraph(seed: number): FlowGraph {
   ];
   const edges: FlowEdge[] = [];
   const seen = new Set<string>();
-  const add = (source: string, target: string, measured = true) => {
+  const add = (source: string, target: string, measured = true, kind: "follows" | "flow" = "follows", count = pick([1, 2, 5, 10, 50, 100])) => {
     const id = `${source}->${target}`;
     if (seen.has(id)) return;
     seen.add(id);
-    edges.push({ id, kind: "follows", source, target, ...(measured && { metrics: { count: pick([1, 2, 5, 10, 50, 100]) } }) });
+    edges.push({ id, kind, source, target, ...(measured && { metrics: { count } }) });
   };
   activities.forEach((id, i) => add(i === 0 || rnd() < 0.3 ? pick(starts) : activities[Math.floor(rnd() * i)], id));
   for (let i = n - 1; i >= 0; i--) add(activities[i], i === n - 1 || rnd() < 0.3 ? pick(ends) : activities[i + 1 + Math.floor(rnd() * (n - 1 - i))]);
@@ -57,7 +59,26 @@ export function detailGraph(seed: number): FlowGraph {
     add("x", pick(ends));
   }
   if (rnd() < 0.3) add(pick(activities), pick(activities), false);
-  return { nodes, edges, groups: [0, 1, 2].map((g) => ({ id: `g${g}`, kind: "stage" as const, label: `G${g}` })) };
+  if (rnd() < 0.4) {
+    nodes.push({ id: "abort", kind: "event", label: "Abort" });
+    for (let k = 0; k < 3; k++) add(pick(activities), "abort", true, "follows", 500);
+  }
+  if (rnd() < 0.4) {
+    nodes.push({ id: "init", kind: "event", label: "Init" });
+    for (let k = 0; k < 3; k++) add("init", pick(activities), true, "follows", 500);
+  }
+  if (rnd() < 0.3) {
+    nodes.push({ id: "plain", kind: "activity", label: "Plain", group: "g2" });
+    add(pick(starts), "plain", false);
+    add("plain", pick(activities));
+  }
+  if (rnd() < 0.3) add(pick(activities), pick(activities), true, "flow");
+  const overlays: Overlay[] = [];
+  if (rnd() < 0.5) overlays.push({ kind: "badge", target: pick(activities), payload: { text: "protected" }, protected: true });
+  if (rnd() < 0.3) overlays.push({ kind: "badge", target: pick(edges).id, payload: { text: "protected path" }, protected: true });
+  if (rnd() < 0.3) overlays.push({ kind: "arc", target: "arc", payload: { source: pick(activities), target: pick(activities), label: "protected arc" }, protected: true });
+  if (rnd() < 0.5) overlays.push({ kind: "badge", target: pick(activities), payload: { text: "plain" } });
+  return { nodes, edges, groups: [0, 1, 2].map((g) => ({ id: `g${g}`, kind: "stage" as const, label: `G${g}` })), ...(overlays.length && { overlays }) };
 }
 
 /** The same graph with its nodes and edges in a seeded other order. */

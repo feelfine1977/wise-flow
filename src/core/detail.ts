@@ -97,11 +97,13 @@ const within = (share: number, n: number) => Math.min(n, Math.max(0, Math.ceil(M
  * strongest path from (to) a more frequent node or a start (an end), then id;
  * without one, the way through less frequent nodes whose rarest node is the
  * most frequent possible, then the fewest steps, then the smallest path ids
- * from `v` on. The way's nodes and edges run in the direction of the paths.
+ * from `v` on. Only nodes a start reaches (that reach an end) count, `live`.
+ * The way's nodes and edges run in the direction of the paths.
  */
-function anchorWay(v: string, back: boolean, rank: Map<string, number>, near: Map<string, FlowEdge[]>, terminal: (id: string) => boolean, strength: (e: FlowEdge) => number): Way | undefined {
+function anchorWay(v: string, back: boolean, rank: Map<string, number>, near: Map<string, FlowEdge[]>, terminal: (id: string) => boolean, live: Set<string>, strength: (e: FlowEdge) => number): Way | undefined {
+  if (!live.has(v)) return undefined;
   const other = (e: FlowEdge) => (back ? e.source : e.target);
-  const anchoring = (id: string) => terminal(id) || rank.get(id)! < rank.get(v)!;
+  const anchoring = (id: string) => terminal(id) || (live.has(id) && rank.get(id)! < rank.get(v)!);
   let best: FlowEdge | undefined;
   for (const e of near.get(v)!) if (anchoring(other(e)) && (!best || strength(e) > strength(best))) best = e;
   if (best) return back ? { nodes: [best.source, v], edges: [best] } : { nodes: [v, best.target], edges: [best] };
@@ -117,6 +119,7 @@ function anchorWay(v: string, back: boolean, rank: Map<string, number>, near: Ma
     else {
       for (const e of near.get(at)!) {
         const next = other(e);
+        if (!live.has(next)) continue;
         const nk = anchoring(next) ? k : Math.max(k, rank.get(next)!);
         if (next !== v && !(rarest.get(next)! <= nk)) {
           rarest.set(next, nk);
@@ -144,7 +147,7 @@ function anchorWay(v: string, back: boolean, rank: Map<string, number>, near: Ma
     }
     for (const e of near.get(at)!) {
       const next = other(e);
-      if (next === v || via.has(next) || (!anchoring(next) && rank.get(next)! > limit)) continue;
+      if (next === v || via.has(next) || !live.has(next) || (!anchoring(next) && rank.get(next)! > limit)) continue;
       via.set(next, e);
       queue.push(next);
     }
@@ -158,7 +161,7 @@ function anchorWay(v: string, back: boolean, rank: Map<string, number>, near: Ma
  * their rank in the whole graph (count, then id). Every shown node keeps its
  * anchoring ways into it and out of it, followed through anchoring nodes not
  * shown to the first shown one; a stretch of nodes not shown on them becomes
- * one indirect path.
+ * one indirect path, named by its way.
  */
 export function selectByDetail(input: DetailInput): DetailSelection {
   const { base, nodeStrength, edgeStrength, unmeasured, required } = input;
@@ -187,16 +190,24 @@ export function selectByDetail(input: DetailInput): DetailSelection {
     out.get(e.source)!.push(e);
     into.get(e.target)!.push(e);
   }
+  const terminal = (back: boolean) => (n: string) => nodeById.get(n)!.kind === "event" && hasTag(nodeById.get(n), back ? "start" : "end");
+  // The nodes a start reaches, and those that reach an end: only these can anchor.
+  const reached = (back: boolean) => {
+    const live = new Set(base.nodes.map((n) => n.id).filter(terminal(back)));
+    for (const id of live) for (const e of (back ? out : into).get(id)!) live.add(back ? e.target : e.source);
+    return live;
+  };
+  const live = [reached(false), reached(true)];
   const ways = new Map<string, Way | undefined>();
   const wayOf = (id: string, back: boolean): Way | undefined => {
-    const terminal = (n: string) => nodeById.get(n)!.kind === "event" && hasTag(nodeById.get(n), back ? "start" : "end");
     const key = `${+back}${id}`;
-    if (!ways.has(key)) ways.set(key, terminal(id) ? undefined : anchorWay(id, back, rank, back ? into : out, terminal, strengthOf));
+    if (!ways.has(key)) ways.set(key, terminal(back)(id) ? undefined : anchorWay(id, back, rank, back ? into : out, terminal(back), live[+back], strengthOf));
     return ways.get(key);
   };
 
   const anchors = new Set<string>();
   const keeps = new Map<string, Set<string>>();
+  // Every stretch through hidden nodes, by its way: the same stretch from two walks is one indirect path.
   const indirect = new Map<string, string[]>();
   // The shown activities, and each shown node where one's ways stop (a gateway): it needs its own.
   for (const back of [true, false]) {
@@ -228,9 +239,7 @@ export function selectByDetail(input: DetailInput): DetailSelection {
             keeps.get(edges[from].id)!.add(v);
           } else {
             const hidden = [...new Set(nodes.slice(from + 1, i))];
-            const pair = `${nodes[from]}\u0000${id}`;
-            const was = indirect.get(pair);
-            if (!was || hidden.length < was.length || (hidden.length === was.length && hidden.join("\u0000") < was.join("\u0000"))) indirect.set(pair, hidden);
+            indirect.set([nodes[from], ...hidden, id].join("->"), [nodes[from], ...hidden, id]);
           }
         }
         from = i;
@@ -247,10 +256,10 @@ export function selectByDetail(input: DetailInput): DetailSelection {
   }
   const keepsOut = Object.fromEntries([...anchors].filter((id) => !frequent.has(id)).sort().map((id) => [id, [...keeps.get(id)!].sort()]));
   const used = new Set([...base.nodes, ...base.edges, ...(base.groups ?? [])].map((el) => el.id));
-  const added = [...indirect].map(([pair, via]) => {
-    const [source, target] = pair.split("\u0000");
-    let id = `${source}->${target}:indirect`;
-    for (let n = 2; used.has(id); n++) id = `${source}->${target}:indirect:${n}`;
+  const added = [...indirect].map(([way, stretch]) => {
+    const [source, via, target] = [stretch[0], stretch.slice(1, -1), stretch[stretch.length - 1]];
+    let id = `${way}:indirect`;
+    for (let n = 2; used.has(id); n++) id = `${way}:indirect:${n}`;
     used.add(id);
     return { id, kind: "follows" as const, source, target, tags: [INDIRECT_TAG], payload: { hiddenActivities: via.length, via } };
   });
