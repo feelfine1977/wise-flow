@@ -823,7 +823,9 @@ into an SVG layer of the canvas; a box (badges, tints, hatching, chips) becomes
 a bpmn-js overlay on the element it names, at the offset of its box, holding
 the mark's SVG elements in an element classed `wf-<kind>` (marks below the
 edges also `wf-mark--below`, multiplied onto the shape; the element gets the
-marker `wf-bpmn--<kind>`, and hatched ones a dashed outline). Marks with text
+marker `wf-bpmn--<kind>`, and hatched ones a dashed outline). Tints and
+hatching cover their element without taking the pointer, so a click or a
+hover reaches the element, as before. Marks with text
 scale between 0.8 and 1.2, covers with the diagram; each is shown from its
 `minZoom`. Chips show what the map's chips show. Overlays are replaced without touching the
 diagram or the viewport when `overlays` change; overlay targets may be
