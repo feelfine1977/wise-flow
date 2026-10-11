@@ -174,3 +174,25 @@ function tree(e: Element): unknown {
   else delete attrs.class;
   return { tag: e.tagName, attrs, children: Array.from(e.childNodes).map((c) => (c.nodeType === 3 ? c.textContent : tree(c as Element))) };
 }
+
+describe("paints of the theme on marks", () => {
+  it("have a rule in the stylesheet for every class the marks of every overlay kind carry, plain and hovered", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { overlayGeometry, overlayMarks } = await import("../../src/index");
+    const { MARK_IDS, mapMark, markDefs, svgReact } = await import("../../src/react/marks");
+    const kinds = await import("../core/overlay-kinds");
+    // The fixture's overlays and a chip with a gauge, whose track is painted with the line colour.
+    const gauge: (typeof kinds.overlays)[number] = { kind: "chip", target: "b", payload: { glyph: "◔", text: "2.1", value: 0.5, gauge: { value: 2.1, threshold: 2, width: 1 } } };
+    const marks = overlayMarks(overlayGeometry([...kinds.overlays, gauge], kinds.positions).shapes);
+    const markup = renderToStaticMarkup(<svg>{[...marks.flatMap((m) => [false, true].map((hovered) => svgReact(mapMark(m, MARK_IDS, hovered), `${m.id}-${hovered}`))), svgReact(markDefs(MARK_IDS), "defs")]}</svg>);
+    const classes = new Set([...markup.matchAll(/\bwf-(?:fill|stroke)-[a-z-]+/g)].map(([c]) => c));
+    // Ink, paper, the gauge's track, the hatching's lines, and a hovered mark's value in the focus colour.
+    for (const c of ["wf-fill-ink", "wf-fill-paper", "wf-stroke-paper", "wf-fill-line", "wf-stroke-out-of-scope", "wf-fill-focus", "wf-stroke-focus"]) expect(classes).toContain(c);
+    const css = readFileSync("src/react/style.css", "utf8");
+    for (const c of classes) {
+      const [, property, token] = c.match(/^wf-(fill|stroke)-(.+)$/)!;
+      expect(css, c).toContain(`\n.${c} { ${property}: var(--wf-${token}); }\n`);
+    }
+  });
+});
