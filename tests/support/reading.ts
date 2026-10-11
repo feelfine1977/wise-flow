@@ -548,8 +548,9 @@ export type Finding = "small text" | "path counts" | "reach" | "one count" | "ar
 
 /**
  * The open decision a failure belongs to, or none: texts drawn below the
- * minimum; a path's count covering a card or another label (path counts have
- * no place of their own); with keep connected, an activity without a path from
+ * minimum; a path's count covering a card, a badge or another count (path
+ * counts have no place of their own; an arc label on a count is the arc
+ * label's, below); with keep connected, an activity without a path from
  * the start or to the end while the map is in one piece, which is all keep
  * connected promises (`base` is the graph the thresholds were applied to); a
  * legend whose path widths run from 0 because every path has one count; an
@@ -558,10 +559,11 @@ export type Finding = "small text" | "path counts" | "reach" | "one count" | "ar
  */
 export function findingOf(f: Failure, shown: FlowGraph, base: FlowGraph, places?: ReadonlyMap<string, boolean>): Finding | undefined {
   if (f.property === "text too small") return "small text";
-  if ((f.property === "label covers card" || f.property === "label covers label") && /\bpath label\b/.test(f.detail)) return "path counts";
-  // Where the rule found no free place on the arc, its label covers the fewest: the rule holds.
+  const covering = f.property === "label covers card" || f.property === "label covers label";
+  // An arc label keeps clear of cards, counts, badges and labels; where the rule found no free place on the arc, its label covers the fewest: the rule holds.
   const arcs = [...f.detail.matchAll(/arc label "[^"]*" of (\S+)/g)].map((m) => m[1]);
-  if ((f.property === "label covers card" || f.property === "label covers label") && arcs.some((id) => places?.get(id) === false)) return "arc label without a place";
+  if (covering && arcs.length) return arcs.some((id) => places?.get(id) === false) ? "arc label without a place" : undefined;
+  if (covering && /\bpath label\b/.test(f.detail)) return "path counts";
   if (f.property === "reach" && (weaklyConnected(shown) || !weaklyConnected(base))) return "reach";
   // A width scale over paths of one count, or none, runs from 0.
   if (f.property === "legend ends" && /^the legend's path widths run 0 … \S+(, the scene's from (\d+) to \2| on a map without paths)$/.test(f.detail)) return "one count";
