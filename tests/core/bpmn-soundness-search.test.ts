@@ -25,8 +25,11 @@ describe("generated BPMN models in the token game", () => {
     let parallel = 0;
     const count = caseCount(500);
     for (const seed of seeds(count)) {
-      for (const andGateways of [false, true]) {
-        const { model, describe: what } = generatedModel(seed, { parallel: andGateways, source: createRandom(seed).chance(0.75) ? "log" : "family" });
+      const source = createRandom(seed).chance(0.75) ? "log" : "family";
+      const built = [false, true].map((andGateways) => generatedModel(seed, { parallel: andGateways, source }));
+      // One graph, built with and without parallel gateways.
+      expect(built[0].input, caseLabel(seed, built[0].describe)).toEqual(built[1].input);
+      for (const { model, describe: what } of built) {
         const label = caseLabel(seed, what);
         const game = playTokens(model, { limit: LIMIT });
         expect(verdict(game), label).toEqual(sound);

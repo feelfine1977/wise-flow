@@ -25,7 +25,10 @@ export interface GeneratedModel {
 }
 
 export interface ModelOptions {
-  /** Parallel gateways where the input shows them: `andGateways` for graphs, parallel stages for stage models. */
+  /**
+   * Parallel gateways where the input shows them: `andGateways` for graphs, parallel stages for
+   * stage models. A graph is the same either way; a log has parallel blocks in both.
+   */
   parallel?: boolean;
   /** Ids and labels that XML must escape or that collide with the exporter's ids. Default false. */
   awkward?: boolean;
@@ -73,7 +76,7 @@ export function generatedModel(seed: number, options: ModelOptions = {}): Genera
   let input: FlowGraph;
   let name: string;
   if (source === "log") {
-    input = eventLog(size, rng.int(1, 1_000_000), { parallel: options.parallel ?? true, events: rng.chance(0.2), lanes: rng.chance(0.3) }).graph;
+    input = eventLog(size, rng.int(1, 1_000_000), { parallel: true, events: rng.chance(0.2), lanes: rng.chance(0.3) }).graph;
     name = `log ${size}`;
   } else {
     const family = rng.pick(FAMILY_NAMES);
