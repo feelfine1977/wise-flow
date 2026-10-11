@@ -71,8 +71,22 @@ function outline(e: El): Record<string, string> {
   return { outline: stroke, outlineWidth: num(Number(e.attrs["stroke-width"] ?? 1)), dash: dash(e.attrs["stroke-dasharray"]) };
 }
 
-/** A shadow is an SVG filter on the shape or its group; its value is the filter's reference. */
-const shadowOf = (g: El, shape: El) => g.attrs.filter ?? shape.attrs.filter ?? "none";
+/**
+ * A shadow is an SVG filter on the shape or its group. A filter of drop
+ * shadows is written as `shadow` in `drawn.ts` writes CSS shadows, its blur
+ * twice the standard deviation as in CSS and Canvas; any other filter as its
+ * reference.
+ */
+function shadowOf(filters: Map<string, El>, g: El, shape: El): string {
+  const ref = g.attrs.filter ?? shape.attrs.filter;
+  if (!ref) return "none";
+  const drops = elements(filters.get(/^url\(\s*["']?#([^"')]+)["']?\s*\)$/.exec(ref)?.[1] ?? "") ?? { tag: "", attrs: {}, children: [] }).filter((e) => e.tag === "feDropShadow");
+  if (!drops.length) return ref;
+  const n = (e: El, k: string, or: number) => Number(e.attrs[k] ?? or);
+  return drops
+    .map((d) => [paint(d.attrs["flood-color"] ?? "#000000", n(d, "flood-opacity", 1)), num(n(d, "dx", 2)), num(n(d, "dy", 2)), num(2 * n(d, "stdDeviation", 2))].join(" "))
+    .join(", ");
+}
 
 /** Extent of a shape in the units it is drawn in. */
 function boxOf(e: El): Drawn["box"] {
@@ -113,7 +127,9 @@ const shapes = new Set(["rect", "circle", "path"]);
  */
 export function readSvg(svg: string, markIds: string[]): Drawing {
   const out: Drawing = new Map();
-  const map = [...walk(parseSvg(svg))].find((e) => hasClass(e, "wf-map"));
+  const all = [...walk(parseSvg(svg))];
+  const filters = new Map(all.filter((e) => e.tag === "filter" && e.attrs.id).map((e) => [e.attrs.id, e]));
+  const map = all.find((e) => hasClass(e, "wf-map"));
   if (!map) throw new Error("the export has no map");
   let mark = 0;
   for (const g of elements(map)) {
@@ -121,7 +137,7 @@ export function readSvg(svg: string, markIds: string[]): Drawing {
     const [shape] = parts;
     const texts = textsOf(g);
     if (hasClass(g, "wf-group")) {
-      const props = { fill: fillOf(shape), radius: radiusOf(shape), shadow: shadowOf(g, shape), ...outline(shape) };
+      const props = { fill: fillOf(shape), radius: radiusOf(shape), shadow: shadowOf(filters, g, shape), ...outline(shape) };
       if (hasClass(g, "wf-group-band")) {
         const rule = parts[1];
         Object.assign(props, { outlineSides: "top right bottom left", rule: `${strokeOf(rule)} ${num(Number(rule.attrs["stroke-width"]))}` });
@@ -131,7 +147,7 @@ export function readSvg(svg: string, markIds: string[]): Drawing {
       out.set(`edge:${g.attrs["data-id"]}`, { box: boxOf(shape), props: { fill: fillOf(shape), ...outline(shape) }, texts });
     } else if (hasClass(g, "wf-node")) {
       const band = parts.find((p, i) => i > 0 && p.tag === "rect" && !p.attrs.fill.startsWith("url("));
-      const props = { fill: fillOf(shape), radius: radiusOf(shape), shadow: shadowOf(g, shape), band: band ? `${fillOf(band)} ${num(Number(band.attrs.width))}` : "none", ...outline(shape) };
+      const props = { fill: fillOf(shape), radius: radiusOf(shape), shadow: shadowOf(filters, g, shape), band: band ? `${fillOf(band)} ${num(Number(band.attrs.width))}` : "none", ...outline(shape) };
       out.set(`node:${g.attrs["data-id"]}`, { box: boxOf(shape), props, texts });
     } else if (hasClass(g, "wf-overlay")) {
       const id = markIds[mark++];

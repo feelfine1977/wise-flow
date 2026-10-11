@@ -105,10 +105,18 @@ describe("the parity readers", () => {
       ["node:activity", "none", "#000000@0.25 0 2 4", 2],
       ["node:event", "none", "#000000@0.25 0 2 4", 2],
     ]);
-    // In the SVG export a shadow is a filter on the shape.
-    const filtered = readSvg(toSVG({ graph, positions, overlays }).replace('<rect x="100" y="0"', '<rect filter="url(#shade)" x="100" y="0"'), exportedMarks(scene));
-    expect(filtered.get("node:a")!.props.shadow).toBe("url(#shade)");
-    expect(filtered.get("node:b")!.props.shadow).toBe("none");
+    // In the SVG export a shadow is a filter on the shape; a drop shadow of standard deviation 2 blurs by 4, as `shadowBlur` 4 does.
+    const filtered = readSvg(
+      toSVG({ graph, positions, overlays })
+        .replace(/(<svg[^>]*>)/, '$1<defs><filter id="shade"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000000" flood-opacity="0.25"/></filter><filter id="blur"><feGaussianBlur stdDeviation="1"/></filter></defs>')
+        .replace('<rect x="100" y="0"', '<rect filter="url(#shade)" x="100" y="0"')
+        .replace('<rect x="400" y="0"', '<rect filter="url(#blur)" x="400" y="0"'),
+      exportedMarks(scene),
+    );
+    expect(filtered.get("node:a")!.props.shadow).toBe("#000000@0.25 0 2 4");
+    // A filter that is not a drop shadow keeps its reference, and differs from any shadow.
+    expect(filtered.get("node:b")!.props.shadow).toBe("url(#blur)");
+    expect(filtered.get("node:start")!.props.shadow).toBe("none");
   });
 
   it("fail the check for a listed difference that is gone or found on other elements", () => {
