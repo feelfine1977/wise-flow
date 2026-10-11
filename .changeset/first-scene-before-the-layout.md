@@ -15,7 +15,10 @@ map…" (new string `map.arranging`, English and German) and
 `data-layout-status` is `"pending"`. When the layout arrives the nodes move
 into place over 300 ms, or at once with reduced motion; selection, keyboard
 position and focus stay, and a view the user moved keeps its zoom and the node
-at its centre. Given positions are drawn as before.
+at its centre. Given positions are drawn as before, unless they are
+provisional (`engine: "provisional"`, as `useStableLayout` returns them until
+its layout arrives): the map shows those as its first scene, says it is
+arranging, and moves the layout in when the host passes it.
 
 `useStableLayout` returns these positions from the first render with the new
 flag `provisional: true` and status `"pending"`, then the layout once

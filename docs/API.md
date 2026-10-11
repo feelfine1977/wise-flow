@@ -497,7 +497,8 @@ export interface StableLayout { positions: Positions | undefined; status: Layout
   provisional: boolean }   // true while `positions` are shown until the layout arrives (status "pending")
 export { nodeTypes, edgeTypes, describeNode, describeEdge, describeGroup, describeMap };
 export function midpoint(points: XY[]): XY;   // routeMidpoint
-// Node and edge data carry the scene's marks; without one the components resolve it from the other fields.
+// Node and edge data carry the scene's marks. Without one a component resolves it from `node` or `edge` with `color`, `width`,
+// `pattern`, `locale`, `labelWidth`/`labelHeight` (else the default size) and `activityLabels`; `label`, `reconnected` and `hatched` are not read.
 export type ActivityNodeData = { node; color; pattern; hatched; direction; focused; hovered; dimmed; locale; description;
   activityLabels?; labelWidth?; labelHeight?; meta?; mark?: NodeMark };
 export type FollowsEdgeData = { edge; route?; width; color; label?; reconnected; hovered; dimmed; focused; description; mark?: EdgeMark };
@@ -943,7 +944,10 @@ set `filter-to` (all), `exclude` (any), `pin`. Filter actions carry the
 clause they add. `<ProcessMap/>` handles `filter-to`, `exclude` (through
 `onFilterChange`), `paths`, `collapse`, `expand` and `clear-focus` itself
 and passes every choice to `onAction`; `onContextMenu(target, actions)`
-may return replacement actions (with `run` handlers or not) or `false`.
+may return replacement actions (with `run` handlers or not) or `false`. When
+the menu opens on an element that was not selected, `onContextMenu` is asked
+before `onSelect` reports the selection the opening makes (up to 0.3.5,
+`onSelect` came first).
 
 ### Paths
 
@@ -1511,7 +1515,8 @@ drawn while the view is at rest (a hover, a selection) are not timed.
 The React Flow map moves its elements with a transform and has no frame of
 its own to time; there `"adaptive"` keeps its first step, 2,000 edges, which
 below the Canvas threshold (2,000 activities plus paths) never withholds
-an edge.
+an edge. A map React Flow draws above it (`renderer="svg"`, or a higher
+`canvasThreshold`) withholds the edges beyond 2,000 by default.
 
 `CanvasRenderer` adapts when its `drawOptions.edgeBudget` is `"adaptive"`
 and its host reports gestures with `beginGesture()` and `endGesture()`
@@ -1605,7 +1610,10 @@ point.
 
 ## Removed in the next version
 
-These names were deprecated in 0.3 and are gone; the one consumer used none of
+These names were deprecated on the way to this release and are gone. 0.3.5
+exported all of them except three types added since (`PatternShape`,
+`FollowsSelfLoopOptions`, `NodeMarkOptions`) and marked none deprecated, so a
+host moving from 0.3.5 meets them removed. The one consumer uses none of
 them. Each row names what to use instead.
 
 ### `@wise/flow`
