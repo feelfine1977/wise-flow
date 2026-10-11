@@ -102,4 +102,20 @@ describe("ViewSwitcher", () => {
     // The default style colours the paths by their shortfall; the second style only sets their width.
     expect([...container.querySelectorAll(".wf-views__legend")].map((l) => l.querySelectorAll(".wf-legend__gradient").length)).toEqual([1, 0]);
   });
+
+  it("keys in a style's one legend what any of its views' maps draws", async () => {
+    const base = abstract(globalScene, { minNodeShare: 0.05, minEdgeShare: 0.1 });
+    const positions = await layout(base, { engine: "dagre" });
+    const target = base.nodes.find((n) => n.kind === "activity")!.id;
+    // Same style; only the second view draws a badge.
+    const set = resolveViews(base, [{ id: "a", label: "Alpha" }, { id: "b", label: "Beta", overlays: [{ kind: "badge", target, payload: { glyph: "●", value: 0.2 } }] }], positions);
+    const { container } = render(
+      <div style={{ width: 1200, height: 800 }}>
+        <ViewSwitcher views={set} mode="grid" />
+      </div>,
+    );
+    await waitFor(() => expect(container.querySelectorAll(".wf-views__legend").length).toBe(1));
+    const glyphs = [...container.querySelectorAll(".wf-views__legend .wf-legend__glyph")].map((g) => g.textContent);
+    expect(glyphs.filter((g) => g === "●")).toEqual(["●"]);
+  });
 });

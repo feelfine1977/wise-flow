@@ -1,5 +1,5 @@
 import { type CSSProperties, useId, useMemo, useState } from "react";
-import { type EdgeBudget, type Locale, type LodRules, type SceneLegend, type ViewSet, buildScene, filterPositions, t } from "../core/index.js";
+import { type EdgeBudget, type FlowScene, type Locale, type LodRules, type ViewSet, buildScene, filterPositions, legendOfScene, t } from "../core/index.js";
 import { Legend } from "./Legend.js";
 import { ProcessMap } from "./ProcessMap.js";
 import { type Selection, emptySelection } from "./types.js";
@@ -57,14 +57,14 @@ export function ViewSwitcher({ views, mode: modeProp, onModeChange, activeView, 
   };
   const id = useId();
   const current = views.views.find((v) => v.id === active) ?? views.views[0];
-  // One legend per distinct style, of what that view's map draws.
+  // One legend per distinct style, of what the maps of its views draw: the first view's scales and a key for a kind any of them draws.
   const legends = useMemo(() => {
-    const out = new Map<string, SceneLegend>();
+    const byStyle = new Map<string, FlowScene[]>();
     for (const v of views.views) {
       const key = JSON.stringify(v.style);
-      if (!out.has(key)) out.set(key, buildScene(v.graph, filterPositions(views.positions, v.graph), { overlays: v.overlays, style: v.style, locale }).legend);
+      byStyle.set(key, [...(byStyle.get(key) ?? []), buildScene(v.graph, filterPositions(views.positions, v.graph), { overlays: v.overlays, style: v.style, locale })]);
     }
-    return [...out.values()];
+    return [...byStyle.values()].map((scenes) => legendOfScene({ scales: scenes[0].scales, locale, marks: scenes.flatMap((s) => s.marks), nodeMarks: scenes.flatMap((s) => s.nodeMarks), edgeMarks: scenes.flatMap((s) => s.edgeMarks) }));
   }, [views, locale]);
 
   return (
