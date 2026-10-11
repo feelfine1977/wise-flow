@@ -13,7 +13,7 @@ import { ProcessMap } from "../../src/react/index";
 import { firstInReadingOrder, listedElements } from "../../src/react/map-elements";
 import { type FamilyName, families } from "../support/graphs";
 import { type Random, caseCount, caseLabel, createRandom, seeds } from "../support/random";
-import { POSITION_KINDS, positionsOf } from "../support/scenes";
+import { POSITION_KINDS, brokenPositionsOf, positionsOf } from "../support/scenes";
 
 afterEach(() => {
   cleanup();
@@ -42,8 +42,10 @@ function randomMap(seed: number): RandomMap {
   const family = rng.pick(FAMILY_NAMES);
   const size = rng.weighted([[rng.int(1, 6), 2], [rng.int(7, 30), 5], [rng.int(31, 60), 2]] as const);
   const graph = families[family](size, seed, { mixedKinds: rng.chance(0.4) });
-  const kind = rng.pick(POSITION_KINDS);
-  const scene = buildScene(graph, positionsOf(graph, kind, seed, { routes: rng.chance(0.5) }), { overlays: graph.overlays, selfLoops: true, lodBySize: true });
+  // Now and then a third of the nodes have no box: they are not drawn and the keyboard must pass them by.
+  const kind = graph.nodes.length > 1 && rng.chance(0.1) ? "missing" : rng.pick(POSITION_KINDS);
+  const given = kind === "missing" ? brokenPositionsOf(graph, "missing", seed).positions : positionsOf(graph, kind, seed, { routes: rng.chance(0.5) });
+  const scene = buildScene(graph, given, { overlays: graph.overlays, selfLoops: true, lodBySize: true });
   const elements = graph.nodes.length + (graph.groups?.length ?? 0);
   // Below, at and above the limit: a limit of one or two, a limit just under or over the graph, or the default.
   const limit = rng.weighted([[rng.int(1, 3), 2], [Math.max(1, elements - rng.int(1, 5)), 3], [elements, 1], [elements + rng.int(1, 5), 2], [500, 1]] as const);
@@ -122,7 +124,9 @@ function keyboardRef(state: MapState, graph: FlowGraph): ElementRef | undefined 
 function documentedStep(graph: FlowGraph, positions: Positions, before: MapState, event: Extract<MapEvent, { type: "key" }>): Set<string> | undefined {
   const { home, end } = homeAndEnd(graph, positions);
   const at = keyboardRef(before, graph);
-  const node = at?.kind === "node" ? at.id : at === undefined ? before.selection.nodes[0] : undefined;
+  // The keys start from the keyboard position, else from the first selected node; one without a box is not on the map.
+  const start = at?.kind === "node" ? at.id : at === undefined ? before.selection.nodes[0] : undefined;
+  const node = start !== undefined && positions.nodes[start] ? start : undefined;
   const edge = at?.kind === "edge" ? graph.edges.find((e) => e.id === at.id) : undefined;
   if (event.key === "Home") return new Set([`node:${home}`]);
   if (event.key === "End") return new Set([`node:${end}`]);

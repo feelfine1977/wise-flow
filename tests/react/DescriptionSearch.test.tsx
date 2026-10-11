@@ -57,8 +57,10 @@ describe("descriptions of every element of random graphs", () => {
           const nodeLabel = new Map(shown.nodes.map((n) => [n.id, n.label]));
           const groupLabel = new Map((shown.groups ?? []).map((g) => [g.id, g.label]));
           for (const locale of ["en", "de"] as const) {
-            const { result } = renderHook(() => useElementDescriptions(shown, shown.overlays ?? [], locale, labels));
+            // One mounted hook at a time: a deep run describes tens of thousands of graphs.
+            const { result, unmount } = renderHook(() => useElementDescriptions(shown, shown.overlays ?? [], locale, labels));
             const describe = result.current.describeElement;
+            unmount();
             const elements: { ref: ElementRef; labels: string[]; ids: string[]; kind: string }[] = [
               ...shown.nodes.map((n) => {
                 const group = n.group !== undefined ? groupLabel.get(n.group) : undefined;
