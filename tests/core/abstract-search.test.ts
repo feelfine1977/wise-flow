@@ -141,6 +141,19 @@ function tied(graph: FlowGraph): FlowGraph {
   };
 }
 
+/**
+ * The graph with every count, case and event number in sevenths under its own name,
+ * so that the counts a collapse sums depend on the order of adding.
+ */
+function fractionalCounts(graph: FlowGraph): FlowGraph {
+  const sevenths = (m: Metrics | undefined) => m && Object.fromEntries(Object.entries(m).map(([k, v]) => [k, ["count", "cases", "events"].includes(k) ? v / 7 : v]));
+  return {
+    ...graph,
+    nodes: graph.nodes.map((n) => ({ ...n, metrics: sevenths(n.metrics) })),
+    edges: graph.edges.map((e) => ({ ...e, metrics: sevenths(e.metrics) })),
+  };
+}
+
 function anyOptions(rng: Random, graph: FlowGraph): AbstractOptions {
   const relativeTo = rng.pick(["max", "total"] as const);
   const shares = relativeTo === "max" ? [0, 0.05, 0.1, 0.25, 0.5, 0.75, 1] : [0, 0.005, 0.01, 0.02, 0.05, 0.1, 0.3];
@@ -247,6 +260,17 @@ describe("abstraction invariants on random graphs", () => {
         const permuted = { ...graph, nodes: rng.shuffle(graph.nodes), edges: rng.shuffle(graph.edges) };
         expect(canonical(abstract(permuted, options)), caseLabel(seed, `${variant}, order ${k}, ${JSON.stringify(options)}`)).toBe(expected);
       }
+    }
+  });
+
+  it("gives the same result for every order of an input with fractional counts", () => {
+    for (const seed of seeds(caseCount(500))) {
+      const rng = createRandom(seed);
+      const graph = fractionalCounts(anyGraph(rng, GROUPED));
+      const options = anyOptions(rng, graph);
+      const expected = canonical(abstract(graph, options));
+      const permuted = { ...graph, nodes: rng.shuffle(graph.nodes), edges: rng.shuffle(graph.edges) };
+      expect(canonical(abstract(permuted, options)), caseLabel(seed, JSON.stringify(options))).toBe(expected);
     }
   });
 
