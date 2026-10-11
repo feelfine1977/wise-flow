@@ -113,6 +113,7 @@
     "PathRow",
     "PathSortKey",
     "PatternId",
+    "PatternLook",
     "Positions",
     "PositionsContents",
     "RECONNECTED_TAG",
