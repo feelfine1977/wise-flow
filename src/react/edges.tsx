@@ -1,6 +1,6 @@
 import { BaseEdge, type EdgeProps } from "@xyflow/react";
 import { memo } from "react";
-import { type EdgeMark, type XY, edgeMark, fitText, routeMidpoint, strokeTokens } from "../core/index.js";
+import { type EdgeMark, type XY, edgeMark, routeMidpoint, strokeTokens } from "../core/index.js";
 import { part } from "./parts.js";
 import type { FollowsEdgeData, WfEdge } from "./types.js";
 
@@ -38,7 +38,7 @@ const Follows = memo(function Follows(props: EdgeProps<WfEdge>) {
       <BaseEdge id={id} path={polyline(mark.points)} markerEnd={markerEnd} interactionWidth={strokeTokens.pathHit} {...part("edge-path")} />
       {label ? (
         <text className="wf-edge-label wf-lod-edge-labels" {...part("edge-label")} x={label.x} y={label.y} textAnchor="middle">
-          {fitText(label)}
+          {label.text}
         </text>
       ) : null}
     </g>

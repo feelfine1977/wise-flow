@@ -489,20 +489,31 @@ export interface Scene { graph; positions; overlays?; style?; title?; subtitle?;
 export interface ExportOptions { preset?: "single-column" | "double-column" | "slide" | "none"; width?; legend?;
   background?; fontFamily?; padding?; lodZoom?; context?;
   edgeBudget?: EdgeBudget | ShownEdges;   // default every edge; see "Edge budget"
-  theme?: Theme; scheme?: ColorScheme }   // what the figure is drawn in; default defaultTheme, light
+  theme?: Theme; scheme?: ColorScheme;   // what the figure is drawn in; default defaultTheme, light
+  textMeasure?: TextMeasure }   // what its texts are measured by; default estimateTextWidth (see "Text measure")
 export function toSVG(scene: Scene, o?: ExportOptions): string;   // deterministic, legend embedded
 
 export type FigurePreset = "single-column" | "double-column" | "slide" | "none";
 export const FIGURE_WIDTHS: Record<Exclude<FigurePreset, "none">, number>;   // 1000, 2000, 1600
 export type LegendKeyKind = "badge" | "arc" | "reverse" | "selfLoop" | "outOfScope" | "reconnected";
 export interface LegendKey { kind: LegendKeyKind; glyph: string; title: StringKey }
-export interface SceneLegend { items: LegendItem[]; keys: LegendKey[]; chips: Overlay[] }
-export function sceneLegend(items: LegendItem[], overlays: readonly Overlay[]): SceneLegend;
+export type LegendRow =
+  | { kind: "width"; title: string; samples: { width: number; text: string }[] }          // path width: two sample strokes
+  | { kind: "ramp"; title: string; id: string; stops: readonly string[]; values: string[] }  // a colour ramp: low, (middle,) high
+  | { kind: "swatches"; title: string; entries: { text: string; color: string; pattern: PatternId }[] }   // categories with their pattern twins
+  | { kind: "key"; key: LegendKeyKind; glyph: string; text: string }                      // one kind of mark drawn
+  | { kind: "chip"; chip: Overlay; label: string; text: string };                         // a map-level chip
+export interface SceneLegend { title: string; rows: LegendRow[]; items: LegendItem[]; keys: LegendKey[]; chips: Overlay[] }
+export interface LegendSource { scales: { legend: LegendItem[] }; marks: readonly OverlayMark[];
+  nodeMarks: readonly { reconnected: boolean }[]; edgeMarks: readonly { reconnected: boolean }[]; locale: Locale }   // a FlowScene is one
+export function legendOfScene(scene: LegendSource): SceneLegend;   // what a scene draws: FlowScene.legend
+export function sceneLegend(items: LegendItem[], overlays: readonly Overlay[], locale?: Locale): SceneLegend;   // from scales and overlays alone
 export const legendMetrics: { width: 188; heading: 26; itemTitle: 16; widthScale: 20; gradient: 30; entry: 16; entriesEnd: 4;
   key: 14; chipsGap: 6; chipLabel: 13; chipText: 15 };
 export function legendItemHeight(item: LegendItem): number;
-export interface LegendLayout { items: { item; y }[]; keys: { key; y }[]; chips: { chip; y }[]; height: number }
-export function legendLayout(legend: SceneLegend): LegendLayout;
+export interface LegendLayout { rows: { row: LegendRow; y: number; texts: string[] }[];   // texts: shortened to the width
+  items: { item; y }[]; keys: { key; y }[]; chips: { chip; y }[]; height: number }
+export function legendLayout(legend: SceneLegend, o?: { measure?: TextMeasure; width?: number; text?: Theme["text"] }): LegendLayout;   // default the estimate, 188, the token table
 export const figureMetrics: { padding: 24; legendColumn: 220; legendInset: 16; titleHeight: 40; titleBaseline: 26;
   contextHeight: 18; contextBaseline: 44; keyLine: 16; noteRow: 16; noteBaseline: 12; noteSize: 11 };
 export interface FigureFrameOptions { title?: boolean; context?: boolean; legend?: boolean; padding?: number; preset?: FigurePreset; width?: number;
@@ -510,15 +521,28 @@ export interface FigureFrameOptions { title?: boolean; context?: boolean; legend
 export interface FigureFrame { padding; header; map: { width; height; offset: XY };
   legend?: { layout: LegendLayout; x; y; width; rule: { x; top; bottom } }; note?: { text: string; x; y }; key: { lines: string[]; y };
   width; height; outWidth; outHeight }
-export function figureFrame(scene: FramedScene, o?: FigureFrameOptions): FigureFrame;   // FramedScene: graph, activityLabels?, locale, bounds, legend
+export function figureFrame(scene: FramedScene, o?: FigureFrameOptions): FigureFrame;   // FramedScene: graph, activityLabels?, locale, bounds, legend, textMeasure?, theme?
 ```
 
-The legend and the figure frame are described once. `sceneLegend` lists the
-scale items, a key row for each overlay kind present (badges, arcs,
-reverse-order arcs, self-loops, out-of-scope hatching) and then re-added
-paths, which every map can show, and the map-level chips; the scene carries
-it as `FlowScene.legend`. `legendLayout` places these rows from their
-heights in `legendMetrics`, so the legend's height follows from its items.
+The legend and the figure frame are described once. The legend is an ordered
+list of typed rows (`LegendRow`) in the scene's words and numbers: the scales
+(path width with its two samples, a colour ramp with its values, the activity
+colours as swatches with their pattern twins), one key per kind of mark drawn
+that the legend explains (badges, arcs, reverse-order arcs, self-loops,
+out-of-scope hatching, re-added paths and activities) and the map-level chips.
+The scene carries it as `FlowScene.legend`, built by `legendOfScene` from what
+the scene draws, so a row exists exactly when its mark is drawn: a kind with
+no mark on the map has no key and a kind drawn many times has one; the path
+scales need a drawn path and the activity colour a drawn node. Tints and the
+chips inside groups are drawn without a key, as before. `sceneLegend` builds
+the same rows from scale items and overlays alone (for a legend without a
+scene): a key for each overlay kind given and always one for re-added paths.
+`<Legend/>`, `toSVG`, `toPNG` and the Canvas `drawLegend` render the rows; the
+heading is the legend's `title`. `legendLayout` places the rows from their
+heights in `legendMetrics`, so the legend's height follows from its rows, and
+shortens the texts an export writes (a swatch's entry and a key 24 less than
+the width, a chip's label and text 4 less) by the scene's text measure; the
+map's panel writes them in full.
 `figureFrame` measures an exported figure: the header (title 40, context
 line 18), the map with its padding and the offset of the scene's content,
 the legend column (220: a rule, 16 inset, rows 188 wide, 16 inset), the
@@ -527,9 +551,9 @@ preset or width. With `withheld` it adds the note on withheld edges
 (`map.edges.withheld` in the scene's locale) in a row of 16 under the map
 and the legend, its baseline 12 into the row and the activity key below it;
 the legend's rule then ends beside the map, and a figure narrower than the
-note (11 px, measured by `estimateTextWidth`) is widened so that the note
-fits between the paddings. `toSVG`, `toPNG` and the Canvas `drawLegend` draw from
-these; `<Legend/>` lists the same rows.
+note (11 px, measured by the scene's text measure) is widened so that the note
+fits between the paddings; the activity key is wrapped by the same measure.
+`toSVG`, `toPNG` and the Canvas `drawLegend` draw from these.
 
 ## Formatting and strings
 
@@ -547,6 +571,7 @@ export function metricLabel(locale: Locale, metric: string): string;
 export function ProcessMap(props: {
   graph: FlowGraph; positions?: Positions; overlays?: Overlay[]; style?: StyleSpec;
   theme?: Theme;   // outlines, radii, text styles and palettes of the marks; colour roles through tokens.css
+  textMeasure?: TextMeasure;   // what labels are shortened, names wrapped and boxes sized by; default the browser's (canvasTextMeasure)
   abstraction?: AbstractOptions; defaultAbstraction?: AbstractOptions; onAbstractionChange?: (o: AbstractOptions) => void;
   controls?: boolean; legend?: boolean; minimap?: boolean; renderer?: "auto" | "svg" | "canvas"; canvasThreshold?: number;
   selection?: Selection; onSelect?: (s: Selection) => void; onHover?: (id: string | null) => void;
@@ -574,8 +599,8 @@ export function TableAlternative(props: { graph; overlays?; scales?; locale?; se
 export function TraceTimeline(props: { traces: Trace[]; anchor?: string; annotations?: Annotation[]; locale?;
   width?; rowHeight?; colorKey?; onSelect?; table?: boolean }): JSX.Element;
 export function AbstractionControls(props), Legend(props), OverlayLayer(props);
-export interface LegendProps { scales: Scales; overlays?: Overlay[]; locale?: Locale; chips?: ReactNode;
-  legend?: SceneLegend }   // the scene's legend; without it the rows follow from `scales` and `overlays`
+export interface LegendProps { scales?: Scales; overlays?: Overlay[]; locale?: Locale; chips?: ReactNode;
+  legend?: SceneLegend }   // the rows it renders: the scene's legend; without it sceneLegend(scales, overlays)
 export function useFlowGraph(g, o?), useStableLayout(scenes, o?), useOverlays(items, o?), usePrefersReducedMotion();
 export type LayoutStatus = "idle" | "pending" | "ready" | "error";
 export interface StableLayout { positions: Positions | undefined; status: LayoutStatus; error?: Error;
@@ -590,9 +615,17 @@ export type FollowsEdgeData = { edge; route?; width; color; label?; reconnected;
 
 The node and edge components draw what the scene's marks say: texts,
 glyph, band and dashing of nodes, route, dash and count label of edges.
-Labels are shortened by `truncateText` with `estimateTextWidth`; the
-stylesheet's ellipsis still applies where the text is narrower in the
-browser than estimated, and the full name stays in the node's description.
+Labels arrive shortened and names wrapped by the scene's text measure, and the
+components write them as they are; the stylesheet adds no ellipsis of its own
+(a font wider than the measure is clipped at the box), and the full name stays
+in the node's description. The map's measure is `textMeasure`, by default the
+browser's: `canvasTextMeasure` in the theme's font, created again once the
+page's fonts have loaded, and the estimate where there is no 2D canvas (jsdom,
+a server). With activity labels the map sizes the boxes by the same measure
+(`activityNodeSize`). Pass one measure for the life of a map, since a new one
+lays the activity boxes out again, and the same measure to `toSVG` and `toPNG`
+for the map's lines in the exports. `<ViewSwitcher/>`'s grid shows, per
+distinct style, the legend of what that view's map draws.
 
 `describeMap` names the activity and path thresholds when `meta.abstraction`
 is the object `abstract` records; a server's numeric threshold share is not
@@ -1218,7 +1251,8 @@ renderer above `canvasThreshold` elements; the container carries
 export interface PreparedScene extends FlowScene { shapes: OverlayShape[]; nodes: SceneNode[]; edges: SceneEdge[];
   groups: SceneGroup[]; bounds: Box; hit: HitIndex; size: number; nodeById; edgeById; groupById; shapeById; labelCache }
 export function prepareScene(g: FlowGraph, p: Positions, o?: { activityLabels?; style?; overlays?; lod?; lodBySize?: boolean; locale?;
-  lanes?: LaneMode; bands?: LaneBand[]; overlayGeometry?; selfLoops?: boolean; theme?: Theme; scheme?: ColorScheme }): PreparedScene;
+  lanes?: LaneMode; bands?: LaneBand[]; overlayGeometry?; selfLoops?: boolean; theme?: Theme; scheme?: ColorScheme;
+  textMeasure?: TextMeasure }): PreparedScene;   // the texts are drawn as this measure fitted them
 export interface DrawContext { /* the subset of CanvasRenderingContext2D the routines use */ }
 export interface View { x: number; y: number; zoom: number; width: number; height: number }
 export interface DrawState { selection: Selection; hovered?: string | null; focused?: string | null; bright?: { nodes: Set<string>; edges: Set<string> };
@@ -1227,7 +1261,8 @@ export interface DrawOptions { tokens?: CanvasTokens; cull?: boolean; background
   edgeBudget?: EdgeBudget | ShownEdges }   // default "all"
 export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, state?: DrawState, o?: DrawOptions): { nodes; edges; shapes; culled;
   withheld?: EdgeSelection };   // present when the edge budget left edges in view out
-export function drawLegend(ctx: DrawContext, scene: PreparedScene, x, y, width, tokens?, o?: { createCanvas? }): number;   // the scene's legend; returns legendLayout(scene.legend).height
+export function drawLegend(ctx: DrawContext, scene: PreparedScene, x, y, width, tokens?, o?: { createCanvas? }): number;   // the scene's legend rows; returns their height
+export function canvasTextMeasure(family?: string, context?: { font; measureText } | null): TextMeasure;   // Canvas measureText in the font; the estimate without a canvas
 export function tracePath(ctx: DrawContext, d: string): { last?; beforeLast? };
 export class CanvasRenderer { constructor(canvas: HTMLCanvasElement, o?: { tokens?; devicePixelRatio?; minZoom?; maxZoom?;
     draw?: RendererDrawOptions; clock?: () => number });   // clock: ms, read by the adaptive edge budget only; default performance.now
@@ -1243,7 +1278,8 @@ export const defaultTokens: CanvasTokens;   // from the token table (`colorToken
 export function readTokens(element: Element | null | undefined, overrides?: Partial<CanvasTokens>): CanvasTokens;   // from the CSS variables (`cssVariable(key)`)
 export interface PngOptions { preset?: FigurePreset; width?; scale?; background?; legend?; padding?; lodZoom?; tokens?; createCanvas?; context?;
   edgeBudget?: EdgeBudget | ShownEdges;   // default every edge; see "Edge budget"
-  theme?: Theme; scheme?: ColorScheme }   // what the figure is drawn in; `tokens` override the scene's colours and font
+  theme?: Theme; scheme?: ColorScheme;   // what the figure is drawn in; `tokens` override the scene's colours and font
+  textMeasure?: TextMeasure }   // as in ExportOptions
 export function toPNGCanvas(scene: Scene, o?: PngOptions): { canvas; width; height; cssWidth; cssHeight; scale };
 export function toPNG(scene: Scene, o?: PngOptions): Promise<Blob>;
 export function toPNGDataUrl(scene: Scene, o?: PngOptions): string;
@@ -1357,7 +1393,7 @@ const activityLabels = {
 const nodeSize = (node: FlowNode) => activityNodeSize(node, activityLabels);
 ```
 
-Use `nodeSize` when providing precomputed positions. Names reserve 280px width and enough height for wrapped text; IDs reserve 140px. Hiding counts does not change dimensions. `useStableLayout` compares resolved dimensions, so equivalent callbacks do not trigger layout. Invalidate an explicit layout cache key when its inputs change.
+Use `nodeSize` when providing precomputed positions, with the map's text measure as a third argument when it has one (`activityNodeSize(node, activityLabels, textMeasure)`). Names reserve 280px width and enough height for wrapped text; IDs reserve 140px. Hiding counts does not change dimensions. `useStableLayout` compares resolved dimensions, so equivalent callbacks do not trigger layout. Invalidate an explicit layout cache key when its inputs change.
 
 `references` maps canonical activity IDs to display references. Persist the dictionary across filters; absent entries are retained and new entries are added without renumbering. References indicate identity, not execution order. Optional `names` supplies display aliases; the original graph is unchanged.
 
@@ -1366,14 +1402,72 @@ Nodes show one secondary measure: distinct cases/items. Hover, focus and the exp
 SVG and Canvas PNG exports include the canonical activity key even when the colour legend or node counts are hidden. Recorded self-loop labels describe transition occurrences; a case repeat share is reported only when the required case counts exist. Explicit constraint evidence remains separate.
 
 
+## Text measure
+
+```ts
+export type TextMeasure = (text: string, font: { size: number; weight?: number }) => number;
+export const estimateTextWidth: TextMeasure;   // 0.55 em per character, a full em for CJK, kana, Hangul, full-width forms and emoji
+export function truncateText(text: string, maxWidth: number, font: { size: number; weight?: number }, measure?: TextMeasure): string;
+export function wrapText(text: string, width: number, font: { size: number; weight?: number }, measure?: TextMeasure): string[];
+export function fitText(t: MarkText, measure?: TextMeasure): string;
+export function fitLead(t: MarkText, fit: (text: string) => string): { lead: string; text: string };
+// @wise/flow/canvas
+export function canvasTextMeasure(family?: string, context?: { font: string; measureText(s: string): { width: number } } | null): TextMeasure;
+```
+
+Text is measured once, when the scene is built: `buildScene` (and through it
+`toSVG`, `toPNG`, `prepareScene` and `<ProcessMap/>`) takes a `textMeasure`
+and shortens every node label and chip text to its width with it, wraps the
+activity names and their case counts, sizes chips, and measures the legend's
+texts, the note on withheld edges and the activity key of exported figures.
+The marks carry the result: a text's `text` (and a chip's `lead`) is what is
+drawn and `maxWidth` the width it was fitted to. The interactive DOM map, the
+Canvas map, the SVG export and the PNG export write these texts as they are,
+so with the same measure they show the same lines and the same truncation;
+none measures again, and the stylesheet adds no ellipsis to map text.
+
+`estimateTextWidth` is the default of the scene and the exports and needs no
+DOM. `canvasTextMeasure` is the browser's, and `<ProcessMap/>`'s default: widths from a Canvas context's `measureText` in the font a text is
+drawn in (`family`, default the default theme's), kept per font and text; it
+is the estimate where there is no document or no 2D context. Create it after
+the page's fonts have loaded (`document.fonts.ready`), or the widths are a
+fallback font's. Activity boxes are sized before layout by the same measure
+(`activityNodeSize(node, options, measure)`), so a map and its exports that
+share a measure share their boxes too.
+
+An activity's or a stage's label is fitted to the room the interactive map
+gives it: the box less the padding (16 left, 8 right) and a solid outline on
+both sides, and less the count and the gap of 6 before it, since the map
+writes the count after the label on the same line. The SVG export and the
+Canvas map write the count in the lower right corner but cut the label at the
+same character.
+
+`truncateText` keeps the longest start of a text that fits with an ellipsis,
+at least one character (a width over the limit by less than a millionth, a
+rounding, fits). `wrapText` puts words on lines at most `width` wide (at
+least the font's size) and breaks a word wider than a line between
+characters; `wrapActivityText(value, width, fontSize?, measure?)`,
+`activityLabelLines(node, options, width, locale?, measure?)` and
+`activityKeyLines(graph, options, width, locale?, measure?)` apply it to
+activity names, counts and the export's key. A chip's label is measured in
+bold (`chipLead`) and its text in the chip's weight.
+
+What is still measured otherwise, and why: the boxes that place arc labels,
+group titles and badges clear of each other and of the activities, and the
+extent of an observed self-loop's label, keep their fixed widths per
+character. They decide where marks go, not what text is drawn, and moving
+them would move the approved drawing. The filter chips above the map (a
+panel, not map text) keep their CSS ellipsis.
+
 ## Scene
 
 ```ts
 export interface FlowSceneOptions { overlays?: Overlay[]; style?: StyleSpec; locale?: Locale; lanes?: LaneMode;
   moved?: Readonly<Record<string, XY>>; activityLabels?: ActivityLabelOptions; selfLoops?: boolean; lod?: Partial<LodRules>; lodBySize?: boolean;
-  overlayGeometry?: OverlayGeometryOptions; theme?: Theme; scheme?: ColorScheme }   // default defaultTheme, light
+  overlayGeometry?: OverlayGeometryOptions; theme?: Theme; scheme?: ColorScheme;   // default defaultTheme, light
+  textMeasure?: TextMeasure }   // default estimateTextWidth; see "Text measure"
 export interface FlowScene { graph; positions; bands: LaneBand[]; activityLabels?; locale; style; theme: Theme; scheme: ColorScheme;
-  colors: Readonly<Record<ColorToken, string>>; scales: Scales;   // colors: every paint role in the scheme
+  colors: Readonly<Record<ColorToken, string>>; textMeasure: TextMeasure; scales: Scales;   // colors: every paint role in the scheme
   overlays: Overlay[]; lod: LodRules; geometry: OverlayGeometry; marks: OverlayMark[]; nodeMarks: NodeMark[]; edgeMarks: EdgeMark[];
   groupMarks: GroupMark[]; legend: SceneLegend; bounds: Box }
 export function buildScene(g: FlowGraph, p: Positions, o?: FlowSceneOptions): FlowScene;
@@ -1389,21 +1483,20 @@ export interface MarkGauge { x: number; y: number; width: number; height: number
 export interface OverlayMark { id: string; kind: OverlayKind; overlay: Overlay; box: Box; layer: "below" | "between" | "above"; inMap: boolean;
   minZoom: number; color: string; onColor: string; title: string; radius: number; path?: string; fill?: MarkFill;
   stroke?: MarkStroke; arrow?: { size: number; overhang: number }; texts: MarkText[]; gauge?: MarkGauge; edgeId?: string }
-export function overlayMarks(shapes: OverlayShape[], locale?: Locale, theme?: Theme): OverlayMark[];
+export function overlayMarks(shapes: OverlayShape[], locale?: Locale, theme?: Theme, measure?: TextMeasure): OverlayMark[];
 export function overlayColor(o: Overlay, theme?: Theme): string;           // value on the theme's shortfall palette, its neutral without one
 export function tintColor(o: Overlay, theme?: Theme): string | undefined;  // the same colour at TINT_OPACITY, as CSS rgba()
 export function arcWidth(o: Overlay, theme?: Theme): number;               // 2 + 8 × coverage (default 1), the theme's arc strokes
 export const TINT_OPACITY: number;                          // 0.18
 export const overlayArrow: { size: number; overhang: number }; // 12, tip 0.1 × size beyond the path (`arrowheadTokens.overlay`)
-export const chipLayout: { padding: 8; glyph: 12.4; gauge: 46; gaugeWidth: 40; gaugeHeight: 6; char: 6.2 };
+export const chipLayout: { padding: 8; glyph: 12.4; gauge: 46; gaugeWidth: 40; gaugeHeight: 6; char: 6.2 };   // char: read by nothing
 export function chipText(o: Overlay, locale?: Locale): { lead?: string; text: string }; // "label: " and text or share
 
 export interface SvgElement { tag: string; attrs: [string, string][]; children: (SvgElement | string)[] }
 export interface MarkSvgOptions { paint(mark: OverlayMark, paint: MarkPaint): string; arrowId: string; patternId: string }
 export function markSvg(m: OverlayMark, o: MarkSvgOptions): SvgElement;  // the <g> that draws one mark
 export function svgMarkup(e: SvgElement | string): string;
-export function fitChars(text: string, maxWidth?: number): string;        // about 6.2 px per character, with an ellipsis
-export function fitLead(t: MarkText, fit: (text: string) => string): { lead: string; text: string };
+export function fitChars(text: string, maxWidth?: number): string;        // deprecated: truncateText at a chip's 10 px
 
 export interface ElementText extends MarkText { role: "label" | "glyph" | "count" | "nameLine" | "countLine"; lod?: "labels" | "edgeLabels" }
 export interface NodeMark { id: string; kind: NodeKind; node: FlowNode; box: Box; shape: "box" | "circle" | "diamond"; radius: number;
@@ -1415,10 +1508,11 @@ export type BoxSide = "top" | "right" | "bottom" | "left";
 export interface GroupMark { id: string; kind: GroupKind; group: FlowGroup; box: Box; color: string; pattern: PatternId; band?: LaneBand;
   radius: number; fill: MarkFill; stroke: { paint: MarkPaint; width: number; dash?: number[]; sides?: BoxSide[] };
   rule?: { paint: MarkPaint; width: number; side: BoxSide }; texts: ElementText[]; chipAnchor: XY }
-export function nodeMark(n: FlowNode, box: Box, o: { color: string; pattern: PatternId; locale?: Locale; activityLabels?: ActivityLabelOptions; theme?: Theme }): NodeMark;
+export function nodeMark(n: FlowNode, box: Box, o: { color: string; pattern: PatternId; locale?: Locale; activityLabels?: ActivityLabelOptions; theme?: Theme;
+  measure?: TextMeasure }): NodeMark;
 export function edgeMark(e: FlowEdge, points: XY[], o: { color: string; width: number; locale?: Locale; theme?: Theme }): EdgeMark;
 export function groupMark(g: FlowGroup, box: Box, o: { color: string; pattern: PatternId; band?: LaneBand; theme?: Theme }): GroupMark;
-export function nodeMarks(g: FlowGraph, p: Positions, scales: Scales, o?: { locale?; activityLabels?; theme? }): NodeMark[];
+export function nodeMarks(g: FlowGraph, p: Positions, scales: Scales, o?: { locale?; activityLabels?; theme?; measure? }): NodeMark[];
 export function edgeMarks(g: FlowGraph, p: Positions, scales: Scales, locale?: Locale, theme?: Theme): EdgeMark[];
 export function groupMarks(g: FlowGraph, p: Positions, bands: readonly LaneBand[], scales: Scales, theme?: Theme): GroupMark[];
 export function edgeColor(e: FlowEdge, scales: Scales, theme?: Theme): string;      // constraint edges in the theme's mechanism colour
@@ -1427,10 +1521,6 @@ export function nodeCount(n: FlowNode, locale?: Locale): string | undefined;  //
 export function edgePoints(p: Positions, e: FlowEdge): XY[] | undefined;      // the route, or straight between the boxes
 export function routeMidpoint(points: readonly XY[]): XY;           // half of the polyline's length
 export function edgeLabelPoint(points: readonly XY[]): XY;          // 4 above the route's midpoint
-export type TextMeasure = (text: string, font: { size: number; weight?: number }) => number;
-export const estimateTextWidth: TextMeasure;                        // 0.55 em per character
-export function truncateText(text: string, maxWidth: number, font: { size: number; weight?: number }, measure?: TextMeasure): string;
-export function fitText(t: MarkText, measure?: TextMeasure): string;
 ```
 
 `buildScene` resolves a graph and its positions once into what a renderer
@@ -1473,12 +1563,14 @@ the overlay has one (`gauge`: a track in the `line` colour, the mean's share
 of threshold + width filled in the value colour, an ink tick at the
 threshold), and its text after its label as a bold `lead` (`chipText`: the
 overlay's `text`, or its share without one). `chipLayout` holds the widths
-the chip's box is sized and laid out with; `fixedColors.line` is the line
-colour of exports.
+the chip's box is laid out with; its text is as wide as the scene's text
+measure finds it (the lead in bold), the box from 60 to 260 wide, and a text
+that does not fit is shortened together with its lead. `fixedColors.line` is
+the line colour of exports.
 
 `markSvg` turns a mark into SVG elements: a group with a title, the path or
-the rounded box, the gauge and the texts (a lead as a bold `tspan`; text cut
-to `maxWidth` with `fitText`, about 6.2 px per character). The paint roles
+the rounded box, the gauge and the texts as the scene fitted them (a lead as
+a bold `tspan`). The paint roles
 are resolved by `o.paint` and the arrowhead and hatching refer to
 `o.arrowId` and `o.patternId`. `toSVG` writes these elements with
 `svgMarkup`; `<ProcessMap/>`, `<OverlayLayer/>` and `<BpmnView/>` create the
@@ -1513,12 +1605,9 @@ and, in the Canvas scene, one empty `badges` list for the nodes without
 badges. Copy such a part before changing it
 (`{ ...mark, stroke: { ...mark.stroke, width: 3 } }`). Equal counts share one
 string, and the optional keys of a mark and of a node's texts are present,
-`undefined`, where they do not apply. Texts with a `maxWidth` are shortened by one rule,
-`truncateText`: the longest start that fits with an ellipsis, by an
-injectable `TextMeasure` (`estimateTextWidth` without font metrics). `toSVG`
-and the React Flow map use the estimate, the Canvas drawing the context's
-`measureText`; `fitText` applies the rule to a mark text. Overlay marks'
-texts (`markSvg`) are cut by `fitChars`, about 6.2 px per character.
+`undefined`, where they do not apply. A text with a `maxWidth` arrives
+shortened to it by the scene's text measure, and every renderer writes it as
+it is (see "Text measure").
 
 `<ProcessMap/>` reads the same scene: one scene per graph, positions and
 options gives its bands, scales, overlays, level-of-detail rules and overlay
@@ -1813,7 +1902,19 @@ are panels, not elements of the map.
 
 ## Deprecated names
 
-No name is deprecated at present. A name that is marked `@deprecated` in the
+### `@wise/flow`
+
+| Name | Replacement |
+| --- | --- |
+| `fitChars` | the mark's `text`, which the scene's text measure has fitted; `truncateText` to shorten another text |
+
+### `@wise/flow/canvas`
+
+| Name | Replacement |
+| --- | --- |
+| `PreparedScene.labelCache` | the texts of the marks (`SceneNode.mark.texts`), fitted when the scene was built |
+
+A name that is marked `@deprecated` in the
 source is listed here, with the entry point as a `###` heading and a table of
 name and replacement. A tooling test (`tests/tooling/deprecations.test.mjs`)
 checks that every `@deprecated` name in the source is listed here with a

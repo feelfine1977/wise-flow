@@ -124,11 +124,12 @@ describe("toSVG overlay marks", () => {
   it("draws a chip's gauge and its label in bold", () => {
     const chip: Overlay = { kind: "chip", target: "s2", payload: { glyph: "◔", label: "Touches", text: "2.1 ⌀", value: 0.5, gauge: { value: 2.1, threshold: 2, width: 1 } } };
     const drawn = toSVG({ graph: kinds.graph, positions: kinds.positions, overlays: [chip], selfLoops: false }, { legend: false }).match(/<g class="wf-overlay[^]*?<\/g>/g);
-    // Track 40 × 6 at (361.2, 5) in the line colour, 0.7 of it filled, the tick 2 px wide at 2 / 3 (387.87 − 1).
+    // The chip ends at 502 and is 151.4 wide: padding 16, glyph 12.4, gauge 46 and 14 characters of 5.5 by the estimate.
+    // Track 40 × 6 at (371, 5) in the line colour, 0.7 of it filled, the tick 2 px wide at 2 / 3 (397.67 − 1).
     expect(drawn).toEqual([
-      '<g class="wf-overlay wf-chip"><title>Touches — 2.1 ⌀</title><rect x="340.8" y="-4" width="161.2" height="24" rx="12" fill="#ffffff" stroke="#fd8d3c" stroke-width="2"/>' +
-        '<rect x="361.2" y="5" width="40" height="6" rx="3" fill="#cfd4dc"/><rect x="361.2" y="5" width="28" height="6" fill="#fd8d3c"/><rect x="386.87" y="4" width="2" height="8" fill="#1f1f1f"/>' +
-        '<text x="348.8" y="11.5" font-size="10" fill="#1f1f1f">◔</text><text x="407.2" y="11.5" font-size="10" fill="#1f1f1f"><tspan font-weight="700">Touches: </tspan>2.1 ⌀</text></g>',
+      '<g class="wf-overlay wf-chip"><title>Touches — 2.1 ⌀</title><rect x="350.6" y="-4" width="151.4" height="24" rx="12" fill="#ffffff" stroke="#fd8d3c" stroke-width="2"/>' +
+        '<rect x="371" y="5" width="40" height="6" rx="3" fill="#cfd4dc"/><rect x="371" y="5" width="28" height="6" fill="#fd8d3c"/><rect x="396.67" y="4" width="2" height="8" fill="#1f1f1f"/>' +
+        '<text x="358.6" y="11.5" font-size="10" fill="#1f1f1f">◔</text><text x="417" y="11.5" font-size="10" fill="#1f1f1f"><tspan font-weight="700">Touches: </tspan>2.1 ⌀</text></g>',
     ]);
   });
 
@@ -200,6 +201,7 @@ describe("toSVG node and edge marks", () => {
   it("truncates labels by the core rule and keeps the full text in a title", () => {
     const long = { ...elements.graph, nodes: elements.graph.nodes.map((n) => (n.id === "a" ? { ...n, label: "Change Approval for Purchase Order" } : n)) };
     const svg = toSVG({ graph: long, positions: elements.positions, style: elements.style }, { legend: false });
-    expect(svg).toContain(">Change Approval for Pu…<");
+    // 126.2 by the estimate beside the count "1.2k": 18 characters and the ellipsis.
+    expect(svg).toContain(">Change Approval fo…<");
   });
 });

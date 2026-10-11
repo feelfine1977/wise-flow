@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { globalScene } from "../../fixtures/bpic2019";
 import { type DrawContext, type PreparedScene, drawScene, prepareScene } from "../../src/canvas/index";
 import { liteFromGraph } from "../../src/bpmn/index";
-import { type EdgeKind, type FlowGraph, type NodeKind, type Positions, abstract, estimateTextWidth, layout, toSVG } from "../../src/index";
+import { type ActivityLabelOptions, type EdgeKind, type FlowGraph, type Locale, type NodeKind, type Positions, type TextMeasure, abstract, activityNodeSize, estimateTextWidth, layout, toSVG } from "../../src/index";
 import { ProcessMap } from "../../src/react/index";
 
 /**
@@ -15,8 +15,11 @@ type Written = { nodes: Map<string, string[]>; edges: Map<string, string[]> };
 const unescape = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
 const textsOf = (svg: string) => [...svg.matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map((m) => unescape(m[1]));
 
-function fromSVG(graph: FlowGraph, positions: Positions): Written {
-  const svg = toSVG({ graph, positions }, { legend: false });
+/** A graph laid out, drawn with activity labels or without, in a locale, its texts measured by a measure (default the estimate). */
+type Fixture = { graph: FlowGraph; positions: Positions; activityLabels?: ActivityLabelOptions; locale?: Locale; textMeasure?: TextMeasure };
+
+function fromSVG({ graph, positions, activityLabels, locale, textMeasure }: Fixture): Written {
+  const svg = toSVG({ graph, positions, activityLabels, locale }, { legend: false, textMeasure });
   const nodes = new Map([...svg.matchAll(/<g class="wf-node wf-node-\w+" data-id="([^"]+)">([^]*?)<\/g>/g)].map((m) => [unescape(m[1]), textsOf(m[2])]));
   const edges = new Map([...svg.matchAll(/<g class="wf-edge" data-id="([^"]+)">([^]*?)<\/g>/g)].map((m) => [unescape(m[1]), textsOf(m[2])]));
   return { nodes, edges };
@@ -41,8 +44,8 @@ function writingContext() {
   return { ctx, texts };
 }
 
-function fromCanvas(graph: FlowGraph, positions: Positions): Written {
-  const scene = prepareScene(graph, positions, { lodBySize: false });
+function fromCanvas({ graph, positions, activityLabels, locale, textMeasure }: Fixture): Written {
+  const scene = prepareScene(graph, positions, { lodBySize: false, activityLabels, locale, textMeasure });
   // One element at a time, so that every written text belongs to it.
   const written = (only: Partial<PreparedScene>) => {
     const { ctx, texts } = writingContext();
@@ -55,10 +58,10 @@ function fromCanvas(graph: FlowGraph, positions: Positions): Written {
   };
 }
 
-async function fromReact(graph: FlowGraph, positions: Positions): Promise<Written> {
+async function fromReact({ graph, positions, activityLabels, locale, textMeasure }: Fixture): Promise<Written> {
   const { container } = render(
     <div style={{ width: 1200, height: 800 }}>
-      <ProcessMap graph={graph} positions={positions} renderer="svg" controls={false} legend={false} fitView={false} selfLoops={false} contextMenu={false} pathList={false} />
+      <ProcessMap graph={graph} positions={positions} activityLabels={activityLabels} locale={locale} textMeasure={textMeasure} renderer="svg" controls={false} legend={false} fitView={false} selfLoops={false} contextMenu={false} pathList={false} />
     </div>,
   );
   const drawable = graph.edges.filter((e) => e.source !== e.target);
@@ -88,16 +91,29 @@ const annotated: FlowGraph = {
   ],
 };
 const graphs = { annotated, stages: abstract(globalScene, { collapse: "all" }), lite: liteFromGraph(global) };
+const names: ActivityLabelOptions = { mode: "names", references: {} };
+/** A full em per character: wider than the estimate, so that it shortens and wraps other texts than the estimate does. */
+const em: TextMeasure = (s, font) => Array.from(s).length * font.size;
 
 const renderers: Record<string, Record<"svg" | "canvas" | "react", Written>> = {};
 const shown: Record<string, FlowGraph> = {};
 beforeAll(async () => {
+  const fixtures: Record<string, Fixture> = {};
   for (const [name, graph] of Object.entries(graphs)) {
     const positions = await layout(graph, { engine: "dagre" });
-    shown[name] = graph;
-    renderers[name] = { svg: fromSVG(graph, positions), canvas: fromCanvas(graph, positions), react: await fromReact(graph, positions) };
+    fixtures[name] = { graph, positions };
+    fixtures[`${name} measured`] = { graph, positions, textMeasure: em };
   }
-}, 60000);
+  // Activities with their names written out, in English and German, with boxes sized by the measure.
+  for (const [locale, measure] of [["en", undefined], ["de", undefined], ["en", em], ["de", em]] as const) {
+    const positions = await layout(global, { engine: "dagre", nodeSize: (node) => activityNodeSize(node, names, measure) });
+    fixtures[`names ${locale}${measure ? " measured" : ""}`] = { graph: global, positions, activityLabels: names, locale, textMeasure: measure };
+  }
+  for (const [name, fixture] of Object.entries(fixtures)) {
+    shown[name] = fixture.graph;
+    renderers[name] = { svg: fromSVG(fixture), canvas: fromCanvas(fixture), react: await fromReact(fixture) };
+  }
+}, 90000);
 afterAll(cleanup);
 
 function agree(kind: NodeKind | EdgeKind, side: "nodes" | "edges") {
@@ -113,7 +129,7 @@ function agree(kind: NodeKind | EdgeKind, side: "nodes" | "edges") {
   return seen;
 }
 
-describe("SVG, Canvas and React agree on the committed fixtures", () => {
+describe("SVG, Canvas and React agree on the committed fixtures, with the estimate and with another measure", () => {
   it.each(["activity", "stage", "gateway", "event", "note"] as const)("on the texts and presence of every %s", (kind) => {
     expect(agree(kind, "nodes")).toBeGreaterThan(0);
   });
@@ -134,5 +150,16 @@ describe("SVG, Canvas and React agree on the committed fixtures", () => {
     expect(new Set(shown.lite.nodes.filter((n) => n.kind === "gateway").map((n) => lite.nodes.get(n.id)?.join("")))).toEqual(new Set(["×"]));
     expect(renderers.stages.svg.nodes.get("payment")?.[1]).toMatch(/^\d+ · /);
     expect(shown.lite.edges.filter((e) => e.kind === "flow").every((e) => lite.edges.get(e.id)?.length === 1)).toBe(true);
+  });
+
+  it("shortens and wraps by the measure the scene was built with", () => {
+    // The note leaves 136 at 11 px: 21 characters of 6.05 and the ellipsis by the estimate, 11 and it at a full em.
+    expect(renderers.annotated.react.nodes.get("note")).toEqual(["Invoices are cleared …"]);
+    expect(renderers["annotated measured"].react.nodes.get("note")).toEqual(["Invoices ar…"]);
+    // A name wraps at 248 at 14 px: 32 characters of 7.7 by the estimate, 17 at a full em; the cases follow, in the locale.
+    const lines = (name: string) => renderers[name].react.nodes.get("change_approval_for_purchase_order");
+    expect(lines("names en")).toEqual(["Change Approval for Purchase", "Order", "4.4k cases"]);
+    expect(lines("names en measured")?.slice(0, 3)).toEqual(["Change Approval", "for Purchase", "Order"]);
+    expect(lines("names de")).toEqual(["Change Approval for Purchase", "Order", "4,4k cases"]);
   });
 });

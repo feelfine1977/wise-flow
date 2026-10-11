@@ -1,5 +1,5 @@
-import { type CSSProperties, useId, useState } from "react";
-import { type EdgeBudget, type Locale, type LodRules, type ViewSet, t } from "../core/index.js";
+import { type CSSProperties, useId, useMemo, useState } from "react";
+import { type EdgeBudget, type Locale, type LodRules, type SceneLegend, type ViewSet, buildScene, filterPositions, t } from "../core/index.js";
 import { Legend } from "./Legend.js";
 import { ProcessMap } from "./ProcessMap.js";
 import { type Selection, emptySelection } from "./types.js";
@@ -57,11 +57,15 @@ export function ViewSwitcher({ views, mode: modeProp, onModeChange, activeView, 
   };
   const id = useId();
   const current = views.views.find((v) => v.id === active) ?? views.views[0];
-  const legendStyles = new Map<string, (typeof views.views)[number]>();
-  for (const v of views.views) {
-    const key = JSON.stringify(v.style);
-    if (!legendStyles.has(key)) legendStyles.set(key, v);
-  }
+  // One legend per distinct style, of what that view's map draws.
+  const legends = useMemo(() => {
+    const out = new Map<string, SceneLegend>();
+    for (const v of views.views) {
+      const key = JSON.stringify(v.style);
+      if (!out.has(key)) out.set(key, buildScene(v.graph, filterPositions(views.positions, v.graph), { overlays: v.overlays, style: v.style, locale }).legend);
+    }
+    return [...out.values()];
+  }, [views, locale]);
 
   return (
     <div className={`wf-views${className ? ` ${className}` : ""}`} style={containerStyle} data-mode={mode}>
@@ -127,9 +131,9 @@ export function ViewSwitcher({ views, mode: modeProp, onModeChange, activeView, 
           ))}
           {legend ? (
             <div className="wf-views__legends">
-              {[...legendStyles.values()].map((v) => (
-                <div key={v.id} className="wf-views__legend">
-                  <Legend scales={v.scales} overlays={v.overlays} locale={locale} />
+              {legends.map((l, i) => (
+                <div key={i} className="wf-views__legend">
+                  <Legend legend={l} locale={locale} />
                 </div>
               ))}
             </div>

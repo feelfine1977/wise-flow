@@ -17,7 +17,7 @@ Framework-free TypeScript; runs in Node and in the browser. No DOM, no React.
 | `overlay-geometry.ts` | placement of overlays already in canonical order: badge slots, arcs (the course crossing the fewest other nodes, the label clear of nodes, other labels and group titles), self-loops, hatch, tint, chips |
 | `overlay-marks.ts` | `overlayMarks`: one resolved mark per placed overlay (box or path, fill, stroke, dash, arrowhead, texts, layer, zoom threshold); `overlayColor`, `tintColor`, `arcWidth`, `overlayArrow` |
 | `observed-loops.ts` | `followsSelfLoops`, `withFollowsSelfLoops`, `withObservedSelfLoops`: follows edges from a node to itself as self-loop overlays |
-| `scene.ts` | `buildScene`: graph and positions resolved once, in a theme and colour scheme, into activity references, lane bands, scales, the overlays to show, level-of-detail rules, overlay geometry, overlay, node, edge and group marks, the colours of the paint roles and the legend |
+| `scene.ts` | `buildScene`: graph and positions resolved once, in a theme and colour scheme with one text measure, into activity references, lane bands, scales, the overlays to show, level-of-detail rules, overlay geometry, overlay, node, edge and group marks, the colours of the paint roles and the legend |
 | `views.ts` | `buildViews`, `resolveViews`: named views of one map with shared scale domains |
 | `selection.ts` | `Selection` transitions (`selectElement`, `selectMany`), `selectionShape`, `relatedToSelection`, `describeSelection` |
 | `map-controller.ts` | Internal: the map controller. `mapStep` applies a click, key, hover, focus or menu event to the interaction state (selection, focus of paths, abstraction, view, keyboard position, hover, actions menu) and returns the next state, the live region's sentence and the intents for the host; `announceChange`; the actions menu's keyboard (`menuKey`, `firstEntry`) and header (`menuHeading`); `clickSelection`; `mapEmphasis` (focus in effect, what stays bright) |
@@ -28,7 +28,8 @@ Framework-free TypeScript; runs in Node and in the browser. No DOM, no React.
 | `lanes.ts` | `laneBands`: stage groups as ordered bands along the flow, lane groups as bands across it; the lane model shared with the BPMN layout (`laneModel`, `stackLanes`, `spanLanes`, `laneRoutes`) |
 | `routing.ts` | `routeSequenceFlows` (orthogonal obstacle router), `repositionNodes` |
 | `hit.ts` | `HitIndex` (rbush) over nodes, groups, edge segments and overlay shapes |
-| `figure.ts` | `sceneLegend`, `legendLayout`, `figureFrame`: the legend's rows and their heights, and the figure frame of the exports (header, map, legend column, activity key, output size for a preset) |
+| `figure.ts` | `legendOfScene`, `sceneLegend`, `legendLayout`, `figureFrame`: the legend's typed rows (`LegendRow`) from what a scene draws, their heights and texts at the export's width, and the figure frame of the exports (header, map, legend column, activity key, output size for a preset) |
+| `text.ts` | `TextMeasure`, `estimateTextWidth`, `truncateText`, `wrapText`, `fitText`, `fitLead`: the one measure of text widths a scene is built with, and the rules that shorten and wrap text by it |
 | `export.ts` | `toSVG`: draws a `buildScene` scene, its marks and its legend in the figure frame |
 | `format.ts` | deterministic number and duration formatting, `Locale` |
 | `strings.ts` | English and German strings, `t`, `metricLabel` |

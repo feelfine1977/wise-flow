@@ -80,4 +80,26 @@ describe("ViewSwitcher", () => {
     await waitFor(() => expect(nodeBoxes(cells[0]).length).toBeGreaterThan(0));
     expect(nodeBoxes(cells[0])).toEqual(nodeBoxes(cells[1]));
   });
+
+  it("gives each distinct style of the grid the legend of what its views' maps draw", async () => {
+    const base = abstract(globalScene, { minNodeShare: 0.05, minEdgeShare: 0.1 });
+    const positions = await layout(base, { engine: "dagre" });
+    const set = resolveViews(base, [{ id: "a", label: "Alpha" }, { id: "b", label: "Beta", style: { edgeWidth: { metric: "count" } } }], positions);
+    const { container } = render(
+      <div style={{ width: 1200, height: 800 }}>
+        <ViewSwitcher views={set} mode="grid" />
+      </div>,
+    );
+    // Without overlays the maps draw the follows self-loops and the re-added paths, and nothing else the legend explains.
+    const loops = base.edges.some((e) => e.kind === "follows" && e.source === e.target);
+    const readded = base.edges.some((e) => e.tags?.includes("reconnected"));
+    expect(loops || readded).toBe(true);
+    const keys = [...(loops ? ["↻"] : []), ...(readded ? ["┄"] : [])];
+    await waitFor(() => expect(container.querySelectorAll(".wf-views__legend").length).toBe(2));
+    for (const legend of container.querySelectorAll(".wf-views__legend")) {
+      expect([...legend.querySelectorAll(".wf-legend__glyph")].map((g) => g.textContent)).toEqual(keys);
+    }
+    // The default style colours the paths by their shortfall; the second style only sets their width.
+    expect([...container.querySelectorAll(".wf-views__legend")].map((l) => l.querySelectorAll(".wf-legend__gradient").length)).toEqual([1, 0]);
+  });
 });

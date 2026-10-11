@@ -3,9 +3,9 @@
  */
 import type { ActivityLabelOptions } from "./activity-labels.js";
 import { type EdgeBudget, type EdgeSelection, type ShownEdges, budgetEdges } from "./edge-budget.js";
-import { type BoxSide, type ElementText, fitText, truncateText } from "./element-marks.js";
+import type { BoxSide, ElementText } from "./element-marks.js";
 import { type FigurePreset, type LegendLayout, figureFrame, figureMetrics, legendMetrics } from "./figure.js";
-import { type Locale, formatCompact, formatCount, formatNumber, formatShare } from "./format.js";
+import { type Locale, formatCount } from "./format.js";
 import { type Box, type Positions } from "./layout.js";
 import { type LaneMode } from "./lanes.js";
 import type { FlowGraph, Overlay } from "./model.js";
@@ -15,6 +15,7 @@ import { type MarkPaint, type MarkText, type OverlayMark, markArrowhead, overlay
 import { type FlowScene, buildScene } from "./scene.js";
 import { type StyleSpec, lodAt, patternDefs } from "./style.js";
 import { t } from "./strings.js";
+import type { TextMeasure } from "./text.js";
 import type { ColorScheme, Theme } from "./theme.js";
 import { type ColorToken, arrowheadTokens, dimensionTokens, opacityTokens } from "./tokens.js";
 
@@ -58,6 +59,8 @@ export interface ExportOptions {
   theme?: Theme;
   /** The colour scheme of the theme. Default `light`. */
   scheme?: ColorScheme;
+  /** What the figure's texts are measured by (see `FlowSceneOptions.textMeasure`). Default `estimateTextWidth`. */
+  textMeasure?: TextMeasure;
 }
 
 const esc = (s: unknown): string =>
@@ -178,7 +181,7 @@ function paintOf(ctx: Ctx, color: string, onColor: string, paint: MarkPaint): st
 function markText(ctx: Ctx, color: string, onColor: string, m: MarkText): string {
   const y = m.baseline === "middle" ? m.y + 0.3 * m.size : m.y;
   const halo = m.halo ? ` paint-order="stroke" stroke="${ctx.colors.paper}" stroke-width="${ctx.scene.theme.stroke.halo}"` : "";
-  return text(m.x, y, fitText(m), `font-size="${m.size}"${m.weight ? ` font-weight="${m.weight}"` : ""}${m.anchor === "start" ? "" : ` text-anchor="${m.anchor}"`} fill="${paintOf(ctx, color, onColor, m.paint)}"${halo}`);
+  return text(m.x, y, m.text, `font-size="${m.size}"${m.weight ? ` font-weight="${m.weight}"` : ""}${m.anchor === "start" ? "" : ` text-anchor="${m.anchor}"`} fill="${paintOf(ctx, color, onColor, m.paint)}"${halo}`);
 }
 
 function drawMarks(ctx: Ctx, layer: OverlayMark["layer"]): string {
@@ -191,50 +194,47 @@ function drawMarks(ctx: Ctx, layer: OverlayMark["layer"]): string {
 
 function drawLegend(ctx: Ctx, width: number, layout: LegendLayout): string {
   const out: string[] = [];
-  const L = ctx.locale;
   const { colors } = ctx;
   const { text: textTokens, radius: radiusTokens, stroke: strokeTokens } = ctx.scene.theme;
   const { legendTitle, legendItem, legendValue, legendKey, legendChip } = textTokens;
   const { legendSampleExport: sample, legendGradient: ramp, legendSwatchWidth, legendSwatchHeight } = dimensionTokens;
-  const value = `${fontAttrs(legendValue)} fill="${colors.ink}"`;
-  out.push(text(0, 14, t(L, "legend.title"), `${fontAttrs(legendTitle)} fill="${colors.ink}"`));
-  for (const { item, y } of layout.items) {
-    out.push(text(0, y + 11, t(L, item.title), `${fontAttrs(legendItem)} fill="${colors.ink}"`));
+  const ink = (role: { size: number; weight?: number }, more = "") => `${fontAttrs(role)}${more} fill="${colors.ink}"`;
+  const value = ink(legendValue);
+  out.push(text(0, 14, ctx.scene.legend.title, ink(legendTitle)));
+  for (const { row, y, texts } of layout.rows) {
     const cy = y + legendMetrics.itemTitle;
-    if (item.kind === "width") {
-      const [lo, hi] = item.range;
-      out.push(`<path d="M0 ${num(cy + 6)}H${sample}" stroke="${colors.neutral}" stroke-width="${num(lo)}"/>`);
-      out.push(text(46, cy + 10, formatCompact(item.domain[0], L), value));
-      out.push(`<path d="M${num(width / 2)} ${num(cy + 6)}H${num(width / 2 + sample)}" stroke="${colors.neutral}" stroke-width="${num(hi)}"/>`);
-      out.push(text(width / 2 + 46, cy + 10, formatCompact(item.domain[1], L), value));
-    } else if (item.kind === "sequential" || item.kind === "diverging") {
-      const gid = `wf-grad-${item.title.replace(/\W/g, "")}-${item.metric.replace(/\W/g, "")}`;
-      const stops = item.stops.map((c, i) => `<stop offset="${num((i / (item.stops.length - 1)) * 100)}%" stop-color="${c}"/>`).join("");
+    if (row.kind === "key") {
+      out.push(text(0, y + 10, row.glyph, value));
+      out.push(text(22, y + 10, texts[0], ink(legendKey)));
+      continue;
+    }
+    if (row.kind === "chip") {
+      out.push(text(0, y + 10, texts[0], ink(legendChip)));
+      out.push(text(0, y + legendMetrics.chipLabel + 10, texts[1], ink(legendKey)));
+      continue;
+    }
+    out.push(text(0, y + 11, row.title, ink(legendItem)));
+    if (row.kind === "width") {
+      row.samples.forEach((s, i) => {
+        const x = (i * width) / 2;
+        out.push(`<path d="M${num(x)} ${num(cy + 6)}H${num(x + sample)}" stroke="${colors.neutral}" stroke-width="${num(s.width)}"/>`);
+        out.push(text(x + 46, cy + 10, s.text, value));
+      });
+    } else if (row.kind === "ramp") {
+      const gid = `wf-grad-${row.id}`;
+      const stops = row.stops.map((c, i) => `<stop offset="${num((i / (row.stops.length - 1)) * 100)}%" stop-color="${c}"/>`).join("");
       out.push(`<defs><linearGradient id="${gid}">${stops}</linearGradient></defs>`);
       out.push(rect({ x: 0, y: cy, width: width - 10, height: ramp }, `fill="url(#${gid})" stroke="${colors.neutral}" stroke-width="${strokeTokens.legendGradient}"`));
-      const share = /share/i.test(item.metric);
-      const f = (v: number) => (share ? formatShare(v, L) : formatNumber(v, 1, L));
-      out.push(text(0, cy + 22, f(item.domain[0]), value));
-      if (item.domain.length === 3) out.push(text((width - 10) / 2, cy + 22, f(item.domain[1]), `${fontAttrs(legendValue)} text-anchor="middle" fill="${colors.ink}"`));
-      out.push(text(width - 10, cy + 22, f(item.domain[item.domain.length - 1]), `${fontAttrs(legendValue)} text-anchor="end" fill="${colors.ink}"`));
-    } else if (item.kind === "categorical") {
-      item.entries.forEach((e, i) => {
+      const anchors = row.values.length === 3 ? ["start", "middle", "end"] : ["start", "end"];
+      row.values.forEach((v, i) => out.push(text(((width - 10) * (anchors[i] === "start" ? 0 : anchors[i] === "middle" ? 1 : 2)) / 2, cy + 22, v, anchors[i] === "start" ? value : ink(legendValue, ` text-anchor="${anchors[i]}"`))));
+    } else {
+      row.entries.forEach((e, i) => {
         const sw: Box = { x: 0, y: cy + i * legendMetrics.entry, width: legendSwatchWidth, height: legendSwatchHeight };
         out.push(rect(sw, `rx="${radiusTokens.swatch}" fill="${e.color}"`));
         if (e.pattern !== "solid") out.push(rect(sw, `rx="${radiusTokens.swatch}" fill="url(#wf-pattern-${e.pattern})"`));
-        out.push(text(20, sw.y + 10, truncateText(e.key, width - 24, legendValue), value));
+        out.push(text(20, sw.y + 10, texts[i], value));
       });
     }
-  }
-  for (const { key, y } of layout.keys) {
-    out.push(text(0, y + 10, key.glyph, value));
-    out.push(text(22, y + 10, truncateText(t(L, key.title), width - 24, legendKey), `${fontAttrs(legendKey)} fill="${colors.ink}"`));
-  }
-  for (const { chip, y } of layout.chips) {
-    const p = chip.payload ?? {};
-    const label = truncateText(`${p.glyph ?? ""} ${p.label ?? ""}`.trim(), width - 4, legendChip);
-    out.push(text(0, y + 10, label, `${fontAttrs(legendChip)} fill="${colors.ink}"`));
-    out.push(text(0, y + legendMetrics.chipLabel + 10, truncateText(String(p.text ?? ""), width - 4, legendKey), `${fontAttrs(legendKey)} fill="${colors.ink}"`));
   }
   return out.join("");
 }
@@ -255,6 +255,7 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
     overlayGeometry: options.overlayGeometry,
     theme: options.theme,
     scheme: options.scheme,
+    textMeasure: options.textMeasure,
   });
   const { locale, colors, theme } = scene;
   const font = options.fontFamily ?? theme.font.family;

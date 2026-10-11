@@ -72,16 +72,24 @@ const observed: Variant = {
  * them; bands are outlined in the line colour on the two sides between bands
  * (they were outlined all round in the neutral colour at 0.5). Recorded once
  * more when the start event took the interactive map's outline: only its
- * circle's stroke width changed, 2 where it was 1.5.
+ * circle's stroke width changed, 2 where it was 1.5. Recorded once more when
+ * texts began to be measured once, by the scene's measure: compared element by
+ * element, only text changed. One chip's text is cut by the estimate (5.5 per
+ * character at 10 px) where it was cut at 6.2 per character, so it keeps three
+ * more characters ("Manual touches in the order stag…"). Activity and stage
+ * labels leave the room the interactive map gives them: inside the outline and
+ * before the count it writes on their line; thirteen labels of the global and
+ * the vendor map are cut one to four characters shorter. `plain` writes no
+ * label at its zoom, has no chip and kept its digest.
  */
 const before: Record<string, string> = {
-  overlays: "eba30056a4def362fe16d2e0ef531c34654730361eff640f2dfeb9c0e82209f4",
-  stagesGerman: "2e7e27987294098e0d71929349e7997b815c41e52a4b77d15ede7588d6b679a9",
-  vendor: "ada8175d0259c69aea8ad0929c1bc070cc498dddbbb23137d4219a0ece953525",
-  unfiltered: "b657d1334018a83a91b7e9ce4e3105456ae3ad303006725efb12e2862db38bc8",
+  overlays: "352dd9a0fb878118624ee4912dddd94b8b1aefffa78b98334b2891c9b76ced87",
+  stagesGerman: "41b63599f33a54ea4c5b38bd57bbf1e373bc2ec0e68395efd98b8b6dfc339c7a",
+  vendor: "cf04ca65d5cabc6886cf08ea306f73305d80a2771e858f12efbc19656237e4f3",
+  unfiltered: "d428da55677180be1caa1f3dc584d7f2a8eb88cd9ae0ea5cca4f89cd072e0c6b",
   plain: "ffd703c091b76fd841cedbad8a61b324bd62f873034b0c237e3b66fb6197b8ba",
 };
-const beforeObserved = "d1df0974b633a32a9ecdcdadc357b73f2192d5474a1b2d8a16025ed0d6503d12";
+const beforeObserved = "3aa9ded0485cbcb6d9eb77fa04956ff336c5234c084638888b1a7c42dc537ae8";
 
 describe("toSVG on the committed fixtures", () => {
   it("matches the recorded output once follows self-loops are hidden", () => {

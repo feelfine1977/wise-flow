@@ -4,6 +4,7 @@ import type { Box } from "./layout.js";
 import { type Overlay, type OverlayKind, MAP_TARGET } from "./model.js";
 import type { OverlayShape } from "./overlay-geometry.js";
 import { colorOn, contrastText, hexToRgb } from "./style.js";
+import { type TextMeasure, estimateTextWidth, fitMarkText } from "./text.js";
 import { type Theme, defaultTheme } from "./theme.js";
 import { type Arrowhead, arrowheadTokens, dashTokens, opacityTokens } from "./tokens.js";
 
@@ -40,7 +41,7 @@ export interface MarkText {
   paint: MarkPaint;
   /** Outline in the paper colour so that the text stays readable over lines. */
   halo: boolean;
-  /** Width the text is truncated to, when it is limited. */
+  /** Width the text is limited to; `text` (with `lead`) is already shortened to it by the scene's measure. */
   maxWidth?: number;
   /** Bold run printed before `text` in start-anchored text (a chip's label); `maxWidth` limits both together. */
   lead?: string;
@@ -128,7 +129,11 @@ export function markArrowhead(arrow: { size: number; overhang: number }): Arrowh
   return { ...arrowheadTokens.overlay, size: arrow.size, overhang: arrow.overhang * box };
 }
 
-/** A chip's padding, the advance of its glyph and of its gauge with the gap after it, and characters at 6.2 px. */
+/**
+ * A chip's padding, the advance of its glyph and of its gauge with the gap
+ * after it; its text is as wide as the scene's measure finds it.
+ * `char` (deprecated) is read by nothing.
+ */
 export const chipLayout = { padding: 8, glyph: 12.4, gauge: 46, gaugeWidth: 40, gaugeHeight: 6, char: 6.2 } as const;
 
 /** What a chip prints after its glyph: its label as a bold lead and its text, or its share without one. */
@@ -145,12 +150,12 @@ export function arcLabel(overlay: Overlay, locale: Locale = "en"): string {
   return `${p.glyph ?? ""} ${typeof p.value === "number" && Number.isFinite(p.value) ? formatShare(p.value, locale) : ""}`.trim();
 }
 
-/** One mark per shape, in the shapes' order, with the sizes and colours of a theme. */
-export function overlayMarks(shapes: OverlayShape[], locale: Locale = "en", theme: Theme = defaultTheme): OverlayMark[] {
-  return shapes.map((s) => overlayMark(s, locale, theme));
+/** One mark per shape, in the shapes' order, with the sizes and colours of a theme and texts fitted by a measure. */
+export function overlayMarks(shapes: OverlayShape[], locale: Locale = "en", theme: Theme = defaultTheme, measure: TextMeasure = estimateTextWidth): OverlayMark[] {
+  return shapes.map((s) => overlayMark(s, locale, theme, measure));
 }
 
-function overlayMark(s: OverlayShape, locale: Locale, theme: Theme): OverlayMark {
+function overlayMark(s: OverlayShape, locale: Locale, theme: Theme, measure: TextMeasure): OverlayMark {
   const { text: textTokens, radius: radiusTokens, stroke: strokeTokens } = theme;
   const o = s.overlay;
   const p = o.payload ?? {};
@@ -223,7 +228,7 @@ function overlayMark(s: OverlayShape, locale: Locale, theme: Theme): OverlayMark
         radius: radiusTokens.chip,
         fill: { paint: "paper" },
         stroke: { paint: "value", width: strokeTokens.chip },
-        texts: [...(p.glyph ? [plain(p.glyph, s.x + padding)] : []), { ...plain("", textX), ...chipText(o, locale), maxWidth: s.width - 2 * padding - (p.glyph ? glyph : 0) - (g ? gauge : 0) }],
+        texts: [...(p.glyph ? [plain(p.glyph, s.x + padding)] : []), fitMarkText({ ...plain("", textX), ...chipText(o, locale), maxWidth: s.width - 2 * padding - (p.glyph ? glyph : 0) - (g ? gauge : 0) }, textTokens.chipLead.weight, measure)],
         ...(g ? { gauge: { x: gaugeX, y: s.y + (s.height - gaugeHeight) / 2, width: gaugeWidth, height: gaugeHeight, value: share(g.value), threshold: share(g.threshold) } } : {}),
       };
     }

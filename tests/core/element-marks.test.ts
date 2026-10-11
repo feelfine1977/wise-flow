@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type ElementText, type FlowGraph, type MarkText, buildScene, createPositions, edgeLabelPoint, estimateTextWidth, fitText, routeMidpoint, truncateText } from "../../src/index";
+import { type ElementText, type FlowGraph, buildScene, createPositions, edgeLabelPoint, routeMidpoint } from "../../src/index";
 import { graph, positions, style } from "./element-kinds";
 
 const neutral = "#8c8c8c";
@@ -22,10 +22,11 @@ describe("node marks", () => {
         texts: [text({ role: "label", text: "Start", x: 18, y: 20, size: 9, anchor: "middle", maxWidth: 32, lod: "labels" })],
       },
       // An activity: border in its colour, an 8 wide band, the label 16 in and centred, the cases in the lower right corner.
+      // The label has the room the interactive map gives it before the cases: 180 − 24 − 2 × 2 − 6 − 4 × 4.95 (the estimate at 9 px).
       {
         ...base, id: "a", kind: "activity", box: positions.nodes.a, shape: "box", radius: 6, stroke: { paint: "value", width: 2 }, band: 8,
         texts: [
-          text({ role: "label", text: "Check invoice", x: 116, y: 20, size: 12, maxWidth: 156, lod: "labels" }),
+          text({ role: "label", text: "Check invoice", x: 116, y: 20, size: 12, maxWidth: 126.2, lod: "labels" }),
           text({ role: "count", text: "1.2k", x: 274, y: 35, size: 9, anchor: "end", baseline: "alphabetic", paint: "inkMuted", lod: "labels" }),
         ],
       },
@@ -34,11 +35,11 @@ describe("node marks", () => {
         ...base, id: "g", kind: "gateway", box: positions.nodes.g, shape: "diamond", radius: 0, stroke: { paint: "ink", width: 1.5 },
         texts: [text({ role: "glyph", text: "+", x: 342, y: 21, size: 14, weight: 700, anchor: "middle" })],
       },
-      // A stage: a 3 wide border, a semibold label and its members before the cases.
+      // A stage: a 3 wide border, a semibold label and its members before the cases; the label's room 200 − 24 − 2 × 3 − 6 − 8 × 4.95.
       {
         ...base, id: "s", kind: "stage", box: positions.nodes.s, shape: "box", radius: 6, stroke: { paint: "value", width: 3 }, band: 8,
         texts: [
-          text({ role: "label", text: "Payment", x: 416, y: 28, size: 12, weight: 600, maxWidth: 176, lod: "labels" }),
+          text({ role: "label", text: "Payment", x: 416, y: 28, size: 12, weight: 600, maxWidth: 124.4, lod: "labels" }),
           text({ role: "count", text: "4 · 1.5k", x: 594, y: 51, size: 9, anchor: "end", baseline: "alphabetic", paint: "inkMuted", lod: "labels" }),
         ],
       },
@@ -108,37 +109,6 @@ describe("edge marks", () => {
     expect(routeMidpoint([])).toEqual({ x: 0, y: 0 });
     expect(routeMidpoint([{ x: 3, y: 4 }])).toEqual({ x: 3, y: 4 });
     expect(routeMidpoint([{ x: 3, y: 4 }, { x: 3, y: 4 }])).toEqual({ x: 3, y: 4 });
-  });
-});
-
-describe("label truncation", () => {
-  it("keeps the longest start that fits with an ellipsis, by the given measure", () => {
-    const tens = (s: string) => Array.from(s).length * 10;
-    expect(truncateText("abcdefg", 70, { size: 10 }, tens)).toBe("abcdefg");
-    // "abc…" is 40 wide, "abcd…" 50.
-    expect(truncateText("abcdefg", 45, { size: 10 }, tens)).toBe("abc…");
-    // At least one character.
-    expect(truncateText("abcdefg", 5, { size: 10 }, tens)).toBe("a…");
-    // Characters outside the basic plane are not split.
-    expect(truncateText("😀😀😀😀", 30, { size: 10 }, tens)).toBe("😀😀…");
-  });
-
-  it("estimates 0.55 em per character without font metrics", () => {
-    expect(estimateTextWidth("abcd", { size: 10 })).toBeCloseTo(22);
-    // 156 wide at 12 px holds 23 characters of 6.6, so 22 and the ellipsis.
-    const long = "Change Approval for Purchase Order";
-    expect(truncateText(long, 156, { size: 12 })).toBe("Change Approval for Pu…");
-    expect(truncateText("Record Invoice Receipt", 156, { size: 12 })).toBe("Record Invoice Receipt");
-  });
-
-  it("fits a mark text to its width with the renderer's measure", () => {
-    const t: MarkText = { text: "Ask the vendor twice", x: 0, y: 0, size: 11, anchor: "start", baseline: "middle", paint: "ink", halo: false, maxWidth: 60 };
-    // 6.05 per character at 11 px: eight and the ellipsis fit 60.
-    expect(fitText(t)).toBe("Ask the …");
-    const sizes: number[] = [];
-    expect(fitText(t, (s, font) => (sizes.push(font.size), s.length))).toBe("Ask the vendor twice");
-    expect(sizes).toEqual([11]);
-    expect(fitText({ ...t, maxWidth: undefined }, () => Infinity)).toBe("Ask the vendor twice");
   });
 });
 
