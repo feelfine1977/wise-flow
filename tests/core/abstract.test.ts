@@ -470,3 +470,120 @@ describe("abstract: collapsed metrics", () => {
     expect(collapseGroups(graph, ["s"]).nodes[0].metrics).toEqual({ cases: 0, medianNextHours: 10, violationShare: 6, members: 2 });
   });
 });
+
+describe("abstract: small and degenerate graphs", () => {
+  it("leaves an empty graph empty at every option", () => {
+    const empty: FlowGraph = { nodes: [], edges: [] };
+    for (const options of [{}, { minEdgeShare: 1, minNodeShare: 1 }, { relativeTo: "total" as const, minNodeShare: 0.5 }, { keepConnected: false }, { collapse: "all" as const }]) {
+      const g = abstract(empty, options);
+      expect([g.nodes, g.edges, g.groups]).toEqual([[], [], []]);
+      expect(isConnected(g)).toBe(true);
+    }
+    expect(collapseGroups(empty, "all")).toBe(empty);
+  });
+
+  it("keeps a single activity and its self-loop at every threshold", () => {
+    // The activity is the strongest of its kind, and a loop with no other follows edge to be
+    // measured against has strength 1, relative to the maximum and to the total alike.
+    const graph: FlowGraph = { nodes: activities({ a: 7 }), edges: follows([["a", "a", 3]]) };
+    for (const relativeTo of ["max", "total"] as const) {
+      const g = abstract(graph, { relativeTo, minEdgeShare: 1, minNodeShare: 1 });
+      expect([g.nodes.map((n) => n.id), g.edges.map((e) => e.id), readded(g)]).toEqual([["a"], ["a->a"], []]);
+    }
+  });
+
+  it("re-adds the weak direction of a loop of two, which gives both activities their missing path", () => {
+    // b->a (10 of 100) is removed; a then lacks an incoming and b an outgoing path, and b->a closes both.
+    const graph: FlowGraph = { nodes: activities({ a: 10, b: 10 }), edges: follows([["a", "b", 100], ["b", "a", 10]]) };
+    expect(abstract(graph, { minEdgeShare: 0.5, keepConnected: false }).edges.map((e) => e.id)).toEqual(["a->b"]);
+    const g = abstract(graph, { minEdgeShare: 0.5 });
+    expect([g.edges.map((e) => e.id), readded(g)]).toEqual([["a->b", "b->a"], ["b->a"]]);
+  });
+
+  it("thresholds parallel edges one by one and re-adds none once their activities have their paths", () => {
+    const graph: FlowGraph = {
+      nodes: activities({ a: 10, b: 10 }),
+      edges: [...follows([["a", "b", 100]]), { id: "a->b#2", kind: "follows", source: "a", target: "b", metrics: { count: 10 } }, { id: "a->b~c", kind: "constraint", source: "a", target: "b" }],
+    };
+    const g = abstract(graph, { minEdgeShare: 0.5 });
+    expect([g.edges.map((e) => e.id), readded(g)]).toEqual([["a->b", "a->b~c"], []]);
+  });
+
+  it("keeps an activity without edges alone, and drops it with its self-loop below the threshold", () => {
+    const graph: FlowGraph = { nodes: activities({ a: 100, b: 100, x: 50 }), edges: follows([["a", "b", 100], ["x", "x", 5]]) };
+    const strong = abstract(graph, { minNodeShare: 0.4 });
+    expect([strong.nodes.map((n) => n.id), strong.edges.map((e) => e.id), readded(strong)]).toEqual([["a", "b", "x"], ["a->b", "x->x"], []]);
+    expect(isConnected(strong)).toBe(false);
+    const weak = abstract(graph, { minNodeShare: 0.6 });
+    expect([weak.nodes.map((n) => n.id), weak.edges.map((e) => e.id)]).toEqual([["a", "b"], ["a->b"]]);
+  });
+
+  it("breaks a tie by id even where the other choice would re-add less, since the objective holds per join", () => {
+    // y and z are both 2 from m. y comes first by id and is entered by r1->y, which sorts before
+    // r2->y; r1 touches nothing else, so z needs a path of its own through r2: four edges. Entering
+    // y by r2->y would have re-added r2, which touches z, in three.
+    const graph: FlowGraph = {
+      nodes: activities({ m: 100, y: 50, z: 50, r1: 1, r2: 1 }),
+      edges: follows([["m", "r1", 100], ["r1", "y", 100], ["m", "r2", 100], ["r2", "z", 100], ["r2", "y", 100]]),
+    };
+    expect(readded(abstract(graph, { minNodeShare: 0.3 }))).toEqual(["m->r1", "m->r2", "r1", "r1->y", "r2", "r2->z"]);
+  });
+});
+
+describe("abstract: findings", () => {
+  it("finding: counts a constraint edge, a flow edge and a follows edge without a count inside a collapsed stage as one transition each", () => {
+    // Only a->b's 5 are observed transitions; the constraint, the flow and the uncounted self-loop add 1 each.
+    const graph: FlowGraph = {
+      nodes: [{ id: "a", kind: "activity", label: "A", group: "s" }, { id: "b", kind: "activity", label: "B", group: "s" }],
+      edges: [
+        { id: "a->b", kind: "follows", source: "a", target: "b", metrics: { count: 5 } },
+        { id: "k", kind: "constraint", source: "a", target: "b" },
+        { id: "f", kind: "flow", source: "b", target: "a" },
+        { id: "b->b", kind: "follows", source: "b", target: "b", metrics: { cases: 4 } },
+      ],
+      groups: [{ id: "s", kind: "stage", label: "S" }],
+    };
+    expect(collapseGroups(graph, ["s"]).nodes[0].metrics?.internalCount).toBe(8);
+  });
+
+  it("finding: a collapsed group without members can be where the joining starts, and then nothing is joined", () => {
+    // The empty group becomes a stage node without metrics, so of strength 1: heavier than m (100 of
+    // 151 cases) and n (50 of 151). The joining starts there, reaches nothing, and m and n, joined
+    // through r in the input, stay apart.
+    const graph: FlowGraph = {
+      nodes: activities({ m: 100, n: 50, r: 1 }),
+      edges: follows([["m", "r", 10], ["r", "n", 10]]),
+      groups: [{ id: "empty", kind: "stage", label: "Empty" }],
+    };
+    expect(isConnected(graph)).toBe(true);
+    const g = abstract(graph, { relativeTo: "total", minNodeShare: 0.1, collapse: ["empty"] });
+    expect([g.nodes.map((n) => n.id).sort(), g.edges, readded(g)]).toEqual([["empty", "m", "n"], [], []]);
+  });
+
+  it("finding: the kept activities of a second input component are not joined through its removed ones", () => {
+    const graph: FlowGraph = {
+      nodes: activities({ m: 100, n: 100, x: 50, y: 50, r: 1 }),
+      edges: follows([["m", "n", 100], ["x", "r", 100], ["r", "y", 100]]),
+    };
+    const g = abstract(graph, { minNodeShare: 0.3 });
+    expect([g.nodes.map((n) => n.id), g.edges.map((e) => e.id), readded(g)]).toEqual([["m", "n", "x", "y"], ["m->n"], []]);
+  });
+
+  it("finding: collapsing a stage merges parallel edges between nodes outside it and keeps no payload", () => {
+    const graph: FlowGraph = {
+      nodes: [{ id: "a", kind: "activity", label: "A", group: "s" }, ...activities({ b: 1, c: 1 })],
+      edges: [
+        ...follows([["a", "b", 3]]),
+        { id: "k1", kind: "constraint", source: "b", target: "c", payload: { constraintId: "first" } },
+        { id: "k2", kind: "constraint", source: "b", target: "c", payload: { constraintId: "second" } },
+      ],
+      groups: [{ id: "s", kind: "stage", label: "S" }],
+    };
+    const shown = collapseGroups(graph, ["s"]);
+    expect(shown.edges).toEqual([
+      { id: "a->b", kind: "follows", source: "s", target: "b", metrics: { count: 3 } },
+      { id: "b->c", kind: "constraint", source: "b", target: "c", metrics: {}, tags: [] },
+    ]);
+    expect(shown.meta?.collapsedEdgeTargets).toMatchObject({ k1: "b->c", k2: "b->c" });
+  });
+});
