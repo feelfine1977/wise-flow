@@ -242,6 +242,10 @@ describe("stopping a layout", () => {
         const again = await scope.layout(pair, options);
         const runs = FakeWorker.created.reduce((n, w) => n + w.dagreRuns, 0);
         const where = `the caller left ${distance} microtasks after the answer and was ${outcome}`;
+        // The answer reaches the module a microtask after it is sent: leaving before that stops the layout, which is
+        // not kept; a caller that received the layout leaves it finished, and a finished layout is kept.
+        if (distance === 0) expect(known, where).toBeUndefined();
+        if (outcome === "answered") expect(known, where).toBeDefined();
         if (known) {
           expect(again, where).toBe(known);
           expect(runs, where).toBe(1);
