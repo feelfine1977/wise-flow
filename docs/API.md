@@ -160,8 +160,9 @@ paths the one chosen depends on ids only, not on the input order
 the total divides by a sum taken in ascending order, which no input order
 changes. A collapsed group becomes a
 `stage` node with the group's id; counts are summed, `cases` and `share`
-are maxima, other metrics weighted means (summed in id order, so that no
-input order changes them), internal transitions land in
+are maxima, other metrics weighted means over the members that carry them
+(plain means where none has a weight; summed in id order, so that no input
+order changes them), internal transitions land in
 `internalCount`. Edges of one kind between the same two shown nodes merge
 into one, named `source->target`, or `source->target:kind:n` where that id
 is taken; merged edges take their names in the order of their smallest

@@ -432,3 +432,19 @@ describe("abstract: input order", () => {
     expect([...shown]).toHaveLength(1);
   });
 });
+
+describe("abstract: collapsed metrics", () => {
+  it("averages a metric over the members that carry it when no member has a weight", () => {
+    // Neither member has a case, so the mean is not weighted; only a carries medianNextHours,
+    // so the stage's value is a's 10, and the mean of 4 and 8 is 6.
+    const graph: FlowGraph = {
+      nodes: [
+        { id: "a", kind: "activity", label: "A", group: "s", metrics: { cases: 0, medianNextHours: 10, violationShare: 4 } },
+        { id: "b", kind: "activity", label: "B", group: "s", metrics: { cases: 0, violationShare: 8 } },
+      ],
+      edges: [],
+      groups: [{ id: "s", kind: "stage", label: "S" }],
+    };
+    expect(collapseGroups(graph, ["s"]).nodes[0].metrics).toEqual({ cases: 0, medianNextHours: 10, violationShare: 6, members: 2 });
+  });
+});

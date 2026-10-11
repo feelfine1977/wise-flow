@@ -92,21 +92,21 @@ function sumMetrics(unordered: { id: string; metrics?: Metrics }[], weightKey: s
     let max = -Infinity;
     let weighted = 0;
     let weightSum = 0;
-    let any = false;
+    let carriers = 0;
     for (const it of items) {
       const v = it.metrics?.[name];
       if (typeof v !== "number" || !Number.isFinite(v)) continue;
-      any = true;
+      carriers++;
       sum += v;
       max = Math.max(max, v);
       const w = firstMetric(it, weightKey) ?? 1;
       weighted += v * w;
       weightSum += w;
     }
-    if (!any) continue;
+    if (!carriers) continue;
     if (SUM.has(name)) out[name] = sum;
     else if (MAX.has(name)) out[name] = max;
-    else out[name] = weightSum > 0 ? weighted / weightSum : sum / items.length;
+    else out[name] = weightSum > 0 ? weighted / weightSum : sum / carriers;
   }
   return out;
 }
