@@ -143,6 +143,19 @@ export function routeSequenceFlows(graph: FlowGraph, given: Record<string, Box>,
   const costs = new Float64Array(size * 4), previous = new Int32Array(size * 4), origins = new Int8Array(size * 4);
   const reached = new Uint32Array(size * 4), estimated = new Uint32Array(size), estimates = new Float64Array(size);
   let generation = 0;
+  // A search for a goal in another part of the grid than every start went over the grid many times.
+  const seen = new Uint32Array(size), stack = new Int32Array(size);
+  const reaches = (starts: number[], goals: Map<number, unknown>) => {
+    let top = 0;
+    const visit = (id: number) => id < 0 || seen[id] === generation || ((seen[id] = generation), (stack[top++] = id));
+    starts.forEach(visit);
+    while (top) {
+      const id = stack[--top];
+      if (goals.has(id)) return true;
+      for (let d = 0; d < 4; d++) visit(links[id * 4 + d]);
+    }
+    return false;
+  };
   const queue = new Queue();
   const result: Record<string, EdgeRoute> = {};
   // Local connections take the direct tracks first; long returns use the gutters.
@@ -164,15 +177,17 @@ export function routeSequenceFlows(graph: FlowGraph, given: Record<string, Box>,
       }
       return estimates[id];
     };
+    const starts: number[] = [];
     source.forEach((p, i) => {
       const id = index(p.outside);
       if (!free[id] || boxes.some((b) => b !== nodes[edge.source] && crossesBox(p.point, p.outside, b))) return;
+      starts.push(id);
       const state = id * 4 + p.direction;
       reached[state] = generation; costs[state] = p.direction === 0 ? 0 : 16; previous[state] = -1; origins[state] = i;
       queue.push(state, costs[state], costs[state] + heuristic(id));
     });
     let end: number | undefined;
-    while (queue.pop()) {
+    if (reaches(starts, goals)) while (queue.pop()) {
       const state = queue.state, cost = queue.cost;
       if (cost !== costs[state]) continue;
       const id = state >> 2, dir = state & 3;

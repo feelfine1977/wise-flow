@@ -84,6 +84,27 @@ describe("repositioning malformed input", () => {
     expect(Object.keys(routes)).toEqual(["n0->n2"]);
     expect(routes["n0->n2"].points.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))).toBe(true);
   });
+
+  it("gives up at once on a target the grid cannot reach, however many boxes overlap", () => {
+    // Found by a search: boxes dropped onto each other leave targets no route reaches, and the search for
+    // each went over the grid again and again, its time growing with about the fifth power of the boxes.
+    const n = 40;
+    const graph: FlowGraph = { nodes: [], edges: [] };
+    const nodes: Record<string, Box> = {};
+    for (let i = 0; i < n; i++) {
+      nodes[`n${i}`] = { x: (i * 97) % 600, y: (i * 61) % 600, width: 180, height: 48 };
+      graph.nodes.push({ id: `n${i}`, kind: "activity", label: `N${i}` });
+      graph.edges.push({ id: `e${i}`, kind: "follows", source: `n${i}`, target: `n${(i * 7 + 3) % n}` });
+    }
+    const start = performance.now();
+    const routes = routeSequenceFlows(graph, nodes, { allowOverlap: true });
+    expect(performance.now() - start).toBeLessThan(2000);
+    for (const e of graph.edges) {
+      const points = routes[e.id].points;
+      expect(onBoundary(points[0], nodes[e.source]), e.id).toBe(true);
+      expect(onBoundary(points.at(-1)!, nodes[e.target]), e.id).toBe(true);
+    }
+  });
 });
 
 describe("manual repositioning", () => {

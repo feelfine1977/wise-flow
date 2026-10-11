@@ -94,3 +94,10 @@ an empty group; they threw a `TypeError` before, and with them
 its graph in plain objects: such an id threw a `TypeError` before, and a node
 called `__proto__` could add properties to `Object.prototype` for the whole
 page.
+
+`routeSequenceFlows` (and with it `repositionNodes` while boxes overlap)
+gives up at once on a connection whose target no route reaches: the edge
+gets its direct route with `allowOverlap`, or the documented error without.
+The search for it went over the whole grid many times before; thirty boxes
+dropped onto each other took seconds, and the time grew with about the fifth
+power of their number. Every route found is the same as before.

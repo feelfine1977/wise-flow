@@ -1778,7 +1778,10 @@ Overlapping or otherwise unroutable supplied geometry raises a descriptive
 error instead of silently drawing a connection through a task. A box with a
 number that is not finite is left out of the routing as if it were missing,
 so its edges get no route; up to 0.3.5 such a box could keep the search
-going until its route outgrew an array (a `RangeError` after seconds).
+going until its route outgrew an array (a `RangeError` after seconds). A
+connection that no route can reach (its target walled in by overlapping
+boxes) gets its fallback at once; up to 0.3.5 the search for it went over the
+whole grid many times, which took seconds for a few dozen overlapping boxes.
 
 `BpmnView.navigation` defaults to `controls`. Hosts with their own Map/Model/Table
 switch can pass `controls={false} navigation` to keep zoom, whole-model fit and
