@@ -272,7 +272,8 @@ function newModel(seed: number, hookScopes: LayoutScope[]): Model {
   };
 }
 
-function remember(m: Model, scope: LayoutScope, graph: FlowGraph, options: LayoutOptions, inputs: string): void {
+/** Notes that a scope was asked for a graph and options, so that what it knows of them is checked after every step. */
+function noteAsked(m: Model, scope: LayoutScope, graph: FlowGraph, options: LayoutOptions, inputs: string): void {
   const list = m.asked.get(scope) ?? m.asked.set(scope, []).get(scope)!;
   if (!list.some((a) => a.graph === graph && a.options === options)) list.push({ graph, options, signature: layoutSignature(graph, options), inputs });
 }
@@ -431,7 +432,7 @@ function hookAsks(m: Model, clone = false): void {
   if (hook.handle) hook.handle.rerender({ scenes, options: hook.variant.options });
   else mountHook(m);
   if (hook.signature !== undefined) m.timeouts.set(hook.signature, hook.variant.timeoutMs);
-  for (const scope of m.hookScopes.slice(hook.scopesBefore)) if (hook.scenes.union) remember(m, scope, hook.scenes.union, hook.variant.options, hook.inputs!);
+  for (const scope of m.hookScopes.slice(hook.scopesBefore)) if (hook.scenes.union) noteAsked(m, scope, hook.scenes.union, hook.variant.options, hook.inputs!);
 }
 
 /**
@@ -517,7 +518,7 @@ function apply(m: Model, op: Op): boolean {
         if (!requestAgain(s.recent, request.inputs, s.maxEntries)) s.finished.delete(request.inputs);
         if (graph.nodes.length) for (const url of variant.holds) s.holds.add(url);
         promise = single ? s.scope.layout(single, options) : s.scope.layoutUnion(scenes.value as FlowGraph[], options);
-        remember(m, s.scope, single ?? graph, variant.options, request.inputs);
+        noteAsked(m, s.scope, single ?? graph, variant.options, request.inputs);
       }
       const disposals = op.scope < 0 ? 0 : m.scopes[op.scope].disposals;
       promise.then(
