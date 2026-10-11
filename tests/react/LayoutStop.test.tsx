@@ -2,7 +2,7 @@ import { StrictMode } from "react";
 import { act, cleanup, render, renderHook, waitFor } from "@testing-library/react";
 import type { ELK, ElkNode } from "elkjs/lib/elk-api.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { type FlowGraph, type LayoutOptions, LayoutUnavailableError } from "../../src/index";
+import { type FlowGraph, type LayoutOptions, LayoutUnavailableError, clearLayoutCache } from "../../src/index";
 import { ProcessMap, type StableLayout, useStableLayout } from "../../src/react/index";
 
 afterEach(() => {
@@ -121,6 +121,22 @@ describe("useStableLayout", () => {
     expect(result.current).toMatchObject({ status: "ready", provisional: false });
     expect(Object.keys(result.current.positions!.nodes).sort()).toEqual(["a", "b", "d"]);
     expect(results.filter((r) => r.positions?.engine === "elk").every((r) => !r.positions!.nodes.c)).toBe(true);
+  });
+
+  it("lays out once when the host passes a new ELK instance on every render, also with a cache key", async () => {
+    // As up to 0.3.5, an engine instance created anew on each render does not start the layout again.
+    for (const cacheKey of [undefined, "fresh-elk-test"]) {
+      let runs = 0;
+      let renders = 0;
+      const fresh = () => ({ layout: (graph: ElkNode) => (runs++, Promise.resolve({ ...graph, children: (graph.children ?? []).map((child, i) => ({ ...child, x: 100 * i, y: 0 })) })) }) as unknown as ELK;
+      const { result, unmount } = renderHook(() => (renders++, useStableLayout(chain, { engine: "elk", elk: fresh(), cacheKey })));
+      await waitFor(() => expect(result.current.status).toBe("ready"));
+      await act(async () => new Promise((resolve) => setTimeout(resolve, 100)));
+      expect(runs, `cache key ${cacheKey}`).toBe(1);
+      expect(renders, `cache key ${cacheKey}`).toBeLessThan(10);
+      unmount();
+    }
+    clearLayoutCache("fresh-elk-test");
   });
 });
 

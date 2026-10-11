@@ -61,8 +61,9 @@ export interface StableLayout {
 export function useStableLayout(scenes: FlowGraph | FlowGraph[] | undefined, options?: LayoutOptions): StableLayout {
   const list = useMemo(() => (scenes === undefined ? [] : Array.isArray(scenes) ? scenes : [scenes]), [scenes]);
   const union = useMemo(() => (list.length === 0 ? undefined : unionGraph(list)), [list]);
-  // Size callbacks count by the dimensions they return, so equivalent callbacks do not restart layout.
-  const inputs = union ? layoutInputKey(union, options ?? {}) : undefined;
+  // Size callbacks count by the dimensions they return, and an `elk` instance made anew on each render is the same
+  // engine, so equivalent options do not restart layout.
+  const inputs = union ? layoutInputKey(union, { ...options, elk: undefined }) : undefined;
   const [scope] = useState(createLayoutScope);
   // Released on unmount; mounted again before the task ends (StrictMode), the scope keeps its layouts and the
   // layout that is running is joined again rather than started twice.
