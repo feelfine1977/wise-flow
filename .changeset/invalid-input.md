@@ -44,3 +44,6 @@ written under one BPMN id, which made the file invalid and lost elements on
 import; two nodes with one id now get a shape each. `ids.toBpmn` maps a
 shared id to the node's BPMN id. A node or an edge without an id is exported
 as one with the empty id; it threw a `TypeError` before.
+
+`repositionNodes` (and `buildScene` with `moved`) routes an edge without an
+id like any other; it threw a `TypeError` before.

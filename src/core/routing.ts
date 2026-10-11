@@ -144,7 +144,7 @@ export function routeSequenceFlows(graph: FlowGraph, nodes: Record<string, Box>,
   const queue = new Queue();
   const result: Record<string, EdgeRoute> = {};
   // Local connections take the direct tracks first; long returns use the gutters.
-  const edges = graph.edges.filter((e) => nodes[e.source] && nodes[e.target]).slice().sort((a, b) => distance(nodes[a.source], nodes[a.target]) - distance(nodes[b.source], nodes[b.target]) || a.id.localeCompare(b.id));
+  const edges = graph.edges.filter((e) => nodes[e.source] && nodes[e.target]).slice().sort((a, b) => distance(nodes[a.source], nodes[a.target]) - distance(nodes[b.source], nodes[b.target]) || String(a.id).localeCompare(String(b.id)));
   for (const edge of edges) {
     const source = ports(nodes[edge.source]), target = ports(nodes[edge.target]);
     const goals = new Map(target.filter((p) => free[index(p.outside)]).map((p) => [index(p.outside), p]));

@@ -57,6 +57,23 @@ const positions: Positions = { engine: "given", direction: "RIGHT", groups: {}, 
   a: { x: 0, y: 0, width: 100, height: 60 }, b: { x: 400, y: 0, width: 100, height: 60 }, c: { x: 200, y: 200, width: 100, height: 60 },
 }, edges: { ab: { points: [{ x: 100, y: 30 }, { x: 400, y: 30 }] } }, bounds: { x: 0, y: 0, width: 500, height: 260 } };
 
+describe("repositioning malformed input", () => {
+  it("routes edges without an id like any other", () => {
+    // A null column of a backend: typed around the model, so the ids read undefined.
+    const none = undefined as unknown as string;
+    const graph: FlowGraph = {
+      nodes: [{ id: "a", kind: "activity", label: "A" }, { id: "b", kind: "activity", label: "B" }],
+      edges: [{ id: "e1", kind: "follows", source: "a", target: "b" }, { id: none, kind: "follows", source: "b", target: "a" }],
+    };
+    const boxes = { a: { x: 0, y: 0, width: 180, height: 60 }, b: { x: 400, y: 0, width: 180, height: 60 } };
+    const given: Positions = { nodes: boxes, groups: {}, edges: {}, bounds: { x: 0, y: 0, width: 580, height: 60 }, engine: "given", direction: "RIGHT" };
+    const moved = repositionNodes(graph, given, { a: { x: 0, y: 200 } });
+    expect(moved.nodes.a).toEqual({ x: 0, y: 200, width: 180, height: 60 });
+    expect(moved.nodes.b).toEqual(boxes.b);
+    expect(Object.keys(moved.edges).sort()).toEqual(["e1", "undefined"]);
+  });
+});
+
 describe("manual repositioning", () => {
   it("reroutes even nonincident edges around a moved obstacle and preserves evidence", () => {
     const before = structuredClone({ simple, positions });
