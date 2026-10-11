@@ -187,7 +187,7 @@ const NOTE_DASH = Object.freeze(dashTokens.note);
 /** A card's share of all cases: its cases over the log's; none without both or with a log of no cases. */
 export function caseShare(node: FlowNode, total: number | undefined): number | undefined {
   const cases = metric(node, "cases", NaN);
-  return total !== undefined && total > 0 && Number.isFinite(cases) && cases >= 0 ? cases / total : undefined;
+  return total! > 0 && cases >= 0 && cases < Infinity ? cases / total! : undefined;
 }
 
 /** Where a text's baseline lies in a line of `lineHeight`: its capitals centred in the line. */
@@ -249,10 +249,9 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
       const lines = wrapLines(name, room, nameText, 2, measure);
       const share = caseShare(node, options.total);
       const counted = labels?.showCounts !== false;
-      const foot = dimensionTokens.cueFoot;
       // The texts as one block in the middle of the card above its foot.
       const block = lines.length * nameText.lineHeight + (counted ? numberText.lineHeight : 0);
-      const top = box.y + width + (box.height - 2 * width - foot - block) / 2;
+      const top = box.y + width + (box.height - 2 * width - dimensionTokens.cueFoot - block) / 2;
       const lod = labels ? undefined : ("labels" as const);
       const x = box.x + INSET;
       const texts = lines.map((line, i) => ink(line, x, baseline(top + i * nameText.lineHeight, nameText.lineHeight, nameText.size), nameText.size, { role: "nameLine", baseline: "alphabetic", weight: nameText.weight, paint: outOfScope ? "inkMuted" : "ink", lod }));
@@ -273,15 +272,13 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
 /** The stripe and foot of a card's share inside its outline and after its band, as the theme places them. */
 function cue(box: Box, stroke: number, share: number | undefined, theme: Theme): NodeCue | undefined {
   const place = theme.frequencyCue;
-  if (share === undefined || !(share > 0) || place === "none") return undefined;
-  const x = box.x + dimensionTokens.band;
-  const length = Math.min(1, share) * (box.width - dimensionTokens.band - stroke);
-  const height = box.height - 2 * stroke;
-  const foot = dimensionTokens.cueFoot;
+  if (!(share! > 0) || place === "none") return undefined;
+  const { band, cueFoot } = dimensionTokens;
+  const part = (y: number, height: number, paint: MarkPaint) => ({ box: { x: box.x + band, y, width: Math.min(1, share!) * (box.width - band - stroke), height }, paint });
   return {
-    share,
-    ...(place === "bottom" ? {} : { stripe: { box: { x, y: box.y + stroke, width: length, height }, paint: "cueStripe" as const } }),
-    ...(place === "behind" ? {} : { foot: { box: { x, y: box.y + box.height - stroke - foot, width: length, height: foot }, paint: "cueFoot" as const } }),
+    share: share!,
+    stripe: place === "bottom" ? undefined : part(box.y + stroke, box.height - 2 * stroke, "cueStripe"),
+    foot: place === "behind" ? undefined : part(box.y + box.height - stroke - cueFoot, cueFoot, "cueFoot"),
   };
 }
 
