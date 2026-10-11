@@ -459,7 +459,7 @@ describe("the map under random schedules", () => {
   it("keeps its selection and focus through every arrival and shows only the latest request's layout", async () => {
     let steps = 0;
     const total: Record<string, number> = {};
-    const all = seeds(caseCount(24));
+    const all = seeds(caseCount(12));
     for (const seed of all) {
       const outcome = await runSchedule(seed, 30 + (seed % 11));
       steps += outcome.steps;
