@@ -396,10 +396,13 @@ drawn as before. The dash and the glyph still tell a reverse arc from a
 forward one on either side. The arc's label sits on it, 8 above the curve
 (14 below for a course below the map), at the point nearest the middle (in
 steps of 1/32 of the curve) where its box (11 per character and 4 on either
-side, from 14 above its baseline to 4 below) covers no node, no earlier
-arc's label and no group's title; where none is free, at the point that
-covers the fewest. Before, every arc took its default course and its label
-sat at the middle. `buildScene` and the renderers reading it (SVG, PNG, the
+side, from 14 above its baseline to 4 below) covers no node, no badge, no
+earlier arc's label and no group's title, and in `buildScene` no path's
+count either (as wide as the text at 0.55 em per character, from one em above
+its baseline down to it); where none is free, at the point that covers the
+fewest. Before, every arc took its default course and its label sat at the
+middle; until badges and counts were kept clear of, a label could sit on a
+badge of its own end or on the count of a path running under the arc. `buildScene` and the renderers reading it (SVG, PNG, the
 Canvas map, the React map and the BPMN view) all draw these courses.
 
 ## Hit index and export

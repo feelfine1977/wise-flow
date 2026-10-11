@@ -65,16 +65,23 @@ const observed: Variant = {
  * the output is the same (the figure's size too). Of the twelve arcs of the
  * global fixture four take another course and four more move their label
  * along the arc; of the vendor's four, two and one; of `unfiltered`'s three,
- * one moves its label.
+ * one moves its label. Recorded once more when arc labels began to keep clear
+ * of badges and of the paths' counts too; the output is the same but for the
+ * `<text>` positions of the arc labels whose box (11 per character, 18 high)
+ * reached a count: of the global fixture's twelve arcs, a "⏱ 19 %" leaves
+ * the count "81k" and a "⇐ 52 %" the count "113k", and three later labels move
+ * along their arcs as the places nearest their middle are taken; of
+ * `unfiltered`'s three, the same "⏱ 19 %"; the vendor's are unchanged. No
+ * arc's course changed.
  */
 const before: Record<string, string> = {
-  overlays: "74e67077d3b0f99f6893858a24aa05e3ae291722aba13f93aa53b9da27410bc9",
-  stagesGerman: "eb450ad2a8059ebda77de03601ef2c860c94a3f3f6a4d70a8267ac584154f38f",
+  overlays: "7c52474988d65b2b62dfc3c6f2e1b04c9f83144c38333aa529fb74376d74351c",
+  stagesGerman: "aaea848f2961e38406860079b2014e5f5e4f3d1c5721fc6e42a380a3c05cf12e",
   vendor: "dba267f9dec9a165cfd032ea66f671ca1fcc8c89b40b6e563d15fafcd2d19acb",
-  unfiltered: "475c1cfa8937212d9f8a92c0a4c21533b318ecae296c5fc537ef20c5512febc0",
+  unfiltered: "a9fc0c2db6991b060ee01001134ad311499caa2f67d984219c5f705a7c2a631b",
   plain: "db64726176b89df026082bcc92fdeff7598af00d8b0effd952344530a25931b0",
 };
-const beforeObserved = "fe4d21ec7aa3b6c9fb0e0b818218fdaa6975bd743dc971a55df3bfbc05409a8b";
+const beforeObserved = "03585c391384bbdc1f1b0d754cb7cc71595521a8d59e5865f12e21c2f5027f40";
 
 describe("toSVG on the committed fixtures", () => {
   it("matches the recorded output once follows self-loops are hidden", () => {

@@ -115,15 +115,19 @@ function exported(fixture: Fixture, scene: Partial<Scene>, options: PngOptions):
  * activities: the scenes differ only in arc marks (in the global fixture four
  * arcs take another course and four more move their label along the arc; in
  * the vendor fixture two and one; in the unfiltered one, one label), so only
- * the arcs' calls changed.
+ * the arcs' calls changed. Recorded once more when arc labels began to keep
+ * clear of badges and of the paths' counts: the scenes differ only in the
+ * positions of arc labels (in the global fixture two that reached a count and
+ * three later ones, in the unfiltered one a single label), so only the arcs'
+ * label calls changed; the vendor's recordings are the same.
  */
 const before = {
-  mapGlobalStages: "9db6c60bad268bac1d034241e3be0ad640066102f8b55f062cfe1d2934792ee7",
+  mapGlobalStages: "9f629f5d032e095dfe44ba9782efdac0e387ae1b05f0c22dff128b6b56bdbbcd",
   mapVendorIds: "a2cc80340a1e94eb74fea10e25b17b6c8e5dbf2ef35a6c3d296f4606828298e1",
-  mapUnfiltered: "54a137c465c8c008aa35990f5431d211dbeabee90338ecffe4f23b7b02ccc8d8",
-  pngGlobalTitle: "23bed0f51a1accedc2494fabdf92837b531eccddd616b8f01799ab8365779763",
+  mapUnfiltered: "f1f43e927a22ad751c5e5e2997e4fc606448b19138ace8b4741a13e4c8eeb6a8",
+  pngGlobalTitle: "803442711dd05603f1906e91cef9fe7a7cd7d19d0c1adf58f5572148a3144ba5",
   pngVendorIds: "3e30000e123af23278127f47f901b6ac35bb96c3f62618be6837bfbc3611287e",
-  pngUnfilteredGerman: "7350a5db2c3ebcff764f5dd9d23aebf7c9d905fa666afea98adab0503b6bc752",
+  pngUnfilteredGerman: "83968267ab24a303884730d7cfea630b3820eda506df0c0fc7c06b08d7b7ed3a",
 };
 
 /**

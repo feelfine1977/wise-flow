@@ -97,14 +97,14 @@ export function groupTitles(groups: readonly FlowGroup[], positions: Positions):
  * node, arcs as cubic curves above (or, for reverse arcs, below) the map, self-loops
  * at the top-right corner, hatch and tint over the element's box, chips inside groups.
  * An arc takes another height or side only where that crosses fewer other nodes;
- * its label sits on it nearest its middle where it covers no node, earlier arc label
- * or title. Shapes never extend beyond `overlayMargin` around the positions' bounds.
+ * its label sits on it nearest its middle where it covers no node, badge, earlier arc
+ * label or title. Shapes never extend beyond `overlayMargin` around the positions' bounds.
  */
 export function placeOverlays(
   ordered: Overlay[],
   positions: Positions,
   options: OverlayGeometryOptions = {},
-  /** Boxes that arc labels keep clear of besides the nodes and each other (`groupTitles`). */
+  /** Boxes that arc labels keep clear of besides the nodes, the badges and each other (`groupTitles`, the paths' counts). */
   titles: readonly Box[] = [],
 ): OverlayGeometry {
   const lod = { ...defaultLod, ...(options.lod ?? {}) };
@@ -132,20 +132,24 @@ export function placeOverlays(
   let tree: RBush<Item> | undefined;
   const within = (b: Box): Item[] =>
     (tree ??= new RBush<Item>().load(Object.entries(positions.nodes).map(([id, n]) => ({ id, minX: n.x, minY: n.y, maxX: n.x + n.width, maxY: n.y + n.height })))).search({ minX: b.x, minY: b.y, maxX: b.x + b.width, maxY: b.y + b.height });
-  const labels: Box[] = [];
+  // Badges first: arc labels keep clear of them.
+  const badges = ordered.map((o) => {
+    const box = o.kind === "badge" ? boxOf(o.target) : undefined;
+    if (!box) return undefined;
+    const slot = badgeCount.get(o.target) ?? 0;
+    badgeCount.set(o.target, slot + 1);
+    const width = o.payload?.glyph ? Math.max(badge, 10 + o.payload.glyph.length * 7) : badge;
+    return clampBox({ x: box.x + box.width - (slot + 1) * (width + 4) + 2, y: box.y - badge / 2, width, height: badge });
+  });
+  const labels = badges.filter((b): b is Box => !!b);
 
   ordered.forEach((o, index) => {
     const id = `${o.kind}:${o.target}:${index}`;
     const p = o.payload ?? {};
     switch (o.kind) {
       case "badge": {
-        const box = boxOf(o.target);
-        if (!box) return;
-        const slot = badgeCount.get(o.target) ?? 0;
-        badgeCount.set(o.target, slot + 1);
-        const width = p.glyph ? Math.max(badge, 10 + p.glyph.length * 7) : badge;
-        const b = clampBox({ x: box.x + box.width - (slot + 1) * (width + 4) + 2, y: box.y - badge / 2, width, height: badge });
-        shapes.push({ id, overlay: o, kind: o.kind, ...b, minZoom: lod.badges });
+        const b = badges[index];
+        if (b) shapes.push({ id, overlay: o, kind: o.kind, ...b, minZoom: lod.badges });
         return;
       }
       case "arc": {
