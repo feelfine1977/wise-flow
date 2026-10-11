@@ -201,7 +201,7 @@ function cacheOf(ctx: DrawContext): Map<string, CanvasPattern | null> {
 function patternFor(ctx: DrawContext, pattern: PatternId, ink: string, look: PatternLook, options: DrawOptions): CanvasPattern | null {
   if (pattern === "solid" || !ctx.createPattern) return null;
   const cache = cacheOf(ctx);
-  const key = `${pattern}:${ink}:${look.strokeWidth}:${look.strokeOpacity}:${look.dotRadius}:${look.dotOpacity}`;
+  const key = `${pattern}:${ink}:${Object.values(look)}`;
   if (cache.has(key)) return cache.get(key)!;
   const shape = patternTwin(pattern);
   const tile = tileFactory(options)?.(shape.size, shape.size);

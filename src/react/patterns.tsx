@@ -9,7 +9,7 @@ export const PatternTheme = createContext<{ ink: string; look: PatternLook }>({ 
 export function PatternSwatch({ pattern, ink = "currentColor", look = patternTokens }: { pattern: PatternId; ink?: string; look?: PatternLook }) {
   if (pattern === "solid") return null;
   // Swatches of another ink or look have their own tiles: a page refers to the first tile of an id.
-  const id = `wf-pat-${pattern}${ink === colorTokens.ink && look === patternTokens ? "" : `-${ink.replace(/\W/g, "")}-${look.strokeOpacity}-${look.dotOpacity}`.replace(/\./g, "")}`;
+  const id = `wf-pat-${pattern}${ink === colorTokens.ink && look === patternTokens ? "" : `-${ink}${Object.values(look)}`.replace(/\W/g, "")}`;
   return (
     <svg aria-hidden="true" focusable="false">
       <defs>{svgReact(patternTwinSvg(id, pattern, ink, look))}</defs>
