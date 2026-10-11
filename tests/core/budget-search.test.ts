@@ -100,6 +100,9 @@ function dress(given: FlowGraph, seed: number, family: FamilyName, size: number)
     if (mode === "missing" && rng.chance(0.3)) {
       if (rng.chance()) delete e.metrics;
       else delete e.metrics!.count;
+    } else if (mode === "missing" && rng.chance(0.2)) {
+      // A count of 0 is the lowest weight, still above an edge without one.
+      e.metrics = { ...e.metrics, count: 0 };
     }
     if (mode === "cases" && rng.chance(0.2)) delete e.metrics?.cases;
   }
