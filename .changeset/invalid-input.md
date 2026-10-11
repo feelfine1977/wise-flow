@@ -51,3 +51,7 @@ id like any other; it threw a `TypeError` before.
 `arcWidth` takes a coverage that is not a finite number as the default, 1:
 `NaN` gave a width of `NaN`, which reached the arc's stroke in every
 renderer, and `-Infinity` gave 2.
+
+`canonicalClause` keeps a filter clause of a kind it does not know as it is
+and reads an `any` group without `clauses` as an empty group; both threw a
+`TypeError` before, in every function that compares or adds clauses.

@@ -1147,7 +1147,11 @@ and the marginal removals (`perClause`, `per_clause`) only from a list, of
 its entries whose `clause` is a number; up to 0.3.5 anything else under that
 key threw a `TypeError`.
 
-Clauses combine by AND, an `any` group by OR. The canonical form resolves
+Clauses combine by AND, an `any` group by OR. A clause of a kind this
+version does not know is kept as it is (its canonical form is itself), and
+an `any` group without `clauses` is an empty group; up to 0.3.5 both threw a
+`TypeError` in `canonicalClause`, `clauseKey`, `canonicalFilter`,
+`filterEquals` and `addClause`. The canonical form resolves
 aliases (`mode` → `field`, `not_contains` → `never`), sorts value lists and
 clauses and removes duplicates, so two orderings of the same clauses are
 byte-identical. `clauseForTarget` is what the map's filter actions add: an

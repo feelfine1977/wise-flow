@@ -169,8 +169,10 @@ export function canonicalClause(c: FilterClause): FilterClause {
     case "slice":
       return { kind: "slice", slicing: c.slicing, key: c.key };
     case "any":
-      return { kind: "any", clauses: c.clauses.map(canonicalClause).sort((a, b) => (clauseKey(a) < clauseKey(b) ? -1 : 1)) };
+      return { kind: "any", clauses: (c.clauses ?? []).map(canonicalClause).sort((a, b) => (clauseKey(a) < clauseKey(b) ? -1 : 1)) };
   }
+  // A kind this version does not know stays as it is.
+  return c;
 }
 
 /** Stable key of a clause: the same clause in any spelling yields the same key. */

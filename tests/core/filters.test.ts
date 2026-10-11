@@ -3,6 +3,7 @@ import {
   type FilterClause,
   type FlowGraph,
   addClause,
+  canonicalClause,
   canonicalFilter,
   changesCases,
   clauseForTarget,
@@ -164,6 +165,16 @@ describe("filters", () => {
     }
     const p = normalizeFilterPreview({ perClause: [null, 3, { clause: "1", removedMarginally: 4 }, { clause: 2, removed_marginally: "7" }, { clause: 0, removedMarginally: 9 }] });
     expect(p?.perClause).toEqual([{ clause: 2, removedMarginally: 0 }, { clause: 0, removedMarginally: 9 }]);
+  });
+
+  it("keeps a clause of a kind it does not know as it is, and reads a group without clauses as an empty group", () => {
+    const future = { kind: "future", window: 3 } as unknown as FilterClause;
+    const bare = { kind: "any" } as unknown as FilterClause;
+    expect(canonicalClause(future)).toEqual({ kind: "future", window: 3 });
+    expect(canonicalClause(bare)).toEqual({ kind: "any", clauses: [] });
+    // Sorted by key: '{"clauses":[],"kind":"any"}' before '{"kind":"future","window":3}'.
+    expect(canonicalFilter([future, bare, future])).toEqual({ and: [{ kind: "any", clauses: [] }, { kind: "future", window: 3 }] });
+    expect(filterEquals([future, bare], [bare, future])).toBe(true);
   });
 
   it("produces the clause of a map action for every target", () => {
