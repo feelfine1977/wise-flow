@@ -280,7 +280,7 @@ the layout rejects with `LayoutUnavailableError` instead of freezing the page.
 ```ts
 export interface StyleSpec { edgeWidth?: ChannelSpec; edgeColor?: ColorSpec; nodeColor?: ColorSpec; lod?: Partial<LodRules> }
 export const defaultStyle: StyleSpec;   // width and colour ← count (sqrt; 1–8 px, the neutral ramp), nodes by group
-export const shortfallStyle: StyleSpec; // width ← count, colour ← violationShare on the shortfall palette (the default up to 0.6)
+export const shortfallStyle: StyleSpec; // width ← count, colour ← violationShare on the shortfall palette (the default up to 0.3)
 export const diffStyle: StyleSpec;      // colour ← delta_violationShare on the diverging palette
 export function buildScales(g: FlowGraph, spec?: StyleSpec, theme?: Theme): Scales;   // in the theme's palettes, default `defaultTheme`
 export interface Scales { edgeWidth(e): number; edgeColor(e): string; nodeColor(n): string; nodePattern(n): PatternId;
@@ -315,7 +315,7 @@ grey that gets darker with more cases in the light scheme (`#8c8c8c` to
 `#f2f3f5`, the theme's `darkPalette.neutral`); its lightest stop has at least
 3 : 1 against the paper in both. A path without a count takes the theme's
 `neutral` colour. Constraint edges are drawn in the theme's `accent`. Up to
-0.6 the default style coloured paths by their expectation shortfall share on
+0.3 the default style coloured paths by their expectation shortfall share on
 the orange `shortfall` ramp; that colouring is `shortfallStyle`:
 
 ```tsx

@@ -249,7 +249,7 @@ export const defaultStyle: StyleSpec = {
   nodeColor: { by: "group", palette: "categorical" },
 };
 
-/** Paths coloured by their expectation shortfall share on the shortfall palette (the default style up to 0.6), width by cases. */
+/** Paths coloured by their expectation shortfall share on the shortfall palette (the default style up to 0.3), width by cases. */
 export const shortfallStyle: StyleSpec = {
   edgeWidth: defaultStyle.edgeWidth,
   edgeColor: { metric: "violationShare", palette: "sequential", domain: [0, 1] },
