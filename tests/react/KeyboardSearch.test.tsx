@@ -128,11 +128,11 @@ function documentedStep(graph: FlowGraph, positions: Positions, before: MapState
   const start = at?.kind === "node" ? at.id : at === undefined ? before.selection.nodes[0] : undefined;
   const node = start !== undefined && positions.nodes[start] ? start : undefined;
   const edge = at?.kind === "edge" ? graph.edges.find((e) => e.id === at.id) : undefined;
-  if (event.key === "Home") return new Set([`node:${home}`]);
-  if (event.key === "End") return new Set([`node:${end}`]);
+  if (event.key === "Home") return new Set([home === undefined ? "none" : `node:${home}`]);
+  if (event.key === "End") return new Set([end === undefined ? "none" : `node:${end}`]);
   if (!ARROWS.includes(event.key) || !event.altKey) return undefined;
   if (edge) return new Set([`node:${forward(event.key) ? edge.target : edge.source}`]);
-  if (node === undefined) return new Set([`node:${home}`]);
+  if (node === undefined) return new Set([home === undefined ? "none" : `node:${home}`]);
   const out = pathsOf(graph, positions).filter((e) => (forward(event.key) ? e.source : e.target) === node);
   // Without a path in that direction the keyboard stays where it is.
   return new Set(out.length ? out.map((e) => `edge:${e.id}`) : [at ? refKey(at) : "none"]);
@@ -231,6 +231,12 @@ function checkStep(map: RandomMap, before: MapState, event: MapEvent, after: Map
   if (elements > limit) must(list.length <= limit, () => `${label()}: ${list.length} listed above the limit`);
   else must(list.length === elements + (at?.kind === "edge" ? 1 : 0), () => `${label()}: ${list.length} listed of ${elements} elements`);
   must(new Set(list).size === list.length, () => `${label()}: an element is listed twice: ${list.join(" ")}`);
+  // Moves land where the documentation says, also a move that leaves the keyboard on no element.
+  if (event.type === "key" && !before.menu) {
+    const allowed = documentedStep(graph, positions, before, event);
+    const landed = at ? refKey(at) : "none";
+    if (allowed) must(allowed.has(landed), () => `${label()}: ${event.altKey ? "Alt+" : ""}${event.key} from ${before.active} went to ${landed}, documented: ${[...allowed].join(" ")}`);
+  }
   if (!at) return;
   must(list.includes(refKey(at)), () => `${label()}: the active descendant ${refKey(at)} is not listed: ${list.join(" ")}`);
   // It is drawn: a node with a box in the scene, or an edge of the scene the budget draws.
@@ -252,9 +258,6 @@ function checkStep(map: RandomMap, before: MapState, event: MapEvent, after: Map
       if (actual.size > earlier.size) tally.countGrew++;
     }
   }
-  // Moves land where the documentation says.
-  const allowed = documentedStep(graph, positions, before, event);
-  if (allowed) must(allowed.has(refKey(at)), () => `${label()}: ${event.altKey ? "Alt+" : ""}${event.key} from ${before.active} went to ${refKey(at)}, documented: ${[...allowed].join(" ")}`);
   // A plain or Shift arrow lands on a node whose centre lies strictly in its direction.
   if (ARROWS.includes(event.key) && !event.altKey && before.active !== null && after.active !== before.active) {
     const edge = index.edges.get(before.active);
