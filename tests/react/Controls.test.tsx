@@ -193,3 +193,44 @@ describe("the sliders' readouts", () => {
     expect(container.querySelector('input[type="range"]')?.getAttribute("aria-valuetext")).toBe("10 %: 3 von 4 Aktivitäten gezeigt");
   });
 });
+
+describe("the map's own fit", () => {
+  /** The flow box of each activity card: its position as React Flow places it and its size in the layout. */
+  const cards = (container: HTMLElement, positions: Awaited<ReturnType<typeof layout>>) =>
+    [...container.querySelectorAll<HTMLElement>(".react-flow__node")].flatMap((n) => {
+      const box = positions.nodes[n.getAttribute("data-id")!];
+      const m = n.style.transform.match(/translate\(([-\d.e]+)px,\s*([-\d.e]+)px\)/);
+      return box && m ? [{ x: Number(m[1]), y: Number(m[2]), width: box.width, height: box.height }] : [];
+    });
+  const viewport = (container: HTMLElement) => {
+    const m = container.querySelector<HTMLElement>(".react-flow__viewport")!.style.transform.match(/translate\(([-\d.e]+)px,\s*([-\d.e]+)px\) scale\(([-\d.e]+)\)/)!;
+    return { x: Number(m[1]), y: Number(m[2]), zoom: Number(m[3]) };
+  };
+
+  it.each([true, false])("keeps every activity clear of a panel over the map (panel measured: %s)", async (measured) => {
+    // jsdom lays nothing out, and React Flow measures its pane as 100 by 100 there: the map's area is given that box, the zoom
+    // control's panel 30 wide down its whole left side, the other panels none.
+    const original = HTMLElement.prototype.getBoundingClientRect;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const rect = (width: number, height: number) => ({ left: 0, top: 0, x: 0, y: 0, width, height, right: width, bottom: height, toJSON: () => ({}) }) as DOMRect;
+      if (this.classList.contains("wf-process-map__main")) return rect(100, 100);
+      if (!this.classList.contains("react-flow__panel")) return original.call(this);
+      return measured && this.querySelector('[data-wf-part="controls"]') ? rect(30, 100) : rect(0, 0);
+    });
+    const positions = await layout(graph, { engine: "dagre" });
+    const { container } = render(
+      <div style={{ width: 100, height: 100 }}>
+        <ProcessMap graph={graph} positions={positions} edgeBudget="all" />
+      </div>,
+    );
+    await waitFor(() => expect(container.querySelector('[data-layout-status="given"]')).not.toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Fit the map" }));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 500)));
+    const v = viewport(container);
+    const lefts = cards(container, positions).map((c) => c.x * v.zoom + v.x);
+    expect(lefts).toHaveLength(4);
+    // The panel ends at 30 and the map keeps a gap of 8 from it; without the panel the cards start further left.
+    if (measured) expect(Math.min(...lefts)).toBeGreaterThanOrEqual(38 - 1e-6);
+    else expect(Math.min(...lefts)).toBeLessThan(38);
+  });
+});
