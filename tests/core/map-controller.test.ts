@@ -165,6 +165,21 @@ describe("map controller: keyboard routes", () => {
     }
     expect(step(state({ active: "a" }), key("x")).handled).toBe(false);
   });
+
+  it("starts as from no keyboard position when its element left the map", () => {
+    // A collapsed stage "s1" the keyboard was on has been expanded: the graph has no node "s1" any more.
+    const gone = state({ active: "s1" });
+    expect(step(gone, key(" "))).toMatchObject({ handled: false, intents: [] });
+    expect(step(gone, key("Enter"))).toMatchObject({ handled: false, intents: [] });
+    expect(step(gone, key("ArrowRight", { altKey: true })).state.active).toBe("a");
+    expect(step(gone, key("ArrowDown")).state.active).toBe("a");
+    // From the first selected activity, as without a keyboard position.
+    const selected = state({ active: "s1", selection: sel(["c"]) });
+    expect(step(selected, key("ArrowRight")).state.active).toBe("d");
+    expect(step(selected, key(" ")).state.selection).toEqual(sel());
+    // A node without a box is not on the map either.
+    expect(step(state({ active: "b" }), key("ArrowDown"), { positions: { ...positions, nodes: { a: positions.nodes.a, c: positions.nodes.c, d: positions.nodes.d } } }).state.active).toBe("a");
+  });
 });
 
 describe("map controller: pointer, hover and focus", () => {

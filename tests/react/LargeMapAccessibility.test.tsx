@@ -171,6 +171,47 @@ describe("the hidden element list of a large Canvas map", () => {
     }
   }, 90_000);
 
+  it.each([["canvas", 3], ["canvas", 1], ["svg", 3]] as const)("names no element that left the map when a stage is expanded from the keyboard (%s, limit %i)", (renderer, limit) => {
+    // A and B in stage S, collapsed into one stage node; positions for both the stage node and its members.
+    const graph: FlowGraph = {
+      nodes: [
+        { id: "a", kind: "activity", label: "A", group: "s", metrics: { cases: 3 } },
+        { id: "b", kind: "activity", label: "B", group: "s", metrics: { cases: 3 } },
+        { id: "c", kind: "activity", label: "C", metrics: { cases: 3 } },
+      ],
+      edges: [
+        { id: "ab", kind: "follows", source: "a", target: "b", metrics: { count: 3 } },
+        { id: "bc", kind: "follows", source: "b", target: "c", metrics: { count: 3 } },
+      ],
+      groups: [{ id: "s", kind: "stage", label: "Stage S" }],
+    };
+    const box = (x: number) => ({ x, y: 0, width: 100, height: 40 });
+    const positions = createPositions({ nodes: { s: box(0), a: box(0), b: box(200), c: box(400) }, groups: { s: { x: -10, y: -10, width: 320, height: 60 } }, edges: {} }, "dagre", "RIGHT");
+    const onSelect = vi.fn();
+    const m = mountMap(graph, positions, { renderer, describedLimit: limit, defaultAbstraction: { collapse: "all" }, onSelect });
+    const named = () => {
+      const id = m.active();
+      return id === null ? null : m.container.querySelector(`[id="${id}"]`) === null ? `${id} (missing)` : id;
+    };
+    act(() => m.map.focus());
+    m.key("Home");
+    expect(named()).toBe("wf-node-s");
+    // Enter opens the menu on the stage node; its accelerator z expands the stage.
+    m.key("Enter");
+    m.key("z");
+    expect(m.container.querySelector('[id="wf-node-s"]')).toBeNull();
+    expect(named()).toBeNull();
+    // Space and Enter act on no vanished element: Space has nothing to toggle, so the selection the menu made stays.
+    onSelect.mockClear();
+    m.key(" ");
+    m.key("Enter");
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(m.container.querySelector('[role="menu"]')).toBeNull();
+    // The next move starts as from no position: Home's activity.
+    m.key("ArrowRight", { altKey: true });
+    expect(named()).toBe("wf-node-a");
+  });
+
   it.each<[Locale, string]>([
     ["en", "Large map with 20,000 activities and 30,000 paths. The map lists the element at the keyboard position and its neighbours; the table view lists all of them."],
     ["de", "Große Karte mit 20.000 Aktivitäten und 30.000 Pfaden. Die Karte führt das Element an der Tastaturposition und seine Nachbarn auf; die Tabellenansicht führt alle auf."],

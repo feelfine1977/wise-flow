@@ -550,9 +550,12 @@ arrow key along the paths, Space selects, Enter opens the actions menu
 selection, Escape clears, Home and End jump. In the table view the keys are
 the table's (its rows, search field and pages); only Escape from a row
 clears the selection there, as on the map. `aria-activedescendant`
-points at the focused node; every node, edge and group carries an
-`aria-label`; the map has a visually hidden description and a polite live
-region. `renderer: "auto"` draws on the Canvas renderer above
+points at the focused node or path while it is on the map; when it leaves
+the map (a stage expanded, a threshold raised, a host filter), the attribute
+goes and the next key starts as from no keyboard position. Every node, edge
+and group carries an `aria-label`; the map has a visually hidden
+description and a polite live region. `renderer: "auto"` draws on the
+Canvas renderer above
 `canvasThreshold` (2,000 activities plus paths), `"canvas"` always,
 `"svg"` never (see "Interaction and Canvas (0.3)").
 

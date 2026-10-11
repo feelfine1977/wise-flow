@@ -112,7 +112,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   // hover, the actions menu and the live region: the core's map controller.
   const controller = useMapController(props);
   const { dispatch } = controller;
-  const { abstraction, view, selection, hovered, active: focused, focusWithin: hasFocus, menu, focus: explicitFocus } = controller.state;
+  const { abstraction, view, selection, hovered, active, focusWithin: hasFocus, menu, focus: explicitFocus } = controller.state;
   const setAbstraction = useCallback((a: AbstractOptions) => void dispatch({ type: "setAbstraction", abstraction: a }), [dispatch]);
   const setView = (v: "map" | "table") => void dispatch({ type: "setView", view: v });
 
@@ -152,6 +152,8 @@ function ProcessMapInner(props: ProcessMapProps) {
   const descriptions = useElementDescriptions(shown, overlays, locale, activityLabels);
   const { describeElement, index } = descriptions;
   const labelOf = index.label;
+  // The element at the keyboard position, while it is on the map (an expanded stage or a raised threshold can remove it).
+  const focused = active !== null && (index.nodes.has(active) || index.edges.has(active)) ? active : null;
   const onNodesChange = useCallback<OnNodesChange<WfNode | WfGroupNode>>((changes) => {
     if (!nodesDraggable || !positions) return;
     const points: Record<string, XY> = {};
