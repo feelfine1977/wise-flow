@@ -6,7 +6,7 @@ The executable CI contract and release procedure are in [docs/CI.md](../docs/CI.
 | --- | --- | --- |
 | `core/` | Node algorithms, seeded graph invariants, deterministic layout, filters, overlays, Canvas geometry, SVG/BPMN | `npm run test:core` |
 | `react/` | jsdom callbacks, keyboard interaction, state replacement and renderer lifecycles | `npm run test:components` |
-| `tooling/` | Negative checks for architecture boundaries, the source lint, workflow policies, artifact budgets and the token table and its generated `tokens.css`; the styling contract against the rendered fixtures and the API document | `npm run test:tooling` |
+| `tooling/` | Negative checks for architecture boundaries, the source lint, workflow policies, artifact budgets and the token table and its generated `tokens.css`; the styling contract against the rendered fixtures and the API document; the emitted JavaScript without comments, the declarations with their documentation comments, and their maps | `npm run test:tooling` |
 | `package/` | Separate consumer of the actual npm tarball; NodeNext types and real browser assets/lifecycle | `npm run test:package` |
 | `browser/` | Production Storybook accessibility and keyboard tests, the map's paint order, host stylesheets against the styling contract and the cascade layer, the computed styles of the map and its panels against their record, and the parity of the four renderers, in a real browser | `npm run storybook:build` then `npm run test:browser` |
 | `visual/` | Ten behavior checks including six screenshots and the large Canvas scene | `npm run test:visual` |

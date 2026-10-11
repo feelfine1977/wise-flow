@@ -14,7 +14,7 @@ export function committedExports() {
 
 /** Builds the declaration files of the package's `.` entry point into `outDir` the way the build does. */
 export function emitDeclarations(outDir) {
-  const config = ts.getParsedCommandLineOfConfigFile(resolve(root, 'tsconfig.build.json'), {}, { ...ts.sys, onUnRecoverableConfigFileDiagnostic: (d) => { throw new Error(ts.flattenDiagnosticMessageText(d.messageText, '\n')); } });
+  const config = ts.getParsedCommandLineOfConfigFile(resolve(root, 'tsconfig.types.json'), {}, { ...ts.sys, onUnRecoverableConfigFileDiagnostic: (d) => { throw new Error(ts.flattenDiagnosticMessageText(d.messageText, '\n')); } });
   const program = ts.createProgram([resolve(root, 'src/index.ts')], { ...config.options, outDir, emitDeclarationOnly: true, declarationMap: false, sourceMap: false });
   const result = program.emit();
   const errors = ts.getPreEmitDiagnostics(program).concat(result.diagnostics).filter((d) => d.category === ts.DiagnosticCategory.Error);
