@@ -358,11 +358,13 @@ export function liteFromGraph(graph: FlowGraph, options: LiteFromGraphOptions = 
   }
 
   // Gateways where a node has several successors or predecessors.
-  const adjacency = (list: FlowEdge[]) => {
+  // A self-loop flow leaves through the node's split and returns through its join.
+  const flowLoops = selfLoops === "flow";
+  const adjacency = (list: FlowEdge[], loops = false) => {
     const out = new Map<string, FlowEdge[]>();
     const inc = new Map<string, FlowEdge[]>();
     for (const e of list) {
-      if (e.source === e.target) continue;
+      if (e.source === e.target && !loops) continue;
       if (!out.has(e.source)) out.set(e.source, []);
       if (!inc.has(e.target)) inc.set(e.target, []);
       out.get(e.source)!.push(e);
@@ -388,7 +390,7 @@ export function liteFromGraph(graph: FlowGraph, options: LiteFromGraphOptions = 
   if (options.andGateways) {
     for (const n of nodes) {
       const branches = (out.get(n.id) ?? []).map((e) => e.target);
-      if (n.kind === "gateway" || !concurrent(branches)) continue;
+      if (n.kind === "gateway" || (flowLoops && loops.has(n.id)) || !concurrent(branches)) continue;
       const block = new Set(branches);
       const exits = new Set<string>();
       let entered = true;
@@ -398,13 +400,14 @@ export function liteFromGraph(graph: FlowGraph, options: LiteFromGraphOptions = 
       }
       const [join] = exits;
       const ins = inc.get(join)!;
-      if (!entered || exits.size !== 1 || join === n.id || byId.get(join)!.kind === "gateway" || block.size < branches.length || ins.length !== block.size || branches.some((b) => !ins.some((e) => e.source === b))) continue;
+      if (!entered || exits.size !== 1 || join === n.id || (flowLoops && loops.has(join)) || byId.get(join)!.kind === "gateway" || block.size < branches.length || ins.length !== block.size || branches.some((b) => !ins.some((e) => e.source === b))) continue;
       andSplits.add(n.id);
       andJoins.add(join);
       for (const b of branches) for (const e of out.get(b)!) if (block.has(e.target)) interleaved.add(e);
     }
-    [out, inc] = adjacency((edges = edges.filter((e) => !interleaved.has(e))));
+    edges = edges.filter((e) => !interleaved.has(e));
   }
+  [out, inc] = adjacency(edges, flowLoops);
   const splitOf = new Map<string, string>();
   const joinOf = new Map<string, string>();
   const gateways: FlowNode[] = [];
@@ -427,7 +430,6 @@ export function liteFromGraph(graph: FlowGraph, options: LiteFromGraphOptions = 
     }
   }
   const rerouted: FlowEdge[] = edges.map((e) => {
-    if (e.source === e.target) return e;
     const s = splitOf.get(e.source) ?? e.source;
     const t = joinOf.get(e.target) ?? e.target;
     if (s === e.source && t === e.target) return e;

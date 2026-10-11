@@ -315,6 +315,33 @@ describe("liteFromGraph puts every node on a path from the start to the end", ()
     expect(lite.edges.filter((e) => e.target === "gw_join_stop").map((e) => e.source)).toEqual(["a", "gw_split_b"]);
     expect(playTokens(lite)).toMatchObject(sound);
   });
+
+  it("routes a self-loop flow through an exclusive choice and merge", () => {
+    // With the self-loop as a flow, a had two outgoing flows and no gateway: in BPMN
+    // both are taken, so every round put one more token on the loop.
+    const lite = liteFromGraph({ nodes: [node("a", { cases: 3, starts: 3, ends: 3 })], edges: follows("a>a") }, { selfLoops: "flow" });
+    expect(lite.edges.map((e) => `${e.id} ${(e.payload as { origin?: string } | undefined)?.origin ?? ""}`.trim())).toEqual([
+      "gw_split_a->gw_join_a a->a",
+      "__start->gw_join_a",
+      "gw_split_a->__end",
+      "a->gw_split_a",
+      "gw_join_a->a",
+    ]);
+    expect(lite.nodes.filter((n) => n.kind === "gateway").map((n) => `${n.id} ${n.tags?.join(",")}`)).toEqual(["gw_join_a xor,join,generated", "gw_split_a xor,split,generated"]);
+    expect(playTokens(lite)).toMatchObject(sound);
+  });
+
+  it("keeps a node with a self-loop flow out of a parallel block", () => {
+    // b and c are concurrent between a and d, and d repeats: a parallel join at d
+    // would also wait for the loop back to d. With markers the block stays parallel.
+    const g: FlowGraph = { nodes: ["a", "b", "c", "d"].map((id) => node(id, { cases: 4 })), edges: follows("a>b a>c b>c c>b b>d c>d d>d") };
+    const flow = liteFromGraph(g, { andGateways: true, selfLoops: "flow" });
+    expect(flow.nodes.filter((n) => hasTag(n, "and"))).toEqual([]);
+    expect(playTokens(flow)).toMatchObject(sound);
+    const marker = liteFromGraph(g, { andGateways: true });
+    expect(marker.nodes.filter((n) => hasTag(n, "and")).map((n) => n.id)).toEqual(["gw_split_a", "gw_join_d"]);
+    expect(playTokens(marker)).toMatchObject(sound);
+  });
 });
 
 describe("stageModelFromGraph", () => {
