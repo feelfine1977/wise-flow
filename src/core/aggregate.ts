@@ -80,11 +80,12 @@ export function strengths<T extends { id: string; metrics?: Metrics }>(
   return out;
 }
 
-function sumMetrics(items: { metrics?: Metrics }[], weightKey: string[]): Metrics {
+function sumMetrics(unordered: { id: string; metrics?: Metrics }[], weightKey: string[]): Metrics {
+  const items = [...unordered].sort(byId);
   const SUM = new Set(["events", "count", "starts", "ends", "violations", "internalCount"]);
   const MAX = new Set(["cases", "share"]);
   const names = new Set<string>();
-  for (const it of items) for (const k of Object.keys(it.metrics ?? {})) names.add(k);
+  for (const it of unordered) for (const k of Object.keys(it.metrics ?? {})) names.add(k);
   const out: Metrics = {};
   for (const name of names) {
     let sum = 0;

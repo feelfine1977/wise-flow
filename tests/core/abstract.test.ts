@@ -416,4 +416,19 @@ describe("abstract: input order", () => {
       expect(Object.fromEntries(shown.edges.map((e) => [e.kind, e.id])), edges.map((e) => e.id).join(" ")).toEqual({ follows: "s->c", flow: "s->c:flow:1" });
     }
   });
+
+  it("sums and averages the metrics of a collapsed stage and its merged edges the same way whatever the input order", () => {
+    // 0.1 + 0.2 + 0.3 depends on the order of adding in floating point; each mean below is theirs.
+    const member = (id: string, v: number): FlowNode => ({ id, kind: "activity", label: id, group: "s", metrics: { cases: 1, violationShare: v } });
+    const nodes = [member("a", 0.1), member("b", 0.2), member("d", 0.3), { id: "c", kind: "activity" as const, label: "C" }];
+    const edges: FlowEdge[] = ["a", "b", "d"].map((id, i) => ({ id: `${id}->c`, kind: "follows", source: id, target: "c", metrics: { count: 1, violationShare: (i + 1) / 10 } }));
+    const shown = new Set<string>();
+    for (const nodeOrder of orders(nodes)) {
+      for (const edgeOrder of orders(edges)) {
+        const g = collapseGroups({ nodes: nodeOrder, edges: edgeOrder, groups: [{ id: "s", kind: "stage", label: "S" }] }, ["s"]);
+        shown.add(JSON.stringify([g.nodes.find((n) => n.id === "s")!.metrics, g.edges[0].metrics]));
+      }
+    }
+    expect([...shown]).toHaveLength(1);
+  });
 });

@@ -17,3 +17,8 @@ activity, for example), the one named first keeps the id `source->target`
 and the other becomes `source->target:kind:1`; which one did depended on the
 input order of the edges, and with it the targets of their overlays and
 `meta.collapsedEdgeTargets`.
+
+The sums and weighted means of a collapsed stage and of a merged edge are
+taken over the members in id order. They were taken in the input order, so a
+fractional metric such as `violationShare` could differ in its last digit
+between two orders of the same input.
