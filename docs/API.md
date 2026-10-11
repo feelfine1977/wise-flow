@@ -519,6 +519,8 @@ export function TableAlternative(props: { graph; overlays?; scales?; locale?; se
 // With `pageSize` every table shows one page of rows with "Previous rows" and "Next rows" buttons and a status line
 // ("Rows 1–100 of 20,000"), a search field filters the rows of all tables by their text, and the tables carry
 // `aria-rowcount` and their rows `aria-rowindex`. Without it (default) every row is rendered and there is no search.
+// A pager button that reaches the last page ("Next rows") or the first ("Previous rows") while it has the input focus
+// hands the focus to the other button, which still works there.
 export function TraceTimeline(props: { traces: Trace[]; anchor?: string; annotations?: Annotation[]; locale?;
   width?; rowHeight?; colorKey?; onSelect?; table?: boolean }): JSX.Element;
 export function AbstractionControls(props), Legend(props), OverlayLayer(props);
@@ -557,9 +559,13 @@ arrow key along the paths, Space selects, Enter opens the actions menu
 selection, Escape clears, Home and End jump. In the table view the keys are
 the table's (its rows, search field and pages); only Escape from a row
 clears the selection there, as on the map. `aria-activedescendant`
-points at the focused node; every node, edge and group carries an
-`aria-label`; the map has a visually hidden description and a polite live
-region. `renderer: "auto"` draws on the Canvas renderer above
+points at the focused node or path while it is on the map, and at nothing
+in the table view, which renders neither; when it leaves the map (a stage
+expanded, a threshold raised, a host filter), the attribute goes and the
+next key starts as from no keyboard position. Every node, edge
+and group carries an `aria-label`; the map has a visually hidden
+description and a polite live region. `renderer: "auto"` draws on the
+Canvas renderer above
 `canvasThreshold` (2,000 activities plus paths), `"canvas"` always,
 `"svg"` never (see "Interaction and Canvas (0.3)").
 
@@ -1520,7 +1526,11 @@ is on it (`focused`), or when it lies on a highlighted path: the edges of the
 focus of paths in effect (`mapEmphasis(...).bright.edges` while
 `focusShown`, which includes the pair of activities a selection of two
 names). The edges a selection of activities merely brightens are not
-protected.
+protected. So Alt with an arrow key can move onto a path the budget
+withholds: it is drawn while the keyboard is on it, in place of the last
+edge of the order while the protected edges fit in the budget (the note's
+numbers stay) and beyond it otherwise (the note counts one more), and it is
+withheld again once the keyboard moves on.
 
 `budgetEdges` returns undefined when the budget is `"all"`, undefined, null or
 not a number (`NaN`), or when it withholds nothing (no more edges in view than the budget, or every

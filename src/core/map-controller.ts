@@ -370,6 +370,7 @@ export function menuHeading(target: MenuTarget, graph: FlowGraph, overlays: read
  * in turn, from a path to its end or start), Home and End go to the first and
  * last activity, Space toggles the selection, Enter opens the actions menu,
  * Escape clears the selection, the keyboard position and the focus of paths.
+ * A keyboard position not on the map counts as none.
  */
 function keyStep(
   state: MapState,
@@ -385,7 +386,8 @@ function keyStep(
   if (order.length === 0) return ignored;
   const locale = context.locale ?? "en";
   const edge = state.active !== null ? graph.edges.find((e) => e.id === state.active) : undefined;
-  const current = edge ? null : (state.active ?? state.selection.nodes[0] ?? null);
+  const onMap = (id: string | null | undefined) => (id != null && positions.nodes[id] && graph.nodes.some((n) => n.id === id) ? id : null);
+  const current = edge ? null : (onMap(state.active) ?? onMap(state.selection.nodes[0]));
   const reveal = (id: string) => step({ active: id }, [{ kind: "reveal", id }]);
   const dir = DIRECTIONS[event.key];
   if (dir && event.altKey) {
@@ -396,7 +398,9 @@ function keyStep(
     if (!list.length) return step({});
     const key = `${current}:${forward ? "out" : "in"}`;
     const index = ((state.cycle[key] ?? -1) + 1) % list.length;
-    return step({ active: list[index].id, cycle: { ...state.cycle, [key]: index } }, [], t(locale, "map.focused", { label: describeEdge(list[index], graph, locale) }));
+    // One full stop.
+    const label = describeEdge(list[index], graph, locale).slice(0, -1);
+    return step({ active: list[index].id, cycle: { ...state.cycle, [key]: index } }, [], t(locale, "map.focused", { label }));
   }
   if (dir) {
     const start = current ?? edge?.target ?? null;
