@@ -3,11 +3,14 @@ import {
   type Box,
   type FlowGraph,
   type Positions,
+  buildScene,
+  coversGraph,
   createPositions,
   filterPositions,
   laneBands,
   layout,
   repositionNodes,
+  toSVG,
   unionBoxes,
 } from "../../src/index";
 import { exportBpmn, importBpmn, layoutBpmn } from "../../src/bpmn/headless";
@@ -167,5 +170,50 @@ describe("unionBoxes", () => {
     expect(unionBoxes([{ x: 5, y: 5, width: 0, height: 0 }, { x: 8, y: 9, width: 1, height: 1 }])).toEqual({ x: 5, y: 5, width: 4, height: 5 });
     expect(unionBoxes([{ x: 100, y: 100, width: -1, height: 3 }, { x: 0, y: 0, width: Number.NaN, height: 1 }, { x: 1, y: 2, width: 3, height: 4 }])).toEqual({ x: 1, y: 2, width: 3, height: 4 });
     expect(unionBoxes([])).toEqual({ x: 0, y: 0, width: 0, height: 0 });
+  });
+});
+
+describe("positions with numbers that are not finite", () => {
+  // a, b, c in a stage; b's box has NaN for x, c's width is Infinity, the route a->d has a NaN point; the stage's box is -Infinity high.
+  const graph: FlowGraph = {
+    nodes: ["a", "b", "c", "d"].map((id) => ({ id, kind: "activity" as const, label: id.toUpperCase(), group: id === "d" ? undefined : "s", metrics: { cases: 5 } })),
+    edges: [
+      { id: "a->b", kind: "follows", source: "a", target: "b", metrics: { count: 3 } },
+      { id: "a->d", kind: "follows", source: "a", target: "d", metrics: { count: 2 } },
+      { id: "c->d", kind: "follows", source: "c", target: "d", metrics: { count: 1 } },
+    ],
+    groups: [{ id: "s", kind: "stage", label: "S" }],
+  };
+  const box = (x: number, width = 180): Box => ({ x, y: 0, width, height: 60 });
+  const positions: Positions = {
+    nodes: { a: box(0), b: box(NaN), c: box(500, Infinity), d: box(800) },
+    groups: { s: { x: -10, y: -10, width: 700, height: -Infinity } },
+    edges: { "a->d": { points: [{ x: 180, y: 30 }, { x: NaN, y: 30 }, { x: 800, y: 30 }] } },
+    bounds: { x: 0, y: 0, width: 980, height: 60 },
+    engine: "given",
+    direction: "RIGHT",
+  };
+
+  it("do not cover their nodes", () => {
+    expect(coversGraph(positions, graph)).toBe(false);
+    expect(coversGraph(positions, { nodes: [graph.nodes[0], graph.nodes[3]], edges: [] })).toBe(true);
+  });
+
+  it("are left out of the scene: no node, group, edge or bound is built from them", () => {
+    const scene = buildScene(graph, positions);
+    expect(scene.nodeMarks.map((m) => m.id)).toEqual(["a", "d"]);
+    // a->d is drawn straight between the two boxes instead of along the broken route; a->b and c->d lose an end.
+    expect(scene.edgeMarks.map((m) => [m.id, m.points])).toEqual([["a->d", [{ x: 180, y: 30 }, { x: 800, y: 30 }]]]);
+    expect(scene.positions.groups).toEqual({});
+    expect(scene.bounds).toEqual({ x: 0, y: 0, width: 980, height: 60 });
+  });
+
+  it("put no NaN or Infinity into the SVG and the BPMN export", async () => {
+    const svg = toSVG({ graph, positions });
+    expect(svg).not.toMatch(/NaN|Infinity/);
+    expect(svg.match(/class="wf-node [^"]*" data-id="[^"]*"/g)).toEqual(['class="wf-node wf-node-activity" data-id="a"', 'class="wf-node wf-node-activity" data-id="d"']);
+    const { xml, warnings } = await exportBpmn(graph, { positions });
+    expect(xml).not.toMatch(/NaN|Infinity/);
+    expect(warnings).toEqual(["lane s has no position", "node b has no position", "node c has no position", "edge a->b has no route", "edge c->d has no route"]);
   });
 });

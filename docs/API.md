@@ -233,6 +233,11 @@ that assemble positions themselves should too. `unionBoxes` is the smallest
 box around the given boxes; boxes without a non-negative width and height are
 ignored, and no boxes give the empty box at the origin.
 
+`coversGraph` is true when every node of the graph has a box whose four
+numbers are finite; up to 0.3.5 any box counted, so `<ProcessMap/>` drew
+given positions with `NaN` or an infinity in them instead of laying the graph
+out.
+
 Positions are absolute top-left coordinates and deterministic for the same
 input (elements are sorted by id before the engine runs). Groups become
 compound nodes; top-level stage groups keep their array order along the
@@ -1473,7 +1478,14 @@ rules are `defaultLod` under `style.lod` under `o.lod`; `lodBySize` tightens
 them with the number of nodes as a live map does, exports leave it off.
 `moved` places nodes at absolute points after the lane bands are cut (the
 bands stay where the lanes put them) and routes the edges again with
-`repositionNodes`; the overlay geometry follows the moved boxes.
+`repositionNodes`; the overlay geometry follows the moved boxes. A box or a
+route of the positions (given or moved) that holds a number that is not
+finite (`NaN`, an infinity) is left out as if it were missing: the node or
+group is not drawn, an edge without its route is drawn straight between its
+boxes, and the bounds cover what is left. Up to 0.3.5 such numbers reached
+the scene and with it the SVG, the PNG, the Canvas map and the React map.
+`exportBpmn` leaves them out of its positions too and reports the elements
+in `warnings` as without a position.
 
 `marks` holds one `OverlayMark` per shape of the geometry, in the same
 order, with everything needed to draw it: a rounded box (`box`, `radius`)

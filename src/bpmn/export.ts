@@ -5,6 +5,7 @@
  * export → import round trip is lossless.
  */
 import { type Box, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Positions, createPositions, edgePoints, hasTag } from "../core/index.js";
+import { finitePositions } from "../core/layout.js";
 import { type BpmnLayoutOptions, POOL_ID, layoutBpmn } from "./layout.js";
 import { type IdMap, createIdMap, registerId } from "./ids.js";
 import { type BpmnModdleInstance, type ModdleElement, createModdle, typeOfTag } from "./moddle.js";
@@ -124,7 +125,7 @@ function connect(source: ModdleElement, target: ModdleElement, flow: ModdleEleme
  */
 export async function exportBpmn(graph: FlowGraph, options: ExportBpmnOptions = {}): Promise<BpmnExport> {
   // The DI carries two decimals; the returned positions are the ones written.
-  const positions = roundPositions(options.positions ?? (await layoutBpmn(graph, options.layout)));
+  const positions = roundPositions(finitePositions(options.positions ?? (await layoutBpmn(graph, options.layout))));
   const moddle = createModdle();
   const ctx: Ctx = { moddle, taken: new Set(), ids: createIdMap(), extension: options.extension ?? true };
   const warnings: string[] = [];

@@ -181,6 +181,23 @@ export function createPositions(contents: PositionsContents, engine: LayoutEngin
   return { nodes, groups, edges, bounds: positionsBounds(contents), engine, direction };
 }
 
+const finiteBox = (b: Box | undefined): b is Box => !!b && Number.isFinite(b.x) && Number.isFinite(b.y) && Number.isFinite(b.width) && Number.isFinite(b.height);
+
+/**
+ * Positions without the boxes and routes that hold a number that is not
+ * finite, with the bounds of what is left; the same positions when there is none.
+ */
+export function finitePositions(p: Positions): Positions {
+  const keep = <T>(r: Record<string, T>, ok: (v: T) => boolean): Record<string, T> => {
+    for (const k in r) if (!ok(r[k])) return Object.fromEntries(Object.entries(r).filter(([, v]) => ok(v)));
+    return r;
+  };
+  const nodes = keep(p.nodes, finiteBox);
+  const groups = keep(p.groups, finiteBox);
+  const edges = keep(p.edges, (r) => r.points.every((q) => Number.isFinite(q.x) && Number.isFinite(q.y)));
+  return nodes === p.nodes && groups === p.groups && edges === p.edges && finiteBox(p.bounds) ? p : createPositions({ nodes, groups, edges }, p.engine, p.direction);
+}
+
 // ---------------------------------------------------------------------------
 // ELK
 
@@ -815,9 +832,9 @@ export function filterPositions(positions: Positions, graph: FlowGraph): Positio
   return createPositions({ nodes, groups, edges }, positions.engine, positions.direction);
 }
 
-/** True when every node of `graph` has a position. */
+/** True when every node of `graph` has a box of finite numbers. */
 export function coversGraph(positions: Positions, graph: FlowGraph): boolean {
-  return graph.nodes.every((n) => positions.nodes[n.id] !== undefined);
+  return graph.nodes.every((n) => finiteBox(positions.nodes[n.id]));
 }
 
 /** Straight route between two boxes' centres, clipped to the box borders. */
