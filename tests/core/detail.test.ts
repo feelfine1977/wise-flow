@@ -198,6 +198,25 @@ describe("detail shares", () => {
     const more = abstract(graph, byShares(0.75, 0));
     expect(ids(more.edges)).toEqual(["busy->end", "late->end", "rare->late", "start->busy", "start->rare:indirect"]);
     expect(more.edges.find((e) => e.id === "start->rare:indirect")?.payload).toEqual({ hiddenActivities: 1, via: ["rarer"] });
+    // Of two ways into "late" through rarer activities, the one whose rarest activity is the more frequent
+    // stands, though it is longer and its paths are weaker: through m1 (8 cases) and m2 (7), not through r (2).
+    const choice: FlowGraph = {
+      nodes: [
+        ...graph.nodes.filter((n) => ["start", "busy", "late", "end"].includes(n.id)),
+        { id: "m1", kind: "activity", label: "M1", metrics: { cases: 8 } },
+        { id: "m2", kind: "activity", label: "M2", metrics: { cases: 7 } },
+        { id: "r", kind: "activity", label: "R", metrics: { cases: 2 } },
+      ],
+      edges: [
+        ...graph.edges.filter((e) => ["start->busy", "busy->end", "late->end"].includes(e.id)),
+        { id: "start->r", kind: "follows", source: "start", target: "r", metrics: { count: 2 } },
+        { id: "r->late", kind: "follows", source: "r", target: "late", metrics: { count: 2 } },
+        { id: "start->m1", kind: "follows", source: "start", target: "m1", metrics: { count: 1 } },
+        { id: "m1->m2", kind: "follows", source: "m1", target: "m2", metrics: { count: 1 } },
+        { id: "m2->late", kind: "follows", source: "m2", target: "late", metrics: { count: 1 } },
+      ],
+    };
+    expect(abstract(choice, byShares(0.4, 0)).edges.filter((e) => hasTag(e, INDIRECT_TAG)).map((e) => [e.id, e.payload])).toEqual([["start->late:indirect", { hiddenActivities: 2, via: ["m1", "m2"] }]]);
   });
 
   it("state in meta what is shown, as computed from the graph", () => {
