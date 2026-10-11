@@ -30,6 +30,14 @@ function drawn() {
   return { svg, canvas: log.join("\n") };
 }
 
+/** The Canvas calls of the scene with activity `a` (0, 0, 100 × 40) selected. */
+function selected() {
+  const scene = prepareScene(graph, positions, { lodBySize: false });
+  const { ctx, log } = recording();
+  drawScene(ctx, scene, { x: 0, y: 0, zoom: 1, width: 600, height: 100 }, { selection: { nodes: ["a"], edges: [], groups: [] } }, { cull: false });
+  return log.join("\n");
+}
+
 // The values below are the ones the renderers drew before the table named them.
 const today = {
   groupLabel: { size: 14, weight: 600 },
@@ -108,6 +116,15 @@ describe("the role tables", () => {
     expect(rule(".wf-node")).toContain("border-radius: var(--wf-radius);");
     expect(rule(".wf-node")).toContain("font-size: var(--wf-text-node-label);");
     expect(rule(".wf-node__band")).toContain("border-radius: var(--wf-radius-band) 0 0 var(--wf-radius-band);");
+  });
+
+  it("give the Canvas selection ring its own width, its inner edge on the element, whatever the stylesheet's ring", () => {
+    // Today: 6 wide, centred 3 outside the activity, with corners of 8.
+    expect(selected()).toContain(`lineWidth=6\nsetLineDash([[]])\nbeginPath([])\nmoveTo([5,-3])\nlineTo([95,-3])`);
+    set(strokeTokens, "selection", 5);
+    expect(selected()).toContain(`lineWidth=6\nsetLineDash([[]])\nbeginPath([])\nmoveTo([5,-3])\nlineTo([95,-3])`);
+    set(strokeTokens, "canvasSelection", 10);
+    expect(selected()).toContain(`lineWidth=10\nsetLineDash([[]])\nbeginPath([])\nmoveTo([3,-5])\nlineTo([97,-5])`);
   });
 
   it("are what SVG, Canvas and the stylesheet read for a path's count and its halo, a dimmed element and a legend row", () => {

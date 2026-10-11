@@ -419,8 +419,8 @@ function drawNode(ctx: DrawContext, scene: PreparedScene, n: SceneNode, tokens: 
   }
   for (const tx of m.texts) if (!tx.lod || lod[tx.lod]) drawText(ctx, scene, tx, paintOf(m, tx.paint, tokens), tokens);
   if (selected) {
-    // The ring's centre line lies `selection` outside the element.
-    const out = strokeTokens.selection;
+    // The ring's inner edge lies on the element: its centre line is half its width outside.
+    const out = strokeTokens.canvasSelection / 2;
     ctx.strokeStyle = tokens.selection;
     ctx.lineWidth = strokeTokens.canvasSelection;
     ctx.setLineDash([]);
