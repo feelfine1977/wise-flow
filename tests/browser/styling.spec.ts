@@ -27,22 +27,29 @@ const addSheet = (page: Page, css: string, last = false) =>
 const computed = (page: Page, selector: string, properties: string[]) =>
   page.locator(selector).first().evaluate((element, properties) => properties.map((p) => getComputedStyle(element).getPropertyValue(p)), properties);
 
-const SELECTED = '.react-flow__node[data-id="clear_invoice"] [data-wf-part="node"]';
 const OTHER = '.react-flow__node[data-id="record_goods_receipt"] [data-wf-part="node"]';
 const PATH = '[data-wf-part="edge"][data-wf-kind="follows"] [data-wf-part="edge-path"]';
 
 test("a host rule of data attributes alone, loaded before the library, outlines a selected activity and strokes a path", async ({ page }) => {
   await openMap(page);
-  await page.locator('.react-flow__node[data-id="clear_invoice"]').click();
-  await expect(page.locator(SELECTED)).toHaveAttribute("data-wf-state", /\bselected\b/);
-  const before = { selected: await computed(page, SELECTED, ["outline-style", "outline-color"]), path: await computed(page, PATH, ["stroke", "stroke-width"]) };
-  expect(before.selected[1]).not.toBe("rgb(255, 0, 255)");
+  // Selected by keyboard, the activity is also focused: the library draws its focus outline,
+  // with a rule (`.wf-node--focused`) as specific as the host's and later, so the host wins only by the layer.
+  const map = page.locator(".wf-process-map");
+  await map.focus();
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("Enter");
+  const id = (await map.getAttribute("aria-activedescendant"))!;
+  const selected = `[id="${id}"]`;
+  await expect(page.locator(selected)).toHaveAttribute("data-wf-state", /\bselected\b/);
+  await expect(page.locator(selected)).toHaveAttribute("data-wf-state", /\bfocused\b/);
+  const before = { selected: await computed(page, selected, ["outline-style", "outline-width"]), path: await computed(page, PATH, ["stroke", "stroke-width"]) };
+  expect(before.selected).toEqual(["solid", "2px"]);
   expect(before.path[0]).not.toBe("rgb(0, 128, 0)");
   await addSheet(page, `
-    [data-wf-part="node"][data-wf-state~="selected"] { outline: 3px solid rgb(255, 0, 255); }
+    [data-wf-state~="selected"] { outline: 3px dotted rgb(255, 0, 255); }
     [data-wf-part="edge-path"] { stroke: rgb(0, 128, 0); }
   `);
-  expect(await computed(page, SELECTED, ["outline-style", "outline-width", "outline-color"])).toEqual(["solid", "3px", "rgb(255, 0, 255)"]);
+  expect(await computed(page, selected, ["outline-style", "outline-width", "outline-color"])).toEqual(["dotted", "3px", "rgb(255, 0, 255)"]);
   expect(await computed(page, OTHER, ["outline-style"])).toEqual(["none"]);
   // Only the stroke changes; the width is still the scene's.
   expect(await computed(page, PATH, ["stroke", "stroke-width"])).toEqual(["rgb(0, 128, 0)", before.path[1]]);
