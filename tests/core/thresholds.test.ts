@@ -21,7 +21,7 @@
 import { type TestContext, describe, expect, it } from "vitest";
 import { type PreparedScene, prepareScene } from "../../src/canvas/index";
 import { type FlowGraph, type Locale, type Overlay, type Positions, abstract, createPositions, layout, toSVG } from "../../src/index";
-import { type LadderScene, type Rung, MAGNITUDES, RUNGS, committedScenes, generatedScene, optionsOf, randomSetting, rungOf, shownGraph } from "../support/ladder";
+import { type LadderScene, type Rung, MAGNITUDES, RUNGS, collapsedGraph, committedScenes, generatedScene, optionsOf, randomSetting, rungOf, shownGraph } from "../support/ladder";
 import { type Failure, type Finding, type Reading, arcLabelPlaces, checkReading, findingOf, fitView, pictureOf, readCanvas, weaklyConnected } from "../support/reading";
 import { positionsOf } from "../support/scenes";
 import { savePicture } from "../support/pictures";
@@ -84,10 +84,8 @@ async function readCell(graph: FlowGraph, sceneOverlays: Overlay[], rung: Rung, 
   return { shown, positions: at, overlays, failures, fitted, places: arcLabelPlaces(prepared) };
 }
 
-const baseOf = (graph: FlowGraph, rung: Rung) => (rung.collapse ? abstract(graph, { collapse: rung.collapse, keepConnected: false }) : graph);
-
-const findingsOf = (cell: Cell, graph: FlowGraph, rung: Rung): Finding[] => [...new Set(cell.failures.flatMap((f) => findingOf(f, cell.shown, baseOf(graph, rung), cell.places) ?? []))].sort();
-const unexpected = (cell: Cell, graph: FlowGraph, rung: Rung): Failure[] => cell.failures.filter((f) => !findingOf(f, cell.shown, baseOf(graph, rung), cell.places));
+const findingsOf = (cell: Cell, graph: FlowGraph, rung: Rung): Finding[] => [...new Set(cell.failures.flatMap((f) => findingOf(f, cell.shown, collapsedGraph(graph, rung), cell.places) ?? []))].sort();
+const unexpected = (cell: Cell, graph: FlowGraph, rung: Rung): Failure[] => cell.failures.filter((f) => !findingOf(f, cell.shown, collapsedGraph(graph, rung), cell.places));
 
 /** The picture of a rung with its failures marked, saved beside the report and attached to the test. */
 async function attach(annotate: Annotate, title: string, cell: Cell): Promise<void> {
@@ -192,7 +190,7 @@ describe("how the map reads across thresholds and sizes, on the Canvas drawing",
           const fails = (g: FlowGraph) => {
             const sceneOverlays = g.overlays ?? [];
             const plain = { ...g, overlays: undefined };
-            return readCell(plain, sceneOverlays, rung, locale).then((c) => c.failures.some((f) => kind(f) === kind(bad[0]) && !findingOf(f, c.shown, baseOf(plain, rung), c.places)));
+            return readCell(plain, sceneOverlays, rung, locale).then((c) => c.failures.some((f) => kind(f) === kind(bad[0]) && !findingOf(f, c.shown, collapsedGraph(plain, rung), c.places)));
           };
           const smallest = await shrinkAsync({ ...scene.graph, overlays: scene.overlays }, fails);
           expect(bad, `${caseLabel(seed, `${scene.name} · ${rung.name} · ${locale}`)}\n  ${summary(bad)}\n  smallest graph that still fails:\n  ${JSON.stringify(smallest)}`).toEqual([]);

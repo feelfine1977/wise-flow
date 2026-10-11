@@ -53,13 +53,17 @@ export const optionsOf = (r: Pick<Rung, "minNodeShare" | "minEdgeShare" | "keepC
   collapse: r.collapse,
 });
 
+/** The graph the thresholds are applied to: stages collapsed (without reconnection) where the setting collapses them. */
+export function collapsedGraph(graph: FlowGraph, options: Pick<AbstractOptions, "collapse">): FlowGraph {
+  return options.collapse ? abstract(graph, { collapse: options.collapse, keepConnected: false }) : graph;
+}
+
 /**
  * The graph a map shows at a setting, as the map computes it: stages
  * collapsed first (without reconnection), then the thresholds on the result.
  */
 export function shownGraph(graph: FlowGraph, options: AbstractOptions): FlowGraph {
-  const base = options.collapse ? abstract(graph, { collapse: options.collapse, keepConnected: false }) : graph;
-  return abstract(base, { ...options, collapse: false });
+  return abstract(collapsedGraph(graph, options), { ...options, collapse: false });
 }
 
 export interface LadderScene {

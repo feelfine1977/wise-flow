@@ -21,7 +21,7 @@ import { type TestContext, afterAll, afterEach, beforeAll, describe, expect, it,
 import type { DrawContext, DrawOptions, PreparedScene, View } from "../../src/canvas/index";
 import { type AbstractOptions, type FlowGraph, type Locale, type LodRules, type Overlay, type Positions, abstract, buildScene, defaultNodeSize, layout, toSVG } from "../../src/index";
 import { ProcessMap } from "../../src/react/index";
-import { type LadderScene, type Rung, MAGNITUDES, RUNGS, committedScenes, generatedScene, optionsOf, shownGraph } from "../support/ladder";
+import { type LadderScene, type Rung, MAGNITUDES, RUNGS, collapsedGraph, committedScenes, generatedScene, optionsOf, shownGraph } from "../support/ladder";
 import { type Failure, type Reading, arcLabelPlaces, checkReading, findingOf, fitView, pictureOf, readCanvas } from "../support/reading";
 import { savePicture } from "../support/pictures";
 import { caseCount, caseLabel, createRandom, seeds } from "../support/random";
@@ -94,8 +94,6 @@ function positionsFor(shown: FlowGraph): Promise<Positions> {
   if (!p) layouts.set(key, (p = layout(shown, { engine: "dagre" })));
   return p;
 }
-
-const baseOf = (graph: FlowGraph, rung: Rung) => (rung.collapse ? abstract(graph, { collapse: rung.collapse, keepConnected: false }) : graph);
 
 interface Mounted {
   result: RenderResult;
@@ -172,7 +170,7 @@ function readCanvasMap(container: Element): { fitted: Reading; full: Reading } {
 async function check(annotate: TestContext["annotate"], mounted: Mounted, readings: { fitted: Reading; full: Reading }, scene: LadderScene, rung: Rung, shown: FlowGraph, positions: Positions, locale: Locale, pictures: "every failure" | "unexpected" = "every failure") {
   const { fitted, full } = readings;
   const failures = checkReading({ fitted, full, expect: { graph: scene.graph, abstraction: abstract(scene.graph, optionsOf(rung)), rung, locale, positions } });
-  const base = baseOf(scene.graph, rung);
+  const base = collapsedGraph(scene.graph, rung);
   // Where each arc label could go: the map's scene, built again from what the map is given.
   const places = arcLabelPlaces(buildScene(shown, positions, { overlays: [...(shown.overlays ?? []), ...scene.overlays], locale, lodBySize: true }));
   const unexpected = failures.filter((f) => !findingOf(f, shown, base, places));

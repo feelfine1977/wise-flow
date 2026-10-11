@@ -3,7 +3,7 @@ import elkWorkerUrl from "elkjs/lib/elk-worker.min.js?url";
 import { useEffect, useMemo, useState } from "react";
 import { prepareScene } from "../src/canvas/index";
 import { type Positions, abstract, formatCompact, layout } from "../src/index";
-import { type LadderScene, type Rung, MAGNITUDES, STEPS, committedScenes, generatedScene, optionsOf, rungOf, shownGraph } from "../tests/support/ladder";
+import { type LadderScene, type Rung, MAGNITUDES, STEPS, collapsedGraph, committedScenes, generatedScene, optionsOf, rungOf, shownGraph } from "../tests/support/ladder";
 import { type Failure, arcLabelPlaces, checkReading, findingOf, fitView, readCanvas } from "../tests/support/reading";
 import { ProcessMap } from "./maps";
 
@@ -46,13 +46,12 @@ function measure(scene: LadderScene, rung: Rung, positions: Positions) {
   const fitted = readCanvas(prepared, fitView(prepared.bounds, 1200, 800));
   const failures = checkReading({ fitted, full: readCanvas(prepared, whole, { lodZoom: 100 }), expect: { graph: scene.graph, abstraction: abstract(scene.graph, optionsOf(rung)), rung, locale: "en", positions } });
   const width = prepared.legend.items.find((i) => i.kind === "width");
-  const base = rung.collapse ? abstract(scene.graph, { collapse: rung.collapse, keepConnected: false }) : scene.graph;
   return {
     activities: shown.nodes.filter((n) => n.kind === "activity" || n.kind === "stage").length,
     paths: shown.edges.filter((e) => e.source !== e.target).length,
     ends: width?.kind === "width" ? `${formatCompact(width.domain[0])} … ${formatCompact(width.domain[1])}` : "–",
     zoom: fitted.zoom,
-    failures: failures.map((f) => ({ ...f, finding: findingOf(f, shown, base, arcLabelPlaces(prepared)) })),
+    failures: failures.map((f) => ({ ...f, finding: findingOf(f, shown, collapsedGraph(scene.graph, rung), arcLabelPlaces(prepared)) })),
   };
 }
 
