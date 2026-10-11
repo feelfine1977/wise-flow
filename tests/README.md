@@ -28,8 +28,14 @@ the Canvas map (recorded calls, one element at a time) and the PNG export
 same operation), in the theme the story wrote with its scene. Three stories
 are drawn a second time in the dark scheme: the map in a page that prefers it,
 the scene resolved in it; one story draws in a second theme (activities outlined
-3 wide with corners of 10, labels at 14). The test checks that the scheme and
-the theme reached what it compares. For every node, edge, group and mark it compares the box,
+3 wide with corners of 10, labels at 14); and one gives the map no theme but sets
+`--wf-paper`, `--wf-ink`, `--wf-focus` and `--wf-font` on its container (a hex
+colour and two colour names), and writes the theme `useFlowTheme` resolves there,
+which the other three renderers draw. The test checks that the scheme and
+the theme reached what it compares, and for the host's variables that the theme
+holds them as literals, that the SVG export writes them (and no `var(`, `oklch(`
+or `color-mix(`) and that the DOM map paints its focus and writes its labels in
+them. For every node, edge, group and mark it compares the box,
 outline paint and width, dash, fill, radius, shadow, colour band, band rule and
 each text's string, size, weight and paint with the SVG export's. Every
 difference is listed in `browser/parity/expected.json` by renderer, element

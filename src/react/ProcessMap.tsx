@@ -15,6 +15,7 @@ import {
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { type AbstractOptions, type ElementRef, type FlowGraph, type Positions, type XY, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, defaultStyle, dimensionTokens, formatCount, lodAt, spaceTokens, strokeTokens, t } from "../core/index.js";
 import { type MapContext, mapEmphasis, menuHeading } from "../core/map-controller.js";
+import { markedThemeKey, themeStyle } from "../core/theme.js";
 import { ActivityTooltip } from "./ActivityTooltip.js";
 import { AbstractionControls } from "./AbstractionControls.js";
 import { CanvasMap, type CanvasMapHandle, EdgeNote } from "./CanvasMap.js";
@@ -34,6 +35,7 @@ import { OverlayLayer } from "./OverlayLayer.js";
 import { part } from "./parts.js";
 import { PathList } from "./PathList.js";
 import { TableAlternative } from "./TableAlternative.js";
+import { useFlowTheme } from "./theme.js";
 import { type ProcessMapProps, type Selection, type WfEdge, type WfGroupNode, type WfNode } from "./types.js";
 
 const DEFAULT_CANVAS_THRESHOLD = 2000;
@@ -145,8 +147,16 @@ function ProcessMapInner(props: ProcessMapProps) {
   const [manual, setManual] = useState<{ key: ProcessMapProps["layoutResetKey"]; points: Record<string, XY> }>({ key: layoutResetKey, points: {} });
   // Graph overlays and the given ones; the scene keeps those it can place and adds the follows self-loops.
   const sceneOverlays = useMemo(() => (extraOverlays ? [...(shown.overlays ?? []), ...extraOverlays] : undefined), [shown, extraOverlays]);
+  // The theme: the setting over the CSS variables of the map's container over the preset, in the page's scheme.
+  // The scene is built again only when the marks change; colours and the font are painted from the theme.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const host = useMemo(() => ({ get current() { return containerRef.current?.parentElement ?? null; } }), []);
+  const look = useFlowTheme(host, props.theme);
+  const markedKey = useMemo(() => markedThemeKey(look.theme, look.scheme), [look]);
+  const markedTheme = useMemo(() => look.theme, [markedKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const themed = useMemo(() => (props.theme === undefined ? undefined : themeStyle(look.theme, look.scheme)), [props.theme === undefined, look]); // eslint-disable-line react-hooks/exhaustive-deps
   const { scene, positions, laidPositions } = useMapScene(shown, arrival.positions, manual.key === layoutResetKey ? manual.points : NO_MOVES, {
-    overlays: sceneOverlays, style, locale, lanes, activityLabels, selfLoops, lod: props.lod, theme: props.theme,
+    overlays: sceneOverlays, style, locale, lanes, activityLabels, selfLoops, lod: props.lod, theme: markedTheme, scheme: look.scheme,
   });
   const { scales, overlays, geometry } = scene;
   // One index of the shown graph: every description, label and lookup by id reads it.
@@ -182,7 +192,6 @@ function ProcessMapInner(props: ProcessMapProps) {
   const zoom = useCanvas ? canvasViewport.zoom : rfZoom;
   const lod = lodAt(zoom, scene.lod);
   const bodyRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<CanvasMapHandle>(null);
 
   // Actions menu
@@ -390,7 +399,7 @@ function ProcessMapInner(props: ProcessMapProps) {
     <div
       ref={containerRef}
       className={`wf-process-map ${lodClasses}${showPaths ? " wf-process-map--side" : ""}${className ? ` ${className}` : ""}`}
-      style={{ width: "100%", height: "100%", ...containerStyle }}
+      style={{ width: "100%", height: "100%", ...themed, ...containerStyle }}
       role="group"
       {...part("map")}
       aria-label={ariaLabel ?? t(locale, "map.description", { nodes: shown.nodes.length, edges: shown.edges.length, groups: shown.groups?.length ?? 0 })}
@@ -440,6 +449,7 @@ function ProcessMapInner(props: ProcessMapProps) {
                 edgeBudget={edgeBudget}
                 onAnnounce={announce}
                 onEdgesShown={tellShown}
+                theme={look.theme}
               >
                 {controlsElement ? <div className="wf-overlay-panel wf-overlay-panel--top-left">{controlsElement}</div> : null}
                 {legendElement ? <div className="wf-overlay-panel wf-overlay-panel--bottom-right">{legendElement}</div> : null}

@@ -1,5 +1,5 @@
 import { type CSSProperties, useId, useState } from "react";
-import { type EdgeBudget, type Locale, type LodRules, type ViewSet, t } from "../core/index.js";
+import { type EdgeBudget, type Locale, type LodRules, type ThemeSetting, type ViewSet, t } from "../core/index.js";
 import { Legend } from "./Legend.js";
 import { ProcessMap } from "./ProcessMap.js";
 import { type Selection, emptySelection } from "./types.js";
@@ -25,6 +25,8 @@ export interface ViewSwitcherProps {
   minimap?: boolean;
   /** The edge budget of every view's map (`ProcessMap` `edgeBudget`). Default `"adaptive"`. */
   edgeBudget?: EdgeBudget | "adaptive";
+  /** The theme of every view's map (`ProcessMap` `theme`). */
+  theme?: ThemeSetting;
   className?: string;
   containerStyle?: CSSProperties;
 }
@@ -36,7 +38,7 @@ export interface ViewSwitcherProps {
  * means the same number in every view. `grid` shows all views as small
  * multiples with one legend per distinct style.
  */
-export function ViewSwitcher({ views, mode: modeProp, onModeChange, activeView, onActiveViewChange, columns = 2, locale = "en", selection: selectionProp, onSelect, onHover, legend = true, lod, minimap, edgeBudget, className, containerStyle }: ViewSwitcherProps) {
+export function ViewSwitcher({ views, mode: modeProp, onModeChange, activeView, onActiveViewChange, columns = 2, locale = "en", selection: selectionProp, onSelect, onHover, legend = true, lod, minimap, edgeBudget, theme, className, containerStyle }: ViewSwitcherProps) {
   const [innerMode, setInnerMode] = useState<"single" | "grid">("single");
   const mode = modeProp ?? innerMode;
   const setMode = (m: "single" | "grid") => {
@@ -110,6 +112,7 @@ export function ViewSwitcher({ views, mode: modeProp, onModeChange, activeView, 
             lod={lod}
             minimap={minimap}
             edgeBudget={edgeBudget}
+            theme={theme}
           />
         </div>
       ) : (
@@ -121,7 +124,7 @@ export function ViewSwitcher({ views, mode: modeProp, onModeChange, activeView, 
                 {v.description ? <span> — {v.description}</span> : null}
               </figcaption>
               <div className="wf-views__map">
-                <ProcessMap graph={v.graph} positions={views.positions} overlays={v.overlays} style={v.style} controls={false} legend={false} selection={selection} onSelect={select} onHover={onHover} locale={locale} lod={lod} edgeBudget={edgeBudget} />
+                <ProcessMap graph={v.graph} positions={views.positions} overlays={v.overlays} style={v.style} controls={false} legend={false} selection={selection} onSelect={select} onHover={onHover} locale={locale} lod={lod} edgeBudget={edgeBudget} theme={theme} />
               </div>
             </figure>
           ))}

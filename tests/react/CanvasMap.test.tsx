@@ -55,11 +55,12 @@ describe("ProcessMap with the Canvas renderer", () => {
 });
 
 describe("the live Canvas map and the theme", () => {
-  // jsdom resolves custom properties only on the element a rule matches, so the theme rules name the map's host.
+  // The map reads the variables of its container. jsdom resolves custom properties only on the element a
+  // rule matches, so the theme rules name the container; their values are those of `tokens.css`.
   const theme = document.createElement("style");
   theme.textContent = [
-    '.wf-canvas-map { --wf-ink: #1f1f1f; --wf-paper: #ffffff; }',
-    ':root[data-theme="dark"] .wf-canvas-map { --wf-ink: #ececec; --wf-paper: #16181d; }',
+    '.host { --wf-ink: #1f1f1f; --wf-paper: #ffffff; }',
+    ':root[data-theme="dark"] .host { --wf-ink: #ececec; --wf-paper: #16181d; }',
   ].join("\n");
 
   afterEach(() => {
@@ -73,7 +74,7 @@ describe("the live Canvas map and the theme", () => {
     const recorder = textRecorder();
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => recorder.ctx as unknown as CanvasRenderingContext2D);
     const view = render(
-      <div style={{ width: 1200, height: 800 }}>
+      <div className="host" style={{ width: 1200, height: 800 }}>
         <ProcessMap graph={vendor} positions={positions} renderer="canvas" edgeBudget="all" controls={false} legend={false} />
       </div>,
     );
@@ -101,10 +102,10 @@ describe("the live Canvas map and the theme", () => {
       addListener: () => {}, removeListener: () => {}, dispatchEvent: () => true,
     }) as unknown as MediaQueryList);
     const { labels, view } = await mount();
-    expect(listeners.length).toBe(1);
+    expect(listeners.length).toBeGreaterThan(0);
     // A scheme change shows in the computed variables only; jsdom does not evaluate the media query, so a rule
     // added to the theme stands in for it. No attribute changes, so only the media query's listener can redraw.
-    theme.textContent += "\n.wf-canvas-map { --wf-ink: #dddddd; }";
+    theme.textContent += "\n.host { --wf-ink: #dddddd; }";
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(labels()).toEqual(["#1f1f1f"]);
     listeners.forEach((l) => l());

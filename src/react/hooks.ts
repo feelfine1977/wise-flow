@@ -105,7 +105,7 @@ export function useOverlays(
   return useMemo(() => (items ? overlaysFor(items, options) : []), [items, options?.graph, options?.locale, options?.outOfScopeMinShare]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
-export type MapSceneOptions = Pick<FlowSceneOptions, "overlays" | "style" | "locale" | "lanes" | "activityLabels" | "selfLoops" | "lod" | "theme">;
+export type MapSceneOptions = Pick<FlowSceneOptions, "overlays" | "style" | "locale" | "lanes" | "activityLabels" | "selfLoops" | "lod" | "theme" | "scheme">;
 
 export interface MapScene {
   /** Built on empty positions while none are known. */
@@ -119,11 +119,11 @@ const NO_POSITIONS = createPositions({ nodes: {}, groups: {}, edges: {} }, "give
 
 /** The scene of a live map; the scene before the manual moves is kept for dragging. */
 export function useMapScene(graph: FlowGraph, source: Positions | undefined, moved: Readonly<Record<string, XY>>, options: MapSceneOptions): MapScene {
-  const { overlays, style, locale, lanes, activityLabels, selfLoops, lod, theme } = options;
+  const { overlays, style, locale, lanes, activityLabels, selfLoops, lod, theme, scheme } = options;
   const filtered = useMemo(() => source && filterPositions(source, graph), [source, graph]);
   const sceneOptions = useMemo<FlowSceneOptions>(
-    () => ({ overlays, style, locale, lanes, activityLabels, selfLoops, lod, theme, lodBySize: true }),
-    [overlays, style, locale, lanes, activityLabels, selfLoops, lod, theme],
+    () => ({ overlays, style, locale, lanes, activityLabels, selfLoops, lod, theme, scheme, lodBySize: true }),
+    [overlays, style, locale, lanes, activityLabels, selfLoops, lod, theme, scheme],
   );
   const laid = useMemo(() => buildScene(graph, filtered ?? NO_POSITIONS, sceneOptions), [graph, filtered, sceneOptions]);
   const hasMoves = filtered !== undefined && Object.keys(moved).length > 0;

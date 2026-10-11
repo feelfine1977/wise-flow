@@ -32,7 +32,7 @@ import type {
   Selection,
   ShownEdges,
   StyleSpec,
-  Theme,
+  ThemeSetting,
 } from "../core/index.js";
 import { emptySelection } from "../core/index.js";
 
@@ -115,11 +115,15 @@ export interface ProcessMapProps {
   overlays?: Overlay[];
   style?: StyleSpec;
   /**
-   * What the map's nodes, groups, paths and marks are drawn in: their outlines,
-   * radii, text styles and data palettes. Default `defaultTheme`. The theme's
-   * colour roles are drawn through the CSS variables of `tokens.css`.
+   * What the map is drawn in: a preset's name (`"default"`, `"print"`) or
+   * changes over a preset (`{ preset: "default", radius: { node: 4 } }`; a whole
+   * `Theme` is such changes too). It overrides the `--wf-*` CSS variables of the
+   * map's container, which override the preset (`useFlowTheme`). Given, its
+   * colours, fonts and the sizes the stylesheet reads are written on the map's
+   * element as those variables, so the panels follow it too. Default: the
+   * `default` preset under the container's variables.
    */
-  theme?: Theme;
+  theme?: ThemeSetting;
   /** Controlled abstraction options. */
   abstraction?: AbstractOptions;
   defaultAbstraction?: AbstractOptions;

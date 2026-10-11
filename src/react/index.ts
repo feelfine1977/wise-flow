@@ -21,6 +21,7 @@ export type { ProcessMapProps, Selection, ActivityNodeData, GroupNodeData, Follo
 export { emptySelection } from "./types.js";
 export { BpmnView, emptyBpmnSelection, type BpmnViewProps, type BpmnSelection, type BpmnViewHandle } from "./BpmnView.js";
 export { ViewSwitcher, type ViewSwitcherProps } from "./ViewSwitcher.js";
+export { useFlowTheme, type FlowTheme } from "./theme.js";
 export { FlowComparison, type FlowComparisonProps, type FlowComparisonCohort } from "./FlowComparison.js";
 
 // Custom controls must consume the renderer's exact React Flow context instance.

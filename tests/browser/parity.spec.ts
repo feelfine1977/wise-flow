@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { readFileSync, writeFileSync } from "node:fs";
-import { type ColorScheme, type FlowGraph, type LaneMode, type Overlay, type Positions, type Theme, buildScene, estimateTextWidth, toSVG } from "../../src/index";
+import { type ColorScheme, type FlowGraph, type LaneMode, type Overlay, type Positions, type Theme, buildScene, estimateTextWidth, themeColors, toSVG } from "../../src/index";
 import { prepareScene, toPNGCanvas } from "../../src/canvas/index";
 import { readCanvasMap, readPng } from "./parity/canvas";
 import { readDom, readDomInPage } from "./parity/dom";
-import { type Drawing, type Listed, checkExpected, differences, exportedMarks, kindsOf } from "./parity/drawn";
+import { type Drawing, type Listed, checkExpected, differences, exportedMarks, kindsOf, paint } from "./parity/drawn";
 import { readSvg } from "./parity/svg";
 
 /**
@@ -15,6 +15,8 @@ import { readSvg } from "./parity/svg";
  * listed in `parity/expected.json` exactly as found, so a new difference fails
  * and so does a listed one that is gone. Some stories are drawn again in the
  * dark scheme: the map in a page that prefers it, the scene resolved in it.
+ * One story gives the map no theme but sets four CSS variables on its
+ * container; it writes the scene in the theme `useFlowTheme` resolves there.
  */
 
 const FIXTURES: { name: string; story: string; scheme?: ColorScheme }[] = [
@@ -25,6 +27,7 @@ const FIXTURES: { name: string; story: string; scheme?: ColorScheme }[] = [
   { name: "roleLanes", story: "parity--role-lanes" },
   { name: "kinds", story: "parity--element-kinds" },
   { name: "secondTheme", story: "parity--second-theme" },
+  { name: "hostVariables", story: "parity--host-variables" },
   { name: "smallDark", story: "parity--small", scheme: "dark" },
   { name: "roleLanesDark", story: "parity--role-lanes", scheme: "dark" },
   { name: "kindsDark", story: "parity--element-kinds", scheme: "dark" },
@@ -67,8 +70,9 @@ test("the DOM map, the Canvas map, the SVG export and the PNG export draw the co
     }
     // The scheme and the theme reached what was compared: the paper of an activity, the outline of the second theme.
     const activity = scene.nodeMarks.find((m) => m.kind === "activity") ?? scene.nodeMarks.find((m) => m.fill === "paper")!;
-    expect(svg.get(`node:${activity.id}`)!.props.fill, `${name}: the scheme's paper`).toBe(scheme === "dark" ? "#16181d" : "#ffffff");
-    if (theme) expect([svg, dom].map((d) => d.get(`node:${activity.id}`)!.props.outlineWidth), `${name}: the theme's outline`).toEqual(["3", "3"]);
+    expect(svg.get(`node:${activity.id}`)!.props.fill, `${name}: the scheme's paper`).toBe(name === "hostVariables" ? "#fdf6e3" : scheme === "dark" ? "#16181d" : "#ffffff");
+    if (name === "secondTheme") expect([svg, dom].map((d) => d.get(`node:${activity.id}`)!.props.outlineWidth), `${name}: the theme's outline`).toEqual(["3", "3"]);
+    if (name === "hostVariables") await hostVariablesReached(page, theme!, toSVG(given, look), dom.get(`node:${activity.id}`)!.props);
     fixtures.push({ name, kinds, svg, others: { dom, canvas, png } });
   }
   const found = differences(fixtures);
@@ -79,3 +83,25 @@ test("the DOM map, the Canvas map, the SVG export and the PNG export draw the co
   const { added, gone, changed } = checkExpected(found, expected());
   expect({ added, gone, changed }, "differences between the renderers that parity/expected.json does not list as found").toEqual({ added: [], gone: [], changed: [] });
 });
+
+/**
+ * The container's paper, ink, focus colour and font reached the theme the
+ * story wrote, as literals, and from it the SVG export; the DOM map, which
+ * reads the variables itself, paints its focus and writes its labels in them.
+ */
+async function hostVariablesReached(page: import("@playwright/test").Page, theme: Theme, svg: string, activity: Record<string, string>) {
+  const colors = themeColors(theme);
+  expect([colors.paper, colors.ink, colors.focus, theme.font.family], "hostVariables: the theme the container's variables resolve to").toEqual(["#fdf6e3", "#2f4f4f", "#663399", "Georgia, serif"]);
+  for (const literal of ['fill="#fdf6e3"', 'fill="#2f4f4f"', 'font-family="Georgia, serif"']) expect(svg, `hostVariables: the SVG export draws ${literal}`).toContain(literal);
+  for (const word of ["var(", "oklch(", "color-mix("]) expect(svg).not.toContain(word);
+  expect(activity.fill).toBe("#fdf6e3");
+  const drawn = await page.evaluate(() => {
+    const map = document.querySelector(".wf-process-map")!;
+    const probe = map.appendChild(document.createElement("span"));
+    probe.style.color = "var(--wf-focus)";
+    const focus = getComputedStyle(probe).color;
+    probe.remove();
+    return { focus, font: getComputedStyle(document.querySelector(".wf-node__label")!).fontFamily };
+  });
+  expect([paint(drawn.focus), drawn.font], "hostVariables: the DOM map's focus and font").toEqual(["#663399", "Georgia, serif"]);
+}

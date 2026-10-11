@@ -26,6 +26,7 @@ and `bpmn-js/dist/assets/bpmn-font/css/bpmn.css`.
 | `map-actions.ts` | Internal: `useMenuActions`, what the map's default menu actions do (filters, paths, collapse, clear focus) and the host's `onContextMenu` |
 | `map-elements.ts` | Internal: React Flow nodes and edges, the Canvas map's scene, state and element list, and the element descriptions |
 | `hooks.ts` | `useFlowGraph`, `useStableLayout`, `useOverlays`, `usePrefersReducedMotion` |
+| `theme.ts` | `useFlowTheme`: a theme setting over the `--wf-*` variables of an element over the preset, in the page's scheme, following their changes; `cssColor` (internal) turns a CSS colour into a literal |
 | `describe.ts` | ARIA and table texts for nodes, edges (from the core), groups and the map |
 | `style.css` | component styles (level-of-detail classes, nodes, badges, chips, lane bands, menu, path list, filter chips, canvas host, panels, tables, timeline, BPMN host, view switcher) |
 
