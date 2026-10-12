@@ -2312,21 +2312,25 @@ An element is found when its drawn extent meets the viewport, not only its
 box: `prepareScene` builds the index with the extent of everything the
 drawing can put beyond an element's box, whether or not the level of detail
 or the interaction state draws it at the moment. A node's extent is its box
-grown by 6 (its outline is at most 2 wide, its selection ring reaches 2
-outside the box and its focus rectangle 5; a gateway's diamond is as tall as
-it is wide) and its texts; a group's its box grown by 1.5 (a band's line,
-the dashed outline) and the texts of its mark (its title); an overlay mark's
+grown by 6, or by more where the theme draws wider (half its outline, the
+selection ring's width `stroke.canvasSelection`, the focus rectangle 4
+outside the box and half `stroke.focus`; by default the ring reaches 2 outside
+the box and the focus rectangle 5; a gateway's diamond is as tall as it is
+wide) and its texts; a group's its box grown by 1.5 or by half the widest of
+its outline, its rule and the selected outline (`stroke.canvasGroupSelected`),
+and the texts of its mark (its title); an overlay mark's
 its box grown by half its stroke or by the reach of its arrowhead (10.8, the
 base of the triangle behind the path's end) and its texts; an edge's each
 segment grown by the most of half its width, half the highlight stroke
 (`stroke.canvasPathHighlight`) and the reach of its arrowhead, which grows
 with the path's width, at least by the hit tolerance of 4, and the segment
-nearest the path's count by that count's text. A text's extent allows 0.7 em
-per character (a shortened text keeps a character and the
-ellipsis), 1 em above an alphabetic baseline and 0.35 em below it, 0.6 em
-each way from a middle baseline, and the halo around it; a font wider than
-that can still lose the last pixels of a label at the edge of a culled
-view. The index rounds every bound outwards to a whole unit, so an element
+nearest the path's count by that count's text. A text's extent is its width
+by the scene's text measure, at least 0.7 em per character, and at most its
+limit (a shortened text keeps a character and the ellipsis), 1 em above an
+alphabetic baseline and 0.35 em below it, 0.6 em each way from a middle
+baseline, and the halo around it (at least 1.5, half `stroke.halo`); a font
+wider than its measure can still lose the last pixels of a label at the edge
+of a culled view. The index rounds every bound outwards to a whole unit, so an element
 whose extent ends less than a unit short of the view is read as well (and
 draws nothing visible; the canvas clips it). Up to 0.3.5 the index held the boxes alone, so a node whose outline,
 ring or focus rectangle reached into the view, an edge whose count label

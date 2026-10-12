@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type FlowGraph, type Overlay, createPositions } from "../../src/index";
+import { type FlowGraph, type Overlay, type ThemeSetting, createPositions } from "../../src/index";
 import { type DrawState, type PreparedScene, type View, CanvasRenderer, drawScene, prepareScene } from "../../src/canvas/index";
 import { drawn, inkContext, watch } from "../support/ink";
 
@@ -14,7 +14,7 @@ import { drawn, inkContext, watch } from "../support/ink";
  * the middle, at (240, 20). `A` repeats in two of its four
  * cases when `loop` is set, which gives it a self-loop mark at its top right.
  */
-function pair(overlays: Overlay[] = [], loop = false, groups?: { group: FlowGraph["groups"]; boxes: Record<string, { x: number; y: number; width: number; height: number }> }): PreparedScene {
+function pair(overlays: Overlay[] = [], loop = false, groups?: { group: FlowGraph["groups"]; boxes: Record<string, { x: number; y: number; width: number; height: number }> }, theme?: ThemeSetting): PreparedScene {
   const graph: FlowGraph = {
     nodes: [
       { id: "a", kind: "activity", label: "A", metrics: { cases: 4 } },
@@ -25,7 +25,7 @@ function pair(overlays: Overlay[] = [], loop = false, groups?: { group: FlowGrap
     groups: groups?.group,
   };
   const positions = createPositions({ nodes: { a: { x: 0, y: 0, width: 180, height: 48 }, b: { x: 300, y: 0, width: 180, height: 48 } }, groups: groups?.boxes ?? {}, edges: {} }, "given", "RIGHT");
-  return prepareScene(graph, positions, { lodBySize: false });
+  return prepareScene(graph, positions, { lodBySize: false, theme });
 }
 
 /** A view of 400 × 300 at zoom 1 whose left edge is at flow `x` and whose top edge is at flow `y`. */
@@ -50,9 +50,32 @@ describe("a culled view draws what reaches into it", () => {
   });
 
   it("draws the selection ring and the focus rectangle of a node whose box ends outside the view", () => {
-    // The ring is drawn 3 outside the box, 6 wide: it reaches 186; the focus rectangle 4 outside, 2 wide: 185.
+    // The ring is drawn 1 outside the box, 2 wide: it reaches 182; the focus rectangle 4 outside, 2 wide: 185.
     expect(culled(pair(), viewFrom(184), { ...none, selection: { nodes: ["a"], edges: [], groups: [] } }).ids).toContain("nodes:a");
     expect(culled(pair(), viewFrom(184), { ...none, focused: "a" }).ids).toContain("nodes:a");
+  });
+
+  it("draws the selection ring, the focus rectangle and a group's selected outline as wide as the theme draws them", () => {
+    const theme: ThemeSetting = { stroke: { canvasSelection: 10, focus: 8, canvasGroupSelected: 10 } };
+    const selected = (nodes: string[], groups: string[] = []): DrawState => ({ ...none, selection: { nodes, edges: [], groups } });
+    // The ring is drawn 5 outside A's box (it ends at 180), 10 wide: it reaches 190. The focus rectangle 4 outside, 8 wide: 188.
+    expect(culled(pair([], false, undefined, theme), viewFrom(189), selected(["a"])).ids).toContain("nodes:a");
+    expect(culled(pair([], false, undefined, theme), viewFrom(187.5), { ...none, focused: "a" }).ids).toContain("nodes:a");
+    // A stage group ending at 60 is outlined on its box, 10 wide when selected: it reaches 65.
+    const scene = pair([], false, { group: [{ id: "g", kind: "stage", label: "G" }], boxes: { g: { x: 0, y: 100, width: 60, height: 80 } } }, theme);
+    expect(culled(scene, viewFrom(64, 0), selected([], ["g"])).ids).toContain("groups:g");
+  });
+
+  it("draws an event whose label in a wide script reaches into the view", () => {
+    // The label is centred under the event at x 18, at 11 px; its eight characters of 1 em are 88 wide, under its limit
+    // of 96, so it is not shortened and runs from -26 to 62. The event's box ends at 36. The view begins at 55.
+    const graph: FlowGraph = { nodes: [{ id: "e", kind: "event", label: "東京大阪名古屋横", tags: ["start"] }], edges: [] };
+    const scene = prepareScene(graph, createPositions({ nodes: { e: { x: 0, y: 0, width: 36, height: 36 } }, groups: {}, edges: {} }, "given", "RIGHT"), { lodBySize: false });
+    const label = scene.nodes[0].mark.texts.find((t) => t.text === "東京大阪名古屋横")!;
+    expect([label.x, label.size]).toEqual([18, 11]);
+    const { ids, texts } = culled(scene, viewFrom(55));
+    expect(ids).toContain("nodes:e");
+    expect(texts).toContain("東京大阪名古屋横");
   });
 
   it("draws an edge whose count label reaches into the view above its route", () => {

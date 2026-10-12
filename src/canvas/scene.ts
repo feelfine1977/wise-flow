@@ -41,6 +41,7 @@ import {
   unionBoxes,
 } from "../core/index.js";
 import { sceneOf } from "../core/scene.js";
+import { ruleTokens } from "../core/tokens.js";
 
 export interface SceneNode {
   node: FlowNode;
@@ -138,15 +139,19 @@ const EM = 0.7;
 
 const grow = (b: Box, by: number): Box => ({ x: b.x - by, y: b.y - by, width: b.width + 2 * by, height: b.height + 2 * by });
 
-/** The box a text can cover: its glyphs or its limit (a shortened text keeps a character and the ellipsis), its height from the baseline, the halo. */
-function textBox(t: Pick<MarkText, "text" | "lead" | "x" | "y" | "size" | "anchor" | "baseline" | "halo" | "maxWidth">): Box {
-  const w = Math.min([...(t.lead ?? "") + t.text].length * EM * t.size, Math.max(t.maxWidth ?? Infinity, 3 * EM * t.size));
+type ExtentText = Pick<MarkText, "text" | "lead" | "x" | "y" | "size" | "weight" | "anchor" | "baseline" | "halo" | "maxWidth">;
+
+/**
+ * The box a text can cover: its glyphs by the scene's measure, at least 0.7 em each, or its limit (a shortened text keeps
+ * a character and the ellipsis), its height from the baseline, the halo.
+ */
+function textBox(t: ExtentText, measure: TextMeasure, halo: number): Box {
+  const text = (t.lead ?? "") + t.text;
+  const w = Math.min(Math.max([...text].length * EM * t.size, measure(text, t)), Math.max(t.maxWidth ?? Infinity, 3 * EM * t.size));
   const x = t.anchor === "start" ? t.x : t.anchor === "middle" ? t.x - w / 2 : t.x - w;
   const [up, down] = t.baseline === "middle" ? [0.6 * t.size, 0.6 * t.size] : [t.size, 0.35 * t.size];
-  return grow({ x, y: t.y - up, width: w, height: up + down }, t.halo ? 1.5 : 0);
+  return grow({ x, y: t.y - up, width: w, height: up + down }, t.halo ? halo : 0);
 }
-
-const withTexts = (box: Box, texts: readonly Parameters<typeof textBox>[0][]): Box => unionBoxes([box, ...texts.map(textBox)]);
 
 /** How far an arrowhead reaches from its path's end: tip, base or half width, and the outline. */
 const reach = (a: ReturnType<typeof arrowheadExtent>): number => Math.max(a.tip, a.length - a.tip, a.half) + a.outline / 2;
@@ -264,7 +269,13 @@ export function retainScene(scene: FlowScene): PreparedScene {
   const order = { group: groups.map((g) => g.group.id), node: nodes.map((n) => n.node.id), edge: edges.map((e) => e.edge.id), overlay: marks.map((m) => m.id) };
   const at = Object.fromEntries(Object.entries(order).map(([k, ids]) => [k, new Map(ids.map((id, i) => [id, i]))])) as Record<HitItem["kind"], Map<string, number>>;
   // What a culled draw reads an element for: everything the drawing can put beyond its box (see docs/API.md).
-  const highlight = theme.stroke.canvasPathHighlight / 2;
+  const { stroke } = theme;
+  const highlight = stroke.canvasPathHighlight / 2;
+  // The selection ring (on the box), the focus rectangle (4 outside it) and a rule's strongest outline; a group's selected outline; the halo.
+  const nodeReach = Math.max(6, stroke.canvasSelection, 4 + stroke.focus / 2, ruleTokens.strokeWeight.strong / 2);
+  const groupReach = Math.max(1.5, stroke.canvasGroupSelected / 2, ruleTokens.strokeWeight.strong / 2);
+  const halo = Math.max(1.5, stroke.halo / 2);
+  const withTexts = (box: Box, texts: readonly ExtentText[]): Box => unionBoxes([box, ...texts.map((t) => textBox(t, scene.textMeasure, halo))]);
   const labelAt = new Map<number, number>();
   const extentOf = (it: HitItem): Box | undefined => {
     const i = it.index;
@@ -272,10 +283,12 @@ export function retainScene(scene: FlowScene): PreparedScene {
     switch (it.kind) {
       case "node": {
         const { box: b, mark: m } = nodes[i];
-        return withTexts(grow(m.shape === "diamond" && b.width > b.height ? { x: b.x, y: b.y + (b.height - b.width) / 2, width: b.width, height: b.width } : b, 6), m.texts);
+        return withTexts(grow(m.shape === "diamond" && b.width > b.height ? { x: b.x, y: b.y + (b.height - b.width) / 2, width: b.width, height: b.width } : b, Math.max(nodeReach, m.stroke.width / 2)), m.texts);
       }
-      case "group":
-        return withTexts(grow(groups[i].box, 1.5), groups[i].mark.texts);
+      case "group": {
+        const m = groups[i].mark;
+        return withTexts(grow(groups[i].box, Math.max(groupReach, m.stroke.width / 2, (m.rule?.width ?? 0) / 2)), m.texts);
+      }
       case "overlay": {
         const m = marks[i];
         return withTexts(grow(m.box, Math.max(m.stroke ? m.stroke.width / 2 : 0, m.arrow ? reach(arrowheadExtent(markArrowhead(m.arrow))) : 0)), m.texts);
