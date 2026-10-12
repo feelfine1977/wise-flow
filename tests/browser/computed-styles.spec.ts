@@ -249,7 +249,6 @@ test("the map and its panels draw the computed styles they drew before", async (
 });
 
 test("what a story draws outside the library's roots is not compared: in another font and colour the record holds", async ({ page }) => {
-  test.skip(process.env.FLOW_RECORD_STYLES === "1", "the record is being written");
   test.setTimeout(300_000);
   const expected = readRecord();
   for (const scene of SCENES) {
