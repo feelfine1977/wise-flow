@@ -206,6 +206,7 @@ export interface EdgeRoute { points: { x: number; y: number }[]; labelX?: number
 export interface Positions {
   nodes: Record<string, Box>; groups: Record<string, Box>; edges: Record<string, EdgeRoute>;
   bounds: Box; engine: "elk" | "dagre" | "di" | "given" | "provisional"; direction: "RIGHT" | "DOWN" | "LEFT" | "UP";
+  final?: boolean;   // no layout replaces them: the provisional arrangement useStableLayout keeps when the layout is unavailable
 }
 export interface LayoutOptions {
   engine?: "elk" | "dagre" | "auto";   // auto (default): ELK, Dagre on failure or timeout
@@ -685,7 +686,9 @@ layout arrives, `positions` are replaced once by it (`"ready"`,
 `provisional: false`). Without scenes the status is `"idle"`; a failed layout
 gives `"error"` with `positions` undefined, as before, except a
 `LayoutUnavailableError`: then the provisional positions stay, with
-`provisional: true`, status `"error"` and the error. Until this release
+`provisional: true`, status `"error"`, the error, and `positions.final`
+true: no layout will replace them (a new object; the positions shown while
+pending are not changed). Until this release
 `positions` held the previous result (or nothing) while a layout was pending.
 The hook aborts the layout of a request it no longer shows (changed scenes
 or options, unmount), which terminates its worker; mounted again before the
@@ -703,7 +706,10 @@ Refined layout unavailable: when the layout fails with
 interactive; the status panel and the map's description say "The refined
 layout is unavailable; the map shows a provisional arrangement." (string
 `map.layoutUnavailable`, English and German) and `data-layout-status` is
-`"error"`. Other layout errors are shown as before.
+`"error"`. So does a map given positions that are `final`, such as those
+`useStableLayout` keeps then: up to this change a map given them said
+"Arranging the map…" with `data-layout-status="pending"` for good. Other
+layout errors are shown as before.
 
 Stylesheets: `@wise/flow/tokens.css` (design tokens, light and dark),
 `@wise/flow/style.css` (components) and `@wise/flow/react-flow.css` (React

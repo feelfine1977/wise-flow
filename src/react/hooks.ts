@@ -44,7 +44,7 @@ export interface StableLayout {
    * (status `pending`): the earlier positions of the nodes still present with
    * new nodes beside their neighbours, or a provisional arrangement. Also true
    * when they stay instead of a layout that is unavailable (status `error`
-   * with a `LayoutUnavailableError`).
+   * with a `LayoutUnavailableError`); then `positions.final` is true.
    */
   provisional: boolean;
 }
@@ -99,7 +99,8 @@ export function useStableLayout(scenes: FlowGraph | FlowGraph[] | undefined, opt
       const { error } = result;
       if (!error) return { positions: result.positions, status: "ready", provisional: false };
       const kept = error instanceof LayoutUnavailableError;
-      return { positions: kept ? request.positions : undefined, status: "error", error, provisional: kept };
+      // Kept for good: a map given them says the layout is unavailable.
+      return { positions: kept ? { ...request.positions, final: true } : undefined, status: "error", error, provisional: kept };
     }
     return request.known ? { positions: request.known, status: "ready", provisional: false } : { positions: request.positions, status: "pending", provisional: true };
   }, [request, result]);

@@ -137,8 +137,8 @@ function ProcessMapInner(props: ProcessMapProps) {
   const reducedMotion = usePrefersReducedMotion();
   const target = needsOwnLayout ? own.positions : givenPositions;
   const arrival = useArrival(target, provisional, reducedMotion);
-  // Without a refined layout the provisional arrangement stays, and the map says so.
-  const unavailable = needsOwnLayout && own.error instanceof LayoutUnavailableError;
+  // Without a refined layout the provisional arrangement stays, and the map says so; given positions say so when final.
+  const unavailable = needsOwnLayout ? own.error instanceof LayoutUnavailableError : !!givenPositions?.final;
   const arranging = (provisional && !unavailable) || arrival.moving;
   const notice = arranging ? t(locale, "map.arranging") : unavailable ? t(locale, "map.layoutUnavailable") : undefined;
   const [manual, setManual] = useState<{ key: ProcessMapProps["layoutResetKey"]; points: Record<string, XY> }>({ key: layoutResetKey, points: {} });
@@ -404,7 +404,7 @@ function ProcessMapInner(props: ProcessMapProps) {
       onFocusCapture={(event) => void dispatch({ type: "focusIn", id: (event.target as HTMLElement).closest?.(".react-flow__node")?.getAttribute("data-id") ?? undefined })}
       onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) dispatch({ type: "focusOut" }); }}
       data-activity-labels={activityLabels?.mode}
-      data-layout-status={arranging || (needsOwnLayout && flowBehind) ? "pending" : needsOwnLayout ? own.status : "given"}
+      data-layout-status={arranging || (needsOwnLayout && flowBehind) ? "pending" : needsOwnLayout ? own.status : unavailable ? "error" : "given"}
       data-engine={positions?.engine}
       data-renderer={view === "table" ? "table" : useCanvas ? "canvas" : "svg"}
       data-lanes={lanes}

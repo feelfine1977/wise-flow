@@ -46,6 +46,8 @@ export interface Positions {
   bounds: Box;
   engine: LayoutEngine;
   direction: LayoutDirection;
+  /** No layout replaces them: the provisional arrangement `useStableLayout` keeps when the layout is unavailable. */
+  final?: boolean;
 }
 
 export interface NodeSize {

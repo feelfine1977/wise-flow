@@ -66,12 +66,37 @@ describe("a refined layout that is unavailable", () => {
     await waitFor(() => expect(panel()!.textContent).toBe("Das verfeinerte Layout ist nicht verfügbar; die Karte zeigt eine vorläufige Anordnung."));
   });
 
-  it("keeps the provisional positions in useStableLayout, with the error", async () => {
+  it("keeps the provisional positions in useStableLayout, with the error, and marks them final", async () => {
     const { result, results } = recorded(chain, unavailable);
     await waitFor(() => expect(result.current.status).toBe("error"));
     expect(result.current.error).toBeInstanceOf(LayoutUnavailableError);
     expect(result.current.provisional).toBe(true);
-    expect(result.current.positions).toBe(results[0].positions);
+    // The same arrangement as while pending, now final: no layout replaces it.
+    expect(results[0].positions!.final).toBeUndefined();
+    expect(result.current.positions).toEqual({ ...results[0].positions, final: true });
+    expect(result.current.positions!.engine).toBe("provisional");
+  });
+
+  it("is shown as unavailable, not as arranging, by a map given the positions the hook keeps", async () => {
+    function Host() {
+      const own = useStableLayout(chain, unavailable);
+      return (
+        <div style={{ width: 800, height: 600 }}>
+          <ProcessMap graph={chain} positions={own.positions} />
+        </div>
+      );
+    }
+    const { container } = render(<Host />);
+    const map = container.querySelector(".wf-process-map")!;
+    expect(map.getAttribute("data-layout-status")).toBe("pending");
+    expect(panel()!.textContent).toBe("Arranging the map…");
+    await waitFor(() => expect(map.getAttribute("data-layout-status")).toBe("error"));
+    expect(panel()!.textContent).toBe("The refined layout is unavailable; the map shows a provisional arrangement.");
+    expect(map.getAttribute("data-engine")).toBe("provisional");
+    expect([translate(container, "a"), translate(container, "b"), translate(container, "c")]).toEqual([{ x: 0, y: 0 }, { x: 244, y: 0 }, { x: 488, y: 0 }]);
+    const description = document.getElementById(map.getAttribute("aria-describedby")!)!.textContent!;
+    expect(description).toContain("The refined layout is unavailable");
+    expect(description).not.toContain("Arranging");
   });
 });
 
