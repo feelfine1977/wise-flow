@@ -26,7 +26,7 @@ export interface DetailStatement {
    * `keptPart` the one that counts the kept paths ("30 kept"), where there are any.
    */
   paths: StatementLine & { parts: string[]; keptPart?: string };
-  /** The marks not shown because their element is not, the full form naming what they are, one item per mark; absent when none is hidden. */
+  /** The marks not shown because their element is not, the full form saying what they are ("outside scope", or their constraint), one item per mark; absent when none is hidden. */
   marks?: StatementLine & { items: string[] };
   /** The activities and paths shown only for a protected deviation; absent when there are none. */
   protected?: StatementLine;
@@ -104,7 +104,8 @@ export function detailStatement(graph: FlowGraph, options: DetailStatementOption
     // A mark's id is its kind, its target and its place among the marks given in canonical order.
     const ordered = options.marks ? canonicalOverlays([...options.marks]) : [];
     const marks = hiddenMarks.map((id) => ordered[Number(id.slice(id.lastIndexOf(":") + 1))]).filter((m): m is Overlay => !!m);
-    const name = (m: Overlay) => (typeof m.payload?.label === "string" && m.payload.label ? m.payload.label : t(locale, `overlay.${m.kind}` as StringKey));
+    // A hatch marks an element outside a constraint's scope; another mark is named by its constraint.
+    const name = (m: Overlay) => (m.kind === "hatch" ? t(locale, "constraint.outOfScope") : typeof m.payload?.label === "string" && m.payload.label ? m.payload.label : t(locale, `overlay.${m.kind}` as StringKey));
     const groups = new Map<string, number>();
     for (const m of marks) groups.set(name(m), (groups.get(name(m)) ?? 0) + 1);
     const on = (m: Overlay) => (m.kind === "arc" && m.payload?.source !== undefined && m.payload?.target !== undefined ? `${labelOf(String(m.payload.source))} → ${labelOf(String(m.payload.target))}` : labelOf(m.target));

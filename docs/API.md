@@ -360,9 +360,9 @@ a slider and a full form for its title and assistive technology:
   activities not shown."). For thresholds the paths are counted alone
   ("38 of 677 paths shown.").
 - Marks not shown (`marksNotShown`): "3 marks not shown"; in full what they
-  are, by the label of their constraint, the most frequent first ("3 marks
-  not shown: 2 outside scope, 1 order of goods and invoice."), and one item
-  per mark. Without the marks given the full form counts them only.
+  are, a hatch "outside scope" and another mark the label of its constraint,
+  the most frequent first ("3 marks not shown: 2 outside scope, 1 order of
+  goods and invoice."), and one item per mark. Without the marks given the full form counts them only.
 - Elements shown for a protected deviation (`forProtected`): "2 shown for a
   protected deviation", in full with their names.
 

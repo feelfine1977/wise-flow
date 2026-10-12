@@ -132,9 +132,11 @@ describe("the statements of the detail sliders", () => {
     const hidden = given.filter((m) => (m.kind === "arc" ? !shown.has(String(m.payload?.source)) || !shown.has(String(m.payload?.target)) : m.target !== "__map" && !shown.has(m.target) && !result.edges.some((e) => e.id === m.target) && !(result.groups ?? []).some((g) => g.id === m.target)));
     const short = locale === "de" ? `${hidden.length} Markierungen nicht gezeigt` : `${hidden.length} marks not shown`;
     expect(statement.marks!.short).toBe(short);
-    // What they are, by the label of their constraint, the most frequent first.
+    // What they are, the most frequent first: a hatch is outside a scope, another mark is named by its constraint.
+    const what = (m: Overlay) => (m.kind === "hatch" ? (locale === "de" ? "außerhalb des Geltungsbereichs" : "outside scope") : String(m.payload!.label));
+    expect(hidden.some((m) => m.kind === "hatch") && hidden.some((m) => m.kind !== "hatch")).toBe(true);
     const groups = new Map<string, number>();
-    for (const m of hidden) groups.set(String(m.payload!.label), (groups.get(String(m.payload!.label)) ?? 0) + 1);
+    for (const m of hidden) groups.set(what(m), (groups.get(what(m)) ?? 0) + 1);
     const listed = [...groups].sort(([a, x], [b, y]) => y - x || (a < b ? -1 : 1));
     expect(statement.marks!.full).toBe(`${short}: ${listed.map(([label, n]) => `${n} ${label}`).join(", ")}.`);
     expect(statement.marks!.items).toHaveLength(hidden.length);
@@ -145,6 +147,11 @@ describe("the statements of the detail sliders", () => {
     );
     // Without the marks given, the statement counts them.
     expect(detailStatement(result, { locale })!.marks).toEqual({ short, full: `${short}.`, items: [] });
+    // At the stories' opening the marks not shown are the hatches of the activities outside the constraints' scope.
+    const opening = abstract(globalScene, { activityDetail: 16 / 42, pathDetail: 31 / 677, marks });
+    const hatches = marks.filter((m) => m.kind === "hatch" && !opening.nodes.some((v) => v.id === m.target)).length;
+    expect(hatches).toBe(opening.meta!.shown!.marksNotShown.length);
+    expect(detailStatement(opening, { locale, marks })!.marks!.full).toBe(locale === "de" ? `${hatches} Markierungen nicht gezeigt: ${hatches} außerhalb des Geltungsbereichs.` : `${hatches} marks not shown: ${hatches} outside scope.`);
     // With every mark's element shown there is no line.
     expect(detailStatement(abstract(globalScene, { activityDetail: 1, pathDetail: 1, marks: given }), { locale, marks: given })!.marks).toBeUndefined();
   });
