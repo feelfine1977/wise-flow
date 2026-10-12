@@ -738,11 +738,14 @@ export function Chip(props: { chip: Overlay; locale: Locale }): JSX.Element | nu
 ```
 
 `<OverlayLayer/>` draws the given `marks` (or the marks of `shapes`) that are
-on the map and not below the edges, each from its `minZoom` when `zoom` is
-given: those of the layer `between` (arcs) between the edges and the nodes,
-the others above the nodes (before, every mark it drew lay above the nodes);
-`onSelect` receives the shape of a clicked mark. Without `zoom` the layer
-draws every mark. Custom node types draw `marks` and `origin`. `<Badges/>` and `<Chip/>` now draw SVG from the
+on the map and not below the edges, each from its `minZoom` at `zoom`: those
+of the layer `between` (arcs) between the edges and the nodes, the others
+above the nodes (before, every mark it drew lay above the nodes); `onSelect`
+receives the shape of a clicked mark. Without `zoom` it reads the zoom of the
+React Flow map it sits in, as the marks that nodes carry do, so that zooming
+out sheds arcs and self-loops as it sheds badges and chips; up to this
+version it then drew every mark at any zoom, which `zoom={Infinity}` still
+does. `ProcessMap` passes its zoom and is unchanged. Custom node types draw `marks` and `origin`. `<Badges/>` and `<Chip/>` now draw SVG from the
 marks the core resolves for the overlays: badges extend left from the
 top-right corner of the element they are placed in, a chip has the size of
 its mark; `<Chip/>` given an overlay that has no mark on its own (an arc,
