@@ -108,8 +108,14 @@ returns a warning for a parallel split without a partner and for a
 parallel join that is the partner of no parallel split; flows are the edges
 other than constraints, messages and associations. Nothing is rejected: an
 imported model loads as before, and a host decides what to do with the
-warnings. A sound model whose parallel branches are not nested as blocks is
-reported too.
+warnings. The check looks at parallel gateways only. It does not report a
+node other than a gateway with several outgoing flows and no gateway (BPMN
+takes them all, as a parallel split), a loop without an exit, or a node that
+no flow reaches; the models `liteFromGraph` and `liteFromStages` generate
+never have these, while a file from another tool can. It is cautious the
+other way: a sound model whose parallel branches are not nested as blocks (a
+three-way split with one branch ending on its own, two splits feeding one
+join, blocks that cross) completes every case but is reported too.
 
 `GraphIndex` answers the group hierarchy. `ancestors` returns the groups
 enclosing an element, innermost first: for a node its group and upwards, for
