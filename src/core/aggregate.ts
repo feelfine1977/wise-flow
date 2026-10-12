@@ -4,6 +4,7 @@ import { collapsedActivityIds } from "./collapsed-members.js";
  * guarantee, stage collapse (semantic zoom) and diff maps.
  */
 import {
+  type AbstractionMeta,
   type FlowEdge,
   type FlowGraph,
   type FlowGroup,
@@ -589,24 +590,36 @@ function restoreFlowContext(
 /**
  * Abstract a graph: optionally collapse stage groups, then remove weak activities and
  * weak follows edges, then (by default) restore connectivity with the strongest removed
- * elements. Structural nodes (events, gateways), constraint and flow edges are kept.
- * The result keeps the input order of elements; re-added elements are tagged.
+ * elements. Events, gateways and `keep` are kept; a constraint or flow edge goes only
+ * with an element at one of its ends. The result keeps the input order of elements;
+ * re-added elements are tagged.
  */
 export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowGraph {
   const { minEdgeShare = 0, minNodeShare = 0, keepConnected = true, collapse = false } = options;
   const kept = thresholded(graph, options);
   const { base } = kept;
   let { nodes, edges } = kept;
+  if (keepConnected) ({ nodes, edges } = restoreFlowContext(kept, joinComponents(kept)));
+  const nodeSet = new Set(nodes.map((n) => n.id));
+  const edgeSet = new Set(edges.map((e) => e.id));
+  // A constraint or flow edge goes only with an element at one of its ends, counted since the first abstraction;
+  // a re-added activity brings its own back.
+  const removedEdges: Record<string, number> = { ...(base.meta?.abstraction as AbstractionMeta | undefined)?.removedEdges };
+  for (const e of base.edges) {
+    if (e.kind === "follows" || edgeSet.has(e.id)) continue;
+    if (!nodeSet.has(e.source) || !nodeSet.has(e.target)) removedEdges[e.kind] = (removedEdges[e.kind] ?? 0) + 1;
+    else {
+      edges.push(tagged(e));
+      edgeSet.add(e.id);
+    }
+  }
   if (keepConnected) {
-    const r = restoreFlowContext(kept, joinComponents(kept));
     // Keep the original element order for stable rendering.
     const nodeOrder = new Map(base.nodes.map((n, i) => [n.id, i]));
     const edgeOrder = new Map(base.edges.map((e, i) => [e.id, i]));
-    nodes = r.nodes.sort((a, b) => (nodeOrder.get(a.id) ?? 0) - (nodeOrder.get(b.id) ?? 0));
-    edges = r.edges.sort((a, b) => (edgeOrder.get(a.id) ?? 0) - (edgeOrder.get(b.id) ?? 0));
+    nodes.sort((a, b) => (nodeOrder.get(a.id) ?? 0) - (nodeOrder.get(b.id) ?? 0));
+    edges.sort((a, b) => (edgeOrder.get(a.id) ?? 0) - (edgeOrder.get(b.id) ?? 0));
   }
-  const nodeSet = new Set(nodes.map((n) => n.id));
-  const edgeSet = new Set(edges.map((e) => e.id));
   const usedGroups = new Set<string>();
   const baseIdx = indexGraph({ nodes: [], edges: [], groups: base.groups });
   for (const n of nodes) {
@@ -630,7 +643,7 @@ export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowG
     overlays,
     meta: {
       ...(base.meta ?? {}),
-      abstraction: { minEdgeShare, minNodeShare, keepConnected, collapse: collapse || undefined },
+      abstraction: { minEdgeShare, minNodeShare, keepConnected, collapse: collapse || undefined, ...(Object.keys(removedEdges).length && { removedEdges }) },
     },
   };
 }

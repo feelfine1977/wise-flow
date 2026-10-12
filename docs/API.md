@@ -25,7 +25,8 @@ export interface FlowGraph { nodes: FlowNode[]; edges: FlowEdge[]; groups?: Flow
   overlays?: Overlay[]; meta?: FlowMeta; focus?: string; paths?: FlowPaths; }   // focus, paths: 0.3
 export interface FlowMeta { abstraction?: number | AbstractionMeta; [key: string]: unknown }
 export interface AbstractionMeta { minEdgeShare?: number; minNodeShare?: number; keepConnected?: boolean;
-  collapse?: string[] | "all" }
+  collapse?: string[] | "all";
+  removedEdges?: { constraint?: number; flow?: number } }   // edges removed with an element at an end; see "Aggregation"
 
 export const MAP_TARGET = "__map";      // overlay target for map-level chips
 export function validateGraph(g: FlowGraph): GraphIssue[];
@@ -158,8 +159,18 @@ export function isConnected(g: FlowGraph): boolean;
 export function diff(a: FlowGraph, b: FlowGraph, o?: { metrics?: string[] }): FlowGraph;
 ```
 
-Guarantees of `abstract`: events, gateways, constraint and flow edges are
-never removed; the thresholded part is monotone (a higher threshold yields a
+Guarantees of `abstract`: events, gateways and the ids in `keep` are never
+removed. A constraint or flow edge is removed only with an activity or stage
+at one of its ends (an edge to an element that is not on the map cannot be
+drawn); `meta.abstraction.removedEdges` counts those by kind (`{ constraint,
+flow }`, absent while none went; abstracting an abstracted graph adds to the
+count it carries). With `keepConnected` an activity re-added to keep the map
+connected brings back its constraint and flow edges to elements on the map,
+tagged `reconnected` like everything re-added. Collapsing a stage folds the
+edges between its members, of every kind, into its `internalCount`. Up to
+this version the documentation said constraint and flow edges were never
+removed, nothing counted the ones that went, and a re-added activity came
+back without them. The thresholded part is monotone (a higher threshold yields a
 subset); with `keepConnected` the result is one connected component
 whenever the input is, restored by a maximum spanning forest over the
 strongest direct edges, then by the cheapest paths through removed nodes,
@@ -173,7 +184,12 @@ changes. A collapsed group becomes a
 are maxima, other metrics weighted means over the members that carry them
 (plain means where none has a weight; summed in id order, so that no input
 order changes them), internal transitions land in `internalCount`
-(summed in ascending order). Edges of one kind between the same two shown
+(summed in ascending order). A stage's `cases` is therefore a lower bound of
+the cases that touch it, and `minNodeShare` compares a collapsed stage by
+that bound: a stage of four activities with 25 different cases each, which
+100 cases touch, reads 25 and goes at 50 % beside an activity of 100 cases,
+with or without `keepConnected`. Its `events` add up, so with `nodeMetric:
+"events"` the stage reads 100 and stays. Edges of one kind between the same two shown
 nodes merge into one, named `source->target`, or `source->target:kind:n`
 where that id is taken; merged edges take their names in the order of their
 smallest original id, not of the input.
@@ -267,8 +283,11 @@ from `createLayoutScope` keys each layout by its inputs: node ids, labels,
 groups and resolved sizes (a size callback counts by what it returns), edge
 ids and endpoints, the groups' ids, kinds, labels and parents, and every other
 option (an `elk` instance by identity). A changed graph or changed options are
-laid out anew; the last `maxEntries` layouts are kept. `dispose()` forgets the
-scope's layouts; the scope stays usable. Caller keys inside a scope go to the
+laid out anew; the last `maxEntries` layouts are kept. `maxEntries` bounds
+the finished layouts a scope keeps, not the layouts running: a scope runs the
+layout of its latest request only (see Stopping). `dispose()` forgets the
+scope's layouts and stops waiting for its latest request; the scope stays
+usable. Caller keys inside a scope go to the
 shared cache as above. `clearLayoutCache()` without a key forgets every cached
 layout, every scope's included.
 
@@ -295,7 +314,11 @@ it is kept like any other and the next request for its inputs is free. A request
 to a scope replaces the scope's earlier request: if that one is still
 running, its promise rejects with an `AbortError` ("A newer layout request
 replaced this one."), and its worker is terminated unless another caller
-still waits for it. A layout asked for again before the current task ends
+still waits for it. Disposing a scope does the same for its latest request
+("The layout scope was disposed."), so a host that disposes a scope need not
+abort its own request; up to this version a layout in flight kept its worker
+running after its scope was disposed, until the layout finished or its
+caller aborted it. A layout asked for again before the current task ends
 (a component that mounts again) keeps running. `timeoutMs` bounds each engine
 run: ELK, and Dagre in a worker. When it passes, the worker running it is
 terminated, so no layout work continues; `engine: "auto"` then falls back to
@@ -721,11 +744,14 @@ export function Chip(props: { chip: Overlay; locale: Locale }): JSX.Element | nu
 ```
 
 `<OverlayLayer/>` draws the given `marks` (or the marks of `shapes`) that are
-on the map and not below the edges, each from its `minZoom` when `zoom` is
-given: those of the layer `between` (arcs) between the edges and the nodes,
-the others above the nodes (before, every mark it drew lay above the nodes);
-`onSelect` receives the shape of a clicked mark. Without `zoom` the layer
-draws every mark. Custom node types draw `marks` and `origin`. `<Badges/>` and `<Chip/>` now draw SVG from the
+on the map and not below the edges, each from its `minZoom` at `zoom`: those
+of the layer `between` (arcs) between the edges and the nodes, the others
+above the nodes (before, every mark it drew lay above the nodes); `onSelect`
+receives the shape of a clicked mark. Without `zoom` it reads the zoom of the
+React Flow map it sits in, as the marks that nodes carry do, so that zooming
+out sheds arcs and self-loops as it sheds badges and chips; up to this
+version it then drew every mark at any zoom, which `zoom={Infinity}` still
+does. `ProcessMap` passes its zoom and is unchanged. Custom node types draw `marks` and `origin`. `<Badges/>` and `<Chip/>` now draw SVG from the
 marks the core resolves for the overlays: badges extend left from the
 top-right corner of the element they are placed in, a chip has the size of
 its mark; `<Chip/>` given an overlay that has no mark on its own (an arc,
@@ -1376,7 +1402,21 @@ fields of `SceneNode` and `SceneEdge` stay as data. `SceneGroup.tint` and `Scene
 group's tint and the node's hatching, but the group and node routines no
 longer paint them: the tint and hatch marks do, once each. `CanvasRenderer` owns the
 viewport (zoom clamped to `minZoom` … `maxZoom`), draws on animation
-frames and follows the device pixel ratio. `toPNG` uses the same figure
+frames and follows the device pixel ratio. A renderer whose scene is
+replaced keeps the ids of the edges its last draw drew, not that scene, so
+that until the next draw a hit on the new scene (or none, after
+`setScene(undefined)`) still leaves out the edges the last draw withheld.
+`dispose()` stops drawing and lets go of the scene, the drawing context,
+`onDraw` and `onViewportChange` (`lastDraw`, which holds counts and no scene,
+stays readable); afterwards every method that
+changes something (`resize`, `setScene`, `setState`, `setTokens`,
+`setViewport`, `fit`, `panBy`, `zoomBy`, `centerOn`, `beginGesture`,
+`endGesture`, `requestDraw`, `draw`) returns without an effect, and
+`getScene()`, `screenBox` and `hitAt` return `undefined`. Up to this version
+a cleared renderer kept the last scene it drew until it drew another, and a
+disposed one kept its scene, context and callbacks while it stayed
+reachable, and still resized its canvas, took a new scene and called
+`onViewportChange`. `toPNG` uses the same figure
 frame (`figureFrame`) and legend as `toSVG` and reads the same
 scene: overlays, follows self-loops (`Scene.selfLoops`, default shown) and
 level of detail at `lodZoom` (default 1, without tightening by size)
@@ -1666,6 +1706,18 @@ edge of the order while the protected edges fit in the budget (the note's
 numbers stay) and beyond it otherwise (the note counts one more), and it is
 withheld again once the keyboard moves on.
 
+Protected edges have no cap, and overlay marks and edge labels are not
+budgeted at all. When more protected edges are in view than the budget, all of
+them are drawn and the note counts them (25 highlighted of 30 under a budget
+of 10: "Showing 25 of 30 flows"); when every edge in view is protected,
+nothing is withheld and no note is shown. A focus on the paths of a hub
+therefore draws every path of it, whatever the budget: measured in headless
+Chromium on a loaded sandbox (the renderer's draw time per frame in motion,
+median of 30), a hub of 2,501 activities and 5,000 paths took 44 ms with every
+path highlighted against 9.3 ms under the default budget (2,000 drawn), and a
+hub of 25,001 activities and 50,000 paths 316 ms against 124 ms (500 drawn;
+there the activities dominate the frame).
+
 `budgetEdges` returns undefined when the budget is `"all"`, undefined, null or
 not a number (`NaN`), or when it withholds nothing (no more edges in view than the budget, or every
 edge protected); otherwise the positions in `scene.edgeMarks` of the edges
@@ -1675,6 +1727,12 @@ of the scene without it. The order by weight is computed once per scene and
 kept with its `edgeMarks` while they live, together with the metric and the
 overlay marks it was read from: a scene object that shares the edge marks but
 has other `marks` or another `style` is ordered and protected by its own.
+Computing it ranks every edge of the scene, not only those in view, so the
+first call that withholds edges (on the Canvas map, the first frame with more
+edges in view than the budget) costs more than the ones after it, which read
+only the edges in view. Measured in Node 24 on a shared sandbox with 5,000
+edges in view, median of 5: 23 ms for a scene of 50,000 edges, 87 ms for
+200,000 and 471 ms for 1,001,000; every later call took 1.4 ms or less.
 
 `<ProcessMap edgeBudget/>` applies it in both renderers (default
 `"adaptive"`, below). The React Flow map has every edge of the

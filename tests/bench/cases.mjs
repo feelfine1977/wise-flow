@@ -55,6 +55,9 @@ export function catalogue({ quick = false, only } = {}) {
     ['draw.sparse-100k', 'Sparse 100,000-activity scene at zoom 1, default budget', { scene: 'sparse', size: 100_000, budget: 'adaptive' }],
     ['draw.hub-50k.adaptive', 'Hub with 50,000 flows in view, default budget', { scene: 'hub', size: 50_000, budget: 'adaptive' }],
     ['draw.hub-50k.all', 'Hub with 50,000 flows in view, budget "all"', { scene: 'hub', size: 50_000, budget: 'all' }],
+    ['draw.hub-50k.highlighted', 'Hub with 50,000 flows in view, every flow highlighted, default budget', { scene: 'hub', size: 50_000, budget: 'adaptive', highlighted: true }],
+    ['draw.hub-5k.adaptive', 'Hub with 5,000 flows in view, default budget', { scene: 'hub', size: 5_000, budget: 'adaptive' }],
+    ['draw.hub-5k.highlighted', 'Hub with 5,000 flows in view, every flow highlighted, default budget', { scene: 'hub', size: 5_000, budget: 'adaptive', highlighted: true }],
     ['draw.fit-all-50k', 'Fit-all view of 50,000 activities, default budget', { scene: 'fitAll', size: 50_000, budget: 'adaptive' }],
   ].map(([id, label, spec]) => ({
     where: 'browser',

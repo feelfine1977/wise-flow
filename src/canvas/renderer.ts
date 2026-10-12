@@ -31,7 +31,7 @@ export type RendererDrawOptions = Omit<DrawOptions, "tokens" | "edgeBudget"> & {
 
 export class CanvasRenderer {
   readonly canvas: HTMLCanvasElement;
-  private ctx: DrawContext | null;
+  private ctx?: DrawContext | null;
   private scene: PreparedScene | undefined;
   private state: DrawState = { selection: emptySelection };
   private viewport: Viewport = { x: 0, y: 0, zoom: 1 };
@@ -42,8 +42,8 @@ export class CanvasRenderer {
   private disposed = false;
   private clock: () => number;
   private adapter: EdgeBudgetAdapter | undefined;
-  /** The scene the last draw drew: `lastDraw.withheld` holds positions in its edge marks. */
-  private drawnScene: PreparedScene | undefined;
+  /** Once the scene changed, the ids of the edges the last draw drew while withholding some. */
+  private drawnIds: Set<string> | undefined;
   tokens: CanvasTokens;
   minZoom: number;
   maxZoom: number;
@@ -68,6 +68,7 @@ export class CanvasRenderer {
 
   /** Size in CSS pixels; the backing store follows the device pixel ratio. */
   resize(width: number, height: number): void {
+    if (this.disposed) return;
     this.width = Math.max(0, Math.floor(width));
     this.height = Math.max(0, Math.floor(height));
     this.canvas.width = Math.max(1, Math.round(this.width * this.dpr));
@@ -82,6 +83,9 @@ export class CanvasRenderer {
   }
 
   setScene(scene: PreparedScene | undefined): void {
+    if (this.disposed || scene === this.scene) return void this.requestDraw();
+    const cut = this.lastDraw?.withheld;
+    if (cut && !this.drawnIds) this.drawnIds = new Set([...cut.drawn].map((i) => this.scene!.edgeMarks[i].id));
     this.scene = scene;
     this.requestDraw();
   }
@@ -91,6 +95,7 @@ export class CanvasRenderer {
   }
 
   setState(patch: Partial<DrawState>): void {
+    if (this.disposed) return;
     this.state = { ...this.state, ...patch };
     this.requestDraw();
   }
@@ -100,6 +105,7 @@ export class CanvasRenderer {
   }
 
   setTokens(tokens: CanvasTokens): void {
+    if (this.disposed) return;
     this.tokens = tokens;
     this.requestDraw();
   }
@@ -109,6 +115,7 @@ export class CanvasRenderer {
   }
 
   setViewport(v: Viewport, notify = true): void {
+    if (this.disposed) return;
     const zoom = Math.min(this.maxZoom, Math.max(this.minZoom, v.zoom));
     this.viewport = { x: v.x, y: v.y, zoom };
     this.requestDraw();
@@ -164,8 +171,7 @@ export class CanvasRenderer {
     const p = this.toFlow(screenX, screenY);
     const cut = this.lastDraw?.withheld;
     // A scene not drawn yet is answered by the ids the last draw drew.
-    const drawn = cut && this.drawnScene !== this.scene ? new Set([...cut.drawn].map((i) => this.drawnScene!.edgeMarks[i].id)) : undefined;
-    return this.scene.hit.at(p.x, p.y, tolerancePx / this.viewport.zoom).find((it) => !cut || it.kind !== "edge" || (drawn ? drawn.has(it.id) : it.index === undefined || cut.drawn.has(it.index)));
+    return this.scene.hit.at(p.x, p.y, tolerancePx / this.viewport.zoom).find((it) => !cut || it.kind !== "edge" || (this.drawnIds ? this.drawnIds.has(it.id) : it.index === undefined || cut.drawn.has(it.index)));
   }
 
   requestDraw(): void {
@@ -195,14 +201,14 @@ export class CanvasRenderer {
     else run(edgeBudget);
     ctx.restore();
     const ended = typeof performance !== "undefined" ? performance.now() : Date.now();
-    this.drawnScene = this.scene;
+    this.drawnIds = undefined;
     this.lastDraw = { ...stats, ms: ended - started };
     this.onDraw?.(this.lastDraw);
   }
 
   /** A pan or zoom starts: an adaptive edge budget times its frames. */
   beginGesture(): void {
-    (this.adapter ??= edgeBudgetAdapter(this.clock)).start();
+    if (!this.disposed) (this.adapter ??= edgeBudgetAdapter(this.clock)).start();
   }
 
   /** It ends: an adaptive edge budget may move a step and is drawn. */
@@ -210,9 +216,10 @@ export class CanvasRenderer {
     if (this.adapter?.end()) this.requestDraw();
   }
 
+  /** Lets go of the scene, the context and the callbacks; every method that changes something then returns early. */
   dispose(): void {
     this.disposed = true;
     if (this.frame !== undefined && typeof cancelAnimationFrame === "function") cancelAnimationFrame(this.frame);
-    this.frame = undefined;
+    this.frame = this.scene = this.drawnIds = this.ctx = this.adapter = this.onDraw = this.onViewportChange = undefined;
   }
 }

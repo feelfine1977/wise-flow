@@ -20,7 +20,7 @@ import elkWorkerUrl from "../../../dist/elk-worker.min.js?url";
 import dagreWorkerUrl from "../../../dist/dagre-worker.min.js?url";
 
 export type BrowserCase =
-  | { kind: "draw"; scene: "sparse" | "hub" | "fitAll"; size: number; budget: "adaptive" | "all"; trials: number; warmup: number }
+  | { kind: "draw"; scene: "sparse" | "hub" | "fitAll"; size: number; budget: "adaptive" | "all"; highlighted?: boolean; trials: number; warmup: number }
   | { kind: "ready"; activities: number; trials: number; warmup: number }
   | { kind: "firstScene"; shape: "sparse" | "dense"; activities: number; trials: number; warmup: number }
   | { kind: "abort"; trials: number; warmup: number };
@@ -135,6 +135,8 @@ async function draw(spec: Extract<BrowserCase, { kind: "draw" }>): Promise<PageR
   const renderer = new CanvasRenderer(canvas, { devicePixelRatio: 1, draw: { edgeBudget: spec.budget } });
   renderer.resize(WIDTH, HEIGHT);
   renderer.setScene(scene);
+  // Every flow on a highlighted path, as when the hub's paths are in focus: all are protected from the budget.
+  if (spec.highlighted) renderer.setState({ highlighted: new Set(graph.edges.map((e) => e.id)) });
   if (spec.scene === "sparse") renderer.centerOn({ x: positions.bounds.x + positions.bounds.width / 2, y: positions.bounds.y + positions.bounds.height / 2 }, 1);
   else renderer.fit();
   await settle();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type Overlay, buildScene, toSVG } from "../../src/index";
+import { type FlowNode, type Overlay, buildScene, createPositions, toSVG } from "../../src/index";
 import { type DrawContext, type DrawState, defaultTokens, drawScene, prepareScene, toPNGCanvas } from "../../src/canvas/index";
 import * as elements from "./element-kinds";
 import { graph, overlays, positions } from "./overlay-kinds";
@@ -292,6 +292,18 @@ describe("Canvas node and edge marks", () => {
     // leave room for 25 and the ellipsis, 12 per character for 12 and the ellipsis.
     expect(label("Narrow", 6)).toBe("Change Approval for Purch…");
     expect(label("Wide", 12)).toBe("Change Appro…");
+  });
+
+  it("cuts a label again for a width that rounds to the same whole number", () => {
+    // Two cards with one name; their labels may be 124.4 − 24 = 100.4 and 123.6 − 24 = 99.6 wide.
+    const nodes = ["wide", "narrow"].map((id): FlowNode => ({ id, kind: "activity", label: "abcdefghijklmno" }));
+    const boxes = { wide: { x: 0, y: 0, width: 124.4, height: 48 }, narrow: { x: 0, y: 100, width: 123.6, height: 48 } };
+    const scene = prepareScene({ nodes, edges: [] }, createPositions({ nodes: boxes, groups: {}, edges: {} }, "given", "RIGHT"), { selfLoops: false, lodBySize: false });
+    const { ctx, ops } = drawingContext();
+    ctx.measureText = (text: string) => ({ width: text.length * 10 });
+    drawScene(ctx, scene, { x: 0, y: 0, zoom: 1, width: 1000, height: 600 }, undefined, { cull: false });
+    // At 10 per character, nine characters and the ellipsis take 100: they fit 100.4, eight and the ellipsis fit 99.6.
+    expect(written(ops).filter((t) => t.text?.startsWith("abc")).map((t) => t.text)).toEqual(["abcdefghi…", "abcdefgh…"]);
   });
 
   it("draws the marks it is given rather than the other node and edge fields", () => {

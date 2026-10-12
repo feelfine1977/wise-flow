@@ -107,6 +107,9 @@ groups into stage nodes (semantic zoom) and restores connectivity: first a
 maximum spanning forest over the strongest direct edges between the kept
 nodes, then the cheapest paths of the original graph through removed nodes,
 then one edge per activity that lost all incoming or all outgoing paths.
+A re-added activity brings back its constraint and flow edges to elements on
+the map; constraint and flow edges otherwise go only with an element at one
+of their ends, and `meta.abstraction.removedEdges` counts them.
 Re-added elements are tagged `reconnected` and drawn dashed. The thresholded
 part is monotone in the thresholds; the reconnection is bounded (paths
 between components plus one edge per open need) but not a global optimum,
@@ -166,7 +169,7 @@ positions), otherwise on the calling thread only up to `fallbackLimit` nodes
 plus edges; above it the layout fails with `LayoutUnavailableError` and the
 map keeps its provisional arrangement. **Stopping**: each layout is a job that
 runs while somebody waits for it; a caller's `signal`, a newer request to the
-same scope and `timeoutMs` (per engine run) stop waiting, and a job nobody
+same scope, disposing that scope and `timeoutMs` (per engine run) stop waiting, and a job nobody
 waits for terminates its worker (one worker per running job, so no other
 layout is affected) and reads nothing it sends afterwards. In-process ELK
 cannot be interrupted; its result is discarded.

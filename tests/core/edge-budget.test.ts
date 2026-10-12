@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type FlowEdge, type FlowGraph, type FlowNode, type Overlay, budgetEdges, buildScene, createPositions, toSVG } from "../../src/index";
-import { CanvasRenderer, type DrawContext, type PreparedScene, drawScene, prepareScene } from "../../src/canvas/index";
+import { CanvasRenderer, type DrawContext, type DrawState, type PreparedScene, drawScene, prepareScene } from "../../src/canvas/index";
 
 /** Activities in a row, 100 apart, each 60 × 40. */
 function boxes(ids: string[]) {
@@ -119,6 +119,47 @@ function seededGraph(seed: number, n: number): { nodes: string[]; edges: FlowEdg
   return { nodes, edges };
 }
 
+describe("the edge budget's first use", () => {
+  /**
+   * `retained` paths from one activity to as many others; `reads` counts the
+   * paths the budget looks at (an index into the edge marks).
+   */
+  function counted(retained: number) {
+    const graph: FlowGraph = {
+      nodes: [{ id: "h", kind: "activity", label: "h" }, ...Array.from({ length: retained }, (_, i): FlowNode => ({ id: `t${i}`, kind: "activity", label: `t${i}` }))],
+      edges: Array.from({ length: retained }, (_, i) => follows(`p${i}`, "h", `t${i}`, 1 + (i % 7))),
+    };
+    const built = buildScene(graph, createPositions({ nodes: boxes(graph.nodes.map((n) => n.id)), groups: {}, edges: {} }, "given", "RIGHT"), { selfLoops: false });
+    const reads = { count: 0 };
+    const edgeMarks = new Proxy(built.edgeMarks, {
+      get: (target, key) => {
+        if (typeof key === "string" && /^\d+$/.test(key)) reads.count++;
+        return Reflect.get(target, key);
+      },
+    });
+    return { scene: { ...built, edgeMarks }, reads };
+  }
+
+  it("ranks every retained path on its first use for a scene, and reads only the paths in view after that", () => {
+    // 3,000 paths in view, a budget of 2,000: the same view of 6,000 and of 30,000 retained paths.
+    const inView = Array.from({ length: 3000 }, (_, k) => k * 2);
+    const per = (retained: number) => {
+      const { scene, reads } = counted(retained);
+      budgetEdges(scene, 2000, {}, inView);
+      const first = reads.count;
+      reads.count = 0;
+      const drawn = budgetEdges(scene, 2000, {}, inView);
+      return { first, then: reads.count, shown: drawn?.shown };
+    };
+    const [small, large] = [per(6000), per(30_000)];
+    // The first use reads every retained path to rank them all (more than once each while it sorts them);
+    // later ones read the 3,000 in view, whatever the scene retains.
+    expect(small.first).toBeGreaterThan(6000 + 3000);
+    expect(large.first).toBeGreaterThan(30_000 + 3000);
+    expect([small.then, small.shown, large.then, large.shown]).toEqual([3000, 2000, 3000, 2000]);
+  });
+});
+
 describe("edge budget over seeded graphs", () => {
   it("only removes edges from the end of the order when the budget is lowered", () => {
     for (let seed = 1; seed <= 12; seed++) {
@@ -167,6 +208,36 @@ const recorder = () => {
   }) as unknown as DrawContext;
   return { ctx, calls };
 };
+
+describe("protected paths beyond the budget", () => {
+  // A hub h with 30 paths to t0 … t29, counts 1 … 30; a budget of 10.
+  const leaves = Array.from({ length: 30 }, (_, i) => `t${i}`);
+  const paths = leaves.map((t, i) => follows(`h->${t}`, "h", t, i + 1));
+  const hub = (overlays: Overlay[] = []) => {
+    const graph: FlowGraph = { nodes: ["h", ...leaves].map((id): FlowNode => ({ id, kind: "activity", label: id })), edges: paths, overlays };
+    const placed = Object.fromEntries(["h", ...leaves].map((id, i) => [id, { x: i ? 300 : 0, y: i ? (i - 1) * 50 : 700, width: 60, height: 40 }]));
+    return prepareScene(graph, createPositions({ nodes: placed, groups: {}, edges: {} }, "given", "RIGHT"), { selfLoops: false, lodBySize: false });
+  };
+  const view = { x: 0, y: 0, zoom: 1, width: 400, height: 1600 };
+  const draw = (scene: PreparedScene, state: Partial<DrawState> = {}) => drawScene(recorder().ctx, scene, view, { selection: { nodes: [], edges: [], groups: [] }, ...state }, { cull: false, edgeBudget: 10 });
+
+  it("draws every path of a hub when all are highlighted, and says nothing is withheld", () => {
+    const stats = draw(hub(), { highlighted: new Set(paths.map((e) => e.id)) });
+    expect([stats.edges, stats.withheld]).toEqual([30, undefined]);
+  });
+
+  it("draws every path and every mark when each path carries an overlay mark", () => {
+    const arcs = leaves.map((t): Overlay => ({ kind: "arc", target: `h->${t}`, payload: { source: "h", target: t, value: 0.5 } }));
+    const stats = draw(hub(arcs));
+    expect([stats.edges, stats.shapes, stats.withheld]).toEqual([30, 30, undefined]);
+  });
+
+  it("counts the protected paths it draws beyond the budget in what the note shows", () => {
+    // 25 of the 30 highlighted: all 25 are drawn, none of the other 5, and the note reads 25 of 30.
+    const stats = draw(hub(), { highlighted: new Set(paths.slice(5).map((e) => e.id)) });
+    expect([stats.edges, stats.withheld?.shown, stats.withheld?.total]).toEqual([25, 25, 30]);
+  });
+});
 
 describe("edge budget in the Canvas drawing", () => {
   const graph = sceneOf(["a", "b", "c", "d"], [

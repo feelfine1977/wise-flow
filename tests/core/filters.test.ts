@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { globalScene } from "../../fixtures/bpic2019";
 import {
   type FilterClause,
   type FlowGraph,
@@ -15,6 +16,7 @@ import {
   describeClause,
   describePreview,
   emptyFilter,
+  emptySelection,
   filterEquals,
   normalizeFilterPreview,
   removeClause,
@@ -199,5 +201,35 @@ describe("filters", () => {
       { kind: "activity", op: "contains", activity: "record_goods_receipt" },
       { kind: "activity", op: "contains", activity: "clear_invoice" },
     ]);
+  });
+});
+
+describe("the time clause that cuts events out of cases", () => {
+  const inside: FilterClause = { kind: "time", field: "events_inside", from: "2018-01-01", to: "2018-03-31" };
+  const contains: FilterClause = { kind: "activity", op: "contains", activity: "clear_invoice" };
+
+  it("is made by no map action: every action on every element, pair and set adds activity, path or open-case clauses", () => {
+    const kinds = new Set<string>();
+    const flat = (c: FilterClause | FilterClause[] | undefined): FilterClause[] => (c === undefined ? [] : Array.isArray(c) ? c.flatMap(flat) : c.kind === "any" ? [c, ...flat(c.clauses ?? [])] : [c]);
+    for (const shown of [globalScene, collapseGroups(globalScene, "all")]) {
+      const targets = [
+        ...shown.nodes.map((n) => menuTargetFor(shown, { kind: "node", id: n.id }, emptySelection)),
+        ...shown.edges.map((e) => menuTargetFor(shown, { kind: "edge", id: e.id }, emptySelection)),
+        ...(shown.groups ?? []).map((g) => menuTargetFor(shown, { kind: "group", id: g.id }, emptySelection)),
+        menuTargetFor(shown, { kind: "node", id: shown.nodes[2].id }, { nodes: [shown.nodes[1].id, shown.nodes[2].id], edges: [], groups: [] }),
+        menuTargetFor(shown, { kind: "node", id: shown.nodes[1].id }, { nodes: shown.nodes.slice(1, 5).map((n) => n.id), edges: [], groups: [] }),
+      ];
+      for (const target of targets) for (const action of defaultActions(shown, target)) for (const c of flat(action.clause)) kinds.add(c.kind);
+    }
+    expect([...kinds].sort()).toEqual(["activity", "any", "follows", "open"]);
+  });
+
+  it("is passed on as the host gave it, marked as changing cases", () => {
+    const given = { and: [inside, contains] };
+    expect(changesCases(inside)).toBe(true);
+    expect(canonicalClause(inside)).toEqual(inside);
+    expect(removeClause(given, 1)).toEqual({ and: [inside] });
+    expect(addClause(given, { kind: "open", value: false }).and.slice(0, 2)).toEqual([inside, contains]);
+    expect(describeClause(inside)).toBe("events inside 2018-01-01 – 2018-03-31");
   });
 });

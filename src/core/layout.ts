@@ -728,8 +728,10 @@ export interface LayoutScope {
   /** Number of layouts the scope keeps. */
   readonly size: number;
   /**
-   * Forget the scope's layouts and stop its ELK workers once no other scope or
-   * running layout uses them. The scope stays usable and starts empty.
+   * Forget the scope's layouts, stop waiting for its latest request (which
+   * rejects with an `AbortError` unless it finished) and stop its workers once
+   * no other scope or running layout uses them. The scope stays usable and
+   * starts empty.
    */
   dispose(): void;
 }
@@ -753,6 +755,10 @@ export function createLayoutScope(scopeOptions: LayoutScopeOptions = {}): Layout
   const held = new Set<string>();
   /** The scope's latest request and what stops waiting for it when the next one comes. */
   let latest: { job: Job; replaced: AbortController } | undefined;
+  const replace = (why: string, job?: Job) => {
+    latest?.replaced.abort(new DOMException(why, "AbortError"));
+    latest = job && { job, replaced: new AbortController() };
+  };
   let seen = generation;
   const forgetIfCleared = () => {
     if (seen !== generation) entries.clear();
@@ -773,11 +779,8 @@ export function createLayoutScope(scopeOptions: LayoutScopeOptions = {}): Layout
           entries.delete(oldest);
         }
       }
-      if (latest?.job !== job) {
-        latest?.replaced.abort(new DOMException("A newer layout request replaced this one.", "AbortError"));
-        latest = { job, replaced: new AbortController() };
-      }
-      return wait(job, [options.signal, latest.replaced.signal]);
+      if (latest?.job !== job) replace("A newer layout request replaced this one.", job);
+      return wait(job, [options.signal, latest!.replaced.signal]);
     },
     layoutUnion(scenes, options) {
       return scope.layout(unionGraph(scenes), options);
@@ -787,6 +790,7 @@ export function createLayoutScope(scopeOptions: LayoutScopeOptions = {}): Layout
       return entries.size;
     },
     dispose() {
+      replace("The layout scope was disposed.");
       entries.clear();
       for (const url of held) holdUrl(url, -1);
       held.clear();
