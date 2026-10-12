@@ -250,8 +250,8 @@ const TOKENS = [...new Set(readFileSync(fileURLToPath(new URL("../../src/tokens.
 /**
  * The text, border and outline colours of every form control inside the library's roots under `scope`, each
  * compared with the colours of the tokens resolved where it is drawn and with the colours the browser gives the
- * same control in the same state outside the library (a bare copy). `focused` asks for the colours of the
- * control focused by keyboard, which the copy cannot show. A control's placeholder is checked as its text.
+ * same control in the same state and scheme outside the library (a bare copy). `focused` asks for the colours of
+ * the control focused by keyboard, which the copy cannot show. A control's placeholder is checked as its text.
  */
 const paints = (page: Page, scope: string, state: string) =>
   page.evaluate(
@@ -277,6 +277,8 @@ const paints = (page: Page, scope: string, state: string) =>
         copy.removeAttribute("class");
         copy.removeAttribute("style");
         const style = getComputedStyle(el);
+        // The browser's own colours differ by scheme (a check box is black in the light one, white in the dark one).
+        copy.style.colorScheme = style.colorScheme;
         const bare = getComputedStyle(copy);
         const name = `${el.tagName.toLowerCase()}${el.getAttribute("type") ? `[${el.getAttribute("type")}]` : ""}.${[...el.classList].join(".")} "${el.getAttribute("aria-label") ?? el.textContent?.trim()}" (${state})`;
         const wrong: string[] = [];
@@ -354,4 +356,27 @@ for (const scheme of ["light", "dark"] as const) {
       expect(wrong).toEqual([]);
     });
   }
+}
+
+// The detail panel's sliders and check box set no colour of their own: they take the ink (#1f1f1f, dark #ececec) and
+// the strong line (#8c94a1, dark #6b7280), where the browser gave the sliders #9d968e on Linux and #101010 on macOS.
+for (const [scheme, ink, line] of [
+  ["light", "rgb(31, 31, 31)", "rgb(140, 148, 161)"],
+  ["dark", "rgb(236, 236, 236)", "rgb(107, 114, 128)"],
+] as const) {
+  test(`the detail sliders and the check box are drawn in the ink and the strong line (${scheme})`, async ({ page }) => {
+    await open(page, "process-map--map", scheme);
+    const colours = await page.locator('[data-wf-part="abstraction-panel"] input').evaluateAll((inputs) =>
+      inputs.map((el) => {
+        const style = getComputedStyle(el);
+        return { type: (el as HTMLInputElement).type, color: style.color, border: style.borderTopColor, outline: style.outlineColor };
+      }),
+    );
+    // A check box draws no border, and the browser reports its border colour as its text colour.
+    expect(colours).toEqual([
+      { type: "range", color: ink, border: line, outline: ink },
+      { type: "range", color: ink, border: line, outline: ink },
+      { type: "checkbox", color: ink, border: ink, outline: ink },
+    ]);
+  });
 }
