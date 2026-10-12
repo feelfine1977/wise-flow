@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type Box, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Overlay, type OverlayMark, HitIndex, createPositions } from "../../src/index";
+import { type Box, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Overlay, type OverlayMark, type XY, HitIndex, createPositions } from "../../src/index";
 import { type DrawOptions, type DrawState, type PreparedScene, type PrepareOptions, type SceneEdge, type SceneGroup, type SceneNode, type View, CanvasRenderer, drawScene, prepareScene, toPNGCanvas } from "../../src/canvas/index";
 import { type FamilyName, families } from "../support/graphs";
 import { type ListName, type Visit, drawn, inkContext, keyOf, watch } from "../support/ink";
@@ -320,30 +320,62 @@ interface Candidate {
   kind: string;
 }
 
+/** Distance from (x, y) to the segment a–b. */
+function segmentDistance(x: number, y: number, a: XY, b: XY): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  const t = len2 > 0 ? Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / len2)) : 0;
+  return Math.hypot(x - (a.x + t * dx), y - (a.y + t * dy));
+}
+
 /**
- * Every element within `tol` of a flow point: a box when the point is within
- * `tol` of it, an edge when the point is within `tol` of one of its segments.
- * The one painted on top first: marks above the nodes (badges, chips, hatching,
- * self-loops), nodes, arcs, edges, tints, groups; among them the smaller box
- * first (a segment's box with the tolerance of 4 added); then the id.
+ * Whether a mark drawn as a path is under the point: within `tol` and half its stroke of its curve, cut into
+ * chords at equal steps of t, as many as its control polygon's length over 8 and at least 16, or within `tol`
+ * of the box of a text (0.55 em per character, from a size above the baseline to a third of a size below).
+ */
+function onCurve(m: OverlayMark, x: number, y: number, tol: number): boolean {
+  const [x0, y0, x1, y1, x2, y2, x3, y3] = m.path!.split(/[MC ]+/).filter(Boolean).map(Number);
+  const n = Math.max(16, Math.ceil((Math.hypot(x1 - x0, y1 - y0) + Math.hypot(x2 - x1, y2 - y1) + Math.hypot(x3 - x2, y3 - y2)) / 8));
+  const bezier = (t: number): XY => ({ x: (1 - t) ** 3 * x0 + 3 * (1 - t) ** 2 * t * x1 + 3 * (1 - t) * t ** 2 * x2 + t ** 3 * x3, y: (1 - t) ** 3 * y0 + 3 * (1 - t) ** 2 * t * y1 + 3 * (1 - t) * t ** 2 * y2 + t ** 3 * y3 });
+  for (let k = 0; k < n; k++) if (segmentDistance(x, y, bezier(k / n), bezier((k + 1) / n)) <= tol + m.stroke!.width / 2) return true;
+  return m.texts.some((t) => {
+    const w = [...t.text].length * 0.55 * t.size;
+    const left = t.anchor === "middle" ? t.x - w / 2 : t.x;
+    return left - tol <= x && x <= left + w + tol && t.y - t.size - tol <= y && y <= t.y + t.size / 3 + tol;
+  });
+}
+
+/**
+ * Every element within `tol` of a flow point where it is drawn: a box when the
+ * point is within `tol` of it, an edge when the point is within `tol` of one of
+ * its segments, an arc or a self-loop within `tol` and half its stroke of its
+ * curve or within `tol` of its label, a gateway inside its diamond (half its
+ * width from its centre along each axis) or within `tol` of one of its four
+ * sides. The one painted on top
+ * first: marks above the nodes (badges, chips, hatching, self-loops), nodes,
+ * arcs, edges, tints, groups; among them the smaller box first (a segment's
+ * box with the tolerance of 4 added); then the id.
  */
 function referenceHits(scene: PreparedScene, x: number, y: number, tol: number, withheld: Set<number> | undefined): Candidate[] {
   const near = (b: Box) => b.x - tol <= x && x <= b.x + b.width + tol && b.y - tol <= y && y <= b.y + b.height + tol;
   const out: Candidate[] = [];
   for (const [i, m] of scene.marks.entries()) {
-    if (m.inMap && near(scene.shapes[i])) out.push({ rank: m.kind === "tint" ? 4 : m.kind === "arc" ? 2 : 0, area: m.box.width * m.box.height, id: m.overlay.target, kind: "overlay" });
+    if (m.inMap && (m.path === undefined ? near(scene.shapes[i]) : onCurve(m, x, y, tol))) out.push({ rank: m.kind === "tint" ? 4 : m.kind === "arc" ? 2 : 0, area: m.box.width * m.box.height, id: m.overlay.target, kind: "overlay" });
   }
-  for (const n of scene.nodes) if (near(n.box)) out.push({ rank: 1, area: n.box.width * n.box.height, id: n.node.id, kind: "node" });
+  for (const n of scene.nodes) {
+    const b = n.box;
+    const [cx, cy, h] = [b.x + b.width / 2, b.y + b.height / 2, b.width / 2];
+    const corners = [{ x: cx, y: cy - h }, { x: cx + h, y: cy }, { x: cx, y: cy + h }, { x: cx - h, y: cy }];
+    const inDiamond = Math.abs(x - cx) + Math.abs(y - cy) <= h || corners.some((c, k) => segmentDistance(x, y, c, corners[(k + 1) % 4]) <= tol);
+    if (n.node.kind === "gateway" ? inDiamond : near(b)) out.push({ rank: 1, area: b.width * b.height, id: n.node.id, kind: "node" });
+  }
   for (const [i, e] of scene.edges.entries()) {
     if (withheld && !withheld.has(i)) continue;
     const pts = e.mark.points;
     for (let k = 0; k + 1 < pts.length; k++) {
       const [a, b] = [pts[k], pts[k + 1]];
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
-      const len2 = dx * dx + dy * dy;
-      const t = len2 > 0 ? Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / len2)) : 0;
-      if (Math.hypot(x - (a.x + t * dx), y - (a.y + t * dy)) <= tol) out.push({ rank: 3, area: (Math.abs(dx) + 8) * (Math.abs(dy) + 8), id: e.edge.id, kind: "edge" });
+      if (segmentDistance(x, y, a, b) <= tol) out.push({ rank: 3, area: (Math.abs(b.x - a.x) + 8) * (Math.abs(b.y - a.y) + 8), id: e.edge.id, kind: "edge" });
     }
   }
   for (const g of scene.groups) if (near(g.box)) out.push({ rank: 5, area: g.box.width * g.box.height, id: g.group.id, kind: "group" });
@@ -417,7 +449,8 @@ describe("the area query of the hit index against a brute-force search", () => {
       const rng = createRandom(seed + 500_009);
       const { positions, geometry } = scene;
       const index = HitIndex.fromScene(positions, geometry);
-      // Every item with its key and the bounds the index holds: a box, a segment grown by the tolerance of 4, a shape.
+      // Every item with its key and the bounds the index holds: a box, a segment grown by the tolerance of 4, a shape,
+      // an arc's or a self-loop's grown by half its stroke (an arc's 2 plus 8 times its coverage, 1 by default; a loop's 2.5).
       const items: { key: string; e: Extent }[] = [];
       for (const [id, b] of Object.entries(positions.groups)) items.push({ key: `group:${id}`, e: whole(extentOf(b)) });
       for (const [id, b] of Object.entries(positions.nodes)) items.push({ key: `node:${id}`, e: whole(extentOf(b)) });
@@ -427,7 +460,11 @@ describe("the area query of the hit index against a brute-force search", () => {
           items.push({ key: `edge:${id}:${a.x},${a.y}-${b.x},${b.y}`, e: whole({ minX: Math.min(a.x, b.x) - 4, minY: Math.min(a.y, b.y) - 4, maxX: Math.max(a.x, b.x) + 4, maxY: Math.max(a.y, b.y) + 4 }) });
         }
       }
-      for (const s of geometry.shapes) items.push({ key: `overlay:${s.id}`, e: whole(extentOf(s)) });
+      for (const s of geometry.shapes) {
+        const c = Number(s.overlay.payload?.coverage);
+        const half = s.kind === "arc" ? (2 + 8 * (Number.isFinite(c) ? Math.max(0, Math.min(1, c)) : 1)) / 2 : s.kind === "selfLoop" ? 1.25 : 0;
+        items.push({ key: `overlay:${s.id}`, e: whole(extentOf({ x: s.x - half, y: s.y - half, width: s.width + 2 * half, height: s.height + 2 * half })) });
+      }
       const keyOfItem = (it: { kind: string; id: string; shapeId?: string; segment?: [{ x: number; y: number }, { x: number; y: number }] }) =>
         it.kind === "edge" ? `edge:${it.id}:${it.segment![0].x},${it.segment![0].y}-${it.segment![1].x},${it.segment![1].y}` : `${it.kind}:${it.shapeId ?? it.id}`;
       const boxes: Box[] = [...Object.values(positions.nodes), ...Object.values(positions.groups), ...geometry.shapes];

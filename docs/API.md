@@ -489,11 +489,14 @@ Canvas map, the React map and the BPMN view) all draw these courses.
 export class HitIndex { constructor(edgeTolerance?: number);
   static fromScene(p: Positions, g?: OverlayGeometry, edgeTolerance?: number,
     indexOf?: (kind: HitItem["kind"], id: string) => number | undefined,
-    extentOf?: (item: HitItem) => Box | undefined): HitIndex;   // a box the item's bounds also cover
+    extentOf?: (item: HitItem) => Box | undefined,   // a box the item's bounds also cover
+    diamond?: (nodeId: string) => boolean): HitIndex;   // nodes drawn as a diamond (gateways)
   at(x, y, tolerance?): HitItem[]; within(box: Box): HitItem[] }
 export interface HitItem { minX; minY; maxX; maxY; id: string; kind: "node" | "edge" | "group" | "overlay";
   segment?: [XY, XY]; shapeId?: string; index?: number;   // index: indexOf(kind, id or shape id)
-  box?: Box; layer?: "below" | "between" | "above" }   // box: of a node, group or overlay shape, what hit tests read; layer: of an overlay shape
+  box?: Box; layer?: "below" | "between" | "above";   // box: of a node, group or overlay shape, what hit tests read; layer: of an overlay shape
+  curve?: { points: XY[]; reach: number; label?: Box };   // an arc's or a self-loop's curve, half its stroke, its label's box
+  diamond?: boolean }   // a node hit by its diamond
 export interface Scene { graph; positions; overlays?; style?; title?; subtitle?; locale?; lanes?: LaneMode;
   activityLabels?: ActivityLabelOptions; selfLoops?: boolean }
 export interface ExportOptions { preset?: "single-column" | "double-column" | "slide" | "none"; width?; legend?;
@@ -548,18 +551,36 @@ costs it a heap object: an area query (`within`) may therefore find an item
 whose bounds end less than a unit short of the box. With `extentOf` each
 item's bounds also cover the box the callback returns for it, so that an
 area query finds an element whose drawing reaches beyond its box. `at`
-tests the point against the element's own box (`HitItem.box`, carried by
-every node, group and overlay item), not the bounds, and an edge against its
-segment, so a hit test is exact. `at` lists the items within `tolerance` of
-the point (a box when the point is within the tolerance of it, an edge when
-it is within the tolerance of one of its segments) with the one painted on
-top first: overlay shapes above the nodes (badges, chips, hatching,
+tests the point against what the element draws, not the bounds, so a hit
+test is exact: a node's, group's or overlay shape's own box (`HitItem.box`),
+an edge's segment, an arc's or a self-loop's curve and label, a gateway's
+diamond. `at` lists the items within `tolerance` of the point (a box when the
+point is within the tolerance of it, an edge when it is within the tolerance
+of one of its segments) with the one painted on top first: overlay shapes above the nodes (badges, chips, hatching,
 self-loops), nodes, arcs, edges, tints, groups; among those the smaller
 element first (a segment with the tolerance around it), then by id. Overlay
 items carry their shape's layer (`HitItem.layer`, see `OverlayMark.layer`);
 an item without one ranks above the nodes. Up to 0.3.5 every overlay shape
 ranked first, so inside a tinted group every hit was the tint, and where an
 arc crossed a node, the arc.
+
+Arcs and self-loops are hit where they are drawn: within `tolerance` plus half
+their stroke of their curve (`HitItem.curve`: the cubic of the path cut into
+chords at equal steps, as many as its control polygon's length over 8 and at
+least 16, so that a chord stays within a fraction of a unit of the curve), or
+within `tolerance` of their label's box (each text 0.55 em per character
+wide, from a size above its baseline to a third of a size below). Their
+bounds are the shape's box grown by half the stroke. A node for which
+`diamond` is true (the Canvas scene passes its gateways) is hit inside its
+diamond, whose half diagonals are half the box's width, or within
+`tolerance` of its sides: also where a gateway wider than tall reaches beyond
+its box (its bounds grow to hold the diamond), and not in the box's corners.
+Up to this change their whole box took the hit: a path under an arc's box
+could not be hovered or clicked there (on the BPIC global scene with stage
+lanes, 1,164 of 40,000 grid points within 4 of a path and more than 8 from
+every arc's curve returned the arc), and a point inside an activity near its
+self-loop returned the loop. This applies to the Canvas map's hover, click
+and right click, `CanvasRenderer.hitAt` and the hit index of `prepareScene`.
 
 The legend and the figure frame are described once. `sceneLegend` lists the
 scale items, a key row for each overlay kind present (badges, arcs,

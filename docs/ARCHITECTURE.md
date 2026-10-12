@@ -248,7 +248,9 @@ An R-tree (rbush) over nodes, groups, edge segments and overlay shapes for
 hover and click on Canvas and in exports; a hit lists what is painted on
 top first (marks above the nodes, nodes, arcs, edges, tints, groups), and
 an item's bounds may cover more than the element's box (what the Canvas
-drawing puts beyond it) while the hit test keeps to the box. `buildScene` resolves graph,
+drawing puts beyond it) while the hit test keeps to what the element draws:
+its box, an edge's segments, an arc's or a self-loop's curve and label, a
+gateway's diamond. `buildScene` resolves graph,
 positions and options once into the scene renderers read (activity
 references, lane bands, scales, the overlays to show with the follows
 self-loops in canonical order, level-of-detail rules, overlay geometry,

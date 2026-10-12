@@ -279,7 +279,7 @@ export function retainScene(scene: FlowScene): PreparedScene {
       }
     }
   };
-  const hit = HitIndex.fromScene(routed, { ...geometry, shapes: shown }, undefined, (kind, id) => at[kind].get(id), extentOf);
+  const hit = HitIndex.fromScene(routed, { ...geometry, shapes: shown }, undefined, (kind, id) => at[kind].get(id), extentOf, (id) => nodes[at.node.get(id)!].mark.shape === "diamond");
   return {
     ...scene,
     shapes: geometry.shapes,
