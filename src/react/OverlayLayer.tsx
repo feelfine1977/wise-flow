@@ -1,84 +1,56 @@
-import { ViewportPortal } from "@xyflow/react";
-import { type Locale, type OverlayShape, colorOn, formatShare } from "../core/index.js";
+import { EdgeLabelRenderer, ViewportPortal, useStore } from "@xyflow/react";
+import { type Locale, type OverlayMark, type OverlayShape, overlayMarks } from "../core/index.js";
+import { type MarkIds, domMark, markDefs, svgReact } from "./marks.js";
 
 export interface OverlayLayerProps {
-  shapes: OverlayShape[];
+  /** The scene's overlay marks (`FlowScene.marks`). Without them, the marks of `shapes`. */
+  marks?: OverlayMark[];
+  /** The placed shapes; `onSelect` receives the shape of the mark that was clicked. */
+  shapes?: OverlayShape[];
   locale: Locale;
-  showArcs: boolean;
-  showSelfLoops: boolean;
+  /** Zoom of the map: each mark is drawn from its `minZoom`. Default: React Flow's zoom, as for the marks of nodes. */
+  zoom?: number;
   hoveredId: string | null;
   onHover?: (id: string | null) => void;
   onSelect?: (shape: OverlayShape) => void;
 }
 
-function colorOf(shape: OverlayShape): string {
-  const v = shape.overlay.payload?.value;
-  return typeof v === "number" && Number.isFinite(v) ? colorOn(v, "sequential", [0, 1]) : "#8c8c8c";
-}
+const IDS: MarkIds = { arrow: "wf-arc-arrow", pattern: "wf-overlay-outofscope" };
 
-/** Arcs and self-loops drawn in flow coordinates above the nodes. */
-export function OverlayLayer({ shapes, locale, showArcs, showSelfLoops, hoveredId, onHover, onSelect }: OverlayLayerProps) {
-  const visible = shapes.filter((s) => (s.kind === "arc" && showArcs) || (s.kind === "selfLoop" && showSelfLoops));
+/**
+ * Overlay marks in flow coordinates. The map hands it the marks that run between
+ * elements: arcs (`layer: "between"`) above the edges and below the nodes, in the
+ * container React Flow keeps between them, and self-loops above the nodes. The
+ * marks an element carries are drawn by its node or group, and map-level chips by
+ * the legend.
+ */
+export function OverlayLayer({ marks, shapes = [], locale, zoom: given, hoveredId, onHover, onSelect }: OverlayLayerProps) {
+  const zoom = useStore((s) => given ?? s.transform[2]);
+  const all = marks ?? overlayMarks(shapes, locale);
+  const visible = all.filter((m) => m.inMap && m.layer !== "below" && zoom >= m.minZoom);
   if (!visible.length) return null;
+  const shapeOf = (m: OverlayMark): OverlayShape => shapes.find((s) => s.id === m.id) ?? { id: m.id, overlay: m.overlay, kind: m.kind, ...m.box, path: m.path, minZoom: m.minZoom };
+  const between = visible.filter((m) => m.layer === "between");
+  // React Flow stacks edges and nodes from 0, each above the elements before it.
+  const layer = (Portal: typeof ViewportPortal, list: OverlayMark[], zIndex: number, defs: boolean) =>
+    list.length ? (
+      <Portal>
+        <svg className="wf-overlay-layer" style={{ position: "absolute", left: 0, top: 0, width: 1, height: 1, overflow: "visible", zIndex }} aria-hidden="true">
+          {defs ? svgReact(markDefs(IDS)) : null}
+          {list.map((m) =>
+            svgReact(domMark(m, IDS, hoveredId === m.id), m.id, {
+              onMouseEnter: () => onHover?.(m.id),
+              onMouseLeave: () => onHover?.(null),
+              onClick: () => onSelect?.(shapeOf(m)),
+            }),
+          )}
+        </svg>
+      </Portal>
+    ) : null;
   return (
-    <ViewportPortal>
-      <svg className="wf-overlay-layer" style={{ position: "absolute", left: 0, top: 0, width: 1, height: 1, overflow: "visible", zIndex: 1001 }} aria-hidden="true">
-        <defs>
-          <marker id="wf-arc-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
-            <path d="M0 0L10 5L0 10z" fill="context-stroke" />
-          </marker>
-        </defs>
-        {visible.map((s) => {
-          const p = s.overlay.payload ?? {};
-          const color = colorOf(s);
-          const hovered = hoveredId === s.id;
-          const value = typeof p.value === "number" && Number.isFinite(p.value) ? formatShare(p.value, locale) : "";
-          if (s.kind === "arc") {
-            const coverage = typeof p.coverage === "number" ? Math.max(0, Math.min(1, p.coverage)) : 1;
-            const width = 2 + 8 * coverage;
-            return (
-              <g key={s.id} className={`wf-arc${p.reverse ? " wf-arc--reverse" : ""}`} data-constraint={p.constraintId}>
-                <title>{[p.label, p.text].filter(Boolean).join(" — ")}</title>
-                <path
-                  d={s.path}
-                  fill="none"
-                  stroke={hovered ? "var(--wf-focus)" : color}
-                  strokeWidth={width}
-                  strokeOpacity={0.9}
-                  strokeDasharray={p.reverse ? "6 4" : undefined}
-                  markerEnd="url(#wf-arc-arrow)"
-                  onMouseEnter={() => onHover?.(s.id)}
-                  onMouseLeave={() => onHover?.(null)}
-                  onClick={() => onSelect?.(s)}
-                />
-                {s.labelX !== undefined && s.labelY !== undefined ? (
-                  <text x={s.labelX} y={s.labelY} textAnchor="middle">
-                    {`${p.glyph ?? ""} ${value}`.trim()}
-                  </text>
-                ) : null}
-              </g>
-            );
-          }
-          return (
-            <g key={s.id} className="wf-selfloop" data-constraint={p.constraintId}>
-              <title>{[p.label, p.text].filter(Boolean).join(" — ")}</title>
-              <path
-                d={s.path}
-                fill="none"
-                stroke={hovered ? "var(--wf-focus)" : color}
-                strokeWidth={2.5}
-                markerEnd="url(#wf-arc-arrow)"
-                onMouseEnter={() => onHover?.(s.id)}
-                onMouseLeave={() => onHover?.(null)}
-                onClick={() => onSelect?.(s)}
-              />
-              {s.labelX !== undefined && s.labelY !== undefined && value ? (
-                <text x={s.labelX} y={s.labelY}>{`↻ ${value}`}</text>
-              ) : null}
-            </g>
-          );
-        })}
-      </svg>
-    </ViewportPortal>
+    <>
+      {layer(EdgeLabelRenderer, between, 0, true)}
+      {layer(ViewportPortal, visible.filter((m) => m.layer === "above"), 1001, !between.length)}
+    </>
   );
 }

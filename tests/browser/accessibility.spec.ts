@@ -25,3 +25,18 @@ test("the graph table is usable by keyboard without opening the map", async ({ p
   await page.keyboard.press("Enter");
   await expect(row).toHaveClass(/wf-row--selected/);
 });
+
+test("paged tables keep their rows, search and pages accessible", async ({ page }, testInfo) => {
+  await page.goto("/iframe.html?id=table-alternative--paged&viewMode=story");
+  const tables = page.locator(".wf-table");
+  await expect(tables).toBeVisible();
+  const first = page.locator(".wf-table table").first();
+  await expect(first.locator("tbody tr")).toHaveCount(10);
+  await page.getByRole("button", { name: "Next rows" }).first().click();
+  await expect(first.locator("tbody tr").first()).toHaveAttribute("aria-rowindex", "12");
+  await page.getByRole("searchbox", { name: "Search the tables" }).fill("invoice");
+  await expect(first.locator("tbody tr").first()).toHaveAttribute("aria-rowindex", "2");
+  const result = await new AxeBuilder({ page }).include(".wf-table").withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+  await testInfo.attach("accessibility", { body: JSON.stringify(result, null, 2), contentType: "application/json" });
+  expect(result.violations).toEqual([]);
+});

@@ -3,66 +3,27 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BpmnView, type BpmnSelection } from "../../src/react/BpmnView";
+import { type BpmnSelection, createBpmnView } from "../../src/react/BpmnView";
+import { type MemoryViewer, memoryViewers } from "./memory-viewer";
 
-// Model the selection service's diagram.clear/root.set events during import and
-// teardown, with import completion controlled separately from those events.
-const mock = vi.hoisted(() => {
-  const task = { id: "receive", businessObject: {
-    id: "receive", get: () => undefined,
-    $instanceOf: (type: string) => type === "bpmn:Activity",
-  } };
-  type Element = typeof task;
-  class Viewer {
-    static instances: Viewer[] = [];
-    handlers = new Map<string, ((event: Record<string, unknown>) => void)[]>();
-    selected: Element[] = [];
-    imports: (() => void)[] = [];
-    destroyed = false;
-    layer = document.createElementNS("http://www.w3.org/2000/svg", "g");
-    constructor() { Viewer.instances.push(this); }
-    on(name: string, fn: (event: Record<string, unknown>) => void) {
-      this.handlers.set(name, [...(this.handlers.get(name) ?? []), fn]);
-    }
-    off(name: string, fn: (event: Record<string, unknown>) => void) {
-      this.handlers.set(name, (this.handlers.get(name) ?? []).filter((handler) => handler !== fn));
-    }
-    select(elements: Element[] | Element | null) {
-      this.selected = elements === null ? [] : Array.isArray(elements) ? elements : [elements];
-      for (const handler of this.handlers.get("selection.changed") ?? []) handler({ newSelection: this.selected });
-    }
-    importXML() {
-      this.select(null);
-      return new Promise<{ warnings: string[] }>((resolve) => this.imports.push(() => resolve({ warnings: [] })));
-    }
-    get(name: string) {
-      if (name === "selection") return { get: () => this.selected, select: (elements: Element[] | Element | null) => this.select(elements) };
-      if (name === "elementRegistry") return { get: (id: string) => id === task.id ? task : undefined, getAll: () => [task] };
-      if (name === "overlays") return { remove() {} };
-      if (name === "canvas") return { getLayer: () => this.layer, zoom: () => 1, resized() {}, removeMarker() {} };
-      throw new Error(`Unexpected service ${name}`);
-    }
-    destroy() { this.destroyed = true; this.select(null); }
-  }
-  return { Viewer, task };
-});
-vi.mock("bpmn-js/lib/NavigatedViewer.js", () => ({ default: mock.Viewer }));
-vi.mock("bpmn-js/lib/Modeler.js", () => ({ default: mock.Viewer }));
+// The viewer clears its selection when it imports and when it is destroyed; imports finish when the test says so.
+const viewers = memoryViewers({ deferImports: true });
+const BpmnView = createBpmnView(viewers.connect);
 
 const xml = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../fixtures/p2p_small.bpmn"), "utf8");
-const selected: BpmnSelection = { tasks: ["receive"], flows: [], lanes: [] };
+const selected: BpmnSelection = { tasks: ["Task_CreatePO"], flows: [], lanes: [] };
 const empty: BpmnSelection = { tasks: [], flows: [], lanes: [] };
-beforeEach(() => { mock.Viewer.instances = []; });
+beforeEach(() => { viewers.instances.length = 0; });
 afterEach(cleanup);
 
 async function viewerAt(index = 0) {
-  await waitFor(() => expect(mock.Viewer.instances[index]?.imports.length).toBeGreaterThan(0));
-  return mock.Viewer.instances[index];
+  await waitFor(() => expect(viewers.instances[index]?.pending.length).toBeGreaterThan(0));
+  return viewers.instances[index];
 }
-async function finish(viewer: InstanceType<typeof mock.Viewer>, container: HTMLElement) {
-  await act(async () => { viewer.imports.shift()!(); });
+async function finish(viewer: MemoryViewer, container: HTMLElement) {
+  await act(async () => { viewer.pending.shift()!(); });
   await waitFor(() => expect(container.querySelector(".wf-bpmn")?.getAttribute("data-bpmn-status")).toBe("ready"));
-  await waitFor(() => expect(viewer.selected.map((element) => element.id)).toEqual(selected.tasks));
+  await waitFor(() => expect(viewer.selected().map((element) => element.id)).toEqual(selected.tasks));
 }
 
 describe("BPMN selection lifecycle", () => {
@@ -93,7 +54,7 @@ describe("BPMN selection lifecycle", () => {
     await finish(viewer, container);
     onSelect.mockClear();
     rerender(<BpmnView xml={`${xml}\n`} selection={selected} onSelect={onSelect} />);
-    await waitFor(() => expect(viewer.imports).toHaveLength(1));
+    await waitFor(() => expect(viewer.pending).toHaveLength(1));
     expect(onSelect).not.toHaveBeenCalled();
     await finish(viewer, container);
     expect(onSelect).not.toHaveBeenCalled();
@@ -108,9 +69,10 @@ describe("BPMN selection lifecycle", () => {
     rerender(<BpmnView xml={xml} mode="model" selection={selected} onSelect={onSelect} />);
     const second = await viewerAt(1);
     expect(first.destroyed).toBe(true);
+    expect(second.options.mode).toBe("model");
     expect(onSelect).not.toHaveBeenCalled();
     await finish(second, container);
-    act(() => first.select(null));
+    act(() => first.emit("selection", []));
     expect(onSelect).not.toHaveBeenCalled();
   });
 
@@ -120,9 +82,9 @@ describe("BPMN selection lifecycle", () => {
     const viewer = await viewerAt();
     await finish(viewer, container);
     onSelect.mockClear();
-    act(() => viewer.select(null));
-    act(() => viewer.select(mock.task));
-    act(() => viewer.select(null));
+    act(() => viewer.select([]));
+    act(() => viewer.select([viewer.element("Task_CreatePO")]));
+    act(() => viewer.select([]));
     expect(onSelect.mock.calls).toEqual([[empty], [selected], [empty]]);
   });
 });

@@ -13,11 +13,11 @@ require React and React DOM 18 or later; the packed consumer is tested with the
 React 18.3.1 and 19.2.8. CI covers Node 22/React 18 with Chromium and Node 24/React 19 with Chromium, Firefox and WebKit. The package is ESM with TypeScript
 declarations; CommonJS `require()` is not a supported entry point.
 
-Version **0.3.1 is a local packaging candidate, not a published release**. Given
+Version **0.3.5 is a local packaging candidate, not a published release**. Given
 a supplied tarball, place it in your application's `vendor/` directory and run:
 
 ```sh
-npm install --save-exact ./vendor/wise-flow-0.3.1.tgz react react-dom
+npm install --save-exact ./vendor/wise-flow-0.3.5.tgz react react-dom
 ```
 
 Commit the tarball and application lockfile for a standalone `npm ci`. No sibling
@@ -54,6 +54,7 @@ a version number alone does not identify an unpublished candidate.
 | `@wise/flow/bpmn.css` | All required bpmn-js styles and font references |
 | `@wise/flow/bpmn/assets/*` | Copied BPMN asset tree, including `bpmn-font/font/bpmn.woff2` |
 | `@wise/flow/elk-worker.min.js` | Optional ELK worker asset |
+| `@wise/flow/dagre-worker.min.js` | Optional Dagre worker asset (layout fallback off the calling thread) |
 
 The root entry does not load React or require a DOM. The package still installs
 renderer dependencies and React peers; it is not a separate minimal core package.
@@ -75,15 +76,21 @@ const positions = await layout(graph);
 const svg = toSVG({ graph, positions, title: 'Example process' });
 ```
 
-ELK runs in-process by default, with Dagre fallback. For a browser worker in Vite:
+ELK runs in-process by default, with Dagre fallback. In a browser, pass the
+workers: in-process ELK holds the page while it runs and cannot be
+interrupted (a layout nobody waits for any more runs to its end, and its
+timeout cannot cut it short), and without a Dagre worker the fallback runs on
+the calling thread only up to 500 nodes plus edges. For browser workers in Vite:
 
 ```ts
 import elkWorkerUrl from '@wise/flow/elk-worker.min.js?url';
-const positions = await layout(graph, { elkWorkerUrl });
+import dagreWorkerUrl from '@wise/flow/dagre-worker.min.js?url';
+const positions = await layout(graph, { elkWorkerUrl, dagreWorkerUrl, signal });
 ```
 
-Other bundlers can copy the exported worker and pass its served URL. Serve it
-from an origin permitted by your application's worker policy.
+Other bundlers can copy the exported workers and pass their served URLs. Serve
+them from an origin permitted by your application's worker policy. An aborted,
+timed-out or replaced layout terminates its worker.
 
 ## React and BPMN
 

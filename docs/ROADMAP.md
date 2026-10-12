@@ -1,7 +1,6 @@
 # Roadmap
 
-Updated 27 September 2026. Version 0.3.1 remains an unpublished packaging
-candidate. **Correctness fixes and CI are implemented and locally verified; hosted qualification remains pending.**
+Updated 27 September 2026. Version 0.3.2 is an unpublished packaging candidate. **Correctness fixes and CI are implemented and locally verified; hosted qualification remains pending.**
 This plan replaces the broad 0.4 feature bundle with ordered, independently
 testable milestones. [FEATURE_MAP.md](FEATURE_MAP.md) distinguishes implemented
 surfaces from incomplete contracts and planned work; [API.md](API.md) and
@@ -26,6 +25,10 @@ A route through aggregate edges is not an observed variant. Traces `[a,x]` and
 `[x,b]` create route `a→x→b` without any case traversing it. Likewise, collapsed
 `cases` maxima are not distinct-case unions, and weighted medians are not
 recomputed quantiles. These distinctions must survive drawing, tables and export.
+
+## Cohort readability increment
+
+The 0.3.2 candidate adds `FlowComparison` for aligned activity and directly-follows frequencies. This is an implemented table/bar surface for comparing supplied observations; it does not complete WF-02 or reconstruct WF-03 variants. Workbench owns the observed-process versus selected-constraint controls and exact-variant drill path. Next visual work should add compact observed-variant previews and connection focus with explicit coverage, preserving returns and repeats. Qualify dense labels, narrow screens and selection stability in the consuming application before release.
 
 ## Ordered milestones
 

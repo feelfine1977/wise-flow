@@ -67,6 +67,15 @@ export interface OverlayPayload {
   reverse?: boolean;
   /** Gauge for balance and metric constraints. */
   gauge?: { value: number; threshold: number; width?: number; direction?: "high" | "low" };
+  /**
+   * Text drawn beside a self-loop or arc instead of the glyph and value; it also
+   * widens the overlay's reserved extent.
+   */
+  displayLabel?: string;
+  /** The overlay shows recorded data (an observed self-loop) and is drawn at every zoom. */
+  observed?: boolean;
+  /** Edge an overlay stands for, e.g. the follows self-edge behind a self-loop. */
+  edgeId?: string;
   [key: string]: unknown;
 }
 
@@ -104,12 +113,32 @@ export interface FlowPaths {
   outgoing: FlowPath[];
 }
 
+/** Thresholds `abstract` applied to a graph, recorded in `meta.abstraction`. */
+export interface AbstractionMeta {
+  minEdgeShare?: number;
+  minNodeShare?: number;
+  keepConnected?: boolean;
+  collapse?: string[] | "all";
+  /** Constraint and flow edges `abstract` removed with an activity or stage at one of their ends, by kind; absent when none went. */
+  removedEdges?: { constraint?: number; flow?: number };
+}
+
+/**
+ * Metadata of a graph. Keys other than the declared ones pass through untouched.
+ * `abstraction` is the server's threshold share (a number, `0` when nothing was
+ * removed) or, after `abstract`, the thresholds the library applied.
+ */
+export interface FlowMeta {
+  abstraction?: number | AbstractionMeta;
+  [key: string]: unknown;
+}
+
 export interface FlowGraph {
   nodes: FlowNode[];
   edges: FlowEdge[];
   groups?: FlowGroup[];
   overlays?: Overlay[];
-  meta?: Record<string, unknown>;
+  meta?: FlowMeta;
   /** Activity the response was focused on (`focus` query parameter). */
   focus?: string;
   /** Paths of the focused activity from the full directly-follows graph. */
@@ -118,12 +147,6 @@ export interface FlowGraph {
 
 /** Target id of overlays that belong to the whole map rather than an element. */
 export const MAP_TARGET = "__map";
-
-export type FlowElement = FlowNode | FlowEdge;
-
-export function isEdge(el: FlowElement): el is FlowEdge {
-  return (el as FlowEdge).source !== undefined && (el as FlowEdge).target !== undefined;
-}
 
 /** Read a metric with a fallback; `NaN` and missing values yield the fallback. */
 export function metric(el: { metrics?: Metrics } | undefined, name: string, fallback = 0): number {
@@ -135,15 +158,30 @@ export function hasTag(el: { tags?: string[] } | undefined, tag: string): boolea
   return !!el?.tags?.includes(tag);
 }
 
-/** Index over a graph: maps by id and adjacency lists, built once per graph. */
+/**
+ * Index over a graph: maps by id, adjacency lists and the group hierarchy.
+ * Build it once per graph and ask it instead of walking `parent` chains.
+ */
 export interface GraphIndex {
   nodes: Map<string, FlowNode>;
   edges: Map<string, FlowEdge>;
   groups: Map<string, FlowGroup>;
   outgoing: Map<string, FlowEdge[]>;
   incoming: Map<string, FlowEdge[]>;
-  /** Members per group id. */
+  /** Direct members per group id (nodes whose `group` is the id). */
   members: Map<string, FlowNode[]>;
+  /**
+   * Groups enclosing an element, innermost first: for a node its group and that
+   * group's ancestors, for a group its parent and upwards. A node id is read as
+   * a node unless `kind` says otherwise (a collapsed stage node shares its id
+   * with its group). Unknown ids and parents end the chain; a cycle ends it
+   * before a group repeats.
+   */
+  ancestors(id: string, kind?: "node" | "group"): FlowGroup[];
+  /** Nodes of a group and of every group nested in it, in graph order. */
+  allMembers(groupId: string): FlowNode[];
+  /** Label of a node, else of a group, else the id itself. */
+  label(id: string): string;
 }
 
 export function indexGraph(graph: FlowGraph): GraphIndex {
@@ -170,7 +208,33 @@ export function indexGraph(graph: FlowGraph): GraphIndex {
     outgoing.get(e.source)?.push(e);
     incoming.get(e.target)?.push(e);
   }
-  return { nodes, edges, groups, outgoing, incoming, members };
+  const chain = (start: string | undefined, exclude?: string): FlowGroup[] => {
+    const out: FlowGroup[] = [];
+    const seen = new Set<string>(exclude === undefined ? [] : [exclude]);
+    let cur = start === undefined ? undefined : groups.get(start);
+    while (cur && !seen.has(cur.id)) {
+      seen.add(cur.id);
+      out.push(cur);
+      cur = cur.parent === undefined ? undefined : groups.get(cur.parent);
+    }
+    return out;
+  };
+  const ancestors = (id: string, kind?: "node" | "group"): FlowGroup[] => {
+    const asNode = kind === "node" || (kind === undefined && nodes.has(id));
+    if (asNode) return chain(nodes.get(id)?.group);
+    return chain(groups.get(id)?.parent, id);
+  };
+  const nested = new Map<string, FlowNode[]>();
+  const allMembers = (groupId: string): FlowNode[] => {
+    let found = nested.get(groupId);
+    if (!found) {
+      found = groups.has(groupId) ? graph.nodes.filter((n) => chain(n.group).some((g) => g.id === groupId)) : [];
+      nested.set(groupId, found);
+    }
+    return found;
+  };
+  const label = (id: string): string => nodes.get(id)?.label ?? groups.get(id)?.label ?? id;
+  return { nodes, edges, groups, outgoing, incoming, members, ancestors, allMembers, label };
 }
 
 export interface GraphIssue {
@@ -181,7 +245,8 @@ export interface GraphIssue {
 
 /**
  * Structural validation of a FlowGraph as received from an API: duplicate ids,
- * dangling edge endpoints, unknown groups, overlays on unknown targets.
+ * dangling edge endpoints, unknown groups, cycles of group parents, overlays on
+ * unknown targets.
  */
 export function validateGraph(graph: FlowGraph): GraphIssue[] {
   const issues: GraphIssue[] = [];
@@ -200,6 +265,16 @@ export function validateGraph(graph: FlowGraph): GraphIssue[] {
       issues.push({ level: "error", message: `group parent not found: ${g.parent}`, id: g.id });
     }
   }
+  // A walk up the parents that meets itself closes a cycle.
+  const parentOf = new Map((graph.groups ?? []).map((g) => [g.id, g.parent]));
+  const walk = new Map<string, number>();
+  const cycle = new Set<string>();
+  (graph.groups ?? []).forEach((g, w) => {
+    let id: string | undefined = g.id;
+    for (; id !== undefined && parentOf.has(id) && !walk.has(id); id = parentOf.get(id)) walk.set(id, w);
+    for (let c = id; c !== undefined && walk.get(c) === w && !cycle.has(c); c = parentOf.get(c)) cycle.add(c);
+  });
+  for (const g of graph.groups ?? []) if (cycle.has(g.id)) issues.push({ level: "error", message: "group parent cycle", id: g.id });
   for (const n of graph.nodes) {
     if (n.group && !groupIds.has(n.group)) {
       issues.push({ level: "warning", message: `node group not found: ${n.group}`, id: n.id });
@@ -217,6 +292,51 @@ export function validateGraph(graph: FlowGraph): GraphIssue[] {
       issues.push({ level: "warning", message: `overlay target not found: ${o.target}` });
     }
   }
+  return issues;
+}
+
+/** Warnings for parallel gateways without a partner (docs/API.md); rejects nothing. */
+export function validateGateways(graph: FlowGraph): GraphIssue[] {
+  const idx = indexGraph({ nodes: graph.nodes, edges: graph.edges.filter((e) => e.kind !== "constraint" && !hasTag(e, "message") && !hasTag(e, "association")) });
+  const outs = (id: string) => idx.outgoing.get(id) ?? [];
+  const ins = (id: string) => idx.incoming.get(id) ?? [];
+  const pairs = (split: string, branches: FlowEdge[], join: string): boolean => {
+    const taken = new Set<string>();
+    const inputs = new Set<FlowEdge>();
+    for (const branch of branches) {
+      const region = new Set<string>();
+      const reached: FlowEdge[] = [];
+      const stack = [branch];
+      while (stack.length) {
+        const f = stack.pop()!;
+        if (f.target === join) reached.push(f);
+        else if (f.target === split || taken.has(f.target) || !outs(f.target).length) return false;
+        else if (!region.has(f.target)) {
+          region.add(f.target);
+          for (const e of outs(f.target)) stack.push(e);
+        }
+      }
+      if (reached.length !== 1 || inputs.has(reached[0])) return false;
+      inputs.add(reached[0]);
+      for (const v of region) {
+        taken.add(v);
+        if (ins(v).some((e) => e !== branch && !region.has(e.source))) return false;
+      }
+    }
+    return true;
+  };
+  const parallel = graph.nodes.filter((n) => n.kind === "gateway" && hasTag(n, "and"));
+  const joins = parallel.filter((n) => ins(n.id).length > 1);
+  const partners = new Set<FlowNode>();
+  const issues: GraphIssue[] = [];
+  for (const split of parallel) {
+    const branches = outs(split.id);
+    if (branches.length < 2) continue;
+    const join = joins.find((j) => j !== split && ins(j.id).length === branches.length && pairs(split.id, branches, j.id));
+    if (join) partners.add(join);
+    else issues.push({ level: "warning", message: "parallel split whose branches do not all reach one parallel join", id: split.id });
+  }
+  for (const join of joins) if (!partners.has(join)) issues.push({ level: "warning", message: "parallel join that is the partner of no parallel split", id: join.id });
   return issues;
 }
 

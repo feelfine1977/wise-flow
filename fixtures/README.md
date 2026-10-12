@@ -29,7 +29,8 @@ scene's metrics onto its activities.
 
 `p2p_small.bpmn` — a hand-written BPMN 2.0 model (pool "Purchase-to-pay",
 lanes Purchasing / Warehouse / Accounts payable, seven tasks of three
-types, an exclusive split and merge, a rejection loop, DI for every
+types, an exclusive split and merge, a rejection loop behind an exclusive
+"Approved?" choice, so one token never becomes two, DI for every
 element) for the import tests and the "overlays on a model" story; one
 task id equals a fixture activity id, the labels match fixture labels, and
 "Approve Invoice" has no counterpart, so the mapping shows all three cases.

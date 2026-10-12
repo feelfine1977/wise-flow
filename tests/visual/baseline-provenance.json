@@ -1,21 +1,66 @@
 {
-  "run": "https://github.com/feelfine1977/wise-flow/actions/runs/34035991497",
-  "artifactId": 9990219174,
-  "artifactSha256": "911e1119f12955c931fb85d3970a1159022088c3b590d2b470c865a33d5b7a29",
-  "sourceCommit": "a561766aa158e9effeee132f6c1c045feb606b6a",
-  "runner": "ubuntu-24.04",
-  "runnerImage": "20260831.293",
+  "approved": "2026-10-10",
+  "approvedBy": "repository owner, locally, after comparing expected, actual and difference images",
+  "sourceCommit": "13d33f740c437837ef69c2017ff5b18ac82c3638",
   "playwright": "1.61.1",
+  "darwin": {
+    "os": "macOS 26.6.2, arm64",
+    "command": "npm run test:visual:approve"
+  },
+  "linux": {
+    "image": "mcr.microsoft.com/playwright@sha256:cf0daee9b994042e011bc29f20cdff1a9f682a039b43fcd738f7d8a9d3bcd9d6",
+    "platform": "linux/amd64, Ubuntu 24.04",
+    "command": "npm ci && npm run test:visual:approve",
+    "note": "Captured in the container image, not on the hosted ubuntu-24.04 runner. The first hosted strict run decides whether these images hold there."
+  },
   "screenshots": [
     {
+      "path": "tests/visual/__screenshots__/bpmn.spec.ts/bpmn-from-stages-darwin.png",
+      "sha256": "a9a35517e3fc7da0c7bef47755d557768eadddcb791da8cec5c1260c8a0d8998"
+    },
+    {
+      "path": "tests/visual/__screenshots__/bpmn.spec.ts/bpmn-from-stages-linux.png",
+      "sha256": "e91f389c4717dc18dd4fb51e93f131a79bee9369460cc2465c37bff4a7bb6813"
+    },
+    {
+      "path": "tests/visual/__screenshots__/bpmn.spec.ts/views-grid-darwin.png",
+      "sha256": "c464f5dd3f40f19fe5445d5e5c0d10385bf3e55f8c6a414c8b0e98be6c7d6e30"
+    },
+    {
+      "path": "tests/visual/__screenshots__/bpmn.spec.ts/views-grid-linux.png",
+      "sha256": "9dd13242ac485b1a1413b4eb6d840bf9e6c033775b5388e4666d11d21df7cf9c"
+    },
+    {
+      "path": "tests/visual/__screenshots__/interaction.spec.ts/paths-for-activity-darwin.png",
+      "sha256": "4c5b9f92364fc14082cfe58e5f1da155e2de1ef53c0456c832cd63f93d3a490c"
+    },
+    {
       "path": "tests/visual/__screenshots__/interaction.spec.ts/paths-for-activity-linux.png",
-      "sha256": "7bf6281c164b8be154798762dba4961857e277bce508553f31f494cb061f023b",
-      "artifactPath": "tests/visual/__screenshots__/interaction.spec.ts/paths-for-activity-linux.png"
+      "sha256": "5dfbfffad264e0bf1cfcd2a4b179268fa1f6148426f27f686a85425387a92196"
+    },
+    {
+      "path": "tests/visual/__screenshots__/interaction.spec.ts/stage-lanes-darwin.png",
+      "sha256": "b93ea9fcd4f14da2d456b2c49074959857053059b6ffc43263ce0bc6a1ba8287"
     },
     {
       "path": "tests/visual/__screenshots__/interaction.spec.ts/stage-lanes-linux.png",
-      "sha256": "1caad80e84cc4011c23ebe5c035200e4702e3a5a141fd05abbe26b1b9f279f8e",
-      "artifactPath": "tests/visual/__screenshots__/interaction.spec.ts/stage-lanes-linux.png"
+      "sha256": "d1a928ba597eb2de0ebd3286454aabb8c3d356e2b97bde55e7ee78fe8aaf3852"
+    },
+    {
+      "path": "tests/visual/__screenshots__/p2p.spec.ts/p2p-map-darwin.png",
+      "sha256": "4e1316eac300ec522ce4b7bf1c33bba7d22d3e1d145bd44d2816dff5d6fc2dc1"
+    },
+    {
+      "path": "tests/visual/__screenshots__/p2p.spec.ts/p2p-map-linux.png",
+      "sha256": "41603a76023e66b4d7056b8bd48fc1b0d62c0aaa4965ec3dfa00586be5607b53"
+    },
+    {
+      "path": "tests/visual/__screenshots__/p2p.spec.ts/stable-layout-darwin.png",
+      "sha256": "085c9dae875b656e502b887209b95d139fc51e578eb5c74718a37dbc781ce84d"
+    },
+    {
+      "path": "tests/visual/__screenshots__/p2p.spec.ts/stable-layout-linux.png",
+      "sha256": "50ffd68581899e5c59698fb391f6c1092938a268e1d470d3e3b2da7a4964f1d1"
     }
   ]
 }

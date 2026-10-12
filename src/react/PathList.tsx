@@ -183,9 +183,9 @@ export function PathList({ graph, focus, paths, locale = "en", selection, onSele
     onSortChange?.(key, asc);
   };
   const idx = useMemo(() => indexGraph(graph), [graph]);
-  const labelOf = (id: string) => idx.nodes.get(id)?.label ?? idx.groups.get(id)?.label ?? id;
+  const labelOf = idx.label;
 
-  if (typeof focus === "string") {
+  if (!Array.isArray(focus)) {
     const activity: ActivityPaths = pathsFor(graph, focus, { paths });
     const title = t(locale, "paths.title", { label: labelOf(focus) });
     return (

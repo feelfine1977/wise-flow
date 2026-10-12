@@ -1,4 +1,4 @@
-import { type Locale, type Overlay, type Scales, type StringKey, formatCompact, formatNumber, formatShare, t } from "../core/index.js";
+import { type Locale, type Overlay, type Scales, type SceneLegend, colorTokens, formatCompact, formatNumber, formatShare, sceneLegend, t } from "../core/index.js";
 import { PatternSwatch } from "./patterns.js";
 
 export interface LegendProps {
@@ -7,29 +7,22 @@ export interface LegendProps {
   locale?: Locale;
   /** Map-level chips are listed under the scales. */
   chips?: React.ReactNode;
+  /** The scene's legend (`FlowScene.legend`); without it the rows follow from `scales` and `overlays`. */
+  legend?: SceneLegend;
 }
 
 /** Legend for the scales in use and the overlay glyphs; always visible in a map. */
-export function Legend({ scales, overlays = [], locale = "en", chips }: LegendProps) {
-  const kinds = new Set(overlays.map((o) => o.kind));
-  const hasReverse = overlays.some((o) => o.kind === "arc" && o.payload?.reverse);
-  const glyphs: [string, StringKey, boolean][] = [
-    ["●", "legend.badge", kinds.has("badge")],
-    ["⌒", "legend.arc", kinds.has("arc")],
-    ["⌒┄", "legend.reverse", hasReverse],
-    ["↻", "legend.selfLoop", kinds.has("selfLoop")],
-    ["▨", "legend.outOfScope", kinds.has("hatch")],
-    ["┄", "legend.reconnected", true],
-  ];
+export function Legend({ scales, overlays = [], locale = "en", chips, legend }: LegendProps) {
+  const { items, keys } = legend ?? sceneLegend(scales.legend, overlays);
   return (
     <div className="wf-panel wf-legend" role="region" aria-label={t(locale, "legend.title")}>
       <h3>{t(locale, "legend.title")}</h3>
       <dl>
-        {scales.legend.map((item, i) => {
+        {items.map((item, i) => {
           if (item.kind === "width") {
             return (
               <div key={i}>
-                <dt>{t(locale, item.title as StringKey)}</dt>
+                <dt>{t(locale, item.title)}</dt>
                 <dd className="wf-legend__width">
                   <span style={{ height: item.range[0] }} /> {formatCompact(item.domain[0], locale)}
                   <span style={{ height: item.range[1] }} /> {formatCompact(item.domain[1], locale)}
@@ -40,11 +33,11 @@ export function Legend({ scales, overlays = [], locale = "en", chips }: LegendPr
           if (item.kind === "categorical") {
             return (
               <div key={i}>
-                <dt>{t(locale, item.title as StringKey)}</dt>
+                <dt>{t(locale, item.title)}</dt>
                 {item.entries.map((e) => (
                   <dd key={e.key} className="wf-legend__cat">
                     <span className="wf-legend__swatch" style={{ background: e.color }}>
-                      <PatternSwatch pattern={e.pattern} ink="#1f1f1f" />
+                      <PatternSwatch pattern={e.pattern} ink={colorTokens.ink} />
                     </span>
                     {e.key}
                   </dd>
@@ -56,7 +49,7 @@ export function Legend({ scales, overlays = [], locale = "en", chips }: LegendPr
           const f = (v: number) => (share ? formatShare(v, locale) : formatNumber(v, 1, locale));
           return (
             <div key={i}>
-              <dt>{t(locale, item.title as StringKey)}</dt>
+              <dt>{t(locale, item.title)}</dt>
               <dd>
                 <div className="wf-legend__gradient" style={{ background: `linear-gradient(to right, ${item.stops.join(", ")})` }} />
                 <div className="wf-legend__range">
@@ -69,16 +62,14 @@ export function Legend({ scales, overlays = [], locale = "en", chips }: LegendPr
           );
         })}
         <div>
-          {glyphs
-            .filter(([, , show]) => show)
-            .map(([glyph, key]) => (
-              <dd key={key}>
-                <span className="wf-legend__glyph" aria-hidden="true">
-                  {glyph}
-                </span>
-                {t(locale, key)}
-              </dd>
-            ))}
+          {keys.map((key) => (
+            <dd key={key.kind}>
+              <span className="wf-legend__glyph" aria-hidden="true">
+                {key.glyph}
+              </span>
+              {t(locale, key.title)}
+            </dd>
+          ))}
         </div>
       </dl>
       {chips ? <div className="wf-map-chips">{chips}</div> : null}

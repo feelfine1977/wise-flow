@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { useMemo } from "react";
 import { type ConstraintDescription, type ConstraintStats, type FlowGraph, type Overlay, MAP_TARGET, constraintOverlays } from "../src/index";
-import { ProcessMap } from "../src/react/index";
+import { ProcessMap } from "./maps";
 
 /** Small synthetic purchase-to-pay graph for the catalogue. */
 export const catalogueGraph: FlowGraph = {

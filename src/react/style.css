@@ -33,15 +33,10 @@
   pointer-events: none;
 }
 
-/* Level of detail: the map sets wf-lod--* classes from the zoom level. */
+/* Level of detail: the map sets wf-lod--* classes from the zoom level; overlay marks carry their own. */
 .wf-process-map:not(.wf-lod--labels) .wf-lod-labels,
-.wf-process-map:not(.wf-lod--badges) .wf-lod-badges,
-.wf-process-map:not(.wf-lod--chips) .wf-lod-chips,
 .wf-process-map:not(.wf-lod--edge-labels) .wf-lod-edge-labels {
   visibility: hidden;
-}
-.wf-process-map:not(.wf-lod--hatch) .wf-node--hatched::after {
-  display: none;
 }
 
 .wf-sr-only {
@@ -74,6 +69,8 @@
   box-shadow: var(--wf-shadow);
 }
 .wf-node--stage {
+  width: var(--wf-stage-width);
+  height: var(--wf-stage-height);
   border-width: 3px;
   font-weight: 600;
 }
@@ -121,18 +118,13 @@
   margin-left: 6px;
   font-variant-numeric: tabular-nums;
 }
-.wf-node--hatched::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: repeating-linear-gradient(135deg, transparent 0 5px, var(--wf-out-of-scope) 5px 7px);
-  opacity: 0.55;
-  pointer-events: none;
+/* Marks that cover a node (tints) as background layers over its paper. */
+.wf-node--tinted {
+  background-image: var(--wf-tint);
 }
 .wf-node--event {
-  width: 36px;
-  height: 36px;
+  width: var(--wf-event-width);
+  height: var(--wf-event-height);
   border-radius: 50%;
   padding: 0;
   justify-content: center;
@@ -143,8 +135,8 @@
   border-width: 3px;
 }
 .wf-node--gateway {
-  width: 44px;
-  height: 44px;
+  width: var(--wf-gateway-width);
+  height: var(--wf-gateway-height);
   padding: 0;
   justify-content: center;
   border-color: var(--wf-ink);
@@ -156,40 +148,12 @@
   font-weight: 700;
 }
 .wf-node--note {
-  width: 160px;
-  height: 60px;
+  width: var(--wf-note-width);
+  height: var(--wf-note-height);
   background: var(--wf-surface);
   border-style: dotted;
   font-size: 11px;
   white-space: normal;
-}
-
-/* Badges */
-.wf-badges {
-  position: absolute;
-  right: 4px;
-  top: -12px;
-  display: flex;
-  flex-direction: row-reverse;
-  gap: 4px;
-  pointer-events: none;
-}
-.wf-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 22px;
-  padding: 0 7px;
-  border-radius: 11px;
-  border: 1.5px solid var(--wf-paper);
-  font-size: 10px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  pointer-events: auto;
-}
-.wf-badge__share {
-  font-weight: 500;
 }
 
 /* Group nodes */
@@ -213,74 +177,66 @@
   font-weight: 600;
   color: var(--wf-ink);
 }
-.wf-group__chips {
-  position: absolute;
-  right: 8px;
-  top: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: flex-end;
-}
-.wf-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 24px;
-  padding: 0 8px;
-  border-radius: 12px;
-  border: 2px solid var(--wf-chip-color, var(--wf-neutral));
-  background: var(--wf-paper);
-  color: var(--wf-ink);
-  font-size: 10px;
-  white-space: nowrap;
-  max-width: 260px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.wf-chip__gauge {
-  width: 40px;
-  height: 6px;
-  border-radius: 3px;
-  background: var(--wf-line);
-  position: relative;
-  overflow: hidden;
-}
-.wf-chip__gauge-fill {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  background: var(--wf-chip-color, var(--wf-neutral));
-}
-.wf-chip__gauge-mark {
-  position: absolute;
-  top: -1px;
-  bottom: -1px;
-  width: 2px;
-  background: var(--wf-ink);
-}
-
-/* Overlay SVG layer (arcs, self-loops) */
+/* Overlay marks (arcs, self-loops, badges, chips, hatching): drawn as the scene's marks say. */
 .wf-overlay-layer {
+  pointer-events: none;
+}
+.wf-overlay-layer,
+.wf-mark,
+.wf-marks,
+.wf-badges,
+.wf-bpmn-overlays,
+.wf-bpmn .djs-overlay svg {
+  font-family: var(--wf-font);
+  font-variant-numeric: tabular-nums;
+}
+.wf-overlay-layer .wf-overlay,
+.wf-bpmn-overlays .wf-overlay {
+  cursor: pointer;
+}
+.wf-mark {
+  display: block;
+}
+/* Marks an element carries are drawn from its border-box corner: the surface spans the border. */
+.wf-marks {
   position: absolute;
-  left: 0;
-  top: 0;
+  left: -2px;
+  top: -2px;
+  width: calc(100% + 4px);
+  height: calc(100% + 4px);
   overflow: visible;
   pointer-events: none;
 }
-.wf-overlay-layer path {
-  pointer-events: stroke;
-  cursor: pointer;
+.wf-node--stage > .wf-marks,
+.wf-node--event-end > .wf-marks {
+  left: -3px;
+  top: -3px;
+  width: calc(100% + 6px);
+  height: calc(100% + 6px);
 }
-.wf-overlay-layer text {
-  font-family: var(--wf-font);
-  font-size: 11px;
-  fill: var(--wf-ink);
-  paint-order: stroke;
-  stroke: var(--wf-paper);
-  stroke-width: 3px;
-  pointer-events: none;
+/* The gateway's diamond is a rotated square; its marks are not. */
+.wf-node--gateway > .wf-marks {
+  transform: rotate(-45deg);
+}
+.wf-group > .wf-marks {
+  left: -1.5px;
+  top: -1.5px;
+  width: calc(100% + 3px);
+  height: calc(100% + 3px);
+}
+.wf-group--band > .wf-marks {
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+}
+.wf-group--band-main > .wf-marks {
+  left: -1px;
+  width: calc(100% + 2px);
+}
+.wf-group--band-cross > .wf-marks {
+  top: -1px;
+  height: calc(100% + 2px);
 }
 
 /* Edge labels */
@@ -351,7 +307,7 @@
 }
 .wf-button[aria-pressed="true"] {
   background: var(--wf-focus);
-  color: #fff;
+  color: var(--wf-on-focus);
   border-color: var(--wf-focus);
 }
 .wf-button:focus-visible {
@@ -458,6 +414,20 @@
 .wf-table th.wf-num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+.wf-table .wf-table__search {
+  font: inherit;
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  border: 1px solid var(--wf-line);
+  border-radius: 4px;
+  min-width: 240px;
+}
+.wf-table .wf-table__pager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -8px 0 16px;
 }
 .wf-table tr.wf-row--selected td {
   background: var(--wf-selection);
@@ -569,42 +539,26 @@
   bottom: 48px;
   right: 10px;
 }
-.wf-bpmn .djs-overlay .wf-badge {
-  pointer-events: auto;
+.wf-bpmn .djs-overlay > span {
+  display: block;
 }
-.wf-bpmn .djs-overlay .wf-chip {
-  pointer-events: auto;
+.wf-bpmn .djs-overlay svg {
+  display: block;
 }
-.wf-bpmn-tint {
-  position: absolute;
-  inset: 0;
-  border-radius: 10px;
+/* Marks below the edges cannot go under a bpmn-js element; multiplied, they tint it without hiding it. */
+.wf-bpmn .djs-overlay .wf-mark--below {
   mix-blend-mode: multiply;
-  pointer-events: none;
 }
-.wf-bpmn-hatch {
+/* Tints and hatching cover their element: out of the overlay's flow and through to the pointer, so a click or a
+   hover reaches the element. */
+.wf-bpmn .djs-overlay > .wf-tint,
+.wf-bpmn .djs-overlay > .wf-hatch {
   position: absolute;
-  inset: 0;
-  border-radius: 10px;
-  background: repeating-linear-gradient(135deg, transparent 0 5px, var(--wf-out-of-scope) 5px 7px);
-  opacity: 0.55;
   pointer-events: none;
 }
-.wf-bpmn .djs-element.wf-bpmn--hatched .djs-visual > :first-child {
+/* Hatched elements also get a dashed outline, so the scope does not rest on the pattern alone. */
+.wf-bpmn .djs-element.wf-bpmn--hatch .djs-visual > :first-child {
   stroke-dasharray: 4 3;
-}
-.wf-bpmn-overlays path {
-  pointer-events: stroke;
-  cursor: pointer;
-}
-.wf-bpmn-overlays text {
-  font-family: var(--wf-font);
-  font-size: 11px;
-  fill: var(--wf-ink);
-  paint-order: stroke;
-  stroke: var(--wf-paper);
-  stroke-width: 3px;
-  pointer-events: none;
 }
 .wf-bpmn .djs-context-pad,
 .wf-bpmn .djs-palette {
@@ -639,7 +593,7 @@
 }
 .wf-views__tabs .wf-button[aria-selected="true"] {
   background: var(--wf-focus);
-  color: #fff;
+  color: var(--wf-on-focus);
   border-color: var(--wf-focus);
 }
 .wf-views__mode {
@@ -933,13 +887,19 @@
   padding: 0;
 }
 .wf-filter-chip {
-  height: auto;
-  min-height: 24px;
-  max-width: none;
-  border-color: var(--wf-focus);
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
+  min-height: 24px;
   padding: 0 4px 0 10px;
+  border-radius: 12px;
+  border: 2px solid var(--wf-focus);
+  background: var(--wf-paper);
+  color: var(--wf-ink);
   font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .wf-filter-chip:focus-visible {
   outline: 2px solid var(--wf-focus);
@@ -1025,6 +985,14 @@
   bottom: 10px;
   right: 10px;
 }
+.wf-overlay-panel--bottom-center {
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.wf-edge-note {
+  white-space: nowrap;
+}
 .wf-zoom {
   display: flex;
   flex-direction: column;
@@ -1039,3 +1007,120 @@
   font-size: 14px;
   line-height: 1;
 }
+
+/* Aligned cohort comparison. All bars share a 0–100% scale. */
+.wf-comparison {
+  min-width: 0;
+  max-width: 100%;
+  color: var(--wf-ink);
+  background: var(--wf-paper);
+  font-family: var(--wf-font);
+  line-height: 1.5;
+}
+.wf-comparison button,
+.wf-comparison input {
+  font: inherit;
+  color: inherit;
+  border: 1px solid var(--wf-line-strong);
+  border-radius: var(--wf-radius);
+  background: var(--wf-surface);
+  padding: 0.4rem 0.65rem;
+}
+.wf-comparison button { cursor: pointer; }
+.wf-comparison button:hover { background: var(--wf-hover); }
+.wf-comparison button:focus-visible,
+.wf-comparison input:focus-visible,
+.wf-comparison__overflow:focus-visible,
+.wf-comparison__method summary:focus-visible {
+  outline: 2px solid var(--wf-focus);
+  outline-offset: 2px;
+}
+.wf-comparison__tabs,
+.wf-comparison__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.wf-comparison__tabs [aria-selected="true"] {
+  background: var(--wf-selection);
+  border-bottom: 3px solid var(--wf-focus);
+  font-weight: 600;
+}
+.wf-comparison__controls input { width: min(100%, 24rem); box-sizing: border-box; }
+.wf-comparison__summary,
+.wf-comparison__explanation { font-size: 0.875rem; color: var(--wf-ink-muted); }
+.wf-comparison__overflow { max-width: 100%; max-height: 65vh; overflow: auto; }
+.wf-comparison table { width: 100%; border-collapse: collapse; text-align: left; }
+.wf-comparison caption { text-align: left; font-weight: 600; padding: 0.5rem 0; }
+.wf-comparison th,
+.wf-comparison td {
+  min-width: 12rem;
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--wf-line);
+  vertical-align: top;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.wf-comparison th:first-child { min-width: 18rem; width: 32%; font-weight: 500; }
+.wf-comparison thead th { position: sticky; top: 0; z-index: 2; background: var(--wf-surface); }
+.wf-comparison tbody th { position: sticky; left: 0; z-index: 1; background: var(--wf-surface); }
+.wf-comparison thead th:first-child { left: 0; z-index: 3; }
+.wf-comparison__cohort { text-align: left; white-space: normal; overflow-wrap: anywhere; }
+.wf-comparison__denominator { display: block; font-size: 0.8rem; font-weight: 400; color: var(--wf-ink-muted); margin-top: 0.25rem; }
+.wf-comparison__value,
+.wf-comparison__count { display: block; font-size: 14px; font-variant-numeric: tabular-nums; }
+.wf-comparison__count { color: var(--wf-ink-muted); }
+.wf-comparison__unavailable { font-size: 0.875rem; color: var(--wf-ink-muted); }
+.wf-comparison__bar { display: block; height: 0.375rem; margin-top: 0.4rem; background: var(--wf-line); border-radius: 2px; }
+.wf-comparison__bar > span { display: block; height: 100%; background: var(--wf-focus); border-radius: inherit; }
+.wf-comparison__method { margin-top: 0.75rem; font-size: 0.875rem; color: var(--wf-ink-muted); }
+.wf-comparison__method summary { cursor: pointer; color: var(--wf-ink); }
+.wf-comparison__method p { max-width: 75ch; }
+
+/* Opt-in activity labels use the dimensions reserved before layout. */
+.wf-process-map .wf-node--activity-labels {
+  align-items: flex-start;
+  padding: 10px 14px 10px 16px;
+  opacity: 1;
+  background: var(--wf-paper);
+}
+.wf-activity-copy, .wf-activity-name, .wf-activity-counts,
+.wf-activity-name > span, .wf-activity-counts > span {
+  display: block;
+  white-space: pre;
+}
+.wf-activity-name {
+  color: var(--wf-ink);
+  font-size: 14px;
+  line-height: 18px;
+  font-weight: 500;
+}
+.wf-activity-counts {
+  color: var(--wf-ink);
+  font-size: 12px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.wf-activity-tooltip {
+  position: absolute;
+  box-sizing: border-box;
+  max-height: calc(100% - 16px);
+  overflow: auto;
+  z-index: 1000;
+  width: max-content;
+  max-width: min(320px, calc(100% - 16px));
+  padding: 10px 12px;
+  border: 1px solid var(--wf-line-strong);
+  border-radius: 6px;
+  background: var(--wf-paper);
+  color: var(--wf-ink);
+  box-shadow: var(--wf-shadow);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  pointer-events: auto;
+  user-select: text;
+}
+
+.wf-bpmn__navigation { position: absolute; left: 12px; bottom: 12px; z-index: 15; display: flex; align-items: center; gap: 4px; }

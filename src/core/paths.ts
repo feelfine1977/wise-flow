@@ -1,9 +1,4 @@
-/**
- * Incoming and outgoing paths of an activity, the path between two
- * activities, and the sets a renderer highlights for a focus. The numbers
- * come from the response's `paths` block when the API was asked with
- * `focus`, and from the graph's own follows edges otherwise.
- */
+/** Paths of an activity, the path between two activities, and the sets a renderer highlights for a focus. */
 import { type FlowEdge, type FlowGraph, type FlowPath, type FlowPaths, type GraphIndex, byId, hasTag, indexGraph, metric } from "./model.js";
 import { RECONNECTED_TAG } from "./aggregate.js";
 
@@ -36,7 +31,7 @@ export interface ActivityPaths {
 
 export type PathSortKey = "count" | "cases" | "share" | "medianLagHours" | "p90LagHours" | "violationShare" | "label";
 
-export interface PathsOptions {
+interface PathsOptions {
   /** Paths to use instead of `graph.paths`. */
   paths?: FlowPaths;
   /** Sort column; default `count`, descending. */
@@ -155,29 +150,22 @@ export function pathsFor(graph: FlowGraph, focus: string, options: PathsOptions 
 
 /**
  * The node ids a focus stands for: the node itself, or the members of a
- * group (paths in and out of a stage are the paths crossing its boundary).
+ * group and of the groups nested in it (paths in and out of a stage are the
+ * paths crossing its boundary).
  */
 export function focusMembers(graph: FlowGraph, focus: string): Set<string> {
-  const idx = indexGraph(graph);
+  return membersOf(indexGraph(graph), focus);
+}
+
+function membersOf(idx: GraphIndex, focus: string): Set<string> {
   if (idx.nodes.has(focus) || !idx.groups.has(focus)) return new Set([focus]);
-  const groups = idx.groups;
-  const under = (id: string | undefined): boolean => {
-    const seen = new Set<string>();
-    let cur = id;
-    while (cur && !seen.has(cur)) {
-      if (cur === focus) return true;
-      seen.add(cur);
-      cur = groups.get(cur)?.parent;
-    }
-    return false;
-  };
-  return new Set(graph.nodes.filter((n) => under(n.group)).map((n) => n.id));
+  return new Set(idx.allMembers(focus).map((n) => n.id));
 }
 
 /** Predecessors and successors of a node (or of a group's members) over follows and flow edges; no self-loops, no edges inside the group. */
 export function neighbourhood(graph: FlowGraph, id: string): { predecessors: string[]; successors: string[]; incoming: FlowEdge[]; outgoing: FlowEdge[] } {
   const idx = indexGraph(graph);
-  const members = focusMembers(graph, id);
+  const members = membersOf(idx, id);
   const incoming: FlowEdge[] = [];
   const outgoing: FlowEdge[] = [];
   for (const m of members) {
@@ -257,7 +245,8 @@ function shortest(idx: GraphIndex, a: string, b: string, maxCount: number): { no
  */
 export function pathBetween(graph: FlowGraph, a: string, b: string): PathBetween {
   const idx = indexGraph(graph);
-  const maxCount = Math.max(0, ...graph.edges.map((e) => metric(e, "count", 0)));
+  let maxCount = 0;
+  for (const e of graph.edges) maxCount = Math.max(maxCount, metric(e, "count", 0));
   const directFor = (from: string, to: string) => (idx.outgoing.get(from) ?? [])
     .filter((e) => e.target === to && e.kind !== "constraint")
     .sort((x, y) => pathStrength(y, maxCount) - pathStrength(x, maxCount) || byId(x, y))[0];
@@ -293,7 +282,7 @@ export type Focus = string | [string, string];
 export function focusHighlight(graph: FlowGraph, focus: Focus): { nodes: Set<string>; edges: Set<string> } {
   const nodes = new Set<string>();
   const edges = new Set<string>();
-  if (typeof focus === "string") {
+  if (!Array.isArray(focus)) {
     const n = neighbourhood(graph, focus);
     for (const m of focusMembers(graph, focus)) nodes.add(m);
     for (const p of n.predecessors) nodes.add(p);

@@ -5,7 +5,7 @@ import { constraintItems, globalScene } from "../fixtures/bpic2019";
 import { p2pStages, withSceneMetrics } from "../fixtures/p2p_stages";
 import { liteFromStages } from "../src/bpmn/index";
 import { type LaneMode, overlaysFor } from "../src/index";
-import { ProcessMap } from "../src/react/index";
+import { ProcessMap } from "./maps";
 
 const meta: Meta = {
   title: "Layout",

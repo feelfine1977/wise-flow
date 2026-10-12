@@ -14,12 +14,12 @@ skipped. Branch protection is a repository setting, not something YAML enables.
 
 | Lane | Executable checks | What it establishes |
 | --- | --- | --- |
-| Static and architecture | `lint`, `typecheck`, `check:architecture`, `check:workflows`, `test:tooling`, production `npm audit` | Strict source types; headless imports cannot reach React/renderers; YAML/policy validation; regression checks for the checkers; no known high/critical production advisory. |
+| Static and architecture | `lint`, `typecheck`, `check:architecture`, `check:workflows`, `test:tooling`, production `npm audit` | Strict source types; headless imports cannot reach React/renderers; the BPMN bridge's modules other than its entry point load neither React nor bpmn-js eagerly, and Node tests do not import the entry point or React; outside the core, names the core entry point provides are imported from it; the scene and the map controller stay in the core and no other module declares their names; the React map, the Canvas renderer and the BPMN bridge import each other only through their hosts (`CanvasMap`, `map-elements`, `BpmnView`) and only the owning adapter loads React, React Flow, bpmn-js or bpmn-moddle; stories take their maps (and any library component that renders one) from `stories/maps.tsx` with a fixed edge budget and never ask for an adaptive one, so the browser and visual lanes do not depend on the machine's speed; no array is spread into `Math.max` or `Math.min`, whose argument count the engine limits; the built declarations of `@wise/flow` export exactly the names of `scripts/core-exports.json`, deprecated as listed, and `docs/API.md` names every name the four entry points export; YAML/policy validation; regression checks for the checkers; no known high/critical production advisory. |
 | Unit/component, Node 22 and 24 | `test:coverage` | Synthetic graph invariants, deterministic behavior, interaction callbacks and lifecycle. Both lanes enforce whole-source coverage. |
-| Installed package | Node 22 + React 18.3.1 + Chromium; Node 24 + React 19.2.8 + Chromium/Firefox/WebKit | A fresh consumer installs the actual tarball. Tests Node ESM/headless imports, both layout engines, BPMN round trip, strict NodeNext declarations, production bundling, worker/fonts/CSS, viewer/modeler and selection lifecycle. |
-| Browser accessibility | Production Storybook build, `test:browser` | Axe WCAG A/AA checks on graph and timeline tables, plus keyboard selection of a graph-table row. |
+| Installed package | Node 22 + React 18.3.1 + Chromium; Node 24 + React 19.2.8 + Chromium/Firefox/WebKit | A fresh consumer installs the actual tarball. Tests Node ESM/headless imports, both layout engines (Dagre also in its worker), BPMN round trip, strict NodeNext declarations, production bundling, worker/fonts/CSS, viewer/modeler and selection lifecycle. |
+| Browser accessibility | Production Storybook build, `test:browser` | Axe WCAG A/AA checks on graph and timeline tables and on the paged, searchable tables, plus keyboard selection of a graph-table row; the paint order of the map (constraint arcs above the paths and below the activities); and a click on a BPMN task under hatching or a tint selects the task. |
 | Strict visuals | Ubuntu 24.04, locked Playwright/Chromium, `test:visual` | Ten behavioral checks including six screenshot assertions and the 5,000-activity Canvas scene. Missing/changed images fail; CI cannot approve them. |
-| Artifact size | `check:budgets` after every packed-consumer lane | Bounds emitted library JavaScript, the worker, all consumer JavaScript including lazy assets, and the compressed tarball. |
+| Artifact size | `check:budgets` after every packed-consumer lane | Bounds emitted library JavaScript, the ELK and Dagre workers together (assets, not library JavaScript), all consumer JavaScript including lazy assets, and the compressed tarball. |
 
 The compatibility matrix is a set of deliberate pairings, not every Cartesian
 combination. Runtime dependencies are resolved in each separate consumer; its
@@ -30,12 +30,17 @@ matrix yet; local macOS execution does not prove Windows support.
 
 ## Coverage and test-driven changes
 
-Vitest 4 uses separate Node and jsdom projects. Coverage includes **all production
+Vitest 4 uses separate Node and jsdom projects, at most four forks at a time (the
+hosted runners have two to four cores). `tests/core/graph-size.test.ts` holds a
+million-edge scene, about 1.9 GB per fork with coverage, so its own project runs it
+alone after the others. Coverage includes **all production
 TS/TSX files**, excluding declaration-only files; unimported implementation files
-remain counted. Thresholds are statements **82%**, lines **84%**, branches **69%**,
-functions **81%**. These are initial measured floors, not quality targets. Review
-uncovered branches, especially filtering, replacement, errors and resource cleanup;
-raise thresholds as meaningful tests are added. Never reduce them to hide a defect.
+remain counted. Thresholds are statements **93%**, lines **95%**, branches **84%**,
+functions **92%**: the measured whole-source values (93.3%, 95.08%, 84.18%, 92.24%
+on Node 24) rounded down, raised from the initial floors of 82%, 84%, 69% and 81%
+once the deepened modules gained tests at their interfaces. They are floors, not
+quality targets. Review uncovered branches, especially filtering, replacement,
+errors and resource cleanup; raise thresholds as meaningful tests are added. Never reduce them to hide a defect.
 
 The previous Vitest 2 counters are not directly comparable to Vitest 4's AST
 remapping. This change upgrades Vite to 6.4.3 and Vitest/coverage to 4.1.11 to close
@@ -73,12 +78,13 @@ configuration before enabling this advanced workflow to avoid duplicate scans.
 CodeQL execution success means analysis completed; alert severity/ruleset review
 is separate. Require its status and review code-scanning alerts for releases.
 
-All external Actions are pinned by full commit SHA; checkouts do not persist
-credentials. Workflows use read-only default permissions, finite job timeouts,
-concurrency cancellation and no `pull_request_target`. Dependabot proposes npm
-and Actions updates weekly; there is no automatic merge or publishing. Schedules
-run from the default branch, so this configuration becomes scheduled only after
-it is merged there.
+All external Actions are pinned by full commit SHA with the release version in
+a trailing comment (`# v7.0.1`); checkouts do not persist credentials.
+Workflows use read-only default permissions, finite job timeouts, concurrency
+cancellation and no `pull_request_target`. Dependabot proposes npm and Actions
+updates weekly; there is no automatic merge or publishing. Schedules run from
+the default branch, so this configuration becomes scheduled only after it is
+merged there.
 
 The npm audit gate uses the current advisory service and therefore needs network
 access. An outage fails the check rather than silently certifying dependencies.
@@ -112,6 +118,19 @@ CI. Playwright retains screenshots, traces and video on failure, with an HTML
 report. These folders and `artifacts/` are ignored. Artifacts expire after 14 days
 on GitHub. The package consumer is temporary and removed on exit; its lockfile,
 screenshot, asset sizes, tarball SHA and source provenance remain in artifacts.
+
+[scripts/scene-memory.mjs](../scripts/scene-memory.mjs) is a diagnostic, not a
+gate: after `npm run build` it prints the heap a prepared Canvas scene of a
+sparse synthetic graph retains per node and per edge, part by part (hit index,
+lookups, retained elements, marks and their texts); `--labels` turns activity
+labels on, `--straight` leaves the edges without routes.
+
+`npm run bench` is the benchmark, also not a gate: it times scene preparation,
+simplification, Canvas frames, the React map's readiness, the first scene and
+the abort of a layout, and the retained scene memory, in Node and in the
+Playwright Chromium, and writes `artifacts/bench/bench.json` and `bench.md`
+beside the numbers measured before the repairs and the latency targets. How to
+run and read it is in [tests](../tests/README.md#benchmark).
 
 Budgets in [scripts/budgets.json](../scripts/budgets.json) are initial regression
 limits, not load-time promises. The consumer total includes lazy BPMN/modeler and

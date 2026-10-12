@@ -1,6 +1,8 @@
 /** Text descriptions of map elements for ARIA labels and the table alternative. */
+import { describeEdge } from "../core/describe.js";
 import {
-  type FlowEdge,
+  type ActivityLabelOptions,
+  activityCounts,
   type FlowGraph,
   type FlowGroup,
   type FlowNode,
@@ -18,36 +20,25 @@ import {
   t,
 } from "../core/index.js";
 
-export function describeNode(node: FlowNode, overlays: Overlay[], locale: Locale, groupLabel?: string): string {
+export function describeNode(node: FlowNode, overlays: Overlay[], locale: Locale, groupLabel?: string, activityLabels?: ActivityLabelOptions): string {
   const parts: string[] = [];
   parts.push(`${node.label}, ${t(locale, `kind.${node.kind}` as StringKey)}${groupLabel ? ` (${groupLabel})` : ""}`);
   const cases = metric(node, "cases", NaN);
   const share = metric(node, "share", NaN);
-  if (Number.isFinite(cases)) {
+  if (activityLabels) {
+    const reference = Object.hasOwn(activityLabels.references, node.id) ? activityLabels.references[node.id] : undefined;
+    if (reference) parts[0] = `${reference} — ${parts[0]}`;
+    parts.push(activityCounts(node, activityLabels, locale, true));
+    if (Number.isFinite(share)) parts.push(formatShare(share, locale));
+  } else if (Number.isFinite(cases)) {
     parts.push(`${formatCount(cases, locale)} ${t(locale, "metric.cases")}${Number.isFinite(share) ? ` (${formatShare(share, locale)})` : ""}`);
   }
   const events = metric(node, "events", NaN);
-  if (Number.isFinite(events) && events !== cases) parts.push(`${formatCount(events, locale)} ${t(locale, "metric.events")}`);
+  if (!activityLabels && Number.isFinite(events) && events !== cases) parts.push(`${formatCount(events, locale)} ${t(locale, "metric.events")}`);
   const violation = metric(node, "violationShare", NaN);
   if (Number.isFinite(violation)) parts.push(`${formatShare(violation, locale)} ${t(locale, "metric.violationShare")}`);
   if (hasTag(node, RECONNECTED_TAG)) parts.push(t(locale, "map.reconnected"));
   for (const o of overlays) parts.push(describeOverlay(o, locale));
-  return parts.join(". ") + ".";
-}
-
-export function describeEdge(edge: FlowEdge, graph: FlowGraph, locale: Locale): string {
-  const byId = new Map(graph.nodes.map((n) => [n.id, n.label]));
-  const parts: string[] = [];
-  parts.push(`${t(locale, `kind.${edge.kind}` as StringKey)} ${byId.get(edge.source) ?? edge.source} → ${byId.get(edge.target) ?? edge.target}`);
-  const count = metric(edge, "count", NaN);
-  if (Number.isFinite(count)) parts.push(`${formatCount(count, locale)} ${t(locale, "metric.count")}`);
-  const cases = metric(edge, "cases", NaN);
-  if (Number.isFinite(cases) && cases !== count) parts.push(`${formatCount(cases, locale)} ${t(locale, "metric.cases")}`);
-  const lag = metric(edge, "medianLagHours", NaN);
-  if (Number.isFinite(lag)) parts.push(`${t(locale, "metric.medianLagHours")} ${formatHours(lag, locale)}`);
-  const violation = metric(edge, "violationShare", NaN);
-  if (Number.isFinite(violation)) parts.push(`${formatShare(violation, locale)} ${t(locale, "metric.violationShare")}`);
-  if (hasTag(edge, RECONNECTED_TAG)) parts.push(t(locale, "map.reconnected"));
   return parts.join(". ") + ".";
 }
 
@@ -58,7 +49,9 @@ export function describeGroup(group: FlowGroup, members: number, overlays: Overl
 }
 
 export function describeMap(graph: FlowGraph, overlays: Overlay[], locale: Locale): string {
-  const abstraction = graph.meta?.abstraction as { minNodeShare?: number; minEdgeShare?: number } | undefined;
+  // A server's threshold share (a number) names no node and path shares; only the recorded thresholds are described.
+  const recorded = graph.meta?.abstraction;
+  const abstraction = typeof recorded === "object" ? recorded : undefined;
   const parts = [
     t(locale, "map.description", { nodes: graph.nodes.length, edges: graph.edges.length, groups: graph.groups?.length ?? 0 }),
   ];
@@ -92,4 +85,4 @@ export function formatMetric(name: string, value: number | undefined, locale: Lo
   return value.toFixed(2);
 }
 
-export { metricLabel };
+export { describeEdge, metricLabel };

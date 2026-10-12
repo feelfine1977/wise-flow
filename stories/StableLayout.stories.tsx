@@ -3,7 +3,8 @@ import elkWorkerUrl from "elkjs/lib/elk-worker.min.js?url";
 import { useMemo, useState } from "react";
 import { constraintItems, globalScene, vendorScene, vendorSceneKey } from "../fixtures/bpic2019";
 import { type AbstractOptions, type Positions, abstract, filterPositions, overlaysFor } from "../src/index";
-import { ProcessMap, type Selection, useStableLayout } from "../src/react/index";
+import { type Selection, useStableLayout } from "../src/react/index";
+import { ProcessMap } from "./maps";
 
 const meta: Meta = {
   title: "Stable layout",

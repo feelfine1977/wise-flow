@@ -1,9 +1,4 @@
-/**
- * Selection state of a map: which nodes, edges and groups are selected, how a
- * click or a key changes that, what the selection looks like (one activity,
- * a pair, a set, a path, a stage) and how it is announced. Framework-free so
- * that every renderer and the table alternative share one model.
- */
+/** Selection state of a map: what is selected, how clicks and keys change it, and how it is announced. */
 import { type Locale } from "./format.js";
 import { type FlowGraph, indexGraph } from "./model.js";
 import { t } from "./strings.js";
@@ -111,7 +106,7 @@ export function selectionShape(selection: Selection): SelectionShape {
 /**
  * Elements that stay bright while a selection exists: the selected nodes and
  * the paths touching them, the selected paths with their endpoints, the
- * members of a selected group. Everything else is dimmed by the renderers.
+ * members of a selected group, nested groups included. Everything else is dimmed by the renderers.
  */
 export function relatedToSelection(graph: FlowGraph, selection: Selection): { nodes: Set<string>; edges: Set<string> } {
   const nodes = new Set<string>(selection.nodes);
@@ -128,14 +123,14 @@ export function relatedToSelection(graph: FlowGraph, selection: Selection): { no
       nodes.add(e.target);
     }
   }
-  for (const g of selection.groups) for (const n of idx.members.get(g) ?? []) nodes.add(n.id);
+  for (const g of selection.groups) for (const n of idx.allMembers(g)) nodes.add(n.id);
   return { nodes, edges };
 }
 
 /** Sentence for the live region after the selection changed. */
 export function describeSelection(graph: FlowGraph, selection: Selection, locale: Locale = "en"): string {
   const idx = indexGraph(graph);
-  const label = (id: string) => idx.nodes.get(id)?.label ?? idx.groups.get(id)?.label ?? id;
+  const label = idx.label;
   switch (selectionShape(selection)) {
     case "none":
       return t(locale, "selection.none");

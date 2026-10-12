@@ -15,7 +15,8 @@ import {
   overlaysFor,
   pathsFor,
 } from "../src/index";
-import { ProcessMap, type Selection } from "../src/react/index";
+import { type Selection } from "../src/react/index";
+import { ProcessMap } from "./maps";
 
 const meta: Meta = {
   title: "Interaction",

@@ -1,8 +1,8 @@
 /**
  * PNG export: the scene drawn with the canvas routines into an offscreen
- * canvas, with the same figure presets and embedded legend as `toSVG`.
+ * canvas, in the same figure frame and with the same legend as `toSVG`.
  */
-import { type Box, type FigurePreset, type LodRules, type Scene, FIGURE_WIDTHS, MAP_TARGET, formatCount, t } from "../core/index.js";
+import { type EdgeBudget, type FigurePreset, type Scene, type ShownEdges, budgetEdges, figureFrame, figureMetrics, formatCount, t } from "../core/index.js";
 import { type DrawContext, drawLegend, drawScene } from "./draw.js";
 import { prepareScene } from "./scene.js";
 import { type CanvasTokens, defaultTokens } from "./tokens.js";
@@ -34,6 +34,8 @@ export interface PngOptions {
   createCanvas?: (width: number, height: number) => CanvasLike;
   /** Show the scene context line under the title. Default true. */
   context?: boolean;
+  /** The edges drawn, as in `toSVG`: those a map reported, or a budget. Default every edge. */
+  edgeBudget?: EdgeBudget | ShownEdges;
 }
 
 export interface PngCanvas {
@@ -45,19 +47,6 @@ export interface PngCanvas {
   cssWidth: number;
   cssHeight: number;
   scale: number;
-}
-
-/** Level-of-detail thresholds multiplied by a factor, so that `lodZoom` decides what a figure shows. */
-function scaleLod(rules: LodRules, factor: number): LodRules {
-  return {
-    labels: rules.labels * factor,
-    edgeLabels: rules.edgeLabels * factor,
-    badges: rules.badges * factor,
-    arcs: rules.arcs * factor,
-    chips: rules.chips * factor,
-    hatch: rules.hatch * factor,
-    selfLoops: rules.selfLoops * factor,
-  };
 }
 
 function defaultCreateCanvas(width: number, height: number): CanvasLike {
@@ -75,22 +64,11 @@ function defaultCreateCanvas(width: number, height: number): CanvasLike {
 export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
   const tokens: CanvasTokens = { ...defaultTokens, ...(options.tokens ?? {}) };
   const locale = scene.locale ?? "en";
-  const prepared = prepareScene(scene.graph, scene.positions, { style: scene.style, overlays: scene.overlays ?? scene.graph.overlays, locale, lanes: scene.lanes, selfLoops: false });
-  const pad = options.padding ?? 24;
-  const legend = options.legend ?? true;
-  const legendWidth = legend ? 220 : 0;
-  const content: Box = prepared.bounds.width > 0 && prepared.bounds.height > 0 ? prepared.bounds : { x: 0, y: 0, width: 1, height: 1 };
-  const headerHeight = scene.title ? 40 + (options.context !== false ? 18 : 0) : 0;
-  const mapW = content.width + 2 * pad;
-  const mapH = content.height + 2 * pad;
-  // The legend's height is only known after drawing; reserve a column for it.
-  const mapChips = prepared.overlays.filter((o) => o.kind === "chip" && o.target === MAP_TARGET).length;
-  const legendEstimate = legend ? 40 + prepared.scales.legend.reduce((s, it) => s + (it.kind === "categorical" ? 20 + it.entries.length * 16 : 46), 0) + 6 * 14 + mapChips * 28 : 0;
-  const totalW = mapW + legendWidth;
-  const totalH = Math.max(mapH, legendEstimate + 2 * pad) + headerHeight;
-  const cssWidth = options.width ?? (options.preset && options.preset !== "none" ? FIGURE_WIDTHS[options.preset] : totalW);
-  const k = cssWidth / totalW;
-  const cssHeight = totalH * k;
+  const prepared = prepareScene(scene.graph, scene.positions, { style: scene.style, overlays: scene.overlays, locale, lanes: scene.lanes, selfLoops: scene.selfLoops, activityLabels: scene.activityLabels, lodBySize: false });
+  const { edgeBudget } = options;
+  const frame = figureFrame(prepared, { title: !!scene.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: options.width, withheld: budgetEdges(prepared, edgeBudget) });
+  const { padding: pad, width: totalW, outWidth: cssWidth, outHeight: cssHeight } = frame;
+  const k = totalW > 0 ? cssWidth / totalW : 1;
   const scale = options.scale ?? Math.max(2, typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1);
   const create = options.createCanvas ?? defaultCreateCanvas;
   const canvas = create(Math.max(1, Math.round(cssWidth * scale)), Math.max(1, Math.round(cssHeight * scale)));
@@ -98,13 +76,14 @@ export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
   if (!ctx) throw new Error("toPNG: the canvas has no 2D context");
   ctx.save();
   ctx.scale(scale, scale);
-  // Level of detail is decided at `lodZoom`, independent of the figure scale.
-  const lodScene = options.lodZoom !== undefined && options.lodZoom !== k ? { ...prepared, lod: scaleLod(prepared.lod, k / options.lodZoom) } : prepared;
-  drawScene(ctx, lodScene, { x: (pad - content.x) * k, y: (headerHeight + pad - content.y) * k, zoom: k, width: cssWidth, height: cssHeight }, undefined, {
+  drawScene(ctx, prepared, { x: frame.map.offset.x * k, y: frame.map.offset.y * k, zoom: k, width: cssWidth, height: cssHeight }, undefined, {
     tokens,
+    // Level of detail is decided at `lodZoom`, independent of the figure scale.
+    lodZoom: options.lodZoom ?? 1,
     cull: false,
     background: options.background ?? tokens.paper,
     createCanvas: (w, h) => create(w, h),
+    edgeBudget,
   });
   ctx.save();
   ctx.scale(k, k);
@@ -113,7 +92,7 @@ export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
     ctx.font = `700 18px ${tokens.font}`;
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
-    ctx.fillText(scene.title, pad, 26);
+    ctx.fillText(scene.title, pad, figureMetrics.titleBaseline);
     if (options.context !== false) {
       const meta = scene.graph.meta ?? {};
       const label = scene.subtitle ?? String(meta.label ?? meta.scene ?? "");
@@ -121,20 +100,29 @@ export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
       const events = typeof meta.events === "number" ? formatCount(meta.events, locale) : "–";
       ctx.fillStyle = tokens.neutral;
       ctx.font = `11px ${tokens.font}`;
-      ctx.fillText(t(locale, "export.context", { label, cases, events }), pad, 44);
+      ctx.fillText(t(locale, "export.context", { label, cases, events }), pad, figureMetrics.contextBaseline);
     }
   }
-  if (legend) {
+  if (frame.legend) {
+    const { rule, x, y, width } = frame.legend;
     ctx.strokeStyle = tokens.neutral;
     ctx.globalAlpha = 0.4;
     ctx.lineWidth = 1;
     ctx.setLineDash([]);
     ctx.beginPath();
-    ctx.moveTo(mapW, headerHeight + pad);
-    ctx.lineTo(mapW, totalH - pad);
+    ctx.moveTo(rule.x, rule.top);
+    ctx.lineTo(rule.x, rule.bottom);
     ctx.stroke();
     ctx.globalAlpha = 1;
-    drawLegend(ctx, prepared, mapW + 16, headerHeight + pad, legendWidth - 32, tokens);
+    drawLegend(ctx, prepared, x, y, width, tokens, { createCanvas: (w, h) => create(w, h) });
+  }
+  if (frame.note || frame.key.lines.length) {
+    ctx.fillStyle = tokens.ink;
+    ctx.font = `11px ${tokens.font}`;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    if (frame.note) ctx.fillText(frame.note.text, frame.note.x, frame.note.y);
+    frame.key.lines.forEach((line, i) => ctx.fillText(line, pad, frame.key.y + i * figureMetrics.keyLine));
   }
   ctx.restore();
   ctx.restore();
