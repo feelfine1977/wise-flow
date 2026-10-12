@@ -1,6 +1,7 @@
 /** Drawing routines of the canvas renderer: plain 2D context calls for a scene, a viewport and a state, culled on large scenes; `canvasTextMeasure`. */
 import { selfLoopsOf } from "../core/edge-budget.js";
-import { type Arrowhead, type Box, type BoxSide, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type PatternLook, type Selection, type ShownEdges, type StateStyle, type TextMeasure, type Theme, arrowheadExtent, dimensionTokens, fixedColors, hatchTokens, legendLayout, legendMetrics, budgetEdges, defaultTheme, estimateTextWidth, lineEnd, lodAt, markArrowhead, markInState, patternTwin, ruleTextRole, stateStyle } from "../core/index.js";
+import { headTriangle } from "../core/element-marks.js";
+import { type Arrowhead, type Box, type BoxSide, type XY, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type PatternLook, type Selection, type ShownEdges, type StateStyle, type TextMeasure, type Theme, arrowheadExtent, dimensionTokens, fixedColors, hatchTokens, legendLayout, legendMetrics, budgetEdges, defaultTheme, estimateTextWidth, lineEnd, lodAt, markArrowhead, markInState, patternTwin, ruleTextRole, stateStyle } from "../core/index.js";
 import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene.js";
 import { type CanvasTokens, sceneTokens } from "./tokens.js";
 
@@ -167,23 +168,18 @@ export function tracePath(ctx: DrawContext, d: string): { last?: [number, number
   return { last, beforeLast };
 }
 
-/** The arrowhead rule (`Arrowhead`) at the end of the segment `from` → `end`, filled and outlined in `color`. */
-function arrowhead(ctx: DrawContext, from: [number, number], end: [number, number], a: Arrowhead, color: string) {
-  const dx = end[0] - from[0];
-  const dy = end[1] - from[1];
-  const len = Math.hypot(dx, dy);
-  if (len === 0) return;
-  const ux = dx / len;
-  const uy = dy / len;
-  const { length, half, tip, outline } = arrowheadExtent(a);
-  const to = tip ? [end[0] + ux * tip, end[1] + uy * tip] : end;
+/** The arrowhead rule (`Arrowhead`) at the end of the segment `from` → `end` (`headTriangle`), filled and outlined in `color`. */
+function arrowhead(ctx: DrawContext, from: XY, end: XY, a: Arrowhead, color: string) {
+  const head = headTriangle(from, end, a);
+  if (!head) return;
   ctx.beginPath();
-  ctx.moveTo(to[0], to[1]);
-  ctx.lineTo(to[0] - ux * length - uy * half, to[1] - uy * length + ux * half);
-  ctx.lineTo(to[0] - ux * length + uy * half, to[1] - uy * length - ux * half);
+  ctx.moveTo(head[0].x, head[0].y);
+  ctx.lineTo(head[1].x, head[1].y);
+  ctx.lineTo(head[2].x, head[2].y);
   ctx.closePath();
   ctx.fillStyle = color;
   ctx.fill();
+  const { outline } = arrowheadExtent(a);
   if (outline) {
     ctx.strokeStyle = color;
     ctx.lineWidth = outline;
@@ -381,8 +377,7 @@ function drawEdge(ctx: DrawContext, e: SceneEdge, tokens: CanvasTokens, theme: T
   ctx.lineTo(end.x, end.y);
   ctx.stroke();
   ctx.setLineDash([]);
-  const a = pts[pts.length - 2];
-  arrowhead(ctx, [a.x, a.y], [end.x, end.y], m.arrow, color);
+  arrowhead(ctx, pts[pts.length - 2], end, m.arrow, color);
   ctx.globalAlpha = 1;
 }
 
@@ -489,7 +484,8 @@ function drawMark(ctx: DrawContext, scene: PreparedScene, given: OverlayMark, to
     ctx.setLineDash(m.stroke.dash ?? []);
     ctx.stroke();
     ctx.setLineDash([]);
-    if (m.arrow && end?.last && end.beforeLast) arrowhead(ctx, end.beforeLast, end.last, markArrowhead(m.arrow), color);
+    const [p, q] = [end?.beforeLast, end?.last];
+    if (m.arrow && p && q) arrowhead(ctx, { x: p[0], y: p[1] }, { x: q[0], y: q[1] }, markArrowhead(m.arrow), color);
   }
   ctx.globalAlpha = alpha;
   if (m.pill) {

@@ -3,7 +3,7 @@
  * in exports. Items are nodes, groups, edge segments and overlay shapes.
  */
 import RBush from "rbush";
-import { type EdgeMark, lineEnd } from "./element-marks.js";
+import { type EdgeMark, headTriangle, lineEnd } from "./element-marks.js";
 import { type Box, type EdgeRoute, type Positions, type XY, unionBoxes } from "./layout.js";
 import { type OverlayMark, markLayer, overlayMarks } from "./overlay-marks.js";
 import type { OverlayGeometry, OverlayShape } from "./overlays.js";
@@ -41,7 +41,7 @@ export interface HitItem {
    * A path's line along this segment as it is drawn (on the last segment, to where it ends under its head), half
    * its width, and on the last segment its head's triangle and half its outline: hit tests read these, not `segment`.
    */
-  stroke?: { line: [XY, XY]; reach: number; head?: { points: [XY, XY, XY]; reach: number } };
+  stroke?: { line: [XY, XY]; reach: number; head?: { points: XY[]; reach: number } };
 }
 
 /** The order of hits: what is painted on top comes first. */
@@ -91,11 +91,10 @@ function curveOf(s: OverlayShape, mark = overlayMarks([s])[0]): HitItem["curve"]
 }
 
 /** Inside a triangle, or within `reach` of one of its sides. */
-function nearTriangle(p: XY, [a, b, c]: [XY, XY, XY], reach: number): boolean {
-  const side = (u: XY, v: XY) => (v.x - u.x) * (p.y - u.y) - (v.y - u.y) * (p.x - u.x);
-  const [d1, d2, d3] = [side(a, b), side(b, c), side(c, a)];
-  const inside = (d1 >= 0 && d2 >= 0 && d3 >= 0) || (d1 <= 0 && d2 <= 0 && d3 <= 0);
-  return inside || Math.min(distanceToSegment(p, [a, b]), distanceToSegment(p, [b, c]), distanceToSegment(p, [c, a])) <= reach;
+function nearTriangle(p: XY, corners: XY[], reach: number): boolean {
+  const sides = corners.map((a, k): [XY, XY] => [a, corners[(k + 1) % 3]]);
+  const turns = sides.map(([a, b]) => Math.sign((b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)));
+  return !turns.includes(1) || !turns.includes(-1) || sides.some((s) => distanceToSegment(p, s) <= reach);
 }
 
 /** Within `tolerance` of what the item draws. */
@@ -194,19 +193,6 @@ function boxItem(id: string, kind: HitKind, b: Box, index: number | undefined): 
   return { id, kind, minX: Math.floor(b.x), minY: Math.floor(b.y), maxX: Math.ceil(b.x + b.width), maxY: Math.ceil(b.y + b.height), index, box: b };
 }
 
-/**
- * A path's head as the maps draw it on the segment `from` → `end` (where the line ends): the triangle with its tip
- * the head's overhang beyond `end`; none where the two coincide.
- */
-function headOf(from: XY, end: XY, arrow: EdgeMark["arrow"]): [XY, XY, XY] | undefined {
-  const len = Math.hypot(end.x - from.x, end.y - from.y);
-  if (!len) return undefined;
-  const [ux, uy] = [(end.x - from.x) / len, (end.y - from.y) / len];
-  const { length, half, tip } = arrowheadExtent(arrow);
-  const to = { x: end.x + ux * tip, y: end.y + uy * tip };
-  return [to, { x: to.x - ux * length - uy * half, y: to.y - uy * length + ux * half }, { x: to.x - ux * length + uy * half, y: to.y - uy * length - ux * half }];
-}
-
 function edgeItems(id: string, route: EdgeRoute, tolerance: number, index: number | undefined, path?: Pick<EdgeMark, "width" | "arrow">): HitItem[] {
   const out: HitItem[] = [];
   const pts = route.points;
@@ -215,7 +201,7 @@ function edgeItems(id: string, route: EdgeRoute, tolerance: number, index: numbe
     const a = pts[i];
     const b = pts[i + 1];
     const last = i + 2 === pts.length;
-    const head = end && last ? headOf(a, end, path!.arrow) : undefined;
+    const head = end && last ? headTriangle(a, end, path!.arrow) : undefined;
     const stroke = path && { line: [a, last ? end! : b] as [XY, XY], reach: path.width / 2, ...(head && { head: { points: head, reach: arrowheadExtent(path.arrow).outline / 2 } }) };
     out.push({
       id,
