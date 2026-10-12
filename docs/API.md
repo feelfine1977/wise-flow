@@ -1862,7 +1862,11 @@ While edges are withheld the note is part of the figure as text: "Showing 3
 of 8 flows" (`map.edges.withheld` in the scene's `locale`, English and
 German) at 11 px in the ink colour under the map and the legend, inside the
 figure's frame (see `figureFrame`); in SVG it is a `<text
-class="wf-edge-note">`. The figure keeps every node, group and overlay.
+class="wf-edge-note">`, and it ends the figure's accessible label, so that a
+screen reader announces it: `aria-label="Process map with 9 nodes and 8
+connections in 0 groups. Showing 3 of 8 flows."`, or the title, ended with a
+full stop, and the note. Up to this change the label was the title or the
+description alone. The figure keeps every node, group and overlay.
 
 ## BPMN routing and navigation (0.3.4)
 
