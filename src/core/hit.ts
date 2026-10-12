@@ -65,9 +65,8 @@ function distanceToSegment(p: XY, [a, b]: [XY, XY]): number {
 const near = (b: Box, x: number, y: number, tolerance: number) => b.x - tolerance <= x && x <= b.x + b.width + tolerance && b.y - tolerance <= y && y <= b.y + b.height + tolerance;
 
 /** A path's cubic in chords of at most 8 units along its control polygon (16 to 1,024 of them), half its stroke, its label's box. */
-function curveOf(s: OverlayShape): HitItem["curve"] {
+function curveOf(s: OverlayShape, mark = overlayMarks([s])[0]): HitItem["curve"] {
   const [x0, y0, x1, y1, x2, y2, x3, y3] = s.path!.match(/-?[\d.]+(?:e[-+]?\d+)?/g)!.map(Number);
-  const mark = overlayMarks([s])[0];
   // At most 1,024 chords: a curve longer than 8,192 (or of no finite length) takes longer ones.
   const length = Math.hypot(x1 - x0, y1 - y0) + Math.hypot(x2 - x1, y2 - y1) + Math.hypot(x3 - x2, y3 - y2);
   const n = Number.isFinite(length) ? Math.min(1024, Math.max(16, Math.ceil(length / 8))) : 16;
@@ -105,8 +104,11 @@ export class HitIndex {
   /** `tolerance`: what an edge segment's bounds were grown by, for comparing sizes. */
   constructor(private tolerance = 4) {}
 
-  /** Build an index from a layout, optional overlay geometry, each element's `index`, a box each item's bounds also cover (`extentOf`) and the nodes drawn as diamonds. */
-  static fromScene(positions: Positions, geometry?: OverlayGeometry, edgeTolerance = 4, indexOf?: (kind: HitKind, id: string) => number | undefined, extentOf?: (item: HitItem) => Box | undefined, diamond?: (id: string) => boolean): HitIndex {
+  /**
+   * Build an index from a layout, optional overlay geometry, each element's `index`, a box each item's bounds also cover (`extentOf`),
+   * the nodes drawn as diamonds and the marks the shapes are drawn as (`markOf`; else the default theme's), whose stroke a curve is hit on.
+   */
+  static fromScene(positions: Positions, geometry?: OverlayGeometry, edgeTolerance = 4, indexOf?: (kind: HitKind, id: string) => number | undefined, extentOf?: (item: HitItem) => Box | undefined, diamond?: (id: string) => boolean, markOf?: (shapeId: string) => OverlayMark | undefined): HitIndex {
     const index = new HitIndex(edgeTolerance);
     const items: HitItem[] = [];
     const add = (item: HitItem) => {
@@ -122,7 +124,7 @@ export class HitIndex {
     for (const [id, b] of Object.entries(positions.groups)) add(boxItem(id, "group", b, indexOf?.("group", id)));
     for (const [id, b] of Object.entries(positions.nodes)) add({ ...boxItem(id, "node", b, indexOf?.("node", id)), ...(diamond?.(id) && { diamond: true }) });
     for (const [id, r] of Object.entries(positions.edges)) for (const item of edgeItems(id, r, edgeTolerance, indexOf?.("edge", id))) add(item);
-    for (const s of geometry?.shapes ?? []) add({ ...boxItem(s.overlay.target, "overlay", s, indexOf?.("overlay", s.id)), shapeId: s.id, layer: markLayer(s.kind), ...(s.path && { curve: curveOf(s) }) });
+    for (const s of geometry?.shapes ?? []) add({ ...boxItem(s.overlay.target, "overlay", s, indexOf?.("overlay", s.id)), shapeId: s.id, layer: markLayer(s.kind), ...(s.path && { curve: curveOf(s, markOf?.(s.id)) }) });
     index.load(items);
     return index;
   }

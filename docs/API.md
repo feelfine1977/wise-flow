@@ -1109,7 +1109,8 @@ export class HitIndex { constructor(edgeTolerance?: number);
   static fromScene(p: Positions, g?: OverlayGeometry, edgeTolerance?: number,
     indexOf?: (kind: HitItem["kind"], id: string) => number | undefined,
     extentOf?: (item: HitItem) => Box | undefined,   // a box the item's bounds also cover
-    diamond?: (nodeId: string) => boolean): HitIndex;   // nodes drawn as a diamond (gateways)
+    diamond?: (nodeId: string) => boolean,   // nodes drawn as a diamond (gateways)
+    markOf?: (shapeId: string) => OverlayMark | undefined): HitIndex;   // the marks the shapes are drawn as
   at(x, y, tolerance?): HitItem[]; within(box: Box): HitItem[] }
 export interface HitItem { minX; minY; maxX; maxY; id: string; kind: "node" | "edge" | "group" | "overlay";
   segment?: [XY, XY]; shapeId?: string; index?: number;   // index: indexOf(kind, id or shape id)
@@ -1189,7 +1190,9 @@ area query finds an element whose drawing reaches beyond its box. `at`
 tests the point against what the element draws, not the bounds, so a hit
 test is exact: a node's, group's or overlay shape's own box (`HitItem.box`),
 an edge's segment, an arc's or a self-loop's curve and label, a gateway's
-diamond. `at` lists the items within `tolerance` of the point (a box when the
+diamond. A curve is hit within half the stroke of the mark `markOf` returns
+for its shape, which `prepareScene` passes in the scene's theme; without it,
+the default theme's stroke. `at` lists the items within `tolerance` of the point (a box when the
 point is within the tolerance of it, an edge when it is within the tolerance
 of one of its segments) with the one painted on top first: overlay shapes above the nodes (badges, chips, hatching,
 self-loops), nodes, arcs, edges, tints, groups; among those the smaller

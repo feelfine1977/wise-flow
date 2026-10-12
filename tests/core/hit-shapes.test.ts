@@ -74,6 +74,28 @@ describe("hits on arcs, self-loops and gateways, where they are drawn", () => {
     expect(top(scene, label.x, label.y - 4)).toBe("arc:a->b");
   });
 
+  it("returns an arc and a self-loop on the whole stroke a theme draws them in, and nothing beyond its tolerance", () => {
+    // The arc of the case above and a loop on c, drawn 12 and 10 wide: hit up to half their width and 4 more from their course.
+    const graph: FlowGraph = { nodes: ["a", "b", "c"].map(activity), edges: [{ id: "c->c", kind: "follows", source: "c", target: "c", metrics: { count: 7 } }] };
+    const box = (x: number, y: number) => ({ x, y, width: 100, height: 40 });
+    const positions = createPositions({ nodes: { a: box(0, 200), b: box(600, 200), c: box(300, 500) }, groups: {}, edges: {} }, "given", "RIGHT");
+    const overlays: Overlay[] = [{ kind: "arc", target: "a->b", payload: { constraintId: "order", source: "a", target: "b", value: 0.4, coverage: 0.5 } }];
+    const scene = prepareScene(graph, positions, { overlays, theme: { stroke: { arc: 12, selfLoop: 10 } } });
+    for (const [kind, id, half] of [["arc", "a->b", 6], ["selfLoop", "c", 5]] as const) {
+      const mark = scene.marks.find((m) => m.kind === kind)!;
+      expect(mark.stroke!.width).toBe(half * 2);
+      // At a fifth of the course, off the arc's pill and the loop's text; outwards, where no activity lies.
+      const course = curve(mark.path!);
+      const [before, on, after] = [course[79], course[80], course[81]];
+      const length = Math.hypot(after.x - before.x, after.y - before.y);
+      const normal = { x: (after.y - before.y) / length, y: -(after.x - before.x) / length };
+      const side = kind === "arc" ? 1 : on.x * normal.x + on.y * normal.y > 350 * normal.x + 520 * normal.y ? 1 : -1;
+      const out = (d: number) => ({ x: on.x + normal.x * d * side, y: on.y + normal.y * d * side });
+      expect(top(scene, out(half + 3.9).x, out(half + 3.9).y)).toBe(`${kind}:${id}`);
+      expect(top(scene, out(half + 4.1).x, out(half + 4.1).y)).toBeUndefined();
+    }
+  });
+
   it("returns a gateway inside its diamond, also where the diamond reaches beyond its box, and not in the box's corners", () => {
     // A gateway 60 wide and 30 tall: its diamond's points are 30 from its centre (30, 15), above and below the box too.
     const graph: FlowGraph = { nodes: [{ id: "g", kind: "gateway", label: "G", tags: ["xor"] }], edges: [] };
