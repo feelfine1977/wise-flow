@@ -27,7 +27,7 @@ export interface MarkIds {
 export const MARK_IDS: MarkIds = { arrow: "wf-mark-arrow", pattern: "wf-mark-outofscope" };
 
 /** Paints as CSS: tokens as variables; a hovered mark shows its value in the focus colour. */
-export function domMarkOptions(ids: MarkIds, hovered = false): MarkSvgOptions {
+function domMarkOptions(ids: MarkIds, hovered = false): MarkSvgOptions {
   return {
     paint: (m, paint) => (paint === "value" ? (hovered ? "var(--wf-focus)" : m.color) : paint === "onValue" ? (hovered ? TOKENS.paper : m.onColor) : TOKENS[paint]),
     arrowId: ids.arrow,

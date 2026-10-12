@@ -16,7 +16,7 @@
  */
 import type { DrawContext, PreparedScene, View } from "../../src/canvas/index";
 import { drawScene } from "../../src/canvas/index";
-import { type Box, type FlowEdge, type FlowGraph, type FlowNode, type FlowScene, type Locale, type NodeKind, type Positions, palettes } from "../../src/index";
+import { type Box, type FlowEdge, type FlowGraph, type FlowNode, type FlowScene, type Locale, type NodeKind, type Positions } from "../../src/index";
 import { type ListName, watch } from "./ink";
 import type { Rung } from "./ladder";
 
@@ -577,9 +577,6 @@ function diff(a: string[], b: string[]): string {
   const missing = b.filter((x) => !sa.has(x));
   return [extra.length ? `extra ${extra.join(", ")}` : "", missing.length ? `missing ${missing.join(", ")}` : ""].filter(Boolean).join("; ");
 }
-
-/** The default palette's stops, for readings that have no printed legend. */
-export const sequentialStops = palettes.sequential;
 
 // ---------------------------------------------------------------------------
 // Pictures

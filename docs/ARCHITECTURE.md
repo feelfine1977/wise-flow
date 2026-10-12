@@ -3,26 +3,32 @@
 ## 1. Layers
 
 ```
-┌────────────────────────────────────────────────────────────┐
-│ react/   <ProcessMap/> <TableAlternative/> <TraceTimeline/> │
+┌──────────────────────────────────────────────────────────────┐
+│ react/   <ProcessMap/> <TableAlternative/> <TraceTimeline/>  │
 │          <BpmnView/> <ViewSwitcher/> <ContextMenu/>          │
 │          <PathList/> <FilterChips/> <CanvasMap/> <Legend/>   │
+│          <AbstractionControls/> <OverlayLayer/>              │
+│          <FlowComparison/> <PatternSwatch/>                  │
 │          useMapController · map-pointer · map-actions ·      │
-│          map-elements · nodes · edges · marks                │
+│          map-elements · nodes · edges · marks · describe ·   │
+│          types · ActivityTooltip                             │
 │          hooks: useFlowGraph, useStableLayout, useOverlays   │
-├──────────────────────────┬─────────────────────────────────┤
-│ canvas/  scene · draw ·  │ bpmn/  lite · layout · export ·   │
-│          renderer · png  │        import · ids · vocabulary · │
-│          · tokens        │        scene · projection ·        │
-│                          │        viewer · bpmn-js · moddle   │
-├──────────────────────────┴─────────────────────────────────┤
-│ core/    model · aggregate · layout · lanes · routing ·     │
-│          scene · overlays · overlay-geometry ·              │
-│          overlay-marks · element-marks · mark-svg · figure ·│
-│          tokens · style · hit · export · views ·            │
-│          selection · map-controller · actions · paths ·     │
-│          filters · format · strings                         │
-└────────────────────────────────────────────────────────────┘
+├──────────────────────────┬───────────────────────────────────┤
+│ canvas/  scene · draw ·  │ bpmn/ lite · layout · export ·    │
+│          renderer · png  │       import · ids · scene ·      │
+│          · tokens        │       vocabulary · projection ·   │
+│                          │       viewer · bpmn-js · moddle · │
+│                          │       headless                    │
+├──────────────────────────┴───────────────────────────────────┤
+│ core/    model · aggregate · layout · layout-key · lanes ·   │
+│          routing · provisional · scene · overlays ·          │
+│          overlay-geometry · overlay-marks · observed-loops · │
+│          element-marks · mark-svg · figure · edge-budget ·   │
+│          tokens · style · hit · export · views ·             │
+│          selection · map-controller · actions · paths ·      │
+│          describe · filters · format · strings ·             │
+│          activity-labels · label-sizing · collapsed-members  │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 Dependencies point downwards only. `core` has no DOM and no React; it is

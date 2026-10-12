@@ -4,6 +4,7 @@ import { type DrawContext, type PreparedScene, drawScene, prepareScene, toPNGCan
 import { type FamilyName, families } from "../support/graphs";
 import { caseCount, caseLabel, createRandom, seeds } from "../support/random";
 import { positionsOf } from "../support/scenes";
+import { svgEdges, svgNote } from "../support/svg";
 import { shrinkCase, shrinkGraph } from "../support/shrink";
 
 // ---------------------------------------------------------------------------
@@ -247,11 +248,6 @@ const reported: Check = (c) => {
   }
   return undefined;
 };
-
-/** The edges and the note of an SVG export. */
-const unescape = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
-const svgEdges = (svg: string) => [...svg.matchAll(/<g class="wf-edge" data-id="([^"]*)"/g)].map((m) => unescape(m[1])).sort();
-const svgNote = (svg: string) => /<text [^>]*class="wf-edge-note"[^>]*>([^<]*)<\/text>/.exec(svg)?.[1];
 
 /** The texts a PNG export without its legend writes. */
 function pngTexts(scene: Parameters<typeof toPNGCanvas>[0], edgeBudget: number | "all"): string[] {

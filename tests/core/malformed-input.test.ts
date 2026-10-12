@@ -20,7 +20,6 @@ import {
   type ConstraintDescription,
   type ConstraintStats,
   type FilterClause,
-  type FlowGraph,
   type FlowPath,
   type Locale,
   type MarkText,

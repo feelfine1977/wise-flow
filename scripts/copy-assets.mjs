@@ -13,7 +13,6 @@ const copy = (from, to) => {
 };
 copy(join(root, "src/tokens.css"), "tokens.css");
 copy(join(root, "src/react/style.css"), "style.css");
-copy(join(root, "src/react/style.css"), "react/style.css");
 copy(join(dependency("@xyflow/react"), "dist/style.css"), "react-flow.css");
 // File by file: Node's recursive copy fails on some mounted file systems.
 const copyDirectory = (from, to) => {

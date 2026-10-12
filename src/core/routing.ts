@@ -13,7 +13,7 @@ const ports = (b: Box): Port[] => {
 };
 
 /** Whether an axis-aligned segment crosses the open interior of a box. */
-export function crossesBox(a: XY, b: XY, box: Box): boolean {
+function crossesBox(a: XY, b: XY, box: Box): boolean {
   return a.x === b.x
     ? a.x > box.x && a.x < box.x + box.width && Math.max(a.y, b.y) > box.y && Math.min(a.y, b.y) < box.y + box.height
     : a.y > box.y && a.y < box.y + box.height && Math.max(a.x, b.x) > box.x && Math.min(a.x, b.x) < box.x + box.width;

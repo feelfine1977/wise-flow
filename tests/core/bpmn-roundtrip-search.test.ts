@@ -73,7 +73,7 @@ describe("export → import of generated models", () => {
         ...markup.map((label, i): FlowNode => ({ id: `t${i}`, kind: "activity", label, group: "lane", tags: ["task"] })),
         { id: "end", kind: "event", label: 'End & "done"', tags: ["end"] },
       ],
-      edges: ["start", ...markup.map((_, i) => `t${i}`), "end"].slice(1).map((target, i, all): FlowEdge => {
+      edges: ["start", ...markup.map((_, i) => `t${i}`), "end"].slice(1).map((target, i): FlowEdge => {
         const source = i === 0 ? "start" : `t${i - 1}`;
         return { id: `${source}->${target}`, kind: "flow", source, target, payload: { label: markup[i % markup.length] } };
       }),

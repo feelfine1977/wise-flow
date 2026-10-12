@@ -288,7 +288,7 @@ const MARKUP = ["<b>Check</b> invoice", "Pay & close", "Order \"urgent\"", "Ship
 const LONG_WORDS = ["Verification", "of", "the", "supplier", "invoice", "against", "the", "purchase", "order", "and", "goods", "receipt", "with", "escalation"];
 
 /** A label of the flavour for node `i`; `long` labels have at least 200 characters. */
-export function labelOf(flavour: LabelFlavour, i: number, rng: Random): string {
+function labelOf(flavour: LabelFlavour, i: number, rng: Random): string {
   switch (flavour) {
     case "long": {
       let s = "";

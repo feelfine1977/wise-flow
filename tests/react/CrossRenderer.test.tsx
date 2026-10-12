@@ -5,6 +5,7 @@ import { type DrawContext, type PreparedScene, drawScene, prepareScene } from ".
 import { liteFromGraph } from "../../src/bpmn/index";
 import { type EdgeKind, type FlowGraph, type NodeKind, type Positions, abstract, estimateTextWidth, layout, toSVG } from "../../src/index";
 import { ProcessMap } from "../../src/react/index";
+import { unescape } from "../support/svg";
 
 /**
  * What each renderer writes per element: node id or edge id → its texts in
@@ -12,7 +13,6 @@ import { ProcessMap } from "../../src/react/index";
  */
 type Written = { nodes: Map<string, string[]>; edges: Map<string, string[]> };
 
-const unescape = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
 const textsOf = (svg: string) => [...svg.matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map((m) => unescape(m[1]));
 
 function fromSVG(graph: FlowGraph, positions: Positions): Written {

@@ -18,7 +18,6 @@ import type { DrawContext, PreparedScene } from "../../src/canvas/index";
 import type { Box } from "../../src/index";
 
 export type ListName = "groups" | "marks" | "edges" | "nodes";
-export const LIST_NAMES: readonly ListName[] = ["groups", "marks", "edges", "nodes"];
 
 /** One read of an element's entry and the ink drawn until the next read. */
 export interface Visit {
@@ -41,15 +40,6 @@ export function union(a: Box | undefined, b: Box): Box {
   const x = Math.min(a.x, b.x);
   const y = Math.min(a.y, b.y);
   return { x, y, width: Math.max(a.x + a.width, b.x + b.width) - x, height: Math.max(a.y + a.height, b.y + b.height) - y };
-}
-
-/** Whether two boxes share at least a point (closed intervals). */
-export function meets(a: Box, b: Box): boolean {
-  return a.x <= b.x + b.width && b.x <= a.x + a.width && a.y <= b.y + b.height && b.y <= a.y + a.height;
-}
-
-export function grow(b: Box, by: number): Box {
-  return { x: b.x - by, y: b.y - by, width: b.width + 2 * by, height: b.height + 2 * by };
 }
 
 /** The box of the points where a cubic Bézier from `p0` with handles `p1`, `p2` to `p3` is extreme (its tight bounds). */

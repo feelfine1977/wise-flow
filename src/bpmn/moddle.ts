@@ -53,7 +53,7 @@ export interface ModdleElement {
   [key: string]: unknown;
 }
 
-export interface ModdleParseWarning {
+interface ModdleParseWarning {
   message: string;
   error?: Error;
   element?: ModdleElement;
