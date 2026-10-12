@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { globalScene, vendorScene } from "../../fixtures/bpic2019";
 import { byId } from "../../src/core/model";
-import { COLLAPSED_TAG, DIFF_TAGS, RECONNECTED_TAG, type FlowEdge, type FlowGraph, type FlowNode, abstract, collapseGroups, diff, hasTag, isConnected, validateGraph } from "../../src/index";
+import { type AbstractionMeta, COLLAPSED_TAG, DIFF_TAGS, RECONNECTED_TAG, type FlowEdge, type FlowGraph, type FlowNode, abstract, collapseGroups, diff, hasTag, isConnected, validateGraph } from "../../src/index";
 import { tiedGraph } from "./abstract-cases";
 
 /** Deterministic pseudo-random graph generator (LCG). */
@@ -357,6 +357,23 @@ describe("abstract", () => {
     }
     // Nothing goes: no count.
     expect(abstract(g).meta?.abstraction).toEqual({ minEdgeShare: 0, minNodeShare: 0, keepConnected: true, collapse: undefined });
+  });
+
+  it("lists the kinds of the edges removed with an element at an end in sorted order, whatever the input order", () => {
+    // R (5 of 100 cases) goes at 50 %, and with it a flow edge and a constraint edge, given flow first.
+    const node = (id: string, cases: number): FlowNode => ({ id, kind: "activity", label: id, metrics: { cases } });
+    const g: FlowGraph = {
+      nodes: [node("A", 100), node("R", 5), node("B", 100)],
+      edges: [
+        { id: "AB", kind: "follows", source: "A", target: "B", metrics: { count: 95 } },
+        { id: "fAR", kind: "flow", source: "A", target: "R" },
+        { id: "cRB", kind: "constraint", source: "R", target: "B" },
+      ],
+    };
+    for (const edges of [g.edges, [...g.edges].reverse()]) {
+      const removed = (abstract({ ...g, edges }, { minNodeShare: 0.5, keepConnected: false }).meta?.abstraction as AbstractionMeta | undefined)?.removedEdges;
+      expect(Object.entries(removed ?? {})).toEqual([["constraint", 1], ["flow", 1]]);
+    }
   });
 
   it("brings back the constraint and flow edges of an activity it re-adds to keep the map connected", () => {

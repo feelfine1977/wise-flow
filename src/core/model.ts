@@ -139,7 +139,7 @@ export interface AbstractionMeta {
   /** The share of paths shown by frequency (see `AbstractOptions.pathDetail`). */
   pathDetail?: number;
   collapse?: string[] | "all";
-  /** Constraint and flow edges `abstract` removed with an activity or stage at one of their ends, by kind; absent when none went. */
+  /** Constraint and flow edges `abstract` removed with an activity or stage at one of their ends, by kind in sorted order; absent when none went. */
   removedEdges?: { constraint?: number; flow?: number };
 }
 

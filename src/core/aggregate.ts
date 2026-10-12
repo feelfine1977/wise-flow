@@ -799,7 +799,8 @@ export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowG
         ...(byDetail
           ? { activityDetail: options.activityDetail ?? 1, pathDetail: options.pathDetail ?? 1, collapse: collapse || undefined }
           : { minEdgeShare, minNodeShare, keepConnected, collapse: collapse || undefined }),
-        ...(Object.keys(removedEdges).length && { removedEdges }),
+        // By kind in sorted order, as every other record of the result is free of the input order.
+        ...(Object.keys(removedEdges).length && { removedEdges: Object.fromEntries(Object.entries(removedEdges).sort(([a], [b]) => (a < b ? -1 : 1))) }),
       },
       // The model before any abstraction: a figure's caption reports its size, stage colours follow its groups' order.
       model: base.meta?.model ?? modelOutline(graph),

@@ -242,8 +242,10 @@ only with an activity or stage at one of its ends (an edge to an element
 that is not on the map cannot be drawn); by detail shares a flow edge
 between shown activities is shown, as a path no metric measured is (see
 "Detail shares"). `meta.abstraction.removedEdges` counts the edges removed
-with an element at an end by kind (`{ constraint, flow }`, absent while none
-went; abstracting an abstracted graph adds to the count it carries). With
+with an element at an end by kind (`{ constraint, flow }`, its keys in sorted
+order whatever the input order, absent while none went; abstracting an
+abstracted graph adds to the count it carries; up to 0.3.5 the keys followed
+the input order). With
 thresholds and `keepConnected` an activity re-added to keep the map
 connected brings back its constraint and flow edges to elements on the map,
 tagged `reconnected` like everything re-added. Collapsing a stage drops the
