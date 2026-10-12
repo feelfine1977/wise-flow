@@ -69,7 +69,7 @@ const GROUPED = ["stages", "lanes", "nested", "overlaid"] as const;
 
 /**
  * What the families do not make on their own: parallel follows edges, loops of two,
- * self-loops, constraint edges, activities without edges, members without a weight,
+ * self-loops, constraint and flow edges, activities without edges, members without a weight,
  * and node metrics that are maxima or means; then a random input order.
  */
 function withQuirks(graph: FlowGraph, rng: Random): FlowGraph {
@@ -84,11 +84,12 @@ function withQuirks(graph: FlowGraph, rng: Random): FlowGraph {
   const count = () => rng.int(1, 1000);
   for (let k = rng.int(0, 4); k > 0 && graph.edges.length; k--) {
     const e = rng.pick(graph.edges);
-    const kind = rng.weighted([["parallel", 3], ["reverse", 3], ["loop", 2], ["constraint", 1]] as const);
+    const kind = rng.weighted([["parallel", 3], ["reverse", 3], ["loop", 2], ["constraint", 1], ["flow", 1]] as const);
     if (kind === "parallel") add({ ...e, id: `${e.id}#2`, metrics: { count: count(), cases: count() } });
     if (kind === "reverse") add({ id: `${e.target}->${e.source}`, kind: "follows", source: e.target, target: e.source, metrics: { count: count() } });
     if (kind === "loop") add({ id: `${e.source}->${e.source}`, kind: "follows", source: e.source, target: e.source, metrics: { count: count() } });
     if (kind === "constraint") add({ id: `${e.id}~c`, kind: "constraint", source: e.source, target: e.target });
+    if (kind === "flow") add({ id: `${e.id}~f`, kind: "flow", source: e.source, target: e.target });
   }
   if (rng.chance(0.2)) nodes.push({ id: "alone", kind: "activity", label: "Alone", metrics: { cases: count() } });
   for (const n of nodes) {

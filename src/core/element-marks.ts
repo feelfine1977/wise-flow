@@ -352,6 +352,19 @@ export function lineEnd(points: readonly XY[], arrow: Arrowhead): XY {
   const back = Math.min(length, arrowheadExtent(arrow).tip) / length;
   return { x: end.x - (end.x - from.x) * back, y: end.y - (end.y - from.y) * back };
 }
+/**
+ * An arrowhead's triangle on the segment `from` → `end`, where its line ends: its tip the head's overhang beyond
+ * `end`, then the two corners of its base; none where the two points coincide.
+ */
+export function headTriangle(from: XY, end: XY, a: Arrowhead): XY[] | undefined {
+  const len = Math.hypot(end.x - from.x, end.y - from.y);
+  if (len === 0) return undefined;
+  const ux = (end.x - from.x) / len;
+  const uy = (end.y - from.y) / len;
+  const { length, half, tip } = arrowheadExtent(a);
+  const to = tip ? { x: end.x + ux * tip, y: end.y + uy * tip } : end;
+  return [to, { x: to.x - ux * length - uy * half, y: to.y - uy * length + ux * half }, { x: to.x - ux * length + uy * half, y: to.y - uy * length - ux * half }];
+}
 const NO_TEXTS: ElementText[] = Object.freeze([]) as unknown as ElementText[];
 
 /**

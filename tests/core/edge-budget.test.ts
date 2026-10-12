@@ -82,6 +82,29 @@ describe("edge budget", () => {
     expect(ids(marked, budgetEdges(marked, 5, protection)?.drawn)).toEqual(["e0", "e2", "e4", "e5", "e6"]);
   });
 
+  it("counts the paths among the edges in view it withholds: not a constraint edge, nor a path through activities not shown", () => {
+    // a → b → c → d with 30, 20 and 10, a constraint edge a → c and an indirect path a → d, which weigh nothing and come last.
+    const indirect: FlowEdge = { id: "via", kind: "follows", source: "a", target: "d", tags: ["indirect"], payload: { hiddenActivities: 1, via: ["x"] } };
+    const mixed = sceneOf(["a", "b", "c", "d"], [follows("p1", "a", "b", 30), follows("p2", "b", "c", 20), follows("p3", "c", "d", 10), { id: "k", kind: "constraint", source: "a", target: "c" }, indirect]);
+    // Two of five: p3, k and via are withheld, of which p3 is a path.
+    expect(budgetEdges(mixed, 2)).toMatchObject({ shown: 2, total: 5, pathsNotShown: 1 });
+    // Three of five: only k and via are withheld, and no path.
+    expect(budgetEdges(mixed, 3)).toMatchObject({ shown: 3, total: 5, pathsNotShown: 0 });
+    // Of those in view (p2, p3, k), one: p3 and k are withheld.
+    expect(budgetEdges(mixed, 1, {}, [1, 2, 3])).toMatchObject({ shown: 1, total: 3, pathsNotShown: 1 });
+    // A map's report: p1 and k drawn, p2, p3 and via not.
+    expect(budgetEdges(mixed, { edges: ["p1", "k"], total: 5 })).toMatchObject({ shown: 2, total: 5, pathsNotShown: 2 });
+  });
+
+  it("counts a loop a map's report leaves out among the paths it withholds", () => {
+    // a → b and b → c, and a path that loops on a; the map drew a → b alone.
+    const looped = sceneOf(["a", "b", "c"], [follows("p1", "a", "b", 30), follows("p2", "b", "c", 20), follows("loop", "a", "a", 10)]);
+    // Withheld: p2 and the loop, both paths, as total − shown says.
+    expect(budgetEdges(looped, { edges: ["p1"], total: 3 })).toMatchObject({ shown: 1, total: 3, loops: [], pathsNotShown: 2 });
+    // The loop drawn: only p2.
+    expect(budgetEdges(looped, { edges: ["p1", "loop"], total: 3 })).toMatchObject({ shown: 2, total: 3, loops: ["loop"], pathsNotShown: 1 });
+  });
+
   it("orders by the metric the edge width reads", () => {
     const byShare = buildScene(scene.graph, scene.positions, {
       selfLoops: false,

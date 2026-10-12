@@ -3,7 +3,7 @@ import { collapsedActivityIds, shownActivityIds } from "./collapsed-members.js";
  * Aggregation: abstraction by frequency or performance with a keep-connected
  * guarantee, stage collapse (semantic zoom) and diff maps.
  */
-import { INDIRECT_TAG, MinHeap, rankActivities, selectByDetail, within } from "./detail.js";
+import { INDIRECT_TAG, MinHeap, isPath, rankActivities, selectByDetail, within } from "./detail.js";
 import type { MetricBasis } from "./metrics.js";
 import { canonicalOverlays } from "./overlays.js";
 import {
@@ -681,7 +681,6 @@ function restoreFlowContext(
 }
 
 const isActivity = (n: FlowNode) => n.kind === "activity" || n.kind === "stage";
-const isPath = (e: FlowEdge) => e.kind !== "constraint" && !hasTag(e, INDIRECT_TAG);
 
 /**
  * Abstract a graph: optionally collapse stage groups, then remove weak activities and
@@ -741,10 +740,11 @@ export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowG
   const nodeSet = new Set(nodes.map((n) => n.id));
   const edgeSet = new Set(edges.map((e) => e.id));
   // A constraint or flow edge goes only with an element at one of its ends, counted since the first abstraction;
-  // a re-added activity brings its own back.
+  // a re-added activity brings its own back. By detail shares a flow edge is a path: one that went with its end
+  // is counted once, among the paths not shown.
   const removedEdges: Record<string, number> = { ...(base.meta?.abstraction as AbstractionMeta | undefined)?.removedEdges };
   for (const e of base.edges) {
-    if (e.kind === "follows" || edgeSet.has(e.id)) continue;
+    if (e.kind === "follows" || (byDetail && e.kind === "flow") || edgeSet.has(e.id)) continue;
     if (!nodeSet.has(e.source) || !nodeSet.has(e.target)) removedEdges[e.kind] = (removedEdges[e.kind] ?? 0) + 1;
     else if (!byDetail) {
       edges.push(tagged(e));
@@ -800,7 +800,8 @@ export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowG
         ...(byDetail
           ? { activityDetail: options.activityDetail ?? 1, pathDetail: options.pathDetail ?? 1, collapse: collapse || undefined }
           : { minEdgeShare, minNodeShare, keepConnected, collapse: collapse || undefined }),
-        ...(Object.keys(removedEdges).length && { removedEdges }),
+        // By kind in sorted order, as every other record of the result is free of the input order.
+        ...(Object.keys(removedEdges).length && { removedEdges: Object.fromEntries(Object.entries(removedEdges).sort(([a], [b]) => (a < b ? -1 : 1))) }),
       },
       // The model before any abstraction: a figure's caption reports its size, stage colours follow its groups' order.
       model: base.meta?.model ?? modelOutline(graph),

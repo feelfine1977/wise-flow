@@ -3,10 +3,12 @@
  * in exports. Items are nodes, groups, edge segments and overlay shapes.
  */
 import RBush from "rbush";
+import { type EdgeMark, headTriangle, lineEnd } from "./element-marks.js";
 import { type Box, type EdgeRoute, type Positions, type XY, unionBoxes } from "./layout.js";
 import { type OverlayMark, markLayer, overlayMarks } from "./overlay-marks.js";
 import type { OverlayGeometry, OverlayShape } from "./overlays.js";
 import { estimateTextWidth } from "./text.js";
+import { arrowheadExtent } from "./tokens.js";
 
 type HitKind = "node" | "edge" | "group" | "overlay";
 
@@ -35,6 +37,11 @@ export interface HitItem {
   curve?: { points: XY[]; reach: number; label?: Box };
   /** A node drawn as a diamond (a gateway): hit tests read the diamond, which is as tall as the box is wide. */
   diamond?: boolean;
+  /**
+   * A path's line along this segment as it is drawn (on the last segment, to where it ends under its head), half
+   * its width, and on the last segment its head's triangle and half its outline: hit tests read these, not `segment`.
+   */
+  stroke?: { line: [XY, XY]; reach: number; head?: { points: XY[]; reach: number } };
 }
 
 /** The order of hits: what is painted on top comes first. */
@@ -83,9 +90,18 @@ function curveOf(s: OverlayShape, mark = overlayMarks([s])[0]): HitItem["curve"]
   return { points, reach: (mark.stroke?.width ?? 0) / 2, label };
 }
 
+/** Inside a triangle, or within `reach` of one of its sides. */
+function nearTriangle(p: XY, corners: XY[], reach: number): boolean {
+  const sides = corners.map((a, k): [XY, XY] => [a, corners[(k + 1) % 3]]);
+  const turns = sides.map(([a, b]) => Math.sign((b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)));
+  return !turns.includes(1) || !turns.includes(-1) || sides.some((s) => distanceToSegment(p, s) <= reach);
+}
+
 /** Within `tolerance` of what the item draws. */
 function touches(it: HitItem, x: number, y: number, tolerance: number): boolean {
   const p = { x, y };
+  const s = it.stroke;
+  if (s) return distanceToSegment(p, s.line) <= tolerance + s.reach || (!!s.head && nearTriangle(p, s.head.points, tolerance + s.head.reach));
   if (it.segment) return distanceToSegment(p, it.segment) <= tolerance;
   const c = it.curve;
   if (c) return c.points.some((q, k) => k > 0 && distanceToSegment(p, [c.points[k - 1], q]) <= tolerance + c.reach) || (!!c.label && near(c.label, x, y, tolerance));
@@ -106,9 +122,10 @@ export class HitIndex {
 
   /**
    * Build an index from a layout, optional overlay geometry, each element's `index`, a box each item's bounds also cover (`extentOf`),
-   * the nodes drawn as diamonds and the marks the shapes are drawn as (`markOf`; else the default theme's), whose stroke a curve is hit on.
+   * the nodes drawn as diamonds, the marks the shapes are drawn as (`markOf`; else the default theme's), whose stroke a curve is hit on,
+   * and the marks the edges are drawn as (`pathOf`), whose line and head a path is hit on (else its route's segments).
    */
-  static fromScene(positions: Positions, geometry?: OverlayGeometry, edgeTolerance = 4, indexOf?: (kind: HitKind, id: string) => number | undefined, extentOf?: (item: HitItem) => Box | undefined, diamond?: (id: string) => boolean, markOf?: (shapeId: string) => OverlayMark | undefined): HitIndex {
+  static fromScene(positions: Positions, geometry?: OverlayGeometry, edgeTolerance = 4, indexOf?: (kind: HitKind, id: string) => number | undefined, extentOf?: (item: HitItem) => Box | undefined, diamond?: (id: string) => boolean, markOf?: (shapeId: string) => OverlayMark | undefined, pathOf?: (edgeId: string) => Pick<EdgeMark, "width" | "arrow"> | undefined): HitIndex {
     const index = new HitIndex(edgeTolerance);
     const items: HitItem[] = [];
     const add = (item: HitItem) => {
@@ -123,7 +140,7 @@ export class HitIndex {
     };
     for (const [id, b] of Object.entries(positions.groups)) add(boxItem(id, "group", b, indexOf?.("group", id)));
     for (const [id, b] of Object.entries(positions.nodes)) add({ ...boxItem(id, "node", b, indexOf?.("node", id)), ...(diamond?.(id) && { diamond: true }) });
-    for (const [id, r] of Object.entries(positions.edges)) for (const item of edgeItems(id, r, edgeTolerance, indexOf?.("edge", id))) add(item);
+    for (const [id, r] of Object.entries(positions.edges)) for (const item of edgeItems(id, r, edgeTolerance, indexOf?.("edge", id), pathOf?.(id))) add(item);
     for (const s of geometry?.shapes ?? []) add({ ...boxItem(s.overlay.target, "overlay", s, indexOf?.("overlay", s.id)), shapeId: s.id, layer: markLayer(s.kind), ...(s.path && { curve: curveOf(s, markOf?.(s.id)) }) });
     index.load(items);
     return index;
@@ -176,20 +193,37 @@ function boxItem(id: string, kind: HitKind, b: Box, index: number | undefined): 
   return { id, kind, minX: Math.floor(b.x), minY: Math.floor(b.y), maxX: Math.ceil(b.x + b.width), maxY: Math.ceil(b.y + b.height), index, box: b };
 }
 
-function edgeItems(id: string, route: EdgeRoute, tolerance: number, index: number | undefined): HitItem[] {
+function edgeItems(id: string, route: EdgeRoute, tolerance: number, index: number | undefined, path?: Pick<EdgeMark, "width" | "arrow">): HitItem[] {
   const out: HitItem[] = [];
-  for (let i = 0; i + 1 < route.points.length; i++) {
-    const a = route.points[i];
-    const b = route.points[i + 1];
+  const pts = route.points;
+  const end = path && pts.length > 1 ? lineEnd(pts, path.arrow) : undefined;
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const a = pts[i];
+    const b = pts[i + 1];
+    const last = i + 2 === pts.length;
+    const head = end && last ? headTriangle(a, end, path!.arrow) : undefined;
+    const stroke = path && { line: [a, last ? end! : b] as [XY, XY], reach: path.width / 2, ...(head && { head: { points: head, reach: arrowheadExtent(path.arrow).outline / 2 } }) };
+    // The bounds cover the segment grown by the tolerance, and what is drawn: the line and the head grown by their reach.
+    const grown = [{ points: [a, b], reach: Math.max(tolerance, stroke?.reach ?? 0) }, ...(stroke?.head ? [stroke.head] : [])];
+    let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const { points, reach } of grown) {
+      for (const p of points) {
+        minX = Math.min(minX, p.x - reach);
+        minY = Math.min(minY, p.y - reach);
+        maxX = Math.max(maxX, p.x + reach);
+        maxY = Math.max(maxY, p.y + reach);
+      }
+    }
     out.push({
       id,
       kind: "edge",
-      minX: Math.floor(Math.min(a.x, b.x) - tolerance),
-      minY: Math.floor(Math.min(a.y, b.y) - tolerance),
-      maxX: Math.ceil(Math.max(a.x, b.x) + tolerance),
-      maxY: Math.ceil(Math.max(a.y, b.y) + tolerance),
-      segment: route.points.length === 2 ? (route.points as [XY, XY]) : [a, b],
+      minX: Math.floor(minX),
+      minY: Math.floor(minY),
+      maxX: Math.ceil(maxX),
+      maxY: Math.ceil(maxY),
+      segment: pts.length === 2 ? (pts as [XY, XY]) : [a, b],
       index,
+      ...(stroke && { stroke }),
     });
   }
   return out;

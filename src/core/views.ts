@@ -2,7 +2,7 @@
 import { type AbstractOptions, abstract, collapseGroups } from "./aggregate.js";
 import { type LayoutOptions, type Positions, filterPositions, layout } from "./layout.js";
 import { type FlowGraph, type Metrics, type Overlay, metric } from "./model.js";
-import { type ChannelSpec, type ColorSpec, type Scales, type StyleSpec, buildScales, defaultStyle, extentOf, isShareMetric, pathScaleMax, symmetricDomain } from "./style.js";
+import { type ChannelSpec, type ColorSpec, type Scales, type StyleSpec, buildScales, defaultStyle, extentOf, isShareMetric, pathMetricOf, pathScaleMax, symmetricDomain } from "./style.js";
 
 /** What one view encodes. Metrics are merged over the base graph's metrics by id. */
 export interface ViewSpec {
@@ -82,9 +82,8 @@ export function resolveViews(base: FlowGraph, views: ViewSpec[], positions: Posi
   const edgeValues = (name: string): number[] => graphs.flatMap((g) => g.edges.filter((e) => e.kind !== "constraint").map((e) => metric(e, name, NaN)));
   const nodeValues = (name: string): number[] => graphs.flatMap((g) => g.nodes.map((n) => metric(n, name, NaN)));
 
-  // Paths count cases, or transitions where no view gives cases for them (as `buildScales` decides for one graph).
-  const measured = (name: string) => edgeValues(name).some(Number.isFinite);
-  const widthMetric = (name: string) => (name === "cases" && !measured("cases") && measured("count") ? "count" : name);
+  // Paths count cases, or transitions where no view gives cases for them (as `buildScales` decides for one graph), for their width and colour alike.
+  const pathMetric = pathMetricOf(graphs.flatMap((g) => g.edges));
   // The width scales of all views run from 0 to one upper end: the strongest path of any of them before abstraction,
   // or a view's own strongest path where its metrics give more (the base recorded its upper end before they were merged).
   const widthMax = (spec: ChannelSpec): number => {
@@ -113,11 +112,12 @@ export function resolveViews(base: FlowGraph, views: ViewSpec[], positions: Posi
 
   const resolved: ResolvedView[] = views.map((v, i) => {
     const spec = v.style ?? defaultStyle;
+    const edgeColor = spec.edgeColor && { ...spec.edgeColor, ...(spec.edgeColor.metric && { metric: pathMetric(spec.edgeColor.metric) }) };
     const style: StyleSpec = share
       ? {
           ...spec,
-          edgeWidth: spec.edgeWidth ? { ...spec.edgeWidth, metric: widthMetric(spec.edgeWidth.metric), ...(!spec.edgeWidth.domain && { max: widthMax({ ...spec.edgeWidth, metric: widthMetric(spec.edgeWidth.metric) }) }) } : undefined,
-          edgeColor: spec.edgeColor ? { ...spec.edgeColor, domain: colorDomain("edgeColor", spec.edgeColor) } : undefined,
+          edgeWidth: spec.edgeWidth ? { ...spec.edgeWidth, metric: pathMetric(spec.edgeWidth.metric), ...(!spec.edgeWidth.domain && { max: widthMax({ ...spec.edgeWidth, metric: pathMetric(spec.edgeWidth.metric) }) }) } : undefined,
+          edgeColor: edgeColor ? { ...edgeColor, domain: colorDomain("edgeColor", edgeColor) } : undefined,
           nodeColor: spec.nodeColor ? { ...spec.nodeColor, domain: colorDomain("nodeColor", spec.nodeColor) } : undefined,
         }
       : spec;

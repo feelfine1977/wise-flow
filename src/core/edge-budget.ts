@@ -1,7 +1,9 @@
 /** The edge budget: which of the edges in view a map draws (protected first, then highlighted, then by weight, then id), for every renderer. */
+import { isPath } from "./detail.js";
 import type { EdgeMark } from "./element-marks.js";
 import { metric } from "./model.js";
 import type { FlowScene } from "./scene.js";
+import { pathMetricOf } from "./style.js";
 
 /** How many edges a map draws: a number, or `"all"`. */
 export type EdgeBudget = number | "all";
@@ -36,6 +38,8 @@ export interface EdgeSelection {
   loops: readonly string[];
   /** How many highlighted edges in view the budget withholds. */
   highlightedNotShown: number;
+  /** How many of the paths in view it withholds (follows and flow edges, not indirect ones, and the loops a map's report does not name): what a panel counts as paths not drawn. */
+  pathsNotShown: number;
 }
 
 // Per scene: each edge's rank by weight and id, and whether a mark is on it; kept with the edge marks for the
@@ -48,9 +52,7 @@ function orderOf(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style" | "graph
   let known = orders.get(marks);
   if (known && known.given === given && known.overlays === scene.marks) return known;
   // The metric the width reads, as the scales resolve it: cases, or the transitions where no path of the graph (loops too) gives cases.
-  const paths = scene.graph.edges.filter((e) => e.kind === "follows" || e.kind === "flow");
-  const has = (name: string) => paths.some((e) => Number.isFinite(metric(e, name, NaN)));
-  const name = given === "cases" && !has("cases") && has("count") ? "count" : given;
+  const name = pathMetricOf(scene.graph.edges)(given);
   const weight = marks.map((m) => metric(m.edge, name, -Infinity));
   const sorted = marks.map((_, i) => i).sort((a, b) => weight[b] - weight[a] || (marks[a].id < marks[b].id ? -1 : 1));
   const rank = new Int32Array(marks.length);
@@ -85,12 +87,18 @@ export function budgetEdges(scene: BudgetScene, budget: EdgeBudget | ShownEdges 
   if (typeof budget === "object") {
     const named = new Set(budget.edges);
     const drawn = new Set<number>();
+    let pathsNotShown = 0;
     for (let k = 0; k < total; k++) {
       const i = inView ? inView[k] : k;
-      if (named.has(scene.edgeMarks[i].id)) drawn.add(i);
+      const mark = scene.edgeMarks[i];
+      if (named.has(mark.id)) drawn.add(i);
+      else if (isPath(mark.edge)) pathsNotShown++;
     }
-    loops = loops.filter((id) => named.has(id));
-    return drawn.size < total ? { drawn, shown: drawn.size + loops.length, total: budget.total, kept: drawn.size, loops, highlightedNotShown: 0 } : undefined;
+    // A loop in view the map did not draw is a path not shown too.
+    const drawnLoops = loops.filter((id) => named.has(id));
+    pathsNotShown += loops.length - drawnLoops.length;
+    loops = drawnLoops;
+    return drawn.size < total ? { drawn, shown: drawn.size + loops.length, total: budget.total, kept: drawn.size, loops, highlightedNotShown: 0, pathsNotShown } : undefined;
   }
   // Not a number (NaN) withholds nothing, as "all" does.
   if (budget === undefined || budget === "all" || !(total > budget)) return undefined;
@@ -99,11 +107,16 @@ export function budgetEdges(scene: BudgetScene, budget: EdgeBudget | ShownEdges 
   const drawn = new Set<number>();
   const highlighted: number[] = [];
   const rest: number[] = [];
+  // The edges a budget may withhold that are paths.
+  const paths = new Set<number>();
   for (let k = 0; k < total; k++) {
     const i = inView ? inView[k] : k;
-    const id = scene.edgeMarks[i].id;
+    const { id, edge } = scene.edgeMarks[i];
     if (marked[i] || selected.has(id) || protection.focused === id) drawn.add(i);
-    else (protection.highlighted?.has(id) ? highlighted : rest).push(i);
+    else {
+      (protection.highlighted?.has(id) ? highlighted : rest).push(i);
+      if (isPath(edge)) paths.add(i);
+    }
   }
   const kept = drawn.size;
   const room = Math.floor(budget) - kept;
@@ -111,7 +124,8 @@ export function budgetEdges(scene: BudgetScene, budget: EdgeBudget | ShownEdges 
   // The highlighted edges first, heaviest first, then the others; both within the budget.
   if (room > 0) for (const i of [...highlighted.sort(byRank), ...rest.sort(byRank)].slice(0, room)) drawn.add(i);
   const highlightedNotShown = highlighted.filter((i) => !drawn.has(i)).length;
-  return drawn.size < total ? { drawn, shown: drawn.size + loops.length, total: total + loops.length, kept, loops, highlightedNotShown } : undefined;
+  const pathsNotShown = [...paths].filter((i) => !drawn.has(i)).length;
+  return drawn.size < total ? { drawn, shown: drawn.size + loops.length, total: total + loops.length, kept, loops, highlightedNotShown, pathsNotShown } : undefined;
 }
 
 /** The adaptive budget's first step; the steps are 500, 1,000, 2,000, … */

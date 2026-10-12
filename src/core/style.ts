@@ -461,6 +461,20 @@ export function pathScaleMax(graph: FlowGraph, name: string): number | undefined
   return extentOf(graph.edges.filter((e) => e.kind !== "constraint").map((e) => metric(e, name, NaN)))?.[1];
 }
 
+/**
+ * The metric paths are measured by for one asked for: their transitions
+ * (`count`) for `cases` where no path of `edges` (follows and flow edges,
+ * loops too) gives cases and one gives a count, else the one asked for.
+ * Decided once for the edges given, for the width, the colour and the edge
+ * budget's order alike.
+ */
+export function pathMetricOf(edges: readonly FlowEdge[]): (name: string) => string {
+  const paths = edges.filter((e) => e.kind !== "constraint");
+  const has = (name: string) => paths.some((e) => Number.isFinite(metric(e, name, NaN)));
+  const counts = !has("cases") && has("count");
+  return (name) => (name === "cases" && counts ? "count" : name);
+}
+
 /** Build the scales of a graph for a style specification in a theme's palettes; deterministic for the same input. */
 export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, theme: Theme = defaultTheme): Scales {
   const domains: Scales["domains"] = {};
@@ -468,10 +482,9 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
   const color = (value: number, palette: PaletteName, domain: number[]) => colorOn(value, palette, domain, theme);
   // Paths carry the metrics; sequence flows of a BPMN-lite graph carry the same metrics.
   const follows = graph.edges.filter((e) => e.kind === "follows" || e.kind === "flow");
-  const has = (name: string) => follows.some((e) => Number.isFinite(metric(e, name, NaN)));
   // Paths count cases like activities; where the graph gives them only transitions, they count those.
-  const transitionsOnly = !has("cases") && has("count");
-  const resolved = (name: string) => (name === "cases" && transitionsOnly ? "count" : name);
+  const resolved = pathMetricOf(follows);
+  const transitionsOnly = resolved("cases") === "count";
 
   // Categorical colours in stage order, then in the order groups and keys first appear.
   const keyOf = categoricalKey(spec.nodeColor);

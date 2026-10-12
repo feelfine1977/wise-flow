@@ -129,7 +129,9 @@ reaches. The detail shares (below) keep every shown activity on a way from a
 start to an end instead.
 A re-added activity brings back its constraint and flow edges to elements on
 the map; constraint and flow edges otherwise go only with an element at one
-of their ends, and `meta.abstraction.removedEdges` counts them.
+of their ends, and `meta.abstraction.removedEdges` counts them (by detail
+shares a flow edge is a path, and one that went is counted among the paths
+not shown instead).
 Re-added elements are tagged `reconnected` and drawn dashed. A collapsed
 stage takes the maximum of its activities' `cases` and `share` and weighted
 means of other metrics; the graph holds no case sets, so these are not the

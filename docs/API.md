@@ -242,8 +242,13 @@ only with an activity or stage at one of its ends (an edge to an element
 that is not on the map cannot be drawn); by detail shares a flow edge
 between shown activities is shown, as a path no metric measured is (see
 "Detail shares"). `meta.abstraction.removedEdges` counts the edges removed
-with an element at an end by kind (`{ constraint, flow }`, absent while none
-went; abstracting an abstracted graph adds to the count it carries). With
+with an element at an end by kind (`{ constraint, flow }`, its keys in sorted
+order whatever the input order, absent while none went; abstracting an
+abstracted graph adds to the count it carries; up to 0.3.5 the keys followed
+the input order). By detail shares a flow edge is a path, so one removed with
+an element at an end is counted once, among the paths not shown
+(`meta.shown.paths`, "61 of 677 paths"), and not in `removedEdges`; up to
+0.3.5 it was counted in both. With
 thresholds and `keepConnected` an activity re-added to keep the map
 connected brings back its constraint and flow edges to elements on the map,
 tagged `reconnected` like everything re-added. Collapsing a stage drops the
@@ -1160,13 +1165,15 @@ export class HitIndex { constructor(edgeTolerance?: number);
     indexOf?: (kind: HitItem["kind"], id: string) => number | undefined,
     extentOf?: (item: HitItem) => Box | undefined,   // a box the item's bounds also cover
     diamond?: (nodeId: string) => boolean,   // nodes drawn as a diamond (gateways)
-    markOf?: (shapeId: string) => OverlayMark | undefined): HitIndex;   // the marks the shapes are drawn as
+    markOf?: (shapeId: string) => OverlayMark | undefined,   // the marks the shapes are drawn as
+    pathOf?: (edgeId: string) => Pick<EdgeMark, "width" | "arrow"> | undefined): HitIndex;   // the marks the edges are drawn as
   at(x, y, tolerance?): HitItem[]; within(box: Box): HitItem[] }
 export interface HitItem { minX; minY; maxX; maxY; id: string; kind: "node" | "edge" | "group" | "overlay";
   segment?: [XY, XY]; shapeId?: string; index?: number;   // index: indexOf(kind, id or shape id)
   box?: Box; layer?: "below" | "between" | "above";   // box: of a node, group or overlay shape, what hit tests read; layer: of an overlay shape
   curve?: { points: XY[]; reach: number; label?: Box };   // an arc's or a self-loop's curve, half its stroke, its label's box
-  diamond?: boolean }   // a node hit by its diamond
+  diamond?: boolean;   // a node hit by its diamond
+  stroke?: { line: [XY, XY]; reach: number; head?: { points: XY[]; reach: number } } }   // a path's line along the segment, half its width, its head
 export interface Scene { graph; positions; overlays?; style?; title?; subtitle?; locale?; lanes?: LaneMode;
   activityLabels?: ActivityLabelOptions; selfLoops?: boolean }
 export interface ExportOptions { preset?: "single-column" | "double-column" | "slide" | "none"; width?; legend?;
@@ -1239,8 +1246,8 @@ item's bounds also cover the box the callback returns for it, so that an
 area query finds an element whose drawing reaches beyond its box. `at`
 tests the point against what the element draws, not the bounds, so a hit
 test is exact: a node's, group's or overlay shape's own box (`HitItem.box`),
-an edge's segment, an arc's or a self-loop's curve and label, a gateway's
-diamond. A curve is hit within half the stroke of the mark `markOf` returns
+an edge's segment, or with `pathOf` its stroke and head, an arc's or a
+self-loop's curve and label, a gateway's diamond. A curve is hit within half the stroke of the mark `markOf` returns
 for its shape, which `prepareScene` passes in the scene's theme; without it,
 the default theme's stroke. `at` lists the items within `tolerance` of the point (a box when the
 point is within the tolerance of it, an edge when it is within the tolerance
@@ -1251,6 +1258,21 @@ items carry their shape's layer (`HitItem.layer`, see `OverlayMark.layer`);
 an item without one ranks above the nodes. Up to 0.3.5 every overlay shape
 ranked first, so inside a tinted group every hit was the tint, and where an
 arc crossed a node, the arc.
+
+Paths are hit where they are drawn too, with `pathOf`, which `prepareScene`
+passes: within `tolerance` plus half the path's width of its line, which ends
+under its head as the maps draw it (`lineEnd`), or within `tolerance` plus
+half the head's outline of the head's triangle, which grows with the line
+(`pathArrowhead`; `HitItem.stroke`). Up to 0.3.5 the Canvas map, `CanvasRenderer.hitAt`
+and the hit index of `prepareScene` hit a path within `tolerance` of its
+route whatever its width: the outer part of a path 8 wide, and of its head,
+which reaches 7.2 to each side, answered no hit, where the React Flow map
+hits a path within 7 of its line (`strokeTokens.pathHit`, 14 wide) and on
+its stroke. Without `pathOf` an edge is hit within `tolerance` of its route's
+segments, as before. An item's bounds are its segment grown by
+`edgeTolerance`, and with `pathOf` also by half the path's width and around
+its head, so an index built without `extentOf` finds what it hits; `extentOf`
+grows them further (the Canvas scene's covers the highlight stroke).
 
 Arcs and self-loops are hit where they are drawn: within `tolerance` plus
 half their stroke of their curve (`HitItem.curve`: the cubic of the path cut
@@ -1752,7 +1774,12 @@ metrics where they give more (`edgeWidth.max`, unless the view's style gives a
 equal numbers across the views; the filled-in domains and upper ends are
 returned in `views[i].style` and `domains` (`"edgeWidth:count"` as `[0,
 max]`, `"edgeColor:medianLagHours"`, …). Up to 0.3 the views shared the
-width's `domain`, the extent of its values.
+width's `domain`, the extent of its values. A path's colour reads what its
+width reads: where the style names `cases` and no path of any view gives
+cases but one gives a count, both the width and the colour read the counts
+(`"edgeColor:count"`), decided once for all views as the scales decide it for
+one graph. Up to 0.3.5 the colour kept `cases` and took the domain `[0, 1]`,
+so two paths of 5 and 500 transitions were drawn in the same colour.
 
 ## BPMN (`wise-flow/bpmn`, 0.2)
 
@@ -2690,7 +2717,9 @@ the hit index and the culling follow them too):
   direction runs against it. It leaves its source from the side away from the
   flow (below it for a flow to the right or the left, right of it for a flow
   down or up), runs as its own line 20 below the lowest node and group of the
-  stretch it returns over (groups drawn as bands are not in its way) and
+  graph on the stretch it returns over (groups drawn as bands are not in its
+  way, nor the positions given for nodes and groups the graph does not have,
+  as an export's of a larger graph may hold; up to 0.3.5 they were) and
   enters its target from that side, so that its head points against the flow.
   Several over one stretch lie 6 apart besides their half widths, shorter
   ones nearer the flow; the ends of several on one node are spread along its
@@ -2845,7 +2874,8 @@ export type EdgeBudget = number | "all";
 export interface EdgeProtection { selection?: { edges: readonly string[] }; focused?: string | null; highlighted?: ReadonlySet<string> }
 export interface EdgeSelection { drawn: Set<number>; shown: number; total: number; kept: number;   // positions in scene.edgeMarks
   loops: readonly string[];      // the paths in view that loop on one activity, counted in shown and total
-  highlightedNotShown: number }  // the highlighted edges in view the budget withholds
+  highlightedNotShown: number;   // the highlighted edges in view the budget withholds
+  pathsNotShown: number }        // the paths in view it withholds (follows and flow edges, not indirect, and loops)
 export interface ShownEdges { edges: readonly string[]; total: number }   // what a map draws, as onEdgesShown reports it
 export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style" | "graph" | "positions">, budget: EdgeBudget | ShownEdges | undefined,
   protection?: EdgeProtection, inView?: readonly number[], loops?: readonly string[]): EdgeSelection | undefined;
@@ -2916,8 +2946,11 @@ edge protected); otherwise the positions in `scene.edgeMarks` of the edges
 drawn, how many paths are shown (`shown`: those edges and the loops), how
 many are in view (`total`: the edges in view and the loops), how many of the
 drawn edges are protected (`kept`), which every budget draws, the ids of
-the loops (`loops`), and how many highlighted edges in view it withholds
-(`highlightedNotShown`; 0 for a map's report). The edges in view are `inView` (positions in
+the loops (`loops`), how many highlighted edges in view it withholds
+(`highlightedNotShown`; 0 for a map's report), and how many of the edges in
+view it withholds are paths (`pathsNotShown`: follows and flow edges, not a
+constraint edge nor an indirect path, as `meta.shown.paths` counts them; also
+for a map's report, where the loops in view it does not name count too). The edges in view are `inView` (positions in
 `scene.edgeMarks`), or every edge of the scene without it; the loops in view
 are `loops`, or every edge of the scene from a node with a box to itself
 without it. The order by weight is computed once per scene and
@@ -3257,7 +3290,12 @@ option stays in `AbstractOptions` for hosts.
   region).
 - Further lines, each only where it has something to say: "61 selected · 40
   drawn at this zoom" where the map withholds paths at its zoom or by the
-  path budget (`drawn`); "3 marks not shown", a disclosure whose summary has
+  path budget (`drawn`). Both numbers count paths only, follows edges and
+  self-loops, on the React Flow map and the Canvas map alike
+  (`EdgeSelection.pathsNotShown`): a constraint edge the budget withholds is
+  no path not drawn. Up to 0.3.5 the panel counted it as one (three paths and
+  a constraint edge under a budget of 3 read "3 selected · 2 drawn at this
+  zoom"). "3 marks not shown", a disclosure whose summary has
   the full form as its title and which lists the marks; "2 shown for a
   protected deviation".
 - `counts` is read where no `statement` is given: the value texts say what
@@ -3443,8 +3481,6 @@ alike.
 ```css
 [data-wf-part="node"][data-wf-kind="activity"][data-wf-state~="hovered"] { box-shadow: 0 0 0 3px #fde68a; }
 ```
-
-CSS written against these selectors changes only the interactive DOM map and the panels around it. It does not change the Canvas map (used automatically above 2,000 elements), SVG or PNG exports, or the BPMN diagram. Anything that must look the same everywhere belongs in the theme or a rule.
 
 **In the renderers.** Every mark carries what the rules set: a paint a rule
 sets is a literal (`MarkPaint` `#rrggbb`, `#rrggbbaa`), and `opacity` on a node,

@@ -357,9 +357,40 @@ function onCurve(m: OverlayMark, label: Box | undefined, x: number, y: number, t
 }
 
 /**
+ * A path's line as it is drawn, and its head: the head as large as 4 times the
+ * line's width rounded up, at least 12, in a box of 20, so 5 / 20 of that long,
+ * 4 / 20 of it to each side and outlined by 1 / 20 of it, its tip on the
+ * route's end; the line ends 3.75 / 20 of it before the end, no further back
+ * than its last segment's start, and there is no head where it ends there.
+ */
+function strokeOf(e: SceneEdge): { line: XY[]; head?: XY[]; outline: number } {
+  const pts = e.mark.points;
+  const k = Math.max(12, Math.ceil(4 * e.mark.width)) / 20;
+  const [a, b] = [pts[pts.length - 2], pts[pts.length - 1]];
+  const length = Math.hypot(b.x - a.x, b.y - a.y);
+  const back = Math.min(length, 3.75 * k);
+  const end = length ? { x: b.x - ((b.x - a.x) / length) * back, y: b.y - ((b.y - a.y) / length) * back } : b;
+  const line = [...pts.slice(0, -1), end];
+  if (!(length > back)) return { line, outline: k };
+  const [ux, uy] = [(b.x - a.x) / length, (b.y - a.y) / length];
+  const tip = { x: end.x + ux * 3.75 * k, y: end.y + uy * 3.75 * k };
+  const base = { x: tip.x - ux * 5 * k, y: tip.y - uy * 5 * k };
+  return { line, head: [tip, { x: base.x - uy * 4 * k, y: base.y + ux * 4 * k }, { x: base.x + uy * 4 * k, y: base.y - ux * 4 * k }], outline: k };
+}
+
+/** Whether (x, y) lies inside a triangle or within `d` of one of its sides. */
+function nearTriangle(x: number, y: number, [a, b, c]: XY[], d: number): boolean {
+  const cross = (p: XY, q: XY) => (q.x - p.x) * (y - p.y) - (q.y - p.y) * (x - p.x);
+  const sides = [cross(a, b), cross(b, c), cross(c, a)];
+  if (sides.every((v) => v >= 0) || sides.every((v) => v <= 0)) return true;
+  return segmentDistance(x, y, a, b) <= d || segmentDistance(x, y, b, c) <= d || segmentDistance(x, y, c, a) <= d;
+}
+
+/**
  * Every element within `tol` of a flow point where it is drawn: a box when the
- * point is within `tol` of it, an edge when the point is within `tol` of one of
- * its segments, an arc or a self-loop within `tol` and half its stroke of its
+ * point is within `tol` of it, an edge when the point is within `tol` and half
+ * its width of its line (`strokeOf`) or within `tol` and half its head's
+ * outline of its head, an arc or a self-loop within `tol` and half its stroke of its
  * curve or within `tol` of its label's box, a gateway inside its diamond (half its
  * width from its centre along each axis) or within `tol` of one of its four
  * sides. The one painted on top
@@ -383,9 +414,12 @@ function referenceHits(scene: PreparedScene, x: number, y: number, tol: number, 
   for (const [i, e] of scene.edges.entries()) {
     if (withheld && !withheld.has(i)) continue;
     const pts = e.mark.points;
+    const { line, head, outline } = strokeOf(e);
     for (let k = 0; k + 1 < pts.length; k++) {
+      // A segment's size is the route's segment with the tolerance of 4 around it; the head is on the last.
       const [a, b] = [pts[k], pts[k + 1]];
-      if (segmentDistance(x, y, a, b) <= tol) out.push({ rank: 3, area: (Math.abs(b.x - a.x) + 8) * (Math.abs(b.y - a.y) + 8), id: e.edge.id, kind: "edge" });
+      const onHead = !!head && k + 2 === pts.length && nearTriangle(x, y, head, tol + outline / 2);
+      if (segmentDistance(x, y, line[k], line[k + 1]) <= tol + e.mark.width / 2 || onHead) out.push({ rank: 3, area: (Math.abs(b.x - a.x) + 8) * (Math.abs(b.y - a.y) + 8), id: e.edge.id, kind: "edge" });
     }
   }
   for (const g of scene.groups) if (near(g.box)) out.push({ rank: 5, area: g.box.width * g.box.height, id: g.group.id, kind: "group" });

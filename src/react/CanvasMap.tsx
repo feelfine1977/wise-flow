@@ -1,8 +1,8 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { type Box, type EdgeBudget, type HitItem, type Insets, type Locale, type ShownEdges, type ThemeSetting, type XY, formatCount, t, themeColors } from "../core/index.js";
 import { CanvasRenderer, type DrawState, type PreparedScene } from "../canvas/index.js";
 import { sceneTokens } from "../canvas/tokens.js";
-import { useEdgesShown } from "./hooks.js";
+import { PathsNotShown, useEdgesShown } from "./hooks.js";
 import { part } from "./parts.js";
 import { ZoomControl, clearOfPanels } from "./primitives.js";
 import { useFlowTheme } from "./theme.js";
@@ -115,6 +115,8 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
   const [withheld, setWithheld] = useState<{ shown: number; total: number; highlightedNotShown: number }>();
   const withheldKey = useRef("");
   const reportShown = useEdgesShown(onEdgesShown);
+  const tellPaths = useRef<((count: number | undefined) => void) | undefined>(undefined);
+  tellPaths.current = useContext(PathsNotShown);
   // The colours and the font follow the theme, the host's CSS variables and the colour scheme.
   const look = useFlowTheme(hostRef, theme);
   const tokens = useMemo(() => sceneTokens({ theme: look.theme, colors: themeColors(look.theme, look.scheme) }), [look]);
@@ -130,6 +132,7 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
     };
     renderer.onDraw = ({ withheld: w }) => {
       reportShown(w, renderer.getScene()?.edgeMarks ?? []);
+      tellPaths.current?.(w?.pathsNotShown);
       const key = w ? `${w.shown}/${w.total}/${w.highlightedNotShown}` : "";
       if (key === withheldKey.current) return;
       withheldKey.current = key;

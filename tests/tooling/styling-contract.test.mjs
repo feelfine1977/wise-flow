@@ -33,8 +33,8 @@ test('the rendered fixtures draw every part, kind and state of the styling contr
   assert.equal(status, 0, output);
 });
 
-test('docs/API.md says what CSS against the selectors does not reach', () => {
-  assert.ok(api.replace(/\s+/g, ' ').includes(SENTENCE));
+test('docs/API.md says once what CSS against the selectors does not reach', () => {
+  assert.equal(api.replace(/\s+/g, ' ').split(SENTENCE).length - 1, 1);
 });
 
 test('the check names an entry the code no longer draws, one the document no longer lists, and one it does not know, and calls a removal breaking', () => {
