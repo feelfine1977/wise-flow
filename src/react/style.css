@@ -179,10 +179,6 @@
 }
 /* Overlay marks (arcs, self-loops, badges, chips, hatching): drawn as the scene's marks say. */
 .wf-overlay-layer {
-  position: absolute;
-  left: 0;
-  top: 0;
-  overflow: visible;
   pointer-events: none;
 }
 .wf-overlay-layer,
