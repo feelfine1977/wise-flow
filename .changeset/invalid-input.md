@@ -12,6 +12,9 @@ collapsed nothing and `layout` rejected with the engine's plain error.
 groups form a cycle of parents: the nodes of those groups have no lane of
 their own and follow their neighbours, as a node without a group does. They
 overflowed the stack (`RangeError`) in `laneModel` and `spanLanes` before.
+This holds for lane bands (the default) and `lanes: "ignore"`; with
+`lanes: "compound"` the groups go to the engine, which rejects the cycle
+with its own error, as `layout` does.
 
 Positions with a number that is not finite (`NaN`, an infinity) in a box or
 a route no longer reach a drawing or an export. `buildScene` (and with it

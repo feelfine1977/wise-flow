@@ -282,7 +282,7 @@ Test: `tests/core/malformed-bpmn.test.ts` › "lays out, exports, imports and va
 
 | Function | Entry | Documented for invalid input | Observed |
 | --- | --- | --- | --- |
-| `layoutBpmn` | `./bpmn` | Unroutable geometry raises a descriptive error; groups on a cycle of parents are laid out (after 0.3.5). | Returns, or the documented plain `Error`, or the engines' errors on a graph validation rejects (not documented). |
+| `layoutBpmn` | `./bpmn` | Unroutable geometry raises a descriptive error; groups on a cycle of parents are laid out with lane bands or `ignore` (after 0.3.5); with `compound` the engine rejects them (finding 4). | Returns, or the documented plain `Error`, or the engines' errors on a graph validation rejects (not documented). |
 | `exportBpmn` | `./bpmn` | Elements without a position are listed in `warnings`; every element gets its own id and shape; non-finite boxes are left out (after 0.3.5). | Returns XML without `NaN`, `Infinity` or a repeated id. |
 | `importBpmn` | `./bpmn` | Rejects only text that is not BPMN definitions, with the parser's plain `Error` (`unparsable content …`, `failed to parse document …`); everything else imports with `warnings`, including every `validateGraph` issue. | As documented. |
 | `validateBpmn` | `./bpmn` | Reads nesting deeper than the call stack (after 0.3.5); otherwise not documented for text that is not BPMN. | Returns, or the parser's plain `Error` (not documented). |
