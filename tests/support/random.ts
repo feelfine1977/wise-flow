@@ -116,7 +116,7 @@ export function seeds(count: number, start = firstSeed()): number[] {
   return Array.from({ length: count }, (_, i) => start + i);
 }
 
-export function firstSeed(): number {
+function firstSeed(): number {
   const raw = process.env.WISE_SEED?.trim();
   const n = raw ? Number(raw) : 1;
   return Number.isInteger(n) ? n : 1;

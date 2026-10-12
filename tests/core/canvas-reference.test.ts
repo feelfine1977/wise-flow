@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { type Box, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Overlay, type OverlayMark, HitIndex, createPositions } from "../../src/index";
 import { type DrawOptions, type DrawState, type PreparedScene, type PrepareOptions, type SceneEdge, type SceneGroup, type SceneNode, type View, CanvasRenderer, drawScene, prepareScene, toPNGCanvas } from "../../src/canvas/index";
 import { type FamilyName, families } from "../support/graphs";
-import { type InkContext, type ListName, type Visit, drawn, inkContext, keyOf, watch } from "../support/ink";
+import { type ListName, type Visit, drawn, inkContext, keyOf, watch } from "../support/ink";
 import { caseCount, caseLabel, createRandom, seeds, type Random } from "../support/random";
 import { type PositionKind, SIDES, VIEWPORT_KINDS, oddPositionsOf, positionsOf, viewportAtSide, viewportOf } from "../support/scenes";
 

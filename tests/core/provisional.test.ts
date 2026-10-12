@@ -13,7 +13,6 @@ const diamond: FlowGraph = {
 };
 
 const at = (p: Positions, id: string) => ({ x: p.nodes[id].x, y: p.nodes[id].y });
-const centre = (b: Box) => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
 const inside = (b: Box, outer: Box) => b.x >= outer.x && b.y >= outer.y && b.x + b.width <= outer.x + outer.width && b.y + b.height <= outer.y + outer.height;
 const overlaps = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 
