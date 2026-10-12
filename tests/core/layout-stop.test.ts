@@ -324,8 +324,12 @@ describe("ELK without a worker", () => {
     for (let run = 0; run < 10; run++) {
       const stop = new AbortController();
       const long = layout(vendorScene, { engine: "elk", signal: stop.signal }).catch((error: Error) => error);
-      stop.abort();
-      const short = await layout(pair, { timeoutMs: 5 });
+      const waiting = layout(pair, { timeoutMs: 5 });
+      // Aborted once the thread is free again, that is after the vendor scene's run has started.
+      let aborted = false;
+      setTimeout(() => ((aborted = true), stop.abort()));
+      const short = await waiting;
+      expect(aborted, `run ${run}`).toBe(true);
       expect((await long as Error).name, `run ${run}`).toBe("AbortError");
       // The two nodes waited for the vendor scene and were then laid out by ELK within their 5 ms, not by the fallback.
       expect(short.engine, `run ${run}`).toBe("elk");
