@@ -25,7 +25,8 @@ export interface FlowGraph { nodes: FlowNode[]; edges: FlowEdge[]; groups?: Flow
   overlays?: Overlay[]; meta?: FlowMeta; focus?: string; paths?: FlowPaths; }   // focus, paths: 0.3
 export interface FlowMeta { abstraction?: number | AbstractionMeta; [key: string]: unknown }
 export interface AbstractionMeta { minEdgeShare?: number; minNodeShare?: number; keepConnected?: boolean;
-  collapse?: string[] | "all" }
+  collapse?: string[] | "all";
+  removedEdges?: { constraint?: number; flow?: number } }   // edges removed with an element at an end; see "Aggregation"
 
 export const MAP_TARGET = "__map";      // overlay target for map-level chips
 export function validateGraph(g: FlowGraph): GraphIssue[];
@@ -158,8 +159,18 @@ export function isConnected(g: FlowGraph): boolean;
 export function diff(a: FlowGraph, b: FlowGraph, o?: { metrics?: string[] }): FlowGraph;
 ```
 
-Guarantees of `abstract`: events, gateways, constraint and flow edges are
-never removed; the thresholded part is monotone (a higher threshold yields a
+Guarantees of `abstract`: events, gateways and the ids in `keep` are never
+removed. A constraint or flow edge is removed only with an activity or stage
+at one of its ends (an edge to an element that is not on the map cannot be
+drawn); `meta.abstraction.removedEdges` counts those by kind (`{ constraint,
+flow }`, absent while none went; abstracting an abstracted graph adds to the
+count it carries). With `keepConnected` an activity re-added to keep the map
+connected brings back its constraint and flow edges to elements on the map,
+tagged `reconnected` like everything re-added. Collapsing a stage folds the
+edges between its members, of every kind, into its `internalCount`. Up to
+this version the documentation said constraint and flow edges were never
+removed, nothing counted the ones that went, and a re-added activity came
+back without them. The thresholded part is monotone (a higher threshold yields a
 subset); with `keepConnected` the result is one connected component
 whenever the input is, restored by a maximum spanning forest over the
 strongest direct edges, then by the cheapest paths through removed nodes,

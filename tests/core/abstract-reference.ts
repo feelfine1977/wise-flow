@@ -268,7 +268,10 @@ export function referenceAbstract(graph: FlowGraph, options: AbstractOptions = {
   const nodes = new Set([...state.keptNodes, ...join.nodes]);
   const edges = new Set([...state.keptEdges, ...join.edges]);
   const flow = referenceFlow(state, nodes, edges);
-  return { nodes, edges: new Set([...edges, ...flow]), readded: new Set([...join.nodes, ...join.edges, ...flow]), join };
+  const all = new Set([...edges, ...flow]);
+  // A re-added activity brings back its constraint and flow edges to shown elements.
+  const back = state.graph.edges.filter((e) => e.kind !== "follows" && !all.has(e.id) && nodes.has(e.source) && nodes.has(e.target)).map((e) => e.id);
+  return { nodes, edges: new Set([...all, ...back]), readded: new Set([...join.nodes, ...join.edges, ...flow, ...back]), join };
 }
 
 /**

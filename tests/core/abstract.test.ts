@@ -335,6 +335,55 @@ describe("abstract", () => {
     expect(g.nodes.length).toBeLessThan(globalScene.nodes.length);
   });
 
+  it("removes a constraint or flow edge only with an element at one of its ends, and counts it in meta", () => {
+    // s → A → B → e with a weak detour A → R → B; R is related to A by a constraint and to B by a flow.
+    const node = (id: string, cases: number): FlowNode => ({ id, kind: "activity", label: id, metrics: { cases } });
+    const follows = (source: string, target: string, count: number): FlowEdge => ({ id: `${source}${target}`, kind: "follows", source, target, metrics: { count } });
+    const g: FlowGraph = {
+      nodes: [{ id: "s", kind: "event", label: "Start", tags: ["start"] }, node("A", 100), node("R", 5), node("B", 100), node("C", 90), { id: "e", kind: "event", label: "End", tags: ["end"] }],
+      edges: [
+        follows("s", "A", 100), follows("A", "B", 95), follows("A", "R", 5), follows("R", "B", 5), follows("B", "C", 90), follows("C", "e", 90), follows("B", "e", 10),
+        { id: "cAR", kind: "constraint", source: "A", target: "R" },
+        { id: "fRB", kind: "flow", source: "R", target: "B" },
+        { id: "cAC", kind: "constraint", source: "A", target: "C" },
+      ],
+    };
+    // R (5 of 100 cases) is below 50 %: its constraint and flow edge cannot be drawn without it; A–C stays.
+    for (const keepConnected of [true, false]) {
+      const shown = abstract(g, { minNodeShare: 0.5, keepConnected });
+      expect(shown.nodes.map((n) => n.id), `keepConnected ${keepConnected}`).toEqual(["s", "A", "B", "C", "e"]);
+      expect(shown.edges.filter((e) => e.kind !== "follows").map((e) => e.id)).toEqual(["cAC"]);
+      expect(shown.meta?.abstraction).toEqual({ minEdgeShare: 0, minNodeShare: 0.5, keepConnected, collapse: undefined, removedEdges: { constraint: 1, flow: 1 } });
+    }
+    // Nothing goes: no count.
+    expect(abstract(g).meta?.abstraction).toEqual({ minEdgeShare: 0, minNodeShare: 0, keepConnected: true, collapse: undefined });
+  });
+
+  it("brings back the constraint and flow edges of an activity it re-adds to keep the map connected", () => {
+    // n1 (34 of 82 cases) is below 50 % but lies on the only way from n0 to n2, so it is re-added with
+    // follows edges that reconnect the map; its flow edge from n0 comes back too, both ends being on the map,
+    // and like everything the abstraction re-adds it is tagged.
+    const g: FlowGraph = {
+      nodes: [
+        { id: "n0", kind: "activity", label: "n0", metrics: { cases: 54 } },
+        { id: "n1", kind: "activity", label: "n1", metrics: { cases: 34 } },
+        { id: "n2", kind: "activity", label: "n2", metrics: { cases: 82 } },
+      ],
+      edges: [
+        { id: "e0", kind: "follows", source: "n0", target: "n1", metrics: { count: 93 } },
+        { id: "e2", kind: "follows", source: "n1", target: "n2", metrics: { count: 48 } },
+        { id: "e3", kind: "follows", source: "n1", target: "n0", metrics: { count: 44 } },
+        { id: "e4", kind: "flow", source: "n0", target: "n1" },
+      ],
+    };
+    const shown = abstract(g, { minNodeShare: 0.5 });
+    expect(shown.nodes.map((n) => [n.id, hasTag(n, RECONNECTED_TAG)])).toEqual([["n0", false], ["n1", true], ["n2", false]]);
+    expect(shown.edges.map((e) => [e.id, hasTag(e, RECONNECTED_TAG)])).toEqual([["e0", true], ["e2", true], ["e3", true], ["e4", true]]);
+    expect(shown.meta?.abstraction).not.toHaveProperty("removedEdges");
+    // Without keepConnected n1 goes, and with it its flow edge.
+    expect(abstract(g, { minNodeShare: 0.5, keepConnected: false }).meta?.abstraction).toMatchObject({ removedEdges: { flow: 1 } });
+  });
+
   it("collapses stage groups into stage nodes with summed counts", () => {
     const g = collapseGroups(globalScene, "all");
     const ids = new Set(g.nodes.map((n) => n.id));

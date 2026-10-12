@@ -101,6 +101,9 @@ groups into stage nodes (semantic zoom) and restores connectivity: first a
 maximum spanning forest over the strongest direct edges between the kept
 nodes, then the cheapest paths of the original graph through removed nodes,
 then one edge per activity that lost all incoming or all outgoing paths.
+A re-added activity brings back its constraint and flow edges to elements on
+the map; constraint and flow edges otherwise go only with an element at one
+of their ends, and `meta.abstraction.removedEdges` counts them.
 Re-added elements are tagged `reconnected` and drawn dashed. The thresholded
 part is monotone in the thresholds; the reconnection is bounded (paths
 between components plus one edge per open need) but not a global optimum,

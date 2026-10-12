@@ -119,6 +119,8 @@ export interface AbstractionMeta {
   minNodeShare?: number;
   keepConnected?: boolean;
   collapse?: string[] | "all";
+  /** Constraint and flow edges `abstract` removed with an activity or stage at one of their ends, by kind; absent when none went. */
+  removedEdges?: { constraint?: number; flow?: number };
 }
 
 /**
