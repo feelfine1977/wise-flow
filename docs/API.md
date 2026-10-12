@@ -1752,7 +1752,12 @@ metrics where they give more (`edgeWidth.max`, unless the view's style gives a
 equal numbers across the views; the filled-in domains and upper ends are
 returned in `views[i].style` and `domains` (`"edgeWidth:count"` as `[0,
 max]`, `"edgeColor:medianLagHours"`, …). Up to 0.3 the views shared the
-width's `domain`, the extent of its values.
+width's `domain`, the extent of its values. A path's colour reads what its
+width reads: where the style names `cases` and no path of any view gives
+cases but one gives a count, both the width and the colour read the counts
+(`"edgeColor:count"`), decided once for all views as the scales decide it for
+one graph. Up to 0.3.5 the colour kept `cases` and took the domain `[0, 1]`,
+so two paths of 5 and 500 transitions were drawn in the same colour.
 
 ## BPMN (`@wise/flow/bpmn`, 0.2)
 

@@ -2,6 +2,7 @@
 import type { EdgeMark } from "./element-marks.js";
 import { metric } from "./model.js";
 import type { FlowScene } from "./scene.js";
+import { pathMetricOf } from "./style.js";
 
 /** How many edges a map draws: a number, or `"all"`. */
 export type EdgeBudget = number | "all";
@@ -48,9 +49,7 @@ function orderOf(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style" | "graph
   let known = orders.get(marks);
   if (known && known.given === given && known.overlays === scene.marks) return known;
   // The metric the width reads, as the scales resolve it: cases, or the transitions where no path of the graph (loops too) gives cases.
-  const paths = scene.graph.edges.filter((e) => e.kind === "follows" || e.kind === "flow");
-  const has = (name: string) => paths.some((e) => Number.isFinite(metric(e, name, NaN)));
-  const name = given === "cases" && !has("cases") && has("count") ? "count" : given;
+  const name = pathMetricOf(scene.graph.edges)(given);
   const weight = marks.map((m) => metric(m.edge, name, -Infinity));
   const sorted = marks.map((_, i) => i).sort((a, b) => weight[b] - weight[a] || (marks[a].id < marks[b].id ? -1 : 1));
   const rank = new Int32Array(marks.length);

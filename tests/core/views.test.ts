@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { constraintItems, globalScene } from "../../fixtures/bpic2019";
-import { type ViewSpec, abstract, buildViews, layout, overlaysFor, resolveViews, viewsSharePositions } from "../../src/index";
+import { type FlowGraph, type ViewSpec, abstract, buildViews, createPositions, defaultTheme, layout, overlaysFor, resolveViews, themePalette, viewsSharePositions } from "../../src/index";
 
 const base = abstract(globalScene, { minNodeShare: 0.02, minEdgeShare: 0.05 });
 const items = constraintItems("global");
@@ -62,5 +62,27 @@ describe("views", () => {
     // Without sharing, domains are per view.
     const own = resolveViews(base, views, positions, { shareScales: false });
     expect(own.views[3].style.nodeColor?.domain).toBeUndefined();
+  });
+
+  it("colours paths that give only counts by their counts on the shared domain, as their width reads them", () => {
+    // Two paths of 5 and 500 transitions and no cases: the default style's cases fall back to the counts for the
+    // colour as for the width, once for all views, so the two ends of the neutral ramp tell them apart.
+    const graph: FlowGraph = {
+      nodes: ["a", "b", "c"].map((id) => ({ id, kind: "activity" as const, label: id })),
+      edges: [
+        { id: "few", kind: "follows", source: "a", target: "b", metrics: { count: 5 } },
+        { id: "many", kind: "follows", source: "b", target: "c", metrics: { count: 500 } },
+      ],
+    };
+    const positions = createPositions({ nodes: {}, groups: {}, edges: {} }, "given", "RIGHT");
+    const set = resolveViews(graph, [{ id: "one", label: "One" }, { id: "two", label: "Two" }], positions);
+    const ramp = themePalette(defaultTheme, "neutral");
+    for (const view of set.views) {
+      expect([view.scales.edgeColor(graph.edges[0]), view.scales.edgeColor(graph.edges[1])]).toEqual([ramp[0], ramp[ramp.length - 1]]);
+      expect(view.style.edgeColor?.metric).toBe("count");
+      expect(view.style.edgeWidth?.metric).toBe("count");
+      expect(view.style.edgeColor?.domain).toEqual([5, 500]);
+    }
+    expect(set.domains).toEqual({ "edgeWidth:count": [0, 500], "edgeColor:count": [5, 500] });
   });
 });
