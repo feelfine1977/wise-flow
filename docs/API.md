@@ -267,8 +267,11 @@ from `createLayoutScope` keys each layout by its inputs: node ids, labels,
 groups and resolved sizes (a size callback counts by what it returns), edge
 ids and endpoints, the groups' ids, kinds, labels and parents, and every other
 option (an `elk` instance by identity). A changed graph or changed options are
-laid out anew; the last `maxEntries` layouts are kept. `dispose()` forgets the
-scope's layouts; the scope stays usable. Caller keys inside a scope go to the
+laid out anew; the last `maxEntries` layouts are kept. `maxEntries` bounds
+the finished layouts a scope keeps, not the layouts running: a scope runs the
+layout of its latest request only (see Stopping). `dispose()` forgets the
+scope's layouts and stops waiting for its latest request; the scope stays
+usable. Caller keys inside a scope go to the
 shared cache as above. `clearLayoutCache()` without a key forgets every cached
 layout, every scope's included.
 
@@ -295,7 +298,11 @@ it is kept like any other and the next request for its inputs is free. A request
 to a scope replaces the scope's earlier request: if that one is still
 running, its promise rejects with an `AbortError` ("A newer layout request
 replaced this one."), and its worker is terminated unless another caller
-still waits for it. A layout asked for again before the current task ends
+still waits for it. Disposing a scope does the same for its latest request
+("The layout scope was disposed."), so a host that disposes a scope need not
+abort its own request; up to this version a layout in flight kept its worker
+running after its scope was disposed, until the layout finished or its
+caller aborted it. A layout asked for again before the current task ends
 (a component that mounts again) keeps running. `timeoutMs` bounds each engine
 run: ELK, and Dagre in a worker. When it passes, the worker running it is
 terminated, so no layout work continues; `engine: "auto"` then falls back to

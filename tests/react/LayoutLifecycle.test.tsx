@@ -546,6 +546,8 @@ function apply(m: Model, op: Op): boolean {
     case "dispose": {
       const s = m.scopes[op.scope];
       s.scope.dispose();
+      // Disposing stops waiting for the scope's latest request, as a newer request would.
+      for (const q of m.requests) if (q.scope === op.scope && q.state === "pending") q.replaced = true;
       s.holds.clear();
       s.disposedSince = true;
       s.disposals++;
