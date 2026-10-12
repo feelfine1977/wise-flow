@@ -1083,7 +1083,12 @@ Selections from the diagram, from the table and from a controlled
 `<ProcessMap/>` ("Selected: Approve Invoice.", "Selected: path A → B.",
 "Selection cleared."), named by the graph the table lists; before, the view
 announced counts ("Selected: 1 tasks, 0 flows, 0 lanes.") and said nothing
-when the selection was cleared.
+when the selection was cleared. The view speaks of a selection by its
+FlowGraph ids (a controlled selection in activity ids is resolved through
+`mapping`), so a selection that stays the same is not announced again when
+only `mapping` changes or when the import arrives with a mapping; up to this
+change the renaming for the table counted as a new selection, and "Selected:
+…" was spoken again.
 Every id the view matches (overlay targets, controlled selection, reported
 selection and hover) goes through `createIdResolver` with the import's id
 map and `mapping`. Stylesheets: `@wise/flow/bpmn.css` (bpmn-js's

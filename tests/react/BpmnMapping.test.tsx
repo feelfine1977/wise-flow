@@ -82,3 +82,34 @@ describe("BpmnView with an activity mapping", () => {
     expect(row("Clear Invoice").className).toBe("wf-row--selected");
   });
 });
+
+describe("BpmnView announcing a selection with an activity mapping", () => {
+  const live = (container: HTMLElement) => container.querySelector("[aria-live=polite]")!.textContent;
+  const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 30)));
+
+  it("does not announce a controlled selection when the import arrives with a mapping", async () => {
+    const { container } = render(<BpmnView xml={xml} mapping={mapping} selection={reported} />);
+    const viewer = await ready(container, false);
+    await waitFor(() => expect(viewer.selected().map((e) => e.id)).toEqual(["Task_CreatePO"]));
+    await settle();
+    expect(live(container)).toBe("");
+  });
+
+  it("does not announce an unchanged selection again when only the mapping changes", async () => {
+    const { container, rerender } = render(<BpmnView xml={xml} selection={reported} view="table" />);
+    await ready(container);
+    await settle();
+    expect(live(container)).toBe("");
+    rerender(<BpmnView xml={xml} mapping={mapping} selection={reported} view="table" />);
+    await settle();
+    expect(row("Create Purchase Order Item").className).toBe("wf-row--selected");
+    expect(live(container)).toBe("");
+    // A selection the host changes is announced, in FlowGraph ids or activity ids.
+    rerender(<BpmnView xml={xml} mapping={mapping} selection={{ tasks: ["Task_ApproveInvoice"], flows: [], lanes: [] }} view="table" />);
+    await settle();
+    expect(live(container)).toBe("Selected: Approve Invoice.");
+    rerender(<BpmnView xml={xml} mapping={mapping} selection={{ tasks: ["create_purchase_order_item"], flows: [], lanes: [] }} view="table" />);
+    await settle();
+    expect(live(container)).toBe("Selected: Create Purchase Order Item.");
+  });
+});
