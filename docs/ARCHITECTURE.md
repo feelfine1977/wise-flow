@@ -515,9 +515,12 @@ background layers) and by SVG layers in the viewport (arcs in React Flow's
 edge label layer, above the edges and below the nodes; self-loops above the
 nodes);
 edge labels and node details toggled through level-of-detail classes on the
-container. Abstraction controls (activities, paths, stage
-view, keep connected, table view) in a panel, the sliders saying what they
-keep ("7 of 12"); the legend always visible, as a one-line strip naming the
+container. The detail panel (a slider for activities from "Most frequent"
+to "All" and one for paths from "Fewest paths" to "All paths", stage view,
+table view), each slider with the statement of what is shown beside it
+(`detailStatement` of the shown graph, from `meta.shown`), the marks not
+shown and the elements shown for a protected deviation in lines of their
+own; the legend always visible, as a one-line strip naming the
 measure and its unit that expands to the whole key; one zoom control
 (`<ZoomControl/>`: zoom in, zoom out, the current zoom, fit) in the DOM map,
 the Canvas map and the BPMN view, React Flow's own controls not rendered.

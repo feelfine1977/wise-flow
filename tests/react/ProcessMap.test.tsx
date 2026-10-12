@@ -96,8 +96,9 @@ describe("ProcessMap", () => {
     await waitFor(() => expect(container.querySelectorAll(".react-flow__node").length).toBeGreaterThan(0));
     const before = container.querySelectorAll(".react-flow__node").length;
     const sliders = screen.getAllByRole("slider");
-    fireEvent.change(sliders[0], { target: { value: "0.5" } });
-    expect(onAbstractionChange).toHaveBeenCalledWith(expect.objectContaining({ minNodeShare: 0.5 }));
+    // The lowest position of "Activities": the most frequent of the 12 activities, every path; the host receives detail shares.
+    fireEvent.keyDown(sliders[0], { key: "Home" });
+    expect(onAbstractionChange).toHaveBeenCalledWith({ activityDetail: 1 / 12, pathDetail: 1 });
     await waitFor(() => expect(container.querySelectorAll(".react-flow__node").length).toBeLessThan(before));
     fireEvent.click(screen.getByRole("button", { name: "Table view" }));
     await waitFor(() => expect(screen.getAllByRole("table").length).toBe(3));

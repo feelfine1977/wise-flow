@@ -371,7 +371,9 @@ activity "Passages on paths not shown: 1,234 in, 567 out." (so that what is
 drawn and what is not add up to its count), a kept path "Keeps Change Price
 on a way from start to end.", an indirect path "Stands for a way through
 activities not shown: …", an element shown for a protected deviation
-"Shown for a protected deviation." An export's caption (`figureCaption`) of a graph abstracted by detail
+"Shown for a protected deviation." `<ProcessMap/>` adds them to the
+descriptions of its elements (their tooltips and their assistive text).
+An export's caption (`figureCaption`) of a graph abstracted by detail
 shares carries the full statements instead of "16 of 42 activities, 38 of
 677 paths shown".
 
@@ -1196,7 +1198,12 @@ export interface LegendProps { scales?: Scales; overlays?: Overlay[]; locale?: L
   expanded?: boolean; defaultExpanded?: boolean;   // the whole key (controlled, or where it starts; default false: the one-line strip)
   onExpandedChange?: (expanded: boolean) => void; onAnnounce?: (text: string) => void }   // see "Controls and panels"
 export interface AbstractionControlsProps { value; onChange; locale?; hasStages?; view?; onViewChange?;
-  counts?: { activities?: KeptCount; paths?: KeptCount } }   // what the sliders keep; the readouts say "7 of 12"
+  counts?: { activities?: KeptCount; paths?: KeptCount };   // what the sliders keep where no statement says it ("7 of 12")
+  positions?: DetailPositions;      // where the sliders can stand and stand (`meta.shown.positions`); otherwise per cent of the shares
+  statement?: DetailStatement;      // what is shown, beside each slider (`detailStatement`)
+  drawn?: { selected: number; drawn: number };   // paths withheld at the zoom: "61 selected · 40 drawn at this zoom"
+  onHighlightKept?: (on: boolean) => void;       // the kept paths' part of the statement pointed at or focused
+  onAnnounce?: (text: string) => void }          // the other slider's statement, said politely; default a live region of its own
 export interface KeptCount { shown: number; total: number }
 export function ZoomControl(props: ZoomControlProps): JSX.Element;   // see "Controls and panels"
 export function useFlowGraph(g, o?), useStableLayout(scenes, o?), useOverlays(items, o?), usePrefersReducedMotion();
@@ -2601,15 +2608,48 @@ button) are the control's: the map's keyboard no longer takes them (Enter on
 the legend's toggle expands it instead of opening the actions menu, the
 arrow keys move a slider).
 
-**Sliders.** `<AbstractionControls/>` reads `counts`: its readouts say what
-each slider keeps, "7 of 12" activities and "13 of 31" paths (German "7 von
-12"), and each slider's value text says the threshold too ("10 %: 7 of 12
-activities shown"); without `counts` they show the threshold as before. The
-map passes the activities and stages and the paths of the shown graph, of
-the graph before the thresholds (after collapsing stages). The sliders are
-drawn from the tokens: a track (`--wf-size-slider-track`) in the ink up to
-the thumb and in the line colour after it, and a round thumb
-(`--wf-size-slider-thumb`) outlined in the ink.
+**The detail panel.** `<AbstractionControls/>` is the panel "Detail"
+("Detailgrad") with two sliders, no switch: "Activities" from "Most
+frequent" to "All", "Paths" from "Fewest paths" to "All paths" (German
+"Aktivitäten" from "Häufigste" to "Alle", "Pfade" from "Wenigste Pfade" to
+"Alle Pfade"). The right end shows everything. "Keep connected" has left the
+panel: its promise is the left end of "Paths" (see "Detail shares"), and the
+option stays in `AbstractOptions` for hosts.
+
+- Both are native range inputs over `positions`: "Activities" over the
+  numbers of activities a share can show, so an arrow key moves one rank
+  and a tie enters whole, "Paths" over 0 to every path by frequency; Page Up
+  and Page Down move ten, Home and End to an end; a pointer that stops inside
+  a tie takes it whole. Moving a slider calls `onChange` with both detail
+  shares (`activityDetail`, `pathDetail`; `minNodeShare`, `minEdgeShare` and
+  `keepConnected` dropped). Neither thumb moves by itself: the shares are
+  positions of their own, so moving "Activities" only rewrites the
+  statement beside "Paths". A host that controls the map with thresholds
+  sees the sliders where the thresholds stand (`positions.at`) and receives
+  detail shares when a slider moves. Without `positions` the sliders run
+  over the shares in per cent.
+- Beside each slider its statement (`statement`, see "What the detail shares
+  show, in words"): the short form shown and as the slider's value text,
+  the full form as its title and its description (`aria-describedby`). The
+  kept paths' part ("30 kept") is a button: pointing at it, focusing it or
+  pressing it (`aria-pressed`) calls `onHighlightKept(true)`, and the map
+  marks exactly those paths and dims the others. When moving one slider
+  changes the other's statement, its full form is said politely
+  (`onAnnounce`, which `<ProcessMap/>` passes, otherwise the panel's own live
+  region).
+- Further lines, each only where it has something to say: "61 selected · 40
+  drawn at this zoom" where the map withholds paths at its zoom or by the
+  path budget (`drawn`); "3 marks not shown", a disclosure whose summary has
+  the full form as its title and which lists the marks; "2 shown for a
+  protected deviation".
+- `counts` is read where no `statement` is given: the value texts say what
+  each slider keeps ("7 of 12").
+
+The sliders are drawn from the tokens: a track (`--wf-size-slider-track`)
+in the ink up to the thumb and in the line colour after it, and a round
+thumb (`--wf-size-slider-thumb`) outlined in the ink. `<ProcessMap/>`
+passes the positions and the statement of the graph it shows; the table
+view shows the same panel above its tables.
 
 **Primitives.** Modelled on the actions menu: a panel (`.wf-panel`: paper,
 a hairline in `--wf-line`, the large radius and, over the interactive map,
@@ -2831,9 +2871,9 @@ CSS written against these selectors changes only the interactive DOM map and the
 | `edge-label` | the count label of a path | | |
 | `mark` | a deviation mark of the map or of a legend (SVG group); a `tint` is the background of its node, and the BPMN diagram's marks carry no attributes | `badge`, `chip`, `arc`, `selfLoop`, `hatch` | `hovered` |
 | `controls` | the zoom control (`<ZoomControl/>`) of the DOM map, the Canvas map and the BPMN view | | |
-| `button` | a button of the panels: the zoom control's, the legend's toggle, the abstraction panel's toggles, the table's pager, the filters' "clear" | | |
+| `button` | a button of the panels: the zoom control's, the legend's toggle, the detail panel's toggles and its kept paths' part, the table's pager, the filters' "clear" | | |
 | `zoom-level` | the current zoom in the zoom control | | |
-| `abstraction-panel` | the sliders and toggles of `<AbstractionControls/>` | | |
+| `abstraction-panel` | the detail panel: the sliders, their statements and the toggles of `<AbstractionControls/>` | | |
 | `legend` | `<Legend/>` | | |
 | `status` | the status panel (arranging, layout error) and the note on withheld paths | | |
 | `menu` | the actions menu | | |

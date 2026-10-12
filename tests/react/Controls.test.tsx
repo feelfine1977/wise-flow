@@ -166,14 +166,18 @@ describe("the legend strip", () => {
   });
 });
 
-describe("the sliders' readouts", () => {
+describe("the sliders' statements", () => {
+  // What each statement shows: its text without the full form kept for assistive technology.
+  const statements = (container: HTMLElement) => [...container.querySelectorAll(".wf-controls__statement")].map((p) => [...p.children].filter((c) => !c.classList.contains("wf-sr-only")).map((c) => c.textContent).join(""));
+  const valueTexts = (container: HTMLElement) => [...container.querySelectorAll('input[type="range"]')].map((s) => s.getAttribute("aria-valuetext"));
+
   it.each(["svg", "canvas"] as const)("say how many activities and paths the %s map shows, of how many", async (renderer) => {
     const { container } = await map(renderer, "en", { minNodeShare: 0.1, minEdgeShare: 0.2 });
-    const outputs = [...container.querySelectorAll("output")].map((o) => o.textContent);
-    expect(outputs).toEqual(["3 of 4", "2 of 4"]);
+    expect(statements(container)).toEqual(["3 of 4", "2 of 4"]);
+    expect(valueTexts(container)).toEqual(["3 of 4", "2 of 4"]);
     const [nodes, edges] = container.querySelectorAll<HTMLInputElement>('input[type="range"]');
-    expect(nodes.getAttribute("aria-valuetext")).toBe("10 %: 3 of 4 activities shown");
-    expect(edges.getAttribute("aria-valuetext")).toBe("20 %: 2 of 4 paths shown");
+    // The thresholds' positions: three activities by rank, two paths by frequency.
+    expect([nodes.value, edges.value]).toEqual(["3", "2"]);
     // The numbers of the graph the map draws.
     if (renderer === "svg") {
       expect([...container.querySelectorAll(".react-flow__node")].map((n) => n.getAttribute("data-id")).sort()).toEqual(["a", "b", "c"]);
@@ -181,10 +185,11 @@ describe("the sliders' readouts", () => {
     } else {
       expect(container.querySelector(".wf-process-map")?.getAttribute("aria-label")).toBe("Process map with 3 nodes and 2 connections in 0 groups.");
     }
-    // Moving a slider changes what the map shows and the readout with it: at 0 % every activity and path.
-    fireEvent.change(nodes, { target: { value: "0" } });
-    fireEvent.change(edges, { target: { value: "0" } });
-    await waitFor(() => expect([...container.querySelectorAll("output")].map((o) => o.textContent)).toEqual(["4 of 4", "4 of 4"]));
+    // Moving a slider to its right end shows every activity, then every path; the statements follow.
+    fireEvent.keyDown(nodes, { key: "End" });
+    await waitFor(() => expect(statements(container)[0]).toBe("4 of 4"));
+    fireEvent.keyDown(edges, { key: "End" });
+    await waitFor(() => expect(statements(container)).toEqual(["4 of 4", "4 of 4"]));
   });
 
   it("count the paths of the graph, not an indirect path that stands for hidden activities", async () => {
@@ -206,13 +211,13 @@ describe("the sliders' readouts", () => {
         <ProcessMap graph={hidden} positions={positions} abstraction={{ activityDetail: 0.5, pathDetail: 0 }} legend={false} fitView={false} />
       </div>,
     );
-    await waitFor(() => expect([...container.querySelectorAll("output")].map((o) => o.textContent)).toEqual(["2 of 4", "3 of 6"]));
+    await waitFor(() => expect(valueTexts(container)).toEqual(["2 of 4", "3 of 6 · 3 kept"]));
   });
 
   it("are in German too", async () => {
     const { container } = await map("svg", "de", { minNodeShare: 0.1, minEdgeShare: 0.2 });
-    expect([...container.querySelectorAll("output")].map((o) => o.textContent)).toEqual(["3 von 4", "2 von 4"]);
-    expect(container.querySelector('input[type="range"]')?.getAttribute("aria-valuetext")).toBe("10 %: 3 von 4 Aktivitäten gezeigt");
+    expect(statements(container)).toEqual(["3 von 4", "2 von 4"]);
+    expect(container.querySelector('input[type="range"]')?.getAttribute("aria-valuetext")).toBe("3 von 4");
   });
 });
 

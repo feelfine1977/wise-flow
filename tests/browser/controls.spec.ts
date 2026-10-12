@@ -303,8 +303,8 @@ const paints = (page: Page, scope: string, state: string) =>
 
 /** The stories that show the controls of the panels, each with the part of the page whose controls it shows and the states it shows them in. */
 const CONTROLS: { id: string; scope?: string; act?: (page: Page) => Promise<void>; expect: string[] }[] = [
-  // The detail sliders, the check box (checked), the stage toggle, the zoom control and the legend's toggle.
-  { id: "process-map--map", expect: ['input[type="range"]', 'input[type="checkbox"]:checked', ".wf-button--icon", '[data-wf-part="legend"] .wf-button'] },
+  // The detail sliders, the kept paths' part of the statement, the stage toggle, the zoom control and the legend's toggle.
+  { id: "process-map--map", expect: ['input[type="range"]', ".wf-controls__kept", ".wf-button--icon", '[data-wf-part="legend"] .wf-button'] },
   { id: "interaction--filters", expect: [".wf-filter-chip__remove", ".wf-filters__clear"] },
   { id: "interaction--paths", expect: [".wf-paths__sort", ".wf-paths__close"] },
   {
@@ -358,13 +358,13 @@ for (const scheme of ["light", "dark"] as const) {
   }
 }
 
-// The detail panel's sliders and check box set no colour of their own: they take the ink (#1f1f1f, dark #ececec) and
-// the strong line (#8c94a1, dark #6b7280), where the browser gave the sliders #9d968e on Linux and #101010 on macOS.
+// The detail panel's sliders set no colour of their own: they take the ink (#1f1f1f, dark #ececec) and the strong
+// line (#8c94a1, dark #6b7280), where the browser gave them #9d968e on Linux and #101010 on macOS.
 for (const [scheme, ink, line] of [
   ["light", "rgb(31, 31, 31)", "rgb(140, 148, 161)"],
   ["dark", "rgb(236, 236, 236)", "rgb(107, 114, 128)"],
 ] as const) {
-  test(`the detail sliders and the check box are drawn in the ink and the strong line (${scheme})`, async ({ page }) => {
+  test(`the detail sliders are drawn in the ink and the strong line (${scheme})`, async ({ page }) => {
     await open(page, "process-map--map", scheme);
     const colours = await page.locator('[data-wf-part="abstraction-panel"] input').evaluateAll((inputs) =>
       inputs.map((el) => {
@@ -372,11 +372,9 @@ for (const [scheme, ink, line] of [
         return { type: (el as HTMLInputElement).type, color: style.color, border: style.borderTopColor, outline: style.outlineColor };
       }),
     );
-    // A check box draws no border, and the browser reports its border colour as its text colour.
     expect(colours).toEqual([
       { type: "range", color: ink, border: line, outline: ink },
       { type: "range", color: ink, border: line, outline: ink },
-      { type: "checkbox", color: ink, border: ink, outline: ink },
     ]);
   });
 }

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { constraintItems, globalScene, vendorScene } from "../fixtures/bpic2019";
 import { type AbstractOptions, diff, diffStyle, overlaysFor } from "../src/index";
 import { type Selection } from "../src/react/index";
-import { ProcessMap } from "./maps";
+import { ProcessMap, WHOLE_LOG_DETAIL } from "./maps";
 
 const meta: Meta<typeof ProcessMap> = {
   title: "Process map",
@@ -38,7 +38,7 @@ function Frame({ children }: { children: React.ReactNode }) {
 export const Map: Story = {
   name: "P2P map",
   render: (args) => {
-    const [abstraction, setAbstraction] = useState<AbstractOptions>({ minNodeShare: 0.01, minEdgeShare: 0.03, keepConnected: true });
+    const [abstraction, setAbstraction] = useState<AbstractOptions>(WHOLE_LOG_DETAIL);
     const [selection, setSelection] = useState<Selection>({ nodes: [], edges: [], groups: [] });
     const overlays = useMemo(() => overlaysFor(constraintItems("global"), { graph: globalScene, locale: args.locale }), [args.locale]);
     return (
@@ -63,17 +63,20 @@ export const DagreFallback: Story = {
   name: "Dagre fallback",
   render: (args) => (
     <Frame>
-      <ProcessMap {...args} graph={globalScene} defaultAbstraction={{ minNodeShare: 0.01, minEdgeShare: 0.03 }} layout={{ engine: "dagre" }} />
+      <ProcessMap {...args} graph={globalScene} defaultAbstraction={WHOLE_LOG_DETAIL} layout={{ engine: "dagre" }} />
     </Frame>
   ),
 };
+
+/** Every stage, and the 15 of 29 paths between stages by frequency that paths of 2 % showed before. */
+const STAGES_DETAIL: AbstractOptions = { collapse: "all", activityDetail: 1, pathDetail: 15 / 29 };
 
 /** Stages collapsed into one node each (semantic zoom). */
 export const Stages: Story = {
   name: "Stage view",
   render: (args) => (
     <Frame>
-      <ProcessMap {...args} graph={globalScene} defaultAbstraction={{ collapse: "all", minEdgeShare: 0.02 }} layout={layout} />
+      <ProcessMap {...args} graph={globalScene} defaultAbstraction={STAGES_DETAIL} layout={layout} />
     </Frame>
   ),
 };
@@ -83,13 +86,16 @@ export const Stages: Story = {
  * transitions; colour shows the delta of the expectation shortfall share
  * (purple: lower than the whole log, orange: higher).
  */
+/** Every activity, and the 41 of 677 paths by frequency that paths of 2 % showed before, either side's strength the larger. */
+const DIFF_DETAIL: AbstractOptions = { activityDetail: 1, pathDetail: 41 / 677 };
+
 export const Diff: Story = {
   name: "Diff map (vendor vs all)",
   render: (args) => {
     const graph = useMemo(() => diff(globalScene, vendorScene), []);
     return (
       <Frame>
-        <ProcessMap {...args} graph={graph} style={diffStyle} defaultAbstraction={{ minEdgeShare: 0.02 }} layout={layout} />
+        <ProcessMap {...args} graph={graph} style={diffStyle} defaultAbstraction={DIFF_DETAIL} layout={layout} />
       </Frame>
     );
   },
@@ -103,7 +109,7 @@ export const German: Story = {
     const overlays = useMemo(() => overlaysFor(constraintItems(), { graph: globalScene, locale: "de" }), []);
     return (
       <Frame>
-        <ProcessMap {...args} graph={globalScene} overlays={overlays} defaultAbstraction={{ minNodeShare: 0.01, minEdgeShare: 0.03 }} layout={layout} />
+        <ProcessMap {...args} graph={globalScene} overlays={overlays} defaultAbstraction={WHOLE_LOG_DETAIL} layout={layout} />
       </Frame>
     );
   },
