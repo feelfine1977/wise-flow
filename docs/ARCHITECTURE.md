@@ -547,9 +547,9 @@ Panels, buttons, chips and tooltips are one set of primitives modelled on
 the actions menu, styled through the tokens in both schemes. The fitted view
 keeps clear of the open panels (`panelInsets`), so that none covers an
 activity.
-Keyboard navigation over activities (arrow keys; Alt with an arrow key
-along the paths; Space selects; Enter opens the actions menu; Shift with
-an arrow key extends the selection; Escape; Home, End) with
+Keyboard navigation over the elements with a box (arrow keys; Alt with an
+arrow key along the paths; Space selects; Enter opens the actions menu; Shift
+with an arrow key extends the selection; Escape; Home, End) with
 `aria-activedescendant`, all transitions of the core's map controller
 (§2.8), whose intents `useMapController` carries out; ARIA labels on every element, a hidden
 description of the map and a polite live region that announces the

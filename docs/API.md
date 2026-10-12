@@ -1454,12 +1454,14 @@ described.
 and gets its own layout; thresholds filter positions, so sliding the
 controls never moves the surviving elements. Given `positions` are used
 as long as they cover the graph. Follows self-loops become self-loop
-overlays. Keyboard: arrow keys move focus between activities, Alt with an
-arrow key along the paths, Space selects, Enter opens the actions menu
+overlays. Keyboard: arrow keys move focus between the elements with a box
+(activities, events, gateways, notes and stage nodes), Alt with an arrow key
+along the paths, Space selects, Enter opens the actions menu
 (selects when `contextMenu` is false), Shift with an arrow key extends the
-selection, Escape clears, Home and End jump. In the table view the keys are
-the table's (its rows, search field and pages); only Escape from a row
-clears the selection there, as on the map. `aria-activedescendant`
+selection, Escape clears, Home and End jump to the first and the last
+element with a box, left to right and top to bottom. In the table view the
+keys are the table's (its rows, search field and pages); only Escape from a
+row clears the selection there, as on the map. `aria-activedescendant`
 points at the focused node or path while it is on the map, and at nothing
 in the table view, which renders neither; when it leaves the map (a stage
 expanded, a threshold raised, a host filter), the attribute goes and the
@@ -1477,7 +1479,7 @@ plus groups) the list holds at most that many elements: the element the
 keyboard is on (before the first key, the selected activity or the one Home
 goes to), the ends of a path, their group, and their predecessors and
 successors. Every keyboard move re-centres it, so the keys reach every
-activity along the paths. The live region and the map's description then
+element along the paths. The live region and the map's description then
 say how many activities and paths there are and that the table view lists
 all of them. Above the same limit the table view shows 100 rows per page with
 a search field (`TableAlternative` with `pageSize`), whichever renderer draws

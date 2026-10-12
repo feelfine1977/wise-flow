@@ -357,11 +357,12 @@ export function menuHeading(target: MenuTarget, graph: FlowGraph, overlays: read
 }
 
 /**
- * The keyboard routes: arrow keys move to the nearest activity in that
- * direction (Shift adds it to the selection), Alt with an arrow key moves
- * along the paths (from an activity to each of its outgoing or incoming paths
- * in turn, from a path to its end or start), Home and End go to the first and
- * last activity, Space toggles the selection, Enter opens the actions menu,
+ * The keyboard routes: arrow keys move to the nearest element with a box
+ * (an activity, event, gateway, note or stage node) in that direction (Shift
+ * adds it to the selection), Alt with an arrow key moves along the paths (from
+ * an element to each of its outgoing or incoming paths in turn, from a path to
+ * its end or start), Home and End go to the first and last element with a box,
+ * Space toggles the selection, Enter opens the actions menu,
  * Escape clears the selection, the keyboard position and the focus of paths.
  * A keyboard position not on the map counts as none.
  */
