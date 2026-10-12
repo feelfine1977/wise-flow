@@ -61,7 +61,14 @@ import { fileURLToPath } from "node:url";
  * definitions (`svg.wf-mark-defs`, a `defs` with a `marker` and its `path`
  * per size), where it was one of React Flow's markers per colour
  * (`svg.react-flow__marker`, `marker.react-flow__arrowhead` and its
- * `polyline`); every other element is the same.
+ * `polyline`); every other element is the same. They were recorded once more
+ * when the record began to hold only the elements inside the library's roots and
+ * every form control took its colours from the tokens: the elements a story draws
+ * around the library (its frame, captions, its own select, check boxes, buttons
+ * and table) are gone from the record, the detail sliders' text, border and
+ * outline colour is the ink and the line-strong colour where it was the browser's
+ * (#9d968e on Linux, #101010 on macOS), and the check box's the ink where it was
+ * the browser's black; every other element is the same.
  * Geometry
  * that depends on the fonts of the machine (widths, heights, positions) is left
  * out, so the record holds on every operating system.
@@ -158,16 +165,25 @@ const SCENES: Scene[] = [
   },
 ];
 
-/** Each element as its tag, classes and id, with the values of its computed style in the order of `PROPERTIES` (bpmn-js names its markers at random). */
+/**
+ * The library's roots: what its components render carries a part of the styling contract (`data-wf-part`), the
+ * BPMN view its status (`data-bpmn-status`). What a story draws around them (a frame, a caption, its own inputs,
+ * buttons and a table in the library's classes) is not the library's and takes the browser's defaults or the
+ * story's, which differ by system (the default font is "Times New Roman" on Linux and "Times" on macOS), so it is
+ * not compared.
+ */
+const ROOTS = "[data-wf-part], [data-bpmn-status]";
+
+/** Each element inside the library's roots as its tag, classes and id, with the values of its computed style in the order of `PROPERTIES` (bpmn-js names its markers at random). */
 async function computedStyles(page: Page, properties: string[]): Promise<[string, string][]> {
-  return page.evaluate((properties) => {
+  return page.evaluate(({ properties, roots }) => {
     const root = document.querySelector("#storybook-root")!;
-    return [...root.querySelectorAll("*")].map((element) => {
+    return [...root.querySelectorAll("*")].filter((element) => element.closest(roots)).map((element) => {
       const style = getComputedStyle(element);
       const name = `${element.tagName.toLowerCase()}${[...element.classList].filter((c) => c.startsWith("wf-") || c.startsWith("react-flow__")).map((c) => `.${c}`).join("")}${element.getAttribute("data-id") ? `[${element.getAttribute("data-id")}]` : ""}`;
       return [name, properties.map((p) => style.getPropertyValue(p).replace(/#marker-[a-z0-9]+/, "#marker")).join("; ")] as [string, string];
     });
-  }, properties);
+  }, { properties, roots: ROOTS });
 }
 
 /** An element's name without the classes that carry the paints of marks, which name no element. */
@@ -179,17 +195,43 @@ interface Record {
   scenes: { [scene: string]: string[] };
 }
 
+/** Opens the scene's story in its state. */
+async function open(page: Page, scene: Scene) {
+  // A pointer left over the map by the previous scene would hover what is drawn under it.
+  await page.mouse.move(0, 0);
+  await page.goto(`/iframe.html?id=${scene.story}&viewMode=story`);
+  await settle(page, scene);
+}
+
+/** Waits until the scene's map is laid out and drawn. */
+async function settle(page: Page, scene: Scene) {
+  if (scene.map) await page.waitForSelector('[data-layout-status="ready"], [data-layout-status="given"]', { timeout: 60_000 });
+  else await page.waitForSelector("#storybook-root *", { state: "attached" });
+  await page.waitForTimeout(800);
+}
+
+/** The elements of a scene whose computed style differs from the record, each with the properties that differ. */
+function changes(expected: Record, scene: string, after: [string, string][]): string[] {
+  const before = expected.scenes[scene].map((line) => {
+    const cut = line.lastIndexOf(" ");
+    return [line.slice(0, cut), expected.styles[Number(line.slice(cut + 1))]];
+  });
+  expect(after.map(([element]) => named(element)), `${scene}: the elements`).toEqual(before.map(([element]) => element));
+  return after.flatMap(([element, style], i) => {
+    if (style === before[i][1]) return [];
+    const was = before[i][1].split("; ");
+    return [`${i} ${element}: ${style.split("; ").flatMap((value, p) => (value === was[p] ? [] : [`${PROPERTIES[p]}: ${value} (was ${was[p]})`])).join("; ")}`];
+  });
+}
+
+const readRecord = (): Record => JSON.parse(readFileSync(RECORD, "utf8"));
+
 test("the map and its panels draw the computed styles they drew before", async ({ page }) => {
   test.setTimeout(300_000);
   const record = process.env.FLOW_RECORD_STYLES === "1";
   const actual: { [scene: string]: [string, string][] } = {};
   for (const scene of SCENES) {
-    // A pointer left over the map by the previous scene would hover what is drawn under it.
-    await page.mouse.move(0, 0);
-    await page.goto(`/iframe.html?id=${scene.story}&viewMode=story`);
-    if (scene.map) await page.waitForSelector('[data-layout-status="ready"], [data-layout-status="given"]', { timeout: 60_000 });
-    else await page.waitForSelector("#storybook-root *");
-    await page.waitForTimeout(800);
+    await open(page, scene);
     await scene.act?.(page);
     actual[scene.name] = await computedStyles(page, PROPERTIES);
   }
@@ -199,19 +241,38 @@ test("the map and its panels draw the computed styles they drew before", async (
     writeFileSync(RECORD, JSON.stringify({ styles, scenes } satisfies Record, null, 1) + "\n");
     return;
   }
-  const expected: Record = JSON.parse(readFileSync(RECORD, "utf8"));
+  const expected = readRecord();
   for (const scene of SCENES) {
-    const before = expected.scenes[scene.name].map((line) => {
-      const cut = line.lastIndexOf(" ");
-      return [line.slice(0, cut), expected.styles[Number(line.slice(cut + 1))]];
-    });
-    const after = actual[scene.name];
-    expect(after.map(([element]) => named(element)), `${scene.name}: the elements`).toEqual(before.map(([element]) => element));
-    const changed = after.flatMap(([element, style], i) => {
-      if (style === before[i][1]) return [];
-      const was = before[i][1].split("; ");
-      return [`${i} ${element}: ${style.split("; ").flatMap((value, p) => (value === was[p] ? [] : [`${PROPERTIES[p]}: ${value} (was ${was[p]})`])).join("; ")}`];
-    });
+    const changed = changes(expected, scene.name, actual[scene.name]);
+    expect(changed.slice(0, 8), `${scene.name}: elements whose computed style changed (first eight of ${changed.length})`).toEqual([]);
+  }
+});
+
+test("what a story draws outside the library's roots is not compared: in another font and colour the record holds", async ({ page }) => {
+  test.setTimeout(300_000);
+  const expected = readRecord();
+  for (const scene of SCENES) {
+    await open(page, scene);
+    // The page and every element of the story outside the library's roots in a font and colour of their own, as
+    // another system's defaults would draw them; and one more such element, before the library's first root.
+    const outside = await page.evaluate((roots) => {
+      const story = document.querySelector("#storybook-root")!;
+      const elements = [document.body, story, ...story.querySelectorAll("*")].filter((el): el is HTMLElement => el instanceof HTMLElement && !el.closest(roots));
+      for (const el of elements) el.style.setProperty("font-family", '"Courier New", monospace');
+      for (const el of elements) el.style.setProperty("color", "rgb(128, 0, 128)");
+      const first = story.querySelector(roots)!;
+      const note = first.parentElement!.insertBefore(document.createElement("small"), first);
+      note.textContent = "A note of the story";
+      note.style.setProperty("font-family", "fantasy");
+      note.style.setProperty("position", "absolute");
+      return [...elements, note].map((el) => getComputedStyle(el).fontFamily);
+    }, ROOTS);
+    expect(outside.length, `${scene.name}: elements outside the library`).toBeGreaterThan(2);
+    expect(outside.filter((font) => font === '"Courier New", monospace' || font === "fantasy")).toEqual(outside);
+    // The story reflows in the other font, and the map draws its paths again.
+    await settle(page, scene);
+    await scene.act?.(page);
+    const changed = changes(expected, scene.name, await computedStyles(page, PROPERTIES));
     expect(changed.slice(0, 8), `${scene.name}: elements whose computed style changed (first eight of ${changed.length})`).toEqual([]);
   }
 });

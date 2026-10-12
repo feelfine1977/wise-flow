@@ -42,6 +42,18 @@
 .wf-comparison {
   color-scheme: var(--wf-color-scheme);
 }
+/* Form controls in the tokens' colours in every state, not the browser's, which differ by system; each control's own rule wins. */
+:where(.wf-process-map, .wf-panel, .wf-table, .wf-filters, .wf-paths, .wf-menu, .wf-bpmn, .wf-views, .wf-trace-timeline, .wf-comparison) :where(input, button, select, textarea) {
+  color: var(--wf-ink);
+  border-color: var(--wf-line-strong);
+}
+:where(.wf-process-map, .wf-panel, .wf-table, .wf-filters, .wf-paths, .wf-menu, .wf-bpmn, .wf-views, .wf-trace-timeline, .wf-comparison) :where(input, textarea)::placeholder {
+  color: var(--wf-ink-muted);
+}
+:where(.wf-process-map, .wf-panel, .wf-table, .wf-filters, .wf-paths, .wf-menu, .wf-bpmn, .wf-views, .wf-trace-timeline, .wf-comparison) :where(input, button, select, textarea):focus-visible {
+  outline: var(--wf-stroke-focus) solid var(--wf-focus);
+  outline-offset: var(--wf-space-1);
+}
 .wf-process-map .react-flow__edge-path {
   stroke-linejoin: round;
 }
