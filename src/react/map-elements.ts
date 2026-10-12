@@ -1,9 +1,4 @@
-/**
- * What the two map renderers are given to draw: React Flow nodes and edges
- * from the scene's marks, or the Canvas map's retained scene with its state
- * and the element list for assistive technology; and the descriptions both
- * read. Rendering only: the interaction state comes from the controller.
- */
+/** What the two map renderers draw: React Flow elements or the Canvas map's retained scene, and their descriptions. */
 import { MarkerType } from "@xyflow/react";
 import { useCallback, useMemo } from "react";
 import { type ActivityLabelOptions, type EdgeBudget, type ElementRef, type FlowGraph, type FlowScene, type GraphIndex, type HitItem, type Locale, type Overlay, type OverlayMark, type Positions, type Selection, arrowheadTokens, budgetEdges, describeOverlay, indexGraph } from "../core/index.js";

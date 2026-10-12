@@ -2,7 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { layout, toSVG, type FlowGraph, type Overlay } from '@wise/flow';
 import { ProcessMap } from '@wise/flow/react';
-import { BpmnView, exportBpmn, liteFromStages, type BpmnSelection } from '@wise/flow/bpmn';
+import { BpmnView, exportBpmn, layoutBpmn, liteFromStages, type BpmnSelection } from '@wise/flow/bpmn';
 import { prepareScene } from '@wise/flow/canvas';
 import '@wise/flow/react-flow.css';
 import '@wise/flow/bpmn.css';
@@ -29,6 +29,12 @@ for (const direction of ['RIGHT', 'DOWN'] as const) {
   if (JSON.stringify(inWorker) !== JSON.stringify(await layout(grouped, { engine: 'dagre', direction }))) throw new Error('Dagre in the worker gave other positions');
 }
 if (prepareScene(graph, positions).nodes.length !== 2 || !toSVG({ graph, positions }).includes('Receive')) throw new Error('Scene export failed');
+// In a browser the BPMN layout's Dagre fallback keeps its limit (in Node it has none): ELK fails on an unknown
+// algorithm, and 302 nodes plus 301 flows exceed 500.
+const ids = ['start', ...Array.from({ length: 300 }, (_, k) => `t${k}`), 'end'];
+const row: FlowGraph = { nodes: ids.map(id => ({ id, kind: 'activity', label: id, tags: ['task'] })), edges: ids.slice(1).map((id, k) => ({ id: `f${k}`, kind: 'flow', source: ids[k], target: id })) };
+const limited = await layoutBpmn(row, { elkOptions: { 'elk.algorithm': 'flow.none' } }).then(() => 'a layout', (error: Error) => error.name);
+if (limited !== 'LayoutUnavailableError') throw new Error(`The BPMN layout above the fallback limit gave ${limited} in the browser`);
 // A badge on a task, projected onto the viewer and again onto the modeler.
 const overlays: Overlay[] = [{ kind: 'badge', target: 'receive', payload: { glyph: '≥1', value: 0.5 } }];
 const { xml } = await exportBpmn(liteFromStages({ stages: [{ id: 'work', activities: ['receive', 'complete'] }] }));

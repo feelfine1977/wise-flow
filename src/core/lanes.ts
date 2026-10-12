@@ -1,11 +1,4 @@
-/**
- * Lanes: the map's groups as bands. Stage groups become ordered bands along
- * the flow direction (the order the ELK partitioning produced); lane groups
- * (roles) become bands stacked across the flow, and their members move into
- * their band. Positions of the nodes are otherwise untouched, so a map keeps
- * its layout when the lane mode changes. The lane model (`laneModel`,
- * `stackLanes`, `spanLanes`, `laneRoutes`) is shared with the BPMN layout.
- */
+/** Lanes: stage groups as bands along the flow, lane groups as bands across it; the lane model is shared with the BPMN layout. */
 import { type Box, type EdgeRoute, type Positions, createPositions, positionsBounds, unionBoxes } from "./layout.js";
 import { type FlowGraph, type FlowGroup, type FlowNode, indexGraph } from "./model.js";
 import { routeSequenceFlows } from "./routing.js";

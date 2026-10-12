@@ -29,6 +29,8 @@ export interface AbstractionMeta { minEdgeShare?: number; minNodeShare?: number;
   removedEdges?: { constraint?: number; flow?: number } }   // edges removed with an element at an end; see "Aggregation"
 
 export const MAP_TARGET = "__map";      // overlay target for map-level chips
+export function hasTag(el: { tags?: string[] } | undefined, tag: string): boolean;   // the element carries the tag
+export function normalizeGraph(g: FlowGraph): FlowGraph;   // shallow copy with sorted, de-duplicated element arrays
 export function validateGraph(g: FlowGraph): GraphIssue[];
 export function validateGateways(g: FlowGraph): GraphIssue[];   // warnings: unpaired parallel gateways
 export function indexGraph(g: FlowGraph): GraphIndex;
@@ -157,6 +159,11 @@ export function abstract(g: FlowGraph, o?: AbstractOptions): FlowGraph;
 export function collapseGroups(g: FlowGraph, groups: string[] | "all"): FlowGraph;
 export function isConnected(g: FlowGraph): boolean;
 export function diff(a: FlowGraph, b: FlowGraph, o?: { metrics?: string[] }): FlowGraph;
+export function strengths<T extends { id: string; metrics?: Metrics }>(items: T[], candidates: string[],
+  relativeTo?: "max" | "total"): Map<string, number>;   // in [0, 1], from the first of `candidates` an element has; 1 without one
+export const RECONNECTED_TAG = "reconnected";   // the tag of elements `abstract` re-added
+export const COLLAPSED_TAG = "collapsed";       // the tag of the stage nodes `collapseGroups` makes
+export const DIFF_TAGS: { onlyA: "only-a"; onlyB: "only-b"; both: "both" };   // the tags `diff` puts on elements
 ```
 
 Guarantees of `abstract`: events, gateways and the ids in `keep` are never
@@ -206,6 +213,7 @@ export interface EdgeRoute { points: { x: number; y: number }[]; labelX?: number
 export interface Positions {
   nodes: Record<string, Box>; groups: Record<string, Box>; edges: Record<string, EdgeRoute>;
   bounds: Box; engine: "elk" | "dagre" | "di" | "given" | "provisional"; direction: "RIGHT" | "DOWN" | "LEFT" | "UP";
+  final?: boolean;   // no layout replaces them: the provisional arrangement useStableLayout keeps when the layout is unavailable
 }
 export interface LayoutOptions {
   engine?: "elk" | "dagre" | "auto";   // auto (default): ELK, Dagre on failure or timeout
@@ -226,6 +234,8 @@ export function layoutUnion(scenes: FlowGraph[], o?: LayoutOptions): Promise<Pos
 export function unionGraph(scenes: FlowGraph[]): FlowGraph;
 export function filterPositions(p: Positions, g: FlowGraph): Positions;
 export function coversGraph(p: Positions, g: FlowGraph): boolean;
+export function defaultNodeSize(n: FlowNode): NodeSize;   // the box of the node's kind in the token table (`DEFAULT_SIZES`)
+export function straightRoute(a: Box, b: Box): EdgeRoute;   // between the boxes' centres, clipped to their borders
 export function clearLayoutCache(key?: string): void;   // one caller key, or every cached layout
 export interface LayoutScopeOptions { maxEntries?: number }   // default 8, least recently used goes first
 export interface LayoutScope {
@@ -326,18 +336,41 @@ Dagre, `"elk"` and `"dagre"` reject with "layout timed out after … ms". A
 timeout does not try ELK again (without stage partitions, as an ELK error
 still does). A timeout longer than a timer can wait (2³¹ − 1 ms, about 24
 days), `Infinity` included, waits that long; up to 0.3.5 the timer fired at
-once and the layout timed out before the engine answered. **In-process ELK, and an `elk` instance the caller supplies,
-cannot be interrupted**: an abort or timeout rejects at once, but the engine
-finishes its run in the background and its result is discarded; in-process
-ELK also blocks the calling thread while it runs, so a timeout cannot end it
-early. Pass `elkWorkerUrl` wherever a worker can be served.
+once and the layout timed out before the engine answered.
+
+**Without a worker, ELK cannot be interrupted.** Pass `elkWorkerUrl` (and
+`dagreWorkerUrl`) wherever a worker can be served: only a layout in a worker
+is stopped when nobody waits for it any more, and only there does the page
+stay responsive while it runs. In-process ELK (no `elkWorkerUrl` and no
+`elk`; the default of `<ProcessMap/>`, and the only way in Node) runs on the
+calling thread one layout at a time: a layout waits until the runs ahead of
+it have finished, an aborted one included, and its `timeoutMs` counts from
+when it starts, not from the request; aborted while it waits, it never
+starts. Once started it holds the thread until it is done, so its timeout
+cannot fire before, and a run that finished is answered with its layout even
+when it took longer than `timeoutMs`: the timeout does not shorten in-process
+ELK. An `elk` instance the caller supplies is not queued; an abort or timeout
+rejects at once and its later result is discarded, but a result it sent
+before its timeout could fire is taken. Up to this change the timeout counted
+from the request, so a layout behind an aborted long one timed out and fell
+back to Dagre although it took milliseconds (two nodes with `timeoutMs: 300`
+came back from Dagre after 8.8 s), and a run past its timeout ended in its
+layout or in the timeout depending on timing.
 
 Fallback limit. Without `dagreWorkerUrl` the Dagre fallback (`engine: "auto"`
 after ELK failed or timed out) runs on the calling thread only up to
 `fallbackLimit` nodes plus edges (default 500; Dagre's cost grows quickly
 with dense graphs, from tenths of a second at 500 to many seconds). Above it
 the layout rejects with `LayoutUnavailableError` instead of freezing the page.
-`engine: "dagre"` runs whatever the size.
+`engine: "dagre"` runs whatever the size. When ELK fails or times out and the
+Dagre worker then fails or times out too, the layout rejects with
+`LayoutUnavailableError` as well ("Neither ELK nor the Dagre worker laid out
+the graph: …" with the worker's error): a map keeps its provisional scene and
+says the layout is unavailable, as without a worker. Up to this change it
+rejected with the worker's plain error, and the map dropped the provisional
+scene and showed that message. `engine: "dagre"` in a worker that fails
+rejects with its own error, and `engine: "elk"` with ELK's, which no Dagre
+follows.
 
 ## Style
 
@@ -354,6 +387,10 @@ export type LegendItem =   // `title` is a string key for `t` (it was typed `str
   | { kind: "categorical"; title: StringKey; entries: CategoricalEntry[] };
 export const palettes: { sequential; sequentialBlue; diverging; categorical };   // colour-blind safe
 export function contrastText(background: string): string;  // ≥ 4.5 : 1 on every palette colour
+export function contrastRatio(a: string, b: string): number;   // WCAG contrast ratio of two colours
+export function hexToRgb(hex: string): [number, number, number];
+export function interpolatePalette(stops: readonly string[], t: number): string;   // piecewise linear through the stops; t clamped to [0, 1]
+export function hashKey(key: string): number;   // stable 32-bit FNV-1a hash; categorical colours and pattern twins hash their keys
 export interface LodRules { labels; edgeLabels; badges; arcs; chips; hatch; selfLoops }  // minimum zoom per element
 export function lodAt(zoom: number, rules?: Partial<LodRules>): Record<keyof LodRules, boolean>;
 export function lodForSize(nodeCount: number, base?: Partial<LodRules>): LodRules;
@@ -418,7 +455,8 @@ export interface ConstraintStats { cases?; evaluated?; violations?; violationSha
   nodeShareInScope?: Record<string, number>; [k: string]: unknown }
 export function constraintOverlays(c: ConstraintDescription, stats?: ConstraintStats,
   o?: { locale?: Locale; outOfScopeMinShare?: number; graph?: FlowGraph }): Overlay[];
-export function overlaysFor(items: { description; stats? }[], o?): Overlay[];
+export function overlaysFor(items: { description; stats? }[], o?: OverlayPresetOptions): Overlay[];
+export interface OverlayPresetOptions { locale?: Locale; outOfScopeMinShare?: number; graph?: FlowGraph }   // of overlaysFor and useOverlays
 export function canonicalOverlays(overlays: Overlay[]): Overlay[];
 export function describeOverlay(o: Overlay, locale?: Locale): string;
 export function overlayGeometry(overlays: Overlay[], positions: Positions, o?: OverlayGeometryOptions): OverlayGeometry;
@@ -466,11 +504,14 @@ Canvas map, the React map and the BPMN view) all draw these courses.
 export class HitIndex { constructor(edgeTolerance?: number);
   static fromScene(p: Positions, g?: OverlayGeometry, edgeTolerance?: number,
     indexOf?: (kind: HitItem["kind"], id: string) => number | undefined,
-    extentOf?: (item: HitItem) => Box | undefined): HitIndex;   // a box the item's bounds also cover
+    extentOf?: (item: HitItem) => Box | undefined,   // a box the item's bounds also cover
+    diamond?: (nodeId: string) => boolean): HitIndex;   // nodes drawn as a diamond (gateways)
   at(x, y, tolerance?): HitItem[]; within(box: Box): HitItem[] }
 export interface HitItem { minX; minY; maxX; maxY; id: string; kind: "node" | "edge" | "group" | "overlay";
   segment?: [XY, XY]; shapeId?: string; index?: number;   // index: indexOf(kind, id or shape id)
-  box?: Box; layer?: "below" | "between" | "above" }   // box: of a node, group or overlay shape, what hit tests read; layer: of an overlay shape
+  box?: Box; layer?: "below" | "between" | "above";   // box: of a node, group or overlay shape, what hit tests read; layer: of an overlay shape
+  curve?: { points: XY[]; reach: number; label?: Box };   // an arc's or a self-loop's curve, half its stroke, its label's box
+  diamond?: boolean }   // a node hit by its diamond
 export interface Scene { graph; positions; overlays?; style?; title?; subtitle?; locale?; lanes?: LaneMode;
   activityLabels?: ActivityLabelOptions; selfLoops?: boolean }
 export interface ExportOptions { preset?: "single-column" | "double-column" | "slide" | "none"; width?; legend?;
@@ -499,6 +540,19 @@ export interface FigureFrame { padding; header; map: { width; height; offset: XY
 export function figureFrame(scene: FramedScene, o?: FigureFrameOptions): FigureFrame;   // FramedScene: graph, activityLabels?, locale, bounds, legend
 ```
 
+Positions that hold more than the scene's graph (another scene's elements,
+as `layoutUnion` gives them, or bounds wider than the graph): `toSVG`,
+`toPNG` and `prepareScene` place the overlays on the positions of the
+graph's own elements, as the map does, which is given only those, so the
+arcs of an export take the course and label place they take on the map. The
+figure's frame still holds the given positions' bounds, and a prepared
+scene's hit index holds only the elements it draws, so a culled draw stays
+culled and nothing it does not draw is hit. Up to this change the arcs'
+course search avoided the other scene's boxes and took its room from their
+bounds, so an export's arc could run at another height or on the other side
+than on the map, and the extra boxes in the hit index turned culling off.
+To draw the given positions alone, pass `filterPositions(positions, graph)`.
+
 `toSVG` writes every text and id that comes with the scene (labels, ids,
 kinds, metric names, overlay texts, title) escaped: `&`, `<`, `>` and `"`
 become entities, so nothing in them becomes markup. Up to 0.3.5 a node kind
@@ -512,18 +566,38 @@ costs it a heap object: an area query (`within`) may therefore find an item
 whose bounds end less than a unit short of the box. With `extentOf` each
 item's bounds also cover the box the callback returns for it, so that an
 area query finds an element whose drawing reaches beyond its box. `at`
-tests the point against the element's own box (`HitItem.box`, carried by
-every node, group and overlay item), not the bounds, and an edge against its
-segment, so a hit test is exact. `at` lists the items within `tolerance` of
-the point (a box when the point is within the tolerance of it, an edge when
-it is within the tolerance of one of its segments) with the one painted on
-top first: overlay shapes above the nodes (badges, chips, hatching,
+tests the point against what the element draws, not the bounds, so a hit
+test is exact: a node's, group's or overlay shape's own box (`HitItem.box`),
+an edge's segment, an arc's or a self-loop's curve and label, a gateway's
+diamond. `at` lists the items within `tolerance` of the point (a box when the
+point is within the tolerance of it, an edge when it is within the tolerance
+of one of its segments) with the one painted on top first: overlay shapes above the nodes (badges, chips, hatching,
 self-loops), nodes, arcs, edges, tints, groups; among those the smaller
 element first (a segment with the tolerance around it), then by id. Overlay
 items carry their shape's layer (`HitItem.layer`, see `OverlayMark.layer`);
 an item without one ranks above the nodes. Up to 0.3.5 every overlay shape
 ranked first, so inside a tinted group every hit was the tint, and where an
 arc crossed a node, the arc.
+
+Arcs and self-loops are hit where they are drawn: within `tolerance` plus half
+their stroke of their curve (`HitItem.curve`: the cubic of the path cut into
+chords at equal steps, as many as its control polygon's length over 8 and at
+least 16, so that a chord stays within a fraction of a unit of the curve), or
+within `tolerance` of their label's box (each text 0.55 em per character
+wide, from a size above its baseline to a third of a size below). A node for
+which `diamond` is true (the Canvas scene passes its gateways) is hit inside
+its diamond, whose half diagonals are half the box's width, or within
+`tolerance` of its sides: also where a gateway wider than tall reaches beyond
+its box, and not in the box's corners. The bounds of these items are their
+boxes as before; `extentOf` grows them to the drawn stroke and diamond, as
+the Canvas scene's does, so that the area search finds every point a hit
+test accepts.
+Up to this change their whole box took the hit: a path under an arc's box
+could not be hovered or clicked there (on the BPIC global scene with stage
+lanes, 1,164 of 40,000 grid points within 4 of a path and more than 8 from
+every arc's curve returned the arc), and a point inside an activity near its
+self-loop returned the loop. This applies to the Canvas map's hover, click
+and right click, `CanvasRenderer.hitAt` and the hit index of `prepareScene`.
 
 The legend and the figure frame are described once. `sceneLegend` lists the
 scale items, a key row for each overlay kind present (badges, arcs,
@@ -550,6 +624,7 @@ export type Locale = "en" | "de";
 export function formatCount(v, locale?), formatNumber(v, decimals?, locale?), formatShare(v, locale?),
   formatDelta(v, locale?), formatHours(v, locale?), formatDays(v, locale?), formatCompact(v, locale?);
 export function t(locale: Locale, key: StringKey, vars?): string;
+export const strings: Record<Locale, Record<StringKey, string>>;   // the table `t` reads: every key in English and German
 export function metricLabel(locale: Locale, metric: string): string;
 ```
 
@@ -605,6 +680,25 @@ export function midpoint(points: XY[]): XY;   // routeMidpoint
 export type ActivityNodeData = { node; color; pattern; hatched; direction; focused; hovered; dimmed; locale; description;
   activityLabels?; labelWidth?; labelHeight?; meta?; mark?: NodeMark };
 export type FollowsEdgeData = { edge; route?; width; color; label?; reconnected; hovered; dimmed; focused; description; mark?: EdgeMark };
+// The React Flow elements of the map, and the id of a group's compound node there.
+export type WfNode = Node<ActivityNodeData, NodeKind>; export type WfGroupNode = Node<GroupNodeData, "wfGroup">;
+export type WfEdge = Edge<FollowsEdgeData, EdgeKind>; export function groupNodeId(groupId: string): string;
+// The props of each component by name (the components' signatures in this document spell them out):
+export interface AbstractionControlsProps { value: AbstractOptions; onChange; locale?; hasStages?; view?; onViewChange? }
+export interface TableAlternativeProps { graph; overlays?; scales?; locale?; selection?; onSelect?; tables?; pageSize?; className? }
+export interface TraceTimelineProps { traces: Trace[]; anchor?; annotations?; locale?; width?; rowHeight?; colorKey?; onSelect?; table?; className? }
+export interface TraceEvent { activity: string; canonicalId?; timestamp: string | number | Date; resource?; lifecycle?; violates?: string[] }
+export interface ContextMenuProps { x; y; title: string; subtitle?; note?; actions: MenuAction[]; locale?; onAction; onClose; returnFocusTo?;
+  boundsRef?; className? }
+export interface PathListProps { graph; focus: Focus; paths?: FlowPaths; locale?; selection?; onSelect?; onHover?; onClose?; sort?; ascending?;
+  onSortChange?; className? }
+export interface FilterChipsProps { filter?: Filter | FilterClause[]; preview?; locale?; labelOf?; onFilterChange?; onAnnounce?; clearable?; className? }
+export interface CanvasMapProps { scene: PreparedScene | undefined; state: DrawState; edgeBudget?; onEdgesShown?; … }   // see "Canvas"
+export interface FlowComparisonProps { cohorts: FlowComparisonCohort[]; noun?: string; onSelect?: (cohortId: string) => void }
+export interface FlowComparisonCohort { id: string; label: string; cases: number; graph: FlowGraph }   // cases: distinct, with those without events
+export type ViewSwitcherProps = Parameters<typeof ViewSwitcher>[0];   // see "Views"
+export type BpmnViewProps = Parameters<typeof BpmnView>[0];   // see "BPMN"; also from @wise/flow/bpmn
+export const emptyBpmnSelection: BpmnSelection;   // { tasks: [], flows: [], lanes: [] }; also from @wise/flow/bpmn
 ```
 
 The node and edge components draw what the scene's marks say: texts,
@@ -676,7 +770,19 @@ moved since it was last fitted (or `fitView` is false): then its zoom stays
 and the node nearest the centre of the view stays where it is on screen.
 Given positions that cover the graph are drawn as given, without motion;
 positions from `useStableLayout` are treated as above while they are
-provisional.
+provisional. Given positions that stop covering the graph (a node added
+that they do not place) hand the map to its own layout: its first scene then
+starts from the map's own earlier layout, if it had one, not from the given
+positions on screen. That case lies outside the first scene described here,
+which is that of a map without positions; how a map moves from one set of
+given positions to the next is for a later version to define.
+
+Hiding a map with React's `<Activity mode="hidden">` runs the cleanups of its
+effects, as an unmount does: its layout scope is released (the layouts kept
+for earlier abstraction levels are forgotten and idle workers terminated) and
+a running layout is aborted. Showing it again lays the map out again, with the
+provisional arrangement first. React does not tell hiding apart from
+unmounting, so the map does not keep the scope while hidden.
 
 `useStableLayout(scenes, options)` returns `positions` from the first render:
 a finished layout of the same inputs (status `"ready"`), or provisional
@@ -685,7 +791,9 @@ layout arrives, `positions` are replaced once by it (`"ready"`,
 `provisional: false`). Without scenes the status is `"idle"`; a failed layout
 gives `"error"` with `positions` undefined, as before, except a
 `LayoutUnavailableError`: then the provisional positions stay, with
-`provisional: true`, status `"error"` and the error. Until this release
+`provisional: true`, status `"error"`, the error, and `positions.final`
+true: no layout will replace them (a new object; the positions shown while
+pending are not changed). Until this release
 `positions` held the previous result (or nothing) while a layout was pending.
 The hook aborts the layout of a request it no longer shows (changed scenes
 or options, unmount), which terminates its worker; mounted again before the
@@ -703,7 +811,10 @@ Refined layout unavailable: when the layout fails with
 interactive; the status panel and the map's description say "The refined
 layout is unavailable; the map shows a provisional arrangement." (string
 `map.layoutUnavailable`, English and German) and `data-layout-status` is
-`"error"`. Other layout errors are shown as before.
+`"error"`. So does a map given positions that are `final`, such as those
+`useStableLayout` keeps then: up to this change a map given them said
+"Arranging the map…" with `data-layout-status="pending"` for good. Other
+layout errors are shown as before.
 
 Stylesheets: `@wise/flow/tokens.css` (design tokens, light and dark),
 `@wise/flow/style.css` (components) and `@wise/flow/react-flow.css` (React
@@ -766,7 +877,16 @@ described with the element.
 Ids are opaque and stable; all numbers arrive pre-aggregated; every
 component accepts `locale` and renders a table alternative on request;
 colour never carries meaning alone (patterns, glyphs and numbers are
-redundant); breaking changes only in major versions.
+redundant).
+
+Versions. While the version is 0.x, a minor release may remove or change a
+name, a type or a behaviour a host relies on; each such change is named in
+its Changeset (as `minor`) and in the upgrade notes of the release. From
+1.0 on, a change that breaks
+a host comes only in a major version, and a name to be removed is first
+deprecated (marked `@deprecated` and listed under "Deprecated names") for at
+least one minor release. The names listed under "Removed in the next
+version" stay removed.
 
 ## Changes against the draft
 
@@ -819,9 +939,12 @@ views; the filled-in domains are returned in `views[i].style` and
 export interface StageActivity { id; label?; role?; optional?; loop?; tags?; metrics? }
 export interface Stage { id; label?; activities: (StageActivity | string)[]; role?; flow?: "sequence" | "choice" | "parallel"; optional? }
 export interface StageModel { id?; label?; stages: Stage[] }
-export function liteFromStages(model: StageModel, o?: { lanes?: "stage" | "role" | "none"; startLabel?; endLabel? }): FlowGraph;
-export function liteFromGraph(g: FlowGraph, o?: { abstraction?: AbstractOptions; andGateways?: boolean;   // AND only as a split/join pair
-  lanes?: "groups" | "none"; selfLoops?: "marker" | "flow" | "drop" }): FlowGraph;
+export interface LiteFromStagesOptions { lanes?: "stage" | "role" | "none"; startLabel?; endLabel? }
+export function liteFromStages(model: StageModel, o?: LiteFromStagesOptions): FlowGraph;
+export interface LiteFromGraphOptions { abstraction?: AbstractOptions; andGateways?: boolean;   // AND only as a split/join pair
+  lanes?: "groups" | "none"; selfLoops?: "marker" | "flow" | "drop" }
+export function liteFromGraph(g: FlowGraph, o?: LiteFromGraphOptions): FlowGraph;
+export function gatewayLabel(tags: string[] | undefined): string;   // Choice, Merge (XOR), Parallel, Join (AND)
 export function stageModelFromGraph(g: FlowGraph, o?: { limit?: number; label?: string }): StageModel;
 export function liteCounts(g: FlowGraph): { tasks; gateways; events; flows; lanes };
 export const START_ID = "__start", END_ID = "__end", TASK_TAG = "task", LOOP_TAG = "loop", GENERATED_TAG = "generated";
@@ -832,11 +955,18 @@ export function layoutBpmn(g: FlowGraph, o?: BpmnLayoutOptions): Promise<Positio
 export interface BpmnLayoutOptions extends Omit<LayoutOptions, "direction" | "groups"> {
   lanes?: "bands" | "compound" | "ignore"; rowGap?; lanePadding?; labelWidth?; poolPadding? }
 export const POOL_ID = "__pool";   // pool box in Positions.groups when the graph has lanes but no pool group
+export const BPMN_SIZES: Record<NodeKind, NodeSize>;   // the shape sizes bpmn-js and Camunda Modeler draw
+export function bpmnNodeSize(n: FlowNode): NodeSize;   // BPMN_SIZES of the node's kind
 
 // Export → BPMN 2.0 XML with BPMNDiagram / BPMNShape / BPMNEdge from the positions.
-export function exportBpmn(g: FlowGraph, o?: { positions?: Positions; layout?: BpmnLayoutOptions; id?; processId?; name?;
-  format?: boolean; extension?: boolean; participant?: boolean }): Promise<{ xml: string; positions: Positions; ids: IdMap; warnings: string[] }>;
-export function validateBpmn(xml: string): Promise<{ ok: boolean; warnings: string[]; counts; missingDi: string[] }>;
+export interface ExportBpmnOptions { positions?: Positions; layout?: BpmnLayoutOptions; id?; processId?; name?;
+  format?: boolean; extension?: boolean; participant?: boolean }
+export interface BpmnExport { xml: string; positions: Positions; ids: IdMap; warnings: string[] }
+export function exportBpmn(g: FlowGraph, o?: ExportBpmnOptions): Promise<BpmnExport>;
+export interface BpmnValidation { ok: boolean; warnings: string[]; counts; missingDi: string[] }
+export function validateBpmn(xml: string): Promise<BpmnValidation>;
+export function exportableEdges(g: FlowGraph): FlowEdge[];   // the edges the export turns into sequence flows
+export const EXPORTER_NAME = "wise-flow", EXPORTER_VERSION, TARGET_NAMESPACE = "http://wise-workbench.org/bpmn";   // written into the XML
 export function xmlId(id: string, taken?: Set<string>, prefix?: string): string;
 export function roundPositions(p: Positions): Positions;
 export interface IdMap { toBpmn: Record<string, string>; toFlow: Record<string, string> }
@@ -844,8 +974,9 @@ export interface IdMap { toBpmn: Record<string, string>; toFlow: Record<string, 
 // Import ← BPMN 2.0 XML.
 export interface ActivityRef { id: string; label?: string; aliases?: string[] }
 export interface MappingRow { taskId; nodeId; label; type; lane?; activityId?; matchedBy?: "id" | "label" | "alias" | "manual" }
-export function importBpmn(xml: string, o?: { activities?: ActivityRef[]; positions?: boolean; keepIds?: boolean;
-  subProcesses?: "stage" | "activity"; normalize?: (s: string) => string }):
+export interface ImportBpmnOptions { activities?: ActivityRef[]; positions?: boolean; keepIds?: boolean;
+  subProcesses?: "stage" | "activity"; normalize?: (s: string) => string }
+export function importBpmn(xml: string, o?: ImportBpmnOptions):
   Promise<{ graph: FlowGraph; mapping: MappingRow[]; positions?: Positions; warnings: string[]; ids: IdMap; processId? }>;
 export function matchActivities(mapping: MappingRow[], activities: ActivityRef[], o?): MappingRow[];
 export function applyMapping(g: FlowGraph, mapping: MappingRow[] | Record<string, string>): FlowGraph;
@@ -856,23 +987,26 @@ export function positionsFromDi(definitions: ModdleElement, ids: IdMap, warnings
 // Ids: FlowGraph id ↔ BPMN id ↔ activity id. An element is named by its BPMN id, its FlowGraph id
 // and every activity id the mapping points at either of them (the alias rule).
 export type ActivityMapping = MappingRow[] | Record<string, string>;   // activity id → task (FlowGraph or BPMN id)
-export function createIdResolver(o?: { ids?: IdMap; mapping?: ActivityMapping }): IdResolver;
+export interface IdResolverOptions { ids?: IdMap; mapping?: ActivityMapping }   // ids of importBpmn or exportBpmn
+export function createIdResolver(o?: IdResolverOptions): IdResolver;
+export type BpmnElementRef = string | ModdleElement;   // a BPMN id or a moddle element
 export interface IdResolver {
-  flowId(element: string | ModdleElement): string;        // BPMN id or moddle element → FlowGraph id
+  flowId(element: BpmnElementRef): string;                // BPMN id or moddle element → FlowGraph id
   bpmnId(flowId: string): string | undefined;
   activityId(flowId: string): string | undefined;
   flowIdsOfActivity(activityId: string): string[];
-  names(element: string | ModdleElement): string[];       // BPMN id, FlowGraph id, mapped activity ids
-  matches(element: string | ModdleElement, id: string): boolean;
+  names(element: BpmnElementRef): string[];               // BPMN id, FlowGraph id, mapped activity ids
+  matches(element: BpmnElementRef, id: string): boolean;
 }
-export function renameToActivities(nodeIds: string[], r: IdResolver): { renamed: Map<string, string>; toMapped(id): string; toFlow(id): string };
+export interface ActivityRenaming { renamed: Map<string, string>; toMapped(flowId: string): string; toFlow(mappedId: string): string }
+export function renameToActivities(nodeIds: string[], r: IdResolver): ActivityRenaming;   // as applyMapping renames: <activity>#2, #3 for more
 export function createIdMap(): IdMap;
 export function registerId(ids: IdMap, bpmnId: string, flowId: string): void;
 
 // bpmn-moddle with the `wise` extension (ids, kinds, tags, metrics through the XML).
 export function createModdle(): BpmnModdleInstance;
 export const wiseModdleDescriptor, WISE_NS = "http://wise-workbench.org/schema/flow";
-export function flowIdOf(el), wiseAttr(el, name), isType(el, type), tagOfType(type), typeOfTag(tag);
+export function flowIdOf(el), wiseAttr(el, name), isType(el, type), isAnyType(el, types), tagOfType(type), typeOfTag(tag);
 
 // React
 export function BpmnView(props: {
@@ -889,6 +1023,15 @@ export function ViewSwitcher(props: { views: ViewSet; mode?: "single" | "grid"; 
   columns?; locale?; selection?; onSelect?; onHover?; legend?; lod?; minimap?; className?; containerStyle?;
   edgeBudget?: EdgeBudget | "adaptive" }): JSX.Element;   // from @wise/flow/react; edgeBudget is passed to every view's map
 ```
+
+Layout of a BPMN model where no `Worker` exists (Node): `layoutBpmn`, and
+`exportBpmn` without `positions`, run the Dagre fallback whatever the size
+(`fallbackLimit` defaults to no limit there), since there is no page to
+freeze; a model whose ELK layout fails or times out is laid out by Dagre, as
+up to 0.3.5. In a browser the limit of 500 nodes plus flows stays (pass
+`dagreWorkerUrl` to lay out larger models when ELK fails), and a
+`fallbackLimit` given is kept everywhere. Up to this change such a model
+ended in `LayoutUnavailableError` in Node too.
 
 Gateways of `liteFromGraph`: a node with several successors gets an XOR
 split `gw_split_<id>`, a node with several predecessors an XOR join
@@ -1033,7 +1176,12 @@ Selections from the diagram, from the table and from a controlled
 `<ProcessMap/>` ("Selected: Approve Invoice.", "Selected: path A → B.",
 "Selection cleared."), named by the graph the table lists; before, the view
 announced counts ("Selected: 1 tasks, 0 flows, 0 lanes.") and said nothing
-when the selection was cleared.
+when the selection was cleared. The view speaks of a selection by its
+FlowGraph ids (a controlled selection in activity ids is resolved through
+`mapping`), so a selection that stays the same is not announced again when
+only `mapping` changes or when the import arrives with a mapping; up to this
+change the renaming for the table counted as a new selection, and "Selected:
+…" was spoken again.
 Every id the view matches (overlay targets, controlled selection, reported
 selection and hover) goes through `createIdResolver` with the import's id
 map and `mapping`. Stylesheets: `@wise/flow/bpmn.css` (bpmn-js's
@@ -1327,11 +1475,16 @@ export interface DrawState { selection: Selection; hovered?: string | null; focu
 export interface DrawOptions { tokens?: CanvasTokens; cull?: boolean; background?: boolean | string; lodZoom?: number; createCanvas?;
   edgeBudget?: EdgeBudget | ShownEdges }   // default "all"
 export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, state?: DrawState, o?: DrawOptions): { nodes; edges; shapes; culled;
+  kept?: number;   // with an edge budget other than "all": the protected edges drawn, which every budget draws
   withheld?: EdgeSelection };   // present when the edge budget left edges in view out
 export function drawLegend(ctx: DrawContext, scene: PreparedScene, x, y, width, tokens?, o?: { createCanvas? }): number;   // the scene's legend; returns legendLayout(scene.legend).height
 export function tracePath(ctx: DrawContext, d: string): { last?; beforeLast? };
-export class CanvasRenderer { constructor(canvas: HTMLCanvasElement, o?: { tokens?; devicePixelRatio?; minZoom?; maxZoom?;
-    draw?: RendererDrawOptions; clock?: () => number });   // clock: ms, read by the adaptive edge budget only; default performance.now
+export const emptyState: DrawState;   // nothing selected, hovered or focused
+export function selfLoopOverlays(g: FlowGraph, locale?: Locale): Overlay[];   // followsSelfLoops, as <ProcessMap/> draws them
+export function groupLabelOf(scene: PreparedScene, id: string | undefined): string | undefined;
+export interface CanvasRendererOptions { tokens?; devicePixelRatio?; minZoom?; maxZoom?;
+  draw?: RendererDrawOptions; clock?: () => number }   // clock: ms, read by the adaptive edge budget only; default performance.now
+export class CanvasRenderer { constructor(canvas: HTMLCanvasElement, o?: CanvasRendererOptions);
   drawOptions: RendererDrawOptions;   // DrawOptions without tokens; edgeBudget may also be "adaptive"
   beginGesture(); endGesture();   // a pan or zoom gesture; see "Edge budget"
   resize(w, h); setScene(s); getScene(); setState(patch: Partial<DrawState>); getState(); setTokens(t);
@@ -1344,7 +1497,9 @@ export const defaultTokens: CanvasTokens;   // from the token table (`colorToken
 export function readTokens(element: Element | null | undefined, overrides?: Partial<CanvasTokens>): CanvasTokens;   // from the CSS variables (`cssVariable(key)`)
 export interface PngOptions { preset?: FigurePreset; width?; scale?; background?; legend?; padding?; lodZoom?; tokens?; createCanvas?; context?;
   edgeBudget?: EdgeBudget | ShownEdges }   // default every edge; see "Edge budget"
-export function toPNGCanvas(scene: Scene, o?: PngOptions): { canvas; width; height; cssWidth; cssHeight; scale };
+export interface CanvasLike { width; height; getContext(kind: "2d"): unknown; toBlob?; convertToBlob?; toDataURL? }   // HTMLCanvasElement, OffscreenCanvas
+export interface PngCanvas { canvas: CanvasLike; width; height; cssWidth; cssHeight; scale }   // bitmap and CSS size
+export function toPNGCanvas(scene: Scene, o?: PngOptions): PngCanvas;
 export function toPNG(scene: Scene, o?: PngOptions): Promise<Blob>;
 export function toPNGDataUrl(scene: Scene, o?: PngOptions): string;
 ```
@@ -1352,7 +1507,12 @@ export function toPNGDataUrl(scene: Scene, o?: PngOptions): string;
 `prepareScene` is pure and runs in Node: it builds the core scene
 (`buildScene`) and adds what the Canvas renderer needs, every element's box
 or route, colours and labels resolved once and the R-tree that serves
-hover, click and viewport culling. The overlays are `o.overlays`, or
+hover, click and viewport culling. The hit index and the edge budget find an
+element by its place in the scene's lists (`nodes`, `edges`, `groups`,
+`marks`, `edgeMarks`), so a host does not replace those lists (with a
+filtered copy, say): a culled draw then drops elements, and a budget draws
+other edges than it chose. To draw fewer elements, filter the graph and
+prepare the scene again. The overlays are `o.overlays`, or
 `graph.overlays` without it, each drawn once. `lodBySize` (default true)
 tightens the level of detail with the number of nodes for a fitted live
 map; `bands` keeps caller-computed bands and the positions as given. `drawScene` issues plain 2D
@@ -1494,6 +1654,18 @@ const activityLabels = {
 const nodeSize = (node: FlowNode) => activityNodeSize(node, activityLabels);
 ```
 
+The helpers the renderers share, for hosts that draw activities themselves:
+
+```ts
+export function activityLabel(n: FlowNode, o: ActivityLabelOptions): string;   // the reference ("ids") or the name ("names")
+export function activityNodeCounts(n: FlowNode, o: ActivityLabelOptions, locale?: Locale): string;   // the node's one measure: distinct cases or items
+export function activityCounts(n: FlowNode, o: ActivityLabelOptions, locale?: Locale, exact?: boolean): string;   // both measures, exact for tooltips and keys
+export function activityDescription(n: FlowNode, o: ActivityLabelOptions, locale?: Locale): string;   // reference, name and exact counts
+export function activityLabelLines(n: FlowNode, o: ActivityLabelOptions, width: number, locale?: Locale): { name: string[]; counts: string[] };
+export function activityKeyLines(g: FlowGraph, o: ActivityLabelOptions | undefined, width: number, locale?: Locale): string[];   // the exported key
+export function wrapActivityText(value: string, width: number, fontSize?: number): string[];   // deterministic, generous advances (0.7 em)
+```
+
 Use `nodeSize` when providing precomputed positions. Names reserve 280px width and enough height for wrapped text; IDs reserve 140px. Hiding counts does not change dimensions. `useStableLayout` compares resolved dimensions, so equivalent callbacks do not trigger layout. Invalidate an explicit layout cache key when its inputs change.
 
 `references` maps canonical activity IDs to display references. Persist the dictionary across filters; absent entries are retained and new entries are added without renumbering. References indicate identity, not execution order. Optional `names` supplies display aliases; the original graph is unchanged.
@@ -1515,6 +1687,7 @@ export interface FlowScene { graph; positions; bands: LaneBand[]; activityLabels
 export function buildScene(g: FlowGraph, p: Positions, o?: FlowSceneOptions): FlowScene;
 export function followsSelfLoops(g: FlowGraph, o?: { locale?: Locale; observed?: { caseLabel?: string } }): Overlay[];
 export function withFollowsSelfLoops(g: FlowGraph, overlays: Overlay[], o?: { locale?; observed? }): Overlay[];
+export function withObservedSelfLoops(g: FlowGraph, overlays: Overlay[], locale?: Locale, caseLabel?: string): Overlay[];   // with `observed`
 
 export type MarkPaint = "ink" | "inkMuted" | "paper" | "surface" | "line" | "outOfScope" | "value" | "onValue";
 export interface MarkFill { paint: MarkPaint; pattern?: "outOfScope"; opacity?: number }
@@ -1677,10 +1850,11 @@ targets are dropped before their order is fixed.
 ```ts
 export type EdgeBudget = number | "all";
 export interface EdgeProtection { selection?: { edges: readonly string[] }; focused?: string | null; highlighted?: ReadonlySet<string> }
-export interface EdgeSelection { drawn: Set<number>; shown: number; total: number }   // positions in scene.edgeMarks
+export interface EdgeSelection { drawn: Set<number>; shown: number; total: number; kept: number;   // positions in scene.edgeMarks
+  loops: readonly string[] }   // the paths in view that loop on one activity, counted in shown and total
 export interface ShownEdges { edges: readonly string[]; total: number }   // what a map draws, as onEdgesShown reports it
-export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style">, budget: EdgeBudget | ShownEdges | undefined,
-  protection?: EdgeProtection, inView?: readonly number[]): EdgeSelection | undefined;
+export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style" | "graph" | "positions">, budget: EdgeBudget | ShownEdges | undefined,
+  protection?: EdgeProtection, inView?: readonly number[], loops?: readonly string[]): EdgeSelection | undefined;
 ```
 
 When tens of thousands of edges are in view (a hub, or a fitted large map),
@@ -1718,12 +1892,28 @@ path highlighted against 9.3 ms under the default budget (2,000 drawn), and a
 hub of 25,001 activities and 50,000 paths 316 ms against 124 ms (500 drawn;
 there the activities dominate the frame).
 
+**Paths that loop on one activity** (an edge from a node to itself) have no
+line: the map draws them as loops at their activity (`selfLoops`), and the
+budget never withholds them. They count in both numbers of the note, so its
+total is the number of paths the map's description, the canvas sentence, the
+bounded list's sentence and the table count: with the whole map in view,
+every edge of the shown graph. "Showing 5 of 10 flows" is a hub of eight
+paths and two loops under a budget of 3: the three heaviest lines and both
+loops. They are counted also where `selfLoops: false` hides them, since the
+descriptions and the table list them too. Up to this change the note counted
+only the lines (on the BPIC global scene "of 656" where the description says
+677 paths).
+
 `budgetEdges` returns undefined when the budget is `"all"`, undefined, null or
 not a number (`NaN`), or when it withholds nothing (no more edges in view than the budget, or every
 edge protected); otherwise the positions in `scene.edgeMarks` of the edges
-drawn, how many that is (`shown`) and how many were in view (`total`). The
-edges in view are `inView` (positions in `scene.edgeMarks`), or every edge
-of the scene without it. The order by weight is computed once per scene and
+drawn, how many paths are shown (`shown`: those edges and the loops), how
+many are in view (`total`: the edges in view and the loops), how many of the
+drawn edges are protected (`kept`), which every budget draws, and the ids of
+the loops (`loops`). The edges in view are `inView` (positions in
+`scene.edgeMarks`), or every edge of the scene without it; the loops in view
+are `loops`, or every edge of the scene from a node with a box to itself
+without it. The order by weight is computed once per scene and
 kept with its `edgeMarks` while they live, together with the metric and the
 overlay marks it was read from: a scene object that shares the edge marks but
 has other `marks` or another `style` is ordered and protected by its own.
@@ -1739,8 +1929,8 @@ edges in view, median of 5: 23 ms for a scene of 50,000 edges, 87 ms for
 scene in view and passes only the drawn ones to React Flow. The Canvas map
 (`drawScene` with `DrawOptions.edgeBudget`, `CanvasRenderer` through its
 `draw` options, `<CanvasMap edgeBudget/>`) counts as in view what it would
-draw: in a culled view the edges the hit index finds there, otherwise every
-edge; withheld edges are drawn neither as lines nor with their labels, and
+draw: in a culled view the edges the hit index finds there and the loops of
+the activities it finds there, otherwise every edge; withheld edges are drawn neither as lines nor with their labels, and
 `CanvasRenderer.hitAt` does not return an edge its last draw withheld. While
 edges are withheld the map shows a note with both numbers, "Showing 2,000 of
 49,999 flows" (`map.edges.withheld`, English and German), as text at the
@@ -1771,6 +1961,16 @@ frame at rest is then drawn in full with the new budget, at once, without
 any transition, also when reduced motion is asked for. Because the order is
 stable, a smaller step only removes the weakest unprotected edges. Frames
 drawn while the view is at rest (a hover, a selection) are not timed.
+
+The step below draws the protected edges and then up to half the budget, so a
+slow frame counts only when it drew more edges than both: each draw says how
+many of its edges are protected (`kept` in the statistics of `drawScene`).
+With 2,500 protected paths of 5,000 in view (a selection or a focus of paths
+that large) every step draws the same 2,500, so slow frames leave the budget
+at 2,000; so do 1,500 edges in view that are all protected. Up to this change
+a slow frame counted whenever it drew more than half the budget: such a view
+stepped from 2,000 to 1,000 and 500, and once the selection was cleared the
+map drew 500 paths until fast gestures brought the budget back.
 
 The React Flow map moves its elements with a transform and has no frame of
 its own to time; there `"adaptive"` keeps its first step, 2,000 edges, which
@@ -1803,19 +2003,26 @@ nothing when it names every edge in view.
 
 `<ProcessMap onEdgesShown/>` (and `<CanvasMap onEdgesShown/>`) is called
 whenever the edges the map draws change: while the budget withholds edges,
-with their ids (`edges`, in the scene's order) and the number the map's note
-counts (`total`); with undefined once every edge is drawn again. It is not
+with their ids (`edges`: the edges drawn in the scene's order, then the paths
+that loop on one activity in view) and the number the map's note counts
+(`total`); with undefined once every edge is drawn again. It is not
 called while nothing was ever withheld; a host that starts listening while
 edges are withheld is told them at once. A culled Canvas map counts the edges
 in its view, so a pan can change the value. When `<ProcessMap/>` switches
-renderer (`renderer="auto"` crossing its threshold), and when it draws the
-Canvas map again after the table view, it is called with undefined and then
-with what the map then withholds, if anything.
+renderer (`renderer="auto"` crossing its threshold), it is called with
+undefined and then with what the new renderer withholds, if anything. While
+the table view is shown, which lists every path, it is called with undefined
+with either renderer, so an export taken there draws every path and no note;
+a change of the budget or the graph meanwhile tells the host nothing more, and
+once the map is shown again it is called with what the map then withholds.
+Up to this change React Flow went on reporting its budgeted set in the table
+view, and the Canvas map, unmounted there, left the host with its last report.
 
 `toSVG`, `toPNG`, `toPNGCanvas` and `toPNGDataUrl` take `edgeBudget`:
 
 - the last `ShownEdges` the map reported: the figure draws exactly those
-  edges (with their labels), and the note states the map's two numbers;
+  edges (with their labels), and the note states the map's two numbers (the
+  loops it names count as shown);
 - a number: the figure draws by the map's order, protecting the edges with
   an overlay mark on them (a figure has no selection, keyboard position or
   highlighted path), and counts every edge of the figure;
@@ -1827,7 +2034,11 @@ While edges are withheld the note is part of the figure as text: "Showing 3
 of 8 flows" (`map.edges.withheld` in the scene's `locale`, English and
 German) at 11 px in the ink colour under the map and the legend, inside the
 figure's frame (see `figureFrame`); in SVG it is a `<text
-class="wf-edge-note">`. The figure keeps every node, group and overlay.
+class="wf-edge-note">`, and it ends the figure's accessible label, so that a
+screen reader announces it: `aria-label="Process map with 9 nodes and 8
+connections in 0 groups. Showing 3 of 8 flows."`, or the title, ended with a
+full stop, and the note. Up to this change the label was the title or the
+description alone. The figure keeps every node, group and overlay.
 
 ## BPMN routing and navigation (0.3.4)
 
@@ -1875,7 +2086,11 @@ replacement, and that every listed name is deprecated.
 `scripts/core-exports.json` holds the names of the `.` entry point and the
 deprecated ones; a tooling test compares the built `index.d.ts` with it. Outside
 the core, the package imports a name the entry point provides from the entry
-point.
+point. This document names every name the four entry points export: a tooling
+test (`tests/tooling/exports.test.mjs`) compares the names of the built
+declarations with those this document gives in code (in a `ts` block or in
+backticks, outside "Removed in the next version") and fails on an exported
+name it does not find.
 
 ## Removed in the next version
 

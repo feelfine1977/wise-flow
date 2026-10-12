@@ -44,7 +44,7 @@ export interface StableLayout {
    * (status `pending`): the earlier positions of the nodes still present with
    * new nodes beside their neighbours, or a provisional arrangement. Also true
    * when they stay instead of a layout that is unavailable (status `error`
-   * with a `LayoutUnavailableError`).
+   * with a `LayoutUnavailableError`); then `positions.final` is true.
    */
   provisional: boolean;
 }
@@ -99,7 +99,8 @@ export function useStableLayout(scenes: FlowGraph | FlowGraph[] | undefined, opt
       const { error } = result;
       if (!error) return { positions: result.positions, status: "ready", provisional: false };
       const kept = error instanceof LayoutUnavailableError;
-      return { positions: kept ? request.positions : undefined, status: "error", error, provisional: kept };
+      // Kept for good: a map given them says the layout is unavailable.
+      return { positions: kept ? { ...request.positions, final: true } : undefined, status: "error", error, provisional: kept };
     }
     return request.known ? { positions: request.known, status: "ready", provisional: false } : { positions: request.positions, status: "pending", provisional: true };
   }, [request, result]);
@@ -223,7 +224,7 @@ export function useEdgesShown(onEdgesShown: ((shown: ShownEdges | undefined) => 
   return useCallback((withheld: EdgeSelection | undefined, marks: readonly { id: string }[]) => {
     // Nobody listens: start again from every edge drawn.
     if (!callback.current) return void (last.current = "");
-    const edges = withheld ? [...withheld.drawn].sort((a, b) => a - b).map((i) => marks[i].id) : [];
+    const edges = withheld ? [...[...withheld.drawn].sort((a, b) => a - b).map((i) => marks[i].id), ...withheld.loops] : [];
     const key = withheld ? `${withheld.total}\n${edges.join("\n")}` : "";
     if (key === last.current) return;
     last.current = key;
@@ -231,7 +232,7 @@ export function useEdgesShown(onEdgesShown: ((shown: ShownEdges | undefined) => 
   }, []);
 }
 
-/** Reports for both renderers; a switch, and a Canvas map drawn again after the table view, start again from every edge drawn. */
+/** Reports for both renderers; a switch, and the table view of a Canvas map, start again from every edge drawn. */
 export function useEdgesShownAcross(onEdgesShown: ((shown: ShownEdges | undefined) => void) | undefined, canvas: boolean, mapShown = true) {
   const callback = useRef(onEdgesShown);
   useLayoutEffect(() => void (callback.current = onEdgesShown));
@@ -243,10 +244,10 @@ export function useEdgesShownAcross(onEdgesShown: ((shown: ShownEdges | undefine
   useLayoutEffect(() => {
     if (told.current) tell(undefined);
   }, [canvas, tell]);
-  // A Canvas map that comes back reports only what it withholds, not that it withholds nothing.
-  const canvasShown = canvas && mapShown;
+  // The table view lists every edge; the Canvas map it replaces reports nothing, and draws again from every edge.
+  const canvasHidden = canvas && !mapShown;
   useLayoutEffect(() => {
-    if (canvasShown && told.current) tell(undefined);
-  }, [canvasShown, tell]);
+    if (canvasHidden && told.current) tell(undefined);
+  }, [canvasHidden, tell]);
   return onEdgesShown && tell;
 }

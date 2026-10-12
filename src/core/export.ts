@@ -12,7 +12,7 @@ import type { FlowGraph, Overlay } from "./model.js";
 import type { OverlayGeometryOptions } from "./overlays.js";
 import { type MarkSvgOptions, arrowMarker, markSvg, svgMarkup } from "./mark-svg.js";
 import { type MarkPaint, type MarkText, type OverlayMark, markArrowhead, overlayArrow } from "./overlay-marks.js";
-import { type FlowScene, buildScene } from "./scene.js";
+import { type FlowScene, sceneOf } from "./scene.js";
 import { type StyleSpec, fixedColors, lodAt, patternDefs } from "./style.js";
 import { t } from "./strings.js";
 import { arrowheadTokens, fontTokens, sizeTokens } from "./tokens.js";
@@ -222,7 +222,7 @@ function drawLegend(ctx: Ctx, width: number, layout: LegendLayout): string {
  * no time-dependent data is embedded.
  */
 export function toSVG(given: Scene, options: ExportOptions = {}): string {
-  const scene = buildScene(given.graph, given.positions, {
+  const scene = sceneOf(given.graph, given.positions, {
     overlays: given.overlays,
     style: given.style,
     locale: given.locale,
@@ -230,7 +230,7 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
     activityLabels: given.activityLabels,
     selfLoops: given.selfLoops,
     overlayGeometry: options.overlayGeometry,
-  });
+  }, true);
   const { locale } = scene;
   const font = options.fontFamily ?? fontTokens.family;
   const lodZoom = options.lodZoom ?? 1;
@@ -239,9 +239,11 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
   const frame = figureFrame(scene, { title: !!given.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: options.width, withheld });
   const { padding: pad, width: totalW, height: totalH, outWidth: outW, outHeight: outH } = frame;
 
+  // The note on withheld edges is announced with the figure's name.
+  const label = given.title ?? t(locale, "map.description", { nodes: scene.graph.nodes.length, edges: scene.graph.edges.length, groups: scene.graph.groups?.length ?? 0 });
   const parts: string[] = [];
   parts.push(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${num(outW)}" height="${num(outH)}" viewBox="0 0 ${num(totalW)} ${num(totalH)}" font-family="${esc(font)}" role="img" aria-label="${esc(given.title ?? t(locale, "map.description", { nodes: scene.graph.nodes.length, edges: scene.graph.edges.length, groups: scene.graph.groups?.length ?? 0 }))}">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${num(outW)}" height="${num(outH)}" viewBox="0 0 ${num(totalW)} ${num(totalH)}" font-family="${esc(font)}" role="img" aria-label="${esc(frame.note ? `${label.replace(/\.?$/, ".")} ${frame.note.text}.` : label)}">`,
   );
   parts.push(`<defs>${patternDefs()}`);
   parts.push(svgMarkup(arrowMarker("wf-arrow", arrowheadTokens.edge)));

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { ELK } from "elkjs/lib/elk-api.js";
 import { globalScene, vendorScene } from "../../fixtures/bpic2019";
 import { type Box, type FlowGraph, abstract, coversGraph, filterPositions, layout, layoutUnion, unionGraph } from "../../src/index";
 import { provisionalLayout } from "../../src/core/provisional";
@@ -43,8 +44,10 @@ describe("layout", () => {
     for (const n of small.nodes) {
       if (n.group && d.groups[n.group]) expect(contains(d.groups[n.group], d.nodes[n.id], 2), `${n.id} outside ${n.group}`).toBe(true);
     }
-    const timedOut = await layout(small, { timeoutMs: 0 });
+    // An engine that does not answer in time; in-process ELK holds the thread until it answers, and its answer is taken.
+    const timedOut = await layout(small, { elk: { layout: () => new Promise(() => undefined) } as unknown as ELK, timeoutMs: 0 });
     expect(timedOut.engine).toBe("dagre");
+    expect((await layout(small, { timeoutMs: 0 })).engine).toBe("elk");
   });
 });
 

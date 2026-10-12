@@ -1,11 +1,4 @@
-/**
- * BPMN-lite: a BPMN-shaped graph in the FlowGraph vocabulary (tasks as
- * `activity` nodes, `gateway` nodes tagged xor/and, `event` nodes tagged
- * start/end, `flow` edges, `lane` groups). Built either from a directly-follows
- * FlowGraph or from a stage model with known activities and no log. All ids are
- * deterministic functions of the input ids. AND gateways come only as a split
- * and join pair around the same branches; every other gateway is XOR.
- */
+/** BPMN-lite: a BPMN-shaped graph in the FlowGraph vocabulary, from a directly-follows graph or a stage model. */
 import {
   type AbstractOptions,
   type FlowEdge,

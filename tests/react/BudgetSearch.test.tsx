@@ -148,8 +148,9 @@ describe("the Canvas map and the React Flow map agree on the drawn set", () => {
 
       expect(canvasIds, label).toEqual(flowIds);
       expect(withheld && { shown: withheld.shown, total: withheld.total }, label).toEqual(flowNote);
-      // Both count what they drew, and withhold only when they drew less than everything.
-      if (flowNote) expect(flowNote, label).toEqual({ shown: flowIds.length, total: ids.length });
+      // Both count what they drew and the paths that loop on one activity, and withhold only when they drew less than everything.
+      const loops = graph.edges.filter((e) => e.source === e.target && positions.nodes[e.source]).length;
+      if (flowNote) expect(flowNote, label).toEqual({ shown: flowIds.length + loops, total: ids.length + loops });
       else expect(flowIds.length, label).toBe(ids.length);
     }
   }, TIMEOUT);
@@ -285,9 +286,12 @@ describe("exports at random moments of the Canvas map", () => {
       const last = reported.at(-1);
       const label = caseLabel(seed, `${family} ${all.length} edges, ${bias}; moment ${m} after ${event}${dragging ? " during a drag" : ""}, budget ${budget}`);
       if (withheld) {
-        expect(last && [...last.edges].sort(), label).toEqual(drawn);
+        // The paths that loop on an activity in view are reported and counted with the drawn lines.
+        const loops = new Set(graph.edges.filter((e) => e.source === e.target).map((e) => e.id));
+        expect(withheld.loops.every((id) => loops.has(id)), label).toBe(true);
+        expect(last && [...last.edges].sort(), label).toEqual([...drawn, ...withheld.loops].sort());
         expect(last!.total, label).toBe(withheld.total);
-        expect(withheld.shown, label).toBe(drawn.length);
+        expect(withheld.shown, label).toBe(drawn.length + withheld.loops.length);
         expect(note(), label).toBe(noteText(withheld.shown, withheld.total));
       } else {
         expect(last, label).toBeUndefined();

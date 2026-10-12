@@ -564,6 +564,9 @@ function apply(m: Model, op: Op): boolean {
 // The invariants
 
 /** The violations after a step; `op` is the step's operation and `posted` counts the layouts each input was given during it. */
+/** What made a layout fail: the error's message, or the Dagre worker's when both engines failed (`LayoutUnavailableError`). */
+const causeOf = (error: Error | undefined) => (error?.name === "LayoutUnavailableError" ? error.message.replace(/^Neither ELK nor the Dagre worker laid out the graph: /, "") : error?.message ?? "");
+
 function check(m: Model, op?: Op, posted?: Map<string, number>): string[] {
   const bad: string[] = [];
   const now = Date.now();
@@ -615,12 +618,17 @@ function check(m: Model, op?: Op, posted?: Map<string, number>): string[] {
         if (!r.provisional || r.positions?.engine !== "provisional") bad.push(`pending: the hook reports pending with provisional ${r.provisional} and engine ${r.positions?.engine}`);
       } else if (r.status === "error") {
         const error = r.error as Error | undefined;
-        if (r.positions !== undefined || r.provisional) bad.push("error: positions stay with an error that is not a LayoutUnavailableError");
+        // ELK and then the Dagre worker failed or timed out: the provisional arrangement stays, final.
+        const unavailable = error?.name === "LayoutUnavailableError";
+        if (unavailable) {
+          if (!r.provisional || r.positions?.engine !== "provisional" || r.positions.final !== true) bad.push(`unavailable: the hook keeps provisional ${r.provisional}, engine ${r.positions?.engine}, final ${r.positions?.final}`);
+        } else if (r.positions !== undefined || r.provisional) bad.push("error: positions stay with an error that is not a LayoutUnavailableError");
+        const cause = causeOf(error);
         if (!error) bad.push("error: no error given");
         else if (error.name === "AbortError") bad.push(`after abort: the hook shows the abort of its own earlier request (${error.message})`);
-        else if (/timed out/.test(error.message)) {
+        else if (/timed out/.test(cause)) {
           if (!timedOut(hook.signature!)) bad.push(`timeout: the hook reports "${error.message}" but no layout of its inputs reached its timeout`);
-        } else if (error.message === "engine down") {
+        } else if (cause === "engine down") {
           if (!m.fails.has(hook.signature!)) bad.push("error: the hook reports an engine error no worker sent for its inputs");
         } else bad.push(`error: unexpected error ${error.name}: ${error.message}`);
       } else bad.push(`latest request: with scenes the hook reports ${r.status}`);
@@ -673,9 +681,9 @@ function check(m: Model, op?: Op, posted?: Map<string, number>): string[] {
       if (error === reason) continue;
       if (error?.name === "AbortError") {
         if (!q.replaced && !q.aborted) bad.push(`replaced: ${where} was rejected as replaced, but no newer request replaced it`);
-      } else if (/timed out/.test(error?.message ?? "")) {
+      } else if (/timed out/.test(causeOf(error))) {
         if (!timedOut(q.signature)) bad.push(`timeout: ${where} reports "${error.message}" but no layout of its inputs reached its timeout`);
-      } else if (error?.message === "engine down") {
+      } else if (causeOf(error) === "engine down") {
         if (!m.fails.has(q.signature)) bad.push(`error: ${where} reports an engine error no worker sent for its inputs`);
       } else bad.push(`error: ${where} rejected with ${String(error)}`);
     }

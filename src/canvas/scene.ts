@@ -1,9 +1,4 @@
-/**
- * Retained geometry of a scene for the canvas renderer: every element with
- * its box or route, colours and texts resolved once, plus the R-tree that
- * serves hover, click and viewport culling. `prepareScene` is pure and runs
- * in Node; drawing happens in `draw.ts`.
- */
+/** Retained geometry of a scene for the canvas renderer, with the R-tree for hits and culling. Pure; runs in Node. */
 import {
   type ActivityLabelOptions,
   activityLabel,
@@ -33,7 +28,6 @@ import {
   HitIndex,
   arrowheadExtent,
   arrowheadTokens,
-  buildScene,
   followsSelfLoops,
   gatewayGlyph,
   hasTag,
@@ -42,6 +36,7 @@ import {
   tintColor,
   unionBoxes,
 } from "../core/index.js";
+import { sceneOf } from "../core/scene.js";
 
 export interface SceneNode {
   node: FlowNode;
@@ -172,7 +167,7 @@ export function selfLoopOverlays(graph: FlowGraph, locale: Locale = "en"): Overl
  * `graph.overlays`) plus self-loops; positions may be replaced by lane bands.
  */
 export function prepareScene(graph: FlowGraph, givenPositions: Positions, options: PrepareOptions = {}): PreparedScene {
-  const scene = buildScene(graph, givenPositions, {
+  const scene = sceneOf(graph, givenPositions, {
     overlays: options.overlays,
     style: options.style,
     locale: options.locale,
@@ -182,7 +177,7 @@ export function prepareScene(graph: FlowGraph, givenPositions: Positions, option
     lod: options.lod,
     lodBySize: options.lodBySize !== false,
     overlayGeometry: options.overlayGeometry,
-  });
+  }, true);
   return retainScene(options.bands ? { ...scene, bands: options.bands } : scene);
 }
 
@@ -240,7 +235,13 @@ export function retainScene(scene: FlowScene): PreparedScene {
     mark,
   }));
 
-  const routed: Positions = { ...positions, edges: Object.fromEntries(edges.map((e) => [e.edge.id, { points: e.points }])) };
+  // The hit index holds the elements the scene draws, also where the positions hold more.
+  const routed: Positions = {
+    ...positions,
+    nodes: Object.fromEntries(nodes.map((n) => [n.node.id, n.box])),
+    groups: Object.fromEntries(groups.map((g) => [g.group.id, g.box])),
+    edges: Object.fromEntries(edges.map((e) => [e.edge.id, { points: e.points }])),
+  };
   // Marks that are not drawn on the map (map-level chips) take no room and answer no hit.
   const drawn = new Set(marks.filter((m) => m.inMap).map((m) => m.id));
   const shown = geometry.shapes.filter((s) => drawn.has(s.id));
@@ -273,7 +274,7 @@ export function retainScene(scene: FlowScene): PreparedScene {
       }
     }
   };
-  const hit = HitIndex.fromScene(routed, { ...geometry, shapes: shown }, undefined, (kind, id) => at[kind].get(id), extentOf);
+  const hit = HitIndex.fromScene(routed, { ...geometry, shapes: shown }, undefined, (kind, id) => at[kind].get(id), extentOf, (id) => nodes[at.node.get(id)!]?.mark.shape === "diamond");
   return {
     ...scene,
     shapes: geometry.shapes,

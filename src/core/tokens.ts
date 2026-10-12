@@ -1,12 +1,4 @@
-/**
- * Design tokens of @wise/flow: the one table of colours, sizes, the font
- * stack, the arrowhead rule and the pattern twins. The SVG export and the
- * marks read it directly; the Canvas renderer starts from it and picks up the
- * live CSS variables; `tokens.css` writes its themeable part as CSS variables
- * (`tokenVariables`) and is checked against it.
- *
- * This module imports nothing, so tooling can read the table on its own.
- */
+/** Design tokens: the one table of colours, sizes, fonts, arrowheads and pattern twins. It imports nothing, so tooling reads it alone. */
 
 /** Colours of the light scheme. */
 export const colorTokens = {

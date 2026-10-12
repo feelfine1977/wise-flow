@@ -8,7 +8,7 @@ import type { BpmnLayoutOptions } from "../bpmn/layout.js";
 import { projectMarks } from "../bpmn/projection.js";
 import { type DiagramPositions, type RegistryElement, diagramScene, registryPositions } from "../bpmn/scene.js";
 import { type BpmnSelection, type BpmnViewer, type ConnectViewer, elementsNamed, hoverOf, isTask, selectionOf } from "../bpmn/viewer.js";
-import type { ActivityRenaming } from "../bpmn/ids.js";
+import type { ActivityRenaming, IdResolver } from "../bpmn/ids.js";
 import { useMapController } from "./controller.js";
 import { Legend } from "./Legend.js";
 import { type MarkIds, MarkFigure, domMark, markDefs, svgDom } from "./marks.js";
@@ -72,9 +72,11 @@ const MARK_IDS: MarkIds = { arrow: "wf-bpmn-arrow", pattern: "wf-bpmn-outofscope
 
 const NO_GRAPH: FlowGraph = { nodes: [], edges: [] };
 
-// The table and the controller name mapped tasks by activity id; selections leave the view in FlowGraph ids.
-const toTable = (s: BpmnSelection, renaming: ActivityRenaming | undefined): Selection => ({ nodes: s.tasks.map((id) => renaming?.toMapped(id) ?? id), edges: s.flows, groups: s.lanes });
-const toBpmn = (s: Selection, renaming: ActivityRenaming | undefined): BpmnSelection => ({ tasks: s.nodes.map((id) => renaming?.toFlow(id) ?? id), flows: s.edges, lanes: s.groups });
+// The table names mapped tasks by activity id; the controller and the view's reports, by FlowGraph id.
+const toTable = (s: BpmnSelection, renaming?: ActivityRenaming): Selection => ({ nodes: s.tasks.map((id) => renaming?.toMapped(id) ?? id), edges: s.flows, groups: s.lanes });
+// A host's selection may name tasks by activity id.
+const toFlow = (s: BpmnSelection, resolver: IdResolver): Selection => ({ nodes: s.tasks.map((id) => resolver.flowIdsOfActivity(id)[0] ?? id), edges: s.flows, groups: s.lanes });
+const toBpmn = (s: Selection, renaming?: ActivityRenaming): BpmnSelection => ({ tasks: s.nodes.map((id) => renaming?.toFlow(id) ?? id), flows: s.edges, lanes: s.groups });
 
 const NO_ELEMENTS: DiagramPositions = { positions: createPositions({ nodes: {}, groups: {}, edges: {} }, "di", "RIGHT"), elements: new Map() };
 
@@ -336,15 +338,16 @@ export function createBpmnView(connect: ConnectViewer) {
     const renamingRef = useRef(renaming);
     renamingRef.current = renaming;
     const tableSelection = useMemo(() => toTable(selection, renaming), [selection, renaming]);
+    const flowSelection = useMemo(() => toFlow(selection, resolver), [selection, resolver]);
     const report = useCallback((s: Selection) => {
-      const next = toBpmn(s, renamingRef.current);
+      const next = toBpmn(s);
       setInnerSelection(next);
       callbacks.current.onSelect?.(next);
     }, []);
-    const controller = useMapController({ selection: tableSelection, onSelect: report });
-    controller.context.current = { graph: tableGraph ?? NO_GRAPH, locale };
+    const controller = useMapController({ selection: flowSelection, onSelect: report });
+    controller.context.current = { graph: imported?.graph ?? NO_GRAPH, locale };
     const { dispatch } = controller;
-    diagramSelect.current = (s) => void dispatch({ type: "select", selection: toTable(s, renamingRef.current) });
+    diagramSelect.current = (s) => void dispatch({ type: "select", selection: toTable(s) });
     const legendMarks = scene.marks.filter((m) => !m.inMap);
 
     // 5. Project the overlays onto the diagram. The diagram is not touched; only overlays change.
@@ -437,7 +440,7 @@ export function createBpmnView(connect: ConnectViewer) {
     const onTableSelect = useCallback(
       (s: Selection) => {
         lastEmitted.current = "";
-        dispatch({ type: "select", selection: s });
+        dispatch({ type: "select", selection: toTable(toBpmn(s, renamingRef.current)) });
       },
       [dispatch],
     );

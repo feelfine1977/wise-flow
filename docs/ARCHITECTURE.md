@@ -167,12 +167,15 @@ Web Worker with `dagreWorkerUrl` (the package's `dagre-worker.min.js`, which
 runs the compiled `dagreJob` of the layout module, so both places give the same
 positions), otherwise on the calling thread only up to `fallbackLimit` nodes
 plus edges; above it the layout fails with `LayoutUnavailableError` and the
-map keeps its provisional arrangement. **Stopping**: each layout is a job that
+map keeps its provisional arrangement, as it does when ELK and then the Dagre
+worker fail. **Stopping**: each layout is a job that
 runs while somebody waits for it; a caller's `signal`, a newer request to the
 same scope, disposing that scope and `timeoutMs` (per engine run) stop waiting, and a job nobody
 waits for terminates its worker (one worker per running job, so no other
 layout is affected) and reads nothing it sends afterwards. In-process ELK
-cannot be interrupted; its result is discarded.
+cannot be interrupted: its runs go one at a time, each timed from its start,
+and a run that finished is answered even past its timeout; an aborted run's
+result is discarded.
 Elements are sorted by id before the engine runs, so positions are
 deterministic. `Positions` holds absolute boxes for nodes and groups, edge
 routes, bounds, engine and direction. **Stable layout**: `layoutUnion(scenes)`
@@ -245,7 +248,9 @@ An R-tree (rbush) over nodes, groups, edge segments and overlay shapes for
 hover and click on Canvas and in exports; a hit lists what is painted on
 top first (marks above the nodes, nodes, arcs, edges, tints, groups), and
 an item's bounds may cover more than the element's box (what the Canvas
-drawing puts beyond it) while the hit test keeps to the box. `buildScene` resolves graph,
+drawing puts beyond it) while the hit test keeps to what the element draws:
+its box, an edge's segments, an arc's or a self-loop's curve and label, a
+gateway's diamond. `buildScene` resolves graph,
 positions and options once into the scene renderers read (activity
 references, lane bands, scales, the overlays to show with the follows
 self-loops in canonical order, level-of-detail rules, overlay geometry,

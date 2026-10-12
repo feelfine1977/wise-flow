@@ -1,8 +1,4 @@
-/**
- * bpmn-moddle setup shared by the exporter, the importer and `<BpmnView/>`:
- * the `wise` extension carries FlowGraph ids, kinds, tags and metrics through
- * BPMN 2.0 XML so that an export → import round trip is lossless.
- */
+/** bpmn-moddle with the `wise` extension, which carries FlowGraph ids, kinds, tags and metrics through the XML. */
 import BpmnModdle from "bpmn-moddle";
 
 /** Namespace of the `wise` extension attributes and elements. */

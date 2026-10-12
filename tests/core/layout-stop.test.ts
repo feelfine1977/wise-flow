@@ -1,5 +1,5 @@
 import type { ELK, ElkNode } from "elkjs/lib/elk-api.js";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import * as dagre from "@dagrejs/dagre";
 import { abstract, createLayoutScope, type FlowGraph, layout, LayoutUnavailableError, type LayoutOptions } from "../../src/index";
 import { type DagreInput, dagreJob, knownLayout } from "../../src/core/layout";
@@ -316,6 +316,35 @@ describe("stopping a layout", () => {
   });
 });
 
+describe("ELK without a worker", () => {
+  // In-process ELK blocks the thread while it runs: the vendor scene takes tens of milliseconds, two nodes almost none.
+  beforeAll(async () => void (await layout(pair, { engine: "elk" })));
+
+  it("times a layout from when it starts, after an aborted layout ahead of it has run, on every run of ten", async () => {
+    for (let run = 0; run < 10; run++) {
+      const stop = new AbortController();
+      const long = layout(vendorScene, { engine: "elk", signal: stop.signal }).catch((error: Error) => error);
+      const waiting = layout(pair, { timeoutMs: 5 });
+      // Aborted once the thread is free again, that is after the vendor scene's run has started.
+      let aborted = false;
+      setTimeout(() => ((aborted = true), stop.abort()));
+      const short = await waiting;
+      expect(aborted, `run ${run}`).toBe(true);
+      expect((await long as Error).name, `run ${run}`).toBe("AbortError");
+      // The two nodes waited for the vendor scene and were then laid out by ELK within their 5 ms, not by the fallback.
+      expect(short.engine, `run ${run}`).toBe("elk");
+    }
+  });
+
+  it("answers with a layout that finished after its timeout passed, as the thread was busy, on every run of ten", async () => {
+    for (let run = 0; run < 10; run++) {
+      // The vendor scene takes longer than 1 ms; ELK holds the thread until it is done, so its result is there before the timeout can fire.
+      expect((await layout(vendorScene, { timeoutMs: 1 })).engine, `run ${run}`).toBe("elk");
+    }
+    expect(onCallingThread).not.toHaveBeenCalled();
+  });
+});
+
 describe("the Dagre fallback", () => {
   const chain = (n: number): FlowGraph => ({
     nodes: Array.from({ length: n }, (_, i) => activity(`n${i}`)),
@@ -362,6 +391,34 @@ describe("the Dagre fallback", () => {
     expect((await layout(pair, { elk: failing, dagreWorkerUrl: dagreUrl, fallbackLimit: 0 })).engine).toBe("dagre");
     expect(FakeWorker.created.map((w) => [w.url, w.dagreRuns, w.terminated])).toEqual([[dagreUrl, 1, true]]);
     expect(onCallingThread).not.toHaveBeenCalled();
+  });
+
+  it("is unavailable when ELK fails and the Dagre worker then fails or times out, as without a worker", async () => {
+    vi.spyOn(FakeWorker.prototype, "postMessage").mockImplementationOnce(function (this: FakeWorker) {
+      queueMicrotask(() => this.onmessage?.({ data: { error: "no such node" } }));
+    });
+    const failed = layout(pair, { elk: failing, dagreWorkerUrl: dagreUrl });
+    await expect(failed).rejects.toBeInstanceOf(LayoutUnavailableError);
+    await expect(failed).rejects.toThrow("no such node");
+    FakeWorker.holdDagre = true;
+    const timedOut = layout(pair, { elk: failing, dagreWorkerUrl: dagreUrl, timeoutMs: 30 }).catch((error: Error) => error);
+    await vi.waitFor(() => expect(FakeWorker.created[1]?.dagreRuns).toBe(1));
+    const error = await timedOut;
+    expect(error).toBeInstanceOf(LayoutUnavailableError);
+    expect((error as Error).message).toContain("layout timed out after 30 ms");
+    expect(FakeWorker.created[1].terminated).toBe(true);
+    expect(onCallingThread).not.toHaveBeenCalled();
+    // Dagre asked for by name has no other engine to fall back from: its error stays its own.
+    const named = layout(pair, { engine: "dagre", dagreWorkerUrl: dagreUrl, timeoutMs: 30 }).catch((e: Error) => e);
+    expect(await named).toEqual(new Error("layout timed out after 30 ms"));
+    expect(await named).not.toBeInstanceOf(LayoutUnavailableError);
+  });
+
+  it("keeps ELK's own error when ELK is asked for by name, though a Dagre worker is given", async () => {
+    const error = await layout(pair, { engine: "elk", elk: failing, dagreWorkerUrl: dagreUrl }).catch((e: Error) => e);
+    expect(error).toEqual(new Error("engine down"));
+    expect(error).not.toBeInstanceOf(LayoutUnavailableError);
+    expect(FakeWorker.created).toHaveLength(0);
   });
 
   it("stops the Dagre worker on abort and on timeout", async () => {

@@ -329,7 +329,13 @@ function check(m: Model, before: Snapshot, op: Op): string[] {
       const settledAs = m.settledAs.get(m.request);
       if (settledAs !== undefined && status !== settledAs) bad.push(`replaced once: request ${m.request} went from ${settledAs} to ${status}`);
       else if (status === "ready" || status === "error") m.settledAs.set(m.request, status);
-      if (status === "error") {
+      const unavailable = container.querySelector(".wf-panel[role='status']")?.textContent === "The refined layout is unavailable; the map shows a provisional arrangement.";
+      if (status === "error" && unavailable) {
+        // ELK and then the Dagre worker failed or timed out: the provisional scene stays, with the notice.
+        if (!timedOut(signature) && !m.fails.has(signature)) bad.push("unavailable: the map says the layout is unavailable but no layout of its inputs failed or timed out");
+        if (engine !== "provisional") bad.push(`unavailable: the map draws engine ${engine}`);
+        if (drawnIds.join(",") !== wantIds.join(",")) bad.push(`unavailable: the map draws ${drawnIds.join(",") || "nothing"} but the graph has ${wantIds.join(",")}`);
+      } else if (status === "error") {
         const error = container.querySelector("[role='alert']")?.textContent ?? "";
         if (!error) bad.push("error: the map reports an error but shows no alert");
         else if (/timed out/.test(error) ? !timedOut(signature) : !(error.includes("engine down") && m.fails.has(signature))) bad.push(`error: the map shows "${error}" but no layout of its inputs failed that way`);

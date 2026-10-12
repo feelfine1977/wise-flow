@@ -1,8 +1,4 @@
-/**
- * Overlay marks in the DOM: the SVG elements of `markSvg` with paints that
- * follow the theme's CSS tokens. The React map and the BPMN view both draw
- * through this module, so a new overlay kind needs no change in either.
- */
+/** Overlay marks in the DOM, painted with the theme's tokens; the React map and the BPMN view draw through it. */
 import { useStore } from "@xyflow/react";
 import { createElement, type ReactNode } from "react";
 import { type MarkPaint, type MarkSvgOptions, type OverlayMark, type SvgElement, MAP_TARGET, arrowMarker, createPositions, hatchSvg, hexToRgb, markArrowhead, markSvg, overlayArrow, overlayGeometry, overlayMarks } from "../core/index.js";

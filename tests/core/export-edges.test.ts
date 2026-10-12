@@ -67,6 +67,16 @@ describe("exporting the edges a map shows", () => {
     expect(svgNote(toSVG(small, { edgeBudget: { edges: ["h-t5"], total: 4 } }))).toBe("Showing 1 of 4 flows");
   });
 
+  it("names the note in the figure's accessible label, after the title or the map's description", () => {
+    const label = (svg: string) => /^<svg [^>]*aria-label="([^"]*)"/.exec(svg)![1];
+    expect(label(toSVG(small, { edgeBudget: shown }))).toBe("Process map with 9 nodes and 8 connections in 0 groups. Showing 3 of 8 flows.");
+    expect(label(toSVG({ ...small, title: "Purchase to pay" }, { edgeBudget: shown }))).toBe("Purchase to pay. Showing 3 of 8 flows.");
+    expect(label(toSVG({ ...small, locale: "de" }, { edgeBudget: shown }))).toBe("Prozesslandkarte mit 9 Knoten und 8 Verbindungen in 0 Gruppen. 3 von 8 Flüssen gezeigt.");
+    // Without withheld edges the label is the title or the description alone, as before.
+    expect(label(toSVG(small))).toBe("Process map with 9 nodes and 8 connections in 0 groups.");
+    expect(label(toSVG({ ...small, title: "Purchase to pay" }, { edgeBudget: "all" }))).toBe("Purchase to pay");
+  });
+
   it("writes the note in German with separators", () => {
     const large = hub(Array.from({ length: 1200 }, (_, k) => k + 1));
     const edges = large.graph.edges.slice(0, 1000).map((e) => e.id);

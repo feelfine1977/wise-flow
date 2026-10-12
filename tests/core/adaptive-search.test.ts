@@ -98,14 +98,13 @@ const burstOf = (rng: Random, bias: Bias): FrameClass | "mixed" => (bias === "tu
 
 type Step = { kind: "start" } | { kind: "end" } | { kind: "frame"; ms: number } | { kind: "view"; total: number; kept: number };
 
-// Views: edge counts around the steps, and protected edges below half the smallest step. Above that the
-// adapter and the documented rule part: the adapter counts a slow frame that drew more than half its
-// budget, the rule one that drew more than the step below would, and with 2,500 protected edges of 5,000
-// in view these differ (a test in adaptive-budget.test.ts holds the difference). The search stays where they agree.
+// Views: edge counts around the steps, and protected edges anywhere from none to every edge in view, many
+// of them near half the view and around the steps, where the step below draws the same edges or not.
 const TOTALS = [0, 1, 100, 499, 500, 501, 999, 1000, 1500, 2000, 2001, 3000, 4000, 5000, 7999, 8000, 20_000, 100_000];
 const view = (rng: Random) => {
   const total = rng.pick(TOTALS);
-  return { total, kept: Math.min(total, rng.chance(0.5) ? 0 : rng.int(0, 200)) };
+  const kept = rng.weighted([[0, 3], [rng.int(0, 200), 2], [rng.int(0, total), 2], [Math.floor(total / 2), 1], [total, 1], [rng.pick([250, 499, 500, 501, 999, 1000, 1001, 2000, 2500]), 2]] as const);
+  return { total, kept: Math.min(total, kept) };
 };
 
 interface Trace {
@@ -173,7 +172,7 @@ function traceProblem(trace: Trace): string | undefined {
       ms = step.ms;
       adapter.frame((budget) => {
         drewWith = budget;
-        return { shown: draws(budget, total, kept), total };
+        return { shown: draws(budget, total, kept), total, kept };
       });
       ref.frame(step.ms, total, kept);
       if (drewWith !== before) return `${at}: the frame drew with ${drewWith} instead of ${before}`;
@@ -215,7 +214,7 @@ describe("the adaptive budget against the documented rules, on random traces", (
       const budgets: number[] = [adapter.budget];
       for (let g = 0; g < 10; g++) {
         adapter.start();
-        for (let k = 0; k < perGesture; k++) adapter.frame((budget) => ({ shown: draws(budget, total, kept), total }));
+        for (let k = 0; k < perGesture; k++) adapter.frame((budget) => ({ shown: draws(budget, total, kept), total, kept }));
         adapter.end();
         budgets.push(adapter.budget);
       }

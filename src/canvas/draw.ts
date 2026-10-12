@@ -1,10 +1,5 @@
-/**
- * Drawing routines of the canvas renderer. They take the retained scene, a
- * viewport and the interaction state and issue plain 2D context calls, so
- * that they run on a screen canvas, an offscreen canvas (PNG export) and on
- * a recording stub in tests. When the scene is large, only the elements the
- * scene's R-tree finds in the viewport are read, in the order of a full draw.
- */
+/** Drawing routines of the canvas renderer: plain 2D context calls for a scene, a viewport and a state; culled on large scenes. */
+import { selfLoopsOf } from "../core/edge-budget.js";
 import { type Arrowhead, type Box, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type Selection, type ShownEdges, arrowheadExtent, arrowheadTokens, fitChars, fitLead, fixedColors, formatCompact, formatNumber, formatShare, hatchTokens, legendLayout, legendMetrics, budgetEdges, lodAt, markArrowhead, patternTokens, patternTwin, t, truncateText } from "../core/index.js";
 import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene.js";
 import { type CanvasTokens, defaultTokens } from "./tokens.js";
@@ -486,7 +481,7 @@ const nodeId = (n: SceneNode) => n.node.id;
  * Draw the scene into a context for a viewport. Returns what was drawn so
  * that callers (and tests) can check the culling.
  */
-export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, state: DrawState = emptyState, options: DrawOptions = {}): { nodes: number; edges: number; shapes: number; culled: boolean; withheld?: EdgeSelection } {
+export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, state: DrawState = emptyState, options: DrawOptions = {}): { nodes: number; edges: number; shapes: number; culled: boolean; kept?: number; withheld?: EdgeSelection } {
   const tokens = options.tokens ?? defaultTokens;
   const lodZoom = options.lodZoom ?? view.zoom;
   const lod = lodAt(lodZoom, scene.lod);
@@ -521,10 +516,14 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
   };
   // The edges in view the budget withholds are left out, with their labels.
   let withheld: EdgeSelection | undefined;
+  let kept: number | undefined;
   if (options.edgeBudget !== undefined && options.edgeBudget !== "all") {
     const inView: number[] = [];
     if (found) each(scene.edges, "edge", edgeId, (_, i) => inView.push(i));
-    withheld = budgetEdges(scene, options.edgeBudget, state, found && inView);
+    const loops = found?.flatMap((it) => (it.kind === "node" && selfLoopsOf(scene).get(it.id)) || []);
+    withheld = budgetEdges(scene, options.edgeBudget, state, found && inView, loops);
+    // Withholding nothing, the protected edges are those a budget of 0 keeps, or all.
+    kept = (withheld ?? budgetEdges(scene, 0, state, found && inView))?.kept ?? (found ? inView : scene.edges).length;
   }
 
   each(scene.groups, "group", groupId, (g) => drawGroup(ctx, g, tokens, state.selection.groups.includes(g.group.id)));
@@ -562,7 +561,7 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
     for (const tx of e.mark.texts) if (!tx.lod || lod[tx.lod]) drawText(ctx, scene, tx, paintOf(e.mark, tx.paint, tokens), tokens);
   });
   ctx.restore();
-  return { nodes, edges, shapes, culled: cull, ...(withheld && { withheld }) };
+  return { nodes, edges, shapes, culled: cull, ...(kept !== undefined && { kept }), ...(withheld && { withheld }) };
 }
 
 /**

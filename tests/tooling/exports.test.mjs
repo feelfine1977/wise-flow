@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { committedExports, declaredExports, emitDeclarations, exportDifferences } from '../../scripts/check-exports.mjs';
+import { ENTRY_POINTS, committedExports, declaredExports, documentedNames, emitDeclarations, exportDifferences, undocumentedExports } from '../../scripts/check-exports.mjs';
 
 const list = committedExports();
 
@@ -52,4 +52,30 @@ test('docs/API.md lists every deprecated name of the entry point', () => {
   const section = api.slice(api.indexOf('## Deprecated names'));
   assert.ok(section.length < api.length, 'deprecation section');
   for (const name of list.deprecated) assert.match(section, new RegExp('`' + name + '`'), name);
+});
+
+test('docs/API.md names every name the four entry points export', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'wise-flow-declarations-'));
+  try {
+    emitDeclarations(dir, Object.values(ENTRY_POINTS));
+    const exports = Object.fromEntries(Object.entries(ENTRY_POINTS).map(([entry, source]) => [entry, declaredExports(join(dir, source.replace(/\.ts$/, '.d.ts'))).exports]));
+    assert.ok(exports['./react'].includes('ProcessMap') && exports['./bpmn'].includes('exportBpmn') && exports['./canvas'].includes('toPNG'));
+    assert.deepEqual(undocumentedExports(exports, documentedNames()), []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('the documentation check reads names in code only, and not those of the removed names', () => {
+  const api = [
+    '## A', '', '```ts', 'export function a(x: Bee): void;', '```', '', 'Prose names c and `HitIndex.fromScene`.', '',
+    '## Removed in the next version', '', '| `gone` | `kept` |', '', '## B', '', 'Then `after`.', '',
+  ].join('\n');
+  const named = documentedNames(api);
+  for (const name of ['a', 'Bee', 'HitIndex', 'fromScene', 'after']) assert.ok(named.has(name), name);
+  for (const name of ['c', 'gone', 'kept']) assert.ok(!named.has(name), name);
+  assert.deepEqual(undocumentedExports({ '.': ['a', 'gone'], './react': ['c'] }, named), [
+    'gone (.) is exported but docs/API.md does not name it',
+    'c (./react) is exported but docs/API.md does not name it',
+  ]);
 });

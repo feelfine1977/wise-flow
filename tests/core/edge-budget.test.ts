@@ -271,6 +271,18 @@ describe("edge budget in the Canvas drawing", () => {
     expect(stats.withheld).toMatchObject({ shown: 2, total: 4 });
   });
 
+  it("counts the paths that loop on one activity in view in both numbers, and never withholds them", () => {
+    // The same row with a loop on a (a->a) and two on d (d->d, d->d2): seven lines and three loops.
+    const looped = prepareScene({ ...graph, edges: [...graph.edges, follows("a->a", "a", "a", 5), follows("d->d", "d", "d", 7), follows("d->d2", "d", "d", 1)] }, createPositions({ nodes: boxes(["a", "b", "c", "d"]), groups: {}, edges: {} }, "given", "RIGHT"), { lodBySize: false });
+    // Uncull: three heaviest lines, e5, e1, e3, and the three loops: 6 of 10.
+    expect(drawScene(recorder().ctx, looped, view, undefined, { cull: false, edgeBudget: 3, lodZoom: 2 }).withheld).toMatchObject({ shown: 6, total: 10, loops: ["a->a", "d->d", "d->d2"] });
+    expect(budgetEdges(looped, 3)).toMatchObject({ shown: 6, total: 10, kept: 0 });
+    // Culled to a's box (x 0..90): the lines e0, e1, e2, e6 and the loop on a; a budget of 2 draws e1 and e2: 3 of 5.
+    expect(drawScene(recorder().ctx, looped, { x: 0, y: 0, zoom: 1, width: 90, height: 100 }, undefined, { cull: true, edgeBudget: 2, lodZoom: 0 }).withheld).toMatchObject({ shown: 3, total: 5, loops: ["a->a"] });
+    // A map's report names the loops it drew: an export counts those, against the map's total.
+    expect(budgetEdges(looped, { edges: ["e1", "e2", "a->a"], total: 5 })).toMatchObject({ shown: 3, total: 5, loops: ["a->a"] });
+  });
+
   it("draws every protected edge with a budget of 0", () => {
     const { scene, read } = watched(prepared);
     const state = { selection: { nodes: [], edges: ["e0"], groups: [] }, focused: "e6", highlighted: new Set(["e2"]) };
@@ -287,7 +299,8 @@ describe("edge budget in the Canvas drawing", () => {
     const plain = calls();
     expect(plain.stats.withheld).toBeUndefined();
     expect(calls("all")).toEqual(plain);
-    expect(calls(7)).toEqual(plain);
+    // A number also says how many of the drawn edges every budget draws: none is protected here.
+    expect(calls(7)).toEqual({ ...plain, stats: { ...plain.stats, kept: 0 } });
   });
 
   it("does not hit an edge the last draw withheld", () => {

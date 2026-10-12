@@ -1,15 +1,9 @@
-/**
- * The scene every renderer reads: a graph with its positions resolved once
- * into activity references, lane bands, scales, the overlays to show in their
- * canonical order, level-of-detail rules, overlay geometry and the marks
- * that say what every node, edge and overlay looks like, and what the legend
- * lists.
- */
+/** The scene every renderer reads: a graph with its positions resolved once into marks, overlays, scales and the legend. */
 import { type ActivityLabelOptions, activityReferences } from "./activity-labels.js";
 import { type EdgeMark, type NodeMark, edgeMarks, estimateTextWidth, nodeMarks } from "./element-marks.js";
 import { type SceneLegend, sceneLegend } from "./figure.js";
 import type { Locale } from "./format.js";
-import { type Box, type Positions, type XY, finitePositions, unionBoxes } from "./layout.js";
+import { type Box, type Positions, type XY, filterPositions, finitePositions, unionBoxes } from "./layout.js";
 import { type LaneBand, type LaneMode, laneBands } from "./lanes.js";
 import { type FlowGraph, type Overlay, MAP_TARGET } from "./model.js";
 import { withFollowsSelfLoops } from "./observed-loops.js";
@@ -83,6 +77,11 @@ function shownOverlays(graph: FlowGraph, given: Overlay[], options: FlowSceneOpt
 
 /** Resolve a graph with positions into the scene the renderers draw. */
 export function buildScene(graph: FlowGraph, givenPositions: Positions, options: FlowSceneOptions = {}): FlowScene {
+  return sceneOf(graph, givenPositions, options);
+}
+
+/** `buildScene`; `own` places the overlays on the graph's own positions, as on the map (an export's may hold more). */
+export function sceneOf(graph: FlowGraph, givenPositions: Positions, options: FlowSceneOptions, own?: boolean): FlowScene {
   const locale = options.locale ?? "en";
   const style = options.style ?? defaultStyle;
   const laid = laneBands(graph, finitePositions(givenPositions), { lanes: options.lanes ?? "none" });
@@ -98,7 +97,7 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
     const width = estimateTextWidth(t.text, t);
     return { x: t.x - width / 2, y: t.y - t.size, width, height: t.size };
   }));
-  const geometry = placeOverlays(overlays, positions, { ...(options.overlayGeometry ?? {}), lod }, [...groupTitles(graph.groups ?? [], positions), ...counts]);
+  const geometry = placeOverlays(overlays, own ? filterPositions(positions, graph) : positions, { ...(options.overlayGeometry ?? {}), lod }, [...groupTitles(graph.groups ?? [], positions), ...counts]);
   const marks = overlayMarks(geometry.shapes, locale);
   return {
     graph,

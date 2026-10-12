@@ -1,9 +1,4 @@
-/**
- * BPMN 2.0 import: bpmn-moddle → FlowGraph (tasks → activity nodes, gateways,
- * events, lanes and pools → groups, expanded sub-processes → stage groups,
- * sequence flows → flow edges), positions from the diagram interchange, and a
- * task ↔ activity mapping table that the caller fills by id and by label.
- */
+/** BPMN 2.0 import: a FlowGraph, positions from the diagram interchange, and a task ↔ activity mapping table. */
 import { type Box, type EdgeRoute, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Metrics, type Positions, createPositions, validateGraph } from "../core/index.js";
 import { type ActivityMapping, type ActivityRenaming, type IdMap, createIdMap, createIdResolver, registerId, renameToActivities } from "./ids.js";
 import { type ModdleElement, createModdle, flowIdOf, isType, tagOfType, wiseAttr } from "./moddle.js";

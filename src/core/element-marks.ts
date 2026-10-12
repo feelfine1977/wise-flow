@@ -1,8 +1,4 @@
-/**
- * Node and edge marks: what each node and edge looks like, resolved once for
- * every renderer. Texts carry their full value and the width they are limited
- * to; `fitText` shortens them by one rule with the renderer's text measure.
- */
+/** Node and edge marks: what each node and edge looks like, resolved once for every renderer. */
 import { type ActivityLabelOptions, activityDescription, activityLabelLines } from "./activity-labels.js";
 import { type Locale, formatCompact } from "./format.js";
 import { type Box, type Positions, type XY, straightRoute } from "./layout.js";

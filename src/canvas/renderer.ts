@@ -1,9 +1,4 @@
-/**
- * Canvas renderer: owns a canvas element, a viewport and the interaction
- * state, draws on animation frames, and answers hit tests through the
- * scene's R-tree. Pointer and keyboard handling belong to the host (the
- * React wrapper), which calls `panBy`, `zoomBy`, `hitAt` and `setState`.
- */
+/** Canvas renderer: a canvas, a viewport and the interaction state, drawn on animation frames; the host handles input. */
 import { type Box, type EdgeBudget, type HitItem, type XY, emptySelection } from "../core/index.js";
 import { type EdgeBudgetAdapter, edgeBudgetAdapter } from "../core/edge-budget.js";
 import { type DrawContext, type DrawOptions, type DrawState, type View, drawScene } from "./draw.js";
@@ -195,7 +190,7 @@ export class CanvasRenderer {
     let stats!: ReturnType<typeof drawScene>;
     const run = (budget: EdgeBudget | undefined) => {
       stats = drawScene(ctx, this.scene!, view, this.state, { ...options, edgeBudget: budget, tokens: this.tokens });
-      return stats.withheld ?? { shown: stats.edges, total: stats.edges };
+      return { shown: stats.edges, total: stats.withheld?.total ?? stats.edges, kept: stats.kept };
     };
     if (edgeBudget === "adaptive") (this.adapter ??= edgeBudgetAdapter(this.clock)).frame(run);
     else run(edgeBudget);

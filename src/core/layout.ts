@@ -1,9 +1,4 @@
-/**
- * Layout: ELK layered and Dagre (each in a Web Worker when its worker URL is
- * given, in-process otherwise), Dagre as fallback, and union layouts for stable
- * positions across compared scenes. A layout runs while somebody waits for it:
- * a worker whose layout nobody waits for any more is terminated.
- */
+/** Layout: ELK and Dagre, in workers or in-process, Dagre as fallback; a layout runs while somebody waits for it. */
 import type { ELK, ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api.js";
 import * as dagreModule from "@dagrejs/dagre";
 import { type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, byId, indexGraph } from "./model.js";
@@ -46,6 +41,8 @@ export interface Positions {
   bounds: Box;
   engine: LayoutEngine;
   direction: LayoutDirection;
+  /** No layout replaces them: the provisional arrangement `useStableLayout` keeps when the layout is unavailable. */
+  final?: boolean;
 }
 
 export interface NodeSize {
@@ -82,6 +79,7 @@ export interface LayoutOptions {
   /**
    * Milliseconds each engine run may take (ELK; Dagre in a worker). Its worker is
    * then terminated; `auto` falls back to Dagre, otherwise the layout fails. Default 20000.
+   * In-process ELK is timed from when it starts and, holding the thread, is answered once done.
    */
   timeoutMs?: number;
   /**
@@ -307,27 +305,35 @@ class LayoutTimeout extends Error {}
 
 /**
  * `promise`, unless the signal aborts or `ms` pass first: then `stop` ends the
- * run and the result rejects with the abort reason or a timeout.
+ * run and the result rejects with the abort reason or a timeout. A run without
+ * a worker is timed from its `turn`, and a result it sent first wins.
  */
-function guard<T>(promise: Promise<T>, ms: number, signal: AbortSignal, stop?: () => void): Promise<T> {
+function guard<T>(promise: Promise<T>, ms: number, signal: AbortSignal, stop?: () => void, turn?: Promise<unknown>): Promise<T> {
   return new Promise((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let done = false;
     const end = (error: unknown) => {
       clear();
       stop?.();
       reject(error);
     };
     const abort = () => end(signal.reason);
-    // Timers fire at once beyond 2³¹ − 1 ms.
-    const timer = setTimeout(() => end(new LayoutTimeout(`layout timed out after ${ms} ms`)), Math.min(ms, 2 ** 31 - 1));
+    const late = () => end(new LayoutTimeout(`layout timed out after ${ms} ms`));
     const clear = () => {
+      done = true;
       clearTimeout(timer);
       signal.removeEventListener("abort", abort);
     };
     if (signal.aborted) return abort();
     signal.addEventListener("abort", abort);
+    // Timers fire at once beyond 2³¹ − 1 ms.
+    void (turn ?? Promise.resolve()).then(() => done || (timer = setTimeout(stop ? late : () => (timer = setTimeout(late)), Math.min(ms, 2 ** 31 - 1))));
     promise.then((value) => (clear(), resolve(value)), (error) => (clear(), reject(error)));
   });
 }
+
+/** In-process ELK runs one layout after another, aborted ones included. */
+let inProcessTurn: Promise<unknown> = Promise.resolve();
 
 interface Prepared {
   nodes: FlowNode[];
@@ -449,7 +455,11 @@ async function layoutElk(p: Prepared, o: LayoutOptions, signal: AbortSignal, wor
   const attempt = async (part: boolean) => {
     const elk = await (work ? work.get().elk() : o.elk ?? (inProcessElk ??= loadBundledCtor().then((Ctor) => new Ctor())));
     signal.throwIfAborted();
-    return fromElk(await guard(elk.layout(elkGraph(p, o, part)), ms, signal, work?.stop), p);
+    if (work || o.elk) return fromElk(await guard(elk.layout(elkGraph(p, o, part)), ms, signal, work?.stop), p);
+    const turn = inProcessTurn;
+    const run = turn.then(() => (signal.throwIfAborted(), elk.layout(elkGraph(p, o, part))));
+    inProcessTurn = run.catch(() => undefined);
+    return fromElk(await guard(run, ms, signal, undefined, turn), p);
   };
   try {
     return await attempt(partition);
@@ -689,7 +699,12 @@ async function compute(graph: FlowGraph, options: LayoutOptions, signal: AbortSi
         elk?.done();
       }
     }
-    return await layoutDagre(p, options, signal, dagre, engine !== "dagre");
+    try {
+      return await layoutDagre(p, options, signal, dagre, engine !== "dagre");
+    } catch (err) {
+      // ELK and then the Dagre worker failed.
+      throw dagre && engine !== "dagre" && !signal.aborted ? new LayoutUnavailableError(`Neither ELK nor the Dagre worker laid out the graph: ${(err as Error).message}`) : err;
+    }
   } finally {
     dagre?.done();
   }
