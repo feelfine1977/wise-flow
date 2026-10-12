@@ -449,8 +449,7 @@ describe("the area query of the hit index against a brute-force search", () => {
       const rng = createRandom(seed + 500_009);
       const { positions, geometry } = scene;
       const index = HitIndex.fromScene(positions, geometry);
-      // Every item with its key and the bounds the index holds: a box, a segment grown by the tolerance of 4, a shape,
-      // an arc's or a self-loop's grown by half its stroke (an arc's 2 plus 8 times its coverage, 1 by default; a loop's 2.5).
+      // Every item with its key and the bounds the index holds: a box, a segment grown by the tolerance of 4, a shape.
       const items: { key: string; e: Extent }[] = [];
       for (const [id, b] of Object.entries(positions.groups)) items.push({ key: `group:${id}`, e: whole(extentOf(b)) });
       for (const [id, b] of Object.entries(positions.nodes)) items.push({ key: `node:${id}`, e: whole(extentOf(b)) });
@@ -460,11 +459,7 @@ describe("the area query of the hit index against a brute-force search", () => {
           items.push({ key: `edge:${id}:${a.x},${a.y}-${b.x},${b.y}`, e: whole({ minX: Math.min(a.x, b.x) - 4, minY: Math.min(a.y, b.y) - 4, maxX: Math.max(a.x, b.x) + 4, maxY: Math.max(a.y, b.y) + 4 }) });
         }
       }
-      for (const s of geometry.shapes) {
-        const c = Number(s.overlay.payload?.coverage);
-        const half = s.kind === "arc" ? (2 + 8 * (Number.isFinite(c) ? Math.max(0, Math.min(1, c)) : 1)) / 2 : s.kind === "selfLoop" ? 1.25 : 0;
-        items.push({ key: `overlay:${s.id}`, e: whole(extentOf({ x: s.x - half, y: s.y - half, width: s.width + 2 * half, height: s.height + 2 * half })) });
-      }
+      for (const s of geometry.shapes) items.push({ key: `overlay:${s.id}`, e: whole(extentOf(s)) });
       const keyOfItem = (it: { kind: string; id: string; shapeId?: string; segment?: [{ x: number; y: number }, { x: number; y: number }] }) =>
         it.kind === "edge" ? `edge:${it.id}:${it.segment![0].x},${it.segment![0].y}-${it.segment![1].x},${it.segment![1].y}` : `${it.kind}:${it.shapeId ?? it.id}`;
       const boxes: Box[] = [...Object.values(positions.nodes), ...Object.values(positions.groups), ...geometry.shapes];

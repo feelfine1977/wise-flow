@@ -64,10 +64,7 @@ function distanceToSegment(p: XY, [a, b]: [XY, XY]): number {
 
 const near = (b: Box, x: number, y: number, tolerance: number) => b.x - tolerance <= x && x <= b.x + b.width + tolerance && b.y - tolerance <= y && y <= b.y + b.height + tolerance;
 
-/**
- * The curve of a shape drawn as a path: its cubic in chords of at most 8 units along its control polygon (16 at
- * least), half the mark's stroke and the box of its texts.
- */
+/** A path's cubic in chords of at most 8 units along its control polygon (16 at least), half its stroke, its texts' box. */
 function curveOf(s: OverlayShape): HitItem["curve"] {
   const [x0, y0, x1, y1, x2, y2, x3, y3] = s.path!.match(/-?[\d.]+(?:e[-+]?\d+)?/g)!.map(Number);
   const mark = overlayMarks([s])[0];
@@ -77,7 +74,7 @@ function curveOf(s: OverlayShape): HitItem["curve"] {
     const u = 1 - t;
     return { x: u * u * u * x0 + 3 * u * t * (u * x1 + t * x2) + t * t * t * x3, y: u * u * u * y0 + 3 * u * t * (u * y1 + t * y2) + t * t * t * y3 };
   });
-  // A text from a size above its baseline to a third of it below, at 0.55 em per character.
+  // From a size above the baseline to a third below.
   const label = mark.texts.length ? unionBoxes(mark.texts.map((t) => {
     const w = estimateTextWidth(t.text, t);
     return { x: t.anchor === "middle" ? t.x - w / 2 : t.x, y: t.y - t.size, width: w, height: (t.size * 4) / 3 };
@@ -85,14 +82,14 @@ function curveOf(s: OverlayShape): HitItem["curve"] {
   return { points, reach: (mark.stroke?.width ?? 0) / 2, label };
 }
 
-/** Whether a point is within `tolerance` of what an item draws. */
+/** Within `tolerance` of what the item draws. */
 function touches(it: HitItem, x: number, y: number, tolerance: number): boolean {
   const p = { x, y };
   if (it.segment) return distanceToSegment(p, it.segment) <= tolerance;
   const c = it.curve;
   if (c) return c.points.some((q, k) => k > 0 && distanceToSegment(p, [c.points[k - 1], q]) <= tolerance + c.reach) || (!!c.label && near(c.label, x, y, tolerance));
   const b = it.box;
-  // A diamond's half diagonal is half the box's width: inside it, or within the tolerance of its side in the point's quadrant.
+  // Inside the diamond (half diagonals of half the width), or near its side in the point's quadrant.
   if (b && it.diamond) {
     const [u, v, h] = [Math.abs(x - b.x - b.width / 2), Math.abs(y - b.y - b.height / 2), b.width / 2];
     return u + v <= h || distanceToSegment({ x: u, y: v }, [{ x: 0, y: h }, { x: h, y: 0 }]) <= tolerance;
@@ -106,10 +103,7 @@ export class HitIndex {
   /** `tolerance`: what an edge segment's bounds were grown by, for comparing sizes. */
   constructor(private tolerance = 4) {}
 
-  /**
-   * Build an index from a layout (nodes, groups, edge routes), optional overlay geometry, each element's `index`
-   * (by shape id for overlays), a box each item's bounds also cover (`extentOf`) and the nodes drawn as diamonds.
-   */
+  /** Build an index from a layout, optional overlay geometry, each element's `index`, a box each item's bounds also cover (`extentOf`) and the nodes drawn as diamonds. */
   static fromScene(positions: Positions, geometry?: OverlayGeometry, edgeTolerance = 4, indexOf?: (kind: HitKind, id: string) => number | undefined, extentOf?: (item: HitItem) => Box | undefined, diamond?: (id: string) => boolean): HitIndex {
     const index = new HitIndex(edgeTolerance);
     const items: HitItem[] = [];
@@ -124,21 +118,9 @@ export class HitIndex {
       items.push(item);
     };
     for (const [id, b] of Object.entries(positions.groups)) add(boxItem(id, "group", b, indexOf?.("group", id)));
-    for (const [id, b] of Object.entries(positions.nodes)) {
-      const item = boxItem(id, "node", b, indexOf?.("node", id));
-      if (diamond?.(id)) {
-        const half = b.width / 2;
-        Object.assign(item, { diamond: true, minY: Math.min(item.minY, Math.floor(b.y + b.height / 2 - half)), maxY: Math.max(item.maxY, Math.ceil(b.y + b.height / 2 + half)) });
-      }
-      add(item);
-    }
+    for (const [id, b] of Object.entries(positions.nodes)) add({ ...boxItem(id, "node", b, indexOf?.("node", id)), ...(diamond?.(id) && { diamond: true }) });
     for (const [id, r] of Object.entries(positions.edges)) for (const item of edgeItems(id, r, edgeTolerance, indexOf?.("edge", id))) add(item);
-    for (const s of geometry?.shapes ?? []) {
-      const curve = s.path ? curveOf(s) : undefined;
-      // A curve's stroke reaches half its width beyond the shape's box.
-      const r = curve?.reach ?? 0;
-      add({ ...boxItem(s.overlay.target, "overlay", { x: s.x - r, y: s.y - r, width: s.width + 2 * r, height: s.height + 2 * r }, indexOf?.("overlay", s.id)), box: s, shapeId: s.id, layer: markLayer(s.kind), ...(curve && { curve }) });
-    }
+    for (const s of geometry?.shapes ?? []) add({ ...boxItem(s.overlay.target, "overlay", s, indexOf?.("overlay", s.id)), shapeId: s.id, layer: markLayer(s.kind), ...(s.path && { curve: curveOf(s) }) });
     index.load(items);
     return index;
   }
@@ -168,11 +150,7 @@ export class HitIndex {
     return (it.maxX - it.minX) * (it.maxY - it.minY);
   }
 
-  /**
-   * Items within `tolerance` of what they draw at a point (a box; an edge's segment; an arc's or a self-loop's
-   * curve, with half its stroke, or its label; a gateway's diamond), the one painted on top first (marks above
-   * the nodes, nodes, arcs, edges, tints, groups), smaller first, then by id.
-   */
+  /** Items within `tolerance` of what they draw at a point, the one painted on top first (marks above the nodes, nodes, arcs, edges, tints, groups), smaller first, then by id. */
   at(x: number, y: number, tolerance = 4): HitItem[] {
     const hits = this.tree.search({ minX: x - tolerance, minY: y - tolerance, maxX: x + tolerance, maxY: y + tolerance });
     return hits

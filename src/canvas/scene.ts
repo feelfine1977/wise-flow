@@ -1,9 +1,4 @@
-/**
- * Retained geometry of a scene for the canvas renderer: every element with
- * its box or route, colours and texts resolved once, plus the R-tree that
- * serves hover, click and viewport culling. `prepareScene` is pure and runs
- * in Node; drawing happens in `draw.ts`.
- */
+/** Retained geometry of a scene for the canvas renderer, with the R-tree for hits and culling. Pure; runs in Node. */
 import {
   type ActivityLabelOptions,
   activityLabel,
@@ -279,7 +274,7 @@ export function retainScene(scene: FlowScene): PreparedScene {
       }
     }
   };
-  const hit = HitIndex.fromScene(routed, { ...geometry, shapes: shown }, undefined, (kind, id) => at[kind].get(id), extentOf, (id) => nodes[at.node.get(id)!].mark.shape === "diamond");
+  const hit = HitIndex.fromScene(routed, { ...geometry, shapes: shown }, undefined, (kind, id) => at[kind].get(id), extentOf, (id) => nodes[at.node.get(id)!]?.mark.shape === "diamond");
   return {
     ...scene,
     shapes: geometry.shapes,
