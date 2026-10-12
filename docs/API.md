@@ -3463,8 +3463,6 @@ alike.
 [data-wf-part="node"][data-wf-kind="activity"][data-wf-state~="hovered"] { box-shadow: 0 0 0 3px #fde68a; }
 ```
 
-CSS written against these selectors changes only the interactive DOM map and the panels around it. It does not change the Canvas map (used automatically above 2,000 elements), SVG or PNG exports, or the BPMN diagram. Anything that must look the same everywhere belongs in the theme or a rule.
-
 **In the renderers.** Every mark carries what the rules set: a paint a rule
 sets is a literal (`MarkPaint` `#rrggbb`, `#rrggbbaa`), and `opacity` on a node,
 edge, group or overlay mark is the whole element's (the SVG export writes it on
