@@ -6,7 +6,7 @@
 import { type AbstractOptions, abstract } from "./aggregate.js";
 import { type LayoutOptions, type Positions, filterPositions, layout } from "./layout.js";
 import { type FlowGraph, type Metrics, type Overlay, metric } from "./model.js";
-import { type ChannelSpec, type ColorSpec, type Scales, type StyleSpec, buildScales, defaultStyle } from "./style.js";
+import { type ChannelSpec, type ColorSpec, type Scales, type StyleSpec, buildScales, defaultStyle, extentOf, isShareMetric, symmetricDomain } from "./style.js";
 
 /** What one view encodes. Metrics are merged over the base graph's metrics by id. */
 export interface ViewSpec {
@@ -70,17 +70,6 @@ function withMetrics(base: FlowGraph, view: ViewSpec): FlowGraph {
   };
 }
 
-function extent(values: number[]): [number, number] | undefined {
-  let lo = Infinity;
-  let hi = -Infinity;
-  for (const v of values) {
-    if (!Number.isFinite(v)) continue;
-    lo = Math.min(lo, v);
-    hi = Math.max(hi, v);
-  }
-  return lo === Infinity ? undefined : [lo, hi];
-}
-
 /**
  * Resolve views on known positions: every view gets its graph (base metrics
  * merged with its own), its overlays and scales. With shared scales the domain
@@ -93,13 +82,12 @@ export function resolveViews(base: FlowGraph, views: ViewSpec[], positions: Posi
   const domains: Record<string, number[]> = {};
   const edgeValues = (name: string): number[] => graphs.flatMap((g) => g.edges.filter((e) => e.kind !== "constraint").map((e) => metric(e, name, NaN)));
   const nodeValues = (name: string): number[] => graphs.flatMap((g) => g.nodes.map((n) => metric(n, name, NaN)));
-  const isShare = (name: string) => /share/i.test(name);
 
   const widthDomain = (spec: ChannelSpec): [number, number] => {
     if (spec.domain) return spec.domain;
     const key = `edgeWidth:${spec.metric}`;
     if (!domains[key]) {
-      const ext = extent(edgeValues(spec.metric)) ?? [0, 1];
+      const ext = extentOf(edgeValues(spec.metric)) ?? [0, 1];
       domains[key] = ext[0] === ext[1] ? [0, ext[1] || 1] : ext;
     }
     return domains[key] as [number, number];
@@ -112,13 +100,11 @@ export function resolveViews(base: FlowGraph, views: ViewSpec[], positions: Posi
       const values = channel === "edgeColor" ? edgeValues(spec.metric) : nodeValues(spec.metric);
       const palette = spec.palette ?? "sequential";
       if (palette === "diverging") {
-        const ext = extent(values);
-        const m = ext ? Math.max(Math.abs(ext[0]), Math.abs(ext[1])) || 1 : 1;
-        domains[key] = [-m, 0, m];
-      } else if (isShare(spec.metric)) {
+        domains[key] = symmetricDomain(values);
+      } else if (isShareMetric(spec.metric)) {
         domains[key] = [0, 1];
       } else {
-        domains[key] = extent(values) ?? [0, 1];
+        domains[key] = extentOf(values) ?? [0, 1];
       }
     }
     return domains[key];

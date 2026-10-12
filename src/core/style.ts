@@ -213,7 +213,8 @@ export interface Scales {
   domains: { edgeWidth?: [number, number]; edgeColor?: number[]; nodeColor?: number[] };
 }
 
-function extentOf(values: number[]): [number, number] | undefined {
+/** The smallest and largest finite value, or `undefined` when there is none. */
+export function extentOf(values: number[]): [number, number] | undefined {
   let lo = Infinity;
   let hi = -Infinity;
   for (const v of values) {
@@ -224,7 +225,7 @@ function extentOf(values: number[]): [number, number] | undefined {
   return lo === Infinity ? undefined : [lo, hi];
 }
 
-function isShareMetric(name: string): boolean {
+export function isShareMetric(name: string): boolean {
   return /share/i.test(name);
 }
 
@@ -369,7 +370,7 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle): S
   };
 }
 
-function symmetricDomain(values: number[]): number[] {
+export function symmetricDomain(values: number[]): number[] {
   const ext = extentOf(values);
   if (!ext) return [-1, 0, 1];
   const m = Math.max(Math.abs(ext[0]), Math.abs(ext[1])) || 1;
