@@ -9,16 +9,18 @@
  * and under a budget of 24 paths. The readings are held against what the
  * scene says (`checkReading`).
  *
- * Five kinds of failure are open decisions, written up and pinned below as
+ * Four kinds of failure are open decisions, written up and pinned below as
  * findings (`findingOf`): texts drawn below 9 px, path counts that cover each
- * other or a card, activities that keep connected leaves without a path from
- * the start or to the end, an arc label on a card or a label where its arc
- * had no free place, and a row of badges wider than its card that covers the
- * card beside it. The legend's path widths run from 0 to the strongest path
+ * other or a card, an arc label on a card or a label where its arc had no free
+ * place, and a row of badges wider than its card that covers the card beside
+ * it. A fifth is the documented limit of keep connected, which `findingOf`
+ * names too: an activity it leaves without a path from the start or to the
+ * end, since it restores flow context only from activities still on the map. The legend's path widths run from 0 to the strongest path
  * of the graph before abstraction by the rule of one width scale per graph. Every other failure fails the search, prints its seed and the
  * smallest graph that still fails, and attaches the picture of its rung to the
  * report.
  */
+import { readFileSync } from "node:fs";
 import { type TestContext, describe, expect, it } from "vitest";
 import { type PreparedScene, prepareScene } from "../../src/canvas/index";
 import { type FlowGraph, type Locale, type Overlay, type Positions, abstract, createPositions, layout, toSVG } from "../../src/index";
@@ -311,7 +313,7 @@ describe("the open findings, pinned", () => {
     expect(check(851_000)).toEqual(['label covers card: path label "851k" of a->b covers a', 'label covers card: path label "851k" of a->b covers b']);
   });
 
-  it("finding: keep connected can leave an activity without a path from the start", () => {
+  it("restores flow context only from activities still on the map, so that keep connected can leave an activity without a path from the start, as the documents say", () => {
     // start → a0 → a1 → a3 → a4 → a8 and a1 → a7 → a8, cases 14, 14, 2, 4, 14 and 7.
     const node = (id: string, cases: number) => ({ id, kind: "activity" as const, label: id, metrics: { cases } });
     const edge = (source: string, target: string, count: number) => ({ id: `${source}->${target}`, kind: "follows" as const, source, target, metrics: { count, cases: count } });
@@ -327,6 +329,10 @@ describe("the open findings, pinned", () => {
     const rung = { ...rungOf(4, true, false) };
     const failures = checkReading({ fitted: emptyReading(), full: emptyReading(shown), expect: { graph, abstraction: shown, rung, locale: "en" } }).filter((f) => f.property === "reach");
     expect(failures.map((f) => f.detail)).toEqual(["a4 is not reachable from the start"]);
+    for (const doc of ["ARCHITECTURE", "API"]) {
+      const text = readFileSync(new URL(`../../docs/${doc}.md`, import.meta.url), "utf8").replace(/\s+/g, " ");
+      expect(text, doc).toContain("restores flow context only from activities still on the map");
+    }
   });
 
   it("runs the legend's path widths from 0 to the strongest path, also where every path has one count, and lists none without paths", () => {

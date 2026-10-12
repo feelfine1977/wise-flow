@@ -621,7 +621,7 @@ describe("abstract: small and degenerate graphs", () => {
   });
 });
 
-describe("abstract: findings", () => {
+describe("abstract: collapsed stages and keep connected", () => {
   it("counts only the follows edges inside a collapsed stage, by their count or else their cases, as its internal transitions", () => {
     // Stage s: a->b counts 5 and the self-loop b->b gives 6 cases; the constraint, the flow and the follows edge b->a
     // without a count or cases count nothing. Stage t holds only a constraint: no transition, so no internalCount.
@@ -662,13 +662,17 @@ describe("abstract: findings", () => {
     expect(abstract(empty, { minNodeShare: 0.5, collapse: "all" }).nodes.map((n) => n.id)).toEqual(["e1", "e2"]);
   });
 
-  it("finding: the kept activities of a second input component are not joined through its removed ones", () => {
+  it("joins only the main part of the input, not the kept activities of another part through its removed ones, as the documents say", () => {
     const graph: FlowGraph = {
       nodes: activities({ m: 100, n: 100, x: 50, y: 50, r: 1 }),
       edges: follows([["m", "n", 100], ["x", "r", 100], ["r", "y", 100]]),
     };
     const g = abstract(graph, { minNodeShare: 0.3 });
     expect([g.nodes.map((n) => n.id), g.edges.map((e) => e.id), readded(g)]).toEqual([["m", "n", "x", "y"], ["m->n"], []]);
+    for (const doc of ["ARCHITECTURE", "API"]) {
+      const text = readFileSync(new URL(`../../docs/${doc}.md`, import.meta.url), "utf8").replace(/\s+/g, " ");
+      expect(text, doc).toContain("Keep connected joins only the main part of the input");
+    }
   });
 
   it("merges only the parallel edges with an end in a collapsed stage, and leaves those between other nodes as they are", () => {

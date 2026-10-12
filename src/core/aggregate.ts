@@ -29,7 +29,10 @@ export interface AbstractOptions {
   minEdgeShare?: number;
   /** Activities and stages whose relative strength is below this share are removed. 0 keeps every node. */
   minNodeShare?: number;
-  /** Re-add the strongest removed elements until the map is connected again. Default `true`. */
+  /**
+   * Re-add the strongest removed elements until the main part of the input is connected again, and restore flow
+   * context from activities still on the map. Default `true`.
+   */
   keepConnected?: boolean;
   /** Group ids to collapse into one stage node each; `"all"` collapses every stage group. */
   collapse?: string[] | "all" | false;
@@ -495,7 +498,9 @@ const tagged = <T extends FlowNode | FlowEdge>(el: T): T => ({ ...el, tags: [...
 /**
  * Step 1 of the reconnection (docs/ARCHITECTURE.md §2.2): the cheapest direct edges
  * join components, then one search grows the heaviest component and takes in the
- * nearest other one at a time, from all that is joined at distance 0.
+ * nearest other one at a time, from all that is joined at distance 0. The search
+ * follows the input's edges, so it joins only the part of the input the heaviest
+ * component lies in.
  */
 export function joinComponents({ base, nodes: keptNodes, edges: keptEdges, edgeStrength, nodeStrength }: Thresholded): { nodes: FlowNode[]; edges: FlowEdge[] } {
   const byNodeId = new Map(base.nodes.map((n) => [n.id, n]));
@@ -608,12 +613,13 @@ export function joinComponents({ base, nodes: keptNodes, edges: keptEdges, edgeS
 }
 
 /**
- * Step 2 of the reconnection: every kept activity keeps flow context, an incoming
- * and an outgoing edge where the original graph had one. Open needs (a node without
- * incoming or without outgoing edges) are served by the original edge that closes
- * the most needs at once, then by strength, so that one edge serving two nodes is
- * never replaced by two edges. Nodes re-added by step 1 are reconnection artefacts
- * and are left as they are. Both rules keep the result monotone in the thresholds.
+ * Step 2 of the reconnection: flow context, from nodes still on the map only. A kept
+ * activity without incoming (outgoing) edges gets an original edge from (to) a node
+ * on the map where there is one; one whose edges all came from removed nodes stays
+ * without. Open needs are served by the original edge that closes the most needs at
+ * once, then by strength, so that one edge serving two nodes is never replaced by
+ * two edges. Nodes re-added by step 1 are reconnection artefacts and are left as they
+ * are. Both rules keep the result monotone in the thresholds.
  */
 function restoreFlowContext(
   { base, nodes: keptNodes, edgeStrength }: Thresholded,

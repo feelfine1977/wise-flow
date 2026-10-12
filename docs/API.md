@@ -227,12 +227,22 @@ follows edges among them, by their `count`, else their `cases`, and nothing
 for an edge with neither. Up to 0.3.5 every such edge counted: a constraint
 edge, a flow edge or a follows edge without a `count` as one transition each;
 the documentation said constraint and flow edges were never removed, nothing
-counted the ones that went, and a re-added activity came back without them. With thresholds the thresholded part is monotone (a
-higher threshold yields a subset); with `keepConnected` the result is one
-connected component whenever the input is, restored by a maximum spanning
-forest over the strongest direct edges, then by the cheapest paths through
-removed nodes, then by one edge per activity that lost all incoming or all
-outgoing paths; re-added elements are tagged `reconnected`. Of equally cheap
+counted the ones that went, and a re-added activity came back without them.
+With thresholds the thresholded part is monotone (a higher threshold yields a
+subset); with `keepConnected` the result is one connected component whenever
+the input is, restored by a maximum spanning forest over the strongest
+direct edges, then by the cheapest paths through removed nodes, then by one
+edge per activity that lost all incoming or all outgoing paths; re-added
+elements are tagged `reconnected`. Keep connected joins only the main part
+of the input: the paths through removed nodes start from the heaviest kept
+component, so in another part of the input kept activities are joined only
+by direct edges between them (`x – r – y` beside a heavier `m – n` keeps
+`x` and `y` apart when `r` goes). It restores flow context only from
+activities still on the map: an activity whose incoming paths all came from
+removed activities gets no incoming path, so the map stays in one piece while
+no path from the start reaches it (`a1 → a3 → a4` with `a3` removed leaves
+`a4` without an incoming path). The detail shares keep every shown activity
+on a way from a start to an end instead ("Detail shares", below). Of equally cheap
 reconnecting paths the one chosen depends on ids only, not on the input
 order ([Architecture §2.2](ARCHITECTURE.md#22-aggregation)), and a strength
 relative to the total divides by a sum taken in ascending order, which no

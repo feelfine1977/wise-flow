@@ -118,6 +118,15 @@ groups into stage nodes (semantic zoom) and restores connectivity: first a
 maximum spanning forest over the strongest direct edges between the kept
 nodes, then the cheapest paths of the original graph through removed nodes,
 then one edge per activity that lost all incoming or all outgoing paths.
+Keep connected joins only the main part of the input: the paths through
+removed nodes start from the heaviest kept component and follow the input's
+edges, so in another part of the input the kept activities are joined only
+by direct edges between them. It restores flow context only from activities
+still on the map: the one edge comes from or goes to a node on the map, so
+an activity whose paths all came from removed activities gets none, and the
+map can stay in one piece with an activity that no path from the start
+reaches. The detail shares (below) keep every shown activity on a way from a
+start to an end instead.
 A re-added activity brings back its constraint and flow edges to elements on
 the map; constraint and flow edges otherwise go only with an element at one
 of their ends, and `meta.abstraction.removedEdges` counts them.

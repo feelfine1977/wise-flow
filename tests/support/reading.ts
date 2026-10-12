@@ -559,7 +559,7 @@ export function arcLabelPlaces(scene: Pick<FlowScene, "graph" | "positions" | "m
   return out;
 }
 
-/** The open decisions a failure can belong to (written up, pinned as findings). */
+/** The open decisions a failure can belong to (written up, pinned as findings), and the documented limit of keep connected ("reach"). */
 export type Finding = "small text" | "path counts" | "reach" | "arc label without a place" | "badges wider than their card";
 
 /**
@@ -568,7 +568,8 @@ export type Finding = "small text" | "path counts" | "reach" | "arc label withou
  * counts have no place of their own; an arc label on a count is the arc
  * label's, below); with keep connected, an activity without a path from
  * the start or to the end while the map is in one piece, which is all keep
- * connected promises (`base` is the graph the thresholds were applied to); an
+ * connected promises, as documented: it restores flow context only from
+ * activities still on the map (`base` is the graph the thresholds were applied to); an
  * arc label covering a card or a label where its arc had no free place
  * (`places`, from `arcLabelPlaces`); a badge beyond the sides of its own card
  * covering another card (a card's badges run leftwards from its top-right
