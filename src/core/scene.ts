@@ -9,7 +9,7 @@ import { type ActivityLabelOptions, activityReferences } from "./activity-labels
 import { type EdgeMark, type NodeMark, edgeMarks, nodeMarks } from "./element-marks.js";
 import { type SceneLegend, sceneLegend } from "./figure.js";
 import type { Locale } from "./format.js";
-import { type Box, type Positions, type XY, unionBoxes } from "./layout.js";
+import { type Box, type Positions, type XY, finitePositions, unionBoxes } from "./layout.js";
 import { type LaneBand, type LaneMode, laneBands } from "./lanes.js";
 import { type FlowGraph, type Overlay, MAP_TARGET } from "./model.js";
 import { withFollowsSelfLoops } from "./observed-loops.js";
@@ -85,8 +85,8 @@ function shownOverlays(graph: FlowGraph, given: Overlay[], options: FlowSceneOpt
 export function buildScene(graph: FlowGraph, givenPositions: Positions, options: FlowSceneOptions = {}): FlowScene {
   const locale = options.locale ?? "en";
   const style = options.style ?? defaultStyle;
-  const laid = laneBands(graph, givenPositions, { lanes: options.lanes ?? "none" });
-  const positions = options.moved ? repositionNodes(graph, laid.positions, options.moved) : laid.positions;
+  const laid = laneBands(graph, finitePositions(givenPositions), { lanes: options.lanes ?? "none" });
+  const positions = options.moved ? finitePositions(repositionNodes(graph, laid.positions, options.moved)) : laid.positions;
   const activityLabels = options.activityLabels ? { ...options.activityLabels, references: activityReferences(graph, options.activityLabels.references) } : undefined;
   const overlays = canonicalOverlays(shownOverlays(graph, options.overlays ?? graph.overlays ?? [], options, locale));
   const rules = { ...(style.lod ?? {}), ...(options.lod ?? {}) };

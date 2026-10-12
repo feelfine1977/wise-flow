@@ -41,6 +41,15 @@ describe("toSVG", () => {
     expect(opens).toBe(closes);
   });
 
+  it("escapes a node kind it does not know in the class attribute", () => {
+    const kind = 'x" onclick="alert(1)" data-k="<y>&';
+    const graph: FlowGraph = { nodes: [{ id: "n", kind: kind as FlowGraph["nodes"][number]["kind"], label: "N" }], edges: [] };
+    const positions: Positions = { nodes: { n: { x: 0, y: 0, width: 180, height: 60 } }, groups: {}, edges: {}, bounds: { x: 0, y: 0, width: 180, height: 60 }, engine: "given", direction: "RIGHT" };
+    const svg = toSVG({ graph, positions });
+    expect(svg).toContain('class="wf-node wf-node-x&quot; onclick=&quot;alert(1)&quot; data-k=&quot;&lt;y&gt;&amp;" data-id="n"');
+    expect(svg).not.toContain("onclick=\"");
+  });
+
   it("scales to figure presets and honours level of detail", async () => {
     const positions = await layout(scene, { engine: "dagre" });
     const single = toSVG({ graph: scene, positions }, { preset: "single-column" });

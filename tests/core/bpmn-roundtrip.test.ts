@@ -89,6 +89,61 @@ describe("export → import round trip", () => {
     expect(again.xml).toBe(out.xml);
   });
 
+  it("gives a node, an edge and a lane that share an id one BPMN id each and reads them back", async () => {
+    // FlowGraph keeps nodes, edges and groups apart, so all three may be called "a" (a collapsed stage shares its group's id).
+    const graph: FlowGraph = {
+      nodes: [
+        { id: "a", kind: "activity", label: "A", group: "a" },
+        { id: "b", kind: "activity", label: "B", group: "a" },
+      ],
+      edges: [{ id: "a", kind: "flow", source: "a", target: "b" }],
+      groups: [{ id: "a", kind: "lane", label: "Lane A" }],
+    };
+    const { xml, ids } = await exportBpmn(graph);
+    const written = [...xml.matchAll(/ id="([^"]+)"/g)].map((m) => m[1]);
+    expect(new Set(written).size).toBe(written.length);
+    // The node keeps the plain id; the flow and the lane take their prefixes, as when nothing is shared.
+    expect(written).toEqual(expect.arrayContaining(["a", "b", "Flow_a", "Lane_a"]));
+    expect(ids.toBpmn.a).toBe("a");
+    expect(ids.toFlow).toMatchObject({ a: "a", Flow_a: "a", Lane_a: "a" });
+    expect((await validateBpmn(xml)).ok).toBe(true);
+    const back = await importBpmn(xml);
+    expect(back.warnings).toEqual([]);
+    expect(back.graph.nodes.map((n) => [n.id, n.group])).toEqual([["a", "a"], ["b", "a"]]);
+    expect(back.graph.edges.map((e) => [e.id, e.source, e.target])).toEqual([["a", "a", "b"]]);
+    expect(back.graph.groups?.filter((g) => g.kind === "lane").map((g) => g.id)).toEqual(["a"]);
+  });
+
+  it("exports nodes and edges without an id", async () => {
+    // A null column of a backend: typed around the model, so the ids read undefined.
+    const none = undefined as unknown as string;
+    const graph: FlowGraph = {
+      nodes: [
+        { id: "a", kind: "activity", label: "A" },
+        { id: none, kind: "activity", label: "Unnamed" },
+        { id: none, kind: "activity", label: "Unnamed too" },
+      ],
+      edges: [{ id: none, kind: "flow", source: "a", target: "b" }],
+    };
+    const { xml } = await exportBpmn(graph);
+    const written = [...xml.matchAll(/ id="([^"]+)"/g)].map((m) => m[1]);
+    expect(new Set(written).size).toBe(written.length);
+    expect((await validateBpmn(xml)).ok).toBe(true);
+  });
+
+  it("validates a file whose sub-processes and lanes nest deeper than the call stack reaches", async () => {
+    // 20,000 sub-processes in one another around one task, and as many lanes; the importer reads such files too.
+    const depth = 20_000;
+    const open = Array.from({ length: depth }, (_, i) => `<bpmn:subProcess id="s${i}">`).join("");
+    const lanes = Array.from({ length: depth }, (_, i) => `<bpmn:lane id="l${i}"><bpmn:childLaneSet id="c${i}">`).join("");
+    const xml = `<?xml version="1.0"?><bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="d"><bpmn:process id="p"><bpmn:laneSet id="ls">${lanes}${"</bpmn:childLaneSet></bpmn:lane>".repeat(depth)}</bpmn:laneSet>${open}<bpmn:task id="t"/>${"</bpmn:subProcess>".repeat(depth)}</bpmn:process></bpmn:definitions>`;
+    const result = await validateBpmn(xml);
+    // A sub-process counts as a task; none of them has a shape, in the order they nest.
+    expect(result.counts).toMatchObject({ processes: 1, tasks: depth + 1, lanes: depth });
+    expect(result.missingDi).toHaveLength(depth + 1);
+    expect([result.missingDi[0], result.missingDi[1], result.missingDi.at(-1)]).toEqual(["s0", "s1", "t"]);
+  });
+
   it("makes ids XML-safe and keeps the original in wise:flowId", async () => {
     const out = await exportBpmn(lite, { layout: { engine: "dagre" } });
     expect(out.ids.toBpmn["__start->gw_skip_requisition"]).toMatch(/^Flow_/);

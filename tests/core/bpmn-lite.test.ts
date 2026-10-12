@@ -161,6 +161,23 @@ describe("liteFromGraph", () => {
   });
 });
 
+describe("liteFromGraph of edges between the same nodes", () => {
+  it("names the flows of two edges between the same activities apart", () => {
+    // A follows edge and a flow between a and b, and a second successor c, so that a gets a split and b a join.
+    const graph: FlowGraph = {
+      nodes: ["a", "b", "c"].map((id) => ({ id, kind: "activity" as const, label: id.toUpperCase(), metrics: { cases: 5 } })),
+      edges: [
+        { id: "a->b", kind: "follows", source: "a", target: "b", metrics: { count: 2 } },
+        { id: "f1", kind: "flow", source: "a", target: "b" },
+        { id: "a->c", kind: "follows", source: "a", target: "c", metrics: { count: 1 } },
+      ],
+    };
+    const lite = liteFromGraph(graph);
+    expect(validateGraph(lite)).toEqual([]);
+    expect(lite.edges.filter((e) => e.source === "gw_split_a").map((e) => e.id)).toEqual(["gw_split_a->gw_join_b", "gw_split_a->gw_join_b:1", "gw_split_a->c"]);
+  });
+});
+
 describe("liteFromGraph parallel gateways", () => {
   const activity = (id: string): FlowNode => ({ id, kind: "activity", label: id.toUpperCase(), metrics: { cases: 10 } });
   const follows = (pairs: string): FlowGraph["edges"] =>

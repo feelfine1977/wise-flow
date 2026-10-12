@@ -287,7 +287,7 @@ export type Focus = string | [string, string];
 export function focusHighlight(graph: FlowGraph, focus: Focus): { nodes: Set<string>; edges: Set<string> } {
   const nodes = new Set<string>();
   const edges = new Set<string>();
-  if (typeof focus === "string") {
+  if (!Array.isArray(focus)) {
     const n = neighbourhood(graph, focus);
     for (const m of focusMembers(graph, focus)) nodes.add(m);
     for (const p of n.predecessors) nodes.add(p);

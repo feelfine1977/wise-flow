@@ -3,6 +3,7 @@ import {
   type FilterClause,
   type FlowGraph,
   addClause,
+  canonicalClause,
   canonicalFilter,
   changesCases,
   clauseForTarget,
@@ -155,6 +156,31 @@ describe("filters", () => {
     expect(describePreview(normalizeFilterPreview({ casesIn: 5, casesTotal: 9 }), "de")).toBe("5 von 9 Fällen");
     expect(describePreview(undefined)).toBeUndefined();
     expect(describePreview({ casesIn: 7 })).toBe("7");
+  });
+
+  it("reads the marginal removals only from a list, and only its entries that name a clause by number", () => {
+    // A backend may send anything under per_clause; what is not a list of entries with a numeric clause is not read.
+    for (const per of [12, "0", {}, true, null]) {
+      expect(normalizeFilterPreview({ cases_in: 5, per_clause: per })).toEqual({ casesIn: 5, casesOut: undefined, casesTotal: undefined, perClause: undefined, inScopeByConstraint: undefined });
+    }
+    const p = normalizeFilterPreview({ perClause: [null, 3, { clause: "1", removedMarginally: 4 }, { clause: 2, removed_marginally: "7" }, { clause: 0, removedMarginally: 9 }] });
+    expect(p?.perClause).toEqual([{ clause: 2, removedMarginally: 0 }, { clause: 0, removedMarginally: 9 }]);
+  });
+
+  it("keeps a clause of a kind it does not know as it is, and reads a group without clauses as an empty group", () => {
+    const future = { kind: "future", window: 3 } as unknown as FilterClause;
+    const bare = { kind: "any" } as unknown as FilterClause;
+    expect(canonicalClause(future)).toEqual({ kind: "future", window: 3 });
+    expect(canonicalClause(bare)).toEqual({ kind: "any", clauses: [] });
+    // Sorted by key: '{"clauses":[],"kind":"any"}' before '{"kind":"future","window":3}'.
+    expect(canonicalFilter([future, bare, future])).toEqual({ and: [{ kind: "any", clauses: [] }, { kind: "future", window: 3 }] });
+    expect(filterEquals([future, bare], [bare, future])).toBe(true);
+  });
+
+  it("describes a group without clauses as an empty group, which changes no cases", () => {
+    const bare = { kind: "any" } as unknown as FilterClause;
+    for (const locale of ["en", "de"] as const) expect(describeClause(bare, locale)).toBe(describeClause({ kind: "any", clauses: [] }, locale));
+    expect(changesCases(bare)).toBe(false);
   });
 
   it("produces the clause of a map action for every target", () => {

@@ -119,9 +119,12 @@ export function defaultNodeSize(node: FlowNode): NodeSize {
 export const GROUP_PADDING = { top: 44, left: 20, bottom: 20, right: 20 };
 
 export function sizeOf(node: FlowNode, o: LayoutOptions): NodeSize {
-  if (!o.nodeSize) return defaultNodeSize(node);
-  return typeof o.nodeSize === "function" ? o.nodeSize(node) : o.nodeSize;
+  const s = typeof o.nodeSize === "function" ? o.nodeSize(node) : o.nodeSize;
+  return s && Number.isFinite(s.width) && Number.isFinite(s.height) ? s : defaultNodeSize(node);
 }
+
+/** A spacing, or its default where it is not a finite number. */
+export const gap = (v: number | undefined, fallback: number): number => (Number.isFinite(v) ? v! : fallback);
 
 /**
  * Smallest box around the given boxes. Boxes without a non-negative width and
@@ -179,6 +182,20 @@ export type PositionsContents = Pick<Positions, "nodes" | "groups" | "edges">;
 export function createPositions(contents: PositionsContents, engine: LayoutEngine, direction: LayoutDirection): Positions {
   const { nodes, groups, edges } = contents;
   return { nodes, groups, edges, bounds: positionsBounds(contents), engine, direction };
+}
+
+export const finiteBox = (b: Box | undefined): b is Box => !!b && Number.isFinite(b.x) && Number.isFinite(b.y) && Number.isFinite(b.width) && Number.isFinite(b.height);
+
+/** Positions without the boxes and routes holding a number that is not finite; the same object when there is none. */
+export function finitePositions(p: Positions): Positions {
+  const keep = <T>(r: Record<string, T>, ok: (v: T) => boolean): Record<string, T> => {
+    for (const k in r) if (!ok(r[k])) return Object.fromEntries(Object.entries(r).filter(([, v]) => ok(v)));
+    return r;
+  };
+  const nodes = keep(p.nodes, finiteBox);
+  const groups = keep(p.groups, finiteBox);
+  const edges = keep(p.edges, (r) => r.points.every((q) => Number.isFinite(q.x) && Number.isFinite(q.y)));
+  return nodes === p.nodes && groups === p.groups && edges === p.edges && finiteBox(p.bounds) ? p : createPositions({ nodes, groups, edges }, p.engine, p.direction);
 }
 
 // ---------------------------------------------------------------------------
@@ -300,7 +317,8 @@ function guard<T>(promise: Promise<T>, ms: number, signal: AbortSignal, stop?: (
       reject(error);
     };
     const abort = () => end(signal.reason);
-    const timer = setTimeout(() => end(new LayoutTimeout(`layout timed out after ${ms} ms`)), ms);
+    // Timers fire at once beyond 2³¹ − 1 ms.
+    const timer = setTimeout(() => end(new LayoutTimeout(`layout timed out after ${ms} ms`)), Math.min(ms, 2 ** 31 - 1));
     const clear = () => {
       clearTimeout(timer);
       signal.removeEventListener("abort", abort);
@@ -335,8 +353,8 @@ function prepare(graph: FlowGraph, o: LayoutOptions): Prepared {
 
 function elkGraph(p: Prepared, o: LayoutOptions, partition: boolean): ElkNode {
   const spacing = o.spacing ?? {};
-  const nodeSpacing = spacing.node ?? 28;
-  const layerSpacing = spacing.layer ?? 64;
+  const nodeSpacing = gap(spacing.node, 28);
+  const layerSpacing = gap(spacing.layer, 64);
   const idx = indexGraph({ nodes: p.nodes, edges: p.edges, groups: p.groups });
   const stageOrder = new Map<string, number>();
   p.groups.filter((g) => !g.parent && g.kind === "stage").forEach((g, i) => stageOrder.set(g.id, i));
@@ -373,7 +391,7 @@ function elkGraph(p: Prepared, o: LayoutOptions, partition: boolean): ElkNode {
     "elk.spacing.nodeNode": String(nodeSpacing),
     "elk.layered.spacing.nodeNodeBetweenLayers": String(layerSpacing),
     "elk.spacing.edgeNode": "24",
-    "elk.spacing.componentComponent": String(spacing.group ?? 48),
+    "elk.spacing.componentComponent": String(gap(spacing.group, 48)),
     "elk.edgeRouting": o.edgeRouting ?? "POLYLINE",
     "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
     "elk.layered.cycleBreaking.strategy": "GREEDY_MODEL_ORDER",
@@ -467,16 +485,18 @@ export interface DagreOutput {
 function dagreInput(p: Prepared, o: LayoutOptions): DagreInput {
   const spacing = o.spacing ?? {};
   const groupIds = new Set(p.groups.map((gr) => gr.id));
+  const nodeIds = new Set(p.nodes.map((n) => n.id));
   const inGroup = (id?: string) => (p.useGroups && id && groupIds.has(id) ? id : undefined);
   return {
-    graph: { rankdir: DAGRE_DIR[p.direction], nodesep: spacing.node ?? 28, ranksep: spacing.layer ?? 64, marginx: 8, marginy: 8 },
+    graph: { rankdir: DAGRE_DIR[p.direction], nodesep: gap(spacing.node, 28), ranksep: gap(spacing.layer, 64), marginx: 8, marginy: 8 },
     compound: p.useGroups,
     groups: p.useGroups ? p.groups.map((gr) => [gr.id, gr.label, inGroup(gr.parent)]) : [],
     nodes: p.nodes.map((n) => {
       const s = sizeOf(n, o);
       return [n.id, s.width, s.height, inGroup(n.group)];
     }),
-    edges: p.edges.filter((e) => e.source !== e.target).map((e) => [e.id, e.source, e.target]),
+    // Dagre would add a node without a size for a missing end.
+    edges: p.edges.filter((e) => e.source !== e.target && nodeIds.has(e.source) && nodeIds.has(e.target)).map((e) => [e.id, e.source, e.target]),
   };
 }
 
@@ -496,25 +516,27 @@ interface DagreGraph {
  * Dagre worker runs this function's source as it is.
  */
 export function dagreJob(dagre: { Graph: new (options: object) => DagreGraph; layout(graph: DagreGraph): void }, input: DagreInput): DagreOutput {
+  // Graphlib reads "" as no name, keeps \x00 and \x01, and keys plain objects (a prototype member would write the prototype).
+  const k = (id: string) => (!id || id < "\x03" || id in Object.prototype ? "\x02" + id : id);
   const g = new dagre.Graph({ compound: input.compound, multigraph: true });
   g.setGraph(input.graph);
   g.setDefaultEdgeLabel(() => ({}));
-  for (const [id, label] of input.groups) g.setNode(id, { label, clusterLabelPos: "top" });
-  for (const [id, , parent] of input.groups) if (parent) g.setParent(id, parent);
+  for (const [id, label] of input.groups) g.setNode(k(id), { label, clusterLabelPos: "top" });
+  for (const [id, , parent] of input.groups) if (parent) g.setParent(k(id), k(parent));
   for (const [id, width, height, parent] of input.nodes) {
-    g.setNode(id, { width, height });
-    if (parent) g.setParent(id, parent);
+    g.setNode(k(id), { width, height });
+    if (parent) g.setParent(k(id), k(parent));
   }
-  for (const [id, source, target] of input.edges) g.setEdge(source, target, { minlen: 1 }, id);
+  for (const [id, source, target] of input.edges) g.setEdge(k(source), k(target), { minlen: 1 }, k(id));
   dagre.layout(g);
   const boxes: DagreOutput["boxes"] = {};
   const edges: DagreOutput["edges"] = {};
   for (const [id] of [...input.groups, ...input.nodes]) {
-    const v = g.node(id) as DagreOutput["boxes"][string] | undefined;
+    const v = g.node(k(id)) as DagreOutput["boxes"][string] | undefined;
     if (v) boxes[id] = { x: v.x, y: v.y, width: v.width, height: v.height };
   }
   for (const [id, source, target] of input.edges) {
-    const v = g.edge({ v: source, w: target, name: id }) as { points?: XY[] } | undefined;
+    const v = g.edge({ v: k(source), w: k(target), name: k(id) }) as { points?: XY[] } | undefined;
     if (v?.points) edges[id] = v.points.map((pt) => ({ x: pt.x, y: pt.y }));
   }
   return { boxes, edges };
@@ -815,9 +837,9 @@ export function filterPositions(positions: Positions, graph: FlowGraph): Positio
   return createPositions({ nodes, groups, edges }, positions.engine, positions.direction);
 }
 
-/** True when every node of `graph` has a position. */
+/** True when every node of `graph` has a box of finite numbers. */
 export function coversGraph(positions: Positions, graph: FlowGraph): boolean {
-  return graph.nodes.every((n) => positions.nodes[n.id] !== undefined);
+  return graph.nodes.every((n) => finiteBox(positions.nodes[n.id]));
 }
 
 /** Straight route between two boxes' centres, clipped to the box borders. */

@@ -425,7 +425,7 @@ describe("the invalid families and validateGraph", () => {
     }
   });
 
-  it("finding: the structural validation does not look at metric values, empty or missing ids, group parent cycles or unknown kinds", () => {
+  it("finding: the structural validation does not look at metric values, empty or missing ids or unknown kinds", () => {
     const silent = new Set<string>();
     for (const name of invalidNames) {
       const { graph, defects } = invalidFamilies[name](12, 1);
@@ -433,7 +433,7 @@ describe("the invalid families and validateGraph", () => {
       // Every issue belongs to a defect with a message, so a silent defect that starts being reported fails here.
       expect(validateGraph(graph), `${name}: a defect without a message is reported today; record the message in the family`).toHaveLength(defects.filter((d) => d.expect !== null).length);
     }
-    expect([...silent].sort()).toEqual(["empty-id", "group-cycle", "missing-id", "missing-metric", "negative-metric", "non-finite-metric", "string-metric", "unknown-edge-kind", "unknown-node-kind", "zero-metric"]);
+    expect([...silent].sort()).toEqual(["empty-id", "missing-id", "missing-metric", "negative-metric", "non-finite-metric", "string-metric", "unknown-edge-kind", "unknown-node-kind", "zero-metric"]);
   });
 
   it("plants what it says: metric defects sit on the named elements, structural ones in the graph", () => {

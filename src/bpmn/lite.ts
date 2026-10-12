@@ -431,11 +431,16 @@ export function liteFromGraph(graph: FlowGraph, options: LiteFromGraphOptions = 
       glue.push(flowEdge(id, n.id, sumMetrics(ins)));
     }
   }
+  // Two edges between the same nodes become two flows: the second id gets ":1", and so on.
+  const taken = new Set(edges.map((e) => e.id));
   const rerouted: FlowEdge[] = edges.map((e) => {
     const s = splitOf.get(e.source) ?? e.source;
     const t = joinOf.get(e.target) ?? e.target;
     if (s === e.source && t === e.target) return e;
-    return { ...e, id: `${s}->${t}`, source: s, target: t };
+    let id = `${s}->${t}`;
+    for (let n = 1; taken.has(id); n++) id = `${s}->${t}:${n}`;
+    taken.add(id);
+    return { ...e, id, source: s, target: t };
   });
 
   // Order: events first where they were, gateways next to the node they belong to.

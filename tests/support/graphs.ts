@@ -515,7 +515,8 @@ export const brokenGroups: InvalidFamily = (size, seed) => {
     defects: [
       { kind: "unknown-group", id: node.id, expect: "node group not found: nowhere" },
       { kind: "unknown-group-parent", id: "orphan", expect: "group parent not found: nowhere" },
-      { kind: "group-cycle", id: "ring1", expect: null },
+      { kind: "group-cycle", id: "ring1", expect: "group parent cycle" },
+      { kind: "group-cycle", id: "ring2", expect: "group parent cycle" },
     ],
   };
 };

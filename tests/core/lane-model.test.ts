@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { layoutBpmn } from "../../src/bpmn/headless";
 import { type Box, type FlowGraph, laneModel, laneRoutes, routeSequenceFlows, spanLanes, stackLanes } from "../../src/index";
 
 // P (pool) ⊃ L1, L2 ⊃ L2a, L2b; X (stage) and L3 at the top level; Q is a pool without children.
@@ -40,6 +41,34 @@ describe("lane model", () => {
     expect(m.lanes.map((l) => l.id)).toEqual(["L1", "L2a", "L2b", "X", "L3"]);
     // a: first leaf under P; c, f: tags are not read, so they follow their first predecessor; h: unknown group.
     expect(Object.fromEntries(m.laneOf)).toEqual({ a: "L1", b: "L1", c: "L1", d: "L2a", e: "X", f: "X", h: "X" });
+  });
+
+  it("puts the members of groups on a cycle of parents into the lanes of their neighbours, and lays such a graph out", async () => {
+    // g1 and g2 are each other's parent, s is its own parent: no leaf lies under them, so their nodes follow a -> b -> c -> d into L.
+    const cyclic: FlowGraph = {
+      nodes: [
+        { id: "a", kind: "activity", label: "A", group: "g1" },
+        { id: "b", kind: "activity", label: "B", group: "g2" },
+        { id: "c", kind: "activity", label: "C", group: "s" },
+        { id: "d", kind: "activity", label: "D", group: "L" },
+      ],
+      edges: [
+        { id: "a->b", kind: "flow", source: "a", target: "b" },
+        { id: "b->c", kind: "flow", source: "b", target: "c" },
+        { id: "c->d", kind: "flow", source: "c", target: "d" },
+      ],
+      groups: [
+        { id: "g1", kind: "lane", label: "G1", parent: "g2" },
+        { id: "g2", kind: "lane", label: "G2", parent: "g1" },
+        { id: "s", kind: "lane", label: "S", parent: "s" },
+        { id: "L", kind: "lane", label: "L" },
+      ],
+    };
+    const model = laneModel(cyclic, { lanes: "nested", crossLaneEdges: "routed" });
+    expect(model.lanes.map((l) => l.id)).toEqual(["L"]);
+    expect([...model.laneOf]).toEqual([["d", "L"], ["c", "L"], ["b", "L"], ["a", "L"]]);
+    const positions = await layoutBpmn(cyclic);
+    for (const n of cyclic.nodes) expect(Object.values(positions.nodes[n.id]).every(Number.isFinite), n.id).toBe(true);
   });
 
   it("takes the top-level lane groups as role lanes and reads tags", () => {

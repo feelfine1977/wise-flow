@@ -46,6 +46,16 @@ threshold share (a number; `0` means nothing was removed) or, on a graph
 returned by `abstract`, the thresholds the library applied. `meta.abstraction`
 was `unknown` before; code that reads it as either form keeps compiling.
 
+`validateGraph` is structural. It reports as errors duplicate node, edge and
+group ids, an edge whose source or target names no node, a group parent that
+names no group, and a cycle of group parents: every group whose chain of
+parents returns to it (two groups inside each other, a group that is its own
+parent) is reported once, as `group parent cycle`; a group that only lies
+inside such a cycle is not. It reports as warnings a node group that names no
+group and an overlay whose target names no node, edge or group. Up to 0.3.5 a
+cycle of group parents passed validation; `collapseGroups(g, "all")` then
+collapsed nothing and `layout` rejected with the engine's plain error.
+
 `validateGateways` checks the pairing of parallel gateways in any graph with
 gateways, generated or imported: a parallel split (a `gateway` node tagged
 `and` with several outgoing flows) has a partner when its branches end, one
@@ -223,6 +233,26 @@ that assemble positions themselves should too. `unionBoxes` is the smallest
 box around the given boxes; boxes without a non-negative width and height are
 ignored, and no boxes give the empty box at the origin.
 
+`coversGraph` is true when every node of the graph has a box whose four
+numbers are finite; up to 0.3.5 any box counted, so `<ProcessMap/>` drew
+given positions with `NaN` or an infinity in them instead of laying the graph
+out.
+
+Dagre lays out a node or an edge whose id is the empty string, or names a
+member of `Object.prototype` (`__proto__`, `constructor`, `toString`, …),
+like any other, as ELK does. Up to 0.3.5 it failed on such an id with a
+`TypeError`, and a node called `__proto__` could add properties to
+`Object.prototype`, which every object of the page shares. A
+spacing (`spacing.node`, `layer`, `group`) or a node size (given or returned
+by the `nodeSize` callback) that is not a finite number counts as not given:
+the default applies, in both engines and in the provisional arrangement. Up
+to 0.3.5 Dagre threw a `TypeError` or a plain error on it and ELK returned
+boxes that were not finite. Dagre leaves out an edge whose source or target
+is not a node of the graph (which `validateGraph` reports); up to 0.3.5 it
+placed a node of its own for the missing end and routed the edge through
+coordinates that were not finite. ELK rejects such a graph with its own
+error, and `engine: "auto"` then falls back to Dagre, as before.
+
 Positions are absolute top-left coordinates and deterministic for the same
 input (elements are sorted by id before the engine runs). Groups become
 compound nodes; top-level stage groups keep their array order along the
@@ -271,7 +301,9 @@ run: ELK, and Dagre in a worker. When it passes, the worker running it is
 terminated, so no layout work continues; `engine: "auto"` then falls back to
 Dagre, `"elk"` and `"dagre"` reject with "layout timed out after … ms". A
 timeout does not try ELK again (without stage partitions, as an ELK error
-still does). **In-process ELK, and an `elk` instance the caller supplies,
+still does). A timeout longer than a timer can wait (2³¹ − 1 ms, about 24
+days), `Infinity` included, waits that long; up to 0.3.5 the timer fired at
+once and the layout timed out before the engine answered. **In-process ELK, and an `elk` instance the caller supplies,
 cannot be interrupted**: an abort or timeout rejects at once, but the engine
 finishes its run in the background and its result is discarded; in-process
 ELK also blocks the calling thread while it runs, so a timeout cannot end it
@@ -441,6 +473,11 @@ export interface FigureFrame { padding; header; map: { width; height; offset: XY
 export function figureFrame(scene: FramedScene, o?: FigureFrameOptions): FigureFrame;   // FramedScene: graph, activityLabels?, locale, bounds, legend
 ```
 
+`toSVG` writes every text and id that comes with the scene (labels, ids,
+kinds, metric names, overlay texts, title) escaped: `&`, `<`, `>` and `"`
+become entities, so nothing in them becomes markup. Up to 0.3.5 a node kind
+outside `NodeKind` was written into a `class` attribute as it was.
+
 `HitIndex.fromScene` indexes the boxes of the nodes and groups, the segments
 of the edge routes (each grown by `edgeTolerance`, 4) and the overlay shapes.
 Every bound is rounded outwards to a whole unit, so that the index holds
@@ -489,6 +526,11 @@ export function formatCount(v, locale?), formatNumber(v, decimals?, locale?), fo
 export function t(locale: Locale, key: StringKey, vars?): string;
 export function metricLabel(locale: Locale, metric: string): string;
 ```
+
+`formatNumber` prints between 0 and 100 decimals: fewer are taken as 0, more
+as 100, a fraction is cut and `NaN` counts as 0; up to 0.3.5 a number
+outside threw a `RangeError`. A value that is not a finite number (`NaN`,
+an infinity, a string) prints as `–` in every formatter.
 
 ## React (`@wise/flow/react`)
 
@@ -682,7 +724,9 @@ the others above the nodes (before, every mark it drew lay above the nodes);
 draws every mark. Custom node types draw `marks` and `origin`. `<Badges/>` and `<Chip/>` now draw SVG from the
 marks the core resolves for the overlays: badges extend left from the
 top-right corner of the element they are placed in, a chip has the size of
-its mark. A chip drawn on its own (`<Chip/>`, the legend's map-level chips) is
+its mark; `<Chip/>` given an overlay that has no mark on its own (an arc,
+which needs its two ends, or a kind outside `OverlayKind`) renders nothing,
+where up to 0.3.5 it threw a `TypeError`. A chip drawn on its own (`<Chip/>`, the legend's map-level chips) is
 an image named by its label and reading ("Balance: 12 % over"), the words its
 text gave assistive technology before; the marks an element carries are
 described with the element.
@@ -830,7 +874,10 @@ flows. Every split or join without such a partner is XOR, so a generated
 model has no parallel join that waits for a branch an exclusive split did
 not take, and no parallel split whose branches an exclusive merge lets
 through twice; `validateGateways` reports nothing on it. Without
-`andGateways` every gateway is XOR, as before.
+`andGateways` every gateway is XOR, as before. Two edges between the same two
+nodes (a follows edge and a flow, say) become two flows; where a gateway
+takes the place of an end, the second keeps the id the first takes with
+`:1` after it (`:2` for a third). Up to 0.3.5 both took one id.
 
 Lanes of `liteFromStages` with `lanes: "role"`: a lane per role, in the
 order the activities first use them; the split and join of a choice,
@@ -877,6 +924,13 @@ flow); `constraint` edges have no BPMN counterpart and are listed in
 top-level pool group → the participant. When lanes exist the process is
 wrapped in a collaboration with one participant, as Camunda Modeler does.
 
+Every element of the export has an id of its own. A FlowGraph id that names
+a node, an edge and a group at once (a collapsed stage shares its group's
+id) gives each its own BPMN id, and `ids.toBpmn` maps it to the first, the
+node's; a node without an id is written as one with the empty id. Up to
+0.3.5 such elements were written under one id, which made the file invalid,
+and an element without an id threw a `TypeError`.
+
 The `wise` extension keeps the round trip lossless: `wise:flowId` (the
 FlowGraph id when the XML id had to be made safe), `wise:kind` (when it
 differs from the type's default), `wise:tags` (space-separated) and
@@ -906,7 +960,9 @@ duplicate ids, unresolved references), sequence flows without a flow node at
 an end, coordinates as above, and every issue `validateGraph` reports on the
 imported graph, as `<message>: <id>` (two elements with one `wise:flowId`, or
 two without an id, give one node id twice). Elements nested deeper than the
-call stack reaches (sub-processes, lanes) are read like any others. An
+call stack reaches (sub-processes, lanes) are read like any others, also by
+`validateBpmn`, which up to 0.3.5 overflowed the stack (`RangeError`) on
+them. An
 element's empty `name` is exported and imported as an empty label; up to
 0.3.5 the export left it out and the import used the id. A sequence flow is
 marked `default` only when its source's `default` attribute names it; up to
@@ -1071,6 +1127,9 @@ cases relative to the activity's cases. A group focus stands for its
 members, nested groups included (paths crossing the outer boundary). `pathBetween` is the shortest, then
 strongest path (Dijkstra on hops with a small penalty for weak paths, so
 the result is deterministic) and the reverse path when one exists.
+`focusHighlight` and `<PathList/>` read a focus that is not a pair as one
+id, also the missing id of a node a backend sent without one; up to 0.3.5
+such a focus threw a `TypeError`.
 
 ### Filters
 
@@ -1105,7 +1164,18 @@ export interface FilterTarget { kind: "node" | "edge" | "group" | "pair" | "set"
 export function clauseForTarget(target: FilterTarget, action: "keep" | "exclude", graph?: FlowGraph): FilterClause | FilterClause[] | undefined;
 ```
 
-Clauses combine by AND, an `any` group by OR. The canonical form resolves
+`normalizeFilterPreview` reads numbers only where they are finite numbers,
+and the marginal removals (`perClause`, `per_clause`) only from a list, of
+its entries whose `clause` is a number; up to 0.3.5 anything else under that
+key threw a `TypeError`.
+
+Clauses combine by AND, an `any` group by OR. A clause of a kind this
+version does not know is kept as it is (its canonical form is itself), and
+an `any` group without `clauses` is an empty group, which changes no cases;
+up to 0.3.5 both threw a `TypeError` in `canonicalClause`, `clauseKey`,
+`canonicalFilter`, `filterEquals` and `addClause`, and the group also in
+`describeClause` and `changesCases` (and with them `<FilterChips/>` and
+`<ProcessMap filters>`). The canonical form resolves
 aliases (`mode` → `field`, `not_contains` → `never`), sorts value lists and
 clauses and removes duplicates, so two orderings of the same clauses are
 byte-identical. `clauseForTarget` is what the map's filter actions add: an
@@ -1154,7 +1224,10 @@ and the lane of every node: `roles` takes the top-level lane groups and
 reads `lane:` / `role:` tags (role bands); `nested` takes the leaves of the
 group tree and puts a node of a parent group into its first leaf (BPMN). In
 both, a node without a lane follows its predecessor, then its successor,
-then the first lane. `stackLanes` stacks the lanes across the flow, a
+then the first lane. Groups on a cycle of parents (which `validateGraph`
+reports) have no leaf, so their nodes have no lane of their own; up to 0.3.5
+`laneModel`, `spanLanes` and with them `layoutBpmn` overflowed the stack on
+such a graph. `stackLanes` stacks the lanes across the flow, a
 caller's `place` putting the members and returning each lane's size;
 `spanLanes` gives the groups above the lanes their boxes (`roles`: a pool
 spans its lanes and the lanes without a parent; `nested`: a group spans its
@@ -1411,7 +1484,7 @@ export interface OverlayMark { id: string; kind: OverlayKind; overlay: Overlay; 
 export function overlayMarks(shapes: OverlayShape[], locale?: Locale): OverlayMark[];
 export function overlayColor(o: Overlay): string;           // value on the sequential palette, neutral without one
 export function tintColor(o: Overlay): string | undefined;  // the same colour at TINT_OPACITY, as CSS rgba()
-export function arcWidth(o: Overlay): number;               // 2 + 8 × coverage (default 1)
+export function arcWidth(o: Overlay): number;               // 2 + 8 × coverage in [0, 1] (default 1, also for a coverage that is not a finite number)
 export const TINT_OPACITY: number;                          // 0.18
 export const overlayArrow: { size: number; overhang: number }; // 12, tip 0.1 × size beyond the path (`arrowheadTokens.overlay`)
 export const chipLayout: { padding: 8; glyph: 12.4; gauge: 46; gaugeWidth: 40; gaugeHeight: 6; char: 6.2 };
@@ -1460,7 +1533,14 @@ rules are `defaultLod` under `style.lod` under `o.lod`; `lodBySize` tightens
 them with the number of nodes as a live map does, exports leave it off.
 `moved` places nodes at absolute points after the lane bands are cut (the
 bands stay where the lanes put them) and routes the edges again with
-`repositionNodes`; the overlay geometry follows the moved boxes.
+`repositionNodes`; the overlay geometry follows the moved boxes. A box or a
+route of the positions (given or moved) that holds a number that is not
+finite (`NaN`, an infinity) is left out as if it were missing: the node or
+group is not drawn, an edge without its route is drawn straight between its
+boxes, and the bounds cover what is left. Up to 0.3.5 such numbers reached
+the scene and with it the SVG, the PNG, the Canvas map and the React map.
+`exportBpmn` leaves them out of its positions too and reports the elements
+in `warnings` as without a position.
 
 `marks` holds one `OverlayMark` per shape of the geometry, in the same
 order, with everything needed to draw it: a rounded box (`box`, `radius`)
@@ -1695,7 +1775,13 @@ carry a routing cost. Return connections remain present. This is a readable
 heuristic, not an optimal or crossing-free graph layout. Crossing lines do not
 create a junction. Row gaps default to 56 units and lane padding to 48 units.
 Overlapping or otherwise unroutable supplied geometry raises a descriptive
-error instead of silently drawing a connection through a task.
+error instead of silently drawing a connection through a task. A box with a
+number that is not finite is left out of the routing as if it were missing,
+so its edges get no route; up to 0.3.5 such a box could keep the search
+going until its route outgrew an array (a `RangeError` after seconds). A
+connection that no route can reach (its target walled in by overlapping
+boxes) gets its fallback at once; up to 0.3.5 the search for it went over the
+whole grid many times, which took seconds for a few dozen overlapping boxes.
 
 `BpmnView.navigation` defaults to `controls`. Hosts with their own Map/Model/Table
 switch can pass `controls={false} navigation` to keep zoom, whole-model fit and
@@ -1712,7 +1798,7 @@ the drawing. A constraint arc is not an observed process route.
 
 `ProcessMap` accepts `nodesDraggable` (SVG activities only, opt-in), `onNodeMove(id, absolutePosition)` for a controlled host, and `layoutResetKey` to clear internally held manual positions. Group-relative React Flow positions are converted to absolute layout coordinates. Hover, selection and zoom do not alter them. Hosts applying `onNodeMove` can call `repositionNodes(graph, basePositions, overrides)` and clear the override record to restore the exact automatic layout.
 
-`repositionNodes` keeps supplied edge identities, directions and metrics unchanged. It routes around all visible boxes, including a moved box obstructing an unrelated edge; self loops remain node-anchored overlays. During an overlapping drag, an unroutable edge falls back to a clipped direct route rather than throwing. Positions and routes are immutable, and bounds include the rerouted edges. Manual placement is local to the mounted map unless the host persists it.
+`repositionNodes` keeps supplied edge identities, directions and metrics unchanged; an edge without an id is routed like any other (up to 0.3.5 it threw a `TypeError`). It routes around all visible boxes, including a moved box obstructing an unrelated edge; self loops remain node-anchored overlays. During an overlapping drag, an unroutable edge falls back to a clipped direct route rather than throwing. Positions and routes are immutable, and bounds include the rerouted edges. Manual placement is local to the mounted map unless the host persists it.
 
 Custom child controls should import `useReactFlow`, `useNodesInitialized` and `useStore` from `@wise/flow/react`, so they share the renderer's context even when a host resolves different Node/browser entry points of React Flow.
 

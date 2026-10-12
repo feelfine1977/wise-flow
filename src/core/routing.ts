@@ -1,5 +1,5 @@
 /** Orthogonal visibility-grid routing after swimlane placement. */
-import { straightRoute, type Box, type EdgeRoute, type Positions, type XY, createPositions } from "./layout.js";
+import { straightRoute, type Box, type EdgeRoute, type Positions, type XY, createPositions, finiteBox } from "./layout.js";
 import type { FlowGraph } from "./model.js";
 
 type Port = { point: XY; outside: XY; direction: number };
@@ -85,7 +85,9 @@ function simplify(points: XY[]): XY[] {
  * prefer short routes with few bends and discourage shared tracks/crossings.
  * Crossings remain possible in non-planar diagrams; they are not junctions.
  */
-export function routeSequenceFlows(graph: FlowGraph, nodes: Record<string, Box>, options: { allowOverlap?: boolean } = {}): Record<string, EdgeRoute> {
+export function routeSequenceFlows(graph: FlowGraph, given: Record<string, Box>, options: { allowOverlap?: boolean } = {}): Record<string, EdgeRoute> {
+  // A box with a number that is not finite is left out as if missing: no search can end on it.
+  const nodes = Object.fromEntries(Object.entries(given).filter(([, b]) => finiteBox(b)));
   const boxes = Object.values(nodes);
   if (!boxes.length) return {};
   for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
@@ -141,10 +143,27 @@ export function routeSequenceFlows(graph: FlowGraph, nodes: Record<string, Box>,
   const costs = new Float64Array(size * 4), previous = new Int32Array(size * 4), origins = new Int8Array(size * 4);
   const reached = new Uint32Array(size * 4), estimated = new Uint32Array(size), estimates = new Float64Array(size);
   let generation = 0;
+  // A search for a goal in another part of the grid than every start went over the grid many times.
+  // The parts are labelled once: a walk per edge doubled the time of ordinary routing.
+  const part = new Int32Array(size).fill(-1), stack = new Int32Array(size);
+  for (let first = 0; first < size; first++) {
+    if (part[first] >= 0) continue;
+    part[first] = first;
+    for (let top = 0, id = first; ; id = stack[--top]) {
+      for (let d = 0; d < 4; d++) {
+        const next = links[id * 4 + d];
+        if (next < 0 || part[next] >= 0) continue;
+        part[next] = first;
+        stack[top++] = next;
+      }
+      if (!top) break;
+    }
+  }
+  const reaches = (starts: number[], goals: Map<number, unknown>) => starts.some((s) => [...goals.keys()].some((g) => part[g] === part[s]));
   const queue = new Queue();
   const result: Record<string, EdgeRoute> = {};
   // Local connections take the direct tracks first; long returns use the gutters.
-  const edges = graph.edges.filter((e) => nodes[e.source] && nodes[e.target]).slice().sort((a, b) => distance(nodes[a.source], nodes[a.target]) - distance(nodes[b.source], nodes[b.target]) || a.id.localeCompare(b.id));
+  const edges = graph.edges.filter((e) => nodes[e.source] && nodes[e.target]).slice().sort((a, b) => distance(nodes[a.source], nodes[a.target]) - distance(nodes[b.source], nodes[b.target]) || String(a.id).localeCompare(String(b.id)));
   for (const edge of edges) {
     const source = ports(nodes[edge.source]), target = ports(nodes[edge.target]);
     const goals = new Map(target.filter((p) => free[index(p.outside)]).map((p) => [index(p.outside), p]));
@@ -162,15 +181,17 @@ export function routeSequenceFlows(graph: FlowGraph, nodes: Record<string, Box>,
       }
       return estimates[id];
     };
+    const starts: number[] = [];
     source.forEach((p, i) => {
       const id = index(p.outside);
       if (!free[id] || boxes.some((b) => b !== nodes[edge.source] && crossesBox(p.point, p.outside, b))) return;
+      starts.push(id);
       const state = id * 4 + p.direction;
       reached[state] = generation; costs[state] = p.direction === 0 ? 0 : 16; previous[state] = -1; origins[state] = i;
       queue.push(state, costs[state], costs[state] + heuristic(id));
     });
     let end: number | undefined;
-    while (queue.pop()) {
+    if (reaches(starts, goals)) while (queue.pop()) {
       const state = queue.state, cost = queue.cost;
       if (cost !== costs[state]) continue;
       const id = state >> 2, dir = state & 3;

@@ -5,8 +5,9 @@
  * export → import round trip is lossless.
  */
 import { type Box, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Positions, createPositions, edgePoints, hasTag } from "../core/index.js";
+import { finitePositions } from "../core/layout.js";
 import { type BpmnLayoutOptions, POOL_ID, layoutBpmn } from "./layout.js";
-import { type IdMap, createIdMap, registerId } from "./ids.js";
+import { type IdMap, createIdMap } from "./ids.js";
 import { type BpmnModdleInstance, type ModdleElement, createModdle, typeOfTag } from "./moddle.js";
 import { BPMN_VOCABULARY as V, eventDefinitionTypes, eventType, gatewayType, isGeneratedGateway } from "./vocabulary.js";
 
@@ -84,11 +85,11 @@ interface Ctx {
   extension: boolean;
 }
 
+// Every element gets an id of its own; a FlowGraph id shared by a node, an edge or a group maps to the first.
 function idFor(ctx: Ctx, flowId: string, prefix = ""): string {
-  const existing = ctx.ids.toBpmn[flowId];
-  if (existing) return existing;
-  const id = xmlId(flowId, ctx.taken, prefix);
-  registerId(ctx.ids, id, flowId);
+  const id = xmlId(flowId ?? "", ctx.taken, prefix);
+  ctx.ids.toBpmn[flowId] ??= id;
+  ctx.ids.toFlow[id] = flowId;
   return id;
 }
 
@@ -124,7 +125,7 @@ function connect(source: ModdleElement, target: ModdleElement, flow: ModdleEleme
  */
 export async function exportBpmn(graph: FlowGraph, options: ExportBpmnOptions = {}): Promise<BpmnExport> {
   // The DI carries two decimals; the returned positions are the ones written.
-  const positions = roundPositions(options.positions ?? (await layoutBpmn(graph, options.layout)));
+  const positions = roundPositions(finitePositions(options.positions ?? (await layoutBpmn(graph, options.layout))));
   const moddle = createModdle();
   const ctx: Ctx = { moddle, taken: new Set(), ids: createIdMap(), extension: options.extension ?? true };
   const warnings: string[] = [];
@@ -149,11 +150,13 @@ export async function exportBpmn(graph: FlowGraph, options: ExportBpmnOptions = 
 
   // Flow nodes
   const elements = new Map<string, ModdleElement>();
+  const nodeElements: ModdleElement[] = [];
   const nodeById = new Map(graph.nodes.map((n) => [n.id, n]));
   for (const n of graph.nodes) {
     const type = bpmnTypeOfNode(n);
     const id = idFor(ctx, n.id);
     const el = moddle.create(type, { id });
+    nodeElements.push(el);
     if (type === "bpmn:TextAnnotation") {
       el.set("text", n.label);
       artifacts.push(el);
@@ -272,8 +275,8 @@ export async function exportBpmn(graph: FlowGraph, options: ExportBpmnOptions = 
     if (lane && b) addShape(lane, b, { isHorizontal: true });
     else if (lane) warnings.push(`lane ${g.id} has no position`);
   }
-  for (const n of graph.nodes) {
-    const el = elements.get(n.id)!;
+  for (const [i, n] of graph.nodes.entries()) {
+    const el = nodeElements[i];
     const b = positions.nodes[n.id];
     if (!b) {
       warnings.push(`node ${n.id} has no position`);
@@ -354,27 +357,33 @@ export async function validateBpmn(xml: string): Promise<BpmnValidation> {
     }
   }
   const missingDi: string[] = [];
-  const visit = (container: ModdleElement) => {
-    for (const el of (container.get("flowElements") as ModdleElement[] | undefined) ?? []) {
-      if (el.$type === "bpmn:SequenceFlow") counts.flows++;
-      else if (el.$type.endsWith("Gateway")) counts.gateways++;
-      else if (el.$type.endsWith("Event")) counts.events++;
-      else counts.tasks++;
-      if (el.id && !withDi.has(el.id)) missingDi.push(el.id);
-      if (el.get("flowElements")) visit(el);
-    }
-    const countLanes = (set: ModdleElement | undefined) => {
-      for (const lane of (set?.get("lanes") as ModdleElement[] | undefined) ?? []) {
-        counts.lanes++;
-        countLanes(lane.get("childLaneSet") as ModdleElement | undefined);
-      }
-    };
-    for (const set of (container.get("laneSets") as ModdleElement[] | undefined) ?? []) countLanes(set);
-  };
+  // Without recursion, as the import reads: sub-processes and lanes may nest deeper than the call stack reaches.
+  const sets: (ModdleElement | undefined)[] = [];
   for (const root of (rootElement.get("rootElements") as ModdleElement[] | undefined) ?? []) {
-    if (root.$type === "bpmn:Process") {
-      counts.processes++;
-      visit(root);
+    if (root.$type !== "bpmn:Process") continue;
+    counts.processes++;
+    // Depth first, in the order of the file: an element, then what it holds, then its next sibling.
+    const stack = [root];
+    while (stack.length) {
+      const el = stack.pop()!;
+      if (el !== root) {
+        if (el.$type === "bpmn:SequenceFlow") counts.flows++;
+        else if (el.$type.endsWith("Gateway")) counts.gateways++;
+        else if (el.$type.endsWith("Event")) counts.events++;
+        else counts.tasks++;
+        if (el.id && !withDi.has(el.id)) missingDi.push(el.id);
+      }
+      const inner = el.get("flowElements") as ModdleElement[] | undefined;
+      if (!inner) continue;
+      for (let i = inner.length - 1; i >= 0; i--) stack.push(inner[i]);
+      for (const set of (el.get("laneSets") as ModdleElement[] | undefined) ?? []) sets.push(set);
+    }
+  }
+  for (let set; sets.length; ) {
+    set = sets.pop();
+    for (const lane of (set?.get("lanes") as ModdleElement[] | undefined) ?? []) {
+      counts.lanes++;
+      sets.push(lane.get("childLaneSet") as ModdleElement | undefined);
     }
   }
   const messages = warnings.map((w) => w.message);
