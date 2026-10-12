@@ -24,7 +24,7 @@ const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 run('npm', ['pack', '--pack-destination', artifactDir]);
 const tarball = join(artifactDir, `${pkg.name}-${pkg.version}.tgz`);
 const sha = sha256(readFileSync(tarball));
-writeFileSync(tarball + '.sha256', `${sha}  wise-flow-${pkg.version}.tgz\n`);
+writeFileSync(tarball + '.sha256', `${sha}  ${pkg.name}-${pkg.version}.tgz\n`);
 // Record the actual dirty source identity, including new files, without changing the index.
 const baseCommit = output('git', ['rev-parse', 'HEAD']).trim();
 const files = output('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z']).split('\0').filter(Boolean).sort();
