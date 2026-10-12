@@ -31,3 +31,10 @@ as many measures as it has lines.
 rule's head; a width of `NaN` gave a head of size `NaN` and `Infinity` one of
 size `Infinity`. `orderedCategorical` gives a key that is not a string no
 entry; `null` threw a `TypeError`.
+
+The detail panel of a Canvas `<ProcessMap/>` says how many paths are drawn of
+those selected from what the Canvas map shown now withholds: after the table
+view, a Canvas map that withholds nothing leaves no "… drawn at this zoom"
+of the map before it, and a host that starts listening then is not told that
+map's last report. The panel kept the old count where the budget or the graph
+changed while the table was shown.

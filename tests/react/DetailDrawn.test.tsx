@@ -155,3 +155,38 @@ describe("the paths drawn of those selected", () => {
     await waitFor(() => expect(container.querySelector(".wf-controls__note--drawn")?.textContent).toBe("4 selected · 3 drawn at this zoom"));
   });
 });
+
+describe("the paths drawn of those selected, after the table view", () => {
+  it("forgets what the Canvas map withheld before the table once it draws again and withholds nothing", async () => {
+    // a → b → c → d of falling weight; a budget of one withholds two paths.
+    const nodes: FlowNode[] = ["a", "b", "c", "d"].map((id) => ({ id, kind: "activity", label: id.toUpperCase(), metrics: { cases: 10 } }));
+    const edges: FlowEdge[] = [
+      { id: "a->b", kind: "follows", source: "a", target: "b", metrics: { cases: 9 } },
+      { id: "b->c", kind: "follows", source: "b", target: "c", metrics: { cases: 8 } },
+      { id: "c->d", kind: "follows", source: "c", target: "d", metrics: { cases: 7 } },
+    ];
+    const boxes = Object.fromEntries(nodes.map((n, i) => [n.id, { x: 200 * i, y: 0, width: 120, height: 48 }]));
+    const positions = createPositions({ nodes: boxes, groups: {}, edges: {} }, "dagre", "RIGHT");
+    const record = recorder();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => record.ctx as unknown as CanvasRenderingContext2D);
+    const shown: unknown[] = [];
+    const map = (view: "map" | "table", edgeBudget: number | "all") => (
+      <div style={{ width: 1200, height: 800 }}>
+        <ProcessMap graph={{ nodes, edges }} positions={positions} renderer="canvas" view={view} edgeBudget={edgeBudget} legend={false} onEdgesShown={(s) => shown.push(s)} />
+      </div>
+    );
+    const { container, rerender } = render(map("map", 1));
+    const note = () => container.querySelector(".wf-controls__note--drawn")?.textContent;
+    await waitFor(() => expect(note()).toBe("3 selected · 1 drawn at this zoom"));
+    const before = record.frame().lines.length;
+    // The table lists every path; the budget is raised while it is shown, and the Canvas map draws them all.
+    rerender(map("table", 1));
+    rerender(map("table", "all"));
+    rerender(map("map", "all"));
+    // Three times the lines of the one path drawn before: every path is drawn.
+    await waitFor(() => expect(record.frame().lines.length).toBe(3 * before));
+    expect(note()).toBeUndefined();
+    // The host was told that the table view withholds nothing, and nothing of the map before it since.
+    expect(shown.at(-1)).toBeUndefined();
+  });
+});

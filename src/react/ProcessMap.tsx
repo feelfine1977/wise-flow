@@ -264,6 +264,13 @@ function ProcessMapInner(props: ProcessMapProps) {
   useEffect(() => {
     if (tellShown && useCanvas && mapShown && canvasLast.current) tellShown(canvasLast.current);
   }, [tellShown]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Without a Canvas map shown nothing it reported holds: the next one reports what it withholds, or nothing.
+  const canvasDrawn = useCanvas && mapShown;
+  useEffect(() => {
+    if (canvasDrawn) return;
+    canvasLast.current = undefined;
+    setCanvasWithheld(undefined);
+  }, [canvasDrawn]);
   const reportShown = useEdgesShown(useCanvas ? undefined : tellShown);
   // A host that starts listening is told what the map withholds; the table view withholds nothing.
   const listening = !!tellShown;
