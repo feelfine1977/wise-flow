@@ -1165,13 +1165,15 @@ export class HitIndex { constructor(edgeTolerance?: number);
     indexOf?: (kind: HitItem["kind"], id: string) => number | undefined,
     extentOf?: (item: HitItem) => Box | undefined,   // a box the item's bounds also cover
     diamond?: (nodeId: string) => boolean,   // nodes drawn as a diamond (gateways)
-    markOf?: (shapeId: string) => OverlayMark | undefined): HitIndex;   // the marks the shapes are drawn as
+    markOf?: (shapeId: string) => OverlayMark | undefined,   // the marks the shapes are drawn as
+    pathOf?: (edgeId: string) => Pick<EdgeMark, "width" | "arrow"> | undefined): HitIndex;   // the marks the edges are drawn as
   at(x, y, tolerance?): HitItem[]; within(box: Box): HitItem[] }
 export interface HitItem { minX; minY; maxX; maxY; id: string; kind: "node" | "edge" | "group" | "overlay";
   segment?: [XY, XY]; shapeId?: string; index?: number;   // index: indexOf(kind, id or shape id)
   box?: Box; layer?: "below" | "between" | "above";   // box: of a node, group or overlay shape, what hit tests read; layer: of an overlay shape
   curve?: { points: XY[]; reach: number; label?: Box };   // an arc's or a self-loop's curve, half its stroke, its label's box
-  diamond?: boolean }   // a node hit by its diamond
+  diamond?: boolean;   // a node hit by its diamond
+  stroke?: { line: [XY, XY]; reach: number; head?: { points: [XY, XY, XY]; reach: number } } }   // a path's line along the segment, half its width, its head
 export interface Scene { graph; positions; overlays?; style?; title?; subtitle?; locale?; lanes?: LaneMode;
   activityLabels?: ActivityLabelOptions; selfLoops?: boolean }
 export interface ExportOptions { preset?: "single-column" | "double-column" | "slide" | "none"; width?; legend?;
@@ -1244,8 +1246,8 @@ item's bounds also cover the box the callback returns for it, so that an
 area query finds an element whose drawing reaches beyond its box. `at`
 tests the point against what the element draws, not the bounds, so a hit
 test is exact: a node's, group's or overlay shape's own box (`HitItem.box`),
-an edge's segment, an arc's or a self-loop's curve and label, a gateway's
-diamond. A curve is hit within half the stroke of the mark `markOf` returns
+an edge's segment, or with `pathOf` its stroke and head, an arc's or a
+self-loop's curve and label, a gateway's diamond. A curve is hit within half the stroke of the mark `markOf` returns
 for its shape, which `prepareScene` passes in the scene's theme; without it,
 the default theme's stroke. `at` lists the items within `tolerance` of the point (a box when the
 point is within the tolerance of it, an edge when it is within the tolerance
@@ -1256,6 +1258,20 @@ items carry their shape's layer (`HitItem.layer`, see `OverlayMark.layer`);
 an item without one ranks above the nodes. Up to 0.3.5 every overlay shape
 ranked first, so inside a tinted group every hit was the tint, and where an
 arc crossed a node, the arc.
+
+Paths are hit where they are drawn too, with `pathOf`, which `prepareScene`
+passes: within `tolerance` plus half the path's width of its line, which ends
+under its head as the maps draw it (`lineEnd`), or within `tolerance` plus
+half the head's outline of the head's triangle, which grows with the line
+(`pathArrowhead`; `HitItem.stroke`). Up to 0.3.5 the Canvas map, `CanvasRenderer.hitAt`
+and the hit index of `prepareScene` hit a path within `tolerance` of its
+route whatever its width: the outer part of a path 8 wide, and of its head,
+which reaches 7.2 to each side, answered no hit, where the React Flow map
+hits a path within 7 of its line (`strokeTokens.pathHit`, 14 wide) and on
+its stroke. Without `pathOf` an edge is hit within `tolerance` of its route's
+segments, as before. An item's bounds stay its segment grown by
+`edgeTolerance`; `extentOf` grows them to the drawn line and head, as the
+Canvas scene's does.
 
 Arcs and self-loops are hit where they are drawn: within `tolerance` plus
 half their stroke of their curve (`HitItem.curve`: the cubic of the path cut

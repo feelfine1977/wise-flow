@@ -96,6 +96,27 @@ describe("hits on arcs, self-loops and gateways, where they are drawn", () => {
     }
   });
 
+  it("returns a path on the whole stroke and head it is drawn with, and nothing beyond the tolerance", () => {
+    // One path from a to b, the strongest of its graph: 8 wide, along y 20 from a's right side (100) to b's left side (400).
+    const graph: FlowGraph = { nodes: ["a", "b"].map(activity), edges: [{ id: "a->b", kind: "follows", source: "a", target: "b", metrics: { cases: 100 } }] };
+    const box = (x: number) => ({ x, y: 0, width: 100, height: 40 });
+    const scene = prepareScene(graph, createPositions({ nodes: { a: box(0), b: box(400) }, groups: {}, edges: {} }, "given", "RIGHT"));
+    const path = scene.edges[0].mark;
+    expect(path.width).toBe(8);
+    // Its line: half its width, 4, and the tolerance of 4 to each side.
+    expect(top(scene, 250, 20 + 4 + 3.9)).toBe("edge:a->b");
+    expect(top(scene, 250, 20 - 4 - 3.9)).toBe("edge:a->b");
+    expect(top(scene, 250, 20 + 4 + 4.1)).toBeUndefined();
+    // Its head, 4 × 8 = 32 in a box of 20: 8 long, its tip on b's side (400), its base at 392 reaching 6.4 to each side,
+    // outlined by 1.6. Outwards from a corner of its base, its outline's half (0.8) and the tolerance.
+    expect(path.arrow.size).toBe(32);
+    expect(top(scene, 392, 20 + 6.4 + 0.8 + 3.9)).toBe("edge:a->b");
+    expect(top(scene, 392, 20 - 6.4 - 0.8 - 3.9)).toBe("edge:a->b");
+    expect(top(scene, 392, 20 + 6.4 + 0.8 + 4.1)).toBeUndefined();
+    // Behind the base the head does not reach: there the line answers alone.
+    expect(top(scene, 380, 20 + 6.4 + 0.8 + 3.9)).toBeUndefined();
+  });
+
   it("returns a gateway inside its diamond, also where the diamond reaches beyond its box, and not in the box's corners", () => {
     // A gateway 60 wide and 30 tall: its diamond's points are 30 from its centre (30, 15), above and below the box too.
     const graph: FlowGraph = { nodes: [{ id: "g", kind: "gateway", label: "G", tags: ["xor"] }], edges: [] };
