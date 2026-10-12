@@ -63,7 +63,7 @@ export interface Reading {
   loops: string[];
   /** The note on withheld paths as printed, or the counts a draw reported. */
   note?: string | { shown: number; total: number };
-  /** The path width row of the legend: the low and high end of its scale, written out. */
+  /** The path width row of the legend: the low and high end of its scale, written out; its one sample twice where every path has one count. */
   widthEnds?: [string, string];
   /** The path colour row of the legend: the metric, its domain and colour stops, and whether values are placed by their square root. */
   colorScale?: { metric: string; domain: number[]; stops: string[]; sqrt?: boolean };
@@ -442,10 +442,15 @@ export function checkReading({ fitted, full, budgeted, expect }: CheckOptions): 
   const metricName = pathMetricOf(shown);
   const strongest = expect.graph.edges.filter((e) => e.kind !== "constraint" && Number.isFinite(e.metrics?.[metricName])).map((e) => e.metrics![metricName]);
   const hi = strongest.reduce((m, v) => Math.max(m, v), -Infinity);
+  // Where every path shown has one count, the legend shows that one sample instead of the scale.
+  const values = shown.edges.filter((e) => e.kind !== "constraint" && Number.isFinite(e.metrics?.[metricName])).map((e) => e.metrics![metricName]);
+  const one = values.length && values.every((v) => v === values[0]) ? values[0] : undefined;
   if (reading.widthEnds) {
     const [low, high] = reading.widthEnds;
     if (!strongest.length) fail("legend ends", `the legend's path widths run ${low} … ${high} for a graph without measured paths`);
-    else if (!roundTrips(low, 0, expect.locale) || !roundTrips(high, hi, expect.locale)) fail("legend ends", `the legend's path widths run ${low} … ${high}, the graph's from 0 to ${hi}`);
+    else if (one !== undefined ? !roundTrips(low, one, expect.locale) || !roundTrips(high, one, expect.locale) : !roundTrips(low, 0, expect.locale) || !roundTrips(high, hi, expect.locale)) {
+      fail("legend ends", `the legend's path widths run ${low} … ${high}, ${one !== undefined ? `where every path is ${one}` : `the graph's from 0 to ${hi}`}`);
+    }
   }
   const drawnFlows = reading.paths.flatMap((p) => {
     const e = edges.get(p.id);

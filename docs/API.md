@@ -671,7 +671,7 @@ export interface CategoricalEntry { key: string; color: string; pattern: Pattern
 export function orderedCategorical(keys: Iterable<string>, theme?: Theme): Map<string, CategoricalEntry>;
 export type LegendItem =   // `title` is a string key for `t` (it was typed `string`)
   | { kind: "width"; title: StringKey; metric: string; domain: [number, number]; range: [number, number];
-      samples?: { value: number; width: number; floor?: boolean }[];   // the thinnest line (floor) with the largest value it stands for, a count near the middle width, the upper end
+      samples?: { value: number; width: number; floor?: boolean }[];   // the thinnest line (floor) with the largest value it stands for, a count near the middle width, the upper end; one where every path has one value
       scale?: "graph" | "shared";                     // from 0 to the graph's strongest path, or to the style's `max`; none with a `domain`
       transitionsOnly?: boolean }                     // the paths give only transition counts
   | { kind: "sequential" | "diverging"; title: StringKey; metric: string; domain: number[]; stops: readonly string[] }
@@ -736,8 +736,11 @@ width row says whose scale it is ("Path width: cases (count) · whole
 graph", German "· ganzer Graph"; "· shared scale" with `max`) and shows the
 same three samples at every setting: the thinnest line with the counts it
 stands for ("≤ 3,044", every path up to 3,044 cases is drawn at it), a count
-near the middle width, and the upper end. The row keeps the panel's two lines
-(title and samples) at 260 wide. Up to 0.3 the scale ran from the
+near the middle width, and the upper end. Where every path shown has the same
+count, it shows that one sample at the width every path is drawn at instead of
+a scale from 0 (up to 0.3.5 a map whose paths all counted 9 showed "3" and
+"9"); without a measured path it has no width row. The row keeps the panel's
+two lines (title and samples) at 260 wide. Up to 0.3 the scale ran from the
 weakest to the strongest path shown, so a path changed its width when a slider
 moved (`pathScaleMax`, the upper end a graph gives, is internal).
 
@@ -1273,8 +1276,8 @@ titled "channel: metric (unit)" from the metric registry ("Path width: cases
 (count)", "Path colour: expectation shortfall (% of cases)", "Activity colour:
 stage"): path width with three sample strokes and their values (the thinnest
 line with the counts it stands for, a count near the middle width and the
-graph's strongest path, written as paths are; see "One width scale per
-graph"), a colour ramp
+graph's strongest path, written as paths are; one stroke where every path
+has one count; see "One width scale per graph"), a colour ramp
 with its values, the stages as swatches with their labels and pattern twins.
 Where the paths give only transitions, the path row says so ("Path width:
 transitions (count) · paths count transitions; no case counts given"). Then

@@ -15,10 +15,12 @@
  * place, and a row of badges wider than its card that covers the card beside
  * it. A fifth is the documented limit of keep connected, which `findingOf`
  * names too: an activity it leaves without a path from the start or to the
- * end, since it restores flow context only from activities still on the map. The legend's path widths run from 0 to the strongest path
- * of the graph before abstraction by the rule of one width scale per graph. Every other failure fails the search, prints its seed and the
- * smallest graph that still fails, and attaches the picture of its rung to the
- * report.
+ * end, since it restores flow context only from activities still on the map.
+ * The legend's path widths run from 0 to the strongest path of the graph
+ * before abstraction by the rule of one width scale per graph, or show one
+ * sample where every path shown has one count. Every other failure fails the
+ * search, prints its seed and the smallest graph that still fails, and
+ * attaches the picture of its rung to the report.
  */
 import { readFileSync } from "node:fs";
 import { type TestContext, describe, expect, it } from "vitest";
@@ -61,12 +63,16 @@ interface Cell {
   fitted: Reading;
 }
 
-/** The scene's legend as data: the scale's ends written out in full, the colour scale's metric, domain and stops, placed by the square root where the style says so. */
+/**
+ * The scene's legend as data: the scale's ends written out in full (its one sample twice, where every path has one
+ * count), the colour scale's metric, domain and stops, placed by the square root where the style says so.
+ */
 function legendOf(prepared: PreparedScene): Pick<Reading, "widthEnds" | "colorScale"> {
   const width = prepared.legend.items.find((i) => i.kind === "width");
   const color = prepared.legend.items.find((i) => i.kind === "sequential");
+  const one = width?.kind === "width" && width.samples?.length === 1 ? String(width.samples[0].value) : undefined;
   return {
-    ...(width?.kind === "width" ? { widthEnds: [String(width.domain[0]), String(width.domain[1])] as [string, string] } : {}),
+    ...(width?.kind === "width" ? { widthEnds: (one ? [one, one] : [String(width.domain[0]), String(width.domain[1])]) as [string, string] } : {}),
     ...(color?.kind === "sequential" ? { colorScale: { metric: color.metric, domain: color.domain, stops: [...color.stops], sqrt: prepared.style.edgeColor?.scale === "sqrt" } } : {}),
   };
 }
@@ -335,24 +341,33 @@ describe("the open findings, pinned", () => {
     }
   });
 
-  it("runs the legend's path widths from 0 to the strongest path, also where every path has one count, and lists none without paths", () => {
-    const at = { a: { x: 0, y: 0, width: 180, height: 48 }, b: { x: 300, y: 0, width: 180, height: 48 } };
+  it("shows one sample of the width every path is drawn at where all paths have one count, and no width row without paths", () => {
+    const at = { a: { x: 0, y: 0, width: 180, height: 48 }, b: { x: 300, y: 0, width: 180, height: 48 }, c: { x: 600, y: 0, width: 180, height: 48 } };
     const node = (id: string) => ({ id, kind: "activity" as const, label: id.toUpperCase(), metrics: { cases: 9 } });
-    const one: FlowGraph = { nodes: [node("a"), node("b")], edges: [{ id: "a->b", kind: "follows", source: "a", target: "b", metrics: { count: 9 } }] };
+    const path = (source: string, target: string, count: number) => ({ id: `${source}->${target}`, kind: "follows" as const, source, target, metrics: { count } });
+    const one: FlowGraph = { nodes: [node("a"), node("b")], edges: [path("a", "b", 9)] };
+    const two: FlowGraph = { nodes: [node("a"), node("b"), node("c")], edges: [path("a", "b", 9), path("b", "c", 9)] };
+    const mixed: FlowGraph = { nodes: [node("a"), node("b"), node("c")], edges: [path("a", "b", 9), path("b", "c", 4)] };
     const none: FlowGraph = { nodes: [node("a")], edges: [] };
     const widths = (graph: FlowGraph) => {
-      const prepared = prepareScene(graph, createPositions({ nodes: Object.fromEntries(graph.nodes.map((n) => [n.id, at[n.id as "a" | "b"]])), groups: {}, edges: {} }, "given", "RIGHT"), {});
+      const prepared = prepareScene(graph, createPositions({ nodes: Object.fromEntries(graph.nodes.map((n) => [n.id, at[n.id as "a" | "b" | "c"]])), groups: {}, edges: {} }, "given", "RIGHT"), {});
       const item = prepared.legend.items.find((i) => i.kind === "width");
-      return { domain: item?.kind === "width" ? item.domain : undefined, drawn: prepared.edgeMarks.map((m) => m.width) };
+      return { samples: item?.kind === "width" ? item.samples : undefined, drawn: prepared.edgeMarks.map((m) => m.width) };
     };
-    // One path of 9 transitions (the graph gives no cases): one scale per graph from 0 to its strongest path, which it draws at the widest, 8.
-    expect(widths(one)).toEqual({ domain: [0, 9], drawn: [8] });
+    // Paths of 9 transitions (the graph gives no cases), on one scale from 0 to the strongest, 9, onto widths up to 8:
+    // every path is drawn at 8, and the legend shows that one sample instead of a scale from 0.
+    expect(widths(one)).toEqual({ samples: [{ value: 9, width: 8 }], drawn: [8] });
+    expect(widths(two)).toEqual({ samples: [{ value: 9, width: 8 }], drawn: [8, 8] });
+    // Paths of 9 and 4: the scale, a count near the middle width (9 · (4.5 / 8)² = 2.85, written 3, at 8 · √(3/9) = 4.62)
+    // and the strongest; 4 is drawn at 8 · √(4/9) = 5.33.
+    expect(widths(mixed)).toEqual({ samples: [{ value: 3, width: 4.62 }, { value: 9, width: 8 }], drawn: [8, 5.33] });
     // No path: the legend has no width row, as it has no row for a mark that is not drawn.
-    expect(widths(none)).toEqual({ domain: undefined, drawn: [] });
-    // The check finds the legend's ends the rule's: from 0 to the strongest path of the graph.
+    expect(widths(none)).toEqual({ samples: undefined, drawn: [] });
+    // The check finds the one sample the rule's, and a scale from 0 not.
     const rung = rungOf(5, false, false);
-    const reading = { ...emptyReading(one), widthEnds: ["0", "9"] as [string, string] };
-    expect(checkReading({ fitted: emptyReading(), full: reading, expect: { graph: one, abstraction: one, rung, locale: "en" } }).filter((f) => f.property === "legend ends")).toEqual([]);
+    const ends = (widthEnds: [string, string]) =>
+      checkReading({ fitted: emptyReading(), full: { ...emptyReading(one), widthEnds }, expect: { graph: one, abstraction: one, rung, locale: "en" } }).filter((f) => f.property === "legend ends").length;
+    expect([ends(["9", "9"]), ends(["0", "9"])]).toEqual([0, 1]);
   });
 
   it("finding: an arc label covers an activity where its arc has no free place", () => {
