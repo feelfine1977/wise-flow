@@ -414,6 +414,13 @@ describe("the Dagre fallback", () => {
     expect(await named).not.toBeInstanceOf(LayoutUnavailableError);
   });
 
+  it("keeps ELK's own error when ELK is asked for by name, though a Dagre worker is given", async () => {
+    const error = await layout(pair, { engine: "elk", elk: failing, dagreWorkerUrl: dagreUrl }).catch((e: Error) => e);
+    expect(error).toEqual(new Error("engine down"));
+    expect(error).not.toBeInstanceOf(LayoutUnavailableError);
+    expect(FakeWorker.created).toHaveLength(0);
+  });
+
   it("stops the Dagre worker on abort and on timeout", async () => {
     FakeWorker.holdDagre = true;
     const stop = new AbortController();

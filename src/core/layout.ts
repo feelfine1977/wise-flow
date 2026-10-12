@@ -699,10 +699,12 @@ async function compute(graph: FlowGraph, options: LayoutOptions, signal: AbortSi
         elk?.done();
       }
     }
-    return await layoutDagre(p, options, signal, dagre, engine !== "dagre");
-  } catch (err) {
-    // ELK and then the Dagre worker failed.
-    throw dagre && engine !== "dagre" && !signal.aborted ? new LayoutUnavailableError(`Neither ELK nor the Dagre worker laid out the graph: ${(err as Error).message}`) : err;
+    try {
+      return await layoutDagre(p, options, signal, dagre, engine !== "dagre");
+    } catch (err) {
+      // ELK and then the Dagre worker failed.
+      throw dagre && engine !== "dagre" && !signal.aborted ? new LayoutUnavailableError(`Neither ELK nor the Dagre worker laid out the graph: ${(err as Error).message}`) : err;
+    }
   } finally {
     dagre?.done();
   }

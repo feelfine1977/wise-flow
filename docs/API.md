@@ -369,7 +369,8 @@ the graph: …" with the worker's error): a map keeps its provisional scene and
 says the layout is unavailable, as without a worker. Up to this change it
 rejected with the worker's plain error, and the map dropped the provisional
 scene and showed that message. `engine: "dagre"` in a worker that fails
-rejects with its own error.
+rejects with its own error, and `engine: "elk"` with ELK's, which no Dagre
+follows.
 
 ## Style
 
