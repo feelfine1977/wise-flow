@@ -1,7 +1,7 @@
 /** Overlay marks in the DOM, painted with the theme's tokens through classes a host rule can override; the React map and the BPMN view draw through it. */
 import { useStore } from "@xyflow/react";
 import { createElement, type ReactNode } from "react";
-import { type Arrowhead, type MarkPaint, type MarkSvgOptions, type OverlayMark, type SvgElement, MAP_TARGET, arrowMarker, createPositions, hatchSvg, hatchTokens, hexToRgb, markArrowhead, markSvg, overlayArrow, overlayGeometry, overlayMarks } from "../core/index.js";
+import { type Arrowhead, type Locale, type MarkPaint, type MarkSvgOptions, type OverlayMark, type SvgElement, MAP_TARGET, arrowMarker, chipText, createPositions, hatchSvg, hatchTokens, hexToRgb, markArrowhead, markSvg, overlayArrow, overlayGeometry, overlayMarks } from "../core/index.js";
 import type { Overlay } from "../core/index.js";
 
 const TOKENS: Record<Exclude<MarkPaint, "value" | "onValue" | `#${string}`>, string> = {
@@ -112,11 +112,11 @@ export function coverBackground(marks: OverlayMark[]): string | undefined {
 }
 
 /** A mark drawn on its own, at the size of its box (map-level chips in the legend). */
-export function MarkFigure({ mark }: { mark: OverlayMark }) {
+export function MarkFigure({ mark, locale }: { mark: OverlayMark; locale?: Locale }) {
   const { x, y, width, height } = mark.box;
-  // Drawn on its own (a legend's chip), it says what it shows: its last text with the label before it, whole.
-  const text = mark.texts.at(-1);
-  const name = text ? `${text.lead ?? ""}${text.text}` : mark.title;
+  // Drawn on its own (a legend's chip), it says what it shows: its last text with the label before it, whole, where the chip shortens it.
+  const text = mark.kind === "chip" ? chipText(mark.overlay, locale) : mark.texts.at(-1);
+  const name = text?.text || text?.lead ? `${text.lead ?? ""}${text.text}` : mark.title;
   return (
     <svg className="wf-mark" width={width} height={height} viewBox={`${x} ${y} ${width} ${height}`} overflow="visible" {...(name ? { role: "img", "aria-label": name } : { "aria-hidden": true })}>
       {svgReact(mapMark(mark, MARK_IDS))}

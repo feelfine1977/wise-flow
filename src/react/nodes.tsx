@@ -232,7 +232,7 @@ const Note = memo(function Note({ id, data, selected }: NodeProps<WfNode>) {
 export function Chip({ chip, locale }: { chip: Overlay; locale: ActivityNodeData["locale"] }) {
   // Placed as a map-level chip, every chip has a mark; an arc without its ends or an unknown kind has none.
   const mark = marksAtOrigin([chip], locale)[0];
-  return mark ? <MarkFigure mark={mark} /> : null;
+  return mark ? <MarkFigure mark={mark} locale={locale} /> : null;
 }
 
 /** The group's mark; resolved from the group data and its size when the map did not pass one. */

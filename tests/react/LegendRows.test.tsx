@@ -148,6 +148,22 @@ describe("map-level chips", () => {
     expect(screen.getByRole("img", { name: "Balance: 12 % over" })).toBeTruthy();
   });
 
+  it("say their whole text to assistive technology where the chip shortens it", () => {
+    // A chip is at most 260 wide: this reading is shortened on the chip, never in its name.
+    const reading = "12 % over the balance agreed with the vendor in the framework contract of the last fiscal year";
+    const chip: Overlay = { kind: "chip", target: "__map", payload: { label: "Balance", text: reading, glyph: "⚖" } };
+    const graph: FlowGraph = { nodes: [{ id: "a", kind: "activity", label: "A" }], edges: [] };
+    const positions = createPositions({ nodes: { a: { x: 0, y: 0, width: 100, height: 40 } }, groups: {}, edges: {} }, "given", "RIGHT");
+    const { container } = render(<ProcessMap graph={graph} positions={positions} overlays={[chip]} controls={false} fitView={false} />);
+    fireEvent.click(within(screen.getByRole("region", { name: "Legend" })).getByRole("button", { name: "Show the whole legend" }));
+    const chips = container.querySelector<HTMLElement>(".wf-map-chips")!;
+    expect(chips.textContent).toContain("…");
+    expect(within(chips).getByRole("img", { name: `Balance: ${reading}` })).toBeTruthy();
+    cleanup();
+    render(<Chip chip={{ ...chip, payload: { label: "Saldo", value: 0.004 } }} locale="de" />);
+    expect(screen.getByRole("img", { name: "Saldo: 0,4 %" })).toBeTruthy();
+  });
+
   it("draw nothing for an overlay that has no mark on its own", () => {
     // An arc needs its two ends and a kind the library does not know has no mark at all.
     for (const overlay of [{ kind: "arc", target: "a->b", payload: { value: 0.5 } }, { kind: "sparkle", target: "__map", payload: { label: "X" } }] as Overlay[]) {

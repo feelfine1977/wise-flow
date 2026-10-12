@@ -441,7 +441,7 @@ function ProcessMapInner(props: ProcessMapProps) {
     />
   ) : null;
   const legendElement = legend ? (
-    <Legend scales={scales} legend={scene.legend} locale={locale} onAnnounce={controller.announce} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} />) : undefined} />
+    <Legend scales={scales} legend={scene.legend} locale={locale} onAnnounce={controller.announce} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} locale={locale} />) : undefined} />
   ) : null;
   // Where the map draws fewer paths than are selected (at a small zoom, by the path budget), the panel says both numbers.
   const withheldPaths = view === "table" ? 0 : useCanvas ? (canvasWithheld ?? 0) : flow.withheld ? flow.withheld.total - flow.withheld.shown : 0;

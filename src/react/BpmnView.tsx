@@ -564,7 +564,7 @@ export function createBpmnView(connect: ConnectViewer) {
         ) : null}
         {legend && view !== "table" ? (
           <div className="wf-bpmn__panel wf-bpmn__panel--bottom-right">
-            <Legend scales={scales} legend={scene.legend} locale={locale} onAnnounce={controller.announce} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} />) : undefined} />
+            <Legend scales={scales} legend={scene.legend} locale={locale} onAnnounce={controller.announce} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} locale={locale} />) : undefined} />
           </div>
         ) : null}
         {status === "loading" || (status === "idle" && (xml || graph)) ? (

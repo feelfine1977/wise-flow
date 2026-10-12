@@ -42,7 +42,8 @@ Visible changes:
 - Map and BPMN view: map-level chips in the legend, `<Chip/>` and `<Badges/>`
   are SVG drawings of their marks. A chip drawn on its own is an image named
   by its label and reading for assistive technology, as its text was read
-  before; badges are described with their element.
+  before, whole where the chip shortens them; badges are described with their
+  element.
 - BPMN view: badges, chips, tints and hatching are the same SVG drawings as
   on the map, inside the bpmn-js overlays; chips gain the gauge. Self-loops
   are drawn at full opacity (0.9 before) with 10 px labels. Overlay elements
