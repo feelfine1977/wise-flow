@@ -24,6 +24,7 @@ export type {
   FlowPath,
   FlowPaths,
   AbstractionMeta,
+  ShownMeta,
   FlowMeta,
   ModelOutline,
   FlowGraph,
@@ -42,6 +43,7 @@ export {
   COLLAPSED_TAG,
   DIFF_TAGS,
 } from "./aggregate.js";
+export { ANCHOR_TAG, INDIRECT_TAG } from "./detail.js";
 export type {
   AbstractOptions,
 } from "./aggregate.js";

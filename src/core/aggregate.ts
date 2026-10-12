@@ -3,7 +3,9 @@ import { collapsedActivityIds, shownActivityIds } from "./collapsed-members.js";
  * Aggregation: abstraction by frequency or performance with a keep-connected
  * guarantee, stage collapse (semantic zoom) and diff maps.
  */
+import { INDIRECT_TAG, MinHeap, selectByDetail } from "./detail.js";
 import type { MetricBasis } from "./metrics.js";
+import { canonicalOverlays } from "./overlays.js";
 import {
   type FlowEdge,
   type FlowGraph,
@@ -12,8 +14,10 @@ import {
   type Metrics,
   type ModelOutline,
   type Overlay,
+  type ShownMeta,
   MAP_TARGET,
   byId,
+  hasTag,
   indexGraph,
   isStructuralNode,
   metric,
@@ -34,8 +38,35 @@ export interface AbstractOptions {
   nodeMetric?: string;
   /** Strength is measured relative to the maximum (default) or to the total of the metric. */
   relativeTo?: "max" | "total";
-  /** Node ids that are never removed. Events and gateways are never removed anyway. */
+  /**
+   * Node ids that are never removed, and path ids that are never removed with
+   * both their ends (a path selected, focused or on a highlighted route).
+   * Events and gateways are never removed anyway.
+   */
   keep?: string[];
+  /**
+   * The share of activities shown, 0 to 1: the most frequent by rank (cases,
+   * then events, then id), rounded up and at least one; activities with equal
+   * counts enter together. 1 shows every activity. Given this or `pathDetail`,
+   * the selection is by detail and `minNodeShare`, `minEdgeShare` and
+   * `keepConnected` are not read; the share left out is 1.
+   */
+  activityDetail?: number;
+  /**
+   * The share of paths shown by frequency, 0 to 1: a path whose rank in the
+   * whole graph (count, then id) lies within it is shown when both its ends
+   * are. 1 shows every path between shown activities. Below it every shown
+   * activity keeps the paths that hold it on a way from start to end.
+   */
+  pathDetail?: number;
+  /**
+   * The marks drawn beside the graph (its own `overlays` are read anyway): the
+   * elements of a protected one are always shown, and `meta.shown` names the
+   * marks not shown. A mark the rule is not given cannot be protected. The
+   * result carries the graph's own overlays only; with `collapse`, marks
+   * drawn beside the graph move to their stages with `collapseGroups`.
+   */
+  marks?: Overlay[];
 }
 
 export const RECONNECTED_TAG = "reconnected";
@@ -52,6 +83,20 @@ function firstMetric(el: { metrics?: Metrics }, candidates: string[]): number | 
   return undefined;
 }
 
+/** The relative strength of every element that has one of the metrics, as `strengths` computes it. */
+function measuredStrengths<T extends { id: string; metrics?: Metrics }>(items: T[], candidates: string[], relativeTo: "max" | "total"): Map<string, number> {
+  const values = new Map<string, number>();
+  let denominator = 0;
+  for (const it of items) {
+    const v = firstMetric(it, candidates);
+    if (v === undefined) continue;
+    values.set(it.id, Math.max(0, v));
+    denominator = relativeTo === "max" ? Math.max(denominator, v) : denominator + Math.max(0, v);
+  }
+  for (const [id, v] of values) values.set(id, denominator <= 0 ? 1 : v / denominator);
+  return values;
+}
+
 /**
  * Relative strength in [0, 1] of every element, computed from the first available
  * metric. Elements without a metric get strength 1 so that thresholds never remove
@@ -62,20 +107,8 @@ export function strengths<T extends { id: string; metrics?: Metrics }>(
   candidates: string[],
   relativeTo: "max" | "total" = "max",
 ): Map<string, number> {
-  const values = new Map<string, number>();
-  let denominator = 0;
-  for (const it of items) {
-    const v = firstMetric(it, candidates);
-    if (v === undefined) continue;
-    values.set(it.id, Math.max(0, v));
-    denominator = relativeTo === "max" ? Math.max(denominator, v) : denominator + Math.max(0, v);
-  }
-  const out = new Map<string, number>();
-  for (const it of items) {
-    const v = values.get(it.id);
-    out.set(it.id, v === undefined || denominator <= 0 ? 1 : v / denominator);
-  }
-  return out;
+  const measured = measuredStrengths(items, candidates, relativeTo);
+  return new Map(items.map((it) => [it.id, measured.get(it.id) ?? 1]));
 }
 
 /**
@@ -325,50 +358,6 @@ export function isConnected(graph: FlowGraph): boolean {
   return new Set(comp.values()).size === 1;
 }
 
-/** Entries leave by key, then by `tie`; no two entries in one heap share both. */
-class MinHeap<T> {
-  private items: { key: number; tie: string; value: T }[] = [];
-  push(key: number, value: T, tie = "") {
-    const a = this.items;
-    a.push({ key, tie, value });
-    let i = a.length - 1;
-    while (i > 0) {
-      const p = (i - 1) >> 1;
-      if (this.less(a[i], a[p])) {
-        [a[i], a[p]] = [a[p], a[i]];
-        i = p;
-      } else break;
-    }
-  }
-  pop(): { key: number; value: T } | undefined {
-    const a = this.items;
-    if (a.length === 0) return undefined;
-    const top = a[0];
-    const last = a.pop()!;
-    if (a.length) {
-      a[0] = last;
-      let i = 0;
-      for (;;) {
-        const l = 2 * i + 1;
-        const r = l + 1;
-        let m = i;
-        if (l < a.length && this.less(a[l], a[m])) m = l;
-        if (r < a.length && this.less(a[r], a[m])) m = r;
-        if (m === i) break;
-        [a[i], a[m]] = [a[m], a[i]];
-        i = m;
-      }
-    }
-    return top;
-  }
-  get size() {
-    return this.items.length;
-  }
-  private less(a: { key: number; tie: string }, b: { key: number; tie: string }) {
-    return a.key < b.key || (a.key === b.key && a.tie < b.tie);
-  }
-}
-
 /**
  * What `abstract` keeps before it reconnects: the graph it abstracts (with stages
  * collapsed when asked), the kept nodes and edges in input order and the strength
@@ -380,42 +369,88 @@ export interface Thresholded {
   edges: FlowEdge[];
   edgeStrength: Map<string, number>;
   nodeStrength: Map<string, number>;
+  /** The strength of every measured path before a self-loop's is capped at 1, so that paths rank by count. */
+  edgeRank: Map<string, number>;
+  /** The activities and paths no metric measured (flow edges among them), which no threshold removes. */
+  unmeasured: Set<string>;
+  /** The marks after the collapse: the graph's own, then those given beside it. */
+  marks: Overlay[];
+  /** The nodes and paths protected marks sit on, the ends of such paths included. */
+  protectedIds: Set<string>;
+  /** The ids of `keep`, the ends of its paths included. */
+  keepIds: Set<string>;
+  /** Both: shown whatever the thresholds or shares. */
+  required: Set<string>;
+  /** Whether the graph is a comparison (`diff`), whose elements are measured on either side. */
+  comparison: boolean;
+}
+
+/** Of a comparison, the names side a's metrics go by. */
+const sideA = (candidates: string[]) => candidates.map((c) => `a_${c}`);
+
+/**
+ * The relative strength of every measured element as `strengths` gives it; of a
+ * comparison the larger of side b's and side a's (`a_<metric>`), each relative to
+ * its own side. An element neither side measured has no entry.
+ */
+function strengthsOf<T extends { id: string; metrics?: Metrics }>(items: T[], candidates: string[], relativeTo: "max" | "total", comparison: boolean): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const side of comparison ? [candidates, sideA(candidates)] : [candidates]) {
+    for (const [id, v] of measuredStrengths(items, side, relativeTo)) out.set(id, Math.max(out.get(id) ?? 0, v));
+  }
+  return out;
 }
 
 /** Collapse stages and remove weak activities and follows edges, as `abstract` does first. */
 export function thresholded(graph: FlowGraph, options: AbstractOptions = {}): Thresholded {
   const { minEdgeShare = 0, minNodeShare = 0, collapse = false, relativeTo = "max" } = options;
-  const base = collapse ? collapseGroups(graph, collapse) : graph;
+  // Marks beside the graph are collapsed with it and then set apart again.
+  const own = graph.overlays ?? [];
+  const marked = options.marks?.length ? { ...graph, overlays: [...own, ...options.marks] } : graph;
+  const collapsed = collapse ? collapseGroups(marked, collapse) : marked;
+  const marks = collapsed.overlays ?? [];
+  const base = marked === graph ? collapsed : { ...collapsed, overlays: graph.overlays && marks.slice(0, own.length) };
+  const comparison = base.meta?.diff === true;
   const edgeCandidates = options.edgeMetric ? [options.edgeMetric, ...EDGE_METRICS] : EDGE_METRICS;
   const nodeCandidates = options.nodeMetric ? [options.nodeMetric, ...NODE_METRICS] : NODE_METRICS;
   const follows = base.edges.filter((e) => e.kind === "follows" && e.source !== e.target);
-  const edgeStrength = strengths(follows, edgeCandidates, relativeTo);
-  let loopDenominator: number | undefined;
-  for (const e of base.edges) {
-    if (edgeStrength.has(e.id)) continue;
-    if (e.source !== e.target) {
-      edgeStrength.set(e.id, 1);
-      continue;
+  const edgeRank = new Map<string, number>();
+  for (const side of comparison ? [edgeCandidates, sideA(edgeCandidates)] : [edgeCandidates]) {
+    const measured = measuredStrengths(follows, side, relativeTo);
+    let loopDenominator: number | undefined;
+    for (const e of base.edges) {
+      let v = measured.get(e.id);
+      if (v === undefined && e.source === e.target && firstMetric(e, side) !== undefined) {
+        loopDenominator ??= loopStrengthDenominator(follows, side, relativeTo);
+        v = strengthOfLoop(e, loopDenominator, side);
+      }
+      if (v !== undefined) edgeRank.set(e.id, Math.max(edgeRank.get(e.id) ?? 0, v));
     }
-    loopDenominator ??= loopStrengthDenominator(follows, edgeCandidates, relativeTo);
-    edgeStrength.set(e.id, strengthOfLoop(e, loopDenominator, edgeCandidates));
   }
   const scalable = base.nodes.filter((n) => !isStructuralNode(n));
-  const nodeStrength = strengths(scalable, nodeCandidates, relativeTo);
+  const nodeStrength = strengthsOf(scalable, nodeCandidates, relativeTo, comparison);
+  const unmeasured = new Set([...base.edges.filter((e) => !edgeRank.has(e.id)), ...scalable.filter((n) => !nodeStrength.has(n.id))].map((el) => el.id));
+  const edgeStrength = new Map(base.edges.map((e) => [e.id, Math.min(1, edgeRank.get(e.id) ?? 1)]));
   for (const n of base.nodes) if (!nodeStrength.has(n.id)) nodeStrength.set(n.id, 1);
-  const keep = new Set(options.keep ?? []);
+
+  // A path brings its ends.
+  const edgeById = new Map(base.edges.map((e) => [e.id, e]));
+  const withEnds = (ids: unknown[]) => new Set(ids.flatMap((id) => (typeof id !== "string" ? [] : edgeById.has(id) ? [id, edgeById.get(id)!.source, edgeById.get(id)!.target] : [id])));
+  const protectedIds = withEnds(marks.flatMap((m) => (!m.protected ? [] : m.kind === "arc" && m.payload?.source !== undefined && m.payload?.target !== undefined ? [m.payload.source, m.payload.target] : [m.target])));
+  const keepIds = withEnds(options.keep ?? []);
+  const required = new Set([...protectedIds, ...keepIds]);
 
   const nodes = base.nodes.filter(
-    (n) => isStructuralNode(n) || keep.has(n.id) || (nodeStrength.get(n.id) ?? 1) >= minNodeShare,
+    (n) => isStructuralNode(n) || required.has(n.id) || (nodeStrength.get(n.id) ?? 1) >= minNodeShare,
   );
   const keptIds = new Set(nodes.map((n) => n.id));
   const edges = base.edges.filter(
     (e) =>
       keptIds.has(e.source) &&
       keptIds.has(e.target) &&
-      (e.kind !== "follows" || (edgeStrength.get(e.id) ?? 1) >= minEdgeShare),
+      (e.kind !== "follows" || required.has(e.id) || (edgeStrength.get(e.id) ?? 1) >= minEdgeShare),
   );
-  return { base, nodes, edges, edgeStrength, nodeStrength };
+  return { base, nodes, edges, edgeStrength, nodeStrength, edgeRank, unmeasured, marks, protectedIds, keepIds, required, comparison };
 }
 
 const tagged = <T extends FlowNode | FlowEdge>(el: T): T => ({ ...el, tags: [...new Set([...(el.tags ?? []), RECONNECTED_TAG])] });
@@ -595,6 +630,9 @@ function restoreFlowContext(
   return joined;
 }
 
+const isActivity = (n: FlowNode) => n.kind === "activity" || n.kind === "stage";
+const isPath = (e: FlowEdge) => e.kind !== "constraint" && !hasTag(e, INDIRECT_TAG);
+
 /**
  * Abstract a graph: optionally collapse stage groups, then remove weak activities and
  * weak follows edges, then (by default) restore connectivity with the strongest removed
@@ -605,17 +643,43 @@ function restoreFlowContext(
  * reports how much of it is shown, and stage colours follow its order.
  */
 export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowGraph {
-  const { minEdgeShare = 0, minNodeShare = 0, keepConnected = true, collapse = false } = options;
+  const { minEdgeShare = 0, minNodeShare = 0, keepConnected = true, collapse = false, relativeTo = "max" } = options;
+  const byDetail = options.activityDetail !== undefined || options.pathDetail !== undefined;
   const kept = thresholded(graph, options);
-  const { base } = kept;
+  const { base, nodeStrength, edgeStrength, edgeRank, unmeasured, required, keepIds, protectedIds, comparison } = kept;
   let { nodes, edges } = kept;
-  if (keepConnected) {
-    const r = restoreFlowContext(kept, joinComponents(kept));
-    // Keep the original element order for stable rendering.
-    const nodeOrder = new Map(base.nodes.map((n, i) => [n.id, i]));
-    const edgeOrder = new Map(base.edges.map((e, i) => [e.id, i]));
-    nodes = r.nodes.sort((a, b) => (nodeOrder.get(a.id) ?? 0) - (nodeOrder.get(b.id) ?? 0));
-    edges = r.edges.sort((a, b) => (edgeOrder.get(a.id) ?? 0) - (edgeOrder.get(b.id) ?? 0));
+  const meta: Partial<ShownMeta> = {};
+  // Whether an element would be shown without the protected marks.
+  let passes: (id: string) => boolean;
+  if (byDetail) {
+    const nodeEvents = strengthsOf(base.nodes.filter((n) => !isStructuralNode(n)), ["events"], relativeTo, comparison);
+    const s = selectByDetail({ base, nodeStrength, nodeEvents, edgeStrength: edgeRank, unmeasured, activityDetail: options.activityDetail ?? 1, pathDetail: options.pathDetail ?? 1, required });
+    ({ nodes, edges } = s);
+    passes = (id) => s.byShare.has(id) || s.frequent.has(id) || s.anchors.has(id) || keepIds.has(id);
+    const shownIds = new Set(edges.map((e) => e.id));
+    const edgeCandidates = options.edgeMetric ? [options.edgeMetric, ...EDGE_METRICS] : EDGE_METRICS;
+    const countOf = (e?: FlowEdge) => e && (firstMetric(e, edgeCandidates) ?? (comparison ? firstMetric(e, sideA(edgeCandidates)) : undefined));
+    meta.anchorsOnly = Object.keys(s.keeps).length;
+    meta.keeps = s.keeps;
+    meta.indirect = edges.filter((e) => hasTag(e, INDIRECT_TAG)).length;
+    const weakest = countOf(s.ranked.filter((e) => s.frequent.has(e.id) && shownIds.has(e.id)).pop());
+    const strongest = countOf(s.ranked.find((e) => !shownIds.has(e.id)));
+    if (weakest !== undefined) meta.weakestByFrequency = weakest;
+    if (strongest !== undefined) meta.strongestNotShown = strongest;
+  } else {
+    // An element passes on its own strength; a path between ends that do not is shown for its ends.
+    passes = (id) => keepIds.has(id) || (nodeStrength.has(id) ? nodeStrength.get(id)! >= minNodeShare : edgeStrength.get(id)! >= minEdgeShare);
+    if (keepConnected) {
+      const r = restoreFlowContext(kept, joinComponents(kept));
+      // Keep the original element order for stable rendering.
+      const nodeOrder = new Map(base.nodes.map((n, i) => [n.id, i]));
+      const edgeOrder = new Map(base.edges.map((e, i) => [e.id, i]));
+      nodes = r.nodes.sort((a, b) => (nodeOrder.get(a.id) ?? 0) - (nodeOrder.get(b.id) ?? 0));
+      edges = r.edges.sort((a, b) => (edgeOrder.get(a.id) ?? 0) - (edgeOrder.get(b.id) ?? 0));
+    } else {
+      const touched = new Set(edges.filter((e) => e.kind !== "constraint" && e.source !== e.target).flatMap((e) => [e.source, e.target]));
+      meta.withoutPath = nodes.filter((n) => isActivity(n) && !touched.has(n.id)).length;
+    }
   }
   const nodeSet = new Set(nodes.map((n) => n.id));
   const edgeSet = new Set(edges.map((e) => e.id));
@@ -629,11 +693,21 @@ export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowG
   }
   const groups = (base.groups ?? []).filter((g) => usedGroups.has(g.id));
   const survives = (id: unknown) => typeof id === "string" && (nodeSet.has(id) || usedGroups.has(id));
-  const overlays = base.overlays?.filter((o) =>
+  const isShown = (o: Overlay) =>
     o.kind === "arc" && o.payload?.source !== undefined && o.payload?.target !== undefined
       ? survives(o.payload.source) && survives(o.payload.target)
-      : o.target === MAP_TARGET || nodeSet.has(o.target) || edgeSet.has(o.target) || usedGroups.has(o.target),
-  );
+      : o.target === MAP_TARGET || nodeSet.has(o.target) || edgeSet.has(o.target) || usedGroups.has(o.target);
+  const overlays = base.overlays?.filter(isShown);
+  // A mark is named by its kind, its target and its place among the marks given, in canonical order.
+  const given = [...(graph.overlays ?? []), ...(options.marks ?? [])].map((o) => ({ ...o }));
+  const place = new Map(canonicalOverlays(given).map((o, n) => [o, n]));
+  const shown: ShownMeta = {
+    activities: { shown: nodes.filter(isActivity).length, of: base.nodes.filter(isActivity).length },
+    paths: { shown: edges.filter(isPath).length, of: base.edges.filter((e) => e.kind !== "constraint").length },
+    ...meta,
+    marksNotShown: kept.marks.flatMap((o, i) => (isShown(o) ? [] : [given[i]])).sort((a, b) => place.get(a)! - place.get(b)!).map((o) => `${o.kind}:${o.target}:${place.get(o)}`),
+    forProtected: [...protectedIds].filter((id) => (nodeSet.has(id) || edgeSet.has(id)) && !passes(id)).sort(),
+  };
   return {
     ...base,
     nodes,
@@ -642,9 +716,12 @@ export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowG
     overlays,
     meta: {
       ...(base.meta ?? {}),
-      abstraction: { minEdgeShare, minNodeShare, keepConnected, collapse: collapse || undefined },
+      abstraction: byDetail
+        ? { activityDetail: options.activityDetail ?? 1, pathDetail: options.pathDetail ?? 1, collapse: collapse || undefined }
+        : { minEdgeShare, minNodeShare, keepConnected, collapse: collapse || undefined },
       // The model before any abstraction: a figure's caption reports its size, stage colours follow its groups' order.
       model: base.meta?.model ?? modelOutline(graph),
+      shown,
     },
   };
 }
@@ -680,10 +757,11 @@ function loopStrengthDenominator(follows: FlowEdge[], candidates: string[], rela
   return denominator;
 }
 
+/** A self-loop's strength against the other paths', not capped at 1. */
 function strengthOfLoop(e: FlowEdge, denominator: number, candidates: string[]): number {
   const v = firstMetric(e, candidates);
   if (v === undefined) return 1;
-  return denominator > 0 ? Math.min(1, v / denominator) : 1;
+  return denominator > 0 ? v / denominator : 1;
 }
 
 interface DiffOptions {

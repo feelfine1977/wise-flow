@@ -1,5 +1,6 @@
 {
   "exports": [
+    "ANCHOR_TAG",
     "AbstractOptions",
     "AbstractionMeta",
     "ActivityClause",
@@ -63,6 +64,7 @@
     "GroupMark",
     "HitIndex",
     "HitItem",
+    "INDIRECT_TAG",
     "Insets",
     "InteractiveState",
     "LABEL_PX",
@@ -146,6 +148,7 @@
     "Selection",
     "SelectionShape",
     "ShownEdges",
+    "ShownMeta",
     "SliceClause",
     "StateStyle",
     "StringKey",

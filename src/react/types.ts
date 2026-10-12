@@ -120,7 +120,11 @@ export interface ProcessMapProps {
   onNodeMove?: (id: string, position: XY) => void;
   /** Change to clear internal manual positions and restore the supplied/automatic layout. */
   layoutResetKey?: string | number;
-  /** Overlays in addition to `graph.overlays`. */
+  /**
+   * Overlays in addition to `graph.overlays`. The abstraction reads them with
+   * the graph's: a protected one keeps its element shown, and a collapse moves
+   * one to the stage that holds its element.
+   */
   overlays?: Overlay[];
   style?: StyleSpec;
   /**

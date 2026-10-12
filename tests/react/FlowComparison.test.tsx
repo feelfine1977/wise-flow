@@ -129,9 +129,20 @@ describe("FlowComparison", () => {
     expect(cellValues("A → B")[1]).toBe("0% of Cohort B; 0 distinct cases");
   });
 
+  it("reads the detail shares that abstract records: full detail removes nothing", () => {
+    const unchanged = abstract(graph([["A", 20]]), { activityDetail: 1, pathDetail: 1 });
+    render(<FlowComparison cohorts={[
+      cohort("A", 10, graph([["A", 10], ["B", 5]], [["A", "B", 5]])),
+      cohort("B", 20, unchanged),
+    ]} />);
+    expect(cellValues("B")[1]).toBe("0% of Cohort B; 0 distinct cases");
+  });
+
   it.each([
     { minNodeShare: 0.5, minEdgeShare: 0 },
     { minNodeShare: 0, minEdgeShare: 0.5 },
+    { activityDetail: 0.5, pathDetail: 1 },
+    { activityDetail: 1, pathDetail: 1, collapse: "all" as const },
   ])("does not invent zero after an abstraction with thresholds (%j)", (thresholds) => {
     const reduced = abstract(graph([["A", 20]]), thresholds);
     render(<FlowComparison cohorts={[

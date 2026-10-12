@@ -12,7 +12,7 @@ import {
   type OnNodesChange,
 } from "@xyflow/react";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { type AbstractOptions, type ElementRef, type FlowGraph, type Insets, type Positions, type XY, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, defaultStyle, dimensionTokens, fitViewport, formatCount, lodAt, spaceTokens, strokeTokens, t, themeColors } from "../core/index.js";
+import { type AbstractOptions, type ElementRef, type FlowGraph, type Insets, type Positions, type XY, INDIRECT_TAG, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, defaultStyle, dimensionTokens, fitViewport, formatCount, hasTag, lodAt, spaceTokens, strokeTokens, t, themeColors } from "../core/index.js";
 import { type MapContext, mapEmphasis, menuHeading } from "../core/map-controller.js";
 import { markedThemeKey, themeStyle } from "../core/theme.js";
 import { ActivityTooltip } from "./ActivityTooltip.js";
@@ -139,12 +139,15 @@ function ProcessMapInner(props: ProcessMapProps) {
   const setAbstraction = useCallback((a: AbstractOptions) => void dispatch({ type: "setAbstraction", abstraction: a }), [dispatch]);
   const setView = (v: "map" | "table") => void dispatch({ type: "setView", view: v });
 
-  // Graph pipeline: collapse first (own layout), then thresholds (filter positions).
+  // Graph pipeline: the given marks join the graph's, so that the abstraction sees them all (a protected one keeps
+  // its element, a collapse moves it to its stage); then collapse first (own layout), then thresholds (filter positions).
+  const marksKey = useMemo(() => JSON.stringify(extraOverlays ?? []), [extraOverlays]);
+  const marked = useMemo(() => (extraOverlays?.length ? { ...graph, overlays: [...(graph.overlays ?? []), ...extraOverlays] } : graph), [graph, marksKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const collapseOnly = useMemo<AbstractOptions | undefined>(
     () => (abstraction.collapse ? { collapse: abstraction.collapse, keepConnected: false } : undefined),
     [abstraction.collapse],
   );
-  const baseGraph = useFlowGraph(graph, collapseOnly);
+  const baseGraph = useFlowGraph(marked, collapseOnly);
   const shown = useFlowGraph(baseGraph, { ...abstraction, collapse: false });
   const useCanvas = renderer === "canvas" || (renderer === "auto" && shown.nodes.length + shown.edges.length > canvasThreshold);
 
@@ -165,10 +168,9 @@ function ProcessMapInner(props: ProcessMapProps) {
   const arranging = (provisional && !unavailable) || arrival.moving;
   const notice = arranging ? t(locale, "map.arranging") : unavailable ? t(locale, "map.layoutUnavailable") : undefined;
   const [manual, setManual] = useState<{ key: ProcessMapProps["layoutResetKey"]; points: Record<string, XY> }>({ key: layoutResetKey, points: {} });
-  // Graph overlays and the given ones; the scene keeps those it can place and adds the follows self-loops.
-  const sceneOverlays = useMemo(() => (extraOverlays ? [...(shown.overlays ?? []), ...extraOverlays] : undefined), [shown, extraOverlays]);
+  // The shown graph's marks, the given ones among them; the scene keeps those it can place and adds the follows self-loops.
   const { scene, positions, laidPositions } = useMapScene(shown, arrival.positions, manual.key === layoutResetKey ? manual.points : NO_MOVES, {
-    overlays: sceneOverlays, style, locale, lanes, activityLabels, selfLoops, lod: props.lod, theme: markedTheme, scheme: look.scheme, textMeasure,
+    style, locale, lanes, activityLabels, selfLoops, lod: props.lod, theme: markedTheme, scheme: look.scheme, textMeasure,
   });
   const { scales, overlays, geometry } = scene;
   // One index of the shown graph: every description, label and lookup by id reads it.
@@ -406,7 +408,8 @@ function ProcessMapInner(props: ProcessMapProps) {
   // What the sliders keep: the activities (and stages) and paths of the shown graph, of the graph before the thresholds.
   const kept = useMemo(() => {
     const shownNode = (n: FlowGraph["nodes"][number]) => n.kind === "activity" || n.kind === "stage";
-    const path = (e: FlowGraph["edges"][number]) => e.kind === "follows";
+    // An indirect path stands for activities not shown; it is not a path of the graph.
+    const path = (e: FlowGraph["edges"][number]) => e.kind === "follows" && !hasTag(e, INDIRECT_TAG);
     return {
       activities: { shown: shown.nodes.filter(shownNode).length, total: baseGraph.nodes.filter(shownNode).length },
       paths: { shown: shown.edges.filter(path).length, total: baseGraph.edges.filter(path).length },
