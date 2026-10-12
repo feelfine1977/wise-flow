@@ -24,6 +24,9 @@ Commit the tarball and application lockfile for a standalone `npm ci`. No siblin
 checkout, source alias, stub, or postinstall build is needed. Check its SHA256
 against the supplied `.sha256` and `.provenance.json` files. A future published
 release can replace the file dependency with an exact registry version.
+The package is named `wise-flow`; a host that installed it under its former
+scoped name changes its dependency entry and import specifiers as `docs/API.md`
+("Package name") says.
 
 To produce and verify the tarball from this checkout:
 

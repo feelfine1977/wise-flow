@@ -3573,6 +3573,21 @@ the scene's values handed to the stylesheet as custom properties
 The legend's samples and the table's swatches show data colours inline; they
 are panels, not elements of the map.
 
+## Package name
+
+The package is `wise-flow`, without a scope, as its repository. Up to 0.3.5
+it was named `@wise/flow`; that scope belongs to another organisation on npm,
+so the package was never published under it. Only the name changed: the entry
+points keep their sub-paths (`wise-flow`, `wise-flow/react`,
+`wise-flow/bpmn`, `wise-flow/canvas`, the stylesheets and the worker assets)
+and export the same names, and class names, CSS variables (`--wf-*`) and data
+attributes (`data-wf-*`) are unchanged.
+
+Migration: a host replaces its dependency entry (`"@wise/flow": "…"` becomes
+`"wise-flow": "…"`, then installs again) and every import specifier that
+starts with `@wise/flow` (`@wise/flow/react` becomes `wise-flow/react`, and so
+on, also for the stylesheets and the `?url` imports of the workers).
+
 ## Deprecated names
 
 ### `wise-flow`
