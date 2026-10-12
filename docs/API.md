@@ -2125,7 +2125,7 @@ such a focus threw a `TypeError`.
 ### Filters
 
 ```ts
-export type TimeMode = "case_start" | "case_end" | "active" | "events_inside";
+export type TimeMode = "case_start" | "case_end" | "active" | "events_inside";   // events_inside: deprecated, removed in the next minor version
 export interface TimeClause { kind: "time"; field?: TimeMode; mode?: TimeMode; from?: string; to?: string }
 export interface AttributeClause { kind: "attribute"; field: string; in?; not_in?; range?; missing?: boolean }
 export interface ActivityClause { kind: "activity"; op: "contains" | "not_contains" | "starts_with" | "ends_with" | "never"; activity: string }
@@ -2154,6 +2154,20 @@ export function normalizeFilterPreview(raw: Record<string, unknown> | FilterPrev
 export interface FilterTarget { kind: "node" | "edge" | "group" | "pair" | "set"; ids: string[] }
 export function clauseForTarget(target: FilterTarget, action: "keep" | "exclude", graph?: FlowGraph): FilterClause | FilterClause[] | undefined;
 ```
+
+**The time mode `events_inside` is deprecated** and is removed in the next
+minor version; this version keeps it as it was. A time clause with it keeps
+only the events inside the window and so cuts events out of cases, while a
+selection is a set of whole cases. Nothing in the library makes such a
+clause: it reaches the library only in `filters` from a host, which gets it
+back unchanged in `onFilterChange`; `describeClause` writes it "events
+inside {from} – {to}" ("Ereignisse innerhalb …"), and `changesCases` and
+`<FilterChips/>` mark it as changing cases. Migration: express the window by
+`case_start`, `case_end` or `active` (a case that starts, ends or is active
+in it), which keeps whole cases; where a host needs only the events in a
+window, it trims them itself, outside the filter. Once removed, TypeScript
+reports a clause that names it, and a clause that still carries it at run
+time is a time clause of a mode the library does not know.
 
 `normalizeFilterPreview` reads numbers only where they are finite numbers,
 and the marginal removals (`perClause`, `per_clause`) only from a list, of
@@ -3541,6 +3555,7 @@ are panels, not elements of the map.
 | `fitChars` | the mark's `text`, which the scene's text measure has fitted; `truncateText` to shorten another text |
 | `nodeLabel` | `textTokens.activityName` (`Theme.text.activityName`), the name on an activity's card; a stage node's name is `stageLabel` |
 | `nodeCount` | `textTokens.activityNumber` and `activityShare`, the cases and their share on a card's number line |
+| `TimeMode."events_inside"` | a time clause on `case_start`, `case_end` or `active`, which keeps whole cases; removed in the next minor version (see "Filters") |
 
 ### `@wise/flow/canvas`
 
