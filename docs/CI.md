@@ -125,6 +125,13 @@ sparse synthetic graph retains per node and per edge, part by part (hit index,
 lookups, retained elements, marks and their texts); `--labels` turns activity
 labels on, `--straight` leaves the edges without routes.
 
+`npm run bench` is the benchmark, also not a gate: it times scene preparation,
+simplification, Canvas frames, the React map's readiness, the first scene and
+the abort of a layout, and the retained scene memory, in Node and in the
+Playwright Chromium, and writes `artifacts/bench/bench.json` and `bench.md`
+beside the numbers measured before the repairs and the latency targets. How to
+run and read it is in [tests](../tests/README.md#benchmark).
+
 Budgets in [scripts/budgets.json](../scripts/budgets.json) are initial regression
 limits, not load-time promises. The consumer total includes lazy BPMN/modeler and
 ELK assets; it is **not initial page download size**. Runtime latency, memory,
