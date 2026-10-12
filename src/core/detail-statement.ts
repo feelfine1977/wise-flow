@@ -71,9 +71,13 @@ export function detailStatement(graph: FlowGraph, options: DetailStatementOption
 
   const eventShare = events && events.of > 0 ? share(events.shown, events.of, locale) : undefined;
   const hidden = activities.of - activities.shown;
+  // Those not shown are the rarest unless an activity is shown out of its rank (for a protected deviation, kept by
+  // the host or re-added); one that nothing measured has no rank and is always shown.
+  const { activities: stops, at } = shown.positions;
+  const rarest = activities.shown <= at.activities + activities.of - (stops[stops.length - 1] ?? 0);
   const activityLine: StatementLine = {
     short: [of(activities), ...(eventShare ? [t(locale, "detail.events", { share: eventShare })] : [])].join(" · "),
-    full: `${t(locale, "detail.activities", { shown: n(activities.shown), of: n(activities.of) })}${eventShare ? t(locale, "detail.carrying", { share: eventShare }) : ""}${hidden > 0 ? counted(locale, hidden, "detail.rarestOne", "detail.rarest") : ""}.`,
+    full: `${t(locale, "detail.activities", { shown: n(activities.shown), of: n(activities.of) })}${eventShare ? t(locale, "detail.carrying", { share: eventShare }) : ""}${hidden > 0 ? (rarest ? counted(locale, hidden, "detail.rarestOne", "detail.rarest") : counted(locale, hidden, "detail.othersOne", "detail.others")) : ""}.`,
   };
 
   const kept = shown.anchorsOnly ?? 0;

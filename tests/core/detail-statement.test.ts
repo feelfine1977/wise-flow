@@ -145,6 +145,8 @@ describe("the statements of the detail sliders", () => {
         ? { short: "1 für eine geschützte Abweichung gezeigt", full: "1 für eine geschützte Abweichung gezeigt: Cancel Invoice Receipt." }
         : { short: "1 shown for a protected deviation", full: "1 shown for a protected deviation: Cancel Invoice Receipt." },
     );
+    // "Cancel Invoice Receipt" is shown out of its rank: the 40 activities not shown are not the rarest.
+    expect(statement.activities.full).toMatch(locale === "de" ? /^2 von 42 Aktivitäten gezeigt, .*; 40 weitere werden nicht gezeigt\.$/ : /^2 of 42 activities shown, .*; 40 others are not shown\.$/);
     // Without the marks given, the statement counts them.
     expect(detailStatement(result, { locale })!.marks).toEqual({ short, full: `${short}.`, items: [] });
     // At the stories' opening the marks not shown are the hatches of the activities outside the constraints' scope.
@@ -154,6 +156,31 @@ describe("the statements of the detail sliders", () => {
     expect(detailStatement(opening, { locale, marks })!.marks!.full).toBe(locale === "de" ? `${hatches} Markierungen nicht gezeigt: ${hatches} außerhalb des Geltungsbereichs.` : `${hatches} marks not shown: ${hatches} outside scope.`);
     // With every mark's element shown there is no line.
     expect(detailStatement(abstract(globalScene, { activityDetail: 1, pathDetail: 1, marks: given }), { locale, marks: given })!.marks).toBeUndefined();
+  });
+});
+
+describe("the activities not shown", () => {
+  it("are the rarest where every activity shown is shown by its rank, also beside one that nothing measured", () => {
+    // "a" (10 cases), "b" (5), "c" (2) and "u", which carries no count and is always shown; "c" is marked.
+    const graph: FlowGraph = {
+      nodes: [
+        { id: "start", kind: "event", label: "Start", tags: ["start"] },
+        { id: "a", kind: "activity", label: "A", metrics: { cases: 10 } },
+        { id: "b", kind: "activity", label: "B", metrics: { cases: 5 } },
+        { id: "c", kind: "activity", label: "C", metrics: { cases: 2 } },
+        { id: "u", kind: "activity", label: "U" },
+        { id: "end", kind: "event", label: "End", tags: ["end"] },
+      ],
+      edges: ([["start", "a", 10], ["a", "b", 5], ["a", "c", 2], ["b", "end", 5], ["c", "end", 2], ["a", "end", 3], ["a", "u", 1], ["u", "end", 1]] as const).map(([source, target, n]) => ({ id: `${source}->${target}`, kind: "follows" as const, source, target, metrics: { count: n } })),
+    };
+    // One by rank, "a", and "u": "b" and "c" are the rarest.
+    expect(detailStatement(abstract(graph, { activityDetail: 0, pathDetail: 0 }))!.activities.full).toBe("2 of 4 activities shown; the 2 rarest are not shown.");
+    // With a protected mark on "c", "c" is shown and "b", which is more frequent, is not.
+    const marks: Overlay[] = [{ kind: "badge", target: "c", payload: { glyph: "!" }, protected: true }];
+    expect(detailStatement(abstract(graph, { activityDetail: 0, pathDetail: 0, marks }))!.activities.full).toBe("3 of 4 activities shown; 1 other is not shown.");
+    expect(detailStatement(abstract(graph, { activityDetail: 0, pathDetail: 0, marks }), { locale: "de" })!.activities.full).toBe("3 von 4 Aktivitäten gezeigt; 1 weitere wird nicht gezeigt.");
+    // A host's thresholds with an activity it keeps: the same.
+    expect(detailStatement(abstract(graph, { minNodeShare: 0.6, keep: ["c"] }))!.activities.full).toBe("3 of 4 activities shown; 1 other is not shown.");
   });
 });
 

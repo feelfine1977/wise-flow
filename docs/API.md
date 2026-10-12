@@ -348,7 +348,9 @@ export function detailNotes(base: FlowGraph, shown: FlowGraph, options?: { local
 a slider and a full form for its title and assistive technology:
 
 - Activities: "25 of 42 · 99.2 % of events"; in full "25 of 42 activities
-  shown, carrying 99.2 % of the events; the 17 rarest are not shown." The
+  shown, carrying 99.2 % of the events; the 17 rarest are not shown."
+  ("; 17 others are not shown" where an activity is shown out of its rank:
+  for a protected deviation, kept by the host or re-added). The
   share of events (one decimal, never "100.0 %" for a part, nor "0.0 %" for
   some) is printed only where the graph counts events.
 - Paths: "61 of 677 · 30 kept"; in full "61 of 677 paths: 31 by frequency,
