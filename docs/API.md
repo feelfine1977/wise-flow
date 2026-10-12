@@ -245,7 +245,10 @@ between shown activities is shown, as a path no metric measured is (see
 with an element at an end by kind (`{ constraint, flow }`, its keys in sorted
 order whatever the input order, absent while none went; abstracting an
 abstracted graph adds to the count it carries; up to 0.3.5 the keys followed
-the input order). With
+the input order). By detail shares a flow edge is a path, so one removed with
+an element at an end is counted once, among the paths not shown
+(`meta.shown.paths`, "61 of 677 paths"), and not in `removedEdges`; up to
+0.3.5 it was counted in both. With
 thresholds and `keepConnected` an activity re-added to keep the map
 connected brings back its constraint and flow edges to elements on the map,
 tagged `reconnected` like everything re-added. Collapsing a stage drops the

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { constraintItems, globalScene, vendorScene } from "../../fixtures/bpic2019";
 import { liteFromGraph } from "../../src/bpmn/headless";
-import { ANCHOR_TAG, INDIRECT_TAG, type AbstractOptions, type FlowEdge, type FlowGraph, type FlowNode, type Overlay, abstract, buildScene, buildViews, collapseGroups, diff, hasTag, layout, overlaysFor, toSVG } from "../../src/index";
+import { ANCHOR_TAG, INDIRECT_TAG, type AbstractOptions, type AbstractionMeta, type FlowEdge, type FlowGraph, type FlowNode, type Overlay, abstract, buildScene, buildViews, collapseGroups, diff, hasTag, layout, overlaysFor, toSVG } from "../../src/index";
 import { detailGraph, offWays, seeded, shuffled, wayThrough, wayThroughHidden } from "./detail-cases";
 
 const isActivity = (n: FlowNode) => n.kind === "activity" || n.kind === "stage";
@@ -511,6 +511,36 @@ describe("detail shares", () => {
     expect(ids(lowest.nodes)).toEqual(ids(loose.nodes));
     // The unmeasured path from "next" enters with "next", as the measured share brings it in.
     expect(ids(abstract(graph, byShares(1, 0)).edges)).toContain("next->plain");
+  });
+
+  it("count a flow edge that went with its end once, among the paths not shown, as a path", () => {
+    // start → A → end with 100 cases, start → B → end with 5, a flow edge from B to the end and a constraint edge from A
+    // to B. The activities' share shows A alone; B's two paths, its flow edge and the constraint edge go with it.
+    const graph: FlowGraph = {
+      nodes: [
+        { id: "start", kind: "event", label: "Start", tags: ["start"] },
+        { id: "A", kind: "activity", label: "A", metrics: { cases: 100 } },
+        { id: "B", kind: "activity", label: "B", metrics: { cases: 5 } },
+        { id: "end", kind: "event", label: "End", tags: ["end"] },
+      ],
+      edges: [
+        { id: "start->A", kind: "follows", source: "start", target: "A", metrics: { count: 100 } },
+        { id: "A->end", kind: "follows", source: "A", target: "end", metrics: { count: 100 } },
+        { id: "start->B", kind: "follows", source: "start", target: "B", metrics: { count: 5 } },
+        { id: "B->end", kind: "follows", source: "B", target: "end", metrics: { count: 5 } },
+        { id: "B=>end", kind: "flow", source: "B", target: "end" },
+        { id: "A~B", kind: "constraint", source: "A", target: "B" },
+      ],
+    };
+    const shown = abstract(graph, byShares(0.5, 1));
+    expect(ids(shown.edges)).toEqual(["A->end", "start->A"]);
+    // Five paths, the flow edge among them, of which two are shown: the flow edge is one of the three not shown ...
+    expect(shown.meta?.shown?.paths).toEqual({ shown: 2, of: 5 });
+    // ... and not counted again as an edge removed with an element at an end, as the constraint edge is.
+    expect(shown.meta?.abstraction).toMatchObject({ removedEdges: { constraint: 1 } });
+    expect((shown.meta?.abstraction as AbstractionMeta).removedEdges).not.toHaveProperty("flow");
+    // With thresholds a flow edge is no path the thresholds weigh: it goes only with its end, and is counted so.
+    expect((abstract(graph, { minNodeShare: 0.5, keepConnected: false }).meta?.abstraction as AbstractionMeta).removedEdges).toEqual({ constraint: 1, flow: 1 });
   });
 
   it("win over thresholds given with them", () => {
