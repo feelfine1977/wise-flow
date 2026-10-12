@@ -184,7 +184,12 @@ changes. A collapsed group becomes a
 are maxima, other metrics weighted means over the members that carry them
 (plain means where none has a weight; summed in id order, so that no input
 order changes them), internal transitions land in `internalCount`
-(summed in ascending order). Edges of one kind between the same two shown
+(summed in ascending order). A stage's `cases` is therefore a lower bound of
+the cases that touch it, and `minNodeShare` compares a collapsed stage by
+that bound: a stage of four activities with 25 different cases each, which
+100 cases touch, reads 25 and goes at 50 % beside an activity of 100 cases,
+with or without `keepConnected`. Its `events` add up, so with `nodeMetric:
+"events"` the stage reads 100 and stays. Edges of one kind between the same two shown
 nodes merge into one, named `source->target`, or `source->target:kind:n`
 where that id is taken; merged edges take their names in the order of their
 smallest original id, not of the input.
