@@ -40,7 +40,7 @@ Test: `tests/core/malformed-input.test.ts` › "model and aggregation".
 | `metric` | `.` | A value that is not a finite number (missing, `NaN`, a string) yields the fallback. | Returns. |
 | `hasTag` | `.` | Not documented. | Returns. |
 | `indexGraph` | `.` | `ancestors` ends at an unknown parent and before a group would repeat; `label` falls back to the id. | Returns. |
-| `validateGraph` | `.` | Errors: duplicate node, edge and group ids, unknown edge ends, unknown group parents, cycles of group parents (since this change); warnings: unknown node groups, overlays on unknown targets. Not reported: missing, empty or unknown-kind elements, metric values. | Returns. |
+| `validateGraph` | `.` | Errors: duplicate node, edge and group ids, unknown edge ends, unknown group parents, cycles of group parents (after 0.3.5); warnings: unknown node groups, overlays on unknown targets. Not reported: missing, empty or unknown-kind elements, metric values. | Returns. |
 | `validateGateways` | `.` | Warnings only; rejects nothing. | Returns. |
 | `normalizeGraph` | `.` | Not documented. | Returns the elements de-duplicated by id (the first kept) and sorted. |
 | `strengths` | `.` | Not documented. | Returns. |
@@ -63,15 +63,15 @@ Test: `tests/core/malformed-input.test.ts` › "positions, routing and lanes".
 | `createPositions` | `.` | Not documented. | Returns; numbers that are not finite pass through to the result. |
 | `clearLayoutCache` | `.` | Not documented. | Returns. |
 | `filterPositions` | `.` | Not documented. | Returns; numbers that are not finite pass through to the result. |
-| `coversGraph` | `.` | A box counts when its four numbers are finite (since this change). | Returns. |
+| `coversGraph` | `.` | A box counts when its four numbers are finite (after 0.3.5). | Returns. |
 | `straightRoute` | `.` | Not documented. | Returns; numbers that are not finite pass through to the result. |
-| `repositionNodes` | `.` | Unroutable geometry: a clipped direct route; an edge without an id is routed (since this change); boxes that are not finite are left out of routing (since this change); a target no route reaches gets its fallback at once (since this change). | Returns; plain `Error` "Cannot route …" (documented). |
-| `routeSequenceFlows` | `.` | Unroutable geometry raises a descriptive error; boxes that are not finite are left out; a target no route reaches is given up at once (both since this change). | Returns, or the documented plain `Error`. |
+| `repositionNodes` | `.` | Unroutable geometry: a clipped direct route; an edge without an id is routed (after 0.3.5); boxes that are not finite are left out of routing (after 0.3.5); a target no route reaches gets its fallback at once (after 0.3.5). | Returns; plain `Error` "Cannot route …" (documented). |
+| `routeSequenceFlows` | `.` | Unroutable geometry raises a descriptive error; boxes that are not finite are left out; a target no route reaches is given up at once (both after 0.3.5). | Returns, or the documented plain `Error`. |
 | `laneGroups` | `.` | Not documented. | Returns. |
 | `laneAssignment` | `.` | Not documented. | Returns. |
-| `laneModel` | `.` | Groups on a cycle of parents have no leaf; their nodes follow their neighbours (since this change). | Returns. |
+| `laneModel` | `.` | Groups on a cycle of parents have no leaf; their nodes follow their neighbours (after 0.3.5). | Returns. |
 | `stackLanes` | `.` | Not documented. | Returns; numbers that are not finite pass through to the result. |
-| `spanLanes` | `.` | A cycle of parents ends where it returns (since this change). | Returns; numbers that are not finite pass through to the result. |
+| `spanLanes` | `.` | A cycle of parents ends where it returns (after 0.3.5). | Returns; numbers that are not finite pass through to the result. |
 | `laneRoutes` | `.` | As `routeSequenceFlows` for `routed`. | Returns, or the documented plain `Error`. |
 | `laneBands` | `.` | Not documented. | Returns; numbers that are not finite pass through to the result. Junk padding or gaps give bands that are not finite. |
 
@@ -98,7 +98,7 @@ Test: `tests/core/malformed-input.test.ts` › "style, tokens, label sizing and 
 | `mapScaleAt` | `.` | Not documented. | Returns a finite number. |
 | `labelScreenPx` | `.` | Multiplies; does not clamp or round. | Returns; numbers that are not finite pass through to the result. |
 | `formatCount` | `.` | A value that is not a finite number prints `–`. | As documented. |
-| `formatNumber` | `.` | As `formatCount`; `decimals` is taken between 0 and 100 (since this change). | As documented. |
+| `formatNumber` | `.` | As `formatCount`; `decimals` is taken between 0 and 100 (after 0.3.5). | As documented. |
 | `formatShare` | `.` | As `formatCount`. | As documented. |
 | `formatDelta` | `.` | As `formatCount`. | As documented. |
 | `formatHours` | `.` | As `formatCount`. | As documented. |
@@ -121,7 +121,7 @@ Test: `tests/core/malformed-input.test.ts` › "overlays and their marks".
 | `overlayMargin` | `.` | Not documented. | Returns; numbers that are not finite pass through to the result. |
 | `overlayColor` | `.` | Neutral without a value. | Returns a colour; a value that is not a finite number is neutral. |
 | `tintColor` | `.` | None without a value. | Returns. |
-| `arcWidth` | `.` | 2 + 8 × coverage in [0, 1], default 1, also for a coverage that is not a finite number (since this change). | As documented. |
+| `arcWidth` | `.` | 2 + 8 × coverage in [0, 1], default 1, also for a coverage that is not a finite number (after 0.3.5). | As documented. |
 | `markArrowhead` | `.` | Not documented. | Returns; numbers that are not finite pass through to the result. |
 | `chipText` | `.` | Not documented. | Returns. |
 | `overlayMarks` | `.` | Not documented. | Returns. |
@@ -143,7 +143,7 @@ Test: `tests/core/malformed-input.test.ts` › "scene, marks, legend, figure and
 
 | Function | Entry | Documented for invalid input | Observed |
 | --- | --- | --- | --- |
-| `buildScene` | `.` | Overlays on unknown targets are dropped; boxes and routes that are not finite are left out as if missing (since this change). | Returns; every drawn element has a finite box, every text is readable. |
+| `buildScene` | `.` | Overlays on unknown targets are dropped; boxes and routes that are not finite are left out as if missing (after 0.3.5). | Returns; every drawn element has a finite box, every text is readable. |
 | `budgetEdges` | `.` | `NaN`, `"all"`, undefined or null withhold nothing. | Returns. |
 | `nodeMarks` | `.` | One mark per node with a box. | Returns. |
 | `edgeMarks` | `.` | One mark per edge between two placed nodes. | Returns. |
@@ -162,7 +162,7 @@ Test: `tests/core/malformed-input.test.ts` › "scene, marks, legend, figure and
 | `legendItemHeight` | `.` | Not documented. | Returns. |
 | `legendLayout` | `.` | Not documented. | Returns. |
 | `figureFrame` | `.` | Not documented. | Finite for sound options; a width, padding or scale out of range (10³⁰⁸, a padding of 10⁻³²⁰ on an empty map) gives sizes that are not finite. |
-| `toSVG` | `.` | Every text and id is escaped (since this change for kinds); deterministic. | Returns well-formed SVG; no `NaN` or `Infinity` for accepted input and sound options. |
+| `toSVG` | `.` | Every text and id is escaped (after 0.3.5 for kinds); deterministic. | Returns well-formed SVG; no `NaN` or `Infinity` for accepted input and sound options. |
 | `resolveViews` | `.` | Not documented. | Returns. |
 | `viewsSharePositions` | `.` | Not documented. | Returns. |
 
@@ -188,17 +188,17 @@ Test: `tests/core/malformed-input.test.ts` › "selection, paths, filters and ac
 | `neighbourhood` | `.` | Not documented. | Returns. |
 | `pathBetween` | `.` | `found: false` when there is no path. | Returns. |
 | `pathRows` | `.` | Not documented. | Returns. |
-| `focusHighlight` | `.` | A focus that is not a pair is one id, also a missing one (since this change). | Returns. |
+| `focusHighlight` | `.` | A focus that is not a pair is one id, also a missing one (after 0.3.5). | Returns. |
 | `asFilter` | `.` | `undefined` and `null` give the empty filter. | Returns. |
-| `normalizeFilterPreview` | `.` | Numbers only where finite; marginal removals only from a list, entries with a numeric clause (since this change). | Returns. |
-| `canonicalClause` | `.` | A clause of an unknown kind stays as it is; an `any` without clauses is empty (since this change). | Returns. |
+| `normalizeFilterPreview` | `.` | Numbers only where finite; marginal removals only from a list, entries with a numeric clause (after 0.3.5). | Returns. |
+| `canonicalClause` | `.` | A clause of an unknown kind stays as it is; an `any` without clauses is empty (after 0.3.5). | Returns. |
 | `clauseKey` | `.` | As `canonicalClause`. | Returns. |
 | `canonicalFilter` | `.` | As `canonicalClause`. | Returns. |
 | `filterEquals` | `.` | As `canonicalClause`. | Returns. |
 | `addClause` | `.` | As `canonicalClause`. | Returns. |
 | `removeClause` | `.` | Not documented. | Returns; an index out of range removes nothing. |
-| `changesCases` | `.` | An `any` without clauses changes none (since this change). | Returns. |
-| `describeClause` | `.` | An unknown kind reads "clause.unknown"; an `any` without clauses is empty (since this change). | Returns. |
+| `changesCases` | `.` | An `any` without clauses changes none (after 0.3.5). | Returns. |
+| `describeClause` | `.` | An unknown kind reads "clause.unknown"; an `any` without clauses is empty (after 0.3.5). | Returns. |
 | `describePreview` | `.` | Not documented. | Returns a readable sentence or nothing. |
 | `clauseForTarget` | `.` | Undefined where no exact filter exists. | Returns. |
 | `menuTargetFor` | `.` | Not documented. | Returns. |
@@ -244,7 +244,7 @@ Test: `tests/core/malformed-input.test.ts` › "the BPMN bridge's synchronous fu
 | Function | Entry | Documented for invalid input | Observed |
 | --- | --- | --- | --- |
 | `liteFromStages` | `./bpmn` | Role lanes get the lane of a gateway's role (documented). | Returns, or plain `Error` "liteFromStages: duplicate id …" (tested, not documented). |
-| `liteFromGraph` | `./bpmn` | Every node on a path from start to end; edges between the same nodes get ids apart (since this change). | Returns; a graph validation accepts stays acceptable. |
+| `liteFromGraph` | `./bpmn` | Every node on a path from start to end; edges between the same nodes get ids apart (after 0.3.5). | Returns; a graph validation accepts stays acceptable. |
 | `stageModelFromGraph` | `./bpmn` | Not documented. | Returns. |
 | `liteCounts` | `./bpmn` | Not documented. | Returns. |
 | `gatewayLabel` | `./bpmn` | Not documented. | Returns. |
@@ -269,7 +269,7 @@ Test: `tests/core/malformed-layout.test.ts` › "layout, layoutUnion, a layout s
 
 | Function | Entry | Documented for invalid input | Observed |
 | --- | --- | --- | --- |
-| `layout` | `.` | `LayoutUnavailableError` above the fallback limit; "layout timed out after … ms"; a non-finite spacing or node size counts as not given, Dagre leaves edges to missing nodes out, empty ids and ids named like `Object.prototype` members are laid out, a timeout beyond a timer's reach waits that long (all since this change). | Returns, or a plain error: `LayoutUnavailableError` and "layout timed out after … ms" (documented); the engines' own errors on a graph validation rejects (ELK on edges to missing nodes and missing ids, Dagre on cycles of group parents; not documented). |
+| `layout` | `.` | `LayoutUnavailableError` above the fallback limit; "layout timed out after … ms"; a non-finite spacing or node size counts as not given, Dagre leaves edges to missing nodes out, empty ids and ids named like `Object.prototype` members are laid out, a timeout beyond a timer's reach waits that long (all after 0.3.5). | Returns, or a plain error: `LayoutUnavailableError` and "layout timed out after … ms" (documented); the engines' own errors on a graph validation rejects (ELK on edges to missing nodes and missing ids, Dagre on cycles of group parents; not documented). |
 | `layoutUnion` | `.` | As `layout`. | Returns, or a plain error: `LayoutUnavailableError` and "layout timed out after … ms" (documented); the engines' own errors on a graph validation rejects (ELK on edges to missing nodes and missing ids, Dagre on cycles of group parents; not documented). |
 | `createLayoutScope` | `.` | As `layout` for its layouts. | Returns, or a plain error: `LayoutUnavailableError` and "layout timed out after … ms" (documented); the engines' own errors on a graph validation rejects (ELK on edges to missing nodes and missing ids, Dagre on cycles of group parents; not documented). |
 | `buildViews` | `.` | As `layout` and `resolveViews`. | Returns, or a plain error: `LayoutUnavailableError` and "layout timed out after … ms" (documented); the engines' own errors on a graph validation rejects (ELK on edges to missing nodes and missing ids, Dagre on cycles of group parents; not documented). |
@@ -282,10 +282,10 @@ Test: `tests/core/malformed-bpmn.test.ts` › "lays out, exports, imports and va
 
 | Function | Entry | Documented for invalid input | Observed |
 | --- | --- | --- | --- |
-| `layoutBpmn` | `./bpmn` | Unroutable geometry raises a descriptive error; groups on a cycle of parents are laid out (since this change). | Returns, or the documented plain `Error`, or the engines' errors on a graph validation rejects (not documented). |
-| `exportBpmn` | `./bpmn` | Elements without a position are listed in `warnings`; every element gets its own id and shape; non-finite boxes are left out (since this change). | Returns XML without `NaN`, `Infinity` or a repeated id. |
+| `layoutBpmn` | `./bpmn` | Unroutable geometry raises a descriptive error; groups on a cycle of parents are laid out (after 0.3.5). | Returns, or the documented plain `Error`, or the engines' errors on a graph validation rejects (not documented). |
+| `exportBpmn` | `./bpmn` | Elements without a position are listed in `warnings`; every element gets its own id and shape; non-finite boxes are left out (after 0.3.5). | Returns XML without `NaN`, `Infinity` or a repeated id. |
 | `importBpmn` | `./bpmn` | Rejects only text that is not BPMN definitions, with the parser's plain `Error` (`unparsable content …`, `failed to parse document …`); everything else imports with `warnings`, including every `validateGraph` issue. | As documented. |
-| `validateBpmn` | `./bpmn` | Reads nesting deeper than the call stack (since this change); otherwise not documented for text that is not BPMN. | Returns, or the parser's plain `Error` (not documented). |
+| `validateBpmn` | `./bpmn` | Reads nesting deeper than the call stack (after 0.3.5); otherwise not documented for text that is not BPMN. | Returns, or the parser's plain `Error` (not documented). |
 | `positionsFromDi` | `./bpmn` | Shapes and routes that are not finite are left out and reported. | As documented. |
 | `flowIdOf` | `./bpmn` | Not documented. | Returns. |
 | `wiseAttr` | `./bpmn` | Not documented. | Returns. |
@@ -298,7 +298,7 @@ Test: `tests/react/MalformedMap.test.tsx` › "renders every case in each render
 
 | Function | Entry | Documented for invalid input | Observed |
 | --- | --- | --- | --- |
-| `ProcessMap` | `./react` | Given positions are used as long as they cover the graph (finite boxes since this change); `describedLimit`, `pageSize`, `edgeBudget` and thresholds are not documented for junk values. | Renders; nothing logged but React's key warnings for ids missing or repeated (findings). No coordinate that is not finite is drawn for accepted input and sound props; the Canvas map draws with finite numbers. |
+| `ProcessMap` | `./react` | Given positions are used as long as they cover the graph (finite boxes after 0.3.5); `describedLimit`, `pageSize`, `edgeBudget` and thresholds are not documented for junk values. | Renders; nothing logged but React's key warnings for ids missing or repeated (findings). No coordinate that is not finite is drawn for accepted input and sound props; the Canvas map draws with finite numbers. |
 
 ## React: the view switcher
 
@@ -315,12 +315,12 @@ Test: `tests/react/MalformedComponents.test.tsx` › "tables, path lists, filter
 | Function | Entry | Documented for invalid input | Observed |
 | --- | --- | --- | --- |
 | `TableAlternative` | `./react` | Without `pageSize` every row; with it pages of that size (not documented for zero, negative or fractional sizes). | Renders; nothing logged but React's key warnings for ids missing or repeated (findings). |
-| `PathList` | `./react` | As `pathsFor`; a focus that is not a pair is one id (since this change). | Renders; nothing logged but React's key warnings for ids missing or repeated (findings). |
+| `PathList` | `./react` | As `pathsFor`; a focus that is not a pair is one id (after 0.3.5). | Renders; nothing logged but React's key warnings for ids missing or repeated (findings). |
 | `FilterChips` | `./react` | As `normalizeFilterPreview` and `describeClause`. | Renders; nothing logged but React's key warnings for ids missing or repeated (findings). |
 | `Legend` | `./react` | Not documented. | Renders; nothing logged but React's key warnings for ids missing or repeated (findings). |
 | `OverlayLayer` | `./react` | Not documented. | Renders; nothing logged but React's key warnings for ids missing or repeated (findings). Needs the React Flow context, as documented for custom controls. |
 | `Badges` | `./react` | Not documented. | Renders; nothing logged but React's key warnings for ids missing or repeated (findings). |
-| `Chip` | `./react` | Renders nothing for an overlay without a mark of its own (since this change). | Renders; nothing logged but React's key warnings for ids missing or repeated (findings). |
+| `Chip` | `./react` | Renders nothing for an overlay without a mark of its own (after 0.3.5). | Renders; nothing logged but React's key warnings for ids missing or repeated (findings). |
 | `PatternSwatch` | `./react` | Not documented. | Renders; nothing logged but React's key warnings for ids missing or repeated (findings). |
 
 ## React: menus, controls, timelines, comparisons, hooks and descriptions
@@ -387,7 +387,7 @@ one by one:
 
 | Where | What | Judgement |
 | --- | --- | --- |
-| `src/core/export.ts` (`toSVG`), `src/core/overlay-marks.ts` (`svgMarkup`) | Build SVG as a string. | Safe: every text and attribute value that comes with the data is escaped (`&`, `<`, `>`, `"`); the node kind in `class` since this change. Attribute names are the library's own. |
+| `src/core/export.ts` (`toSVG`), `src/core/overlay-marks.ts` (`svgMarkup`) | Build SVG as a string. | Safe: every text and attribute value that comes with the data is escaped (`&`, `<`, `>`, `"`); the node kind in `class` after 0.3.5. Attribute names are the library's own. |
 | `src/react/marks.tsx` (`svgDom`) | Builds the overlay marks of the BPMN view as DOM: `createElementNS`, `setAttribute`, `style.setProperty`, text nodes. | Safe: no markup is parsed; attribute names are the library's own, data reaches only values and text nodes. |
 | `src/bpmn/bpmn-js.ts`, `src/react/BpmnView.tsx` | Hand bpmn-js overlays (`overlays.add`) and markers (`canvas.addMarker`). | Safe: overlays are DOM elements, never strings (`ViewerOverlay.html: HTMLElement`); a marker is a class name of the library's own (`wf-bpmn--…`). |
 | `src/bpmn/export.ts` (`exportBpmn`) | Writes XML through bpmn-moddle. | Safe: moddle escapes text and attribute values; the XML is read back in the markup test. |
@@ -473,7 +473,7 @@ changes the public behaviour here.
    infinity where their input had one. `unionBoxes` contradicts its own
    sentence in part: it ignores a box without a non-negative size, but not
    one whose `x` or `y` is not finite. Scenes and exports no longer let such
-   numbers through (since this change). *Proposal:* document "finite in,
+   numbers through (after 0.3.5). *Proposal:* document "finite in,
    finite out" for these helpers, and have `unionBoxes` ignore a box whose
    four numbers are not finite, as `coversGraph` does.
 9. **Errors that are tested but not documented.** `liteFromStages` throws a
@@ -495,7 +495,7 @@ changes the public behaviour here.
 
 **Ids named like members of `Object.prototype`** (`__proto__`,
 `constructor`, `toString`, …; `tests/core/prototype-ids.test.ts`). Validation
-accepts them, and Dagre lays them out (since this change), but `Positions`
+accepts them, and Dagre lays them out (after 0.3.5), but `Positions`
 and many tables of the library are plain objects keyed by id: a `__proto__`
 box is not stored as the record's own, so `filterPositions` drops it and
 `toSVG` throws a `TypeError`; `createIdResolver` throws a `TypeError` for an
