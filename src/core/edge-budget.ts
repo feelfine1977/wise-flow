@@ -38,7 +38,7 @@ export interface EdgeSelection {
   loops: readonly string[];
   /** How many highlighted edges in view the budget withholds. */
   highlightedNotShown: number;
-  /** How many of the edges in view it withholds are paths (follows and flow edges, not indirect ones): what a panel counts as paths not drawn. */
+  /** How many of the paths in view it withholds (follows and flow edges, not indirect ones, and the loops a map's report does not name): what a panel counts as paths not drawn. */
   pathsNotShown: number;
 }
 
@@ -94,7 +94,10 @@ export function budgetEdges(scene: BudgetScene, budget: EdgeBudget | ShownEdges 
       if (named.has(mark.id)) drawn.add(i);
       else if (isPath(mark.edge)) pathsNotShown++;
     }
-    loops = loops.filter((id) => named.has(id));
+    // A loop in view the map did not draw is a path not shown too.
+    const drawnLoops = loops.filter((id) => named.has(id));
+    pathsNotShown += loops.length - drawnLoops.length;
+    loops = drawnLoops;
     return drawn.size < total ? { drawn, shown: drawn.size + loops.length, total: budget.total, kept: drawn.size, loops, highlightedNotShown: 0, pathsNotShown } : undefined;
   }
   // Not a number (NaN) withholds nothing, as "all" does.

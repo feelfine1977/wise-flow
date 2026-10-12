@@ -96,6 +96,15 @@ describe("edge budget", () => {
     expect(budgetEdges(mixed, { edges: ["p1", "k"], total: 5 })).toMatchObject({ shown: 2, total: 5, pathsNotShown: 2 });
   });
 
+  it("counts a loop a map's report leaves out among the paths it withholds", () => {
+    // a → b and b → c, and a path that loops on a; the map drew a → b alone.
+    const looped = sceneOf(["a", "b", "c"], [follows("p1", "a", "b", 30), follows("p2", "b", "c", 20), follows("loop", "a", "a", 10)]);
+    // Withheld: p2 and the loop, both paths, as total − shown says.
+    expect(budgetEdges(looped, { edges: ["p1"], total: 3 })).toMatchObject({ shown: 1, total: 3, loops: [], pathsNotShown: 2 });
+    // The loop drawn: only p2.
+    expect(budgetEdges(looped, { edges: ["p1", "loop"], total: 3 })).toMatchObject({ shown: 2, total: 3, loops: ["loop"], pathsNotShown: 1 });
+  });
+
   it("orders by the metric the edge width reads", () => {
     const byShare = buildScene(scene.graph, scene.positions, {
       selfLoops: false,

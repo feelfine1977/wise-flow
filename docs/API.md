@@ -2875,7 +2875,7 @@ export interface EdgeProtection { selection?: { edges: readonly string[] }; focu
 export interface EdgeSelection { drawn: Set<number>; shown: number; total: number; kept: number;   // positions in scene.edgeMarks
   loops: readonly string[];      // the paths in view that loop on one activity, counted in shown and total
   highlightedNotShown: number;   // the highlighted edges in view the budget withholds
-  pathsNotShown: number }        // the edges in view it withholds that are paths (follows and flow edges, not indirect)
+  pathsNotShown: number }        // the paths in view it withholds (follows and flow edges, not indirect, and loops)
 export interface ShownEdges { edges: readonly string[]; total: number }   // what a map draws, as onEdgesShown reports it
 export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style" | "graph" | "positions">, budget: EdgeBudget | ShownEdges | undefined,
   protection?: EdgeProtection, inView?: readonly number[], loops?: readonly string[]): EdgeSelection | undefined;
@@ -2950,7 +2950,7 @@ the loops (`loops`), how many highlighted edges in view it withholds
 (`highlightedNotShown`; 0 for a map's report), and how many of the edges in
 view it withholds are paths (`pathsNotShown`: follows and flow edges, not a
 constraint edge nor an indirect path, as `meta.shown.paths` counts them; also
-for a map's report). The edges in view are `inView` (positions in
+for a map's report, where the loops in view it does not name count too). The edges in view are `inView` (positions in
 `scene.edgeMarks`), or every edge of the scene without it; the loops in view
 are `loops`, or every edge of the scene from a node with a box to itself
 without it. The order by weight is computed once per scene and
