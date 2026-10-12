@@ -55,6 +55,15 @@ describe("labels in a BPMN export", () => {
     expect(back.graph.groups?.find((g) => g.id === "lane")?.label).toBe("Lane");
   });
 
+  it("name a pool in the warning by its own id, as a lane", async () => {
+    const { graph, positions } = model({ a: "A", b: "B", note: "N", flow: "F", lane: "L" });
+    graph.groups = [{ id: "pool", kind: "pool", label: "Pool\u0003" }, { ...graph.groups![0], parent: "pool" }];
+    const out = await exportBpmn(graph, { positions: { ...positions, groups: { ...positions.groups, pool: { x: 0, y: 0, width: 630, height: 120 } } } });
+    expect(out.warnings).toEqual([dropped("pool")]);
+    expect(parse(out.xml).getElementsByTagNameNS(BPMN, "participant")[0].getAttribute("name")).toBe("Pool");
+    expect((await importBpmn(out.xml)).graph.groups?.find((g) => g.id === "pool")?.label).toBe("Pool");
+  });
+
   it("and ids lose them too, with a warning", async () => {
     const { graph, positions } = model({ a: "A", b: "B", note: "N", flow: "F", lane: "L" });
     graph.nodes[1] = { ...graph.nodes[1], id: "b\u0002" };

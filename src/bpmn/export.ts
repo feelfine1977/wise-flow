@@ -233,7 +233,7 @@ export async function exportBpmn(graph: FlowGraph, options: ExportBpmnOptions = 
     const pool = pools[0];
     const pid = pool ? idFor(ctx, pool.id, "Participant_") : xmlId("Participant_wise", ctx.taken);
     participant = moddle.create("bpmn:Participant", { id: pid, processRef: process });
-    participant.set("name", text(ctx, pool?.label ?? options.name ?? (typeof graph.meta?.label === "string" ? graph.meta.label : "Process"), pid));
+    participant.set("name", text(ctx, pool?.label ?? options.name ?? (typeof graph.meta?.label === "string" ? graph.meta.label : "Process"), pool?.id ?? pid));
     if (pool) origin(ctx, participant, pool.id, undefined, undefined, undefined);
     if (pools.length > 1) warnings.push(`only the first pool group is exported as a participant; ${pools.length - 1} more treated as lanes`);
     (collaboration.get("participants") as ModdleElement[]).push(participant);
