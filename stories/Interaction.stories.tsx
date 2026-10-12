@@ -16,7 +16,7 @@ import {
   pathsFor,
 } from "../src/index";
 import { type Selection } from "../src/react/index";
-import { ProcessMap } from "./maps";
+import { ProcessMap, WHOLE_LOG_DETAIL } from "./maps";
 
 const meta: Meta = {
   title: "Interaction",
@@ -25,7 +25,7 @@ const meta: Meta = {
 export default meta;
 
 const layout = { elkWorkerUrl };
-const abstractionDefault: AbstractOptions = { minNodeShare: 0.01, minEdgeShare: 0.03, keepConnected: true };
+const abstractionDefault: AbstractOptions = WHOLE_LOG_DETAIL;
 const labelOf = (id: string) => globalScene.nodes.find((n) => n.id === id)?.label ?? id;
 
 const headerStyle: React.CSSProperties = {

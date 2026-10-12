@@ -355,14 +355,22 @@ describe("detail shares", () => {
         const byFrequency = ranked.slice(0, Math.ceil(p * ranked.length - 1e-9)).filter((e) => isShownEnd(graph, shown, e.source) && isShownEnd(graph, shown, e.target));
         const { keeps, indirect } = anchorsAt(a, p);
         const edges = new Set([...byFrequency.map((e) => e.id), ...Object.keys(keeps)]);
+        // The events of the shown activities, of all; the slider's stops are where a tie of cases and events ends.
+        const order = activityRank(graph, counted);
+        const events = (ids: Set<string>) => order.filter((n) => ids.has(n.id)).reduce((sum, n) => sum + n.metrics!.events!, 0);
+        const stops = order.map((_, i) => i + 1).filter((k) => k === order.length || order[k].metrics!.cases !== order[k - 1].metrics!.cases || order[k].metrics!.events !== order[k - 1].metrics!.events);
         const expected = {
           activities: { shown: shown.size, of: graph.nodes.filter(isActivity).length },
           paths: { shown: edges.size, of: graph.edges.length },
           anchorsOnly: Object.keys(keeps).length,
           keeps,
           indirect: indirect.length,
+          byFrequency: byFrequency.length,
           ...(byFrequency.length && { weakestByFrequency: byFrequency.at(-1)!.metrics!.count }),
           ...(ranked.some((e) => !edges.has(e.id)) && { strongestNotShown: ranked.find((e) => !edges.has(e.id))!.metrics!.count }),
+          weakestShown: ranked.filter((e) => edges.has(e.id)).at(-1)!.metrics!.count,
+          events: { shown: events(shown), of: events(new Set(order.map((n) => n.id))) },
+          positions: { activities: stops, paths: ranked.length, at: { activities: shown.size, paths: Math.max(0, Math.ceil(p * ranked.length - 1e-9)) } },
           marksNotShown: [],
           forProtected: [],
         };
@@ -524,7 +532,15 @@ describe("thresholds", () => {
     const loose = abstract(globalScene, { minNodeShare: 0, minEdgeShare: 0.03, keepConnected: false });
     const touched = new Set(loose.edges.filter((e) => e.source !== e.target).flatMap((e) => [e.source, e.target]));
     expect(loose.edges).toHaveLength(31);
-    expect(loose.meta?.shown).toEqual({ activities: { shown: 42, of: 42 }, paths: { shown: 31, of: 677 }, withoutPath: 30, marksNotShown: [], forProtected: [] });
+    // At the thresholds, the sliders stand where the activities and paths they pass are: all 42 activities, the 31 paths of
+    // at least 3 % of the strongest's count, counted here.
+    const strongest = Math.max(...globalScene.edges.filter((e) => e.source !== e.target).map((e) => e.metrics!.count!));
+    const passing = globalScene.edges.filter((e) => e.metrics!.count! >= 0.03 * strongest).length;
+    expect(passing).toBe(31);
+    expect(loose.meta?.shown).toMatchObject({ activities: { shown: 42, of: 42 }, paths: { shown: 31, of: 677 }, withoutPath: 30, marksNotShown: [], forProtected: [] });
+    expect(loose.meta?.shown?.positions.at).toEqual({ activities: 42, paths: passing });
+    expect(loose.meta?.shown?.positions.paths).toBe(677);
+    expect(loose.meta?.shown?.anchorsOnly).toBeUndefined();
     expect(loose.nodes.filter((n) => isActivity(n) && !touched.has(n.id))).toHaveLength(30);
     expect(abstract(globalScene, { minNodeShare: 0, minEdgeShare: 0.03 }).meta?.shown?.withoutPath).toBeUndefined();
   });

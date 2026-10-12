@@ -31,7 +31,9 @@ from left to right, start and end events, path width and grey shade by
 cases (darker with more; the width on one scale for the whole log, from 0 to
 its strongest path), every path ending in a head that grows with its line,
 paths back against the flow as their own lines below it, a legend at the
-bottom right and the abstraction panel at the top left.
+bottom right and the detail panel at the top left. It opens at 16 of 42
+activities and the 31 strongest of 677 paths, with the paths that keep each
+shown activity on a way from start to end drawn solid with their counts.
 
 Constraint overlays from the fixture statistics, all in the one orange accent:
 
@@ -48,10 +50,17 @@ Constraint overlays from the fixture statistics, all in the one orange accent:
 
 What to do:
 
-- Move the *Activities* and *Paths* sliders: the map thins out and stays
-  connected (re-added paths are dashed); surviving activities do not move
-  while sliding because positions are cached per abstraction level, and a
-  path that stays keeps its width; the legend's width row does not change.
+- Move the *Activities* and *Paths* sliders of the panel *Detail*: to the
+  left the map thins out, to the right it shows everything; every activity
+  shown stays on a way from start to end (the paths kept for that are solid,
+  with their counts), and beside each slider a statement says what is shown
+  ("16 of 42 · 98.8 % of events", "41 of 677 · 10 kept · strongest not
+  shown: 5,398"). Moving *Activities* leaves the *Paths* thumb where it is
+  and rewrites its statement. With the keyboard an arrow key moves one rank,
+  Page Up and Page Down ten. Point at "10 kept": exactly those paths stay
+  bright. Surviving activities do not move while sliding because positions
+  are cached per abstraction level, and a path that stays keeps its width;
+  the legend's width row does not change.
 - Press *Show stages*: five stage nodes replace the activities; *Show
   activities* returns.
 - Zoom out with the mouse wheel or the − button: labels, badges, arcs and
@@ -65,8 +74,8 @@ What to do:
   tables with the same numbers; *Map view* returns.
 - Hover a badge, an arc or a chip for the reading (label, share, threshold).
 
-Pass when: the map renders with badges, arcs and hatching; the abstraction
-sliders change the map without breaking it into pieces; overlays follow the
+Pass when: the map renders with badges, arcs and hatching; the detail
+sliders change the map without leaving an activity without its paths; overlays follow the
 zoom level; the table view lists the same numbers.
 
 ### 2.2 Stable layout › Global vs vendor (union layout)

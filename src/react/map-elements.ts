@@ -35,8 +35,8 @@ export function useTextMeasure(given: TextMeasure | undefined, family: string): 
   return useMemo(() => given ?? canvasTextMeasure(family), [given, family, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
-/** ARIA descriptions of the shown elements, read through one index of the shown graph. */
-export function useElementDescriptions(shown: FlowGraph, overlays: Overlay[], locale: Locale, activityLabels: ActivityLabelOptions | undefined) {
+/** ARIA descriptions of the shown elements, read through one index of the shown graph; `notes` adds to an element's, by id (`detailNotes`). */
+export function useElementDescriptions(shown: FlowGraph, overlays: Overlay[], locale: Locale, activityLabels: ActivityLabelOptions | undefined, notes?: ReadonlyMap<string, string>) {
   // Descriptions
   const overlaysByTarget = useMemo(() => {
     const m = new Map<string, Overlay[]>();
@@ -53,7 +53,7 @@ export function useElementDescriptions(shown: FlowGraph, overlays: Overlay[], lo
     for (const n of shown.nodes) if (n.group) m.set(n.group, (m.get(n.group) ?? 0) + 1);
     return m;
   }, [shown]);
-  const describeElement = useCallback(
+  const describeOwn = useCallback(
     (ref: ElementRef): string => {
       if (ref.kind === "node") {
         const n = index.nodes.get(ref.id);
@@ -67,6 +67,13 @@ export function useElementDescriptions(shown: FlowGraph, overlays: Overlay[], lo
       return g ? describeGroup(g, memberCount.get(g.id) ?? 0, overlaysByTarget.get(g.id) ?? [], locale) : ref.id;
     },
     [index, overlaysByTarget, groupIndex, memberCount, locale, activityLabels],
+  );
+  const describeElement = useCallback(
+    (ref: ElementRef): string => {
+      const note = ref.kind === "group" ? undefined : notes?.get(ref.id);
+      return note ? `${describeOwn(ref)} ${note}` : describeOwn(ref);
+    },
+    [describeOwn, notes],
   );
   return { describeElement, index, overlaysByTarget, groupIndex, memberCount };
 }
@@ -98,7 +105,7 @@ export const edgeArrowId = (a: Arrowhead) => `wf-edge-arrow-${a.size}`;
 /** React Flow nodes (groups first, as parents) and edges, and the overlay marks drawn between elements. */
 export function useFlowElements(input: FlowInput) {
   const { enabled, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, nodesDraggable, edgeBudget, highlighted } = input;
-  const { overlaysByTarget, groupIndex, memberCount, describeElement, index } = descriptions;
+  const { overlaysByTarget, groupIndex, memberCount, describeElement } = descriptions;
   const { scales } = scene;
   const groupMarks = useMemo(() => new Map(scene.groupMarks.map((m) => [m.id, m])), [scene.groupMarks]);
   // Marks below the edges are drawn by the element they cover, as its background; boxes above it by the
@@ -217,7 +224,7 @@ export function useFlowElements(input: FlowInput) {
     if (!positions || !enabled) return [];
     return (withheld ? scene.edgeMarks.filter((_, i) => withheld.drawn.has(i)) : scene.edgeMarks).map((mark) => {
       const e = mark.edge;
-      const description = describeIndexedEdge(e, index, locale);
+      const description = describeElement({ kind: "edge", id: e.id });
       const states = { selected: selection.edges.includes(e.id), focused: focused === e.id, hovered: hovered === e.id, dimmed: !!bright && !bright.edges.has(e.id) };
       const state = stateStyle(scene, "edge", mark, states);
       return {
@@ -246,7 +253,7 @@ export function useFlowElements(input: FlowInput) {
         },
       };
     });
-  }, [positions, enabled, scene, index, selection, hovered, focused, locale, bright, withheld]);
+  }, [positions, enabled, scene, describeElement, selection, hovered, focused, bright, withheld]);
   const shownBetween = useMemo(() => between.map(inHover), [between, inHover]);
   // The heads the edges end in, one per size.
   const arrows = useMemo(() => [...new Map(rfEdges.map((e) => [e.data!.mark!.arrow.size, e.data!.mark!.arrow])).values()].sort((a, b) => a.size - b.size), [rfEdges]);

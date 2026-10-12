@@ -5,7 +5,7 @@ import { constraintItems, globalScene } from "../fixtures/bpic2019";
 import { p2pStages, withSceneMetrics } from "../fixtures/p2p_stages";
 import { liteFromStages } from "../src/bpmn/index";
 import { type LaneMode, overlaysFor } from "../src/index";
-import { ProcessMap } from "./maps";
+import { ProcessMap, WHOLE_LOG_DETAIL } from "./maps";
 
 const meta: Meta = {
   title: "Layout",
@@ -49,7 +49,7 @@ export const StageLanes: StoryObj<{ lanes: LaneMode }> = {
       <div style={{ display: "grid", gridTemplateRows: "auto 1fr", height: "100vh", width: "100vw" }}>
         <LaneBar lanes={lanes} onChange={setLanes} note="Stage bands follow the flow; the activities keep their positions." />
         <div style={{ minHeight: 0 }}>
-          <ProcessMap graph={globalScene} overlays={overlays} defaultAbstraction={{ minNodeShare: 0.01, minEdgeShare: 0.03, keepConnected: true }} lanes={lanes} layout={layout} />
+          <ProcessMap graph={globalScene} overlays={overlays} defaultAbstraction={WHOLE_LOG_DETAIL} lanes={lanes} layout={layout} />
         </div>
       </div>
     );

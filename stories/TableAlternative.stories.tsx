@@ -16,12 +16,15 @@ export default meta;
 
 type Story = StoryObj<typeof TableAlternative>;
 
+/** Every activity of the vendor, and the 17 of 36 paths by frequency that paths of 2 % showed before. */
+const VENDOR_DETAIL = { activityDetail: 1, pathDetail: 17 / 36 };
+
 /** The vendor scene and its overlays as three accessible tables; rows select. */
 export const Tables: Story = {
   name: "Vendor scene as tables",
   render: (args) => {
     const [selection, setSelection] = useState<Selection>({ nodes: [], edges: [], groups: [] });
-    const graph = useMemo(() => abstract(vendorScene, { minEdgeShare: 0.02 }), []);
+    const graph = useMemo(() => abstract(vendorScene, VENDOR_DETAIL), []);
     const overlays = useMemo(() => overlaysFor(constraintItems(vendorSceneKey), { graph, locale: args.locale }), [graph, args.locale]);
     return <TableAlternative {...args} graph={graph} overlays={overlays} selection={selection} onSelect={setSelection} />;
   },
@@ -35,7 +38,7 @@ export const InsideMap: Story = {
     const overlays = useMemo(() => overlaysFor(constraintItems(vendorSceneKey), { graph: vendorScene, locale: args.locale }), [args.locale]);
     return (
       <div style={{ height: "90vh" }}>
-        <ProcessMap graph={vendorScene} overlays={overlays} locale={args.locale} defaultAbstraction={{ minEdgeShare: 0.02 }} view={view} onViewChange={setView} layout={{ engine: "dagre" }} />
+        <ProcessMap graph={vendorScene} overlays={overlays} locale={args.locale} defaultAbstraction={VENDOR_DETAIL} view={view} onViewChange={setView} layout={{ engine: "dagre" }} />
       </div>
     );
   },

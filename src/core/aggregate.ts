@@ -3,7 +3,7 @@ import { collapsedActivityIds, shownActivityIds } from "./collapsed-members.js";
  * Aggregation: abstraction by frequency or performance with a keep-connected
  * guarantee, stage collapse (semantic zoom) and diff maps.
  */
-import { INDIRECT_TAG, MinHeap, selectByDetail } from "./detail.js";
+import { INDIRECT_TAG, MinHeap, rankActivities, selectByDetail, within } from "./detail.js";
 import type { MetricBasis } from "./metrics.js";
 import { canonicalOverlays } from "./overlays.js";
 import {
@@ -649,10 +649,14 @@ export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowG
   const { base, nodeStrength, edgeStrength, edgeRank, unmeasured, required, keepIds, protectedIds, comparison } = kept;
   let { nodes, edges } = kept;
   const meta: Partial<ShownMeta> = {};
+  const nodeEvents = strengthsOf(base.nodes.filter((n) => !isStructuralNode(n)), ["events"], relativeTo, comparison);
+  // The sliders' scale: the activities by rank to the end of each tie, the measured paths by rank.
+  const { measured, stops } = rankActivities(base.nodes, nodeStrength, nodeEvents, unmeasured);
+  const ranked = base.edges.filter((e) => e.kind !== "constraint" && !unmeasured.has(e.id));
+  const at = { activities: 0, paths: 0 };
   // Whether an element would be shown without the protected marks.
   let passes: (id: string) => boolean;
   if (byDetail) {
-    const nodeEvents = strengthsOf(base.nodes.filter((n) => !isStructuralNode(n)), ["events"], relativeTo, comparison);
     const s = selectByDetail({ base, nodeStrength, nodeEvents, edgeStrength: edgeRank, unmeasured, activityDetail: options.activityDetail ?? 1, pathDetail: options.pathDetail ?? 1, required });
     ({ nodes, edges } = s);
     passes = (id) => s.byShare.has(id) || s.frequent.has(id) || s.anchors.has(id) || keepIds.has(id);
@@ -662,13 +666,20 @@ export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowG
     meta.anchorsOnly = Object.keys(s.keeps).length;
     meta.keeps = s.keeps;
     meta.indirect = edges.filter((e) => hasTag(e, INDIRECT_TAG)).length;
+    meta.byFrequency = edges.filter((e) => s.frequent.has(e.id) && isPath(e)).length;
     const weakest = countOf(s.ranked.filter((e) => s.frequent.has(e.id) && shownIds.has(e.id)).pop());
     const strongest = countOf(s.ranked.find((e) => !shownIds.has(e.id)));
+    const weakestShown = countOf(s.ranked.filter((e) => shownIds.has(e.id)).pop());
     if (weakest !== undefined) meta.weakestByFrequency = weakest;
     if (strongest !== undefined) meta.strongestNotShown = strongest;
+    if (weakestShown !== undefined) meta.weakestShown = weakestShown;
+    at.activities = s.count;
+    at.paths = within(options.pathDetail ?? 1, ranked.length);
   } else {
     // An element passes on its own strength; a path between ends that do not is shown for its ends.
     passes = (id) => keepIds.has(id) || (nodeStrength.has(id) ? nodeStrength.get(id)! >= minNodeShare : edgeStrength.get(id)! >= minEdgeShare);
+    at.activities = measured.filter((n) => nodeStrength.get(n.id)! >= minNodeShare).length;
+    at.paths = ranked.filter((e) => e.kind !== "follows" || edgeStrength.get(e.id)! >= minEdgeShare).length;
     if (keepConnected) {
       const r = restoreFlowContext(kept, joinComponents(kept));
       // Keep the original element order for stable rendering.
@@ -701,10 +712,15 @@ export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowG
   // A mark is named by its kind, its target and its place among the marks given, in canonical order.
   const given = [...(graph.overlays ?? []), ...(options.marks ?? [])].map((o) => ({ ...o }));
   const place = new Map(canonicalOverlays(given).map((o, n) => [o, n]));
+  // The events of the activities and stages where the graph counts them; a comparison's two sides are not added up.
+  const eventsOf = (list: FlowNode[]) => list.filter(isActivity).reduce((sum, n) => sum + Math.max(0, metric(n, "events")), 0);
+  const counted = !comparison && base.nodes.some((n) => isActivity(n) && Number.isFinite(metric(n, "events", NaN)));
   const shown: ShownMeta = {
     activities: { shown: nodes.filter(isActivity).length, of: base.nodes.filter(isActivity).length },
     paths: { shown: edges.filter(isPath).length, of: base.edges.filter((e) => e.kind !== "constraint").length },
     ...meta,
+    ...(counted && { events: { shown: eventsOf(nodes), of: eventsOf(base.nodes) } }),
+    positions: { activities: stops, paths: ranked.length, at },
     marksNotShown: kept.marks.flatMap((o, i) => (isShown(o) ? [] : [given[i]])).sort((a, b) => place.get(a)! - place.get(b)!).map((o) => `${o.kind}:${o.target}:${place.get(o)}`),
     forProtected: [...protectedIds].filter((id) => (nodeSet.has(id) || edgeSet.has(id)) && !passes(id)).sort(),
   };

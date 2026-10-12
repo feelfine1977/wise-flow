@@ -12,7 +12,7 @@ import {
   type OnNodesChange,
 } from "@xyflow/react";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { type AbstractOptions, type ElementRef, type FlowGraph, type Insets, type Positions, type XY, INDIRECT_TAG, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, defaultStyle, dimensionTokens, fitViewport, formatCount, hasTag, lodAt, spaceTokens, strokeTokens, t, themeColors } from "../core/index.js";
+import { type AbstractOptions, type ElementRef, type FlowGraph, type Insets, type Positions, type XY, INDIRECT_TAG, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, defaultStyle, detailNotes, detailStatement, dimensionTokens, fitViewport, formatCount, hasTag, lodAt, spaceTokens, strokeTokens, t, themeColors } from "../core/index.js";
 import { type MapContext, mapEmphasis, menuHeading } from "../core/map-controller.js";
 import { markedThemeKey, themeStyle } from "../core/theme.js";
 import { ActivityTooltip } from "./ActivityTooltip.js";
@@ -173,8 +173,15 @@ function ProcessMapInner(props: ProcessMapProps) {
     style, locale, lanes, activityLabels, selfLoops, lod: props.lod, theme: markedTheme, scheme: look.scheme, textMeasure,
   });
   const { scales, overlays, geometry } = scene;
+  // What the detail sliders show, in words, and what the tooltips add: the labels of elements not shown are the graph's before the sliders.
+  const baseLabel = useMemo(() => {
+    const labels = new Map(baseGraph.nodes.map((n) => [n.id, n.label]));
+    return (id: string) => labels.get(id) ?? id;
+  }, [baseGraph]);
+  const statement = useMemo(() => detailStatement(shown, { locale, marks: baseGraph.overlays, labelOf: baseLabel }), [shown, baseGraph, locale, baseLabel]);
+  const notes = useMemo(() => detailNotes(baseGraph, shown, { locale, labelOf: baseLabel }), [baseGraph, shown, locale, baseLabel]);
   // One index of the shown graph: every description, label and lookup by id reads it.
-  const descriptions = useElementDescriptions(shown, overlays, locale, activityLabels);
+  const descriptions = useElementDescriptions(shown, overlays, locale, activityLabels, notes);
   const { describeElement, index } = descriptions;
   const labelOf = index.label;
   const onNodesChange = useCallback<OnNodesChange<WfNode | WfGroupNode>>((changes) => {
@@ -195,9 +202,14 @@ function ProcessMapInner(props: ProcessMapProps) {
   const hover = useCallback((id: string | null) => void dispatch({ type: "hover", id }), [dispatch]);
   const tooltipId = useId();
   // The focus of paths in effect and what stays bright: the controller's.
-  const { focus, focusShown, bright } = useMemo(() => mapEmphasis({ selection, focus: explicitFocus }, shown), [selection, explicitFocus, shown]);
-  // The edges of a focus of paths stay drawn under the edge budget.
-  const highlighted = focusShown ? bright?.edges : undefined;
+  const emphasis = useMemo(() => mapEmphasis({ selection, focus: explicitFocus }, shown), [selection, explicitFocus, shown]);
+  const { focus, focusShown } = emphasis;
+  // Pointing at the kept paths' part of the detail statement marks those paths, and dims the others.
+  const [keptOn, setKeptOn] = useState(false);
+  const kept = statement?.kept;
+  const bright = useMemo(() => (keptOn && kept?.length ? { nodes: new Set(shown.nodes.map((n) => n.id)), edges: new Set(kept) } : emphasis.bright), [keptOn, kept, shown, emphasis]);
+  // The edges of a focus of paths, and the kept paths marked, stay drawn under the edge budget.
+  const highlighted = (keptOn && kept?.length) || focusShown ? bright?.edges : undefined;
 
   const rf = useReactFlow();
   const flowStore = useStoreApi();
@@ -236,8 +248,13 @@ function ProcessMapInner(props: ProcessMapProps) {
 
   // React Flow nodes and edges, or the Canvas scene, its state and the elements listed for assistive technology.
   const flow = useFlowElements({ enabled: !useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, nodesDraggable, edgeBudget, highlighted });
-  // The Canvas map reports the edges it draws itself.
+  // The Canvas map reports the edges it draws itself; the detail panel says how many paths it withholds.
   const tellShown = useEdgesShownAcross(props.onEdgesShown, useCanvas);
+  const [canvasWithheld, setCanvasWithheld] = useState<number | undefined>(undefined);
+  const canvasShown = useCallback((s: Parameters<NonNullable<typeof tellShown>>[0]) => {
+    setCanvasWithheld(s && s.total - s.edges.length);
+    tellShown?.(s);
+  }, [tellShown]);
   const reportShown = useEdgesShown(useCanvas ? undefined : tellShown);
   useEffect(() => reportShown(flow.withheld, scene.edgeMarks), [flow.withheld, scene, reportShown]);
   // React Flow draws new nodes a commit later; until then the layout is not in place.
@@ -405,17 +422,25 @@ function ProcessMapInner(props: ProcessMapProps) {
   const legendElement = legend ? (
     <Legend scales={scales} legend={scene.legend} locale={locale} onAnnounce={controller.announce} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} />) : undefined} />
   ) : null;
-  // What the sliders keep: the activities (and stages) and paths of the shown graph, of the graph before the thresholds.
-  const kept = useMemo(() => {
-    const shownNode = (n: FlowGraph["nodes"][number]) => n.kind === "activity" || n.kind === "stage";
-    // An indirect path stands for activities not shown; it is not a path of the graph.
-    const path = (e: FlowGraph["edges"][number]) => e.kind === "follows" && !hasTag(e, INDIRECT_TAG);
-    return {
-      activities: { shown: shown.nodes.filter(shownNode).length, total: baseGraph.nodes.filter(shownNode).length },
-      paths: { shown: shown.edges.filter(path).length, total: baseGraph.edges.filter(path).length },
-    };
-  }, [shown, baseGraph]);
-  const controlsElement = controls ? <AbstractionControls value={abstraction} onChange={setAbstraction} locale={locale} hasStages={hasStages} view={view} onViewChange={setView} counts={kept} /> : null;
+  // Where the map draws fewer paths than are selected (at a small zoom, by the path budget), the panel says both numbers.
+  const withheldPaths = view === "table" ? 0 : useCanvas ? (canvasWithheld ?? 0) : flow.withheld ? flow.withheld.total - flow.withheld.drawn.size : 0;
+  const selectedPaths = shown.meta?.shown?.paths.shown ?? shown.edges.filter((e) => e.kind !== "constraint" && !hasTag(e, INDIRECT_TAG)).length;
+  const drawnPaths = withheldPaths > 0 ? { selected: selectedPaths, drawn: Math.max(0, selectedPaths - withheldPaths) } : undefined;
+  const controlsElement = controls ? (
+    <AbstractionControls
+      value={abstraction}
+      onChange={setAbstraction}
+      locale={locale}
+      hasStages={hasStages}
+      view={view}
+      onViewChange={setView}
+      positions={shown.meta?.shown?.positions}
+      statement={statement}
+      drawn={drawnPaths}
+      onHighlightKept={setKeptOn}
+      onAnnounce={announce}
+    />
+  ) : null;
   const statusElement = notice ? (
     <div className="wf-panel" {...part("status")} role="status">
       {notice}
@@ -480,7 +505,7 @@ function ProcessMapInner(props: ProcessMapProps) {
                 descendants={canvas.descendants}
                 edgeBudget={edgeBudget}
                 onAnnounce={announce}
-                onEdgesShown={tellShown}
+                onEdgesShown={canvasShown}
                 theme={look.theme}
               >
                 {controlsElement ? <div className="wf-overlay-panel wf-overlay-panel--top-left">{controlsElement}</div> : null}

@@ -355,12 +355,40 @@
   font-weight: var(--wf-weight-panel-heading);
   letter-spacing: 0.02em;
 }
-.wf-controls label {
+/* A detail slider: its name and the range in one row, the names of its ends under the range, the statement of what is shown under both. */
+.wf-controls .wf-controls__slider {
   display: grid;
-  grid-template-columns: var(--wf-size-control-label) 1fr minmax(var(--wf-size-control-output), max-content);
-  gap: var(--wf-space-4);
+  grid-template-columns: var(--wf-size-control-label) 1fr;
+  column-gap: var(--wf-space-4);
   align-items: center;
-  margin: var(--wf-space-2) 0;
+  margin: var(--wf-space-2) 0 var(--wf-space-4);
+}
+.wf-controls .wf-controls__ends {
+  grid-column: 2;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--wf-space-4);
+  font-size: var(--wf-text-panel-note);
+  color: var(--wf-ink-muted);
+}
+.wf-controls .wf-controls__statement,
+.wf-controls .wf-controls__note {
+  grid-column: 1 / -1;
+  margin: var(--wf-space-1) 0 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--wf-ink-muted);
+}
+.wf-controls .wf-controls__kept {
+  min-height: 0;
+  padding: 0 var(--wf-space-2);
+  font-variant-numeric: tabular-nums;
+}
+.wf-controls .wf-controls__note summary {
+  cursor: pointer;
+}
+.wf-controls .wf-controls__note ul {
+  margin: var(--wf-space-1) 0 0;
+  padding-left: var(--wf-space-6);
 }
 /* A slider: a track filled in the ink up to its thumb (`--wf-range-fill`, set from its value) and a round thumb, in the tokens of the scheme. */
 .wf-controls input[type="range"] {
@@ -403,26 +431,11 @@
   outline: var(--wf-stroke-focus) solid var(--wf-focus);
   outline-offset: var(--wf-space-1);
 }
-.wf-controls input[type="checkbox"] {
-  accent-color: var(--wf-focus);
-}
-.wf-controls output {
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  color: var(--wf-ink-muted);
-}
 .wf-controls .wf-controls__row {
   display: flex;
   gap: var(--wf-space-5);
   margin-top: var(--wf-space-3);
   flex-wrap: wrap;
-}
-.wf-controls .wf-controls__row label {
-  display: inline-flex;
-  gap: var(--wf-space-3);
-  grid-template-columns: none;
-  margin: 0;
 }
 .wf-button {
   display: inline-flex;

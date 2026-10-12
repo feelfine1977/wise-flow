@@ -4,12 +4,14 @@
  * limited to, or wrapped into lines, by the scene's text measure.
  */
 import { type ActivityLabelOptions, activityDescription, activityLabel } from "./activity-labels.js";
-import { type Locale, formatPathCount } from "./format.js";
+import { type Locale, formatCount, formatPathCount } from "./format.js";
 import { elementMetric, formatMetricValue, metricBasis } from "./metrics.js";
 import { type Box, type Positions, type XY, straightRoute } from "./layout.js";
 import type { LaneBand } from "./lanes.js";
 import { type EdgeKind, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type GroupKind, type NodeKind, hasTag, metric } from "./model.js";
 import { RECONNECTED_TAG } from "./aggregate.js";
+import { indirectWay } from "./detail.js";
+import { t } from "./strings.js";
 import { type RuleSet, type RuleState, type RuleTextRole, ruleDash, rulePaint, ruleRadius, ruleSet, ruleText, ruleTextRole, ruleWidth } from "./rules.js";
 import type { CourseLabel, PathCourses } from "./courses.js";
 import { chipAnchor } from "./overlay-geometry.js";
@@ -120,9 +122,11 @@ export interface EdgeMark {
   /** The arrowhead at the end, as wide as the line needs (`pathArrowhead`). */
   arrow: Arrowhead;
   dash?: number[];
-  /** The count label at `edgeLabelPoint`, where the edge has a count; "–" on a path not evaluated. */
+  /** The count label at `edgeLabelPoint`, where the edge has a count; "–" on a path not evaluated; "via 2 activities not shown" on an indirect path. */
   texts: ElementText[];
   reconnected: boolean;
+  /** A path that stands for a way through activities not shown (tagged `indirect`): dashed, in the line colour at the thinnest width, labelled without a count. */
+  indirect?: boolean;
   /** A path without a value: drawn in the line colour at the thinnest width (`Scales.notEvaluated`). */
   notEvaluated?: boolean;
   /** The whole path's opacity (its line, arrowhead and label), where a theme's rule sets one. */
@@ -367,7 +371,13 @@ export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string;
   // A path reads the scene's path metric; another edge (a sequence flow, a constraint) its own cases, else its count.
   const name = (edge.kind === "follows" && options.metric) || (Number.isFinite(metric(edge, "cases", NaN)) ? "cases" : "count");
   const count = metric(edge, name, NaN);
-  const label = Number.isFinite(count) ? `${metricBasis(edge, name) === "atLeast" ? "≥" : ""}${formatPathCount(count, options.locale ?? "en")}` : options.notEvaluated ? "–" : undefined;
+  const locale = options.locale ?? "en";
+  // An indirect path is not one of the graph's: it says how many activities it passes, and has no count.
+  const via = indirectWay(edge)?.hiddenActivities;
+  const indirect = via !== undefined;
+  const label = indirect
+    ? t(locale, via === 1 ? "detail.viaOne" : "detail.via", { count: formatCount(via, locale) })
+    : Number.isFinite(count) ? `${metricBasis(edge, name) === "atLeast" ? "≥" : ""}${formatPathCount(count, locale)}` : options.notEvaluated ? "–" : undefined;
   const size = theme.text.pathLabel.size;
   let at = edgeLabelPoint(points);
   let anchor: ElementText["anchor"] = "middle";
@@ -386,11 +396,12 @@ export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string;
     color: set?.stroke ? rulePaint(set.stroke, undefined, "value", theme.color, options.color) : options.color,
     width: options.width,
     arrow: pathArrowhead(options.width),
-    dash: ruleDash(set, reconnected ? RECONNECTED_EDGE_DASH : undefined, RECONNECTED_EDGE_DASH),
+    dash: ruleDash(set, reconnected || indirect ? RECONNECTED_EDGE_DASH : undefined, RECONNECTED_EDGE_DASH),
     texts: label
       ? [ruleText<ElementText>({ text: label, x: at.x, y: at.y, size, anchor, baseline: "alphabetic", paint: "ink", halo: true, role: "count", lod: "edgeLabels" }, set, "label", theme.color, options.color)]
       : NO_TEXTS,
     reconnected,
+    ...(indirect && { indirect: true }),
     ...(options.notEvaluated && { notEvaluated: true }),
     ...(options.backward && { backward: true }),
     ...(set?.opacity !== undefined && { opacity: set.opacity }),

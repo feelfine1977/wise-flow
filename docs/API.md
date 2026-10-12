@@ -36,11 +36,20 @@ export interface ShownMeta {                     // what `abstract` shows of the
   anchorsOnly?: number;                          // detail shares: paths shown only as anchors (tagged `anchor`)
   keeps?: Record<string, string[]>;              // detail shares: per anchor-only path, the activities it keeps on a way
   indirect?: number;                             // detail shares: indirect paths (tagged `indirect`)
+  byFrequency?: number;                          // detail shares: paths shown by frequency (within the paths share)
   weakestByFrequency?: number;                   // detail shares: the count of the weakest path shown by frequency
+  weakestShown?: number;                         // detail shares: the count of the weakest path shown, kept ones included
   strongestNotShown?: number;                    // the count of the strongest path not shown
   withoutPath?: number;                          // thresholds without keepConnected: shown activities with no path
+  events?: { shown: number; of: number };        // events of the shown activities, of all; where the graph counts them
+  positions: DetailPositions;                    // where the detail sliders stand, for shares and thresholds alike
   marksNotShown: string[];                       // marks whose element is not shown, by id
   forProtected: string[];                        // activities and paths shown only because a protected mark sits on them
+}
+export interface DetailPositions {
+  activities: number[];                          // the numbers of activities a share can show: the end of every tie, ascending
+  paths: number;                                 // the measured paths: the paths share shows 0 to this many by frequency
+  at: { activities: number; paths: number };     // where the shares (or the thresholds, as what they pass) stand
 }
 
 export const MAP_TARGET = "__map";      // overlay target for map-level chips
@@ -302,6 +311,82 @@ no path. `marksNotShown` names the marks whose element is not shown, by
 `forProtected` lists the activities and paths shown only because a
 protected mark sits on them. `meta.abstraction` records the shares
 (`activityDetail`, `pathDetail`) instead of the thresholds.
+
+`meta.shown` also says how many paths are shown by frequency
+(`byFrequency`), the count of the weakest path shown with the kept ones
+(`weakestShown`), the events of the shown activities of all (`events`, where
+the activities count events; not for a comparison, whose two sides are not
+added up) and where the two detail sliders stand (`positions`, for shares
+and thresholds alike): the activity slider's positions are the numbers of
+activities a share can show (the end of every tie of cases and events), the
+paths slider's 0 to `positions.paths`, and `positions.at` is where the
+shares stand, or, for thresholds, how many activities and paths by
+frequency they pass. The share `at.activities / activities.at(-1)` with
+`at.paths / paths` shows the same activities and paths by frequency;
+thresholds add the re-added elements of `keepConnected`, the shares the
+anchors.
+
+### What the detail shares show, in words
+
+```ts
+export function detailStatement(graph: FlowGraph, options?: DetailStatementOptions): DetailStatement | undefined;
+export interface DetailStatementOptions { locale?: Locale;
+  marks?: readonly Overlay[];          // the marks the abstraction was given, in order: names the marks not shown
+  labelOf?: (id: string) => string }   // also for elements not shown; default the id
+export interface StatementLine { short: string; full: string }
+export interface DetailStatement {
+  activities: StatementLine;           // "25 of 42 · 99.2 % of events"
+  paths: StatementLine & { parts: string[]; keptPart?: string };   // "61 of 677 · 30 kept"
+  marks?: StatementLine & { items: string[] };   // "3 marks not shown"; absent when none is hidden
+  protected?: StatementLine;           // "2 shown for a protected deviation"; absent when none is
+  kept: string[] }                     // the ids of the paths kept only so that an activity lies on a way from start to end
+export function detailNotes(base: FlowGraph, shown: FlowGraph, options?: { locale?: Locale; labelOf?: (id: string) => string }): Map<string, string>;
+```
+
+`detailStatement` reads `meta.shown` of a graph `abstract` returned
+(undefined for another) and says what is shown, in a short form for beside
+a slider and a full form for its title and assistive technology:
+
+- Activities: "25 of 42 · 99.2 % of events"; in full "25 of 42 activities
+  shown, carrying 99.2 % of the events; the 17 rarest are not shown."
+  ("; 17 others are not shown" where an activity is shown out of its rank:
+  for a protected deviation, kept by the host or re-added). The
+  share of events (one decimal, never "100.0 %" for a part, nor "0.0 %" for
+  some) is printed only where the graph counts events.
+- Paths: "61 of 677 · 30 kept"; in full "61 of 677 paths: 31 by frequency,
+  30 kept so that every activity lies on a way from start to end. Strongest
+  path not shown: 20,000." Where the strongest path not shown is stronger
+  than the weakest shown (a kept path can be weaker than one not shown),
+  the short form adds "strongest not shown: 20,000". Indirect paths are
+  counted apart in the full form ("1 dashed path stands for a way through
+  activities not shown."). For thresholds the paths are counted alone
+  ("38 of 677 paths shown.").
+- Marks not shown (`marksNotShown`): "3 marks not shown"; in full what they
+  are, a hatch "outside scope" and another mark the label of its constraint,
+  the most frequent first ("3 marks not shown: 2 outside scope, 1 order of
+  goods and invoice."), and one item per mark. Without the marks given the full form counts them only.
+- Elements shown for a protected deviation (`forProtected`): "2 shown for a
+  protected deviation", in full with their names.
+
+`detailNotes` gives what the tooltip of a shown element adds, by id: an
+activity "Passages on paths not shown: 1,234 in, 567 out." (so that what is
+drawn and what is not add up to its count), a kept path "Keeps Change Price
+on a way from start to end.", an indirect path "Stands for a way through
+activities not shown: …", an element shown for a protected deviation
+"Shown for a protected deviation." `<ProcessMap/>` adds them to the
+descriptions of its elements (their tooltips and their assistive text).
+An export's caption (`figureCaption`) of a graph abstracted by detail
+shares carries the full statements instead of "16 of 42 activities, 38 of
+677 paths shown".
+
+**Drawing.** A kept path is an ordinary observed path: solid, with its
+count and the width its count gives. An indirect path is drawn dashed (the
+dash of what is not directly observed), in the line colour at the thinnest
+width, labelled "via 2 activities not shown" ("über 2 nicht gezeigte
+Aktivitäten") and without a number; it is neither a re-added path nor one
+not evaluated (`EdgeMark.indirect`), and the legend has a key for it,
+"Path through activities not shown". All four renderers draw it from the
+scene.
 
 **Comparisons.** In a graph made by `diff` (`meta.diff`), the strength and
 the rank of an element are the larger of its relative strength on side b
@@ -927,7 +1012,7 @@ export function toSVG(scene: Scene, o?: ExportOptions): string;   // determinist
 
 export type FigurePreset = "single-column" | "double-column" | "slide" | "none";
 export const FIGURE_WIDTHS: Record<Exclude<FigurePreset, "none">, number>;   // 1000, 2000, 1600
-export type LegendKeyKind = "badge" | "arc" | "reverse" | "selfLoop" | "outOfScope" | "reconnected" | "notEvaluated" | "start" | "end";
+export type LegendKeyKind = "badge" | "arc" | "reverse" | "selfLoop" | "outOfScope" | "reconnected" | "indirect" | "notEvaluated" | "start" | "end";
 export interface LegendKey { kind: LegendKeyKind; glyph: string; title: StringKey }
 export type LegendRow =
   | { kind: "measure"; text: string }                                                     // "Shortfall · cases · share of 251,734 cases"
@@ -938,7 +1023,7 @@ export type LegendRow =
   | { kind: "chip"; chip: Overlay; label: string; text: string };                         // a map-level chip
 export interface SceneLegend { title: string; rows: LegendRow[]; items: LegendItem[]; keys: LegendKey[]; chips: Overlay[] }
 export interface LegendSource { scales: { legend: LegendItem[]; pathMetric?: string }; marks: readonly OverlayMark[];
-  nodeMarks: readonly { reconnected: boolean; node?: FlowNode }[]; edgeMarks: readonly { reconnected: boolean; notEvaluated?: boolean }[];
+  nodeMarks: readonly { reconnected: boolean; node?: FlowNode }[]; edgeMarks: readonly { reconnected: boolean; indirect?: boolean; notEvaluated?: boolean }[];
   locale: Locale; graph?: Pick<FlowGraph, "meta"> }   // a FlowScene is one
 export function legendOfScene(scene: LegendSource): SceneLegend;   // what a scene draws: FlowScene.legend
 export function sceneLegend(items: LegendItem[], overlays: readonly Overlay[], locale?: Locale): SceneLegend;   // from scales and overlays alone
@@ -1115,7 +1200,12 @@ export interface LegendProps { scales?: Scales; overlays?: Overlay[]; locale?: L
   expanded?: boolean; defaultExpanded?: boolean;   // the whole key (controlled, or where it starts; default false: the one-line strip)
   onExpandedChange?: (expanded: boolean) => void; onAnnounce?: (text: string) => void }   // see "Controls and panels"
 export interface AbstractionControlsProps { value; onChange; locale?; hasStages?; view?; onViewChange?;
-  counts?: { activities?: KeptCount; paths?: KeptCount } }   // what the sliders keep; the readouts say "7 of 12"
+  counts?: { activities?: KeptCount; paths?: KeptCount };   // what the sliders keep where no statement says it ("7 of 12")
+  positions?: DetailPositions;      // where the sliders can stand and stand (`meta.shown.positions`); otherwise per cent of the shares
+  statement?: DetailStatement;      // what is shown, beside each slider (`detailStatement`)
+  drawn?: { selected: number; drawn: number };   // paths withheld at the zoom: "61 selected · 40 drawn at this zoom"
+  onHighlightKept?: (on: boolean) => void;       // the kept paths' part of the statement pointed at or focused
+  onAnnounce?: (text: string) => void }          // the other slider's statement, said politely; default a live region of its own
 export interface KeptCount { shown: number; total: number }
 export function ZoomControl(props: ZoomControlProps): JSX.Element;   // see "Controls and panels"
 export function useFlowGraph(g, o?), useStableLayout(scenes, o?), useOverlays(items, o?), usePrefersReducedMotion();
@@ -2044,7 +2134,8 @@ export interface NodeMark { id: string; kind: NodeKind; node: FlowNode; box: Box
 export interface EdgeMark { id: string; kind: EdgeKind; edge: FlowEdge; points: XY[]; color: string; width: number; dash?: number[];
   arrow: Arrowhead;                // the head at the route's end (`pathArrowhead(width)`); the line ends at `lineEnd(points, arrow)`
   backward?: boolean;              // a path against the reading direction, drawn below the flow it returns over
-  texts: ElementText[]; reconnected: boolean; notEvaluated?: boolean; opacity?: number }   // opacity: line, arrowhead and label
+  texts: ElementText[]; reconnected: boolean; notEvaluated?: boolean; opacity?: number;   // opacity: line, arrowhead and label
+  indirect?: boolean }   // stands for a way through activities not shown: dashed, line colour, thinnest, "via 2 activities not shown"
 export interface CourseLabel { at: XY; side: XY }   // a label beside `at` on its course, on the side the unit vector `side` points to
 export interface PathCourses { positions: Positions; backward: ReadonlySet<string>; labels: ReadonlyMap<string, CourseLabel> }
 export function pathCourses(g: FlowGraph, p: Positions, o: { width: (e: FlowEdge) => number; bands?: ReadonlySet<string> }): PathCourses;
@@ -2519,15 +2610,48 @@ button) are the control's: the map's keyboard no longer takes them (Enter on
 the legend's toggle expands it instead of opening the actions menu, the
 arrow keys move a slider).
 
-**Sliders.** `<AbstractionControls/>` reads `counts`: its readouts say what
-each slider keeps, "7 of 12" activities and "13 of 31" paths (German "7 von
-12"), and each slider's value text says the threshold too ("10 %: 7 of 12
-activities shown"); without `counts` they show the threshold as before. The
-map passes the activities and stages and the paths of the shown graph, of
-the graph before the thresholds (after collapsing stages). The sliders are
-drawn from the tokens: a track (`--wf-size-slider-track`) in the ink up to
-the thumb and in the line colour after it, and a round thumb
-(`--wf-size-slider-thumb`) outlined in the ink.
+**The detail panel.** `<AbstractionControls/>` is the panel "Detail"
+("Detailgrad") with two sliders, no switch: "Activities" from "Most
+frequent" to "All", "Paths" from "Fewest paths" to "All paths" (German
+"Aktivitäten" from "Häufigste" to "Alle", "Pfade" from "Wenigste Pfade" to
+"Alle Pfade"). The right end shows everything. "Keep connected" has left the
+panel: its promise is the left end of "Paths" (see "Detail shares"), and the
+option stays in `AbstractOptions` for hosts.
+
+- Both are native range inputs over `positions`: "Activities" over the
+  numbers of activities a share can show, so an arrow key moves one rank
+  and a tie enters whole, "Paths" over 0 to every path by frequency; Page Up
+  and Page Down move ten, Home and End to an end; a pointer that stops inside
+  a tie takes it whole. Moving a slider calls `onChange` with both detail
+  shares (`activityDetail`, `pathDetail`; `minNodeShare`, `minEdgeShare` and
+  `keepConnected` dropped). Neither thumb moves by itself: the shares are
+  positions of their own, so moving "Activities" only rewrites the
+  statement beside "Paths". A host that controls the map with thresholds
+  sees the sliders where the thresholds stand (`positions.at`) and receives
+  detail shares when a slider moves. Without `positions` the sliders run
+  over the shares in per cent.
+- Beside each slider its statement (`statement`, see "What the detail shares
+  show, in words"): the short form shown and as the slider's value text,
+  the full form as its title and its description (`aria-describedby`). The
+  kept paths' part ("30 kept") is a button: pointing at it, focusing it or
+  pressing it (`aria-pressed`) calls `onHighlightKept(true)`, and the map
+  marks exactly those paths and dims the others. When moving one slider
+  changes the other's statement, its full form is said politely
+  (`onAnnounce`, which `<ProcessMap/>` passes, otherwise the panel's own live
+  region).
+- Further lines, each only where it has something to say: "61 selected · 40
+  drawn at this zoom" where the map withholds paths at its zoom or by the
+  path budget (`drawn`); "3 marks not shown", a disclosure whose summary has
+  the full form as its title and which lists the marks; "2 shown for a
+  protected deviation".
+- `counts` is read where no `statement` is given: the value texts say what
+  each slider keeps ("7 of 12").
+
+The sliders are drawn from the tokens: a track (`--wf-size-slider-track`)
+in the ink up to the thumb and in the line colour after it, and a round
+thumb (`--wf-size-slider-thumb`) outlined in the ink. `<ProcessMap/>`
+passes the positions and the statement of the graph it shows; the table
+view shows the same panel above its tables.
 
 **Primitives.** Modelled on the actions menu: a panel (`.wf-panel`: paper,
 a hairline in `--wf-line`, the large radius and, over the interactive map,
@@ -2749,9 +2873,9 @@ CSS written against these selectors changes only the interactive DOM map and the
 | `edge-label` | the count label of a path | | |
 | `mark` | a deviation mark of the map or of a legend (SVG group); a `tint` is the background of its node, and the BPMN diagram's marks carry no attributes | `badge`, `chip`, `arc`, `selfLoop`, `hatch` | `hovered` |
 | `controls` | the zoom control (`<ZoomControl/>`) of the DOM map, the Canvas map and the BPMN view | | |
-| `button` | a button of the panels: the zoom control's, the legend's toggle, the abstraction panel's toggles, the table's pager, the filters' "clear" | | |
+| `button` | a button of the panels: the zoom control's, the legend's toggle, the detail panel's toggles and its kept paths' part, the table's pager, the filters' "clear" | | |
 | `zoom-level` | the current zoom in the zoom control | | |
-| `abstraction-panel` | the sliders and toggles of `<AbstractionControls/>` | | |
+| `abstraction-panel` | the detail panel: the sliders, their statements and the toggles of `<AbstractionControls/>` | | |
 | `legend` | `<Legend/>` | | |
 | `status` | the status panel (arranging, layout error) and the note on withheld paths | | |
 | `menu` | the actions menu | | |

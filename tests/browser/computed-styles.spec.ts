@@ -68,7 +68,20 @@ import { fileURLToPath } from "node:url";
  * and table) are gone from the record, the detail sliders' text, border and
  * outline colour is the ink and the line-strong colour where it was the browser's
  * (#9d968e on Linux, #101010 on macOS), and the check box's the ink where it was
- * the browser's black; every other element is the same.
+ * the browser's black; every other element is the same. They were recorded
+ * once more when the abstraction panel became the detail panel and the
+ * stories opened at detail shares: the panel's sliders each with their named
+ * ends and their statement (`div.wf-controls__slider`, `div.wf-controls__ends`,
+ * `p.wf-controls__statement`, the kept paths' button `.wf-controls__kept`),
+ * a disclosure listing the marks not shown (`details.wf-controls__note--marks`)
+ * where the map hides some, and no check box or `output`; on the whole log the
+ * paths that keep an activity on a way from start to end instead of the
+ * re-added ones (41 paths where there were 38: two re-added paths gone, five
+ * kept ones added, five that were re-added and dashed now solid, and 26 more
+ * in another shade, as the grey runs over the counts of the paths shown); in
+ * the vendor's tables three more rows. After the right click on
+ * "Clear Invoice" the pointer rests on the menu's first item, which the
+ * record held before. Every other element is the same.
  * Geometry
  * that depends on the fonts of the machine (widths, heights, positions) is left
  * out, so the record holds on every operating system.
@@ -110,6 +123,10 @@ const SCENES: Scene[] = [
       await page.locator('.react-flow__node[data-id="record_goods_receipt"]').click();
       await page.locator('.react-flow__node[data-id="clear_invoice"]').click({ button: "right" });
       await expect(page.getByRole("menu")).toBeVisible();
+      // The menu opens kept inside the map, over the pointer where the activity lies near the map's edge: the
+      // pointer rests on its first item, so that the item hovered does not depend on how far down the story's
+      // own text pushes the map.
+      await page.getByRole("menuitem").first().hover();
     },
   },
   {

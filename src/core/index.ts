@@ -25,6 +25,7 @@ export type {
   FlowPaths,
   AbstractionMeta,
   ShownMeta,
+  DetailPositions,
   FlowMeta,
   ModelOutline,
   FlowGraph,
@@ -44,6 +45,8 @@ export {
   DIFF_TAGS,
 } from "./aggregate.js";
 export { ANCHOR_TAG, INDIRECT_TAG } from "./detail.js";
+export { detailStatement, detailNotes } from "./detail-statement.js";
+export type { DetailStatement, DetailStatementOptions, StatementLine } from "./detail-statement.js";
 export type {
   AbstractOptions,
 } from "./aggregate.js";
