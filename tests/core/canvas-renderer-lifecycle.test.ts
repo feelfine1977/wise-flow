@@ -62,6 +62,10 @@ function pathTo(root: unknown, target: object, skip: readonly object[] = []): st
   return undefined;
 }
 
+/** The renderer's own fields that still hold something: after disposal only its settings, its view and the host's canvas. */
+const held = (r: CanvasRenderer) => Object.entries(r).filter(([, v]) => v !== undefined).map(([k]) => k).sort();
+const settings = ["canvas", "clock", "disposed", "dpr", "drawOptions", "height", "lastDraw", "maxZoom", "minZoom", "state", "tokens", "viewport", "width"];
+
 // On the light path's line (100,120 to 400,220) and on the heavy one's (100,120 to 400,20).
 const onLight = (r: CanvasRenderer) => r.hitAt(250, 170)?.id;
 const onHeavy = (r: CanvasRenderer) => r.hitAt(250, 70)?.id;
@@ -106,7 +110,10 @@ describe("a disposed Canvas renderer", () => {
     renderer.setScene(scene);
     renderer.beginGesture();
     renderer.draw();
+    // Cleared after a draw that withheld a path: the renderer holds the ids that draw drew.
+    renderer.setScene(undefined);
     renderer.dispose();
+    expect(held(renderer)).toEqual(settings);
     for (const [name, target] of [["scene", scene], ["context", ctx], ["onDraw", onDraw], ["onViewportChange", onViewportChange]] as const) {
       expect(pathTo(renderer, target, [canvas]), name).toBeUndefined();
     }
@@ -148,7 +155,11 @@ describe("a disposed Canvas renderer", () => {
     };
     const methods = Object.getOwnPropertyNames(CanvasRenderer.prototype).filter((k) => k !== "constructor" && typeof Object.getOwnPropertyDescriptor(CanvasRenderer.prototype, k)?.value === "function");
     expect(Object.keys(called).sort()).toEqual(methods.sort());
-    for (const call of Object.values(called)) call();
+    for (const [name, call] of Object.entries(called)) {
+      call();
+      // Not even a gesture's frame timing starts again.
+      expect(held(renderer), name).toEqual(settings);
+    }
     expect({ calls: calls(), frames: frames.mock.calls.length, events, size: renderer.size, viewport: renderer.getViewport(), state: renderer.getState(), tokens: renderer.tokens, canvas: { width: canvas.width, height: canvas.height, style: { ...canvas.style } } }).toEqual(before);
     expect(pathTo(renderer, scene, [canvas])).toBeUndefined();
   });
