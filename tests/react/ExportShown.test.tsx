@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { type FlowEdge, type FlowGraph, type FlowNode, type ShownEdges, createPositions, toSVG } from "../../src/index";
 import { type DrawContext, toPNGCanvas } from "../../src/canvas/index";
 import { ProcessMap } from "../../src/react/index";
+import { svgNote } from "../support/svg";
 
 afterEach(() => {
   cleanup();
@@ -54,7 +55,6 @@ function pngTexts(edgeBudget: ShownEdges | undefined) {
 }
 
 const svgEdges = (svg: string) => [...svg.matchAll(/<g class="wf-edge" data-id="([^"]*)"/g)].map((m) => m[1]).sort();
-const svgNote = (svg: string) => /<text [^>]*class="wf-edge-note"[^>]*>([^<]*)<\/text>/.exec(svg)?.[1];
 const note = () => screen.queryByTestId("wf-edge-note")?.textContent;
 
 describe("exporting what the map shows", () => {
@@ -118,5 +118,83 @@ describe("exporting what the map shows", () => {
     await act(async () => view.rerender(map("svg", 20)));
     await waitFor(() => expect(reported.at(-1)).toBeUndefined());
     expect(note()).toBeUndefined();
+  });
+
+  for (const renderer of ["svg", "canvas"] as const) {
+    it(`tells a host that starts listening while the ${renderer} map withholds edges what it draws`, async () => {
+      if (renderer === "canvas") quietCanvas();
+      const reported: (ShownEdges | undefined)[] = [];
+      const map = (listen: boolean) => (
+        <div style={{ width: 1200, height: 800 }}>
+          <ProcessMap graph={small.graph} positions={small.positions} controls={false} legend={false} fitView={false} selfLoops={false} contextMenu={false} pathList={false} renderer={renderer} edgeBudget={3} onEdgesShown={listen ? (shown) => reported.push(shown) : undefined} />
+        </div>
+      );
+      const view = render(map(false));
+      await waitFor(() => expect(note()).toBe("Showing 3 of 8 flows"));
+      // An export dialog that opens later listens from then on, and learns what the map withholds.
+      await act(async () => view.rerender(map(true)));
+      await waitFor(() => expect(reported).toHaveLength(1));
+      expect([...reported[0]!.edges].sort()).toEqual(["h-t2", "h-t5", "h-t7"]);
+      expect(reported[0]!.total).toBe(8);
+      expect(svgNote(toSVG(small, { edgeBudget: reported[0] }))).toBe("Showing 3 of 8 flows");
+    });
+  }
+
+  for (const renderer of ["svg", "canvas"] as const) {
+    it(`tells the host that every path is shown while the table view is shown, and the ${renderer} map's paths again after it`, async () => {
+      quietCanvas();
+      const reported: (ShownEdges | undefined)[] = [];
+      const map = (view: "map" | "table", edgeBudget: number) => (
+        <div style={{ width: 1200, height: 800 }}>
+          <ProcessMap graph={small.graph} positions={small.positions} controls={false} legend={false} fitView={false} selfLoops={false} contextMenu={false} pathList={false} renderer={renderer} view={view} edgeBudget={edgeBudget} onEdgesShown={(shown) => reported.push(shown)} />
+        </div>
+      );
+      const last = () => reported.at(-1) && [...reported.at(-1)!.edges].sort();
+      const view = render(map("map", 3));
+      await waitFor(() => expect(last()).toEqual(["h-t2", "h-t5", "h-t7"]));
+      // The table lists every path: the host is told nothing is withheld, and an export taken now draws every path.
+      await act(async () => view.rerender(map("table", 3)));
+      await waitFor(() => expect(reported).toHaveLength(2));
+      expect(reported[1]).toBeUndefined();
+      expect(svgEdges(toSVG(small, { edgeBudget: reported.at(-1) }))).toHaveLength(8);
+      expect(svgNote(toSVG(small, { edgeBudget: reported.at(-1) }))).toBeUndefined();
+      // A change of the budget while the table is shown tells the host nothing new.
+      await act(async () => view.rerender(map("table", 2)));
+      await act(async () => new Promise((resolve) => setTimeout(resolve, 50)));
+      expect(reported).toHaveLength(2);
+      // Back on the map, the host is told what the map draws.
+      await act(async () => view.rerender(map("map", 2)));
+      await waitFor(() => expect(last()).toEqual(["h-t5", "h-t7"]));
+      expect(reported).toHaveLength(3);
+      expect(svgNote(toSVG(small, { edgeBudget: reported.at(-1) }))).toBe("Showing 2 of 8 flows");
+    });
+  }
+
+  it("reports what the Canvas map draws when it is shown again after the table view", async () => {
+    quietCanvas();
+    const reported: (ShownEdges | undefined)[] = [];
+    const map = (view: "map" | "table", edgeBudget: number | "all") => (
+      <div style={{ width: 1200, height: 800 }}>
+        <ProcessMap graph={small.graph} positions={small.positions} controls={false} legend={false} fitView={false} selfLoops={false} contextMenu={false} pathList={false} renderer="canvas" view={view} edgeBudget={edgeBudget} onEdgesShown={(shown) => reported.push(shown)} />
+      </div>
+    );
+    const last = () => reported.at(-1) && [...reported.at(-1)!.edges].sort();
+    const view = render(map("map", 3));
+    await waitFor(() => expect(last()).toEqual(["h-t2", "h-t5", "h-t7"]));
+    // Back from the table view with the same budget, the map draws and reports the same three edges.
+    await act(async () => view.rerender(map("table", 3)));
+    await act(async () => view.rerender(map("map", 3)));
+    await waitFor(() => expect(note()).toBe("Showing 3 of 8 flows"));
+    await waitFor(() => expect(last()).toEqual(["h-t2", "h-t5", "h-t7"]));
+    // The budget changed while the table was shown: back on the map every edge is drawn, and the host
+    // hears so instead of keeping the three, which an export would otherwise draw with a note.
+    await act(async () => view.rerender(map("table", 3)));
+    await act(async () => view.rerender(map("table", "all")));
+    await act(async () => view.rerender(map("map", "all")));
+    await waitFor(() => expect(reported.at(-1)).toBeUndefined());
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 50)));
+    expect(reported.at(-1)).toBeUndefined();
+    expect(note()).toBeUndefined();
+    expect(svgEdges(toSVG(small, { edgeBudget: reported.at(-1) }))).toHaveLength(8);
   });
 });

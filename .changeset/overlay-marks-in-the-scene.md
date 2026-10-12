@@ -18,7 +18,8 @@ Visible changes:
 - SVG: hatching is drawn at opacity 0.55 without an outline, as on the map
   (it was 0.9 with a grey outline).
 - SVG: arcs and self-loops end in the map's arrowhead, 12 px in scene units
-  (arcs used a marker of 4 × the stroke width, self-loops the edge marker).
+  (arcs used a marker of 4 × the stroke width, self-loops the edge marker);
+  its marker is `wf-overlay-arrow` (it was `wf-arrow-arc`).
   Canvas and PNG: self-loop arrowheads are 12 px instead of 10, and arc and
   self-loop arrowheads reach 1.2 px beyond the end of the path, as on the map.
 - SVG: chip text sits 0.5 px higher, where Canvas puts it.

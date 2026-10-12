@@ -1,9 +1,4 @@
-/**
- * Incoming and outgoing paths of an activity, the path between two
- * activities, and the sets a renderer highlights for a focus. The numbers
- * come from the response's `paths` block when the API was asked with
- * `focus`, and from the graph's own follows edges otherwise.
- */
+/** Paths of an activity, the path between two activities, and the sets a renderer highlights for a focus. */
 import { type FlowEdge, type FlowGraph, type FlowPath, type FlowPaths, type GraphIndex, byId, hasTag, indexGraph, metric } from "./model.js";
 import { RECONNECTED_TAG } from "./aggregate.js";
 import { metricBasis } from "./metrics.js";
@@ -295,7 +290,7 @@ export type Focus = string | [string, string];
 export function focusHighlight(graph: FlowGraph, focus: Focus): { nodes: Set<string>; edges: Set<string> } {
   const nodes = new Set<string>();
   const edges = new Set<string>();
-  if (typeof focus === "string") {
+  if (!Array.isArray(focus)) {
     const n = neighbourhood(graph, focus);
     for (const m of focusMembers(graph, focus)) nodes.add(m);
     for (const p of n.predecessors) nodes.add(p);

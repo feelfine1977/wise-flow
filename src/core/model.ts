@@ -139,6 +139,8 @@ export interface AbstractionMeta {
   /** The share of paths shown by frequency (see `AbstractOptions.pathDetail`). */
   pathDetail?: number;
   collapse?: string[] | "all";
+  /** Constraint and flow edges `abstract` removed with an activity or stage at one of their ends, by kind; absent when none went. */
+  removedEdges?: { constraint?: number; flow?: number };
 }
 
 /**
@@ -342,7 +344,8 @@ export interface GraphIssue {
 
 /**
  * Structural validation of a FlowGraph as received from an API: duplicate ids,
- * dangling edge endpoints, unknown groups, overlays on unknown targets.
+ * dangling edge endpoints, unknown groups, cycles of group parents, overlays on
+ * unknown targets.
  */
 export function validateGraph(graph: FlowGraph): GraphIssue[] {
   const issues: GraphIssue[] = [];
@@ -361,6 +364,16 @@ export function validateGraph(graph: FlowGraph): GraphIssue[] {
       issues.push({ level: "error", message: `group parent not found: ${g.parent}`, id: g.id });
     }
   }
+  // A walk up the parents that meets itself closes a cycle.
+  const parentOf = new Map((graph.groups ?? []).map((g) => [g.id, g.parent]));
+  const walk = new Map<string, number>();
+  const cycle = new Set<string>();
+  (graph.groups ?? []).forEach((g, w) => {
+    let id: string | undefined = g.id;
+    for (; id !== undefined && parentOf.has(id) && !walk.has(id); id = parentOf.get(id)) walk.set(id, w);
+    for (let c = id; c !== undefined && walk.get(c) === w && !cycle.has(c); c = parentOf.get(c)) cycle.add(c);
+  });
+  for (const g of graph.groups ?? []) if (cycle.has(g.id)) issues.push({ level: "error", message: "group parent cycle", id: g.id });
   for (const n of graph.nodes) {
     if (n.group && !groupIds.has(n.group)) {
       issues.push({ level: "warning", message: `node group not found: ${n.group}`, id: n.id });

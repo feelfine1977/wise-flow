@@ -1,4 +1,4 @@
-import { EdgeLabelRenderer, ViewportPortal } from "@xyflow/react";
+import { EdgeLabelRenderer, ViewportPortal, useStore } from "@xyflow/react";
 import { type Locale, type OverlayMark, type OverlayShape, overlayMarks, zTokens } from "../core/index.js";
 import { type MarkIds, mapMark, markDefs, svgReact } from "./marks.js";
 
@@ -8,7 +8,7 @@ export interface OverlayLayerProps {
   /** The placed shapes; `onSelect` receives the shape of the mark that was clicked. */
   shapes?: OverlayShape[];
   locale: Locale;
-  /** Zoom of the map: each mark is drawn from its `minZoom`. Without it every mark is drawn. */
+  /** Zoom of the map: each mark is drawn from its `minZoom`. Default: React Flow's zoom, as for the marks of nodes. */
   zoom?: number;
   hoveredId: string | null;
   onHover?: (id: string | null) => void;
@@ -24,7 +24,8 @@ const IDS: MarkIds = { arrow: "wf-arc-arrow", pattern: "wf-overlay-outofscope" }
  * marks an element carries are drawn by its node or group, and map-level chips by
  * the legend.
  */
-export function OverlayLayer({ marks, shapes = [], locale, zoom = Infinity, hoveredId, onHover, onSelect }: OverlayLayerProps) {
+export function OverlayLayer({ marks, shapes = [], locale, zoom: given, hoveredId, onHover, onSelect }: OverlayLayerProps) {
+  const zoom = useStore((s) => given ?? s.transform[2]);
   const all = marks ?? overlayMarks(shapes, locale);
   const visible = all.filter((m) => m.inMap && m.layer !== "below" && zoom >= m.minZoom);
   if (!visible.length) return null;

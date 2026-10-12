@@ -180,7 +180,7 @@ test('removing a documentation comment of a union member or of a parameter from 
       writeFileSync(join(copy, file), text.replace(`${line}\n`, ''));
     };
     remove('core/map-controller.d.ts', '/** A click on an element');
-    remove('core/overlay-geometry.d.ts', '/** Boxes that arc labels keep clear of');
+    remove('core/overlay-geometry.d.ts', '/** Boxes that labels and chips keep clear of');
     assert.deepEqual(compareBuilds(dist, copy).differences, [
       'core/map-controller.d.ts: MapEvent.|1 lost its documentation comment',
       'core/overlay-geometry.d.ts: placeOverlays.titles lost its documentation comment',

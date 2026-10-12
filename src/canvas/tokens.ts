@@ -1,9 +1,4 @@
-/**
- * Colours and fonts the canvas renderer draws with. The defaults come from
- * the token table of the core, which `tokens.css` writes as CSS variables;
- * `readTokens` picks the live values of those variables up from an element so
- * that the canvas follows the application's theme.
- */
+/** Colours and fonts the canvas renderer draws with: the core's tokens, or the live CSS variables of an element. */
 import { type FlowScene, colorTokens, cssVariable, fontTokens } from "../core/index.js";
 
 export interface CanvasTokens {

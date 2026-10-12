@@ -16,7 +16,7 @@ export interface RegistryElement {
 }
 
 /** The ids of the shown diagram: the resolver and the renaming of mapped tasks to their activity ids. */
-export interface DiagramIds {
+interface DiagramIds {
   resolver: IdResolver;
   renaming: ActivityRenaming;
 }
@@ -55,7 +55,7 @@ export function registryPositions<E extends RegistryElement>(registry: readonly 
   return { positions: createPositions({ nodes, groups, edges }, "di", "RIGHT"), elements };
 }
 
-export interface DiagramScene {
+interface DiagramScene {
   scene: FlowScene;
   /** The given overlays the scene shows, in its order. */
   listed: Overlay[];

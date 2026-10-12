@@ -185,6 +185,11 @@ export function selfLoopLabel(overlay: Overlay, locale: Locale = "en"): string {
   return typeof p.displayLabel === "string" ? p.displayLabel : share ? `↻ ${share}` : "";
 }
 
+/** The layer a kind of overlay is drawn in: tints below the edges, arcs between the edges and the nodes, the rest above the nodes. */
+export function markLayer(kind: OverlayKind): OverlayMark["layer"] {
+  return kind === "tint" ? "below" : kind === "arc" ? "between" : "above";
+}
+
 /** What a badge writes in its pill: its glyph (● without one) and its share. */
 export function badgeLabel(overlay: Overlay, locale: Locale = "en"): string {
   const glyph = overlay.payload?.glyph ?? "●";
@@ -238,7 +243,7 @@ function overlayMark(s: OverlayShape, locale: Locale, theme: Theme, measure: Tex
     kind: s.kind,
     overlay: o,
     box: { x: s.x, y: s.y, width: s.width, height: s.height },
-    layer: s.kind === "tint" ? "below" : s.kind === "arc" ? "between" : "above",
+    layer: markLayer(s.kind),
     inMap: !(s.kind === "chip" && o.target === MAP_TARGET),
     minZoom: p.observed ? 0 : s.minZoom,
     color,

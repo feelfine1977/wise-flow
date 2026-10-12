@@ -1,9 +1,4 @@
-/**
- * Actions menu of a map element: what the menu targets (an element, a pair
- * or a set of activities) and the default actions per target, grouped and
- * ordered as the interaction model prescribes (filter, explore, compare,
- * author). The host fills or replaces them through `onContextMenu`.
- */
+/** Actions menu of a map element: its target (an element, a pair or a set) and the default actions per target. */
 import { COLLAPSED_TAG } from "./aggregate.js";
 import { type FilterClause, clauseForTarget } from "./filters.js";
 import { type Locale } from "./format.js";

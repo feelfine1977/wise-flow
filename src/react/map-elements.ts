@@ -1,9 +1,4 @@
-/**
- * What the two map renderers are given to draw: React Flow nodes and edges
- * from the scene's marks, or the Canvas map's retained scene with its state
- * and the element list for assistive technology; and the descriptions both
- * read. Rendering only: the interaction state comes from the controller.
- */
+/** What the two map renderers draw: React Flow elements or the Canvas map's retained scene, and their descriptions; the browser's text measure. */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { type ActivityLabelOptions, type Arrowhead, type EdgeBudget, type ElementRef, type FlowGraph, type FlowScene, type GraphIndex, type HitItem, type Locale, type Overlay, type OverlayMark, type Positions, type Selection, type TextMeasure, budgetEdges, describeOverlay, indexGraph, markInState, stateStyle, zTokens } from "../core/index.js";
 import { type DrawState, type PreparedScene, canvasTextMeasure } from "../canvas/index.js";
@@ -78,7 +73,7 @@ export function useElementDescriptions(shown: FlowGraph, overlays: Overlay[], lo
   return { describeElement, index, overlaysByTarget, groupIndex, memberCount };
 }
 
-export type ElementDescriptions = ReturnType<typeof useElementDescriptions>;
+type ElementDescriptions = ReturnType<typeof useElementDescriptions>;
 
 interface FlowInput {
   /** React Flow draws the map; otherwise nothing is built. */
@@ -310,7 +305,7 @@ function neighbourhood(index: GraphIndex, at: string, limit: number): ElementRef
 }
 
 /** The activity Home goes to: the first node with a box, left to right and top to bottom. */
-function firstInReadingOrder(graph: FlowGraph, positions: Positions | undefined): string | undefined {
+export function firstInReadingOrder(graph: FlowGraph, positions: Positions | undefined): string | undefined {
   let first: string | undefined;
   for (const n of graph.nodes) {
     const b = positions?.nodes[n.id];
@@ -318,6 +313,18 @@ function firstInReadingOrder(graph: FlowGraph, positions: Positions | undefined)
     if (b && (!f || b.x < f.x || (b.x === f.x && b.y < f.y))) first = n.id;
   }
   return first;
+}
+
+/** The elements listed for assistive technology: all nodes, groups and the focused edge, or above the limit a neighbourhood. */
+export function listedElements(shown: FlowGraph, index: GraphIndex, focused: string | null, selected: string | undefined, limit: number, home: string | undefined): ElementRef[] {
+  if (shown.nodes.length + (shown.groups?.length ?? 0) > limit) {
+    const centre = [focused, selected, home].find((id): id is string => id != null && (index.nodes.has(id) || index.edges.has(id)));
+    return centre === undefined ? [] : neighbourhood(index, centre, limit);
+  }
+  const list: ElementRef[] = shown.nodes.map((n) => ({ kind: "node", id: n.id }));
+  for (const g of shown.groups ?? []) list.push({ kind: "group", id: g.id });
+  if (focused && index.edges.has(focused)) list.push({ kind: "edge", id: focused });
+  return list;
 }
 
 /** The Canvas map's retained scene, its draw state, its element list and its tooltip texts. */
@@ -329,15 +336,12 @@ export function useCanvasElements(input: CanvasInput) {
   const bounded = enabled && shown.nodes.length + (shown.groups?.length ?? 0) > limit;
   // Above the limit the list follows the keyboard: its element, else the activity it starts from.
   const home = useMemo(() => (bounded ? firstInReadingOrder(shown, positions) : undefined), [bounded, shown, positions]);
-  const centre = bounded ? [focused, selection.nodes[0], home].find((id): id is string => id != null && (index.nodes.has(id) || index.edges.has(id))) : undefined;
-  const canvasDescendants = useMemo(() => {
-    if (!enabled) return undefined;
-    if (bounded) return centre === undefined ? [] : neighbourhood(index, centre, limit).map((ref) => ({ ...ref, description: describeElement(ref) }));
-    const list: { id: string; kind: ElementRef["kind"]; description: string }[] = shown.nodes.map((n) => ({ id: n.id, kind: "node" as const, description: describeElement({ kind: "node", id: n.id }) }));
-    for (const g of shown.groups ?? []) list.push({ id: g.id, kind: "group" as const, description: describeElement({ kind: "group", id: g.id }) });
-    if (focused && index.edges.has(focused)) list.push({ id: focused, kind: "edge" as const, description: describeElement({ kind: "edge", id: focused }) });
-    return list;
-  }, [enabled, bounded, centre, limit, shown, index, focused, describeElement]);
+  const at = bounded || (focused && index.edges.has(focused)) ? focused : null;
+  const selected = bounded ? selection.nodes[0] : undefined;
+  const canvasDescendants = useMemo(
+    () => (enabled ? listedElements(shown, index, at, selected, limit, home).map((ref) => ({ ...ref, description: describeElement(ref) })) : undefined),
+    [enabled, shown, index, at, selected, limit, home, describeElement],
+  );
   const describeHit = useCallback(
     (hit: HitItem): string | undefined => {
       if (activityLabels && hit.kind === "node" && index.nodes.get(hit.id)?.kind === "activity") return undefined;

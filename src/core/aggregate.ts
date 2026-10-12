@@ -7,6 +7,7 @@ import { INDIRECT_TAG, MinHeap, rankActivities, selectByDetail, within } from ".
 import type { MetricBasis } from "./metrics.js";
 import { canonicalOverlays } from "./overlays.js";
 import {
+  type AbstractionMeta,
   type FlowEdge,
   type FlowGraph,
   type FlowGroup,
@@ -83,16 +84,20 @@ function firstMetric(el: { metrics?: Metrics }, candidates: string[]): number | 
   return undefined;
 }
 
+/** Summed in ascending order, which no input order changes. */
+const total = (values: number[]) => values.sort((a, b) => a - b).reduce((sum, v) => sum + v, 0);
+
 /** The relative strength of every element that has one of the metrics, as `strengths` computes it. */
 function measuredStrengths<T extends { id: string; metrics?: Metrics }>(items: T[], candidates: string[], relativeTo: "max" | "total"): Map<string, number> {
   const values = new Map<string, number>();
-  let denominator = 0;
+  let max = 0;
   for (const it of items) {
     const v = firstMetric(it, candidates);
     if (v === undefined) continue;
     values.set(it.id, Math.max(0, v));
-    denominator = relativeTo === "max" ? Math.max(denominator, v) : denominator + Math.max(0, v);
+    max = Math.max(max, v);
   }
+  const denominator = relativeTo === "max" ? max : total([...values.values()]);
   for (const [id, v] of values) values.set(id, denominator <= 0 ? 1 : v / denominator);
   return values;
 }
@@ -119,11 +124,12 @@ export function strengths<T extends { id: string; metrics?: Metrics }>(
  * listed in `basis`; a value an element already carried as a bound or a mean
  * stays one.
  */
-function sumMetrics(items: { metrics?: Metrics; metricBasis?: Partial<Record<string, MetricBasis>> }[], weightKey: string[]): { metrics: Metrics; basis?: Partial<Record<string, MetricBasis>> } {
+function sumMetrics(unordered: { id: string; metrics?: Metrics; metricBasis?: Partial<Record<string, MetricBasis>> }[], weightKey: string[]): { metrics: Metrics; basis?: Partial<Record<string, MetricBasis>> } {
+  const items = [...unordered].sort(byId);
   const SUM = new Set(["events", "count", "starts", "ends", "violations", "internalCount"]);
   const MAX = new Set(["cases", "share"]);
   const names = new Set<string>();
-  for (const it of items) for (const k of Object.keys(it.metrics ?? {})) names.add(k);
+  for (const it of unordered) for (const k of Object.keys(it.metrics ?? {})) names.add(k);
   const out: Metrics = {};
   const basis: Partial<Record<string, MetricBasis>> = {};
   for (const name of names) {
@@ -131,12 +137,12 @@ function sumMetrics(items: { metrics?: Metrics; metricBasis?: Partial<Record<str
     let max = -Infinity;
     let weighted = 0;
     let weightSum = 0;
-    let n = 0;
+    let carriers = 0;
     let given: MetricBasis | undefined;
     for (const it of items) {
       const v = it.metrics?.[name];
       if (typeof v !== "number" || !Number.isFinite(v)) continue;
-      n++;
+      carriers++;
       sum += v;
       max = Math.max(max, v);
       const w = firstMetric(it, weightKey) ?? 1;
@@ -144,15 +150,17 @@ function sumMetrics(items: { metrics?: Metrics; metricBasis?: Partial<Record<str
       weightSum += w;
       given = it.metricBasis?.[name] === "mean" ? "mean" : (given ?? it.metricBasis?.[name]);
     }
-    if (!n) continue;
+    if (!carriers) continue;
     if (SUM.has(name)) out[name] = sum;
     else if (MAX.has(name)) out[name] = max;
-    else out[name] = weightSum > 0 ? weighted / weightSum : sum / items.length;
-    const merged = n > 1 && !SUM.has(name) ? (MAX.has(name) ? "atLeast" : "mean") : undefined;
+    else out[name] = weightSum > 0 ? weighted / weightSum : sum / carriers;
+    const merged = carriers > 1 && !SUM.has(name) ? (MAX.has(name) ? "atLeast" : "mean") : undefined;
     const b = merged === "mean" || given === "mean" ? "mean" : (merged ?? given);
     if (b) basis[name] = b;
   }
-  return Object.keys(basis).length ? { metrics: out, basis } : { metrics: out };
+  // By name, which no input order changes.
+  const inexact = Object.keys(basis).sort();
+  return inexact.length ? { metrics: out, basis: Object.fromEntries(inexact.map((k) => [k, basis[k]])) } : { metrics: out };
 }
 
 /**
@@ -231,13 +239,14 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
 
   const merged = new Map<string, FlowEdge[]>();
   const edgeTarget = new Map<string, string>();
-  const internal = new Map<string, number>();
+  const internal = new Map<string, number[]>();
   const order: string[] = [];
   for (const e of graph.edges) {
     const s = nodeTarget.get(e.source) ?? e.source;
     const t = nodeTarget.get(e.target) ?? e.target;
     if (s === t && nodeTarget.has(e.source) && nodeTarget.has(e.target)) {
-      internal.set(s, (internal.get(s) ?? 0) + metric(e, "count", 1));
+      if (!internal.has(s)) internal.set(s, []);
+      internal.get(s)!.push(metric(e, "count", 1));
       edgeTarget.set(e.id, s);
       continue;
     }
@@ -250,6 +259,16 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
   }
   // Keep singleton ids unchanged and reserve node/group ids to avoid ambiguous targets.
   const usedIds = new Set([...nodes.map((n) => n.id), ...(graph.groups ?? []).map((g) => g.id), ...[...merged.values()].filter((list) => list.length === 1).map((list) => list[0].id)]);
+  // Merged edges are named in the order of their smallest original id.
+  const smallest = (key: string) => merged.get(key)!.map((e) => e.id).sort()[0];
+  const mergedIds = new Map<string, string>();
+  for (const key of order.filter((k) => merged.get(k)!.length > 1).sort((a, b) => (smallest(a) < smallest(b) ? -1 : 1))) {
+    const { source, target, kind } = merged.get(key)![0];
+    let id = `${source}->${target}`;
+    for (let suffix = 1; usedIds.has(id); suffix++) id = `${source}->${target}:${kind}:${suffix}`;
+    usedIds.add(id);
+    mergedIds.set(key, id);
+  }
   const edges: FlowEdge[] = order.map((key) => {
     const list = merged.get(key)!;
     if (list.length === 1) {
@@ -257,10 +276,7 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
       return list[0];
     }
     const first = list[0];
-    const baseId = `${first.source}->${first.target}`;
-    let id = baseId;
-    for (let suffix = 1; usedIds.has(id); suffix++) id = `${baseId}:${first.kind}:${suffix}`;
-    usedIds.add(id);
+    const id = mergedIds.get(key)!;
     for (const edge of list) edgeTarget.set(edge.id, id);
     const { metrics, basis } = sumMetrics(list, ["count", "cases"]);
     return {
@@ -275,7 +291,7 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
   });
   for (const n of nodes) {
     const c = internal.get(n.id);
-    if (c !== undefined) n.metrics = { ...(n.metrics ?? {}), internalCount: c };
+    if (c) n.metrics = { ...(n.metrics ?? {}), internalCount: total(c) };
   }
 
   const targetOf = (id: string) => nodeTarget.get(id) ?? rootOf(id) ?? edgeTarget.get(id) ?? id;
@@ -636,8 +652,10 @@ const isPath = (e: FlowEdge) => e.kind !== "constraint" && !hasTag(e, INDIRECT_T
 /**
  * Abstract a graph: optionally collapse stage groups, then remove weak activities and
  * weak follows edges, then (by default) restore connectivity with the strongest removed
- * elements. Structural nodes (events, gateways), constraint and flow edges are kept.
- * The result keeps the input order of elements; re-added elements are tagged.
+ * elements. Events, gateways and `keep` are kept; a constraint or flow edge goes only
+ * with an element at one of its ends (by detail shares a flow edge is a path, which
+ * the paths share may leave out). The result keeps the input order of elements;
+ * re-added elements are tagged.
  * `meta.model` records the activities, paths and group order of the graph
  * before any abstraction (kept from an earlier one): a figure's caption
  * reports how much of it is shown, and stage colours follow its order.
@@ -680,20 +698,32 @@ export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowG
     passes = (id) => keepIds.has(id) || (nodeStrength.has(id) ? nodeStrength.get(id)! >= minNodeShare : edgeStrength.get(id)! >= minEdgeShare);
     at.activities = measured.filter((n) => nodeStrength.get(n.id)! >= minNodeShare).length;
     at.paths = ranked.filter((e) => e.kind !== "follows" || edgeStrength.get(e.id)! >= minEdgeShare).length;
-    if (keepConnected) {
-      const r = restoreFlowContext(kept, joinComponents(kept));
-      // Keep the original element order for stable rendering.
-      const nodeOrder = new Map(base.nodes.map((n, i) => [n.id, i]));
-      const edgeOrder = new Map(base.edges.map((e, i) => [e.id, i]));
-      nodes = r.nodes.sort((a, b) => (nodeOrder.get(a.id) ?? 0) - (nodeOrder.get(b.id) ?? 0));
-      edges = r.edges.sort((a, b) => (edgeOrder.get(a.id) ?? 0) - (edgeOrder.get(b.id) ?? 0));
-    } else {
+    if (keepConnected) ({ nodes, edges } = restoreFlowContext(kept, joinComponents(kept)));
+    else {
       const touched = new Set(edges.filter((e) => e.kind !== "constraint" && e.source !== e.target).flatMap((e) => [e.source, e.target]));
       meta.withoutPath = nodes.filter((n) => isActivity(n) && !touched.has(n.id)).length;
     }
   }
   const nodeSet = new Set(nodes.map((n) => n.id));
   const edgeSet = new Set(edges.map((e) => e.id));
+  // A constraint or flow edge goes only with an element at one of its ends, counted since the first abstraction;
+  // a re-added activity brings its own back.
+  const removedEdges: Record<string, number> = { ...(base.meta?.abstraction as AbstractionMeta | undefined)?.removedEdges };
+  for (const e of base.edges) {
+    if (e.kind === "follows" || edgeSet.has(e.id)) continue;
+    if (!nodeSet.has(e.source) || !nodeSet.has(e.target)) removedEdges[e.kind] = (removedEdges[e.kind] ?? 0) + 1;
+    else if (!byDetail) {
+      edges.push(tagged(e));
+      edgeSet.add(e.id);
+    }
+  }
+  if (!byDetail && keepConnected) {
+    // Keep the original element order for stable rendering.
+    const nodeOrder = new Map(base.nodes.map((n, i) => [n.id, i]));
+    const edgeOrder = new Map(base.edges.map((e, i) => [e.id, i]));
+    nodes.sort((a, b) => (nodeOrder.get(a.id) ?? 0) - (nodeOrder.get(b.id) ?? 0));
+    edges.sort((a, b) => (edgeOrder.get(a.id) ?? 0) - (edgeOrder.get(b.id) ?? 0));
+  }
   const usedGroups = new Set<string>();
   const baseIdx = indexGraph({ nodes: [], edges: [], groups: base.groups });
   for (const n of nodes) {
@@ -712,8 +742,8 @@ export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowG
   // A mark is named by its kind, its target and its place among the marks given, in canonical order.
   const given = [...(graph.overlays ?? []), ...(options.marks ?? [])].map((o) => ({ ...o }));
   const place = new Map(canonicalOverlays(given).map((o, n) => [o, n]));
-  // The events of the activities and stages where the graph counts them; a comparison's two sides are not added up.
-  const eventsOf = (list: FlowNode[]) => list.filter(isActivity).reduce((sum, n) => sum + Math.max(0, metric(n, "events")), 0);
+  // The events of the activities and stages where the graph counts them, summed in ascending order; a comparison's two sides are not added up.
+  const eventsOf = (list: FlowNode[]) => total(list.filter(isActivity).map((n) => Math.max(0, metric(n, "events"))));
   const counted = !comparison && base.nodes.some((n) => isActivity(n) && Number.isFinite(metric(n, "events", NaN)));
   const shown: ShownMeta = {
     activities: { shown: nodes.filter(isActivity).length, of: base.nodes.filter(isActivity).length },
@@ -732,9 +762,12 @@ export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowG
     overlays,
     meta: {
       ...(base.meta ?? {}),
-      abstraction: byDetail
-        ? { activityDetail: options.activityDetail ?? 1, pathDetail: options.pathDetail ?? 1, collapse: collapse || undefined }
-        : { minEdgeShare, minNodeShare, keepConnected, collapse: collapse || undefined },
+      abstraction: {
+        ...(byDetail
+          ? { activityDetail: options.activityDetail ?? 1, pathDetail: options.pathDetail ?? 1, collapse: collapse || undefined }
+          : { minEdgeShare, minNodeShare, keepConnected, collapse: collapse || undefined }),
+        ...(Object.keys(removedEdges).length && { removedEdges }),
+      },
       // The model before any abstraction: a figure's caption reports its size, stage colours follow its groups' order.
       model: base.meta?.model ?? modelOutline(graph),
       shown,
@@ -759,18 +792,14 @@ function modelOutline(graph: FlowGraph): ModelOutline {
       if (Number.isFinite(v) && !(v <= pathMax[name])) pathMax[name] = v;
     }
   }
-  return { activities: ids.size, ...(paths !== undefined && { paths }), groups: (graph.groups ?? []).map((g) => g.id), pathMax };
+  // By name, which no input order changes.
+  return { activities: ids.size, ...(paths !== undefined && { paths }), groups: (graph.groups ?? []).map((g) => g.id), pathMax: Object.fromEntries(Object.entries(pathMax).sort(([a], [b]) => (a < b ? -1 : 1))) };
 }
 
 /** The maximum or the total of the follows edges' metric, which self-loops are measured against. */
 function loopStrengthDenominator(follows: FlowEdge[], candidates: string[], relativeTo: "max" | "total"): number {
-  let denominator = 0;
-  for (const f of follows) {
-    const fv = firstMetric(f, candidates);
-    if (fv === undefined) continue;
-    denominator = relativeTo === "max" ? Math.max(denominator, fv) : denominator + fv;
-  }
-  return denominator;
+  const values = follows.map((f) => firstMetric(f, candidates)).filter((v): v is number => v !== undefined);
+  return relativeTo === "max" ? values.reduce((m, v) => Math.max(m, v), 0) : total(values);
 }
 
 /** A self-loop's strength against the other paths', not capped at 1. */

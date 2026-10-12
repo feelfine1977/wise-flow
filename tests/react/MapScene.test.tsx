@@ -4,7 +4,8 @@ import type { PreparedScene } from "../../src/canvas/index";
 
 vi.mock("../../src/core/scene.js", async (importOriginal) => {
   const original = await importOriginal<typeof import("../../src/core/scene.js")>();
-  return { ...original, buildScene: vi.fn(original.buildScene) };
+  // Exports build their scene through `sceneOf`, the map through `buildScene`.
+  return { ...original, buildScene: vi.fn(original.buildScene), sceneOf: vi.fn(original.sceneOf) };
 });
 vi.mock("../../src/canvas/scene.js", async (importOriginal) => {
   const original = await importOriginal<typeof import("../../src/canvas/scene.js")>();
@@ -17,7 +18,7 @@ vi.mock("../../src/react/CanvasMap.js", async () => {
   return { CanvasMap: forwardRef((props: { scene?: PreparedScene }, _ref) => { canvasScenes.push(props.scene); return <div data-testid="canvas-map" />; }) };
 });
 
-const { buildScene } = await import("../../src/core/scene.js");
+const { buildScene, sceneOf } = await import("../../src/core/scene.js");
 const { prepareScene } = await import("../../src/canvas/scene.js");
 const { constraintItems, vendorScene, vendorSceneKey } = await import("../../fixtures/bpic2019");
 const { abstract, layout, overlaysFor, toSVG } = await import("../../src/index");
@@ -29,6 +30,7 @@ type FlowScene = import("../../src/index").FlowScene;
 afterEach(() => {
   cleanup();
   vi.mocked(buildScene).mockClear();
+  vi.mocked(sceneOf).mockClear();
   vi.mocked(prepareScene).mockClear();
   canvasScenes.length = 0;
 });
@@ -44,8 +46,11 @@ const loopPositions: Positions = {
 };
 const plain = { controls: false, legend: false, fitView: false } as const;
 
+/** The scene built last, by the map or by an export. */
 function lastScene(): FlowScene {
-  return vi.mocked(buildScene).mock.results.at(-1)!.value as FlowScene;
+  const [map, figure] = [vi.mocked(buildScene).mock, vi.mocked(sceneOf).mock];
+  const later = (figure.invocationCallOrder.at(-1) ?? 0) > (map.invocationCallOrder.at(-1) ?? 0);
+  return (later ? figure : map).results.at(-1)!.value as FlowScene;
 }
 
 describe("ProcessMap scene", () => {

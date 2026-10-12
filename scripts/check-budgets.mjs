@@ -18,6 +18,11 @@ export function assertBudgets(measured, limits) {
     if (!Number.isFinite(measured[name]) || measured[name] < 0 || measured[name] > limit) throw new Error(`${name}: ${measured[name]} exceeds budget ${limit} or is missing/invalid`);
   }
 }
+/** Gzipped bytes of the library's JavaScript in `dist`, without the layout workers: they are assets a Web Worker loads, not library modules. */
+export function libraryJavaScriptGzipBytes(dist = resolve(root, 'dist')) {
+  const workerPaths = workers.map(name => resolve(dist, name));
+  return gzipBytes(filesAt(dist).filter(path => path.endsWith('.js') && !workerPaths.includes(path)));
+}
 export function checkBudgets() {
   const artifactDir = resolve(process.env.FLOW_ARTIFACT_DIR || resolve(root, 'artifacts'));
   const limits = JSON.parse(readFileSync(resolve(root, 'scripts/budgets.json'), 'utf8'));
@@ -25,7 +30,7 @@ export function checkBudgets() {
   const assets = JSON.parse(readFileSync(resolve(artifactDir, 'consumer-assets.json'), 'utf8'));
   const workerPaths = workers.map(name => resolve(root, 'dist', name));
   const measured = {
-    libraryJavaScriptGzipBytes: gzipBytes(filesAt(resolve(root, 'dist')).filter(path => path.endsWith('.js') && !workerPaths.includes(path))),
+    libraryJavaScriptGzipBytes: libraryJavaScriptGzipBytes(),
     workerBytes: workerPaths.reduce((sum, path) => sum + statSync(path).size, 0),
     consumerAllJavaScriptGzipBytes: assets.allJavaScriptGzipBytes,
     tarballBytes: statSync(resolve(artifactDir, `wise-flow-${pkg.version}.tgz`)).size,

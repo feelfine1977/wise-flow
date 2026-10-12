@@ -93,3 +93,91 @@ describe("importBpmn", () => {
     expect((mapped.meta?.bpmnIds as Record<string, string>).clear_invoice).toBe("Task_ClearInvoice");
   });
 });
+
+describe("importBpmn on broken files", () => {
+  const NS = 'xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:wise="http://wise-workbench.org/schema/flow"';
+  const file = (process: string, shapes = "") => `<?xml version="1.0" encoding="UTF-8"?>
+<definitions ${NS} id="d"><process id="p">${process}</process>${shapes ? `<bpmndi:BPMNDiagram id="dia"><bpmndi:BPMNPlane id="pl" bpmnElement="p">${shapes}</bpmndi:BPMNPlane></bpmndi:BPMNDiagram>` : ""}</definitions>`;
+  const shape = (id: string, x: string, y = "0", width = "100", height = "80") => `<bpmndi:BPMNShape id="${id}_di" bpmnElement="${id}"><dc:Bounds x="${x}" y="${y}" width="${width}" height="${height}"/></bpmndi:BPMNShape>`;
+
+  it("reads a flow without a source beside an element without an id as a flow without an endpoint", async () => {
+    // Both were looked up under the name "undefined", so the flow found the start event
+    // as its source and the import threw a TypeError reading the source's default flow.
+    const result = await importBpmn(file('<startEvent name="Begin"/><task id="t" name="Work"/><sequenceFlow id="f" targetRef="t"/>'));
+    expect(result.warnings).toEqual(["sequence flow f has an endpoint that is not a flow node"]);
+    expect(result.graph.nodes.map((n) => [n.id, n.label])).toEqual([
+      ["", "Begin"],
+      ["t", "Work"],
+    ]);
+    expect(result.graph.edges).toEqual([]);
+  });
+
+  it("marks only the flow a gateway names as its default, also when flows have no id", async () => {
+    // A flow without an id and a source without a default both have none: the two
+    // were compared by id, so every flow without an id came back as a default flow.
+    const result = await importBpmn(file('<task id="a"/><exclusiveGateway id="g" default="f"/><task id="b"/><task id="c"/><sequenceFlow sourceRef="a" targetRef="g"/><sequenceFlow id="f" sourceRef="g" targetRef="b"/><sequenceFlow sourceRef="g" targetRef="c"/>'));
+    expect(result.graph.edges.map((e) => [e.source, e.target, e.tags ?? []])).toEqual([
+      ["a", "g", []],
+      ["g", "b", ["default"]],
+      ["g", "c", []],
+    ]);
+  });
+
+  it("leaves out and reports shapes and routes whose coordinates are not finite numbers", async () => {
+    const result = await importBpmn(
+      file(
+        '<task id="a"/><task id="b"/><task id="c"/><sequenceFlow id="f" sourceRef="a" targetRef="b"/>',
+        shape("a", "abc") + shape("b", "200", "1e400") + shape("c", "400") + '<bpmndi:BPMNEdge id="f_di" bpmnElement="f"><di:waypoint x="100" y="40"/><di:waypoint x="NaN" y="40"/></bpmndi:BPMNEdge>',
+      ),
+    );
+    expect(result.warnings).toEqual(["shape of a has coordinates that are not finite numbers", "shape of b has coordinates that are not finite numbers", "route of f has coordinates that are not finite numbers"]);
+    expect(result.positions?.nodes).toEqual({ c: { x: 400, y: 0, width: 100, height: 80 } });
+    expect(result.positions?.edges).toEqual({});
+    expect(result.positions?.bounds).toEqual({ x: 400, y: 0, width: 100, height: 80 });
+  });
+
+  it("reports and leaves out the positions when the diagram is too large to measure", async () => {
+    // Each box is a finite number, but the distance between them is not.
+    const result = await importBpmn(file('<task id="a"/><task id="b"/>', shape("a", "-1e308") + shape("b", "1e308")));
+    expect(result.warnings).toEqual(["the diagram's extent is not a finite number; its positions are left out"]);
+    expect(result.positions).toBeUndefined();
+    expect(result.graph.nodes.map((n) => n.id)).toEqual(["a", "b"]);
+  });
+
+  it("reports the ids that two elements share as FlowGraph ids", async () => {
+    // Different XML ids, one FlowGraph id: the parser sees nothing wrong.
+    const result = await importBpmn(file('<task id="a" wise:flowId="same"/><task id="b" wise:flowId="same"/><task/><task/>'));
+    expect(validateGraph(result.graph)).toEqual([
+      { level: "error", message: "duplicate node id", id: "same" },
+      { level: "error", message: "duplicate node id", id: "" },
+    ]);
+    expect(result.warnings).toEqual(["duplicate node id: same", "duplicate node id: "]);
+  });
+});
+
+describe("importBpmn on deeply nested files", () => {
+  it("reads sub-processes and lanes nested deeper than a call stack reaches", async () => {
+    // 10,000 levels each: reading them by recursion threw a RangeError.
+    const depth = 10_000;
+    let process = '<task id="deep" name="Deep"/>';
+    for (let i = depth; i > 0; i--) process = `<subProcess id="s${i}">${process}</subProcess>`;
+    let lanes = '<lane id="l0"><flowNodeRef>deep</flowNodeRef></lane>';
+    for (let i = 1; i <= depth; i++) lanes = `<lane id="l${i}"><childLaneSet id="c${i}">${lanes}</childLaneSet></lane>`;
+    const xml = `<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" id="d"><process id="p"><laneSet id="ls">${lanes}</laneSet>${process}<task id="last"/></process></definitions>`;
+    const result = await importBpmn(xml);
+    expect(result.warnings).toEqual([]);
+    expect(result.graph.nodes.map((n) => [n.id, n.group])).toEqual([
+      ["deep", "l0"],
+      ["last", undefined],
+    ]);
+    const groups = new Map(result.graph.groups!.map((g) => [g.id, g]));
+    expect(groups.size).toBe(2 * depth + 1);
+    // Lanes outermost first, each the child of the one around it; sub-processes the same.
+    expect(result.graph.groups!.slice(0, 2).map((g) => [g.id, g.parent])).toEqual([
+      [`l${depth}`, undefined],
+      [`l${depth - 1}`, `l${depth}`],
+    ]);
+    expect(groups.get("s1")).toEqual({ id: "s1", kind: "stage", label: "s1", parent: undefined });
+    expect(groups.get(`s${depth}`)?.parent).toBe(`s${depth - 1}`);
+  });
+});

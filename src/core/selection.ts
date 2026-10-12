@@ -1,9 +1,4 @@
-/**
- * Selection state of a map: which nodes, edges and groups are selected, how a
- * click or a key changes that, what the selection looks like (one activity,
- * a pair, a set, a path, a stage) and how it is announced. Framework-free so
- * that every renderer and the table alternative share one model.
- */
+/** Selection state of a map: what is selected, how clicks and keys change it, and how it is announced. */
 import { type Locale } from "./format.js";
 import { type FlowGraph, indexGraph } from "./model.js";
 import { t } from "./strings.js";

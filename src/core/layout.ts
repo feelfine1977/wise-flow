@@ -1,9 +1,4 @@
-/**
- * Layout: ELK layered and Dagre (each in a Web Worker when its worker URL is
- * given, in-process otherwise), Dagre as fallback, and union layouts for stable
- * positions across compared scenes. A layout runs while somebody waits for it:
- * a worker whose layout nobody waits for any more is terminated.
- */
+/** Layout: ELK and Dagre, in workers or in-process, Dagre as fallback; a layout runs while somebody waits for it. */
 import type { ELK, ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api.js";
 import * as dagreModule from "@dagrejs/dagre";
 import { type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, byId, indexGraph } from "./model.js";
@@ -46,6 +41,8 @@ export interface Positions {
   bounds: Box;
   engine: LayoutEngine;
   direction: LayoutDirection;
+  /** No layout replaces them: the provisional arrangement `useStableLayout` keeps when the layout is unavailable. */
+  final?: boolean;
 }
 
 export interface NodeSize {
@@ -82,6 +79,7 @@ export interface LayoutOptions {
   /**
    * Milliseconds each engine run may take (ELK; Dagre in a worker). Its worker is
    * then terminated; `auto` falls back to Dagre, otherwise the layout fails. Default 20000.
+   * In-process ELK is timed from when it starts and, holding the thread, is answered once done.
    */
   timeoutMs?: number;
   /**
@@ -119,9 +117,12 @@ export function defaultNodeSize(node: FlowNode): NodeSize {
 export const GROUP_PADDING = { top: 44, left: 20, bottom: 20, right: 20 };
 
 export function sizeOf(node: FlowNode, o: LayoutOptions): NodeSize {
-  if (!o.nodeSize) return defaultNodeSize(node);
-  return typeof o.nodeSize === "function" ? o.nodeSize(node) : o.nodeSize;
+  const s = typeof o.nodeSize === "function" ? o.nodeSize(node) : o.nodeSize;
+  return s && Number.isFinite(s.width) && Number.isFinite(s.height) ? s : defaultNodeSize(node);
 }
+
+/** A spacing, or its default where it is not a finite number. */
+export const gap = (v: number | undefined, fallback: number): number => (Number.isFinite(v) ? v! : fallback);
 
 /**
  * Smallest box around the given boxes. Boxes without a non-negative width and
@@ -179,6 +180,20 @@ export type PositionsContents = Pick<Positions, "nodes" | "groups" | "edges">;
 export function createPositions(contents: PositionsContents, engine: LayoutEngine, direction: LayoutDirection): Positions {
   const { nodes, groups, edges } = contents;
   return { nodes, groups, edges, bounds: positionsBounds(contents), engine, direction };
+}
+
+export const finiteBox = (b: Box | undefined): b is Box => !!b && Number.isFinite(b.x) && Number.isFinite(b.y) && Number.isFinite(b.width) && Number.isFinite(b.height);
+
+/** Positions without the boxes and routes holding a number that is not finite; the same object when there is none. */
+export function finitePositions(p: Positions): Positions {
+  const keep = <T>(r: Record<string, T>, ok: (v: T) => boolean): Record<string, T> => {
+    for (const k in r) if (!ok(r[k])) return Object.fromEntries(Object.entries(r).filter(([, v]) => ok(v)));
+    return r;
+  };
+  const nodes = keep(p.nodes, finiteBox);
+  const groups = keep(p.groups, finiteBox);
+  const edges = keep(p.edges, (r) => r.points.every((q) => Number.isFinite(q.x) && Number.isFinite(q.y)));
+  return nodes === p.nodes && groups === p.groups && edges === p.edges && finiteBox(p.bounds) ? p : createPositions({ nodes, groups, edges }, p.engine, p.direction);
 }
 
 // ---------------------------------------------------------------------------
@@ -290,26 +305,35 @@ class LayoutTimeout extends Error {}
 
 /**
  * `promise`, unless the signal aborts or `ms` pass first: then `stop` ends the
- * run and the result rejects with the abort reason or a timeout.
+ * run and the result rejects with the abort reason or a timeout. A run without
+ * a worker is timed from its `turn`, and a result it sent first wins.
  */
-function guard<T>(promise: Promise<T>, ms: number, signal: AbortSignal, stop?: () => void): Promise<T> {
+function guard<T>(promise: Promise<T>, ms: number, signal: AbortSignal, stop?: () => void, turn?: Promise<unknown>): Promise<T> {
   return new Promise((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let done = false;
     const end = (error: unknown) => {
       clear();
       stop?.();
       reject(error);
     };
     const abort = () => end(signal.reason);
-    const timer = setTimeout(() => end(new LayoutTimeout(`layout timed out after ${ms} ms`)), ms);
+    const late = () => end(new LayoutTimeout(`layout timed out after ${ms} ms`));
     const clear = () => {
+      done = true;
       clearTimeout(timer);
       signal.removeEventListener("abort", abort);
     };
     if (signal.aborted) return abort();
     signal.addEventListener("abort", abort);
+    // Timers fire at once beyond 2³¹ − 1 ms.
+    void (turn ?? Promise.resolve()).then(() => done || (timer = setTimeout(stop ? late : () => (timer = setTimeout(late)), Math.min(ms, 2 ** 31 - 1))));
     promise.then((value) => (clear(), resolve(value)), (error) => (clear(), reject(error)));
   });
 }
+
+/** In-process ELK runs one layout after another, aborted ones included. */
+let inProcessTurn: Promise<unknown> = Promise.resolve();
 
 interface Prepared {
   nodes: FlowNode[];
@@ -335,8 +359,8 @@ function prepare(graph: FlowGraph, o: LayoutOptions): Prepared {
 
 function elkGraph(p: Prepared, o: LayoutOptions, partition: boolean): ElkNode {
   const spacing = o.spacing ?? {};
-  const nodeSpacing = spacing.node ?? 28;
-  const layerSpacing = spacing.layer ?? 64;
+  const nodeSpacing = gap(spacing.node, 28);
+  const layerSpacing = gap(spacing.layer, 64);
   const idx = indexGraph({ nodes: p.nodes, edges: p.edges, groups: p.groups });
   const stageOrder = new Map<string, number>();
   p.groups.filter((g) => !g.parent && g.kind === "stage").forEach((g, i) => stageOrder.set(g.id, i));
@@ -373,7 +397,7 @@ function elkGraph(p: Prepared, o: LayoutOptions, partition: boolean): ElkNode {
     "elk.spacing.nodeNode": String(nodeSpacing),
     "elk.layered.spacing.nodeNodeBetweenLayers": String(layerSpacing),
     "elk.spacing.edgeNode": "24",
-    "elk.spacing.componentComponent": String(spacing.group ?? 48),
+    "elk.spacing.componentComponent": String(gap(spacing.group, 48)),
     "elk.edgeRouting": o.edgeRouting ?? "POLYLINE",
     "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
     "elk.layered.cycleBreaking.strategy": "GREEDY_MODEL_ORDER",
@@ -431,7 +455,11 @@ async function layoutElk(p: Prepared, o: LayoutOptions, signal: AbortSignal, wor
   const attempt = async (part: boolean) => {
     const elk = await (work ? work.get().elk() : o.elk ?? (inProcessElk ??= loadBundledCtor().then((Ctor) => new Ctor())));
     signal.throwIfAborted();
-    return fromElk(await guard(elk.layout(elkGraph(p, o, part)), ms, signal, work?.stop), p);
+    if (work || o.elk) return fromElk(await guard(elk.layout(elkGraph(p, o, part)), ms, signal, work?.stop), p);
+    const turn = inProcessTurn;
+    const run = turn.then(() => (signal.throwIfAborted(), elk.layout(elkGraph(p, o, part))));
+    inProcessTurn = run.catch(() => undefined);
+    return fromElk(await guard(run, ms, signal, undefined, turn), p);
   };
   try {
     return await attempt(partition);
@@ -467,16 +495,18 @@ export interface DagreOutput {
 function dagreInput(p: Prepared, o: LayoutOptions): DagreInput {
   const spacing = o.spacing ?? {};
   const groupIds = new Set(p.groups.map((gr) => gr.id));
+  const nodeIds = new Set(p.nodes.map((n) => n.id));
   const inGroup = (id?: string) => (p.useGroups && id && groupIds.has(id) ? id : undefined);
   return {
-    graph: { rankdir: DAGRE_DIR[p.direction], nodesep: spacing.node ?? 28, ranksep: spacing.layer ?? 64, marginx: 8, marginy: 8 },
+    graph: { rankdir: DAGRE_DIR[p.direction], nodesep: gap(spacing.node, 28), ranksep: gap(spacing.layer, 64), marginx: 8, marginy: 8 },
     compound: p.useGroups,
     groups: p.useGroups ? p.groups.map((gr) => [gr.id, gr.label, inGroup(gr.parent)]) : [],
     nodes: p.nodes.map((n) => {
       const s = sizeOf(n, o);
       return [n.id, s.width, s.height, inGroup(n.group)];
     }),
-    edges: p.edges.filter((e) => e.source !== e.target).map((e) => [e.id, e.source, e.target]),
+    // Dagre would add a node without a size for a missing end.
+    edges: p.edges.filter((e) => e.source !== e.target && nodeIds.has(e.source) && nodeIds.has(e.target)).map((e) => [e.id, e.source, e.target]),
   };
 }
 
@@ -496,25 +526,27 @@ interface DagreGraph {
  * Dagre worker runs this function's source as it is.
  */
 export function dagreJob(dagre: { Graph: new (options: object) => DagreGraph; layout(graph: DagreGraph): void }, input: DagreInput): DagreOutput {
+  // Graphlib reads "" as no name, keeps \x00 and \x01, and keys plain objects (a prototype member would write the prototype).
+  const k = (id: string) => (!id || id < "\x03" || id in Object.prototype ? "\x02" + id : id);
   const g = new dagre.Graph({ compound: input.compound, multigraph: true });
   g.setGraph(input.graph);
   g.setDefaultEdgeLabel(() => ({}));
-  for (const [id, label] of input.groups) g.setNode(id, { label, clusterLabelPos: "top" });
-  for (const [id, , parent] of input.groups) if (parent) g.setParent(id, parent);
+  for (const [id, label] of input.groups) g.setNode(k(id), { label, clusterLabelPos: "top" });
+  for (const [id, , parent] of input.groups) if (parent) g.setParent(k(id), k(parent));
   for (const [id, width, height, parent] of input.nodes) {
-    g.setNode(id, { width, height });
-    if (parent) g.setParent(id, parent);
+    g.setNode(k(id), { width, height });
+    if (parent) g.setParent(k(id), k(parent));
   }
-  for (const [id, source, target] of input.edges) g.setEdge(source, target, { minlen: 1 }, id);
+  for (const [id, source, target] of input.edges) g.setEdge(k(source), k(target), { minlen: 1 }, k(id));
   dagre.layout(g);
   const boxes: DagreOutput["boxes"] = {};
   const edges: DagreOutput["edges"] = {};
   for (const [id] of [...input.groups, ...input.nodes]) {
-    const v = g.node(id) as DagreOutput["boxes"][string] | undefined;
+    const v = g.node(k(id)) as DagreOutput["boxes"][string] | undefined;
     if (v) boxes[id] = { x: v.x, y: v.y, width: v.width, height: v.height };
   }
   for (const [id, source, target] of input.edges) {
-    const v = g.edge({ v: source, w: target, name: id }) as { points?: XY[] } | undefined;
+    const v = g.edge({ v: k(source), w: k(target), name: k(id) }) as { points?: XY[] } | undefined;
     if (v?.points) edges[id] = v.points.map((pt) => ({ x: pt.x, y: pt.y }));
   }
   return { boxes, edges };
@@ -583,9 +615,12 @@ function startJob(make: (signal: AbortSignal) => Promise<Positions>): Job {
  * before the current task ends (a component that mounts again).
  */
 function wait(job: Job, signals: (AbortSignal | undefined)[]): Promise<Positions> {
+  const listened = signals.filter((s): s is AbortSignal => s !== undefined);
+  // A finished layout is answered as it is; a newer request has nothing to stop.
+  const known = settled.get(job);
+  if (known && !listened.some((s) => s.aborted)) return Promise.resolve(known);
   job.waiting++;
   return new Promise((resolve, reject) => {
-    const listened = signals.filter((s): s is AbortSignal => s !== undefined);
     const leave = () => listened.forEach((s) => s.removeEventListener("abort", abort));
     const abort = () => {
       leave();
@@ -616,11 +651,15 @@ export function clearLayoutCache(key?: string): void {
   generation++;
 }
 
-/** The layout kept under `key`, or a new one that is kept unless it fails or is stopped. Hits move to the end. */
+/**
+ * The layout kept under `key`, or a new one that is kept unless it fails or is
+ * stopped. A layout that finished while its last waiter was leaving is kept
+ * too: stopping it then stopped nothing. Hits move to the end.
+ */
 function remember(entries: Map<string, Job>, key: string, make: () => Job): Job {
   let job = entries.get(key);
   entries.delete(key);
-  if (!job || job.stop.signal.aborted) {
+  if (!job || (job.stop.signal.aborted && !settled.has(job))) {
     const made = (job = make());
     made.positions.catch(() => entries.get(key) === made && entries.delete(key));
   }
@@ -660,7 +699,12 @@ async function compute(graph: FlowGraph, options: LayoutOptions, signal: AbortSi
         elk?.done();
       }
     }
-    return await layoutDagre(p, options, signal, dagre, engine !== "dagre");
+    try {
+      return await layoutDagre(p, options, signal, dagre, engine !== "dagre");
+    } catch (err) {
+      // ELK and then the Dagre worker failed.
+      throw dagre && engine !== "dagre" && !signal.aborted ? new LayoutUnavailableError(`Neither ELK nor the Dagre worker laid out the graph: ${(err as Error).message}`) : err;
+    }
   } finally {
     dagre?.done();
   }
@@ -699,8 +743,10 @@ export interface LayoutScope {
   /** Number of layouts the scope keeps. */
   readonly size: number;
   /**
-   * Forget the scope's layouts and stop its ELK workers once no other scope or
-   * running layout uses them. The scope stays usable and starts empty.
+   * Forget the scope's layouts, stop waiting for its latest request (which
+   * rejects with an `AbortError` unless it finished) and stop its workers once
+   * no other scope or running layout uses them. The scope stays usable and
+   * starts empty.
    */
   dispose(): void;
 }
@@ -724,6 +770,10 @@ export function createLayoutScope(scopeOptions: LayoutScopeOptions = {}): Layout
   const held = new Set<string>();
   /** The scope's latest request and what stops waiting for it when the next one comes. */
   let latest: { job: Job; replaced: AbortController } | undefined;
+  const replace = (why: string, job?: Job) => {
+    latest?.replaced.abort(new DOMException(why, "AbortError"));
+    latest = job && { job, replaced: new AbortController() };
+  };
   let seen = generation;
   const forgetIfCleared = () => {
     if (seen !== generation) entries.clear();
@@ -744,11 +794,8 @@ export function createLayoutScope(scopeOptions: LayoutScopeOptions = {}): Layout
           entries.delete(oldest);
         }
       }
-      if (latest?.job !== job) {
-        latest?.replaced.abort(new DOMException("A newer layout request replaced this one.", "AbortError"));
-        latest = { job, replaced: new AbortController() };
-      }
-      return wait(job, [options.signal, latest.replaced.signal]);
+      if (latest?.job !== job) replace("A newer layout request replaced this one.", job);
+      return wait(job, [options.signal, latest!.replaced.signal]);
     },
     layoutUnion(scenes, options) {
       return scope.layout(unionGraph(scenes), options);
@@ -758,6 +805,7 @@ export function createLayoutScope(scopeOptions: LayoutScopeOptions = {}): Layout
       return entries.size;
     },
     dispose() {
+      replace("The layout scope was disposed.");
       entries.clear();
       for (const url of held) holdUrl(url, -1);
       held.clear();
@@ -808,9 +856,9 @@ export function filterPositions(positions: Positions, graph: FlowGraph): Positio
   return createPositions({ nodes, groups, edges }, positions.engine, positions.direction);
 }
 
-/** True when every node of `graph` has a position. */
+/** True when every node of `graph` has a box of finite numbers. */
 export function coversGraph(positions: Positions, graph: FlowGraph): boolean {
-  return graph.nodes.every((n) => positions.nodes[n.id] !== undefined);
+  return graph.nodes.every((n) => finiteBox(positions.nodes[n.id]));
 }
 
 /** Straight route between two boxes' centres, clipped to the box borders. */

@@ -1,7 +1,7 @@
 import { cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { globalScene } from "../../fixtures/bpic2019";
-import { type Box, type XY, abstract, layout } from "../../src/index";
+import { type Box, type FlowEdge, type FlowNode, type XY, abstract, createPositions, layout } from "../../src/index";
 import { ProcessMap } from "../../src/react/index";
 
 afterEach(() => {
@@ -130,5 +130,28 @@ describe("no drawn activity without a drawn path", () => {
     const all = new Map(Object.entries(positions.nodes).map(([id, b]) => [id, filled.get(id) ?? b]));
     expect(withoutPath(new Map([...all].filter(([id]) => filled.has(id) || !ACTIVITIES.has(id))), lines)).toEqual([]);
     canvas.unmount();
+  });
+});
+
+describe("the paths drawn of those selected", () => {
+  it("counts a self-loop in view as drawn on the React map", async () => {
+    // Three paths a → b → c → d of falling weight and a loop on b; a budget of two draws a → b, b → c and the loop.
+    const nodes: FlowNode[] = ["a", "b", "c", "d"].map((id) => ({ id, kind: "activity", label: id.toUpperCase(), metrics: { cases: 10 } }));
+    const edges: FlowEdge[] = [
+      { id: "a->b", kind: "follows", source: "a", target: "b", metrics: { cases: 9 } },
+      { id: "b->c", kind: "follows", source: "b", target: "c", metrics: { cases: 8 } },
+      { id: "c->d", kind: "follows", source: "c", target: "d", metrics: { cases: 7 } },
+      { id: "b->b", kind: "follows", source: "b", target: "b", metrics: { cases: 3 } },
+    ];
+    const boxes = Object.fromEntries(nodes.map((n, i) => [n.id, { x: 200 * i, y: 0, width: 120, height: 48 }]));
+    const positions = createPositions({ nodes: boxes, groups: {}, edges: {} }, "dagre", "RIGHT");
+    const { container } = render(
+      <div style={{ width: 1200, height: 800 }}>
+        <ProcessMap graph={{ nodes, edges }} positions={positions} edgeBudget={2} fitView={false} legend={false} />
+      </div>,
+    );
+    await waitFor(() => expect(container.querySelectorAll("g.wf-edge").length).toBe(2));
+    // Four selected, the path c → d withheld: three drawn.
+    await waitFor(() => expect(container.querySelector(".wf-controls__note--drawn")?.textContent).toBe("4 selected · 3 drawn at this zoom"));
   });
 });

@@ -33,6 +33,25 @@ export interface TokenGame {
   stuck: string[][];
   /** Reachable states with more than one token on a flow, as lists of the overfull flows. */
   unsafe: string[][];
+  /**
+   * Reachable states, neither stuck nor unsafe, from which no sequence of
+   * steps leads to the empty state, as lists of the marked flows: the case
+   * can run on but never end. A state that can reach an unexplored state
+   * (unsafe, or beyond the limit) is not counted.
+   */
+  trapped: string[][];
+  /** Nodes that take a token in no visited state, in graph order; all of them dead only when `complete`. */
+  dead: string[];
+}
+
+/**
+ * Whether the game shows the model wrong: a stuck, unsafe or trapped state (each real
+ * also when the exploration stopped at its limit), or, once every reachable state was
+ * visited, a dead node or no way to complete.
+ */
+export function isWrong(game: TokenGame): boolean {
+  if (game.stuck.length || game.unsafe.length || game.trapped.length) return true;
+  return game.complete && (!game.completes || game.dead.length > 0);
 }
 
 const carriesTokens = (e: FlowEdge) => e.kind !== "constraint" && !hasTag(e, "message") && !hasTag(e, "association");
@@ -62,57 +81,90 @@ export function playTokens(graph: FlowGraph, options: { limit?: number } = {}): 
   const key = (m: number[]) => m.join(",");
   const first = new Array<number>(flows.length).fill(0);
   for (const f of outs.get(starts[0].id)!) first[f]++;
-  const seen = new Set([key(first)]);
-  const queue = [first];
-  const result: TokenGame = { states: 0, complete: true, completes: false, stuck: [], unsafe: [] };
+  const fired = new Set<string>([starts[0].id]);
+  // Every visited state, its successors, and whether it was explored (not unsafe, not beyond the limit).
+  const states: number[][] = [first];
+  const numberOf = new Map([[key(first), 0]]);
+  const successors: number[][] = [];
+  const explored: boolean[] = [];
+  const result: TokenGame = { states: 0, complete: true, completes: false, stuck: [], unsafe: [], trapped: [], dead: [] };
   const named = (m: number[], test: (count: number) => boolean) => m.flatMap((c, i) => (test(c) ? [flows[i].id] : []));
+  let empty = -1;
 
-  while (queue.length) {
-    const m = queue.shift()!;
+  for (let at = 0; at < states.length; at++) {
+    const m = states[at];
+    successors[at] = [];
+    explored[at] = false;
     result.states++;
     if (m.some((c) => c > 1)) {
       result.unsafe.push(named(m, (c) => c > 1));
       continue;
     }
+    explored[at] = true;
     if (m.every((c) => c === 0)) {
       result.completes = true;
+      empty = at;
       continue;
     }
     const next: number[][] = [];
-    const step = (take: number[], put: number[]) => {
+    const step = (node: string, take: number[], put: number[]) => {
       const n = [...m];
       for (const f of take) n[f]--;
       for (const f of put) n[f]++;
       next.push(n);
+      fired.add(node);
     };
     for (const node of graph.nodes) {
       const inFlows = ins.get(node.id)!;
       const outFlows = outs.get(node.id)!;
       if (node.kind === "gateway" && hasTag(node, "and")) {
-        if (inFlows.length && inFlows.every((f) => m[f] > 0)) step(inFlows, outFlows);
+        if (inFlows.length && inFlows.every((f) => m[f] > 0)) step(node.id, inFlows, outFlows);
       } else if (node.kind === "gateway") {
         for (const f of inFlows) {
           if (m[f] === 0) continue;
-          if (outFlows.length === 0) step([f], []);
-          for (const o of outFlows) step([f], [o]);
+          if (outFlows.length === 0) step(node.id, [f], []);
+          for (const o of outFlows) step(node.id, [f], [o]);
         }
       } else {
         for (const f of inFlows) {
-          if (m[f] > 0) step([f], outFlows);
+          if (m[f] > 0) step(node.id, [f], outFlows);
         }
       }
     }
     if (next.length === 0) result.stuck.push(named(m, (c) => c > 0));
     for (const n of next) {
       const k = key(n);
-      if (seen.has(k)) continue;
-      if (seen.size >= limit) {
-        result.complete = false;
-        continue;
+      let number = numberOf.get(k);
+      if (number === undefined) {
+        if (states.length >= limit) {
+          // A step leads beyond the limit: this state may still end there.
+          result.complete = false;
+          explored[at] = false;
+          continue;
+        }
+        number = states.length;
+        numberOf.set(k, number);
+        states.push(n);
       }
-      seen.add(k);
-      queue.push(n);
+      successors[at].push(number);
     }
   }
+
+  // States that can end: the empty state, every unexplored state (unknown), and their predecessors.
+  const predecessors: number[][] = states.map(() => []);
+  successors.forEach((list, from) => list.forEach((to) => predecessors[to].push(from)));
+  const canEnd = states.map((_, i) => i === empty || !explored[i]);
+  const queue = canEnd.flatMap((ok, i) => (ok ? [i] : []));
+  for (let at = 0; at < queue.length; at++) {
+    for (const from of predecessors[queue[at]]) {
+      if (canEnd[from]) continue;
+      canEnd[from] = true;
+      queue.push(from);
+    }
+  }
+  states.forEach((m, i) => {
+    if (!canEnd[i] && successors[i].length) result.trapped.push(named(m, (c) => c > 0));
+  });
+  result.dead = graph.nodes.filter((n) => !fired.has(n.id)).map((n) => n.id);
   return result;
 }

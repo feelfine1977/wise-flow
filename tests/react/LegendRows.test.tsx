@@ -2,14 +2,13 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { constraintItems, globalScene, vendorScene, vendorSceneKey } from "../../fixtures/bpic2019";
 import { type DrawContext, drawLegend, prepareScene } from "../../src/canvas/index";
-import { type FlowGraph, type LegendRow, type Locale, type Overlay, type Positions, type SceneLegend, abstract, buildScene, estimateTextWidth, layout, legendLayout, overlaysFor, toSVG } from "../../src/index";
-import { ProcessMap } from "../../src/react/index";
+import { type FlowGraph, type LegendRow, type Locale, type Overlay, type Positions, type SceneLegend, abstract, buildScene, createPositions, estimateTextWidth, layout, legendLayout, overlaysFor, toSVG } from "../../src/index";
+import { Chip, ProcessMap } from "../../src/react/index";
+import { unescape } from "../support/svg";
 
 type Fixture = { graph: FlowGraph; positions: Positions; overlays?: Overlay[]; locale?: Locale };
 /** The texts a legend writes, in order, and how many map-level chips it shows. */
 type Written = { texts: string[]; chips: number };
-
-const unescape = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
 
 /**
  * What a row writes, in order: the measure; a scale's title and values or entries; a key's glyph and text; a chip's
@@ -131,5 +130,30 @@ describe("the legends of SVG, Canvas and React", () => {
     expect(legends.vendorGerman.react.texts).toEqual(expect.arrayContaining(["Pfadbreite: Fälle (Anzahl) · ganzer Graph", "Pfadfarbe: Fälle (Anzahl)", "Aktivitätsfarbe: Phase", "Prozessbeginn", "Prozessende"]));
     // Three width samples, written as paths are.
     expect(legends.plain.legend.rows.find((r) => r.kind === "width")).toMatchObject({ samples: [{}, {}, {}] });
+  });
+});
+
+describe("map-level chips", () => {
+  it("say what they show to assistive technology, in the legend and as a chip of their own", () => {
+    // The chip's label and reading, as the text of the chip reads them; the glyph is decoration.
+    const chip: Overlay = { kind: "chip", target: "__map", payload: { label: "Balance", text: "12 % over", glyph: "⚖" } };
+    const graph: FlowGraph = { nodes: [{ id: "a", kind: "activity", label: "A" }], edges: [] };
+    const positions = createPositions({ nodes: { a: { x: 0, y: 0, width: 100, height: 40 } }, groups: {}, edges: {} }, "given", "RIGHT");
+    const { container } = render(<ProcessMap graph={graph} positions={positions} overlays={[chip]} controls={false} fitView={false} />);
+    // The legend opens as a strip; the whole legend shows the map-level chips.
+    fireEvent.click(within(screen.getByRole("region", { name: "Legend" })).getByRole("button", { name: "Show the whole legend" }));
+    expect(within(container.querySelector<HTMLElement>(".wf-map-chips")!).getByRole("img", { name: "Balance: 12 % over" })).toBeTruthy();
+    cleanup();
+    render(<Chip chip={chip} locale="en" />);
+    expect(screen.getByRole("img", { name: "Balance: 12 % over" })).toBeTruthy();
+  });
+
+  it("draw nothing for an overlay that has no mark on its own", () => {
+    // An arc needs its two ends and a kind the library does not know has no mark at all.
+    for (const overlay of [{ kind: "arc", target: "a->b", payload: { value: 0.5 } }, { kind: "sparkle", target: "__map", payload: { label: "X" } }] as Overlay[]) {
+      const { container } = render(<Chip chip={overlay} locale="en" />);
+      expect(container.innerHTML, overlay.kind).toBe("");
+      cleanup();
+    }
   });
 });

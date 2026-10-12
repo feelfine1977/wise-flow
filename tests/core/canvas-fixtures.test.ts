@@ -163,15 +163,20 @@ function exported(fixture: Fixture, scene: Partial<Scene>, options: PngOptions):
  * points, heads and labels, as in the SVG export) and, in `toPNG`, the
  * figure's size and the caption's place changed. Recorded once more when the
  * legend's width row took shorter words (as in the SVG export): only those
- * two texts changed.
+ * two texts changed. Recorded once more when arc labels began to keep clear
+ * of the paths' counts too: compared call by call, the recordings hold as many
+ * calls as before and differ only in the pills and texts of arc labels (as in
+ * the SVG export): seven arcs of the global map with stage lanes and of its
+ * PNG, one of the unfiltered map and of its German PNG; the vendor's are the
+ * same.
  */
 const before = {
-  mapGlobalStages: "4d70decb4520e59f1a10a032611432d406ce1b409f8d9d03554ec3bdb9a2efd2",
+  mapGlobalStages: "294ba885012debce13000c92749af21800324b9b2460fbfb48d7fe4df5358904",
   mapVendorIds: "07d774d42b584c749d7d9132ba3e1eec5865aab2da10ba7f38993be036d44de2",
-  mapUnfiltered: "e6a492337c82a44152a63a7bb5b95239b7388297335b2d74dadcf932b599c223",
-  pngGlobalTitle: "bd63b600819c8cb1a70a878c600025d2366f3b37b03f37b12b3ab2d8c3fb6871",
+  mapUnfiltered: "d34c1f251e644e6062bfadb89327faa56fc3b544b19866dd9283b0066c07b6df",
+  pngGlobalTitle: "39ddfa73a6d927671550d3ebfebc3a4bd08c785b91849a187f18b3faf730850c",
   pngVendorIds: "86cc5e853bb0e41385ce1b06c835d88418636a7d442a1d4fafb3f0847e7d7104",
-  pngUnfilteredGerman: "021831f2334b458db1bc2d5fb9936a164fffab76a1f6c9794ce6f14fd3a92ca8",
+  pngUnfilteredGerman: "041afba1271b7eb5104bb35a0691ae291325d2359719f0cbe7e7457d87c6236b",
 };
 
 /**
@@ -200,13 +205,18 @@ const before = {
  * paths' widths changed, as above. Recorded once more when paths began to end
  * in a head that grows with the line, as above. Recorded once more, for
  * the strips that hold backward paths, when those began to run below the
- * flow, as above.
+ * flow, as above. Recorded once more, for the two strips with arcs whose
+ * labels moved, when arc labels began to keep clear of the paths' counts (as
+ * above): every strip reads the same elements in the same order as before
+ * (no element's drawn extent reaches into a strip beyond its box) and only
+ * the arc labels' calls changed, of six arcs in the global strip and one in
+ * the unfiltered one.
  */
 const culledBefore = {
-  culledGlobal: "65890723ecce4bed284865e0c2a459f7c29b2341fe5b7c4af13e590091dc0215",
+  culledGlobal: "1351bd458b003976f62be5c39ea5425e2eb92a329ec34ac315d8602936d121d6",
   culledGlobalStages: "ae4336f3de55d2e322847918c0ce27731258ab9ab2f40346cb9e1cb1f655e053",
   culledVendorIds: "928c3b1f8d781016f462dc2c31a07e851368b167a67f9b27dd43afce727061cb",
-  culledUnfiltered: "ef3e3e2ed006fd1697e679b3f8b086d8a3adab05a4f07f14c9c28ed52fc94220",
+  culledUnfiltered: "a3a3cbe1b9c991391cb77af996ef84755c2729dba3a8e518ec4a5cfc80c73ef2",
 };
 
 describe("Canvas drawing on the committed fixtures", () => {

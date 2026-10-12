@@ -1,8 +1,4 @@
-/**
- * User-visible strings of the core and the renderers. English is complete;
- * German covers the same keys. Vocabulary follows the workbench rules:
- * "priority", "expectation shortfall", never "root cause", "fault" or "effect".
- */
+/** User-visible strings, English and German. Never "root cause", "fault" or "effect"; "priority", "expectation shortfall". */
 import type { Locale } from "./format.js";
 
 const en = {

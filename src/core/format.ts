@@ -23,10 +23,10 @@ export function formatCount(value: number, locale: Locale = "en"): string {
   return sign + grouped;
 }
 
-/** Decimal number with a fixed number of decimals. */
+/** Decimal number with a fixed number of decimals (0 to 100). */
 export function formatNumber(value: number, decimals = 1, locale: Locale = "en"): string {
   if (!Number.isFinite(value)) return "–";
-  const [int, frac] = fixed(value, decimals).split(".");
+  const [int, frac] = fixed(value, Math.min(Math.max(decimals, 0), 100)).split(".");
   const sign = int.startsWith("-") ? "-" : "";
   const grouped = int.replace("-", "").replace(/\B(?=(\d{3})+(?!\d))/g, SEP[locale].group);
   return sign + grouped + (frac !== undefined ? SEP[locale].decimal + frac : "");

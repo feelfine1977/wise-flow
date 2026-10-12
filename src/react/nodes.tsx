@@ -1,6 +1,6 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { memo, useContext } from "react";
-import { type ElementText, type GroupMark, type LayoutDirection, type MarkPaint, type NodeMark, type Overlay, type StateStyle, type SvgElement, defaultNodeSize, groupMark, hasTag, nodeMark } from "../core/index.js";
+import { type BoxSide, type ElementText, type GroupMark, type LayoutDirection, type MarkPaint, type NodeMark, type Overlay, type StateStyle, type SvgElement, defaultNodeSize, groupMark, hasTag, nodeMark } from "../core/index.js";
 import { ElementMarks, MARK_IDS, MarkFigure, mapMark, marksAtOrigin, paintCss, svgReact } from "./marks.js";
 import { part } from "./parts.js";
 import { PatternSwatch, PatternTheme } from "./patterns.js";
@@ -230,8 +230,9 @@ const Note = memo(function Note({ id, data, selected }: NodeProps<WfNode>) {
 
 /** A chip drawn from its mark, at the size the core gives it. */
 export function Chip({ chip, locale }: { chip: Overlay; locale: ActivityNodeData["locale"] }) {
-  // Placed as a map-level chip, every chip has a mark.
-  return <MarkFigure mark={marksAtOrigin([chip], locale)[0]} />;
+  // Placed as a map-level chip, every chip has a mark; an arc without its ends or an unknown kind has none.
+  const mark = marksAtOrigin([chip], locale)[0];
+  return mark ? <MarkFigure mark={mark} /> : null;
 }
 
 /** The group's mark; resolved from the group data and its size when the map did not pass one. */
@@ -246,8 +247,9 @@ function groupLook(m: GroupMark, tint: string | undefined, state?: StateStyle): 
   if (m.opacity !== undefined) out["--wf-group-opacity"] = String(m.opacity);
   if (state?.stroke) out["--wf-state-outline"] = paintCss(m, state.stroke);
   if (stroke.sides) {
-    out["--wf-group-outline"] = paintCss(m, stroke.paint);
-    for (const side of ["top", "right", "bottom", "left"] as const) out[`--wf-group-${side}`] = px(stroke.sides.includes(side) ? stroke.width : 0);
+    const sides = stroke.sides;
+    const side = (s: BoxSide) => px(sides.includes(s) ? stroke.width : 0);
+    Object.assign(out, { "--wf-group-outline": paintCss(m, stroke.paint), "--wf-group-top": side("top"), "--wf-group-right": side("right"), "--wf-group-bottom": side("bottom"), "--wf-group-left": side("left") });
   }
   if (rule) out["--wf-group-rule"] = `inset ${rule.side === "left" ? px(rule.width) : 0} ${rule.side === "top" ? px(rule.width) : 0} 0 ${paintCss(m, rule.paint)}`;
   return out;

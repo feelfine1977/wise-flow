@@ -246,6 +246,48 @@ describe("the label of an arc", () => {
     // In the middle the pill (516.8–583.2 × 86–104) reaches the title; at 17/32 the arc is at (596.81, 95.41) and the pill starts at 563.6.
     expect(mark.texts[0]).toMatchObject({ x: 596.81396484375, y: 95.91015625 });
   });
+
+  /** The box a text covers as drawn: 0.55 em per character, from 0.8 em above its baseline to 0.25 em below (half an em each way from a middle baseline). */
+  const drawn = (t: OverlayMark["texts"][number]): Box => {
+    const width = Array.from(t.text).length * 0.55 * t.size;
+    const [up, down] = t.baseline === "middle" ? [t.size / 2, t.size / 2] : [0.8 * t.size, 0.25 * t.size];
+    return { x: t.anchor === "middle" ? t.x - width / 2 : t.anchor === "end" ? t.x - width : t.x, y: t.y - up, width, height: up + down };
+  };
+
+  it("keeps clear of a badge, also of one on its own start", () => {
+    // a's badge "∅ · 45 %" is a pill wholly above a, from a's right edge: 8 × 6.05 + 2 × 6 = 60.4 wide and 18 high,
+    // 2 above a's top, covering 1750.6–1811 × 36–54. The arc from a to b is 44 high; in the middle, at (1821, 57), its
+    // pill "late 2 %" (60.4 wide) would cover 1790.8–1851.2 × 48–66, the badge with it.
+    const at: Record<string, Box> = { a: { x: 1631, y: 56, width: 180, height: 48 }, b: { x: 1831, y: 124, width: 180, height: 48 } };
+    const graph: FlowGraph = { nodes: nodesOf(at), edges: [] };
+    const overlays: Overlay[] = [
+      { kind: "badge", target: "a", payload: { constraintId: "never", glyph: "∅", value: 0.45, text: "45 % occur" } },
+      arc("a", "b", { constraintId: "lag", value: 0.02, coverage: 0.8 }),
+    ];
+    const scene = buildScene(graph, createPositions({ nodes: at, groups: {}, edges: {} }, "given", "RIGHT"), { overlays });
+    const badge = scene.marks.find((m) => m.kind === "badge")!;
+    expect(badge.box).toEqual({ x: 1750.6, y: 36, width: 8 * 0.55 * 11 + 2 * 6, height: 18 });
+    const [mark] = arcs(scene);
+    expect(mark.texts[0].text).toBe("late 2 %");
+    expect(meets(drawn(mark.texts[0]), badge.box)).toBe(false);
+    expect(Object.values(at).some((b) => meets(drawn(mark.texts[0]), b))).toBe(false);
+  });
+
+  it("keeps clear of a path's count", () => {
+    // From the BPIC map at 50 %: the path from Vendor creates invoice back to Record Goods Receipt runs below both,
+    // its count "110k" in the middle of the long lower stretch, where the reverse arc's label "⇐ 52 %" was written too.
+    const at: Record<string, Box> = { goods: { x: 437.375, y: 149, width: 180, height: 48 }, invoice: { x: 736.40625, y: 136.5, width: 180, height: 48 } };
+    const route = [[916.40625, 160.5], [941.40625, 160.5], [948.5625, 217.75], [941.40625, 275], [412.375, 275], [406, 224], [412.375, 173], [437.375, 173]].map(([x, y]) => ({ x, y }));
+    const graph: FlowGraph = { nodes: nodesOf(at), edges: [{ id: "back", kind: "follows", source: "invoice", target: "goods", metrics: { count: 109557 } }] };
+    const overlays: Overlay[] = [
+      arc("goods", "invoice", { constraintId: "order", glyph: "⇒", value: 0.5167, coverage: 0.733 }),
+      arc("invoice", "goods", { constraintId: "order", glyph: "⇐", value: 0.5167, coverage: 0.5167, reverse: true }),
+    ];
+    const scene = buildScene(graph, createPositions({ nodes: at, groups: {}, edges: { back: { points: route } } }, "given", "RIGHT"), { overlays });
+    const [count] = scene.edgeMarks[0].texts;
+    expect(count.text).toBe("110k");
+    for (const m of arcs(scene)) expect(meets(drawn(m.texts[0]), drawn(count)), m.id).toBe(false);
+  });
 });
 
 describe("arcs on the BPIC map of the P2P story", () => {

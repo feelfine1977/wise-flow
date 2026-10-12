@@ -1,9 +1,4 @@
-/**
- * Layout for BPMN diagrams: ELK layered decides the order along the flow, lanes
- * become horizontal bands stacked inside one pool (the core's lane model),
- * sequence flows are routed orthogonally. Without lanes the ELK positions are
- * used as they are.
- */
+/** Layout for BPMN diagrams: ELK's order along the flow, lanes as bands in one pool, orthogonal sequence flows. */
 import {
   type Box,
   type FlowGraph,
@@ -60,7 +55,9 @@ export const POOL_ID = "__pool";
  */
 export async function layoutBpmn(graph: FlowGraph, options: BpmnLayoutOptions = {}): Promise<Positions> {
   const { lanes: laneMode, rowGap = 56, lanePadding = 48, labelWidth = 30, poolPadding = 40, ...rest } = options;
-  const base: LayoutOptions = { ...rest, direction: "RIGHT", nodeSize: rest.nodeSize ?? bpmnNodeSize, spacing: { node: 56, layer: 80, ...(rest.spacing ?? {}) } };
+  // No page to freeze without a Worker (Node).
+  const fallbackLimit = rest.fallbackLimit ?? (typeof Worker === "undefined" ? Infinity : undefined);
+  const base: LayoutOptions = { ...rest, fallbackLimit, direction: "RIGHT", nodeSize: rest.nodeSize ?? bpmnNodeSize, spacing: { node: 56, layer: 80, ...(rest.spacing ?? {}) } };
   const model = laneModel(graph, BPMN_LANES);
   const mode = laneMode ?? (model.lanes.length ? "bands" : "ignore");
   if (mode === "compound") return layout(graph, { ...base, groups: "compound" });

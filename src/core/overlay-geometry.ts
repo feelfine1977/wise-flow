@@ -89,6 +89,15 @@ export function chipAnchor(box: Box): XY {
   return { x: box.x + box.width - 8, y: box.y + 6 };
 }
 
+/** Where an arc is farthest from its ends: t = 0.5 for ends at one height, else where its vertical speed vanishes (both handles sit `dy` from their ends). */
+function apexT(sy: number, ty: number, dy: number): number {
+  const d = sy - ty;
+  if (Math.abs(d) < 1e-9) return 0.5;
+  const s = Math.sqrt(d * d + dy * dy);
+  const t = (d + dy - s) / (2 * d);
+  return t > 0 && t < 1 ? t : (d + dy + s) / (2 * d);
+}
+
 /**
  * Where the renderers write each group's title: 12 in from the left edge of its
  * box, on a baseline 22 below its top, at 14 px (about 0.6 em per character).
@@ -113,20 +122,22 @@ export function groupTitles(groups: readonly FlowGroup[], positions: Positions):
  * the map. An arc takes another height or side only where that
  * crosses fewer other nodes. The labels are placed last: an arc's pill sits on
  * the arc nearest its middle where it covers no node, badge, chip, self-loop
- * label, earlier arc label or title. Shapes never extend beyond
+ * label, earlier arc label, title or path's count. Shapes never extend beyond
  * `overlayMargin` around the positions' bounds.
  */
 export function placeOverlays(
   ordered: Overlay[],
   positions: Positions,
   options: OverlayGeometryOptions = {},
-  /** Boxes that arc labels keep clear of besides the nodes and the other labels (`groupTitles`). */
+  /** Boxes that labels and chips keep clear of besides the nodes and the other labels (`groupTitles`). */
   titles: readonly Box[] = [],
   /** What labels and chips are measured by, in the styles the marks draw them in. */
   measure: TextMeasure = estimateTextWidth,
   fonts: LabelFonts = textTokens,
   /** The paths' courses, which chips keep clear of where they can. */
   routes: readonly (readonly XY[])[] = [],
+  /** The boxes of the paths' counts, which arc labels keep clear of. */
+  counts: readonly Box[] = [],
 ): OverlayGeometry {
   const lod = { ...defaultLod, ...(options.lod ?? {}) };
   const locale = options.locale ?? "en";
@@ -244,12 +255,12 @@ export function placeOverlays(
     placed[index] = { id, overlay: o, kind: o.kind, ...best, minZoom: lod.chips };
   }
 
-  /** Of the boxes, the first that covers no node, label or title; otherwise the one that covers fewest. */
-  const clearest = (boxes: Box[]): Box => {
+  /** Of the boxes, the first that covers no node, label, title or one of `also`; otherwise the one that covers fewest. */
+  const clearest = (boxes: Box[], also: readonly Box[] = []): Box => {
     let best = boxes[0];
     let least = Infinity;
     for (const r of boxes) {
-      const count = within(r).length + [...labels, ...titles].filter((b) => meets(b, r)).length;
+      const count = within(r).length + [...labels, ...titles, ...also].filter((b) => meets(b, r)).length;
       if (count < least) [best, least] = [r, count];
       if (!least) break;
     }
@@ -326,14 +337,14 @@ export function placeOverlays(
     }
     const { sy, ty, dy, at } = best;
     const path = `M${fmt(sx)} ${fmt(sy)} C${fmt(sx)} ${fmt(sy + dy)} ${fmt(tx)} ${fmt(ty + dy)} ${fmt(tx)} ${fmt(ty)}`;
-    const apexY = at(0.5).y;
-    // The pill on the arc, centred on it nearest its middle where it covers the fewest nodes, labels and titles.
+    const apexY = at(apexT(sy, ty, dy)).y;
+    // The pill on the arc, centred on it nearest its middle where it covers the fewest nodes, labels, titles and paths' counts.
     const text = arcLabel(o, locale);
     let label: Box | undefined;
     if (text) {
       const width = measure(text, fonts.arcLabel) + 2 * pillLayout.padding;
       const pill = (c: XY): Box => ({ x: c.x - width / 2, y: c.y - pillLayout.height / 2, width, height: pillLayout.height });
-      label = clearest(Array.from({ length: 29 }, (_, k) => pill(at(0.5 + ((k % 2 ? -1 : 1) * Math.ceil(k / 2)) / 32))));
+      label = clearest(Array.from({ length: 29 }, (_, k) => pill(at(0.5 + ((k % 2 ? -1 : 1) * Math.ceil(k / 2)) / 32))), counts);
     }
     const x0 = Math.min(sx, tx, label?.x ?? sx);
     const x1 = Math.max(sx, tx, label ? label.x + label.width : sx);

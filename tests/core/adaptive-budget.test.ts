@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { type FlowEdge, type FlowGraph, type FlowNode, createPositions } from "../../src/index";
+import { type FlowEdge, type FlowGraph, type FlowNode, createPositions, emptySelection } from "../../src/index";
 import { CanvasRenderer, type DrawContext, prepareScene } from "../../src/canvas/index";
 import { FIRST_STEP, type FrameCounts, edgeBudgetAdapter } from "../../src/core/edge-budget";
 
@@ -104,6 +104,30 @@ describe("adaptive edge budget", () => {
     expect(adapter.budget).toBe(2000);
   });
 
+  it("does not step down after slow frames whose drawn edges the step below would draw as well, being protected", () => {
+    // 2,500 protected edges of 5,000 in view: 2,000 draws them and nothing else, and so would 1,000 and 500. No
+    // step that draws the same edges is taken.
+    const clock = frameClock();
+    const adapter = edgeBudgetAdapter(clock);
+    const mostlyProtected = (budget: number) => ({ shown: Math.max(2500, budget), total: 5000, kept: 2500 });
+    expect(gesture(adapter, clock, times(5, SLOW), mostlyProtected)).toBe(false);
+    expect(gesture(adapter, clock, times(20, SLOW), mostlyProtected)).toBe(false);
+    expect(adapter.budget).toBe(2000);
+    // Likewise when every edge in view is protected and drawn, so that nothing was withheld to begin with.
+    const other = frameClock();
+    const all = edgeBudgetAdapter(other);
+    expect(gesture(all, other, times(5, SLOW), () => ({ shown: 1500, total: 1500, kept: 1500 }))).toBe(false);
+    expect(all.budget).toBe(2000);
+    // 1,200 protected of 5,000: 2,000 draws 800 more than 1,000 would, and 1,000 none more than 500 would.
+    const some = frameClock();
+    const part = edgeBudgetAdapter(some);
+    const partlyProtected = (budget: number) => ({ shown: Math.max(1200, budget), total: 5000, kept: 1200 });
+    expect(gesture(part, some, times(5, SLOW), partlyProtected)).toBe(true);
+    expect(part.budget).toBe(1000);
+    expect(gesture(part, some, times(5, SLOW), partlyProtected)).toBe(false);
+    expect(part.budget).toBe(1000);
+  });
+
   it("does not change while overlapping gestures are under way, and moves once the last ends", () => {
     let now = 0;
     const clock = vi.fn(() => (now += SLOW));
@@ -178,6 +202,48 @@ describe("adaptive edge budget in the Canvas renderer", () => {
     expect([...drawn].filter((i) => i !== lightest).sort((a, b) => a - b)).toEqual(Array.from({ length: 499 }, (_, i) => i));
   });
 
+  it("does not step down while the edges it draws are protected ones that every step below would draw too", () => {
+    let now = 0;
+    const clock = vi.fn(() => (now += SLOW));
+    const { renderer } = rendererOf(n, clock);
+    // Half the hub's paths selected: 2,500 protected edges of 5,000 in view.
+    const half = { nodes: [], edges: Array.from({ length: n / 2 }, (_, k) => `h->t${2 * k + 1}`), groups: [] };
+    renderer.setState({ selection: half });
+    renderer.draw();
+    expect(renderer.lastDraw).toMatchObject({ kept: 2500, withheld: { shown: 2500, total: n, kept: 2500 } });
+    expect(pan(renderer, 6, false)).toEqual(times(6, 2500));
+    expect(pan(renderer, 6, false)).toEqual(times(6, 2500));
+    expect(renderer.lastDraw!.withheld).toMatchObject({ shown: 2500, total: n });
+    // Once the selection is cleared the budget is still the first step.
+    renderer.setState({ selection: emptySelection });
+    renderer.draw();
+    expect(renderer.lastDraw!.withheld).toMatchObject({ shown: 2000, total: n, kept: 0 });
+  });
+
+  it("does not step down while every edge in view is protected and drawn, though nothing is withheld", () => {
+    let now = 0;
+    const clock = vi.fn(() => (now += SLOW));
+    const { renderer } = rendererOf(1500, clock);
+    renderer.setState({ selection: { nodes: [], edges: Array.from({ length: 1500 }, (_, k) => `h->t${k + 1}`), groups: [] } });
+    for (let g = 0; g < 2; g++) {
+      renderer.beginGesture();
+      for (let k = 0; k < 6; k++) {
+        renderer.panBy(1, 0);
+        renderer.draw();
+        expect(renderer.lastDraw).toMatchObject({ edges: 1500, kept: 1500 });
+        expect(renderer.lastDraw!.withheld).toBeUndefined();
+      }
+      renderer.endGesture();
+    }
+    // Without the selection the next slow gesture finds 1,500 drawn where 1,000 would draw 1,000.
+    renderer.setState({ selection: emptySelection });
+    renderer.beginGesture();
+    for (let k = 0; k < 6; k++) renderer.draw();
+    renderer.endGesture();
+    renderer.draw();
+    expect(renderer.lastDraw!.withheld).toMatchObject({ shown: 1000, total: 1500, kept: 0 });
+  });
+
   it("steps up after fast frames of a gesture while edges are withheld", () => {
     let now = 0;
     const clock = vi.fn(() => (now += FAST));
@@ -212,6 +278,30 @@ describe("adaptive edge budget in the Canvas renderer", () => {
     const { renderer } = rendererOf(n, clock);
     for (let k = 0; k < 6; k++) renderer.draw();
     expect(clock).not.toHaveBeenCalled();
+  });
+
+  it("counts a gesture that began while the budget was fixed, so its end cannot apply a step while a later gesture is still under way", () => {
+    let now = 0;
+    const clock = vi.fn(() => (now += SLOW));
+    const { renderer } = rendererOf(n, clock, "all");
+    renderer.draw();
+    // A wheel run starts on a fixed budget; the host then turns the budget adaptive, and a drag starts.
+    renderer.beginGesture();
+    renderer.drawOptions = { ...renderer.drawOptions, edgeBudget: "adaptive" };
+    renderer.beginGesture();
+    for (let k = 0; k < 6; k++) {
+      renderer.panBy(1, 0);
+      renderer.draw();
+      expect(renderer.lastDraw!.withheld).toMatchObject({ shown: 2000, total: n });
+    }
+    // The wheel run ends while the drag goes on: the view is not at rest, so the budget stays.
+    renderer.endGesture();
+    renderer.draw();
+    expect(renderer.lastDraw!.withheld).toMatchObject({ shown: 2000, total: n });
+    // The drag ends: now the slow frames take their step.
+    renderer.endGesture();
+    renderer.draw();
+    expect(renderer.lastDraw!.withheld).toMatchObject({ shown: 1000, total: n });
   });
 
   it("reads no clock once its host turns an adaptive budget fixed", () => {

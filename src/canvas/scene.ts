@@ -1,9 +1,4 @@
-/**
- * Retained geometry of a scene for the canvas renderer: every element with
- * its box or route, colours and texts resolved once, plus the R-tree that
- * serves hover, click and viewport culling. `prepareScene` is pure and runs
- * in Node; drawing happens in `draw.ts`.
- */
+/** Retained geometry of a scene for the canvas renderer, with the R-tree for hits and culling. Pure; runs in Node. */
 import {
   type ActivityLabelOptions,
   type ColorScheme,
@@ -24,6 +19,7 @@ import {
   type LaneMode,
   type Locale,
   type LodRules,
+  type MarkText,
   type NodeMark,
   type Overlay,
   type OverlayGeometryOptions,
@@ -31,17 +27,20 @@ import {
   type PatternId,
   type Positions,
   type StyleSpec,
+  type XY,
   HitIndex,
-  buildScene,
+  arrowheadExtent,
   followsSelfLoops,
   gatewayGlyph,
   groupMarks,
   hasTag,
   resolveTheme,
+  markArrowhead,
   nodeCount,
   tintColor,
   unionBoxes,
 } from "../core/index.js";
+import { sceneOf } from "../core/scene.js";
 
 export interface SceneNode {
   node: FlowNode;
@@ -134,6 +133,39 @@ export interface PrepareOptions {
 /** The overlay shapes of the elements without any. */
 const NO_SHAPES: OverlayShape[] = Object.freeze([]) as unknown as OverlayShape[];
 
+/** A glyph is allowed 0.7 em in the extents. */
+const EM = 0.7;
+
+const grow = (b: Box, by: number): Box => ({ x: b.x - by, y: b.y - by, width: b.width + 2 * by, height: b.height + 2 * by });
+
+/** The box a text can cover: its glyphs or its limit (a shortened text keeps a character and the ellipsis), its height from the baseline, the halo. */
+function textBox(t: Pick<MarkText, "text" | "lead" | "x" | "y" | "size" | "anchor" | "baseline" | "halo" | "maxWidth">): Box {
+  const w = Math.min([...(t.lead ?? "") + t.text].length * EM * t.size, Math.max(t.maxWidth ?? Infinity, 3 * EM * t.size));
+  const x = t.anchor === "start" ? t.x : t.anchor === "middle" ? t.x - w / 2 : t.x - w;
+  const [up, down] = t.baseline === "middle" ? [0.6 * t.size, 0.6 * t.size] : [t.size, 0.35 * t.size];
+  return grow({ x, y: t.y - up, width: w, height: up + down }, t.halo ? 1.5 : 0);
+}
+
+const withTexts = (box: Box, texts: readonly Parameters<typeof textBox>[0][]): Box => unionBoxes([box, ...texts.map(textBox)]);
+
+/** How far an arrowhead reaches from its path's end: tip, base or half width, and the outline. */
+const reach = (a: ReturnType<typeof arrowheadExtent>): number => Math.max(a.tip, a.length - a.tip, a.half) + a.outline / 2;
+
+/** The segment of the route nearest to a point (the first of equals): the one a path's count is written beside. */
+function nearestSegment(points: readonly XY[], at: XY): number {
+  let best = 0;
+  let least = Infinity;
+  for (let i = 0; i + 1 < points.length; i++) {
+    const [a, b] = [points[i], points[i + 1]];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const t = dx || dy ? Math.max(0, Math.min(1, ((at.x - a.x) * dx + (at.y - a.y) * dy) / (dx * dx + dy * dy))) : 0;
+    const d = Math.hypot(a.x + t * dx - at.x, a.y + t * dy - at.y);
+    if (d < least) [best, least] = [i, d];
+  }
+  return best;
+}
+
 /** Positions and overlay extents together; an empty box adds nothing. */
 function sceneBounds(positions: Box, overlays: Box | undefined): Box {
   const extents = [positions, ...(overlays ? [overlays] : [])].filter((b) => b.width > 0 || b.height > 0);
@@ -151,7 +183,7 @@ export function selfLoopOverlays(graph: FlowGraph, locale: Locale = "en"): Overl
  * `graph.overlays`) plus self-loops; positions may be replaced by lane bands.
  */
 export function prepareScene(graph: FlowGraph, givenPositions: Positions, options: PrepareOptions = {}): PreparedScene {
-  const scene = buildScene(graph, givenPositions, {
+  const scene = sceneOf(graph, givenPositions, {
     overlays: options.overlays,
     style: options.style,
     locale: options.locale,
@@ -164,7 +196,7 @@ export function prepareScene(graph: FlowGraph, givenPositions: Positions, option
     theme: resolveTheme(options.theme),
     scheme: options.scheme,
     textMeasure: options.textMeasure,
-  });
+  }, true);
   return retainScene(options.bands ? { ...scene, bands: options.bands, groupMarks: groupMarks(graph, scene.positions, options.bands, scene.scales, scene.theme) } : scene);
 }
 
@@ -218,14 +250,49 @@ export function retainScene(scene: FlowScene): PreparedScene {
     mark,
   }));
 
-  const routed: Positions = { ...positions, edges: Object.fromEntries(edges.map((e) => [e.edge.id, { points: e.points }])) };
+  // The hit index holds the elements the scene draws, also where the positions hold more.
+  const routed: Positions = {
+    ...positions,
+    nodes: Object.fromEntries(nodes.map((n) => [n.node.id, n.box])),
+    groups: Object.fromEntries(groups.map((g) => [g.group.id, g.box])),
+    edges: Object.fromEntries(edges.map((e) => [e.edge.id, { points: e.points }])),
+  };
   // Marks that are not drawn on the map (map-level chips) take no room and answer no hit.
   const drawn = new Set(marks.filter((m) => m.inMap).map((m) => m.id));
   const shown = geometry.shapes.filter((s) => drawn.has(s.id));
   // Each item keeps its element's place in the list it is drawn from.
   const order = { group: groups.map((g) => g.group.id), node: nodes.map((n) => n.node.id), edge: edges.map((e) => e.edge.id), overlay: marks.map((m) => m.id) };
   const at = Object.fromEntries(Object.entries(order).map(([k, ids]) => [k, new Map(ids.map((id, i) => [id, i]))])) as Record<HitItem["kind"], Map<string, number>>;
-  const hit = HitIndex.fromScene(routed, { ...geometry, shapes: shown }, undefined, (kind, id) => at[kind].get(id));
+  // What a culled draw reads an element for: everything the drawing can put beyond its box (see docs/API.md).
+  const highlight = theme.stroke.canvasPathHighlight / 2;
+  const labelAt = new Map<number, number>();
+  const extentOf = (it: HitItem): Box | undefined => {
+    const i = it.index;
+    if (i === undefined) return undefined;
+    switch (it.kind) {
+      case "node": {
+        const { box: b, mark: m } = nodes[i];
+        return withTexts(grow(m.shape === "diamond" && b.width > b.height ? { x: b.x, y: b.y + (b.height - b.width) / 2, width: b.width, height: b.width } : b, 6), m.texts);
+      }
+      case "group":
+        return withTexts(grow(groups[i].box, 1.5), groups[i].mark.texts);
+      case "overlay": {
+        const m = marks[i];
+        return withTexts(grow(m.box, Math.max(m.stroke ? m.stroke.width / 2 : 0, m.arrow ? reach(arrowheadExtent(markArrowhead(m.arrow))) : 0)), m.texts);
+      }
+      default: {
+        const e = edges[i];
+        const [p, q] = it.segment!;
+        // The line (wider where highlighted) and its head, which grows with the line.
+        const box = grow({ x: Math.min(p.x, q.x), y: Math.min(p.y, q.y), width: Math.abs(q.x - p.x), height: Math.abs(q.y - p.y) }, Math.max(e.width / 2, highlight, reach(arrowheadExtent(e.mark.arrow))));
+        const text = e.mark.texts[0];
+        if (!text) return box;
+        if (!labelAt.has(i)) labelAt.set(i, nearestSegment(e.points, text));
+        return e.points.indexOf(p) === labelAt.get(i) ? withTexts(box, [text]) : box;
+      }
+    }
+  };
+  const hit = HitIndex.fromScene(routed, { ...geometry, shapes: shown }, undefined, (kind, id) => at[kind].get(id), extentOf, (id) => nodes[at.node.get(id)!]?.mark.shape === "diamond");
   return {
     ...scene,
     shapes: geometry.shapes,

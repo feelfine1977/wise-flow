@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import type { ELK } from "elkjs/lib/elk-api.js";
 import { globalScene, vendorScene } from "../../fixtures/bpic2019";
-import { type Box, abstract, coversGraph, filterPositions, layout, layoutUnion, unionGraph } from "../../src/index";
+import { type Box, type FlowGraph, abstract, coversGraph, filterPositions, layout, layoutUnion, unionGraph } from "../../src/index";
+import { provisionalLayout } from "../../src/core/provisional";
 
 function contains(outer: Box, inner: Box, slack = 0.5): boolean {
   return (
@@ -42,8 +44,81 @@ describe("layout", () => {
     for (const n of small.nodes) {
       if (n.group && d.groups[n.group]) expect(contains(d.groups[n.group], d.nodes[n.id], 2), `${n.id} outside ${n.group}`).toBe(true);
     }
-    const timedOut = await layout(small, { timeoutMs: 0 });
+    // An engine that does not answer in time; in-process ELK holds the thread until it answers, and its answer is taken.
+    const timedOut = await layout(small, { elk: { layout: () => new Promise(() => undefined) } as unknown as ELK, timeoutMs: 0 });
     expect(timedOut.engine).toBe("dagre");
+    expect((await layout(small, { timeoutMs: 0 })).engine).toBe("elk");
+  });
+});
+
+describe("layout of empty ids", () => {
+  // The node "" and the edge "" from it; "\u0000" is the name graphlib gives its root.
+  const graph: FlowGraph = {
+    nodes: [
+      { id: "", kind: "activity", label: "Nameless" },
+      { id: "\u0000", kind: "activity", label: "Zero" },
+      { id: "b", kind: "activity", label: "B" },
+    ],
+    edges: [
+      { id: "", kind: "follows", source: "", target: "b" },
+      { id: "\u0000", kind: "follows", source: "\u0000", target: "b" },
+      { id: "b->", kind: "follows", source: "b", target: "" },
+    ],
+  };
+
+  it.each(["dagre", "elk"] as const)("places every node and routes every edge with %s", async (engine) => {
+    const p = await layout(graph, { engine });
+    for (const id of ["", "\u0000", "b"]) expect(Object.values(p.nodes[id]).every(Number.isFinite), JSON.stringify(id)).toBe(true);
+    expect(new Set([p.nodes[""].x, p.nodes["\u0000"].x, p.nodes.b.x]).size + new Set([p.nodes[""].y, p.nodes["\u0000"].y, p.nodes.b.y]).size).toBeGreaterThan(3);
+    for (const id of ["", "\u0000", "b->"]) expect(p.edges[id]?.points.length, JSON.stringify(id)).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("layout of ids named like members of Object.prototype", () => {
+  // Dagre keeps its graph in plain objects: such a name read or wrote the prototype every object shares.
+  const members = () => Object.getOwnPropertyNames(Object.prototype).map((k) => [k, Object.getOwnPropertyDescriptor(Object.prototype, k)?.value]);
+
+  it.each(["__proto__", "constructor", "toString", "valueOf", "hasOwnProperty"])("places a node called %s with Dagre and leaves Object.prototype as it was", async (id) => {
+    const before = members();
+    const graph: FlowGraph = {
+      nodes: [{ id, kind: "activity", label: "Odd" }, { id: "b", kind: "activity", label: "B" }],
+      edges: [{ id: `${id}->b`, kind: "follows", source: id, target: "b" }],
+    };
+    const p = await layout(graph, { engine: "dagre" });
+    expect(members()).toEqual(before);
+    // A record cannot hold the key __proto__ as its own; how positions should keep such an id is not decided.
+    // An activity's default card is 180 wide and 64 high.
+    if (id !== "__proto__") expect(Object.getOwnPropertyDescriptor(p.nodes, id)?.value).toMatchObject({ width: 180, height: 64 });
+    expect(Object.getOwnPropertyDescriptor(p.edges, `${id}->b`)?.value.points.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("layout of an edge to a node that is not there", () => {
+  it("leaves the edge out with Dagre, and routes the others along finite points", async () => {
+    const graph: FlowGraph = {
+      nodes: [{ id: "a", kind: "activity", label: "A" }, { id: "b", kind: "activity", label: "B" }],
+      edges: [{ id: "a->b", kind: "follows", source: "a", target: "b" }, { id: "a->gone", kind: "follows", source: "a", target: "gone" }, { id: "gone->b", kind: "follows", source: "gone", target: "b" }],
+    };
+    const p = await layout(graph, { engine: "dagre" });
+    expect(Object.keys(p.nodes)).toEqual(["a", "b"]);
+    expect(Object.keys(p.edges)).toEqual(["a->b"]);
+    expect(Object.values(p.edges).flatMap((r) => r.points).every((q) => Number.isFinite(q.x) && Number.isFinite(q.y))).toBe(true);
+    expect(Object.values(p.bounds).every(Number.isFinite)).toBe(true);
+  });
+});
+
+describe("layout options that are not finite numbers", () => {
+  // A size callback may compute from data; a spacing from a host's settings.
+  const graph = { nodes: ["a", "b", "c"].map((id) => ({ id, kind: "activity" as const, label: id, group: "s" })), edges: [{ id: "a->b", kind: "follows" as const, source: "a", target: "b" }, { id: "a->c", kind: "follows" as const, source: "a", target: "c" }], groups: [{ id: "s", kind: "stage" as const, label: "S" }] };
+
+  it.each(["dagre", "elk"] as const)("count as not given with %s: the default spacing and node size apply", async (engine) => {
+    const plain = await layout(graph, { engine });
+    for (const v of [NaN, Infinity, -Infinity]) {
+      for (const options of [{ spacing: { node: v } }, { spacing: { layer: v } }, { spacing: { group: v } }, { nodeSize: { width: v, height: 48 } }, { nodeSize: () => ({ width: 180, height: v }) }]) {
+        expect(await layout(graph, { engine, ...options }), `${JSON.stringify(options)} with ${v}`).toEqual(plain);
+        if (engine === "dagre") expect(provisionalLayout(graph, options), `provisional ${JSON.stringify(options)} with ${v}`).toEqual(provisionalLayout(graph));
+      }
+    }
   });
 });
 

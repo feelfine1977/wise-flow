@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createRef } from "react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { type FlowEdge, type FlowGraph, type FlowNode, createPositions, resolveViews } from "../../src/index";
+import { type FlowEdge, type FlowGraph, type FlowNode, type ShownEdges, createPositions, resolveViews, toSVG } from "../../src/index";
 import { prepareScene } from "../../src/canvas/index";
 import { CanvasMap, type CanvasMapHandle, ProcessMap, ViewSwitcher } from "../../src/react/index";
 
@@ -56,11 +56,16 @@ async function mountMap(edgeBudget: number | "all" | "adaptive" | undefined, ms 
   let now = 0;
   const clock = vi.fn(() => (now += ms));
   const ref = createRef<CanvasMapHandle>();
-  render(
+  // What the host is told to export.
+  const reported: (ShownEdges | undefined)[] = [];
+  const tree = (budget: typeof edgeBudget) => (
     <div style={{ width: 1200, height: 800 }}>
-      <CanvasMap ref={ref} scene={scene} state={state} fitKey="fit" edgeBudget={edgeBudget} clock={clock} />
-    </div>,
+      <CanvasMap ref={ref} scene={scene} state={state} fitKey="fit" edgeBudget={budget} clock={clock} onEdgesShown={(s) => reported.push(s)} />
+    </div>
   );
+  const view = render(tree(edgeBudget));
+  /** The host changes the budget. */
+  const rerender = (budget: typeof edgeBudget) => act(() => view.rerender(tree(budget)));
   await waitFor(() => expect(ref.current?.renderer()?.lastDraw).toBeDefined());
   const renderer = ref.current!.renderer()!;
   // Every draw from here on, with the edges it showed.
@@ -95,7 +100,7 @@ async function mountMap(edgeBudget: number | "all" | "adaptive" | undefined, ms 
     }
     return during;
   }
-  return { renderer, clock, shown, pan, zoom, host };
+  return { renderer, clock, shown, pan, zoom, host, reported, rerender };
 }
 
 describe("adaptive edge budget on the Canvas map", () => {
@@ -119,6 +124,46 @@ describe("adaptive edge budget on the Canvas map", () => {
     expect(note()).toBe("Showing 2,000 of 2,500 flows");
     fireEvent.pointerDown(map.host, { clientX: 600, clientY: 400, button: 0, pointerId: 2 });
     await waitFor(() => expect(note()).toBe("Showing 1,000 of 2,500 flows"));
+  });
+
+  it("keeps the budget while a drag goes on after a wheel run that began on a fixed budget ends", async () => {
+    const map = await mountMap("all");
+    const host = map.host;
+    expect(note()).toBeUndefined();
+    // A wheel run starts on a fixed budget, and the host turns the budget adaptive while it runs.
+    fireEvent.wheel(host, { clientX: 600, clientY: 400, deltaY: 10 });
+    map.rerender("adaptive");
+    await waitFor(() => expect(note()).toBe("Showing 2,000 of 2,500 flows"));
+    // A drag of slow frames starts; the wheel run ends 200 ms after its turn, while the drag goes on.
+    fireEvent.pointerDown(host, { clientX: 600, clientY: 400, button: 0, pointerId: 1 });
+    for (let k = 1; k <= 6; k++) {
+      fireEvent.pointerMove(host, { clientX: 600 + 10 * k, clientY: 400, pointerId: 1 });
+      await act(async () => void map.renderer.draw());
+    }
+    await act(() => new Promise((done) => setTimeout(done, 300)));
+    await act(async () => void map.renderer.draw());
+    expect(note()).toBe("Showing 2,000 of 2,500 flows");
+    // The drag ends: the view is at rest and the step applies.
+    fireEvent.pointerUp(host, { clientX: 660, clientY: 400, button: 0, pointerId: 1 });
+    await waitFor(() => expect(note()).toBe("Showing 1,000 of 2,500 flows"));
+  });
+
+  it("reports the edges of the new step to the host, which an export then draws with the note", async () => {
+    const { pan, reported } = await mountMap("adaptive");
+    await waitFor(() => expect(note()).toBe("Showing 2,000 of 2,500 flows"));
+    expect(reported).toEqual([expect.objectContaining({ total: 2500 })]);
+    expect(reported[0]!.edges).toHaveLength(2000);
+    await pan();
+    await waitFor(() => expect(note()).toBe("Showing 1,000 of 2,500 flows"));
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 20)));
+    // Told once per step; the 1,000 heaviest are h->t1 … h->t1000 (counts 2,500 … 1,501).
+    expect(reported).toHaveLength(2);
+    const last = reported[1]!;
+    expect(last.total).toBe(2500);
+    expect(last.edges).toEqual(Array.from({ length: 1000 }, (_, k) => `h->t${k + 1}`));
+    const svg = toSVG(large, { edgeBudget: last });
+    expect(svg.match(/<g class="wf-edge" /g)).toHaveLength(1000);
+    expect(svg).toMatch(/class="wf-edge-note"[^>]*>Showing 1,000 of 2,500 flows</);
   });
 
   it("steps up after a gesture of fast frames", async () => {

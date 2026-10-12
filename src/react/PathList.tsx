@@ -176,7 +176,7 @@ export function PathList({ graph, focus, paths, locale = "en", selection, onSele
   const idx = useMemo(() => indexGraph(graph), [graph]);
   const labelOf = idx.label;
 
-  if (typeof focus === "string") {
+  if (!Array.isArray(focus)) {
     const activity: ActivityPaths = pathsFor(graph, focus, { paths });
     const title = t(locale, "paths.title", { label: labelOf(focus) });
     return (

@@ -171,6 +171,63 @@ describe("the hidden element list of a large Canvas map", () => {
     }
   }, 90_000);
 
+  it.each([["canvas", 3], ["canvas", 1], ["svg", 3]] as const)("names no element that left the map when a stage is expanded from the keyboard (%s, limit %i)", (renderer, limit) => {
+    // A and B in stage S, collapsed into one stage node; positions for both the stage node and its members.
+    const graph: FlowGraph = {
+      nodes: [
+        { id: "a", kind: "activity", label: "A", group: "s", metrics: { cases: 3 } },
+        { id: "b", kind: "activity", label: "B", group: "s", metrics: { cases: 3 } },
+        { id: "c", kind: "activity", label: "C", metrics: { cases: 3 } },
+      ],
+      edges: [
+        { id: "ab", kind: "follows", source: "a", target: "b", metrics: { count: 3 } },
+        { id: "bc", kind: "follows", source: "b", target: "c", metrics: { count: 3 } },
+      ],
+      groups: [{ id: "s", kind: "stage", label: "Stage S" }],
+    };
+    const box = (x: number) => ({ x, y: 0, width: 100, height: 40 });
+    const positions = createPositions({ nodes: { s: box(0), a: box(0), b: box(200), c: box(400) }, groups: { s: { x: -10, y: -10, width: 320, height: 60 } }, edges: {} }, "dagre", "RIGHT");
+    const onSelect = vi.fn();
+    const m = mountMap(graph, positions, { renderer, describedLimit: limit, defaultAbstraction: { collapse: "all" }, onSelect });
+    const named = () => {
+      const id = m.active();
+      return id === null ? null : m.container.querySelector(`[id="${id}"]`) === null ? `${id} (missing)` : id;
+    };
+    act(() => m.map.focus());
+    m.key("Home");
+    expect(named()).toBe("wf-node-s");
+    // Enter opens the menu on the stage node; its accelerator z expands the stage.
+    m.key("Enter");
+    m.key("z");
+    expect(m.container.querySelector('[id="wf-node-s"]')).toBeNull();
+    expect(named()).toBeNull();
+    // Space and Enter act on no vanished element: Space has nothing to toggle, so the selection the menu made stays.
+    onSelect.mockClear();
+    m.key(" ");
+    m.key("Enter");
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(m.container.querySelector('[role="menu"]')).toBeNull();
+    // The next move starts as from no position: Home's activity.
+    m.key("ArrowRight", { altKey: true });
+    expect(named()).toBe("wf-node-a");
+  });
+
+  it.each(["canvas", "svg"] as const)("names no element in the table view and the keyboard position again in the map view (%s)", (renderer) => {
+    const { graph, positions } = seeded(12, { seed: 4 });
+    const m = mountMap(graph, positions, { renderer, controls: true, describedLimit: 5 });
+    act(() => m.map.focus());
+    m.key("Home");
+    expect(m.active()).toBe("wf-node-n0");
+    // The table view renders neither the element list nor the map's elements.
+    fireEvent.click(m.getByRole("button", { name: "Table view" }));
+    expect(m.map.getAttribute("data-renderer")).toBe("table");
+    expect(m.container.querySelector('[id="wf-node-n0"]')).toBeNull();
+    expect(m.active()).toBeNull();
+    fireEvent.click(m.getByRole("button", { name: "Map view" }));
+    expect(m.active()).toBe("wf-node-n0");
+    expect(m.container.querySelector('[id="wf-node-n0"]')).not.toBeNull();
+  });
+
   it.each<[Locale, string]>([
     ["en", "Large map with 20,000 activities and 30,000 paths. The map lists the element at the keyboard position and its neighbours; the table view lists all of them."],
     ["de", "Große Karte mit 20.000 Aktivitäten und 30.000 Pfaden. Die Karte führt das Element an der Tastaturposition und seine Nachbarn auf; die Tabellenansicht führt alle auf."],
@@ -241,6 +298,36 @@ describe("the table alternative of a large map", () => {
     expect(within(within(screen.getByRole("table")).getAllByRole("row")[1]).getByRole("rowheader").textContent).toBe("Activity 0");
   });
 
+  it("keeps the input focus on a working pager button when Next reaches the last page or Previous the first", () => {
+    const { graph } = seeded(250);
+    render(<TableAlternative graph={graph} pageSize={100} tables={["nodes"]} />);
+    const next = screen.getByRole("button", { name: "Next rows" }) as HTMLButtonElement;
+    const previous = screen.getByRole("button", { name: "Previous rows" }) as HTMLButtonElement;
+    next.focus();
+    fireEvent.click(next);
+    // Page 2 of 3: both buttons work, and the focus stays where it was.
+    expect(document.activeElement).toBe(next);
+    fireEvent.click(next);
+    // The last page: Next no longer works, so the focus moves to Previous.
+    expect(screen.getByRole("status").textContent).toBe("Rows 201–250 of 250");
+    expect(next.disabled).toBe(true);
+    expect(document.activeElement).toBe(previous);
+    fireEvent.click(previous);
+    expect(document.activeElement).toBe(previous);
+    fireEvent.click(previous);
+    // The first page: back to Next.
+    expect(screen.getByRole("status").textContent).toBe("Rows 1–100 of 250");
+    expect(previous.disabled).toBe(true);
+    expect(document.activeElement).toBe(next);
+    // A click that does not carry the input focus (a pointer in a browser that does not focus buttons) moves none.
+    const search = screen.getByRole("searchbox");
+    search.focus();
+    fireEvent.click(next);
+    fireEvent.click(next);
+    expect(next.disabled).toBe(true);
+    expect(document.activeElement).toBe(search);
+  });
+
   it("speaks German", () => {
     const { graph } = seeded(250);
     render(<TableAlternative graph={graph} pageSize={100} locale="de" />);
@@ -266,5 +353,24 @@ describe("the table alternative of a large map", () => {
     expect(all.hasAttribute("aria-rowcount")).toBe(false);
     expect(within(all).getAllByRole("row")).toHaveLength(401);
     expect(view.queryByRole("searchbox")).toBeNull();
+  });
+
+  it("leaves the keys of the map's table view to the table: its search field and its rows", () => {
+    const { graph, positions } = seeded(600);
+    const onAction = vi.fn();
+    const onFilterChange = vi.fn();
+    const onSelect = vi.fn();
+    render(<ProcessMap graph={graph} positions={positions} view="table" controls={false} legend={false} onAction={onAction} onFilterChange={onFilterChange} onSelect={onSelect} />);
+    // Typed into the search field, a space, the arrows, Home and End stay the field's (a prevented key types nothing).
+    const search = screen.getByRole("searchbox");
+    for (const key of [" ", "ArrowLeft", "ArrowRight", "Home", "End"]) expect(fireEvent.keyDown(search, { key }), key).toBe(true);
+    // Enter on a row selects it, Enter again deselects it, and no action of a menu the table view does not show runs.
+    const row = within(screen.getAllByRole("table")[0]).getAllByRole("row")[1];
+    fireEvent.keyDown(row, { key: "Enter" });
+    fireEvent.keyDown(row, { key: "Enter" });
+    fireEvent.keyDown(row, { key: "Enter" });
+    expect(onSelect.mock.calls.map(([s]) => s.nodes)).toEqual([["n0"], [], ["n0"]]);
+    expect(onAction).not.toHaveBeenCalled();
+    expect(onFilterChange).not.toHaveBeenCalled();
   });
 });

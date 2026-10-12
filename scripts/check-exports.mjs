@@ -12,10 +12,14 @@ export function committedExports() {
   return JSON.parse(readFileSync(listFile, 'utf8'));
 }
 
-/** Builds the declaration files of the package's `.` entry point into `outDir` the way the build does. */
-export function emitDeclarations(outDir) {
+/** The package's four entry points: their export paths and their sources. */
+export const ENTRY_POINTS = { '.': 'index.ts', './react': 'react/index.ts', './bpmn': 'bpmn/index.ts', './canvas': 'canvas/index.ts' };
+
+/** Builds the declaration files of the package's `.` entry point (or the given sources) into `outDir` the way the build does. */
+export function emitDeclarations(outDir, sources = ['index.ts']) {
   const config = ts.getParsedCommandLineOfConfigFile(resolve(root, 'tsconfig.types.json'), {}, { ...ts.sys, onUnRecoverableConfigFileDiagnostic: (d) => { throw new Error(ts.flattenDiagnosticMessageText(d.messageText, '\n')); } });
-  const program = ts.createProgram([resolve(root, 'src/index.ts')], { ...config.options, outDir, emitDeclarationOnly: true, declarationMap: false, sourceMap: false });
+  const roots = [...sources.map((source) => resolve(root, 'src', source)), ...config.fileNames.filter((f) => f.endsWith('.d.ts'))];
+  const program = ts.createProgram(roots, { ...config.options, outDir, emitDeclarationOnly: true, declarationMap: false, sourceMap: false });
   const result = program.emit();
   const errors = ts.getPreEmitDiagnostics(program).concat(result.diagnostics).filter((d) => d.category === ts.DiagnosticCategory.Error);
   if (errors.length) throw new Error(ts.formatDiagnostics(errors, { getCanonicalFileName: (f) => f, getCurrentDirectory: () => root, getNewLine: () => '\n' }));
@@ -47,6 +51,23 @@ export function exportDifferences(found, list) {
     ...list.deprecated.filter((n) => !foundDeprecated.has(n)).map((n) => `${n} is not marked @deprecated`),
     ...found.deprecated.filter((n) => !listDeprecated.has(n)).map((n) => `${n} is marked @deprecated but not in the committed list`),
   ];
+}
+
+/**
+ * The names `docs/API.md` names in code, in a fenced block or in backticks, outside "Removed in the next
+ * version" (those names are gone): every identifier there, so that `HitIndex.fromScene` names both.
+ */
+export function documentedNames(api = readFileSync(resolve(root, 'docs/API.md'), 'utf8')) {
+  const removed = api.indexOf('\n## Removed in the next version');
+  const text = removed < 0 ? api : api.slice(0, removed) + api.slice(api.indexOf('\n## ', removed + 1) >>> 0);
+  const code = [...text.matchAll(/```[a-z]*\n([\s\S]*?)```/g)].map((m) => m[1]);
+  const spans = [...text.replace(/```[\s\S]*?```/g, '').matchAll(/`([^`\n]+)`/g)].map((m) => m[1]);
+  return new Set([...code, ...spans].flatMap((s) => s.match(/[A-Za-z_$][\w$]*/g) ?? []));
+}
+
+/** The exported names of each entry point that `docs/API.md` does not name. */
+export function undocumentedExports(exports, documented) {
+  return Object.entries(exports).flatMap(([entry, names]) => names.filter((n) => !documented.has(n)).map((n) => `${n} (${entry}) is exported but docs/API.md does not name it`));
 }
 
 export function checkExports() {

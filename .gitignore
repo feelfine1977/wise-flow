@@ -7,3 +7,4 @@ artifacts/
 coverage/
 reports/
 playwright-report/
+.vitest-attachments/
