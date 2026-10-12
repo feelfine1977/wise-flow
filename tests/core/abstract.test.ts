@@ -634,10 +634,9 @@ describe("abstract: findings", () => {
     expect(stages.map((n) => [n.id, n.metrics?.internalCount])).toEqual([["s", 11], ["t", undefined]]);
   });
 
-  it("finding: a collapsed group without members can be where the joining starts, and then nothing is joined", () => {
-    // The empty group becomes a stage node without metrics, so of strength 1: heavier than m (100 of
-    // 151 cases) and n (50 of 151). The joining starts there, reaches nothing, and m and n, joined
-    // through r in the input, stay apart.
+  it("weighs a collapsed stage without members as nothing, so that the joining never starts there", () => {
+    // The empty group becomes a stage node without metrics, which no threshold removes. m (100 of 151 cases) is
+    // the heaviest part, so the joining starts there and re-adds r to join n (50 of 151), as in the input.
     const graph: FlowGraph = {
       nodes: activities({ m: 100, n: 50, r: 1 }),
       edges: follows([["m", "r", 10], ["r", "n", 10]]),
@@ -645,7 +644,10 @@ describe("abstract: findings", () => {
     };
     expect(isConnected(graph)).toBe(true);
     const g = abstract(graph, { relativeTo: "total", minNodeShare: 0.1, collapse: ["empty"] });
-    expect([g.nodes.map((n) => n.id).sort(), g.edges, readded(g)]).toEqual([["empty", "m", "n"], [], []]);
+    expect([g.nodes.map((n) => n.id).sort(), g.edges.map((e) => e.id), readded(g)]).toEqual([["empty", "m", "n", "r"], ["m->r", "r->n"], ["m->r", "r", "r->n"]]);
+    // Only empty stages: nothing to join, and the result keeps them.
+    const empty: FlowGraph = { nodes: [], edges: [], groups: [{ id: "e1", kind: "stage", label: "E1" }, { id: "e2", kind: "stage", label: "E2" }] };
+    expect(abstract(empty, { minNodeShare: 0.5, collapse: "all" }).nodes.map((n) => n.id)).toEqual(["e1", "e2"]);
   });
 
   it("finding: the kept activities of a second input component are not joined through its removed ones", () => {

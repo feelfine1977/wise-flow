@@ -517,18 +517,20 @@ export function joinComponents({ base, nodes: keptNodes, edges: keptEdges, edgeS
     .sort((a, b) => cost(a) - cost(b) || byId(a, b));
   for (const e of direct) if (union(e.source, e.target)) addEdge(e);
 
-  // Components by their smallest node id, weighed by the strength of their activities.
+  // Components by their smallest node id, weighed by the strength of their activities and stages; events and gateways
+  // weigh nothing, and a collapsed stage without members less, so that the joins never start there.
   const members = new Map<string, string[]>();
   const weight = new Map<string, number>();
   for (const id of [...nodeIds].sort()) {
     const root = find(id);
+    const n = byNodeId.get(id)!;
     if (!members.has(root)) members.set(root, []);
     members.get(root)!.push(id);
-    weight.set(root, (weight.get(root) ?? 0) + (isStructuralNode(byNodeId.get(id)!) ? 0 : (nodeStrength.get(id) ?? 1)));
+    weight.set(root, (weight.get(root) ?? 0) + (isStructuralNode(n) ? 0 : n.kind === "stage" && metric(n, "members", 1) === 0 ? -1 : (nodeStrength.get(id) ?? 1)));
   }
   if (members.size < 2) return { nodes, edges };
   let main = "";
-  let heaviest = -1;
+  let heaviest = -Infinity;
   for (const [root, w] of weight) if (w > heaviest) [main, heaviest] = [root, w];
 
   const adjacency = undirectedAdjacency(base.edges, new Set(byNodeId.keys())).neighbours;

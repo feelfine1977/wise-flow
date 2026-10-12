@@ -323,11 +323,11 @@ describe("abstraction invariants on random graphs", () => {
       const inputParts = flood(graph.nodes.map((n) => n.id), graph.edges);
       const baseParts = flood(base.nodes.map((n) => n.id), base.edges);
       const resultParts = flood(result.nodes.map((n) => n.id), result.edges);
-      // A collapsed group without members is a stage node without edges; the joining may
-      // start from it and then joins nothing (pinned as a finding in abstract.test.ts).
-      const emptyStage = base.nodes.some((n) => n.kind === "stage" && n.metrics?.members === 0);
-      if (new Set(inputParts.values()).size <= 1 && !emptyStage) {
-        expect(new Set(resultParts.values()).size, `${label}: components of a connected input`).toBeLessThanOrEqual(1);
+      // A collapsed group without members is a stage node without edges, a part of its own.
+      const empty = new Set(base.nodes.filter((n) => n.kind === "stage" && n.metrics?.members === 0).map((n) => n.id));
+      if (new Set(inputParts.values()).size <= 1) {
+        const parts = new Set([...resultParts].filter(([id]) => !empty.has(id)).map(([, part]) => part));
+        expect(parts.size, `${label}: components of a connected input, besides its empty stages`).toBeLessThanOrEqual(1);
         continue;
       }
       disconnected++;

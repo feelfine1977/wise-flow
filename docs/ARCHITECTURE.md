@@ -198,8 +198,9 @@ strength)`: 1 for the edge, so every removed node on a path adds at least 1
 most 1 more for an edge of strength 0. Constraint and flow edges have
 strength 1; self-loops never join anything. Node strength does not enter
 the cost. It only picks the component the joins start from: the one whose
-activities' strengths sum highest (events and gateways count 0; a tie goes
-to the component with the smallest node id). First the cheapest direct
+activities' strengths sum highest (events and gateways count 0, a
+collapsed stage without members less than nothing, so the joins never start
+there; a tie goes to the component with the smallest node id). First the cheapest direct
 edges between kept nodes join components, a minimum spanning forest by
 cost, then edge id. Then every join takes the component nearest to all
 that is joined so far, through its cheapest path, and re-adds the removed
