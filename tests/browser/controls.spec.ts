@@ -1,5 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { type Page, expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 /**
  * The controls around the maps in a real browser: at the fitted zoom no panel
@@ -237,4 +239,119 @@ for (const { id, lang, expand } of [
     await collapse.press("Space");
     await expect(page.getByRole("button", { name: expand })).toBeVisible();
   });
+}
+
+/** What the library's components render carries a part of the styling contract, the BPMN view its status; a story's own controls carry neither. */
+const ROOTS = "[data-wf-part], [data-bpmn-status]";
+
+/** Every CSS variable of the token table. */
+const TOKENS = [...new Set(readFileSync(fileURLToPath(new URL("../../src/tokens.css", import.meta.url)), "utf8").match(/--wf-[a-z0-9-]+(?=:)/g))];
+
+/**
+ * The text, border and outline colours of every form control inside the library's roots under `scope`, each
+ * compared with the colours of the tokens resolved where it is drawn and with the colours the browser gives the
+ * same control in the same state outside the library (a bare copy). `focused` asks for the colours of the
+ * control focused by keyboard, which the copy cannot show. A control's placeholder is checked as its text.
+ */
+const paints = (page: Page, scope: string, state: string) =>
+  page.evaluate(
+    ({ roots, tokens, scope, state }) => {
+      const colour = (value: string, where: Element) => {
+        const probe = where.appendChild(document.createElement("i"));
+        probe.style.color = value;
+        const c = getComputedStyle(probe).color;
+        probe.remove();
+        return c;
+      };
+      const properties = ["color", "border-top-color", "border-right-color", "border-bottom-color", "border-left-color", "outline-color"];
+      const form = "input, button, select, textarea";
+      const controls = [...document.querySelectorAll(scope)].flatMap((s) => (s.matches(form) ? [s] : [...s.querySelectorAll(form)])).filter((el) => el.closest(roots));
+      const outside = document.body.appendChild(document.createElement("div"));
+      const found = controls.map((el) => {
+        const root = el.closest(roots)!;
+        const rootStyle = getComputedStyle(root);
+        const values = tokens.map((t) => rootStyle.getPropertyValue(t).trim()).filter((v) => v && CSS.supports("color", v));
+        // `transparent` is a colour the stylesheet writes (an icon button's border until it is hovered).
+        const allowed = new Set([...values.map((v) => colour(v, root)), "rgba(0, 0, 0, 0)"]);
+        const copy = outside.appendChild(el.cloneNode(false) as HTMLElement);
+        copy.removeAttribute("class");
+        copy.removeAttribute("style");
+        const style = getComputedStyle(el);
+        const bare = getComputedStyle(copy);
+        const name = `${el.tagName.toLowerCase()}${el.getAttribute("type") ? `[${el.getAttribute("type")}]` : ""}.${[...el.classList].join(".")} "${el.getAttribute("aria-label") ?? el.textContent?.trim()}" (${state})`;
+        const wrong: string[] = [];
+        const check = (property: string, value: string, browser: string | undefined) => {
+          if (!allowed.has(value)) wrong.push(`${property} ${value} is no token`);
+          else if (browser !== undefined && value === browser && value !== "rgba(0, 0, 0, 0)") wrong.push(`${property} ${value} is the browser's own`);
+        };
+        for (const p of properties) check(p, style.getPropertyValue(p), state === "focused" ? undefined : bare.getPropertyValue(p));
+        if (state === "focused") {
+          if (!el.matches(":focus-visible")) wrong.push("not focused by keyboard");
+          if (style.outlineStyle === "auto" || style.outlineColor !== colour("var(--wf-focus)", root) && style.outlineStyle !== "none") wrong.push(`outline ${style.outlineStyle} ${style.outlineColor} is not the focus colour`);
+        }
+        if (el.matches("input:not([type=range], [type=checkbox], [type=radio]), textarea")) check("::placeholder color", getComputedStyle(el, "::placeholder").color, getComputedStyle(copy, "::placeholder").color);
+        copy.remove();
+        return { name, wrong };
+      });
+      outside.remove();
+      return found;
+    },
+    { roots: ROOTS, tokens: TOKENS, scope, state },
+  );
+
+/** The stories that show the controls of the panels, each with the part of the page whose controls it shows and the states it shows them in. */
+const CONTROLS: { id: string; scope?: string; act?: (page: Page) => Promise<void>; expect: string[] }[] = [
+  // The detail sliders, the check box (checked), the stage toggle, the zoom control and the legend's toggle.
+  { id: "process-map--map", expect: ['input[type="range"]', 'input[type="checkbox"]:checked', ".wf-button--icon", '[data-wf-part="legend"] .wf-button'] },
+  { id: "interaction--filters", expect: [".wf-filter-chip__remove", ".wf-filters__clear"] },
+  { id: "interaction--paths", expect: [".wf-paths__sort", ".wf-paths__close"] },
+  {
+    id: "interaction--select-and-menu",
+    scope: ".wf-menu",
+    act: async (page) => {
+      await page.locator('.react-flow__node[data-id="clear_invoice"]').click({ button: "right" });
+      await expect(page.getByRole("menu")).toBeVisible();
+    },
+    expect: [".wf-menu__item"],
+  },
+  // The search field and the pager, its first button disabled.
+  { id: "table-alternative--paged", expect: [".wf-table__search", ".wf-button:disabled"] },
+  // The table toggle pressed.
+  { id: "table-alternative--inside-map", expect: ['.wf-button[aria-pressed="true"]'] },
+  { id: "canvas--p-2-p-on-canvas", expect: ['input[type="range"]', ".wf-button--icon"] },
+  { id: "bpmn--overlays-on-model", expect: [".wf-bpmn .wf-button", ".wf-button--icon"] },
+  { id: "views--four-views", expect: ['.wf-button[aria-pressed], [role="tab"][aria-selected="true"]'] },
+];
+
+for (const scheme of ["light", "dark"] as const) {
+  for (const { id, scope = "body", act, expect: shown } of CONTROLS) {
+    test(`${id}: every control paints its text, border and outline in the tokens, in every state shown (${scheme})`, async ({ page }) => {
+      await open(page, id, scheme);
+      await act?.(page);
+      for (const selector of shown) await expect(page.locator(scope).locator(selector).first()).toBeAttached();
+      const wrong = (await paints(page, scope, "as shown")).filter((c) => c.wrong.length);
+      // The check box unchecked as well as checked.
+      // The library's controls: those inside its roots (the menu is one).
+      const within = scope === "body" ? `:is(${ROOTS})` : scope;
+      for (const box of await page.locator(`${within} input[type="checkbox"]`).all()) {
+        await box.click();
+        wrong.push(...(await paints(page, scope, "toggled")).filter((c) => c.wrong.length));
+        await box.click();
+      }
+      // Each control focused by keyboard: a key press first, so that focusing from a script shows the focus.
+      const controls = page.locator(`${within} :is(input, button, select, textarea)`);
+      const count = await controls.count();
+      expect(count).toBeGreaterThan(0);
+      for (let i = 0; i < count; i++) {
+        const control = controls.nth(i);
+        if (!(await control.isVisible())) continue;
+        await page.keyboard.press("Shift");
+        await control.evaluate((el: HTMLElement) => el.focus());
+        const focused = await paints(page, `${scope} :focus`, "focused");
+        expect(focused, "the control has the focus").toHaveLength(1);
+        wrong.push(...focused.filter((c) => c.wrong.length));
+      }
+      expect(wrong).toEqual([]);
+    });
+  }
 }

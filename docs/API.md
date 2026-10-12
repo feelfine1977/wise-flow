@@ -2425,6 +2425,20 @@ alternative has the paper as its ground and its search field and pager are
 drawn in the tokens. Every button of the panels carries
 `data-wf-part="button"`.
 
+**Form controls.** No control of the library paints in a colour the browser
+chose, whose defaults differ between systems (a slider's grey on Linux, a
+field's border, the focus ring). Every input, button, select and text area
+inside the map, a panel, a table, the filters, the path list, the menu, the
+BPMN view, the switcher, the timeline or the comparison takes its text colour
+from `--wf-ink`, its border colour from `--wf-line-strong` and its
+placeholder from `--wf-ink-muted`, and when focused by keyboard it is outlined
+in `--wf-focus` (`--wf-stroke-focus` wide, `--wf-space-1` away), in every
+state (disabled, checked, pressed). These rules have no specificity
+(`:where`), so each control's own rule and any host rule win. The sliders
+and the check box of `<AbstractionControls/>` were in the browser's colours
+until now; the check box and the tables' search field showed the browser's
+focus ring.
+
 **Dark scheme.** Every control has its own values in the dark scheme: the
 zoom control and the panels are paper, darker than the surface; React Flow's
 attribution has no ground of its own; the pressed toggle is `pressed`
