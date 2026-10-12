@@ -16,7 +16,7 @@ import type { AbstractOptions, FlowEdge, FlowGraph, FlowNode } from "../../src/i
 export const JOIN_OBJECTIVE = [
   "An edge costs a reconnecting path `1 + (1 − strength)`",
   "Constraint and flow edges have strength 1; self-loops never join anything.",
-  "Node strength does not enter the cost. It only picks the component the joins start from: the one whose activities' strengths sum highest (events and gateways count 0; a tie goes to the component with the smallest node id).",
+  "Node strength does not enter the cost. It only picks the component the joins start from: the one whose activities' strengths sum highest (events and gateways count 0, a collapsed stage without members less than nothing, so the joins never start there; a tie goes to the component with the smallest node id).",
   "First the cheapest direct edges between kept nodes join components, a minimum spanning forest by cost, then edge id.",
   "Then every join takes the component nearest to all that is joined so far, through its cheapest path, and re-adds the removed nodes on it; each other component a re-added node touches joins at once through its cheapest direct edge (cost, then edge id).",
   "The objective holds per join, not for the total",

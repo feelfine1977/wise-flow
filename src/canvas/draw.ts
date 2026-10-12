@@ -53,7 +53,7 @@ export interface DrawState {
   focused?: string | null;
   /** When present, nodes and edges outside these sets are dimmed. */
   bright?: { nodes: Set<string>; edges: Set<string> };
-  /** Edges on a highlighted path; drawn under any edge budget. */
+  /** Edges on a highlighted path; drawn first, heaviest first, within the edge budget. */
   highlighted?: ReadonlySet<string>;
 }
 

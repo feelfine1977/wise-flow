@@ -15,6 +15,7 @@ import { describe, expect, it } from "vitest";
 import * as canvas from "../../src/canvas/index";
 import * as bpmn from "../../src/bpmn/headless";
 import {
+  InvalidGraphError,
   type ActivityLabelOptions,
   type Box,
   type ColorScheme,
@@ -268,7 +269,7 @@ function search(names: readonly string[], body: (calls: Calls, c: MalformedCase)
 describe("malformed input at the core entry point", () => {
   it(
     "model and aggregation",
-    search(["metric", "hasTag", "indexGraph", "validateGraph", "validateGateways", "normalizeGraph", "strengths", "collapseGroups", "components", "isConnected", "abstract", "diff", "unionGraph", "detailStatement", "detailNotes"], (calls, c) => {
+    search(["metric", "hasTag", "indexGraph", "validateGraph", "InvalidGraphError", "validateGateways", "normalizeGraph", "strengths", "collapseGroups", "components", "isConnected", "abstract", "diff", "unionGraph", "detailStatement", "detailNotes"], (calls, c) => {
       const g = c.graph;
       const node = g.nodes[0];
       calls.call("metric", c, () => {
@@ -287,7 +288,11 @@ describe("malformed input at the core entry point", () => {
           must(typeof index.label(id) === "string" || id === undefined, c, () => `label of ${id}`);
         }
       });
-      calls.call("validateGraph", c, () => validateGraph(g));
+      const issues = calls.call("validateGraph", c, () => validateGraph(g)) ?? [];
+      calls.call("InvalidGraphError", c, () => {
+        const error = new InvalidGraphError(issues);
+        must(error.name === "InvalidGraphError" && error.issues === issues, c, () => "the error's name and issues");
+      });
       calls.call("validateGateways", c, () => validateGateways(g));
       calls.call("normalizeGraph", c, () => normalizeGraph(g));
       calls.call("strengths", c, () => strengths(g.edges, g.edges.map((e) => e.id), c.rng.pick(["max", "total"] as const)));

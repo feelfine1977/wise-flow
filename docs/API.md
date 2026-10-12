@@ -57,6 +57,9 @@ export const MAP_TARGET = "__map";      // overlay target for map-level chips
 export function hasTag(el: { tags?: string[] } | undefined, tag: string): boolean;   // the element carries the tag
 export function normalizeGraph(g: FlowGraph): FlowGraph;   // shallow copy with sorted, de-duplicated element arrays
 export function validateGraph(g: FlowGraph): GraphIssue[];
+export class InvalidGraphError extends Error {   // name "InvalidGraphError"; thrown by the exports for a reserved id
+  readonly issues: GraphIssue[];                 // what validateGraph reports for the reserved ids
+}
 export function validateGateways(g: FlowGraph): GraphIssue[];   // warnings: unpaired parallel gateways
 export function indexGraph(g: FlowGraph): GraphIndex;
 export interface GraphIndex {
@@ -97,6 +100,20 @@ inside such a cycle is not. It reports as warnings a node group that names no
 group and an overlay whose target names no node, edge or group. Up to 0.3.5 a
 cycle of group parents passed validation; `collapseGroups(g, "all")` then
 collapsed nothing and `layout` rejected with the engine's plain error.
+
+Ids are opaque, but an id must not name a member of `Object.prototype`
+(`__proto__`, `constructor`, `toString`, `hasOwnProperty`, `valueOf`, …):
+positions and many records of the library are plain objects keyed by id,
+which cannot hold `__proto__` as their own key and find the prototype's
+member under `constructor` where nothing was stored. `validateGraph` reports
+such an id of a node, an edge or a group as an error, `reserved id`. The
+exports refuse a graph with one: `toSVG`, `toPNGCanvas`, `toPNGDataUrl`
+throw, and `toPNG` and `exportBpmn` reject, with `InvalidGraphError`, whose
+`issues` are those errors and whose message names them ("reserved id:
+__proto__"). Up to 0.3.5 validation passed such ids, `toSVG` threw a
+`TypeError` on a node or group named so, every export on an edge named so,
+and the BPMN round trip lost the node. Other functions do not check: given
+such an id they may fail or drop the element.
 
 `validateGateways` checks the pairing of parallel gateways in any graph with
 gateways, generated or imported: a parallel split (a `gateway` node tagged
@@ -221,16 +238,28 @@ with an element at an end by kind (`{ constraint, flow }`, absent while none
 went; abstracting an abstracted graph adds to the count it carries). With
 thresholds and `keepConnected` an activity re-added to keep the map
 connected brings back its constraint and flow edges to elements on the map,
-tagged `reconnected` like everything re-added. Collapsing a stage folds the
-edges between its members, of every kind, into its `internalCount`. Up to
-this version the documentation said constraint and flow edges were never
-removed, nothing counted the ones that went, and a re-added activity came
-back without them. With thresholds the thresholded part is monotone (a
-higher threshold yields a subset); with `keepConnected` the result is one
-connected component whenever the input is, restored by a maximum spanning
-forest over the strongest direct edges, then by the cheapest paths through
-removed nodes, then by one edge per activity that lost all incoming or all
-outgoing paths; re-added elements are tagged `reconnected`. Of equally cheap
+tagged `reconnected` like everything re-added. Collapsing a stage drops the
+edges between its members, of every kind; its `internalCount` counts the
+follows edges among them, by their `count`, else their `cases`, and nothing
+for an edge with neither. Up to 0.3.5 every such edge counted: a constraint
+edge, a flow edge or a follows edge without a `count` as one transition each;
+the documentation said constraint and flow edges were never removed, nothing
+counted the ones that went, and a re-added activity came back without them.
+With thresholds the thresholded part is monotone (a higher threshold yields a
+subset); with `keepConnected` the result is one connected component whenever
+the input is, restored by a maximum spanning forest over the strongest
+direct edges, then by the cheapest paths through removed nodes, then by one
+edge per activity that lost all incoming or all outgoing paths; re-added
+elements are tagged `reconnected`. Keep connected joins only the main part
+of the input: the paths through removed nodes start from the heaviest kept
+component, so in another part of the input kept activities are joined only
+by direct edges between them (`x – r – y` beside a heavier `m – n` keeps
+`x` and `y` apart when `r` goes). It restores flow context only from
+activities still on the map: an activity whose incoming paths all came from
+removed activities gets no incoming path, so the map stays in one piece while
+no path from the start reaches it (`a1 → a3 → a4` with `a3` removed leaves
+`a4` without an incoming path). The detail shares keep every shown activity
+on a way from a start to an end instead ("Detail shares", below). Of equally cheap
 reconnecting paths the one chosen depends on ids only, not on the input
 order ([Architecture §2.2](ARCHITECTURE.md#22-aggregation)), and a strength
 relative to the total divides by a sum taken in ascending order, which no
@@ -239,17 +268,27 @@ group's id; counts are summed, `cases` and `share` are maxima, other metrics
 weighted means over the members that carry them (plain means where none has
 a weight; summed in id order, so that no input order changes them), internal
 transitions land in `internalCount` (summed in ascending order). A stage's
-`cases` is therefore a lower bound of the cases that touch it, and
-`minNodeShare` compares a collapsed stage by that bound: a stage of four
-activities with 25 different cases each, which 100 cases touch, reads 25 and
-goes at 50 % beside an activity of 100 cases, with or without
+`cases` is therefore a lower bound of the cases that touch it. A threshold
+does not compare a stage by that bound, which may be too low: the stage
+records an upper bound in `meta.collapsedCasesAtMost` (by stage id), the sum
+of its activities' `cases` (an inner collapsed stage's bound in place of its
+own), at most all cases of the graph (`meta.cases`) and at least its own
+`cases`, and its strength is that bound against the same maximum or total
+as every other activity's. Detail shares rank a stage by its own `cases`. A
+stage of four activities with 25 cases each, which up to 100 cases touch,
+reads 100 of 100 beside an activity of 100 cases and stays at 50 %; it still
+prints "at least 25". Up to 0.3.5 it read 25 and went, with or without
 `keepConnected`. Its `events` add up, so with `nodeMetric: "events"` the
-stage reads 100 and stays. Edges of one kind between the same two shown
-nodes merge into one, named `source->target`, or `source->target:kind:n`
-where that id is taken; merged edges take their names in the order of their
-smallest original id, not of the input. Parallel paths merged into one are
-combined the same way. The graph holds no case sets, so the cases of a stage
-(or of a merged path) cannot be computed exactly: two activities of one
+stage is compared by its summed events. Edges of one kind between the same two shown
+nodes, one of them a collapsed stage, merge into one, named `source->target`,
+or `source->target:kind:n` where that id is taken; merged edges take their
+names in the order of their smallest original id, not of the input. Parallel
+paths merged into one are combined the same way. Edges between two nodes
+outside every collapsed stage stay as they are, with their ids, metrics,
+tags and payloads; up to 0.3.5 they merged too, and two constraint edges
+between the same two activities lost their payloads. The graph holds no
+case sets, so the cases of a stage (or of a merged path) cannot be computed
+exactly: two activities of one
 stage that one case each touches give the stage at least one case and at
 most two. The values are not changed; the result says what they are in
 `metricBasis` (by metric name, in the order of the names): of more than one
@@ -632,7 +671,7 @@ export interface CategoricalEntry { key: string; color: string; pattern: Pattern
 export function orderedCategorical(keys: Iterable<string>, theme?: Theme): Map<string, CategoricalEntry>;
 export type LegendItem =   // `title` is a string key for `t` (it was typed `string`)
   | { kind: "width"; title: StringKey; metric: string; domain: [number, number]; range: [number, number];
-      samples?: { value: number; width: number; floor?: boolean }[];   // the thinnest line (floor) with the largest value it stands for, a count near the middle width, the upper end
+      samples?: { value: number; width: number; floor?: boolean }[];   // the thinnest line (floor) with the largest value it stands for, a count near the middle width, the upper end; one where every path has one value
       scale?: "graph" | "shared";                     // from 0 to the graph's strongest path, or to the style's `max`; none with a `domain`
       transitionsOnly?: boolean }                     // the paths give only transition counts
   | { kind: "sequential" | "diverging"; title: StringKey; metric: string; domain: number[]; stops: readonly string[] }
@@ -697,8 +736,11 @@ width row says whose scale it is ("Path width: cases (count) · whole
 graph", German "· ganzer Graph"; "· shared scale" with `max`) and shows the
 same three samples at every setting: the thinnest line with the counts it
 stands for ("≤ 3,044", every path up to 3,044 cases is drawn at it), a count
-near the middle width, and the upper end. The row keeps the panel's two lines
-(title and samples) at 260 wide. Up to 0.3 the scale ran from the
+near the middle width, and the upper end. Where every path shown has the same
+count, it shows that one sample at the width every path is drawn at instead of
+a scale from 0 (up to 0.3.5 a map whose paths all counted 9 showed "3" and
+"9"); without a measured path it has no width row. The row keeps the panel's
+two lines (title and samples) at 260 wide. Up to 0.3 the scale ran from the
 weakest to the strongest path shown, so a path changed its width when a slider
 moved (`pathScaleMax`, the upper end a graph gives, is internal).
 
@@ -1234,8 +1276,8 @@ titled "channel: metric (unit)" from the metric registry ("Path width: cases
 (count)", "Path colour: expectation shortfall (% of cases)", "Activity colour:
 stage"): path width with three sample strokes and their values (the thinnest
 line with the counts it stands for, a count near the middle width and the
-graph's strongest path, written as paths are; see "One width scale per
-graph"), a colour ramp
+graph's strongest path, written as paths are; one stroke where every path
+has one count; see "One width scale per graph"), a colour ramp
 with its values, the stages as swatches with their labels and pattern twins.
 Where the paths give only transitions, the path row says so ("Path width:
 transitions (count) · paths count transitions; no case counts given"). Then
@@ -2083,7 +2125,7 @@ such a focus threw a `TypeError`.
 ### Filters
 
 ```ts
-export type TimeMode = "case_start" | "case_end" | "active" | "events_inside";
+export type TimeMode = "case_start" | "case_end" | "active" | "events_inside";   // events_inside: deprecated, removed in the next minor version
 export interface TimeClause { kind: "time"; field?: TimeMode; mode?: TimeMode; from?: string; to?: string }
 export interface AttributeClause { kind: "attribute"; field: string; in?; not_in?; range?; missing?: boolean }
 export interface ActivityClause { kind: "activity"; op: "contains" | "not_contains" | "starts_with" | "ends_with" | "never"; activity: string }
@@ -2112,6 +2154,20 @@ export function normalizeFilterPreview(raw: Record<string, unknown> | FilterPrev
 export interface FilterTarget { kind: "node" | "edge" | "group" | "pair" | "set"; ids: string[] }
 export function clauseForTarget(target: FilterTarget, action: "keep" | "exclude", graph?: FlowGraph): FilterClause | FilterClause[] | undefined;
 ```
+
+**The time mode `events_inside` is deprecated** and is removed in the next
+minor version; this version keeps it as it was. A time clause with it keeps
+only the events inside the window and so cuts events out of cases, while a
+selection is a set of whole cases. Nothing in the library makes such a
+clause: it reaches the library only in `filters` from a host, which gets it
+back unchanged in `onFilterChange`; `describeClause` writes it "events
+inside {from} – {to}" ("Ereignisse innerhalb …"), and `changesCases` and
+`<FilterChips/>` mark it as changing cases. Migration: express the window by
+`case_start`, `case_end` or `active` (a case that starts, ends or is active
+in it), which keeps whole cases; where a host needs only the events in a
+window, it trims them itself, outside the filter. Once removed, TypeScript
+reports a clause that names it, and a clause that still carries it at run
+time is a time clause of a mode the library does not know.
 
 `normalizeFilterPreview` reads numbers only where they are finite numbers,
 and the marginal removals (`perClause`, `per_clause`) only from a list, of
@@ -2246,7 +2302,7 @@ export function prepareScene(g: FlowGraph, p: Positions, o?: { activityLabels?; 
 export interface DrawContext { /* the subset of CanvasRenderingContext2D the routines use */ }
 export interface View { x: number; y: number; zoom: number; width: number; height: number }
 export interface DrawState { selection: Selection; hovered?: string | null; focused?: string | null; bright?: { nodes: Set<string>; edges: Set<string> };
-  highlighted?: ReadonlySet<string> }   // edges on a highlighted path, drawn under any edge budget
+  highlighted?: ReadonlySet<string> }   // edges on a highlighted path, drawn first, heaviest first, within the edge budget
 export interface DrawOptions { tokens?: CanvasTokens; cull?: boolean; background?: boolean | string; lodZoom?: number; createCanvas?;
   edgeBudget?: EdgeBudget | ShownEdges }   // default "all"
 export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, state?: DrawState, o?: DrawOptions): { nodes; edges; shapes; culled;
@@ -2397,7 +2453,8 @@ Additions only, except the keyboard route for Enter.
 `abstract` and `collapseGroups` preserve response `focus` and `paths` so a focused
 payload cannot be relabeled as another activity's paths. Collapsed stages retain
 original activity IDs in `graph.meta.collapsedMembers`; original edge IDs map to
-displayed edges or containing stages in `graph.meta.collapsedEdgeTargets`. These
+displayed edges or containing stages in `graph.meta.collapsedEdgeTargets`; an
+upper bound of each stage's cases is in `graph.meta.collapsedCasesAtMost`. These
 are JSON-compatible metadata records, not exact case membership sets.
 
 Stage keep/exclude actions use original activities, including nested stages. A
@@ -2760,7 +2817,8 @@ targets are dropped before their order is fixed.
 export type EdgeBudget = number | "all";
 export interface EdgeProtection { selection?: { edges: readonly string[] }; focused?: string | null; highlighted?: ReadonlySet<string> }
 export interface EdgeSelection { drawn: Set<number>; shown: number; total: number; kept: number;   // positions in scene.edgeMarks
-  loops: readonly string[] }   // the paths in view that loop on one activity, counted in shown and total
+  loops: readonly string[];      // the paths in view that loop on one activity, counted in shown and total
+  highlightedNotShown: number }  // the highlighted edges in view the budget withholds
 export interface ShownEdges { edges: readonly string[]; total: number }   // what a map draws, as onEdgesShown reports it
 export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style" | "graph" | "positions">, budget: EdgeBudget | ShownEdges | undefined,
   protection?: EdgeProtection, inView?: readonly number[], loops?: readonly string[]): EdgeSelection | undefined;
@@ -2770,7 +2828,7 @@ When tens of thousands of edges are in view (a hub, or a fitted large map),
 culling cannot shorten a draw. An edge budget of n draws n of the edges in
 view, chosen once in the core by `budgetEdges` so that the Canvas map and
 the React Flow map draw the same ones. The order is fixed: protected edges
-first, then the weight descending (the value the edge width reads:
+first, then the highlighted edges, then the others, each by the weight descending (the value the edge width reads:
 `style.edgeWidth.metric`, `cases` by default, or the paths' transitions,
 `count`, where no path of the graph gives cases, a path that loops on one
 activity included, as the scales resolve it;
@@ -2778,16 +2836,18 @@ an edge without it comes last, as it is drawn at the thinnest width), then
 the id. Before this version a path without cases among paths with cases was
 ranked by its transitions. A budget of n draws the first n edges of that order,
 and every protected edge even beyond n, so lowering the budget only removes
-edges from the end of the order and never replaces a drawn edge by another.
+edges from the end of the order and never replaces a drawn edge by another
+(with the same protection and highlight).
 
 An edge is protected when it carries an overlay mark of the scene (a mark
 that names it, `OverlayMark.edgeId`, as a loop's mark does, or an arc that
-joins its source to its target in that direction), when it is selected, when the keyboard
-is on it (`focused`), or when it lies on a highlighted path: the edges of the
-focus of paths in effect (`mapEmphasis(...).bright.edges` while
+joins its source to its target in that direction), when it is selected, or when the keyboard
+is on it (`focused`). An edge on a highlighted path (`highlighted`: the edges
+of the focus of paths in effect, `mapEmphasis(...).bright.edges` while
 `focusShown`, which includes the pair of activities a selection of two
-names). The edges a selection of activities merely brightens are not
-protected. So Alt with an arrow key can move onto a path the budget
+names, and the kept paths the detail panel marks) is drawn before the others
+but within the budget, heaviest first. The edges a selection of activities
+merely brightens are neither. So Alt with an arrow key can move onto a path the budget
 withholds: it is drawn while the keyboard is on it, in place of the last
 edge of the order while the protected edges fit in the budget (the note's
 numbers stay) and beyond it otherwise (the note counts one more), and it is
@@ -2795,15 +2855,21 @@ withheld again once the keyboard moves on.
 
 Protected edges have no cap, and overlay marks and edge labels are not
 budgeted at all. When more protected edges are in view than the budget, all of
-them are drawn and the note counts them (25 highlighted of 30 under a budget
-of 10: "Showing 25 of 30 flows"); when every edge in view is protected,
-nothing is withheld and no note is shown. A focus on the paths of a hub
-therefore draws every path of it, whatever the budget: measured in headless
-Chromium on a loaded sandbox (the renderer's draw time per frame in motion,
-median of 30), a hub of 2,501 activities and 5,000 paths took 44 ms with every
-path highlighted against 9.3 ms under the default budget (2,000 drawn), and a
-hub of 25,001 activities and 50,000 paths 316 ms against 124 ms (500 drawn;
-there the activities dominate the frame).
+them are drawn and the note counts them; when every edge in view is protected,
+nothing is withheld and no note is shown. Selections, the keyboard position
+and marked paths stay few. Highlighted edges are capped by the budget: a
+focus on the 30 paths of a hub under a budget of 10 draws the 10 heaviest,
+and the note says how many highlighted paths it does not show ("Showing 10
+of 30 flows, 20 highlighted not shown", `map.edges.withheldHighlighted`,
+German "10 von 30 Flüssen gezeigt, 20 hervorgehobene nicht gezeigt";
+`highlightedNotShown`). The path list (`<PathList/>`) still lists every path
+of the focus. Up to 0.3.5 highlighted edges were protected, so a focus on the
+paths of a hub drew every path of it whatever the budget: measured in
+headless Chromium on a loaded sandbox (the renderer's draw time per frame in
+motion, median of 30), a hub of 2,501 activities and 5,000 paths took 44 ms
+with every path highlighted against 9.3 ms under the default budget (2,000
+drawn), and a hub of 25,001 activities and 50,000 paths 316 ms against 124 ms
+(500 drawn; there the activities dominate the frame).
 
 **Paths that loop on one activity** (an edge from a node to itself) have no
 line: the map draws them as loops at their activity (`selfLoops`), and the
@@ -2822,8 +2888,9 @@ not a number (`NaN`), or when it withholds nothing (no more edges in view than t
 edge protected); otherwise the positions in `scene.edgeMarks` of the edges
 drawn, how many paths are shown (`shown`: those edges and the loops), how
 many are in view (`total`: the edges in view and the loops), how many of the
-drawn edges are protected (`kept`), which every budget draws, and the ids of
-the loops (`loops`). The edges in view are `inView` (positions in
+drawn edges are protected (`kept`), which every budget draws, the ids of
+the loops (`loops`), and how many highlighted edges in view it withholds
+(`highlightedNotShown`; 0 for a map's report). The edges in view are `inView` (positions in
 `scene.edgeMarks`), or every edge of the scene without it; the loops in view
 are `loops`, or every edge of the scene from a node with a box to itself
 without it. The order by weight is computed once per scene and
@@ -2846,7 +2913,9 @@ draw: in a culled view the edges the hit index finds there and the loops of
 the activities it finds there, otherwise every edge; withheld edges are drawn neither as lines nor with their labels, and
 `CanvasRenderer.hitAt` does not return an edge its last draw withheld. While
 edges are withheld the map shows a note with both numbers, "Showing 2,000 of
-49,999 flows" (`map.edges.withheld`, English and German), as text at the
+49,999 flows" (`map.edges.withheld`, English and German), with how many
+highlighted paths it does not show where it withholds some ("…, 20
+highlighted not shown", `map.edges.withheldHighlighted`), as text at the
 bottom centre of the map (`role="note"`), and the polite live region
 announces it once its numbers have stayed the same for 400 ms, so a view
 in motion does not flood it. The table view always lists every edge.
@@ -3486,6 +3555,7 @@ are panels, not elements of the map.
 | `fitChars` | the mark's `text`, which the scene's text measure has fitted; `truncateText` to shorten another text |
 | `nodeLabel` | `textTokens.activityName` (`Theme.text.activityName`), the name on an activity's card; a stage node's name is `stageLabel` |
 | `nodeCount` | `textTokens.activityNumber` and `activityShare`, the cases and their share on a card's number line |
+| `TimeMode."events_inside"` | a time clause on `case_start`, `case_end` or `active`, which keeps whole cases; removed in the next minor version (see "Filters") |
 
 ### `@wise/flow/canvas`
 

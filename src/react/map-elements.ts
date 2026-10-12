@@ -90,7 +90,7 @@ interface FlowInput {
   activityLabels: ActivityLabelOptions | undefined;
   nodesDraggable: boolean;
   edgeBudget?: EdgeBudget | "adaptive";
-  /** Edges on a highlighted path. */
+  /** Edges on a highlighted path, drawn first within the budget. */
   highlighted?: ReadonlySet<string>;
 }
 

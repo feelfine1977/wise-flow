@@ -7,7 +7,10 @@ import ts from 'typescript';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 
-/** Names marked `@deprecated` in a module: declarations, re-exported names and members as `Owner.member`. */
+/**
+ * Names marked `@deprecated` in a module: declarations, re-exported names, members as `Owner.member` and a literal
+ * member of a union as `Owner."literal"` (its comment stands before its `|`).
+ */
 export function deprecatedNames(file, source) {
   const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
   const found = [];
@@ -24,6 +27,12 @@ export function deprecatedNames(file, source) {
       found.push(member ? `${ownerOf(node)}.${name}` : name);
     }
     if (marked && ts.isVariableStatement(node)) found.push(...node.declarationList.declarations.map((d) => d.name.getText(tree)));
+    if (ts.isUnionTypeNode(node)) {
+      node.types.forEach((member, i) => {
+        const before = source.slice(i ? node.types[i - 1].getEnd() : node.getFullStart(), member.getStart(tree));
+        if (ts.isLiteralTypeNode(member) && /@deprecated\b/.test(before)) found.push(`${ownerOf(member)}.${member.literal.getText(tree)}`);
+      });
+    }
     ts.forEachChild(node, visit);
   };
   visit(tree);
@@ -96,7 +105,12 @@ test('deprecations are found on re-exports, declarations and members, and only t
     /** @deprecated */ export const e = 1;
     export type F = { /** @deprecated */ g: string; h: number };
     export interface I { /** @deprecated */ j?: boolean }
-  `), ['b', 'c', 'e', 'F.g', 'I.j']);
+    export type K =
+      | "l"
+      /** @deprecated Use "l". */
+      | "m"
+      | "n";
+  `), ['b', 'c', 'e', 'F.g', 'I.j', 'K."m"']);
 });
 
 test('the document check reads only the rows of its own section', () => {

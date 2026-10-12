@@ -157,7 +157,8 @@ function readKey(container: Element, locale: Locale, color: { metric: string; sq
   const range = gradient ? [...(gradient.parentElement?.querySelectorAll(".wf-legend__range > span") ?? [])].map((s) => s.textContent ?? "") : [];
   const domain = range.map((r) => (parsePrinted(r.replace(/[^\d.,kM-]/g, ""), locale)?.value ?? NaN) / (r.includes("%") ? 100 : 1));
   return {
-    ...(samples.length ? { widthEnds: ["0", samples.at(-1)!] as [string, string] } : {}),
+    // One sample where every path has one count; otherwise the scale from 0, whose low end the samples do not write.
+    ...(samples.length ? { widthEnds: [samples.length === 1 ? samples[0] : "0", samples.at(-1)!] as [string, string] } : {}),
     ...(stops.length >= 2 && domain.length >= 2 && domain.every(Number.isFinite) ? { colorScale: { ...color, domain, stops } } : {}),
   };
 }

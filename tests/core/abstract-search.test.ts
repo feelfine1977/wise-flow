@@ -72,7 +72,7 @@ const GROUPED = ["stages", "lanes", "nested", "overlaid"] as const;
  * self-loops, constraint edges, activities without edges, members without a weight,
  * and node metrics that are maxima or means; then a random input order.
  */
-function withQuirks(graph: FlowGraph, rng: Random, { constraints = true } = {}): FlowGraph {
+function withQuirks(graph: FlowGraph, rng: Random): FlowGraph {
   const nodes = graph.nodes.map((n) => ({ ...n, ...(n.metrics ? { metrics: { ...n.metrics } } : {}) }));
   const edges = graph.edges.map((e) => ({ ...e, ...(e.metrics ? { metrics: { ...e.metrics } } : {}) }));
   const ids = new Set(edges.map((e) => e.id));
@@ -84,7 +84,7 @@ function withQuirks(graph: FlowGraph, rng: Random, { constraints = true } = {}):
   const count = () => rng.int(1, 1000);
   for (let k = rng.int(0, 4); k > 0 && graph.edges.length; k--) {
     const e = rng.pick(graph.edges);
-    const kind = rng.weighted([["parallel", 3], ["reverse", 3], ["loop", 2], ["constraint", constraints ? 1 : 0]] as const);
+    const kind = rng.weighted([["parallel", 3], ["reverse", 3], ["loop", 2], ["constraint", 1]] as const);
     if (kind === "parallel") add({ ...e, id: `${e.id}#2`, metrics: { count: count(), cases: count() } });
     if (kind === "reverse") add({ id: `${e.target}->${e.source}`, kind: "follows", source: e.target, target: e.source, metrics: { count: count() } });
     if (kind === "loop") add({ id: `${e.source}->${e.source}`, kind: "follows", source: e.source, target: e.source, metrics: { count: count() } });
@@ -100,10 +100,10 @@ function withQuirks(graph: FlowGraph, rng: Random, { constraints = true } = {}):
   return { ...graph, nodes: rng.shuffle(nodes), edges: rng.shuffle(edges) };
 }
 
-function anyGraph(rng: Random, names: readonly (typeof FAMILIES)[number][] = FAMILIES, quirks = {}): FlowGraph {
+function anyGraph(rng: Random, names: readonly (typeof FAMILIES)[number][] = FAMILIES): FlowGraph {
   if (names === FAMILIES && rng.chance(0.2)) return smallGraph(rng);
   const graph = families[rng.pick(names)](rng.int(1, 40), rng.int(1, 1_000_000), { mixedKinds: rng.chance(0.3), scale: rng.pick([1, 1, 1, 0.01, 100]) });
-  return withQuirks(graph, rng, quirks);
+  return withQuirks(graph, rng);
 }
 
 /**
@@ -186,6 +186,7 @@ function canonical(graph: FlowGraph): string {
   const meta = { ...graph.meta } as Record<string, unknown>;
   if (meta.collapsedMembers) meta.collapsedMembers = sortedEntries(meta.collapsedMembers).map(([k, v]) => [k, [...(v as string[])].sort()]);
   if (meta.collapsedEdgeTargets) meta.collapsedEdgeTargets = sortedEntries(meta.collapsedEdgeTargets);
+  if (meta.collapsedCasesAtMost) meta.collapsedCasesAtMost = sortedEntries(meta.collapsedCasesAtMost);
   return JSON.stringify({ ...graph, nodes: [...graph.nodes].sort(byIdOrder).map(tagsSorted), edges: [...graph.edges].sort(byIdOrder).map(tagsSorted), meta });
 }
 
@@ -323,11 +324,11 @@ describe("abstraction invariants on random graphs", () => {
       const inputParts = flood(graph.nodes.map((n) => n.id), graph.edges);
       const baseParts = flood(base.nodes.map((n) => n.id), base.edges);
       const resultParts = flood(result.nodes.map((n) => n.id), result.edges);
-      // A collapsed group without members is a stage node without edges; the joining may
-      // start from it and then joins nothing (pinned as a finding in abstract.test.ts).
-      const emptyStage = base.nodes.some((n) => n.kind === "stage" && n.metrics?.members === 0);
-      if (new Set(inputParts.values()).size <= 1 && !emptyStage) {
-        expect(new Set(resultParts.values()).size, `${label}: components of a connected input`).toBeLessThanOrEqual(1);
+      // A collapsed group without members is a stage node without edges, a part of its own.
+      const empty = new Set(base.nodes.filter((n) => n.kind === "stage" && n.metrics?.members === 0).map((n) => n.id));
+      if (new Set(inputParts.values()).size <= 1) {
+        const parts = new Set([...resultParts].filter(([id]) => !empty.has(id)).map(([, part]) => part));
+        expect(parts.size, `${label}: components of a connected input, besides its empty stages`).toBeLessThanOrEqual(1);
         continue;
       }
       disconnected++;
@@ -344,8 +345,7 @@ describe("abstraction invariants on random graphs", () => {
   it("keeps the counts of collapsed stages and merged edges as documented and invents no metric", () => {
     for (const seed of seeds(caseCount(500))) {
       const rng = createRandom(seed);
-      // Constraint edges inside a stage are left out: what they count is an open question (see the pinned finding).
-      const graph = anyGraph(rng, GROUPED, { constraints: false });
+      const graph = anyGraph(rng, GROUPED);
       const groups = (graph.groups ?? []).map((g) => g.id);
       const collapse = rng.chance(0.4) ? ("all" as const) : rng.sample(groups, rng.int(1, groups.length));
       const label = caseLabel(seed, `collapse ${JSON.stringify(collapse)}`);
@@ -393,8 +393,9 @@ const MAXIMA = ["cases", "share"];
  * maxima, other metrics weighted means, internal transitions land in
  * `internalCount`." The weights are not documented, so a mean is only required to
  * lie between the values it averages. Counts here are `count` and `events`, the
- * only ones the generators make. Once any group collapses, edges of one kind
- * between the same two shown nodes are merged, also where neither end collapsed.
+ * only ones the generators make. Internal transitions are the follows edges
+ * inside a stage, by their count or else their cases; edges of one kind between
+ * the same two shown nodes are merged where one end is a collapsed stage.
  */
 function checkCollapse(graph: FlowGraph, collapse: string[] | "all", result: FlowGraph, label: string) {
   const groups = new Map((graph.groups ?? []).map((g) => [g.id, g]));
@@ -433,8 +434,14 @@ function checkCollapse(graph: FlowGraph, collapse: string[] | "all", result: Flo
   const parallel = new Map<string, FlowEdge[]>();
   for (const e of graph.edges) {
     const [s, t] = [target(e.source), target(e.target)];
-    if (s === t && rootOf.get(e.source) && rootOf.get(e.target)) internal.set(s, (internal.get(s) ?? 0) + e.metrics!.count);
-    else parallel.set(JSON.stringify([e.kind, s, t]), [...(parallel.get(JSON.stringify([e.kind, s, t])) ?? []), e]);
+    const transitions = e.kind === "follows" ? (value(e.metrics, "count") ?? value(e.metrics, "cases")) : undefined;
+    if (s === t && rootOf.get(e.source) && rootOf.get(e.target)) {
+      if (transitions !== undefined) internal.set(s, (internal.get(s) ?? 0) + transitions);
+      continue;
+    }
+    // An edge between two nodes outside every collapsed stage stays itself.
+    const key = JSON.stringify(rootOf.get(e.source) || rootOf.get(e.target) ? [e.kind, s, t] : [e.kind, s, t, e.id]);
+    parallel.set(key, [...(parallel.get(key) ?? []), e]);
   }
   const nodes = new Map(result.nodes.map((n) => [n.id, n]));
   for (const root of requested.filter((id) => outermost(id) === id)) {
@@ -454,14 +461,14 @@ function checkCollapse(graph: FlowGraph, collapse: string[] | "all", result: Flo
   expect(result.edges.length, `${label}: one edge per kind and pair`).toBe(parallel.size);
   const targets = result.meta?.collapsedEdgeTargets as Record<string, string>;
   for (const [key, list] of parallel) {
-    const [kind, source, target] = JSON.parse(key) as [string, string, string];
-    const merged = result.edges.find((e) => e.kind === kind && e.source === source && e.target === target);
+    const [kind, source, target, id] = JSON.parse(key) as [string, string, string, string?];
+    const merged = result.edges.find((e) => e.kind === kind && e.source === source && e.target === target && (id === undefined || e.id === id));
     expect(merged, `${label}: edge ${key}`).toBeDefined();
     for (const e of list) expect(targets[e.id], `${label}: ${e.id} shown as`).toBe(merged!.id);
     if (list.length === 1) expect(merged, `${label}: ${list[0].id} unchanged`).toEqual({ ...list[0], source, target });
     else expectMerged(`edge ${merged!.id}`, merged!.metrics, list.map((e) => e.metrics), []);
   }
-  for (const [root] of internal) for (const e of graph.edges) if (target(e.source) === root && target(e.target) === root && rootOf.get(e.source)) expect(targets[e.id], `${label}: ${e.id} inside`).toBe(root);
+  for (const e of graph.edges) if (rootOf.get(e.source) && target(e.source) === target(e.target)) expect(targets[e.id], `${label}: ${e.id} inside`).toBe(target(e.source));
   // Every transition is still counted once: on an edge or inside a stage.
   const counted = (g: FlowGraph) => g.edges.filter((e) => e.kind === "follows").reduce((sum, e) => sum + (e.metrics?.count ?? 0), 0);
   const inside = result.nodes.reduce((sum, n) => sum + (n.kind === "stage" ? (n.metrics?.internalCount ?? 0) : 0), 0);

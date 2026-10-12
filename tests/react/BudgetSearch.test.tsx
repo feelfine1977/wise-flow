@@ -64,7 +64,7 @@ const note = () => screen.queryByTestId("wf-edge-note")?.textContent ?? undefine
 const rfEdges = (container: HTMLElement) => [...container.querySelectorAll(".react-flow__edge")].map((e) => e.getAttribute("data-id")!).sort();
 /** The note's text by hand, with the English grouping of thousands. */
 const group = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-const noteText = (shown: number, total: number) => `Showing ${group(shown)} of ${group(total)} flows`;
+const noteText = (shown: number, total: number, highlighted = 0) => `Showing ${group(shown)} of ${group(total)} flows${highlighted ? `, ${group(highlighted)} highlighted not shown` : ""}`;
 
 /** The note a PNG export without its legend writes, if any. */
 function pngNote(scene: Parameters<typeof toPNGCanvas>[0], edgeBudget: ShownEdges | undefined): string | undefined {
@@ -133,7 +133,7 @@ describe("the Canvas map and the React Flow map agree on the drawn set", () => {
         return useFlowElements({ enabled: true, scene, graph, positions: scene.positions, descriptions, selection, hovered: null, focused, bright: undefined, locale: "en", activityLabels: undefined, nodesDraggable: false, edgeBudget: budget, highlighted });
       });
       const flowIds = result.current.edges.map((e) => e.id).sort();
-      const flowNote = result.current.withheld && { shown: result.current.withheld.shown, total: result.current.withheld.total };
+      const flowNote = result.current.withheld && { shown: result.current.withheld.shown, total: result.current.withheld.total, highlightedNotShown: result.current.withheld.highlightedNotShown };
       unmount();
 
       // The Canvas map's renderer on the retained scene, at rest.
@@ -150,10 +150,12 @@ describe("the Canvas map and the React Flow map agree on the drawn set", () => {
       renderer.dispose();
 
       expect(canvasIds, label).toEqual(flowIds);
-      expect(withheld && { shown: withheld.shown, total: withheld.total }, label).toEqual(flowNote);
-      // Both count what they drew and the paths that loop on one activity, and withhold only when they drew less than everything.
+      expect(withheld && { shown: withheld.shown, total: withheld.total, highlightedNotShown: withheld.highlightedNotShown }, label).toEqual(flowNote);
+      // Both count what they drew and the paths that loop on one activity, and the highlighted edges they did not draw, and withhold only when they drew less than everything.
       const loops = graph.edges.filter((e) => e.source === e.target && positions.nodes[e.source]).length;
-      if (flowNote) expect(flowNote, label).toEqual({ shown: flowIds.length + loops, total: ids.length + loops });
+      const exempt = new Set([...selection.edges, ...(focused ? [focused] : [])]);
+      const highlightedNotShown = ids.filter((id) => highlighted?.has(id) && !exempt.has(id) && !flowIds.includes(id)).length;
+      if (flowNote) expect(flowNote, label).toEqual({ shown: flowIds.length + loops, total: ids.length + loops, highlightedNotShown });
       else expect(flowIds.length, label).toBe(ids.length);
     }
   }, TIMEOUT);
@@ -195,7 +197,9 @@ describe("the Canvas map and the React Flow map agree on the drawn set", () => {
       expect(flowReport && [...flowReport.edges].sort(), label).toEqual(flowIds);
       expect(canvasReport && [...canvasReport.edges].sort(), label).toEqual(flowIds);
       expect(canvasReport!.total, label).toBe(flowReport!.total);
-      expect(flowNote, label).toBe(noteText(flowIds.length, ids.length));
+      // A focus highlights the paths into and out of its activity: those not drawn are counted.
+      const focusPaths = graph.edges.filter((e) => focus !== undefined && (e.source === focus || e.target === focus)).map((e) => e.id);
+      expect(flowNote, label).toBe(noteText(flowIds.length, ids.length, focusPaths.filter((id) => !flowIds.includes(id) && !selection.edges.includes(id)).length));
     } else {
       expect(flowIds.length, label).toBe(ids.length);
       expect(flowReport, label).toBeUndefined();

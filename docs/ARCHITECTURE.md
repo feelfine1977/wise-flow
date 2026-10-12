@@ -118,14 +118,26 @@ groups into stage nodes (semantic zoom) and restores connectivity: first a
 maximum spanning forest over the strongest direct edges between the kept
 nodes, then the cheapest paths of the original graph through removed nodes,
 then one edge per activity that lost all incoming or all outgoing paths.
+Keep connected joins only the main part of the input: the paths through
+removed nodes start from the heaviest kept component and follow the input's
+edges, so in another part of the input the kept activities are joined only
+by direct edges between them. It restores flow context only from activities
+still on the map: the one edge comes from or goes to a node on the map, so
+an activity whose paths all came from removed activities gets none, and the
+map can stay in one piece with an activity that no path from the start
+reaches. The detail shares (below) keep every shown activity on a way from a
+start to an end instead.
 A re-added activity brings back its constraint and flow edges to elements on
 the map; constraint and flow edges otherwise go only with an element at one
 of their ends, and `meta.abstraction.removedEdges` counts them.
 Re-added elements are tagged `reconnected` and drawn dashed. A collapsed
 stage takes the maximum of its activities' `cases` and `share` and weighted
 means of other metrics; the graph holds no case sets, so these are not the
-stage's own numbers. The result keeps the values and marks them in
-`metricBasis` (`atLeast`, `mean`), and every surface reads them with the
+stage's own numbers. Thresholds compare a stage by an upper bound of its
+cases instead (`meta.collapsedCasesAtMost`: its activities' cases summed, at
+most all cases of the graph), so that no stage is removed for a number that
+may be too low; detail shares rank it by its own cases. The result keeps the
+values and marks them in `metricBasis` (`atLeast`, `mean`), and every surface reads them with the
 metric registry: "at least 211,379", "lag, mean of medians". Merged parallel
 paths are marked the same way; summed counts stay exact. The thresholded
 part is monotone in the thresholds; the reconnection is bounded (paths
@@ -198,8 +210,9 @@ strength)`: 1 for the edge, so every removed node on a path adds at least 1
 most 1 more for an edge of strength 0. Constraint and flow edges have
 strength 1; self-loops never join anything. Node strength does not enter
 the cost. It only picks the component the joins start from: the one whose
-activities' strengths sum highest (events and gateways count 0; a tie goes
-to the component with the smallest node id). First the cheapest direct
+activities' strengths sum highest (events and gateways count 0, a
+collapsed stage without members less than nothing, so the joins never start
+there; a tie goes to the component with the smallest node id). First the cheapest direct
 edges between kept nodes join components, a minimum spanning forest by
 cost, then edge id. Then every join takes the component nearest to all
 that is joined so far, through its cheapest path, and re-adds the removed

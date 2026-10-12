@@ -1,6 +1,7 @@
 /** BPMN 2.0 XML export of a BPMN-lite graph with diagram interchange; the `wise` extension makes the round trip lossless. */
 import { type Box, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Positions, createPositions, edgePoints, hasTag } from "../core/index.js";
 import { finitePositions } from "../core/layout.js";
+import { assertExportable } from "../core/model.js";
 import { type BpmnLayoutOptions, POOL_ID, layoutBpmn } from "./layout.js";
 import { type IdMap, createIdMap } from "./ids.js";
 import { type BpmnModdleInstance, type ModdleElement, createModdle, typeOfTag } from "./moddle.js";
@@ -119,6 +120,7 @@ function connect(source: ModdleElement, target: ModdleElement, flow: ModdleEleme
  * original is kept in `wise:flowId`.
  */
 export async function exportBpmn(graph: FlowGraph, options: ExportBpmnOptions = {}): Promise<BpmnExport> {
+  assertExportable(graph);
   // The DI carries two decimals; the returned positions are the ones written.
   const positions = roundPositions(finitePositions(options.positions ?? (await layoutBpmn(graph, options.layout))));
   const moddle = createModdle();

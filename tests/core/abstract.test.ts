@@ -384,8 +384,8 @@ describe("abstract", () => {
     expect(abstract(g, { minNodeShare: 0.5, keepConnected: false }).meta?.abstraction).toMatchObject({ removedEdges: { flow: 1 } });
   });
 
-  it("finding: compares a collapsed stage by the largest of its activities' cases, a lower bound of the cases that touch it", () => {
-    // A stage of four activities with 25 different cases each, which 100 cases touch, and an activity X of 100 cases.
+  it("compares a collapsed stage by an upper bound of the cases that touch it: its activities' cases summed, at most all cases", () => {
+    // A stage of four activities with 25 cases each, which up to 100 cases touch, and an activity X of 100 cases.
     const g: FlowGraph = {
       nodes: [
         ...["p", "q", "r", "t"].map((id): FlowNode => ({ id, kind: "activity", label: id, group: "S", metrics: { cases: 25, events: 25 } })),
@@ -394,11 +394,25 @@ describe("abstract", () => {
       edges: ["p", "q", "r", "t"].map((id): FlowEdge => ({ id: `X${id}`, kind: "follows", source: "X", target: id, metrics: { count: 25, cases: 25 } })),
       groups: [{ id: "S", kind: "stage", label: "Stage" }],
     };
-    expect(collapseGroups(g, "all").nodes.find((n) => n.id === "S")?.metrics).toMatchObject({ cases: 25, events: 100 });
-    // At 50 % the stage reads 25 of 100 and goes, with and without keepConnected; X stays alone.
-    for (const keepConnected of [true, false]) expect(abstract(g, { collapse: "all", minNodeShare: 0.5, keepConnected }).nodes.map((n) => n.id)).toEqual(["X"]);
-    // By its events, which add up, the stage reads 100 of 100 and stays.
-    expect(abstract(g, { collapse: "all", minNodeShare: 0.5, nodeMetric: "events" }).nodes.map((n) => n.id)).toEqual(["S", "X"]);
+    // The stage still prints the largest of its activities' cases, at least 25; the bound is 100.
+    const collapsed = collapseGroups(g, "all");
+    expect(collapsed.nodes.find((n) => n.id === "S")).toMatchObject({ metrics: { cases: 25, events: 100 }, metricBasis: { cases: "atLeast" } });
+    expect(collapsed.meta?.collapsedCasesAtMost).toEqual({ S: 100 });
+    // At 50 % the stage reads 100 of 100 and stays, with and without keepConnected, collapsed in one call or before.
+    for (const keepConnected of [true, false]) {
+      expect(abstract(g, { collapse: "all", minNodeShare: 0.5, keepConnected }).nodes.map((n) => n.id)).toEqual(["S", "X"]);
+      expect(abstract(collapsed, { minNodeShare: 0.5, keepConnected }).nodes.map((n) => n.id)).toEqual(["S", "X"]);
+    }
+    // All cases of the graph bound it too: 90 of them, so the stage reads 90 against X's 100 and goes at 95 %.
+    const ninety = { ...g, meta: { cases: 90 } };
+    expect(collapseGroups(ninety, "all").meta?.collapsedCasesAtMost).toEqual({ S: 90 });
+    expect(abstract(ninety, { collapse: "all", minNodeShare: 0.95 }).nodes.map((n) => n.id)).toEqual(["X"]);
+    expect(abstract(g, { collapse: "all", minNodeShare: 0.95 }).nodes.map((n) => n.id)).toEqual(["S", "X"]);
+    // Detail shares rank the stage by its own cases, 25, below X: half of the two activities shows X alone.
+    expect(abstract(g, { collapse: "all", activityDetail: 0.5 }).nodes.map((n) => n.id)).toEqual(["X"]);
+    // Collapsed again inside a larger stage, the inner stage counts by its bound: 100 + 100.
+    const nested: FlowGraph = { ...g, nodes: g.nodes.map((n) => (n.id === "X" ? { ...n, group: "T" } : n)), groups: [{ id: "T", kind: "stage", label: "Outer" }, { id: "S", kind: "stage", label: "Stage", parent: "T" }] };
+    expect(collapseGroups(collapseGroups(nested, ["S"]), ["T"]).meta?.collapsedCasesAtMost).toEqual({ S: 100, T: 200 });
   });
 
   it("collapses stage groups into stage nodes with summed counts", () => {
@@ -609,26 +623,34 @@ describe("abstract: small and degenerate graphs", () => {
   });
 });
 
-describe("abstract: findings", () => {
-  it("finding: counts a constraint edge, a flow edge and a follows edge without a count inside a collapsed stage as one transition each", () => {
-    // Only a->b's 5 are observed transitions; the constraint, the flow and the uncounted self-loop add 1 each.
+describe("abstract: collapsed stages and keep connected", () => {
+  it("counts only the follows edges inside a collapsed stage, by their count or else their cases, as its internal transitions", () => {
+    // Stage s: a->b counts 5 and the self-loop b->b gives 6 cases; the constraint, the flow and the follows edge b->a
+    // without a count or cases count nothing. Stage t holds only a constraint: no transition, so no internalCount.
     const graph: FlowGraph = {
-      nodes: [{ id: "a", kind: "activity", label: "A", group: "s" }, { id: "b", kind: "activity", label: "B", group: "s" }],
+      nodes: [
+        { id: "a", kind: "activity", label: "A", group: "s" },
+        { id: "b", kind: "activity", label: "B", group: "s" },
+        { id: "c", kind: "activity", label: "C", group: "t" },
+        { id: "d", kind: "activity", label: "D", group: "t" },
+      ],
       edges: [
         { id: "a->b", kind: "follows", source: "a", target: "b", metrics: { count: 5 } },
         { id: "k", kind: "constraint", source: "a", target: "b" },
         { id: "f", kind: "flow", source: "b", target: "a" },
-        { id: "b->b", kind: "follows", source: "b", target: "b", metrics: { cases: 4 } },
+        { id: "b->b", kind: "follows", source: "b", target: "b", metrics: { cases: 6 } },
+        { id: "b->a", kind: "follows", source: "b", target: "a" },
+        { id: "c~d", kind: "constraint", source: "c", target: "d" },
       ],
-      groups: [{ id: "s", kind: "stage", label: "S" }],
+      groups: [{ id: "s", kind: "stage", label: "S" }, { id: "t", kind: "stage", label: "T" }],
     };
-    expect(collapseGroups(graph, ["s"]).nodes[0].metrics?.internalCount).toBe(8);
+    const stages = collapseGroups(graph, ["s", "t"]).nodes;
+    expect(stages.map((n) => [n.id, n.metrics?.internalCount])).toEqual([["s", 11], ["t", undefined]]);
   });
 
-  it("finding: a collapsed group without members can be where the joining starts, and then nothing is joined", () => {
-    // The empty group becomes a stage node without metrics, so of strength 1: heavier than m (100 of
-    // 151 cases) and n (50 of 151). The joining starts there, reaches nothing, and m and n, joined
-    // through r in the input, stay apart.
+  it("weighs a collapsed stage without members as nothing, so that the joining never starts there", () => {
+    // The empty group becomes a stage node without metrics, which no threshold removes. m (100 of 151 cases) is
+    // the heaviest part, so the joining starts there and re-adds r to join n (50 of 151), as in the input.
     const graph: FlowGraph = {
       nodes: activities({ m: 100, n: 50, r: 1 }),
       edges: follows([["m", "r", 10], ["r", "n", 10]]),
@@ -636,23 +658,32 @@ describe("abstract: findings", () => {
     };
     expect(isConnected(graph)).toBe(true);
     const g = abstract(graph, { relativeTo: "total", minNodeShare: 0.1, collapse: ["empty"] });
-    expect([g.nodes.map((n) => n.id).sort(), g.edges, readded(g)]).toEqual([["empty", "m", "n"], [], []]);
+    expect([g.nodes.map((n) => n.id).sort(), g.edges.map((e) => e.id), readded(g)]).toEqual([["empty", "m", "n", "r"], ["m->r", "r->n"], ["m->r", "r", "r->n"]]);
+    // Only empty stages: nothing to join, and the result keeps them.
+    const empty: FlowGraph = { nodes: [], edges: [], groups: [{ id: "e1", kind: "stage", label: "E1" }, { id: "e2", kind: "stage", label: "E2" }] };
+    expect(abstract(empty, { minNodeShare: 0.5, collapse: "all" }).nodes.map((n) => n.id)).toEqual(["e1", "e2"]);
   });
 
-  it("finding: the kept activities of a second input component are not joined through its removed ones", () => {
+  it("joins only the main part of the input, not the kept activities of another part through its removed ones, as the documents say", () => {
     const graph: FlowGraph = {
       nodes: activities({ m: 100, n: 100, x: 50, y: 50, r: 1 }),
       edges: follows([["m", "n", 100], ["x", "r", 100], ["r", "y", 100]]),
     };
     const g = abstract(graph, { minNodeShare: 0.3 });
     expect([g.nodes.map((n) => n.id), g.edges.map((e) => e.id), readded(g)]).toEqual([["m", "n", "x", "y"], ["m->n"], []]);
+    for (const doc of ["ARCHITECTURE", "API"]) {
+      const text = readFileSync(new URL(`../../docs/${doc}.md`, import.meta.url), "utf8").replace(/\s+/g, " ");
+      expect(text, doc).toContain("Keep connected joins only the main part of the input");
+    }
   });
 
-  it("finding: collapsing a stage merges parallel edges between nodes outside it and keeps no payload", () => {
+  it("merges only the parallel edges with an end in a collapsed stage, and leaves those between other nodes as they are", () => {
+    // k1 and k2 run between b and c, outside every collapsed stage: they stay, each with its payload. a->c and a2->c
+    // run from stage s to c and merge into s->c, their counts summed.
     const graph: FlowGraph = {
-      nodes: [{ id: "a", kind: "activity", label: "A", group: "s" }, ...activities({ b: 1, c: 1 })],
+      nodes: [{ id: "a", kind: "activity", label: "A", group: "s" }, { id: "a2", kind: "activity", label: "A2", group: "s" }, ...activities({ b: 1, c: 1 })],
       edges: [
-        ...follows([["a", "b", 3]]),
+        ...follows([["a", "b", 3], ["a", "c", 2], ["a2", "c", 4]]),
         { id: "k1", kind: "constraint", source: "b", target: "c", payload: { constraintId: "first" } },
         { id: "k2", kind: "constraint", source: "b", target: "c", payload: { constraintId: "second" } },
       ],
@@ -661,8 +692,10 @@ describe("abstract: findings", () => {
     const shown = collapseGroups(graph, ["s"]);
     expect(shown.edges).toEqual([
       { id: "a->b", kind: "follows", source: "s", target: "b", metrics: { count: 3 } },
-      { id: "b->c", kind: "constraint", source: "b", target: "c", metrics: {}, tags: [] },
+      { id: "s->c", kind: "follows", source: "s", target: "c", metrics: { count: 6 }, tags: [] },
+      graph.edges[3],
+      graph.edges[4],
     ]);
-    expect(shown.meta?.collapsedEdgeTargets).toMatchObject({ k1: "b->c", k2: "b->c" });
+    expect(shown.meta?.collapsedEdgeTargets).toEqual({ "a->b": "a->b", "a->c": "s->c", "a2->c": "s->c", k1: "k1", k2: "k2" });
   });
 });

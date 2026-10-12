@@ -29,7 +29,10 @@ export interface AbstractOptions {
   minEdgeShare?: number;
   /** Activities and stages whose relative strength is below this share are removed. 0 keeps every node. */
   minNodeShare?: number;
-  /** Re-add the strongest removed elements until the map is connected again. Default `true`. */
+  /**
+   * Re-add the strongest removed elements until the main part of the input is connected again, and restore flow
+   * context from activities still on the map. Default `true`.
+   */
   keepConnected?: boolean;
   /** Group ids to collapse into one stage node each; `"all"` collapses every stage group. */
   collapse?: string[] | "all" | false;
@@ -87,18 +90,26 @@ function firstMetric(el: { metrics?: Metrics }, candidates: string[]): number | 
 /** Summed in ascending order, which no input order changes. */
 const total = (values: number[]) => values.sort((a, b) => a - b).reduce((sum, v) => sum + v, 0);
 
-/** The relative strength of every element that has one of the metrics, as `strengths` computes it. */
-function measuredStrengths<T extends { id: string; metrics?: Metrics }>(items: T[], candidates: string[], relativeTo: "max" | "total"): Map<string, number> {
+/**
+ * The relative strength of every element that has one of the metrics, as `strengths` computes it. An element
+ * measured by its cases that has an upper bound of them (a collapsed stage) is compared by it, against the same
+ * maximum or total.
+ */
+function measuredStrengths<T extends { id: string; metrics?: Metrics }>(items: T[], candidates: string[], relativeTo: "max" | "total", upper?: Record<string, unknown>): Map<string, number> {
   const values = new Map<string, number>();
+  const bounds = new Map<string, number>();
   let max = 0;
   for (const it of items) {
-    const v = firstMetric(it, candidates);
-    if (v === undefined) continue;
+    const name = candidates.find((c) => Number.isFinite(it.metrics?.[c]));
+    if (name === undefined) continue;
+    const v = it.metrics![name];
+    const bound = name === "cases" ? upper?.[it.id] : undefined;
     values.set(it.id, Math.max(0, v));
     max = Math.max(max, v);
+    if (typeof bound === "number" && bound > v) bounds.set(it.id, bound);
   }
   const denominator = relativeTo === "max" ? max : total([...values.values()]);
-  for (const [id, v] of values) values.set(id, denominator <= 0 ? 1 : v / denominator);
+  for (const [id, v] of values) values.set(id, denominator <= 0 ? 1 : (bounds.get(id) ?? v) / denominator);
   return values;
 }
 
@@ -165,9 +176,11 @@ function sumMetrics(unordered: { id: string; metrics?: Metrics; metricBasis?: Pa
 
 /**
  * Collapse the members of the given stage groups into one `stage` node per group.
- * The stage node takes the group's id and label. Internal edges are dropped and
- * counted in the stage node's `internalCount`; parallel edges are merged (counts
- * summed, cases and shares taken as the maximum, other metrics averaged by weight).
+ * The stage node takes the group's id and label. Internal edges are dropped; the
+ * follows edges among them are counted in the stage node's `internalCount` by their
+ * count, else their cases. Parallel edges with an end in a collapsed stage are merged
+ * (counts summed, cases and shares taken as the maximum, other metrics averaged by
+ * weight); those between other nodes stay as they are.
  * Of more than one merged element, the maximum of cases and share is marked a lower
  * bound and an average a mean (`metricBasis`); the values themselves are not changed.
  * Overlays remain separate: member/internal-edge targets move to the stage and
@@ -194,6 +207,8 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
   const rootOf = (groupId: string): string | undefined => chainOf(groupId).filter((g) => collapsedRoots.has(g.id)).pop()?.id;
   const roots = requested.filter((id) => rootOf(id) === id);
   const collapsedMembers = new Map(Object.entries((graph.meta?.collapsedMembers ?? {}) as Record<string, string[]>));
+  const casesAtMost = new Map(Object.entries((graph.meta?.collapsedCasesAtMost ?? {}) as Record<string, number>));
+  const allCases = graph.meta?.cases;
   const nodeTarget = new Map<string, string>();
   const membersOf = new Map<string, FlowNode[]>();
   for (const n of graph.nodes) {
@@ -219,6 +234,12 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
     const members = membersOf.get(root)!;
     collapsedMembers.set(root, [...new Set(members.flatMap((member) => collapsedActivityIds(graph, member.id) ?? (member.kind === "activity" ? [member.id] : [])))]);
     const { metrics, basis } = sumMetrics(members, ["cases", "events"]);
+    // An upper bound of the cases that touch the stage: its members' cases (an inner stage's bound) summed, at most all cases.
+    const cases = members.flatMap((m) => {
+      const v = casesAtMost.get(m.id) ?? m.metrics?.cases;
+      return Number.isFinite(v) ? [Math.max(0, v!)] : [];
+    });
+    if (cases.length) casesAtMost.set(root, Math.max(metrics.cases ?? 0, Math.min(total(cases), Number.isFinite(allCases) ? (allCases as number) : Infinity)));
     nodes.push({
       id: root,
       kind: "stage",
@@ -241,22 +262,28 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
   const edgeTarget = new Map<string, string>();
   const internal = new Map<string, number[]>();
   const order: string[] = [];
-  for (const e of graph.edges) {
+  graph.edges.forEach((e, i) => {
     const s = nodeTarget.get(e.source) ?? e.source;
     const t = nodeTarget.get(e.target) ?? e.target;
+    const inStage = nodeTarget.has(e.source) || nodeTarget.has(e.target);
     if (s === t && nodeTarget.has(e.source) && nodeTarget.has(e.target)) {
-      if (!internal.has(s)) internal.set(s, []);
-      internal.get(s)!.push(metric(e, "count", 1));
+      // Only follows edges are transitions, counted by their count or else their cases.
+      const v = e.kind === "follows" ? firstMetric(e, ["count", "cases"]) : undefined;
+      if (v !== undefined) {
+        if (!internal.has(s)) internal.set(s, []);
+        internal.get(s)!.push(v);
+      }
       edgeTarget.set(e.id, s);
-      continue;
+      return;
     }
-    const key = JSON.stringify([e.kind, s, t]);
+    // Only edges with an end in a collapsed stage merge.
+    const key = inStage ? JSON.stringify([e.kind, s, t]) : String(i);
     if (!merged.has(key)) {
       merged.set(key, []);
       order.push(key);
     }
-    merged.get(key)!.push({ ...e, source: s, target: t });
-  }
+    merged.get(key)!.push(inStage ? { ...e, source: s, target: t } : e);
+  });
   // Keep singleton ids unchanged and reserve node/group ids to avoid ambiguous targets.
   const usedIds = new Set([...nodes.map((n) => n.id), ...(graph.groups ?? []).map((g) => g.id), ...[...merged.values()].filter((list) => list.length === 1).map((list) => list[0].id)]);
   // Merged edges are named in the order of their smallest original id.
@@ -320,7 +347,7 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
     edges,
     groups: (graph.groups ?? []).filter((g) => !collapsedAll.has(g.id)),
     overlays,
-    meta: { ...(graph.meta ?? {}), collapsed: roots, collapsedMembers: Object.fromEntries(collapsedMembers), collapsedEdgeTargets: Object.fromEntries(collapsedEdgeTargets) },
+    meta: { ...(graph.meta ?? {}), collapsed: roots, collapsedMembers: Object.fromEntries(collapsedMembers), collapsedEdgeTargets: Object.fromEntries(collapsedEdgeTargets), ...(casesAtMost.size && { collapsedCasesAtMost: Object.fromEntries(casesAtMost) }) },
   };
 }
 
@@ -409,10 +436,10 @@ const sideA = (candidates: string[]) => candidates.map((c) => `a_${c}`);
  * comparison the larger of side b's and side a's (`a_<metric>`), each relative to
  * its own side. An element neither side measured has no entry.
  */
-function strengthsOf<T extends { id: string; metrics?: Metrics }>(items: T[], candidates: string[], relativeTo: "max" | "total", comparison: boolean): Map<string, number> {
+function strengthsOf<T extends { id: string; metrics?: Metrics }>(items: T[], candidates: string[], relativeTo: "max" | "total", comparison: boolean, upper?: Record<string, unknown>): Map<string, number> {
   const out = new Map<string, number>();
   for (const side of comparison ? [candidates, sideA(candidates)] : [candidates]) {
-    for (const [id, v] of measuredStrengths(items, side, relativeTo)) out.set(id, Math.max(out.get(id) ?? 0, v));
+    for (const [id, v] of measuredStrengths(items, side, relativeTo, upper)) out.set(id, Math.max(out.get(id) ?? 0, v));
   }
   return out;
 }
@@ -444,7 +471,9 @@ export function thresholded(graph: FlowGraph, options: AbstractOptions = {}): Th
     }
   }
   const scalable = base.nodes.filter((n) => !isStructuralNode(n));
-  const nodeStrength = strengthsOf(scalable, nodeCandidates, relativeTo, comparison);
+  // Thresholds compare a collapsed stage by an upper bound of its cases; detail shares rank it by its own.
+  const byDetail = options.activityDetail !== undefined || options.pathDetail !== undefined;
+  const nodeStrength = strengthsOf(scalable, nodeCandidates, relativeTo, comparison, byDetail ? undefined : (base.meta?.collapsedCasesAtMost as Record<string, unknown> | undefined));
   const unmeasured = new Set([...base.edges.filter((e) => !edgeRank.has(e.id)), ...scalable.filter((n) => !nodeStrength.has(n.id))].map((el) => el.id));
   const edgeStrength = new Map(base.edges.map((e) => [e.id, Math.min(1, edgeRank.get(e.id) ?? 1)]));
   for (const n of base.nodes) if (!nodeStrength.has(n.id)) nodeStrength.set(n.id, 1);
@@ -474,7 +503,9 @@ const tagged = <T extends FlowNode | FlowEdge>(el: T): T => ({ ...el, tags: [...
 /**
  * Step 1 of the reconnection (docs/ARCHITECTURE.md §2.2): the cheapest direct edges
  * join components, then one search grows the heaviest component and takes in the
- * nearest other one at a time, from all that is joined at distance 0.
+ * nearest other one at a time, from all that is joined at distance 0. The search
+ * follows the input's edges, so it joins only the part of the input the heaviest
+ * component lies in.
  */
 export function joinComponents({ base, nodes: keptNodes, edges: keptEdges, edgeStrength, nodeStrength }: Thresholded): { nodes: FlowNode[]; edges: FlowEdge[] } {
   const byNodeId = new Map(base.nodes.map((n) => [n.id, n]));
@@ -512,18 +543,20 @@ export function joinComponents({ base, nodes: keptNodes, edges: keptEdges, edgeS
     .sort((a, b) => cost(a) - cost(b) || byId(a, b));
   for (const e of direct) if (union(e.source, e.target)) addEdge(e);
 
-  // Components by their smallest node id, weighed by the strength of their activities.
+  // Components by their smallest node id, weighed by the strength of their activities and stages; events and gateways
+  // weigh nothing, and a collapsed stage without members less, so that the joins never start there.
   const members = new Map<string, string[]>();
   const weight = new Map<string, number>();
   for (const id of [...nodeIds].sort()) {
     const root = find(id);
+    const n = byNodeId.get(id)!;
     if (!members.has(root)) members.set(root, []);
     members.get(root)!.push(id);
-    weight.set(root, (weight.get(root) ?? 0) + (isStructuralNode(byNodeId.get(id)!) ? 0 : (nodeStrength.get(id) ?? 1)));
+    weight.set(root, (weight.get(root) ?? 0) + (isStructuralNode(n) ? 0 : n.kind === "stage" && metric(n, "members", 1) === 0 ? -1 : (nodeStrength.get(id) ?? 1)));
   }
   if (members.size < 2) return { nodes, edges };
   let main = "";
-  let heaviest = -1;
+  let heaviest = -Infinity;
   for (const [root, w] of weight) if (w > heaviest) [main, heaviest] = [root, w];
 
   const adjacency = undirectedAdjacency(base.edges, new Set(byNodeId.keys())).neighbours;
@@ -585,12 +618,13 @@ export function joinComponents({ base, nodes: keptNodes, edges: keptEdges, edgeS
 }
 
 /**
- * Step 2 of the reconnection: every kept activity keeps flow context, an incoming
- * and an outgoing edge where the original graph had one. Open needs (a node without
- * incoming or without outgoing edges) are served by the original edge that closes
- * the most needs at once, then by strength, so that one edge serving two nodes is
- * never replaced by two edges. Nodes re-added by step 1 are reconnection artefacts
- * and are left as they are. Both rules keep the result monotone in the thresholds.
+ * Step 2 of the reconnection: flow context, from nodes still on the map only. A kept
+ * activity without incoming (outgoing) edges gets an original edge from (to) a node
+ * on the map where there is one; one whose edges all came from removed nodes stays
+ * without. Open needs are served by the original edge that closes the most needs at
+ * once, then by strength, so that one edge serving two nodes is never replaced by
+ * two edges. Nodes re-added by step 1 are reconnection artefacts and are left as they
+ * are. Both rules keep the result monotone in the thresholds.
  */
 function restoreFlowContext(
   { base, nodes: keptNodes, edgeStrength }: Thresholded,

@@ -70,6 +70,7 @@
     "INDIRECT_TAG",
     "Insets",
     "InteractiveState",
+    "InvalidGraphError",
     "LABEL_PX",
     "LagClause",
     "LaneBand",

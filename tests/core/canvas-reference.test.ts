@@ -115,7 +115,8 @@ const visibleExtent = (view: View): Extent => {
 };
 
 // ---------------------------------------------------------------------------
-// The edge budget, by hand: protected edges, then the heaviest by the width metric, then the id.
+// The edge budget, by hand: protected edges, then the highlighted ones, then the others, each by the width metric
+// descending, then the id.
 
 function keptEdges(scene: PreparedScene, inView: readonly number[], budget: number, state: DrawState): Set<number> | undefined {
   const name = scene.style.edgeWidth?.metric ?? "count";
@@ -125,14 +126,15 @@ function keptEdges(scene: PreparedScene, inView: readonly number[], budget: numb
   };
   const marked = (e: FlowEdge) => scene.marks.some((m) => m.edgeId === e.id || (m.overlay.kind === "arc" && m.overlay.payload?.source === e.source && m.overlay.payload?.target === e.target));
   const kept = new Set<number>();
+  const highlighted: number[] = [];
   const rest: number[] = [];
   for (const i of inView) {
     const e = scene.edges[i].edge;
-    if (marked(e) || state.selection.edges.includes(e.id) || state.focused === e.id || state.highlighted?.has(e.id)) kept.add(i);
-    else rest.push(i);
+    if (marked(e) || state.selection.edges.includes(e.id) || state.focused === e.id) kept.add(i);
+    else (state.highlighted?.has(e.id) ? highlighted : rest).push(i);
   }
-  rest.sort((a, b) => weight(scene.edges[b].edge) - weight(scene.edges[a].edge) || (scene.edges[a].edge.id < scene.edges[b].edge.id ? -1 : 1));
-  for (const i of rest.slice(0, Math.max(0, Math.floor(budget) - kept.size))) kept.add(i);
+  const heaviest = (a: number, b: number) => weight(scene.edges[b].edge) - weight(scene.edges[a].edge) || (scene.edges[a].edge.id < scene.edges[b].edge.id ? -1 : 1);
+  for (const i of [...highlighted.sort(heaviest), ...rest.sort(heaviest)].slice(0, Math.max(0, Math.floor(budget) - kept.size))) kept.add(i);
   return kept.size < inView.length ? kept : undefined;
 }
 

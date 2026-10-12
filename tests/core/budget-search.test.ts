@@ -9,10 +9,11 @@ import { shrinkCase, shrinkGraph } from "../support/shrink";
 
 // ---------------------------------------------------------------------------
 // The rule as docs/API.md states it, written here and shared with nothing under src/: protected
-// edges first (an overlay mark on the edge, selected, at the keyboard position, on a highlighted
-// path), then the weight the edge width reads descending (an edge without it last), then the id. The
-// width reads cases, or a path's transitions (count) where no path gives cases or the style names count.
-// A budget of n draws the first n edges of that order and every protected edge even beyond n.
+// edges first (an overlay mark on the edge, selected, at the keyboard position), then the edges on a
+// highlighted path, then the others, each by the weight the edge width reads descending (an edge
+// without it last), then the id. The width reads cases, or a path's transitions (count) where no path
+// gives cases or the style names count. A budget of n draws the first n edges of that order and every
+// protected edge even beyond n, and counts the highlighted edges it does not draw.
 
 interface Protection {
   selection?: { edges: readonly string[] };
@@ -31,8 +32,10 @@ function weightOf(edge: FlowEdge, metricName: string): number {
 }
 
 interface Expected {
-  /** Protected edges in view, then the heaviest others the budget has room for. */
+  /** Protected edges in view, then the heaviest highlighted and others the budget has room for. */
   drawn: string[];
+  /** The highlighted edges in view not drawn. */
+  highlightedNotShown: number;
   /** The metric the weight is read from. */
   metric: string;
   kept: number;
@@ -51,18 +54,19 @@ function expectedDrawn(graph: FlowGraph, style: StyleSpec | undefined, viewIds: 
   const given = style?.edgeWidth?.metric ?? "cases";
   const has = (name: string) => graph.edges.some((e) => e.kind !== "constraint" && typeof e.metrics?.[name] === "number" && Number.isFinite(e.metrics[name]));
   const metricName = given === "cases" && !has("cases") && has("count") ? "count" : given;
-  const isProtected = (id: string) => marked(byId.get(id)!, overlays) || !!protection.selection?.edges.includes(id) || protection.focused === id || !!protection.highlighted?.has(id);
+  const isProtected = (id: string) => marked(byId.get(id)!, overlays) || !!protection.selection?.edges.includes(id) || protection.focused === id;
   const kept = viewIds.filter(isProtected);
-  const others = viewIds
-    .filter((id) => !isProtected(id))
-    .sort((a, b) => {
-      const wa = weightOf(byId.get(a)!, metricName);
-      const wb = weightOf(byId.get(b)!, metricName);
-      if (wa !== wb) return wb > wa ? 1 : -1;
-      return a < b ? -1 : a > b ? 1 : 0;
-    });
-  const drawn = [...kept, ...others.slice(0, Math.max(0, budget - kept.length))];
-  return { drawn, metric: metricName, kept: kept.length, shown: drawn.length + loops, total: viewIds.length + loops, withheld: drawn.length < viewIds.length };
+  const heaviest = (a: string, b: string) => {
+    const wa = weightOf(byId.get(a)!, metricName);
+    const wb = weightOf(byId.get(b)!, metricName);
+    if (wa !== wb) return wb > wa ? 1 : -1;
+    return a < b ? -1 : a > b ? 1 : 0;
+  };
+  const highlighted = viewIds.filter((id) => !isProtected(id) && !!protection.highlighted?.has(id)).sort(heaviest);
+  const others = viewIds.filter((id) => !isProtected(id) && !protection.highlighted?.has(id)).sort(heaviest);
+  const drawn = [...kept, ...[...highlighted, ...others].slice(0, Math.max(0, budget - kept.length))];
+  const highlightedNotShown = highlighted.filter((id) => !drawn.includes(id)).length;
+  return { drawn, highlightedNotShown, metric: metricName, kept: kept.length, shown: drawn.length + loops, total: viewIds.length + loops, withheld: drawn.length < viewIds.length };
 }
 
 /** The note's text, by hand; every count here is below a thousand. */
@@ -204,6 +208,7 @@ const everyBudget: Check = (c) => {
     const gotIds = idsOf(scene, got);
     if (!same(gotIds, sorted(want.drawn))) return `budget ${budget} drew [${gotIds}] instead of [${sorted(want.drawn)}]`;
     if (got.shown !== want.shown || got.total !== want.total) return `budget ${budget} counts ${got.shown} of ${got.total} instead of ${want.shown} of ${want.total}`;
+    if (got.highlightedNotShown !== want.highlightedNotShown) return `budget ${budget} counts ${got.highlightedNotShown} highlighted not shown instead of ${want.highlightedNotShown}`;
   }
   for (const none of ["all", undefined, NaN] as const) {
     if (budgetEdges(scene, none, protection, inView) !== undefined) return `a budget of ${String(none)} withheld edges`;
@@ -222,7 +227,7 @@ const lowering: Check = (c) => {
       for (const i of drawn) if (!previous.has(i)) return `budget ${budget} draws ${scene.edgeMarks[i].id}, which budget ${budget + 1} did not`;
       const removed = [...previous].filter((i) => !drawn.has(i)).map((i) => scene.edgeMarks[i].id);
       if (removed.length > 1) return `lowering the budget from ${budget + 1} to ${budget} removed ${removed.length} edges: ${removed}`;
-      // The one removed is the last unprotected edge of the order drawn before; protected edges stay.
+      // The one removed is the last unprotected edge of the order drawn before (a highlighted edge only after the others); protected edges stay.
       const before = expectedDrawn(graph, style, viewIds, budget + 1, protection);
       const last = before.drawn.length > before.kept ? before.drawn[before.drawn.length - 1] : undefined;
       if (removed.length === 1 && removed[0] !== last) return `lowering the budget from ${budget + 1} to ${budget} removed ${removed[0]} instead of ${last ?? "nothing"}`;
@@ -321,6 +326,7 @@ const canvasDrawing: Check = (c) => {
   if (!want.withheld) return stats.withheld === undefined ? undefined : `the Canvas drawing with budget ${budget} withheld nothing by the rule but reported ${stats.withheld.shown} of ${stats.withheld.total}`;
   if (!stats.withheld) return `the Canvas drawing with budget ${budget} reported nothing withheld`;
   if (stats.withheld.shown !== want.shown || stats.withheld.total !== want.total) return `the Canvas drawing with budget ${budget} reported ${stats.withheld.shown} of ${stats.withheld.total} instead of ${want.shown} of ${want.total}`;
+  if (stats.withheld.highlightedNotShown !== want.highlightedNotShown) return `the Canvas drawing with budget ${budget} reported ${stats.withheld.highlightedNotShown} highlighted not shown instead of ${want.highlightedNotShown}`;
   return undefined;
 };
 

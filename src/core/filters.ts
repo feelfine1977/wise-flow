@@ -6,7 +6,16 @@ import { type FlowGraph } from "./model.js";
 import { focusMembers } from "./paths.js";
 import { type StringKey, t } from "./strings.js";
 
-export type TimeMode = "case_start" | "case_end" | "active" | "events_inside";
+/** Which timestamp of a case a time window applies to. */
+export type TimeMode =
+  | "case_start"
+  | "case_end"
+  | "active"
+  /**
+   * @deprecated The events inside the window: it cuts events out of cases, where a selection is a set of whole cases.
+   * Removed in the next minor version; use `case_start`, `case_end` or `active`, which keep whole cases.
+   */
+  | "events_inside";
 
 export interface TimeClause {
   kind: "time";

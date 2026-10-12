@@ -344,6 +344,7 @@ export type LegendItem =
        * Three values with the widths the scale draws them at: the thinnest
        * line with the largest value drawn at it (`floor`), a value near the
        * middle width and the upper end; with a `domain`, its ends and the middle.
+       * Where every path has one value, that value alone.
        */
       samples?: { value: number; width: number; floor?: boolean }[];
       /** The scale runs from 0 to the strongest path of the graph (`graph`) or to the upper end the style gives (`shared`); none with a `domain`. */
@@ -516,7 +517,10 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
     const middle = Number(s.invert((range[0] + range[1]) / 2));
     // A count near the middle width, with two significant digits; another metric as it is.
     const near = count ? roundish(middle) : middle;
-    if (floor === -Infinity) {
+    const one = extentOf(follows.map((e) => metric(e, widthSpec.metric, NaN)));
+    // Every path of one value: that one sample, at the width every path is drawn at.
+    if (one && one[0] === one[1]) samples = [{ value: one[0], width: at(one[0]) }];
+    else if (floor === -Infinity) {
       samples = [safeDomain[0], near, safeDomain[1]].map((value) => ({ value, width: at(value) }));
     } else {
       // The largest value the thinnest line stands for, where a value is drawn at it.
