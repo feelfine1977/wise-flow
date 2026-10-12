@@ -15,6 +15,7 @@ One story file per component, rendered with the design tokens of
 | `Views.stories.tsx` | four views of one map (Finance, Logistics, Compliance, Automation; tabs and grid), small multiples |
 | `TableAlternative.stories.tsx` | vendor scene as tables, map in table view |
 | `TraceTimeline.stories.tsx` | absolute time, aligned at goods receipt, table alternative |
+| `Thresholds.stories.tsx` | thresholds and sizes: the six threshold steps of the abstraction controls on a committed or generated scene (10² … 10⁷ events), keep connected and the stage view as chosen, React or Canvas map, with what the searching test measures under each map |
 
 Stories take `ProcessMap` and `ViewSwitcher` from `maps.tsx`, which passes
 them a fixed edge budget (`"all"`, unless a story passes a number), so that

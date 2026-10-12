@@ -6,7 +6,7 @@
  * lists.
  */
 import { type ActivityLabelOptions, activityReferences } from "./activity-labels.js";
-import { type EdgeMark, type NodeMark, edgeMarks, nodeMarks } from "./element-marks.js";
+import { type EdgeMark, type NodeMark, edgeMarks, estimateTextWidth, nodeMarks } from "./element-marks.js";
 import { type SceneLegend, sceneLegend } from "./figure.js";
 import type { Locale } from "./format.js";
 import { type Box, type Positions, type XY, finitePositions, unionBoxes } from "./layout.js";
@@ -91,9 +91,15 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
   const overlays = canonicalOverlays(shownOverlays(graph, options.overlays ?? graph.overlays ?? [], options, locale));
   const rules = { ...(style.lod ?? {}), ...(options.lod ?? {}) };
   const lod = options.lodBySize ? lodForSize(graph.nodes.length, rules) : { ...defaultLod, ...rules };
-  const geometry = placeOverlays(overlays, positions, { ...(options.overlayGeometry ?? {}), lod }, groupTitles(graph.groups ?? [], positions));
-  const marks = overlayMarks(geometry.shapes, locale);
   const scales = buildScales(graph, style);
+  const edges = edgeMarks(graph, positions, scales, locale);
+  // Arc labels keep clear of titles and of the paths' counts (an em above their baseline).
+  const counts = edges.flatMap((e) => e.texts.map((t) => {
+    const width = estimateTextWidth(t.text, t);
+    return { x: t.x - width / 2, y: t.y - t.size, width, height: t.size };
+  }));
+  const geometry = placeOverlays(overlays, positions, { ...(options.overlayGeometry ?? {}), lod }, [...groupTitles(graph.groups ?? [], positions), ...counts]);
+  const marks = overlayMarks(geometry.shapes, locale);
   return {
     graph,
     positions,
@@ -107,7 +113,7 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
     geometry,
     marks,
     nodeMarks: nodeMarks(graph, positions, scales, { locale, activityLabels }),
-    edgeMarks: edgeMarks(graph, positions, scales, locale),
+    edgeMarks: edges,
     legend: sceneLegend(scales.legend, overlays),
     bounds: unionBoxes([positions.bounds, ...marks.filter((m) => m.inMap).map((m) => m.box)]),
   };
