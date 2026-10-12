@@ -29,6 +29,8 @@ export interface AbstractionMeta { minEdgeShare?: number; minNodeShare?: number;
   removedEdges?: { constraint?: number; flow?: number } }   // edges removed with an element at an end; see "Aggregation"
 
 export const MAP_TARGET = "__map";      // overlay target for map-level chips
+export function hasTag(el: { tags?: string[] } | undefined, tag: string): boolean;   // the element carries the tag
+export function normalizeGraph(g: FlowGraph): FlowGraph;   // shallow copy with sorted, de-duplicated element arrays
 export function validateGraph(g: FlowGraph): GraphIssue[];
 export function validateGateways(g: FlowGraph): GraphIssue[];   // warnings: unpaired parallel gateways
 export function indexGraph(g: FlowGraph): GraphIndex;
@@ -157,6 +159,11 @@ export function abstract(g: FlowGraph, o?: AbstractOptions): FlowGraph;
 export function collapseGroups(g: FlowGraph, groups: string[] | "all"): FlowGraph;
 export function isConnected(g: FlowGraph): boolean;
 export function diff(a: FlowGraph, b: FlowGraph, o?: { metrics?: string[] }): FlowGraph;
+export function strengths<T extends { id: string; metrics?: Metrics }>(items: T[], candidates: string[],
+  relativeTo?: "max" | "total"): Map<string, number>;   // in [0, 1], from the first of `candidates` an element has; 1 without one
+export const RECONNECTED_TAG = "reconnected";   // the tag of elements `abstract` re-added
+export const COLLAPSED_TAG = "collapsed";       // the tag of the stage nodes `collapseGroups` makes
+export const DIFF_TAGS: { onlyA: "only-a"; onlyB: "only-b"; both: "both" };   // the tags `diff` puts on elements
 ```
 
 Guarantees of `abstract`: events, gateways and the ids in `keep` are never
@@ -227,6 +234,8 @@ export function layoutUnion(scenes: FlowGraph[], o?: LayoutOptions): Promise<Pos
 export function unionGraph(scenes: FlowGraph[]): FlowGraph;
 export function filterPositions(p: Positions, g: FlowGraph): Positions;
 export function coversGraph(p: Positions, g: FlowGraph): boolean;
+export function defaultNodeSize(n: FlowNode): NodeSize;   // the box of the node's kind in the token table (`DEFAULT_SIZES`)
+export function straightRoute(a: Box, b: Box): EdgeRoute;   // between the boxes' centres, clipped to their borders
 export function clearLayoutCache(key?: string): void;   // one caller key, or every cached layout
 export interface LayoutScopeOptions { maxEntries?: number }   // default 8, least recently used goes first
 export interface LayoutScope {
@@ -377,6 +386,10 @@ export type LegendItem =   // `title` is a string key for `t` (it was typed `str
   | { kind: "categorical"; title: StringKey; entries: CategoricalEntry[] };
 export const palettes: { sequential; sequentialBlue; diverging; categorical };   // colour-blind safe
 export function contrastText(background: string): string;  // ≥ 4.5 : 1 on every palette colour
+export function contrastRatio(a: string, b: string): number;   // WCAG contrast ratio of two colours
+export function hexToRgb(hex: string): [number, number, number];
+export function interpolatePalette(stops: readonly string[], t: number): string;   // piecewise linear through the stops; t clamped to [0, 1]
+export function hashKey(key: string): number;   // stable 32-bit FNV-1a hash; categorical colours and pattern twins hash their keys
 export interface LodRules { labels; edgeLabels; badges; arcs; chips; hatch; selfLoops }  // minimum zoom per element
 export function lodAt(zoom: number, rules?: Partial<LodRules>): Record<keyof LodRules, boolean>;
 export function lodForSize(nodeCount: number, base?: Partial<LodRules>): LodRules;
@@ -441,7 +454,8 @@ export interface ConstraintStats { cases?; evaluated?; violations?; violationSha
   nodeShareInScope?: Record<string, number>; [k: string]: unknown }
 export function constraintOverlays(c: ConstraintDescription, stats?: ConstraintStats,
   o?: { locale?: Locale; outOfScopeMinShare?: number; graph?: FlowGraph }): Overlay[];
-export function overlaysFor(items: { description; stats? }[], o?): Overlay[];
+export function overlaysFor(items: { description; stats? }[], o?: OverlayPresetOptions): Overlay[];
+export interface OverlayPresetOptions { locale?: Locale; outOfScopeMinShare?: number; graph?: FlowGraph }   // of overlaysFor and useOverlays
 export function canonicalOverlays(overlays: Overlay[]): Overlay[];
 export function describeOverlay(o: Overlay, locale?: Locale): string;
 export function overlayGeometry(overlays: Overlay[], positions: Positions, o?: OverlayGeometryOptions): OverlayGeometry;
@@ -569,12 +583,14 @@ their stroke of their curve (`HitItem.curve`: the cubic of the path cut into
 chords at equal steps, as many as its control polygon's length over 8 and at
 least 16, so that a chord stays within a fraction of a unit of the curve), or
 within `tolerance` of their label's box (each text 0.55 em per character
-wide, from a size above its baseline to a third of a size below). Their
-bounds are the shape's box grown by half the stroke. A node for which
-`diamond` is true (the Canvas scene passes its gateways) is hit inside its
-diamond, whose half diagonals are half the box's width, or within
+wide, from a size above its baseline to a third of a size below). A node for
+which `diamond` is true (the Canvas scene passes its gateways) is hit inside
+its diamond, whose half diagonals are half the box's width, or within
 `tolerance` of its sides: also where a gateway wider than tall reaches beyond
-its box (its bounds grow to hold the diamond), and not in the box's corners.
+its box, and not in the box's corners. The bounds of these items are their
+boxes as before; `extentOf` grows them to the drawn stroke and diamond, as
+the Canvas scene's does, so that the area search finds every point a hit
+test accepts.
 Up to this change their whole box took the hit: a path under an arc's box
 could not be hovered or clicked there (on the BPIC global scene with stage
 lanes, 1,164 of 40,000 grid points within 4 of a path and more than 8 from
@@ -607,6 +623,7 @@ export type Locale = "en" | "de";
 export function formatCount(v, locale?), formatNumber(v, decimals?, locale?), formatShare(v, locale?),
   formatDelta(v, locale?), formatHours(v, locale?), formatDays(v, locale?), formatCompact(v, locale?);
 export function t(locale: Locale, key: StringKey, vars?): string;
+export const strings: Record<Locale, Record<StringKey, string>>;   // the table `t` reads: every key in English and German
 export function metricLabel(locale: Locale, metric: string): string;
 ```
 
@@ -1571,6 +1588,18 @@ const activityLabels = {
 const nodeSize = (node: FlowNode) => activityNodeSize(node, activityLabels);
 ```
 
+The helpers the renderers share, for hosts that draw activities themselves:
+
+```ts
+export function activityLabel(n: FlowNode, o: ActivityLabelOptions): string;   // the reference ("ids") or the name ("names")
+export function activityNodeCounts(n: FlowNode, o: ActivityLabelOptions, locale?: Locale): string;   // the node's one measure: distinct cases or items
+export function activityCounts(n: FlowNode, o: ActivityLabelOptions, locale?: Locale, exact?: boolean): string;   // both measures, exact for tooltips and keys
+export function activityDescription(n: FlowNode, o: ActivityLabelOptions, locale?: Locale): string;   // reference, name and exact counts
+export function activityLabelLines(n: FlowNode, o: ActivityLabelOptions, width: number, locale?: Locale): { name: string[]; counts: string[] };
+export function activityKeyLines(g: FlowGraph, o: ActivityLabelOptions | undefined, width: number, locale?: Locale): string[];   // the exported key
+export function wrapActivityText(value: string, width: number, fontSize?: number): string[];   // deterministic, generous advances (0.7 em)
+```
+
 Use `nodeSize` when providing precomputed positions. Names reserve 280px width and enough height for wrapped text; IDs reserve 140px. Hiding counts does not change dimensions. `useStableLayout` compares resolved dimensions, so equivalent callbacks do not trigger layout. Invalidate an explicit layout cache key when its inputs change.
 
 `references` maps canonical activity IDs to display references. Persist the dictionary across filters; absent entries are retained and new entries are added without renumbering. References indicate identity, not execution order. Optional `names` supplies display aliases; the original graph is unchanged.
@@ -1592,6 +1621,7 @@ export interface FlowScene { graph; positions; bands: LaneBand[]; activityLabels
 export function buildScene(g: FlowGraph, p: Positions, o?: FlowSceneOptions): FlowScene;
 export function followsSelfLoops(g: FlowGraph, o?: { locale?: Locale; observed?: { caseLabel?: string } }): Overlay[];
 export function withFollowsSelfLoops(g: FlowGraph, overlays: Overlay[], o?: { locale?; observed? }): Overlay[];
+export function withObservedSelfLoops(g: FlowGraph, overlays: Overlay[], locale?: Locale, caseLabel?: string): Overlay[];   // with `observed`
 
 export type MarkPaint = "ink" | "inkMuted" | "paper" | "surface" | "line" | "outOfScope" | "value" | "onValue";
 export interface MarkFill { paint: MarkPaint; pattern?: "outOfScope"; opacity?: number }

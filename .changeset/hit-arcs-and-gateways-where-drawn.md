@@ -15,4 +15,3 @@ box's corners.
 New: `HitItem.curve` (an arc's or a self-loop's curve, half its stroke and
 its label's box), `HitItem.diamond`, and a sixth argument of
 `HitIndex.fromScene`, `diamond(nodeId)`, for the nodes drawn as a diamond.
-The bounds of an arc's or a self-loop's item grow by half its stroke.
