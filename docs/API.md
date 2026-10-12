@@ -1837,9 +1837,14 @@ that loop on one activity in view) and the number the map's note counts
 called while nothing was ever withheld; a host that starts listening while
 edges are withheld is told them at once. A culled Canvas map counts the edges
 in its view, so a pan can change the value. When `<ProcessMap/>` switches
-renderer (`renderer="auto"` crossing its threshold), and when it draws the
-Canvas map again after the table view, it is called with undefined and then
-with what the map then withholds, if anything.
+renderer (`renderer="auto"` crossing its threshold), it is called with
+undefined and then with what the new renderer withholds, if anything. While
+the table view is shown, which lists every path, it is called with undefined
+with either renderer, so an export taken there draws every path and no note;
+a change of the budget or the graph meanwhile tells the host nothing more, and
+once the map is shown again it is called with what the map then withholds.
+Up to this change React Flow went on reporting its budgeted set in the table
+view, and the Canvas map, unmounted there, left the host with its last report.
 
 `toSVG`, `toPNG`, `toPNGCanvas` and `toPNGDataUrl` take `edgeBudget`:
 
