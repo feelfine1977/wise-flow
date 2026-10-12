@@ -210,7 +210,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   const [keptOn, setKeptOn] = useState(false);
   const kept = statement?.kept;
   const bright = useMemo(() => (keptOn && kept?.length ? { nodes: new Set(shown.nodes.map((n) => n.id)), edges: new Set(kept) } : emphasis.bright), [keptOn, kept, shown, emphasis]);
-  // The edges of a focus of paths, and the kept paths marked, stay drawn under the edge budget.
+  // The edges of a focus of paths, and the kept paths marked, are drawn first, heaviest first, within the edge budget.
   const highlighted = (keptOn && kept?.length) || focusShown ? bright?.edges : undefined;
 
   const rf = useReactFlow();

@@ -1,4 +1,4 @@
-/** The edge budget: which of the edges in view a map draws (protected first, then by weight, then id), for every renderer. */
+/** The edge budget: which of the edges in view a map draws (protected first, then highlighted, then by weight, then id), for every renderer. */
 import type { EdgeMark } from "./element-marks.js";
 import { metric } from "./model.js";
 import type { FlowScene } from "./scene.js";
@@ -12,12 +12,15 @@ export interface ShownEdges {
   total: number;
 }
 
-/** What keeps an edge drawn under any budget, besides an overlay mark on it (one that names it, or an arc from its source to its target). */
+/**
+ * What keeps an edge drawn under any budget, besides an overlay mark on it (one that names it, or an arc from its
+ * source to its target), and what is drawn first within it.
+ */
 export interface EdgeProtection {
   selection?: { edges: readonly string[] };
   /** The element at the keyboard position. */
   focused?: string | null;
-  /** Edges on a highlighted path. */
+  /** Edges on a highlighted path (a focus of paths): drawn before the others, heaviest first, within the budget. */
   highlighted?: ReadonlySet<string>;
 }
 
@@ -31,6 +34,8 @@ export interface EdgeSelection {
   kept: number;
   /** The paths in view that loop on one activity (ids): drawn as loops, never withheld. */
   loops: readonly string[];
+  /** How many highlighted edges in view the budget withholds. */
+  highlightedNotShown: number;
 }
 
 // Per scene: each edge's rank by weight and id, and whether a mark is on it; kept with the edge marks for the
@@ -85,24 +90,28 @@ export function budgetEdges(scene: BudgetScene, budget: EdgeBudget | ShownEdges 
       if (named.has(scene.edgeMarks[i].id)) drawn.add(i);
     }
     loops = loops.filter((id) => named.has(id));
-    return drawn.size < total ? { drawn, shown: drawn.size + loops.length, total: budget.total, kept: drawn.size, loops } : undefined;
+    return drawn.size < total ? { drawn, shown: drawn.size + loops.length, total: budget.total, kept: drawn.size, loops, highlightedNotShown: 0 } : undefined;
   }
   // Not a number (NaN) withholds nothing, as "all" does.
   if (budget === undefined || budget === "all" || !(total > budget)) return undefined;
   const { rank, marked } = orderOf(scene);
   const selected = new Set(protection.selection?.edges);
   const drawn = new Set<number>();
+  const highlighted: number[] = [];
   const rest: number[] = [];
   for (let k = 0; k < total; k++) {
     const i = inView ? inView[k] : k;
     const id = scene.edgeMarks[i].id;
-    if (marked[i] || selected.has(id) || protection.focused === id || protection.highlighted?.has(id)) drawn.add(i);
-    else rest.push(i);
+    if (marked[i] || selected.has(id) || protection.focused === id) drawn.add(i);
+    else (protection.highlighted?.has(id) ? highlighted : rest).push(i);
   }
   const kept = drawn.size;
   const room = Math.floor(budget) - kept;
-  if (room > 0) for (const i of rest.sort((a, b) => rank[a] - rank[b]).slice(0, room)) drawn.add(i);
-  return drawn.size < total ? { drawn, shown: drawn.size + loops.length, total: total + loops.length, kept, loops } : undefined;
+  const byRank = (a: number, b: number) => rank[a] - rank[b];
+  // The highlighted edges first, heaviest first, then the others; both within the budget.
+  if (room > 0) for (const i of [...highlighted.sort(byRank), ...rest.sort(byRank)].slice(0, room)) drawn.add(i);
+  const highlightedNotShown = highlighted.filter((i) => !drawn.has(i)).length;
+  return drawn.size < total ? { drawn, shown: drawn.size + loops.length, total: total + loops.length, kept, loops, highlightedNotShown } : undefined;
 }
 
 /** The adaptive budget's first step; the steps are 500, 1,000, 2,000, … */

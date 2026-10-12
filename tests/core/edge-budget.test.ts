@@ -58,7 +58,7 @@ describe("edge budget", () => {
     expect(ids(scene, budgetEdges(scene, 2, {}, [6, 4, 2, 0])?.drawn)).toEqual(["e2", "e6"]);
   });
 
-  it("draws every protected edge with a budget of 0: overlay, selection, focus and highlighted path", () => {
+  it("draws every protected edge with a budget of 0: overlay, selection and focus; a highlighted path only within the budget", () => {
     // An arc from b to d is on e4; the reverse arc of it joins d to b, where there is no edge.
     const arcs: Overlay[] = [
       { kind: "arc", target: "b->d", payload: { source: "b", target: "d", value: 0.2 } },
@@ -67,8 +67,9 @@ describe("edge budget", () => {
     const marked = sceneOf(["a", "b", "c", "d"], scene.graph.edges, arcs);
     const protection = { selection: { edges: ["e0"] }, focused: "e6", highlighted: new Set(["e2", "x"]) };
     const cut = budgetEdges(marked, 0, protection);
-    expect(ids(marked, cut?.drawn)).toEqual(["e0", "e2", "e4", "e6"]);
-    expect(cut).toMatchObject({ shown: 4, total: 7 });
+    expect(ids(marked, cut?.drawn)).toEqual(["e0", "e4", "e6"]);
+    // e2 is highlighted and not drawn; x is no edge in view.
+    expect(cut).toMatchObject({ shown: 3, total: 7, kept: 3, highlightedNotShown: 1 });
     // Each rule on its own.
     expect(ids(marked, budgetEdges(marked, 0)?.drawn)).toEqual(["e4"]);
     // A mark that names the edge it stands for (as a loop's mark does) protects that edge.
@@ -76,8 +77,8 @@ describe("edge budget", () => {
     expect(ids(named, budgetEdges(named, 0)?.drawn)).toEqual(["e3"]);
     expect(ids(scene, budgetEdges(scene, 0, { selection: { edges: ["e0"] } })?.drawn)).toEqual(["e0"]);
     expect(ids(scene, budgetEdges(scene, 0, { focused: "e6" })?.drawn)).toEqual(["e6"]);
-    expect(ids(scene, budgetEdges(scene, 0, { highlighted: new Set(["e2"]) })?.drawn)).toEqual(["e2"]);
-    // Protected edges count against the budget: with 5, the four plus the heaviest other one (e5).
+    expect(ids(scene, budgetEdges(scene, 0, { highlighted: new Set(["e2"]) })?.drawn)).toEqual([]);
+    // Protected edges count against the budget: with 5, the three, then the highlighted e2, then the heaviest other one (e5).
     expect(ids(marked, budgetEdges(marked, 5, protection)?.drawn)).toEqual(["e0", "e2", "e4", "e5", "e6"]);
   });
 
@@ -220,7 +221,7 @@ const recorder = () => {
   return { ctx, calls };
 };
 
-describe("protected paths beyond the budget", () => {
+describe("highlighted paths and protected paths under the budget", () => {
   // A hub h with 30 paths to t0 … t29, counts 1 … 30; a budget of 10.
   const leaves = Array.from({ length: 30 }, (_, i) => `t${i}`);
   const paths = leaves.map((t, i) => follows(`h->${t}`, "h", t, i + 1));
@@ -231,22 +232,44 @@ describe("protected paths beyond the budget", () => {
   };
   const view = { x: 0, y: 0, zoom: 1, width: 400, height: 1600 };
   const draw = (scene: PreparedScene, state: Partial<DrawState> = {}) => drawScene(recorder().ctx, scene, view, { selection: { nodes: [], edges: [], groups: [] }, ...state }, { cull: false, edgeBudget: 10 });
+  const drawnIds = (scene: PreparedScene, state: Partial<DrawState> = {}) => {
+    const shown = budgetEdges(scene, 10, { ...state, selection: state.selection });
+    return shown && [...shown.drawn].map((i) => scene.edgeMarks[i].id).sort((a, b) => Number(a.slice(4)) - Number(b.slice(4)));
+  };
+  const ids = (from: number, to: number) => leaves.slice(from, to).map((t) => `h->${t}`);
 
-  it("draws every path of a hub when all are highlighted, and says nothing is withheld", () => {
-    const stats = draw(hub(), { highlighted: new Set(paths.map((e) => e.id)) });
-    expect([stats.edges, stats.withheld]).toEqual([30, undefined]);
+  it("draws the heaviest highlighted paths of a hub within the budget, and says how many highlighted it does not show", () => {
+    // All 30 highlighted: the 10 heaviest, t20 … t29, are drawn; the note reads 10 of 30, 20 highlighted not shown.
+    const highlighted = new Set(paths.map((e) => e.id));
+    const stats = draw(hub(), { highlighted });
+    expect([stats.edges, stats.withheld?.shown, stats.withheld?.total, stats.withheld?.highlightedNotShown, stats.kept]).toEqual([10, 10, 30, 20, 0]);
+    expect(drawnIds(hub(), { highlighted })).toEqual(ids(20, 30));
+  });
+
+  it("draws the highlighted paths before heavier ones that are not, and fills the rest of the budget by weight", () => {
+    // t0 … t4 highlighted (counts 1 … 5): all five, then the five heaviest of the rest, t25 … t29; none highlighted is left out.
+    const highlighted = new Set(ids(0, 5));
+    expect(drawnIds(hub(), { highlighted })).toEqual([...ids(0, 5), ...ids(25, 30)]);
+    expect(budgetEdges(hub(), 10, { highlighted })).toMatchObject({ shown: 10, total: 30, kept: 0, highlightedNotShown: 0 });
+    // 25 of the 30 highlighted (t5 … t29): the 10 heaviest of them, none of the other 5; 15 highlighted not shown.
+    const stats = draw(hub(), { highlighted: new Set(ids(5, 30)) });
+    expect([stats.edges, stats.withheld?.shown, stats.withheld?.total, stats.withheld?.highlightedNotShown]).toEqual([10, 10, 30, 15]);
+  });
+
+  it("keeps the selection and the keyboard position beyond the budget, and the highlighted paths take what room is left", () => {
+    // t0, t1 selected and the keyboard on t2, all 30 highlighted: those three are drawn whatever the budget, and the 7
+    // heaviest highlighted paths fill the budget of 10; 20 highlighted are not shown.
+    const state = { highlighted: new Set(paths.map((e) => e.id)), selection: { nodes: [], edges: ids(0, 2), groups: [] }, focused: "h->t2" };
+    expect(drawnIds(hub(), state)).toEqual([...ids(0, 3), ...ids(23, 30)]);
+    expect(budgetEdges(hub(), 10, state)).toMatchObject({ shown: 10, total: 30, kept: 3, highlightedNotShown: 20 });
+    // A budget of 2 below the three: still all three, and no highlighted path.
+    expect(budgetEdges(hub(), 2, state)).toMatchObject({ shown: 3, total: 30, kept: 3, highlightedNotShown: 27 });
   });
 
   it("draws every path and every mark when each path carries an overlay mark", () => {
     const arcs = leaves.map((t): Overlay => ({ kind: "arc", target: `h->${t}`, payload: { source: "h", target: t, value: 0.5 } }));
     const stats = draw(hub(arcs));
     expect([stats.edges, stats.shapes, stats.withheld]).toEqual([30, 30, undefined]);
-  });
-
-  it("counts the protected paths it draws beyond the budget in what the note shows", () => {
-    // 25 of the 30 highlighted: all 25 are drawn, none of the other 5, and the note reads 25 of 30.
-    const stats = draw(hub(), { highlighted: new Set(paths.slice(5).map((e) => e.id)) });
-    expect([stats.edges, stats.withheld?.shown, stats.withheld?.total]).toEqual([25, 25, 30]);
   });
 });
 
@@ -294,11 +317,12 @@ describe("edge budget in the Canvas drawing", () => {
     expect(budgetEdges(looped, { edges: ["e1", "e2", "a->a"], total: 5 })).toMatchObject({ shown: 3, total: 5, loops: ["a->a"] });
   });
 
-  it("draws every protected edge with a budget of 0", () => {
+  it("draws every protected edge with a budget of 0, and a highlighted path only within the budget", () => {
     const { scene, read } = watched(prepared);
     const state = { selection: { nodes: [], edges: ["e0"], groups: [] }, focused: "e6", highlighted: new Set(["e2"]) };
-    drawScene(recorder().ctx, scene, view, state, { cull: false, edgeBudget: 0, lodZoom: 0 });
-    expect(read()).toEqual(["e0", "e2", "e6"]);
+    const stats = drawScene(recorder().ctx, scene, view, state, { cull: false, edgeBudget: 0, lodZoom: 0 });
+    expect(read()).toEqual(["e0", "e6"]);
+    expect(stats.withheld).toMatchObject({ shown: 2, total: 7, highlightedNotShown: 1 });
   });
 
   it("draws as before and reports nothing withheld with all or a budget above the edges", () => {

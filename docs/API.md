@@ -2288,7 +2288,7 @@ export function prepareScene(g: FlowGraph, p: Positions, o?: { activityLabels?; 
 export interface DrawContext { /* the subset of CanvasRenderingContext2D the routines use */ }
 export interface View { x: number; y: number; zoom: number; width: number; height: number }
 export interface DrawState { selection: Selection; hovered?: string | null; focused?: string | null; bright?: { nodes: Set<string>; edges: Set<string> };
-  highlighted?: ReadonlySet<string> }   // edges on a highlighted path, drawn under any edge budget
+  highlighted?: ReadonlySet<string> }   // edges on a highlighted path, drawn first, heaviest first, within the edge budget
 export interface DrawOptions { tokens?: CanvasTokens; cull?: boolean; background?: boolean | string; lodZoom?: number; createCanvas?;
   edgeBudget?: EdgeBudget | ShownEdges }   // default "all"
 export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, state?: DrawState, o?: DrawOptions): { nodes; edges; shapes; culled;
@@ -2803,7 +2803,8 @@ targets are dropped before their order is fixed.
 export type EdgeBudget = number | "all";
 export interface EdgeProtection { selection?: { edges: readonly string[] }; focused?: string | null; highlighted?: ReadonlySet<string> }
 export interface EdgeSelection { drawn: Set<number>; shown: number; total: number; kept: number;   // positions in scene.edgeMarks
-  loops: readonly string[] }   // the paths in view that loop on one activity, counted in shown and total
+  loops: readonly string[];      // the paths in view that loop on one activity, counted in shown and total
+  highlightedNotShown: number }  // the highlighted edges in view the budget withholds
 export interface ShownEdges { edges: readonly string[]; total: number }   // what a map draws, as onEdgesShown reports it
 export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style" | "graph" | "positions">, budget: EdgeBudget | ShownEdges | undefined,
   protection?: EdgeProtection, inView?: readonly number[], loops?: readonly string[]): EdgeSelection | undefined;
@@ -2813,7 +2814,7 @@ When tens of thousands of edges are in view (a hub, or a fitted large map),
 culling cannot shorten a draw. An edge budget of n draws n of the edges in
 view, chosen once in the core by `budgetEdges` so that the Canvas map and
 the React Flow map draw the same ones. The order is fixed: protected edges
-first, then the weight descending (the value the edge width reads:
+first, then the highlighted edges, then the others, each by the weight descending (the value the edge width reads:
 `style.edgeWidth.metric`, `cases` by default, or the paths' transitions,
 `count`, where no path of the graph gives cases, a path that loops on one
 activity included, as the scales resolve it;
@@ -2821,16 +2822,18 @@ an edge without it comes last, as it is drawn at the thinnest width), then
 the id. Before this version a path without cases among paths with cases was
 ranked by its transitions. A budget of n draws the first n edges of that order,
 and every protected edge even beyond n, so lowering the budget only removes
-edges from the end of the order and never replaces a drawn edge by another.
+edges from the end of the order and never replaces a drawn edge by another
+(with the same protection and highlight).
 
 An edge is protected when it carries an overlay mark of the scene (a mark
 that names it, `OverlayMark.edgeId`, as a loop's mark does, or an arc that
-joins its source to its target in that direction), when it is selected, when the keyboard
-is on it (`focused`), or when it lies on a highlighted path: the edges of the
-focus of paths in effect (`mapEmphasis(...).bright.edges` while
+joins its source to its target in that direction), when it is selected, or when the keyboard
+is on it (`focused`). An edge on a highlighted path (`highlighted`: the edges
+of the focus of paths in effect, `mapEmphasis(...).bright.edges` while
 `focusShown`, which includes the pair of activities a selection of two
-names). The edges a selection of activities merely brightens are not
-protected. So Alt with an arrow key can move onto a path the budget
+names, and the kept paths the detail panel marks) is drawn before the others
+but within the budget, heaviest first. The edges a selection of activities
+merely brightens are neither. So Alt with an arrow key can move onto a path the budget
 withholds: it is drawn while the keyboard is on it, in place of the last
 edge of the order while the protected edges fit in the budget (the note's
 numbers stay) and beyond it otherwise (the note counts one more), and it is
@@ -2838,15 +2841,21 @@ withheld again once the keyboard moves on.
 
 Protected edges have no cap, and overlay marks and edge labels are not
 budgeted at all. When more protected edges are in view than the budget, all of
-them are drawn and the note counts them (25 highlighted of 30 under a budget
-of 10: "Showing 25 of 30 flows"); when every edge in view is protected,
-nothing is withheld and no note is shown. A focus on the paths of a hub
-therefore draws every path of it, whatever the budget: measured in headless
-Chromium on a loaded sandbox (the renderer's draw time per frame in motion,
-median of 30), a hub of 2,501 activities and 5,000 paths took 44 ms with every
-path highlighted against 9.3 ms under the default budget (2,000 drawn), and a
-hub of 25,001 activities and 50,000 paths 316 ms against 124 ms (500 drawn;
-there the activities dominate the frame).
+them are drawn and the note counts them; when every edge in view is protected,
+nothing is withheld and no note is shown. Selections, the keyboard position
+and marked paths stay few. Highlighted edges are capped by the budget: a
+focus on the 30 paths of a hub under a budget of 10 draws the 10 heaviest,
+and the note says how many highlighted paths it does not show ("Showing 10
+of 30 flows, 20 highlighted not shown", `map.edges.withheldHighlighted`,
+German "10 von 30 Flüssen gezeigt, 20 hervorgehobene nicht gezeigt";
+`highlightedNotShown`). The path list (`<PathList/>`) still lists every path
+of the focus. Up to 0.3.5 highlighted edges were protected, so a focus on the
+paths of a hub drew every path of it whatever the budget: measured in
+headless Chromium on a loaded sandbox (the renderer's draw time per frame in
+motion, median of 30), a hub of 2,501 activities and 5,000 paths took 44 ms
+with every path highlighted against 9.3 ms under the default budget (2,000
+drawn), and a hub of 25,001 activities and 50,000 paths 316 ms against 124 ms
+(500 drawn; there the activities dominate the frame).
 
 **Paths that loop on one activity** (an edge from a node to itself) have no
 line: the map draws them as loops at their activity (`selfLoops`), and the
@@ -2865,8 +2874,9 @@ not a number (`NaN`), or when it withholds nothing (no more edges in view than t
 edge protected); otherwise the positions in `scene.edgeMarks` of the edges
 drawn, how many paths are shown (`shown`: those edges and the loops), how
 many are in view (`total`: the edges in view and the loops), how many of the
-drawn edges are protected (`kept`), which every budget draws, and the ids of
-the loops (`loops`). The edges in view are `inView` (positions in
+drawn edges are protected (`kept`), which every budget draws, the ids of
+the loops (`loops`), and how many highlighted edges in view it withholds
+(`highlightedNotShown`; 0 for a map's report). The edges in view are `inView` (positions in
 `scene.edgeMarks`), or every edge of the scene without it; the loops in view
 are `loops`, or every edge of the scene from a node with a box to itself
 without it. The order by weight is computed once per scene and
@@ -2889,7 +2899,9 @@ draw: in a culled view the edges the hit index finds there and the loops of
 the activities it finds there, otherwise every edge; withheld edges are drawn neither as lines nor with their labels, and
 `CanvasRenderer.hitAt` does not return an edge its last draw withheld. While
 edges are withheld the map shows a note with both numbers, "Showing 2,000 of
-49,999 flows" (`map.edges.withheld`, English and German), as text at the
+49,999 flows" (`map.edges.withheld`, English and German), with how many
+highlighted paths it does not show where it withholds some ("…, 20
+highlighted not shown", `map.edges.withheldHighlighted`), as text at the
 bottom centre of the map (`role="note"`), and the polite live region
 announces it once its numbers have stayed the same for 400 ms, so a view
 in motion does not flood it. The table view always lists every edge.

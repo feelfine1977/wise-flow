@@ -81,9 +81,21 @@ describe("edge budget on the React Flow map", () => {
     expect(note()!.textContent).toBe("1 von 8 Flüssen gezeigt");
   });
 
-  it("keeps the edges of a focus of paths with a budget of 0", async () => {
-    const { container } = mount({ renderer: "svg", edgeBudget: 0, focus: "t3" });
-    await waitFor(() => expect(rfEdges(container)).toEqual(["h->t3"]));
+  it("draws the edges of a focus of paths first, within the budget, and says how many it does not show", async () => {
+    // The focus on t3 highlights h->t3 (30): with a budget of 1 it is drawn in place of the heaviest, h->t5.
+    const one = mount({ renderer: "svg", edgeBudget: 1, focus: "t3" });
+    await waitFor(() => expect(rfEdges(one.container)).toEqual(["h->t3"]));
+    expect(note()!.textContent).toBe("Showing 1 of 8 flows");
+    one.unmount();
+    // The focus on the hub highlights all eight: a budget of 2 draws the two heaviest, h->t5 and h->t7, and the path
+    // list still lists all eight.
+    const { container } = mount({ renderer: "svg", edgeBudget: 2, focus: "h", pathList: true });
+    await waitFor(() => expect(rfEdges(container)).toEqual(["h->t5", "h->t7"]));
+    expect(note()!.textContent).toBe("Showing 2 of 8 flows, 6 highlighted not shown");
+    await waitFor(() => expect(live()).toBe("Showing 2 of 8 flows, 6 highlighted not shown"));
+    const list = screen.getByRole("region", { name: "Paths of Hub" });
+    // Its outgoing rows, under the header and above the total: T5, T7, T2, T8, T3, T4, T6, T1.
+    expect(within(list).getAllByRole("row").map((r) => r.textContent).filter((text) => /^T\d/.test(text ?? "")).map((text) => text!.slice(0, 2))).toEqual(["T5", "T7", "T2", "T8", "T3", "T4", "T6", "T1"]);
   });
 
   it("lists every edge in the table view", () => {
@@ -104,11 +116,21 @@ describe("edge budget on the Canvas map", () => {
     await waitFor(() => expect(live()).toBe("Showing 3 of 8 flows"));
   });
 
-  it("keeps the edges of a focus of paths with a budget of 0", async () => {
+  it("draws the edges of a focus of paths first, within the budget, and says how many it does not show, in both languages", async () => {
     const texts = textCanvas();
-    mount({ renderer: "canvas", edgeBudget: 0, focus: "t4", lod: { edgeLabels: 0 } });
+    // The focus on t4 highlights h->t4 (30): with a budget of 1 it is drawn in place of the heaviest.
+    const one = mount({ renderer: "canvas", edgeBudget: 1, focus: "t4", lod: { edgeLabels: 0 } });
     await waitFor(() => expect(note()?.textContent).toBe("Showing 1 of 8 flows"));
     expect([...new Set(texts.filter((s) => /^\d+$/.test(s)))]).toEqual(["30"]);
+    one.unmount();
+    // The focus on the hub highlights all eight: a budget of 2 draws the two heaviest.
+    for (const [locale, text] of [["en", "Showing 2 of 8 flows, 6 highlighted not shown"], ["de", "2 von 8 Flüssen gezeigt, 6 hervorgehobene nicht gezeigt"]] as [Locale, string][]) {
+      texts.length = 0;
+      const { unmount } = mount({ renderer: "canvas", edgeBudget: 2, focus: "h", lod: { edgeLabels: 0 }, locale });
+      await waitFor(() => expect(note()?.textContent).toBe(text));
+      expect([...new Set(texts.filter((s) => /^\d+$/.test(s)))].sort()).toEqual(["60", "70"]);
+      unmount();
+    }
   });
 
   it("counts the edges in view with separators in both languages", async () => {

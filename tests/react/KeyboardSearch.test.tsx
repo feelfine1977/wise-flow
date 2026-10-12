@@ -186,20 +186,22 @@ const centre = (b: { x: number; y: number; width: number; height: number }) => (
 /**
  * The edges a budget draws, by its documentation: every protected edge (an
  * overlay mark names it or an arc joins its ends in its direction, it is
- * selected, the keyboard is on it, it lies on a highlighted path), then the
- * heaviest by the width's metric, ties by id, up to the budget.
+ * selected, the keyboard is on it), then the edges on a highlighted path, then
+ * the others, each by the width's metric, ties by id, up to the budget.
  */
 function documentedDrawn(scene: FlowScene, budget: number, protect: { selection: Selection; focused: string | null; highlighted?: ReadonlySet<string> }): Set<string> {
   const arcs = scene.marks.filter((m) => m.overlay.kind === "arc").map((m) => `${String(m.overlay.payload?.source)}>${String(m.overlay.payload?.target)}`);
   const named = scene.marks.map((m) => m.edgeId);
-  const isProtected = (e: FlowEdge) =>
-    named.includes(e.id) || arcs.includes(`${e.source}>${e.target}`) || protect.selection.edges.includes(e.id) || protect.focused === e.id || !!protect.highlighted?.has(e.id);
+  const isProtected = (e: FlowEdge) => named.includes(e.id) || arcs.includes(`${e.source}>${e.target}`) || protect.selection.edges.includes(e.id) || protect.focused === e.id;
   const edges = scene.edgeMarks.map((m) => m.edge);
   const drawn = new Set(edges.filter(isProtected).map((e) => e.id));
   const name = scene.style.edgeWidth?.metric ?? "count";
   const weight = (e: FlowEdge) => (typeof e.metrics?.[name] === "number" && Number.isFinite(e.metrics[name]) ? e.metrics[name] : -Infinity);
-  const rest = edges.filter((e) => !drawn.has(e.id)).sort((a, b) => weight(b) - weight(a) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  for (const e of rest.slice(0, Math.max(0, Math.floor(budget) - drawn.size))) drawn.add(e.id);
+  const heaviest = (a: FlowEdge, b: FlowEdge) => weight(b) - weight(a) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  const rest = edges.filter((e) => !drawn.has(e.id));
+  const highlighted = rest.filter((e) => protect.highlighted?.has(e.id)).sort(heaviest);
+  const others = rest.filter((e) => !protect.highlighted?.has(e.id)).sort(heaviest);
+  for (const e of [...highlighted, ...others].slice(0, Math.max(0, Math.floor(budget) - drawn.size))) drawn.add(e.id);
   return drawn;
 }
 

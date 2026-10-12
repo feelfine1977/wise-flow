@@ -63,8 +63,10 @@ const ZOOM_STEP = 1.2;
 const FIT_PADDING = 0.08;
 
 /** The note shown while the edge budget withholds edges, announced once its numbers settle. */
-export function EdgeNote({ withheld, locale, onAnnounce }: { withheld?: { shown: number; total: number }; locale: Locale; onAnnounce?: (text: string) => void }) {
-  const text = withheld && t(locale, "map.edges.withheld", { shown: formatCount(withheld.shown, locale), total: formatCount(withheld.total, locale) });
+export function EdgeNote({ withheld, locale, onAnnounce }: { withheld?: { shown: number; total: number; highlightedNotShown?: number }; locale: Locale; onAnnounce?: (text: string) => void }) {
+  // How many highlighted paths are not shown, where the budget withholds some of them.
+  const highlighted = withheld?.highlightedNotShown;
+  const text = withheld && t(locale, highlighted ? "map.edges.withheldHighlighted" : "map.edges.withheld", { shown: formatCount(withheld.shown, locale), total: formatCount(withheld.total, locale), highlighted: formatCount(highlighted ?? 0, locale) });
   useEffect(() => {
     if (!text || !onAnnounce) return;
     const timer = setTimeout(() => onAnnounce(text), 400);
@@ -110,7 +112,7 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
     fittedView.current = r.getViewport();
   };
   const [ready, setReady] = useState(false);
-  const [withheld, setWithheld] = useState<{ shown: number; total: number }>();
+  const [withheld, setWithheld] = useState<{ shown: number; total: number; highlightedNotShown: number }>();
   const withheldKey = useRef("");
   const reportShown = useEdgesShown(onEdgesShown);
   // The colours and the font follow the theme, the host's CSS variables and the colour scheme.
@@ -128,10 +130,10 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
     };
     renderer.onDraw = ({ withheld: w }) => {
       reportShown(w, renderer.getScene()?.edgeMarks ?? []);
-      const key = w ? `${w.shown}/${w.total}` : "";
+      const key = w ? `${w.shown}/${w.total}/${w.highlightedNotShown}` : "";
       if (key === withheldKey.current) return;
       withheldKey.current = key;
-      setWithheld(w && { shown: w.shown, total: w.total });
+      setWithheld(w && { shown: w.shown, total: w.total, highlightedNotShown: w.highlightedNotShown });
     };
     rendererRef.current = renderer;
     const resize = () => {
