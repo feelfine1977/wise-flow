@@ -124,9 +124,11 @@ members. `label` is the node's label, else the group's, else the id.
 keeps its nested activities bright (`relatedToSelection`), a group focus
 stands for them (`focusMembers`, `neighbourhood`, `focusHighlight`), "filter
 to" a stage covers them (`clauseForTarget`), stage bands span them
-(`laneBands`) and `collapseGroups` folds them into the outermost collapsed
-stage. For a group without nested groups this is the same as its direct
-members.
+(`laneBands`), `collapseGroups` folds them into the outermost collapsed
+stage, and the map's description of a group counts them: a pool whose
+activities sit in its lanes reads "Pool, pool. 12 activities." (up to 0.3.5
+it counted direct members only, "0 activities"). For a group without nested
+groups this is the same as its direct members.
 
 Metric names the defaults read: nodes `cases`, `events`, `share`,
 `violationShare`; follows edges `count`, `cases`, `share`, `violationShare`,

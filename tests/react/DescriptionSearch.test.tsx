@@ -4,7 +4,8 @@
  * generated graph, plain, abstracted and with collapsed stages, with and
  * without activity labels, has a description in English and in German that is
  * not empty, names its label and the labels of what it refers to, and has no
- * placeholder, no "undefined" and no raw id where a label exists.
+ * placeholder, no "undefined" and no raw id where a label exists; a group's
+ * counts the nodes inside it at any depth.
  */
 import { cleanup, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
@@ -25,6 +26,8 @@ const NODE_KIND: Record<Locale, Record<string, string>> = {
 };
 const EDGE_KIND: Record<Locale, Record<string, string>> = { en: { follows: "path", constraint: "constraint", flow: "sequence flow" }, de: { follows: "Pfad", constraint: "Erwartung", flow: "Sequenzfluss" } };
 const GROUP_KIND: Record<Locale, Record<string, string>> = { en: { stage: "stage", lane: "lane", pool: "pool" }, de: { stage: "Phase", lane: "Bahn", pool: "Pool" } };
+/** What a group's description counts: the nodes inside it at any depth. */
+const MEMBERS: Record<Locale, string> = { en: "activities", de: "Aktivitäten" };
 /** English words that a German description must not contain outside its labels. */
 const ENGLISH = ["cases", "events", "transitions", "members", "activity", "path", "stage", "lane", "unavailable", "violation", "share"];
 /** The English units the activity labels write in every locale (see the finding below). */
@@ -56,20 +59,30 @@ describe("descriptions of every element of random graphs", () => {
           const labels = rng.chance(0.3) ? ({ mode: rng.pick(["names", "ids"] as const), references: activityReferences(shown), caseLabel: rng.pick([undefined, "items"]) } satisfies ActivityLabelOptions) : undefined;
           const nodeLabel = new Map(shown.nodes.map((n) => [n.id, n.label]));
           const groupLabel = new Map((shown.groups ?? []).map((g) => [g.id, g.label]));
+          // Nodes inside each group: their own group and every group above it, until a parent repeats.
+          const inside = new Map<string, number>();
+          const parent = new Map((shown.groups ?? []).map((g) => [g.id, g.parent]));
+          for (const n of shown.nodes) {
+            const seen = new Set<string>();
+            for (let id = n.group; id !== undefined && parent.has(id) && !seen.has(id); id = parent.get(id)) {
+              seen.add(id);
+              inside.set(id, (inside.get(id) ?? 0) + 1);
+            }
+          }
           for (const locale of ["en", "de"] as const) {
             // One mounted hook at a time: a deep run describes tens of thousands of graphs.
             const { result } = renderHook(() => useElementDescriptions(shown, shown.overlays ?? [], locale, labels));
             const describe = result.current.describeElement;
             cleanup();
-            const elements: { ref: ElementRef; labels: string[]; ids: string[]; kind: string }[] = [
+            const elements: { ref: ElementRef; labels: string[]; ids: string[]; kind: string; says?: string }[] = [
               ...shown.nodes.map((n) => {
                 const group = n.group !== undefined ? groupLabel.get(n.group) : undefined;
                 return { ref: { kind: "node" as const, id: n.id }, labels: [n.label, ...(group !== undefined ? [group] : [])], ids: [n.id, ...(group !== undefined ? [n.group!] : [])], kind: NODE_KIND[locale][n.kind] };
               }),
               ...shown.edges.map((e) => ({ ref: { kind: "edge" as const, id: e.id }, labels: [nodeLabel.get(e.source)!, nodeLabel.get(e.target)!], ids: [e.id, e.source, e.target], kind: EDGE_KIND[locale][e.kind] })),
-              ...(shown.groups ?? []).map((g) => ({ ref: { kind: "group" as const, id: g.id }, labels: [g.label], ids: [g.id], kind: GROUP_KIND[locale][g.kind] })),
+              ...(shown.groups ?? []).map((g) => ({ ref: { kind: "group" as const, id: g.id }, labels: [g.label], ids: [g.id], kind: GROUP_KIND[locale][g.kind], says: `. ${inside.get(g.id) ?? 0} ${MEMBERS[locale]}` })),
             ];
-            for (const { ref, labels: own, ids, kind } of elements) {
+            for (const { ref, labels: own, ids, kind, says } of elements) {
               const text = describe(ref);
               described++;
               const label = () => caseLabel(seed, `${family} ${graph.nodes.length} nodes, ${name}, ${locale}${labels ? `, activity labels ${labels.mode}` : ""}, ${ref.kind} ${ref.id}: ${JSON.stringify(text)}`);
@@ -78,6 +91,7 @@ describe("descriptions of every element of random graphs", () => {
               // Outside its labels: the kind in the locale, no placeholder, no missing value, no raw id.
               const rest = own.reduce((s, l) => s.replace(l, () => " "), text);
               must(word(kind).test(rest), () => `${label()}: does not say ${JSON.stringify(kind)}`);
+              if (says !== undefined) must(rest.includes(says), () => `${label()}: does not say ${JSON.stringify(says)}`);
               must(!/\{\w+\}/.test(rest), () => `${label()}: has a placeholder`);
               for (const bad of ["undefined", "null", "NaN", "Infinity", "[object"]) must(!rest.includes(bad), () => `${label()}: has ${bad}`);
               for (const id of ids) must(!word(id).test(rest), () => `${label()}: has the raw id ${id}`);
