@@ -12,7 +12,7 @@ import type { FlowGraph, Overlay } from "./model.js";
 import type { OverlayGeometryOptions } from "./overlays.js";
 import { type MarkSvgOptions, arrowMarker, markSvg, svgMarkup } from "./mark-svg.js";
 import { type MarkPaint, type MarkText, type OverlayMark, markArrowhead, overlayArrow } from "./overlay-marks.js";
-import { type FlowScene, buildScene } from "./scene.js";
+import { type FlowScene, sceneOf } from "./scene.js";
 import { type StyleSpec, fixedColors, lodAt, patternDefs } from "./style.js";
 import { t } from "./strings.js";
 import { arrowheadTokens, fontTokens, sizeTokens } from "./tokens.js";
@@ -222,7 +222,7 @@ function drawLegend(ctx: Ctx, width: number, layout: LegendLayout): string {
  * no time-dependent data is embedded.
  */
 export function toSVG(given: Scene, options: ExportOptions = {}): string {
-  const scene = buildScene(given.graph, given.positions, {
+  const scene = sceneOf(given.graph, given.positions, {
     overlays: given.overlays,
     style: given.style,
     locale: given.locale,
@@ -230,7 +230,7 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
     activityLabels: given.activityLabels,
     selfLoops: given.selfLoops,
     overlayGeometry: options.overlayGeometry,
-  });
+  }, true);
   const { locale } = scene;
   const font = options.fontFamily ?? fontTokens.family;
   const lodZoom = options.lodZoom ?? 1;

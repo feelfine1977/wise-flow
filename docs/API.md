@@ -522,6 +522,19 @@ export interface FigureFrame { padding; header; map: { width; height; offset: XY
 export function figureFrame(scene: FramedScene, o?: FigureFrameOptions): FigureFrame;   // FramedScene: graph, activityLabels?, locale, bounds, legend
 ```
 
+Positions that hold more than the scene's graph (another scene's elements,
+as `layoutUnion` gives them, or bounds wider than the graph): `toSVG`,
+`toPNG` and `prepareScene` place the overlays on the positions of the
+graph's own elements, as the map does, which is given only those, so the
+arcs of an export take the course and label place they take on the map. The
+figure's frame still holds the given positions' bounds, and a prepared
+scene's hit index holds only the elements it draws, so a culled draw stays
+culled and nothing it does not draw is hit. Up to this change the arcs'
+course search avoided the other scene's boxes and took its room from their
+bounds, so an export's arc could run at another height or on the other side
+than on the map, and the extra boxes in the hit index turned culling off.
+To draw the given positions alone, pass `filterPositions(positions, graph)`.
+
 `toSVG` writes every text and id that comes with the scene (labels, ids,
 kinds, metric names, overlay texts, title) escaped: `&`, `<`, `>` and `"`
 become entities, so nothing in them becomes markup. Up to 0.3.5 a node kind

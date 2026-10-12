@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { constraintItems, globalScene } from "../../fixtures/bpic2019";
-import { type FlowGraph, type Overlay, type Positions, FIGURE_WIDTHS, abstract, layout, overlaysFor, toSVG } from "../../src/index";
+import { type FlowGraph, type Overlay, type Positions, FIGURE_WIDTHS, abstract, createPositions, layout, overlaysFor, toSVG } from "../../src/index";
+import { prepareScene } from "../../src/canvas/index";
 import * as elements from "./element-kinds";
 import * as kinds from "./overlay-kinds";
 
@@ -210,5 +211,37 @@ describe("toSVG node and edge marks", () => {
     const long = { ...elements.graph, nodes: elements.graph.nodes.map((n) => (n.id === "a" ? { ...n, label: "Change Approval for Purchase Order" } : n)) };
     const svg = toSVG({ graph: long, positions: elements.positions, style: elements.style }, { legend: false });
     expect(svg).toContain(">Change Approval for Pu…<");
+  });
+});
+
+describe("an export of positions that hold more than the graph", () => {
+  // a and b at the ends of an arc, c below; x belongs to another scene laid out with them (a union layout).
+  const graph: FlowGraph = { nodes: [{ id: "a", kind: "activity", label: "A" }, { id: "b", kind: "activity", label: "B" }, { id: "c", kind: "activity", label: "C" }], edges: [{ id: "a->c", kind: "follows", source: "a", target: "c", metrics: { count: 3 } }] };
+  const overlays: Overlay[] = [{ kind: "arc", target: "a->b", payload: { constraintId: "order", source: "a", target: "b", value: 0.4 } }];
+  const box = (x: number, y: number) => ({ x, y, width: 100, height: 40 });
+  const own = createPositions({ nodes: { a: box(0, 200), b: box(600, 200), c: box(300, 300) }, groups: {}, edges: {} }, "given", "RIGHT");
+  // x lies in the room above the arc's course, which the map, given only the graph's elements, does not see.
+  const union = createPositions({ nodes: { ...own.nodes, x: box(300, 60) }, groups: {}, edges: {} }, "given", "RIGHT");
+  const arcOf = (svg: string) => /<g class="wf-overlay wf-arc"><title>[^<]*<\/title><path d="([^"]*)"/.exec(svg)?.[1];
+  const viewBoxOf = (svg: string) => /viewBox="([^"]*)"/.exec(svg)![1];
+
+  it("draws the arcs the map draws, and keeps its frame", () => {
+    // The map's arc: a's centre (50, 200) to b's (650, 200), its control points at the height the map chooses.
+    expect(arcOf(toSVG({ graph, positions: own, overlays }))).toBe("M50 200 C50 68 650 68 650 200");
+    const svg = toSVG({ graph, positions: union, overlays });
+    expect(arcOf(svg)).toBe("M50 200 C50 68 650 68 650 200");
+    // The frame holds x's room: 40 above the map's top (60 instead of 100 for the arc's course, plus the padding).
+    expect(viewBoxOf(svg)).toBe("0 0 968 328");
+    expect(svg).not.toContain('data-id="x"');
+  });
+
+  it("prepares a Canvas scene with the map's arcs, the given frame and a hit index of the graph's own elements", () => {
+    const map = prepareScene(graph, own, { overlays });
+    const scene = prepareScene(graph, union, { overlays });
+    expect(scene.marks.map((m) => m.path)).toEqual(map.marks.map((m) => m.path));
+    expect(scene.bounds).toEqual({ ...map.bounds, y: 60, height: 280 });
+    // Every item of the hit index is an element the scene draws, so a culled draw stays culled; x is not hit.
+    expect(scene.hit.within(scene.bounds).filter((it) => it.index === undefined)).toEqual([]);
+    expect(scene.hit.at(305, 62, 0)).toEqual([]);
   });
 });

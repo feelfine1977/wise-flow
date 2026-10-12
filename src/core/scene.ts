@@ -9,7 +9,7 @@ import { type ActivityLabelOptions, activityReferences } from "./activity-labels
 import { type EdgeMark, type NodeMark, edgeMarks, estimateTextWidth, nodeMarks } from "./element-marks.js";
 import { type SceneLegend, sceneLegend } from "./figure.js";
 import type { Locale } from "./format.js";
-import { type Box, type Positions, type XY, finitePositions, unionBoxes } from "./layout.js";
+import { type Box, type Positions, type XY, filterPositions, finitePositions, unionBoxes } from "./layout.js";
 import { type LaneBand, type LaneMode, laneBands } from "./lanes.js";
 import { type FlowGraph, type Overlay, MAP_TARGET } from "./model.js";
 import { withFollowsSelfLoops } from "./observed-loops.js";
@@ -83,6 +83,14 @@ function shownOverlays(graph: FlowGraph, given: Overlay[], options: FlowSceneOpt
 
 /** Resolve a graph with positions into the scene the renderers draw. */
 export function buildScene(graph: FlowGraph, givenPositions: Positions, options: FlowSceneOptions = {}): FlowScene {
+  return sceneOf(graph, givenPositions, options);
+}
+
+/**
+ * `buildScene`; with `own` the overlays are placed on the positions of the graph's own elements, as on the
+ * map, which is given no others: an export's positions may hold more (another scene's), and keep their frame.
+ */
+export function sceneOf(graph: FlowGraph, givenPositions: Positions, options: FlowSceneOptions, own?: boolean): FlowScene {
   const locale = options.locale ?? "en";
   const style = options.style ?? defaultStyle;
   const laid = laneBands(graph, finitePositions(givenPositions), { lanes: options.lanes ?? "none" });
@@ -98,7 +106,7 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
     const width = estimateTextWidth(t.text, t);
     return { x: t.x - width / 2, y: t.y - t.size, width, height: t.size };
   }));
-  const geometry = placeOverlays(overlays, positions, { ...(options.overlayGeometry ?? {}), lod }, [...groupTitles(graph.groups ?? [], positions), ...counts]);
+  const geometry = placeOverlays(overlays, own ? filterPositions(positions, graph) : positions, { ...(options.overlayGeometry ?? {}), lod }, [...groupTitles(graph.groups ?? [], positions), ...counts]);
   const marks = overlayMarks(geometry.shapes, locale);
   return {
     graph,
