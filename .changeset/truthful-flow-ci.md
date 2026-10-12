@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 Preserve focused path identity, original stage activity filters and overlay targets

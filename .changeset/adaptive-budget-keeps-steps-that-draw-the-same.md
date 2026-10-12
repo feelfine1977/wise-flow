@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 The adaptive edge budget takes no step down that would draw the same edges,

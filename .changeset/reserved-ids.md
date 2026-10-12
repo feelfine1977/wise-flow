@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 Ids named like a member of `Object.prototype` (`__proto__`, `constructor`,

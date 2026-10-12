@@ -1,6 +1,6 @@
 # src/bpmn
 
-BPMN bridge, exported as `@wise/flow/bpmn`. The functions run in Node
+BPMN bridge, exported as `wise-flow/bpmn`. The functions run in Node
 (bpmn-moddle only); `<BpmnView/>` loads bpmn-js on demand in the browser,
 behind the viewer seam of `viewer.ts`.
 

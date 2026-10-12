@@ -155,7 +155,7 @@ export function useTheme(host: RefObject<Element | null>, setting?: ThemeSetting
     const key = JSON.stringify(found);
     if (!found.length || warned.has(key)) return;
     warned.add(key);
-    console.warn("@wise/flow: the theme falls short of checkTheme", found);
+    console.warn("wise-flow: the theme falls short of checkTheme", found);
   }, [theme]);
   return useMemo(() => ({ theme, scheme: read.scheme }), [theme, read.scheme]);
 }

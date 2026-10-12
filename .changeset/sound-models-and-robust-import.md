@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 `liteFromGraph` puts every node on a path from the start to the end. A part of

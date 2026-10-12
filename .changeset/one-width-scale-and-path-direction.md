@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 Path width has one scale per graph, every path shows its direction, and chips keep clear of stage names.

@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 `<OverlayLayer/>` without a `zoom` prop draws each mark from its `minZoom` at

@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 Where no `Worker` exists (Node), `layoutBpmn` and `exportBpmn` run the Dagre

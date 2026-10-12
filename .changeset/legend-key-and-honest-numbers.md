@@ -1,10 +1,10 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 The legend is a key and the numbers say what they are.
 
-- **Metric registry** (new, `@wise/flow`): `metricRegistry`, `metricEntry`,
+- **Metric registry** (new, `wise-flow`): `metricRegistry`, `metricEntry`,
   `metricKind`, `metricName`, `metricUnit`, `metricBasis`,
   `formatMetricValue`, `elementMetric`, `metricLabelOf`, `metricMeanNote`,
   `channelTitle`, and the types `MetricEntry`, `MetricKind`, `MetricBasis`,

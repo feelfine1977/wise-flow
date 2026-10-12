@@ -369,6 +369,7 @@ describe("the theme of a map", () => {
     resolved({ color: { inkMuted: "#9a9a9a" } });
     resolved({ color: { inkMuted: "#9a9a9a" } });
     expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toBe("wise-flow: the theme falls short of checkTheme");
     expect(warn.mock.calls[0][1]).toContainEqual({ kind: "text", scheme: "light", subject: "inkMuted on paper", value: 2.81, minimum: 4.5 });
   });
 

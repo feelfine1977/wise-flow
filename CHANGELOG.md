@@ -98,7 +98,7 @@ the focused element opens the actions menu (Space still selects); with
   the nodes moved into their lane; `<ProcessMap lanes="stages" | "roles" |
   "none">`, `Scene.lanes` for `toSVG` and `toPNG`.
 
-### Canvas (`@wise/flow/canvas`, new entry point)
+### Canvas (`wise-flow/canvas`, new entry point)
 
 - `prepareScene` (retained geometry, colours, overlay shapes, R-tree),
   `drawScene` (viewport culling above 1,500 elements, level of detail by
@@ -135,7 +135,7 @@ the focused element opens the actions menu (Space still selects); with
 Additions only; the 0.1 API is unchanged (see "Changes in 0.2 against 0.1"
 in `docs/API.md`).
 
-### BPMN (`@wise/flow/bpmn`, new entry point)
+### BPMN (`wise-flow/bpmn`, new entry point)
 
 - BPMN-lite in the FlowGraph vocabulary: `liteFromStages` builds a process
   from an ordered stage model with known activities (one start, one end,
@@ -206,7 +206,7 @@ in `docs/API.md`).
 
 First implementation of the public contract in `docs/API.md`.
 
-### Core (`@wise/flow`)
+### Core (`wise-flow`)
 
 - `FlowGraph` model matching the workbench schema (`nodes`, `edges`,
   `groups`, `overlays`, `meta`), `validateGraph`, `indexGraph`.
@@ -231,7 +231,7 @@ First implementation of the public contract in `docs/API.md`.
 - `toSVG` with figure presets, embedded legend and deterministic output.
 - Deterministic number formatting and English / German strings.
 
-### React (`@wise/flow/react`)
+### React (`wise-flow/react`)
 
 - `<ProcessMap/>` on React Flow: activity, stage, gateway, event and note
   nodes, group compounds, follows and constraint edges, overlay layers,

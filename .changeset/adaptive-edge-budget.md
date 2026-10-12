@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 The edge budget adapts to the frame time, and that is the new default.

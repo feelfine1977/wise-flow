@@ -4,7 +4,7 @@ Framework-free TypeScript; runs in Node and in the browser. No DOM, no React.
 
 | File | Content |
 |---|---|
-| `index.ts` | the entry point of `@wise/flow`: every exported name listed (deprecated ones marked, see `docs/API.md`); `scripts/core-exports.json` holds the names the built declarations must export |
+| `index.ts` | the entry point of `wise-flow`: every exported name listed (deprecated ones marked, see `docs/API.md`); `scripts/core-exports.json` holds the names the built declarations must export |
 | `model.ts` | `FlowGraph` types (workbench schema, with `focus` and `paths`), `validateGraph`, `validateGateways` (unpaired parallel gateways), `indexGraph` (lookups, adjacency, group ancestors, nested members, labels), `MAP_TARGET` |
 | `aggregate.ts` | `abstract` (thresholds or detail shares, collapse, keep-connected, protected marks, either side of a comparison; records `meta.model` and `meta.shown`), `collapseGroups` (marks merged values in `metricBasis`), `isConnected`, `diff` |
 | `detail-statement.ts` | `detailStatement`: the statements of the detail panel and of a figure's caption from `meta.shown` (short and full: activities and their share of events, paths by frequency and kept, the strongest not shown, the marks not shown, the elements shown for a protected deviation); `detailNotes`: what the tooltips of the shown elements add |

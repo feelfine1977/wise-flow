@@ -1,12 +1,12 @@
 # src/react
 
-Components on React Flow and bpmn-js. Import `@wise/flow/react-flow.css`,
-`@wise/flow/tokens.css` and `@wise/flow/style.css`; for `<BpmnView/>` also
-`@wise/flow/bpmn.css`.
+Components on React Flow and bpmn-js. Import `wise-flow/react-flow.css`,
+`wise-flow/tokens.css` and `wise-flow/style.css`; for `<BpmnView/>` also
+`wise-flow/bpmn.css`.
 
 | File | Content |
 |---|---|
-| `index.ts` | the entry point of `@wise/flow/react` |
+| `index.ts` | the entry point of `wise-flow/react` |
 | `ProcessMap.tsx` | `<ProcessMap/>`: abstraction pipeline, stable or own layout, lane bands, React Flow or Canvas renderer, overlay layers, controls, legend, actions menu and focus with the path list drawn from the map controller's state, filter chips, ARIA, table view |
 | `ContextMenu.tsx` | `<ContextMenu/>`: accessible actions menu (`role="menu"`, groups, accelerators, arrow keys, Escape, focus return) on the core's `menuKey`; `MenuView` (internal) draws it for the map, whose controller holds the menu state |
 | `PathList.tsx` | `<PathList/>`: incoming and outgoing paths of an activity or the path between two activities, sortable, totals, row selection |

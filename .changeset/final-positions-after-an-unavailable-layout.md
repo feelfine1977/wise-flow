@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 `useStableLayout` marks the provisional arrangement it keeps after a

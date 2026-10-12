@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 Layouts nobody waits for are stopped instead of running on. `layout`,
@@ -16,7 +16,7 @@ ELK a second time without stage partitions. In-process ELK and a supplied
 once and the result is discarded. One worker runs one layout at a time; a
 scope keeps one idle worker per URL.
 
-The Dagre fallback is bounded. New asset `@wise/flow/dagre-worker.min.js`
+The Dagre fallback is bounded. New asset `wise-flow/dagre-worker.min.js`
 (Dagre's browser build, MIT, and the package's Dagre step) and option
 `dagreWorkerUrl` run Dagre in a Web Worker, as a fallback and for
 `engine: "dagre"`, with the same positions as on the calling thread. Without

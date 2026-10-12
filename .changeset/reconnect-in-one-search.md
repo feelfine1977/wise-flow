@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 `abstract` with `keepConnected` (the default) joins separated components in

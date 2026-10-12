@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 The layout module owns its cache and its ELK workers. New `createLayoutScope`

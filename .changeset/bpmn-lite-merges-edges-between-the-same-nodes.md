@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 `liteFromGraph` merges edges between the same two nodes (two follows edges,

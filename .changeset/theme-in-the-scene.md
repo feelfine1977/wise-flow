@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 Appearance is scene data. The new `Theme` type holds the colour roles of the

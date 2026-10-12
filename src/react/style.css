@@ -1,5 +1,5 @@
 /*
- * Component styles of @wise/flow/react. Requires tokens.css. The build ships them
+ * Component styles of wise-flow/react. Requires tokens.css. The build ships them
  * twice: `style.css` puts React Flow's stylesheet and these rules into the cascade
  * layer `wf` (React Flow's in its sublayer `wf.react-flow`), so that any unlayered
  * rule of the host wins; `style.unlayered.css` holds these rules without a layer,
@@ -731,7 +731,7 @@
   white-space: pre-line;
 }
 
-/* BPMN view (bpmn-js host). Import @wise/flow/bpmn.css for its base CSS/fonts. */
+/* BPMN view (bpmn-js host). Import wise-flow/bpmn.css for its base CSS/fonts. */
 .wf-bpmn {
   position: relative;
   width: 100%;

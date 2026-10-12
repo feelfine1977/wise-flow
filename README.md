@@ -1,4 +1,4 @@
-# wise-flow (`@wise/flow`)
+# wise-flow
 
 Process-flow visualisation for applications that supply activities, stages,
 directly-follows counts and metrics. Flow provides a headless TypeScript core,
@@ -24,6 +24,9 @@ Commit the tarball and application lockfile for a standalone `npm ci`. No siblin
 checkout, source alias, stub, or postinstall build is needed. Check its SHA256
 against the supplied `.sha256` and `.provenance.json` files. A future published
 release can replace the file dependency with an exact registry version.
+The package is named `wise-flow`; a host that installed it under its former
+scoped name changes its dependency entry and import specifiers as `docs/API.md`
+("Package name") says.
 
 To produce and verify the tarball from this checkout:
 
@@ -44,27 +47,27 @@ a version number alone does not identify an unpublished candidate.
 
 | Import | Purpose |
 | --- | --- |
-| `@wise/flow` | Headless graph model, aggregation, abstraction, layout, scales, overlays, selection, paths, filters, lanes, SVG export |
-| `@wise/flow/react` | `ProcessMap`, `BpmnView`, Canvas wrapper, table alternative, timeline and controls |
-| `@wise/flow/bpmn` | BPMN-lite, XML import/export with diagram interchange, mapping and `BpmnView` |
-| `@wise/flow/canvas` | Scene preparation, Canvas renderer, PNG export |
-| `@wise/flow/tokens.css` | Theme variables |
-| `@wise/flow/react-flow.css` | React Flow's required base styles, for use with `style.unlayered.css` |
-| `@wise/flow/style.css` | Flow component styles and React Flow's base styles, in the cascade layer `wf` |
-| `@wise/flow/style.unlayered.css` | Flow component styles without a layer, for pages with an unlayered reset |
-| `@wise/flow/bpmn.css` | All required bpmn-js styles and font references |
-| `@wise/flow/bpmn/assets/*` | Copied BPMN asset tree, including `bpmn-font/font/bpmn.woff2` |
-| `@wise/flow/elk-worker.min.js` | Optional ELK worker asset |
-| `@wise/flow/dagre-worker.min.js` | Optional Dagre worker asset (layout fallback off the calling thread) |
+| `wise-flow` | Headless graph model, aggregation, abstraction, layout, scales, overlays, selection, paths, filters, lanes, SVG export |
+| `wise-flow/react` | `ProcessMap`, `BpmnView`, Canvas wrapper, table alternative, timeline and controls |
+| `wise-flow/bpmn` | BPMN-lite, XML import/export with diagram interchange, mapping and `BpmnView` |
+| `wise-flow/canvas` | Scene preparation, Canvas renderer, PNG export |
+| `wise-flow/tokens.css` | Theme variables |
+| `wise-flow/react-flow.css` | React Flow's required base styles, for use with `style.unlayered.css` |
+| `wise-flow/style.css` | Flow component styles and React Flow's base styles, in the cascade layer `wf` |
+| `wise-flow/style.unlayered.css` | Flow component styles without a layer, for pages with an unlayered reset |
+| `wise-flow/bpmn.css` | All required bpmn-js styles and font references |
+| `wise-flow/bpmn/assets/*` | Copied BPMN asset tree, including `bpmn-font/font/bpmn.woff2` |
+| `wise-flow/elk-worker.min.js` | Optional ELK worker asset |
+| `wise-flow/dagre-worker.min.js` | Optional Dagre worker asset (layout fallback off the calling thread) |
 
 The root entry does not load React or require a DOM. The package still installs
 renderer dependencies and React peers; it is not a separate minimal core package.
-`@wise/flow/bpmn` retains its React component re-export for compatibility.
+`wise-flow/bpmn` retains its React component re-export for compatibility.
 
 ## Headless example
 
 ```js
-import { layout, toSVG } from '@wise/flow';
+import { layout, toSVG } from 'wise-flow';
 
 const graph = {
   nodes: [
@@ -84,8 +87,8 @@ timeout cannot cut it short), and without a Dagre worker the fallback runs on
 the calling thread only up to 500 nodes plus edges. For browser workers in Vite:
 
 ```ts
-import elkWorkerUrl from '@wise/flow/elk-worker.min.js?url';
-import dagreWorkerUrl from '@wise/flow/dagre-worker.min.js?url';
+import elkWorkerUrl from 'wise-flow/elk-worker.min.js?url';
+import dagreWorkerUrl from 'wise-flow/dagre-worker.min.js?url';
 const positions = await layout(graph, { elkWorkerUrl, dagreWorkerUrl, signal });
 ```
 
@@ -99,12 +102,12 @@ Import the styles once in your application's entry file. Their package exports
 work with normal bundler resolution; no dependency-directory traversal is needed.
 
 ```tsx
-import '@wise/flow/bpmn.css';
-import '@wise/flow/tokens.css';
-import '@wise/flow/style.css'; // includes React Flow's base styles
+import 'wise-flow/bpmn.css';
+import 'wise-flow/tokens.css';
+import 'wise-flow/style.css'; // includes React Flow's base styles
 // On a page with an unlayered reset (Tailwind 3's preflight), instead:
-// import '@wise/flow/react-flow.css'; import '@wise/flow/style.unlayered.css';
-import { ProcessMap, BpmnView } from '@wise/flow/react';
+// import 'wise-flow/react-flow.css'; import 'wise-flow/style.unlayered.css';
+import { ProcessMap, BpmnView } from 'wise-flow/react';
 
 // Supply graph from the host and XML from an import or exportBpmn().
 <>
@@ -128,7 +131,7 @@ Keep the bpmn.io watermark fully visible, unobscured and linked. See
 [licensing](docs/LICENSING.md) and [third-party notices](THIRD_PARTY_NOTICES.md).
 
 ```ts
-import { liteFromStages, exportBpmn, importBpmn } from '@wise/flow/bpmn';
+import { liteFromStages, exportBpmn, importBpmn } from 'wise-flow/bpmn';
 const model = liteFromStages({
   stages: [{ id: 'work', label: 'Work', activities: ['receive', 'complete'] }],
 });

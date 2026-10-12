@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 `<ProcessMap/>` reads a `describedLimit` below one as one. The Canvas map's

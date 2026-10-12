@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 The actions menu of `<ProcessMap/>`, the pointer input of its React Flow and

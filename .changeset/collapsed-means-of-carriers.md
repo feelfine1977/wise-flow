@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 A collapsed stage or a merged edge whose members have no weight (no `cases`,

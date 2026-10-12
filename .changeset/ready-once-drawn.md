@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 `<ProcessMap/>`'s `data-layout-status` turns `"ready"` only once React Flow

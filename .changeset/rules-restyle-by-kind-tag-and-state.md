@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 A theme's `rules` restyle elements by part, kind, tag and state, and reach
@@ -26,14 +26,14 @@ a deviation of the new kind `rule` (subject `rules[1].set.strokeWeight`);
 such a rule changes nothing, and an opacity outside 0.2 to 1 is clamped and
 reported.
 
-New in `@wise/flow`: the types `ThemeRule`, `RuleMatch`, `RuleSet`,
+New in `wise-flow`: the types `ThemeRule`, `RuleMatch`, `RuleSet`,
 `RuleText`, `RuleTextRole`, `RuleState`, `RulePart`, `InteractiveState` and
 `StateStyle`; the functions `stateStyle`, `markInState` and `ruleTextRole`;
 `designTokens.rule` (the stroke weights, radii, opacity range, largest text
 size and weights a rule draws at); an optional `opacity` on `NodeMark`,
 `EdgeMark`, `GroupMark` and `OverlayMark`, which the SVG export writes on the
 element's group; the optional `state` of `ActivityNodeData`, `GroupNodeData`
-and `FollowsEdgeData` (`@wise/flow/react`).
+and `FollowsEdgeData` (`wise-flow/react`).
 
 Changed types: `Theme.rules` is `readonly ThemeRule[]` (was `readonly
 never[]`); `MarkPaint` adds literal colours (`` `#${string}` ``), which a

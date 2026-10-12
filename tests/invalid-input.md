@@ -401,7 +401,7 @@ Test: `tests/react/MalformedCanvas.test.tsx` › "shows every case's graph, its 
 ## Not this library's
 
 `useReactFlow`, `useNodesInitialized` and `useStore` are React Flow's hooks,
-re-exported from `@wise/flow/react` unchanged so that custom controls share
+re-exported from `wise-flow/react` unchanged so that custom controls share
 the renderer's context; they take no graph data.
 
 ## Taking nothing

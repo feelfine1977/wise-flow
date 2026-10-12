@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 An edge budget bounds how many of the edges in view a map draws. The new

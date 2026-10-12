@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 Text is measured once, when the scene is built, and the legend is described
@@ -14,7 +14,7 @@ as drawn, and the interactive map, the Canvas map and both exports write them
 as they are, so with one measure they show the same lines and the same
 truncation. The default, `estimateTextWidth`, is 0.55 em per character as
 before, and now a full em for characters of the East Asian wide scripts and
-emoji. `canvasTextMeasure` (`@wise/flow/canvas`) measures with a Canvas
+emoji. `canvasTextMeasure` (`wise-flow/canvas`) measures with a Canvas
 context's `measureText`. New: `wrapText`; `activityNodeSize`,
 `activityLabelLines`, `activityKeyLines`, `wrapActivityText`, `overlayMarks`,
 `nodeMark` and `nodeMarks` take an optional measure.

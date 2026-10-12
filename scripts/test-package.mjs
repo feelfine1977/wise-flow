@@ -22,9 +22,9 @@ const sha256 = (data) => createHash('sha256').update(data).digest('hex');
 mkdirSync(artifactDir, { recursive: true });
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 run('npm', ['pack', '--pack-destination', artifactDir]);
-const tarball = join(artifactDir, `wise-flow-${pkg.version}.tgz`);
+const tarball = join(artifactDir, `${pkg.name}-${pkg.version}.tgz`);
 const sha = sha256(readFileSync(tarball));
-writeFileSync(tarball + '.sha256', `${sha}  wise-flow-${pkg.version}.tgz\n`);
+writeFileSync(tarball + '.sha256', `${sha}  ${pkg.name}-${pkg.version}.tgz\n`);
 // Record the actual dirty source identity, including new files, without changing the index.
 const baseCommit = output('git', ['rev-parse', 'HEAD']).trim();
 const files = output('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z']).split('\0').filter(Boolean).sort();
@@ -34,10 +34,10 @@ for (const path of output('git', ['ls-files', '--others', '--exclude-standard', 
   try { execFileSync('git', ['diff', '--no-index', '--binary', '--', '/dev/null', path], { cwd: root }); }
   catch (error) { if (error.status !== 1) throw error; patch = Buffer.concat([patch, error.stdout]); }
 }
-const patchName = `wise-flow-${pkg.version}.patch`;
+const patchName = `${pkg.name}-${pkg.version}.patch`;
 writeFileSync(join(artifactDir, patchName), patch);
-const metadata = { name: pkg.name, version: pkg.version, sourceRepository: 'https://github.com/feelfine1977/wise-flow', baseCommit, dirty: patch.length > 0, patchFile: patchName, patchSha256: sha256(patch), sourceTreeSha256: sha256(JSON.stringify(sourceFiles)), sourceFiles, tarball: `wise-flow-${pkg.version}.tgz`, sha256: sha, published: false, node: process.version, platform: process.platform, consumer, checks: 'pending' };
-const metadataPath = join(artifactDir, `wise-flow-${pkg.version}.provenance.json`);
+const metadata = { name: pkg.name, version: pkg.version, sourceRepository: 'https://github.com/feelfine1977/wise-flow', baseCommit, dirty: patch.length > 0, patchFile: patchName, patchSha256: sha256(patch), sourceTreeSha256: sha256(JSON.stringify(sourceFiles)), sourceFiles, tarball: `${pkg.name}-${pkg.version}.tgz`, sha256: sha, published: false, node: process.version, platform: process.platform, consumer, checks: 'pending' };
+const metadataPath = join(artifactDir, `${pkg.name}-${pkg.version}.provenance.json`);
 writeFileSync(metadataPath, JSON.stringify(metadata, null, 2) + '\n');
 cpSync(join(root, 'tests/package'), consumer, { recursive: true });
 const require = createRequire(import.meta.url);
@@ -47,21 +47,21 @@ const reactTypes = process.env.FLOW_REACT_TYPES || version('@types/react');
 const reactDomTypes = process.env.FLOW_REACT_TYPES || version('@types/react-dom');
 Object.assign(metadata, { browser: browserName, react: reactVersion, reactTypes });
 writeFileSync(metadataPath, JSON.stringify(metadata, null, 2) + '\n');
-writeFileSync(join(consumer, 'package.json'), JSON.stringify({ private: true, type: 'module', dependencies: { '@wise/flow': `file:${tarball}`, react: reactVersion, 'react-dom': reactVersion }, devDependencies: { typescript: version('typescript'), vite: version('vite'), '@types/react': reactTypes, '@types/react-dom': reactDomTypes } }, null, 2));
+writeFileSync(join(consumer, 'package.json'), JSON.stringify({ private: true, type: 'module', dependencies: { [pkg.name]: `file:${tarball}`, react: reactVersion, 'react-dom': reactVersion }, devDependencies: { typescript: version('typescript'), vite: version('vite'), '@types/react': reactTypes, '@types/react-dom': reactDomTypes } }, null, 2));
 run('npm', ['install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund'], consumer);
 run('npm', ['ci', '--ignore-scripts', '--no-audit', '--no-fund'], consumer);
 // copyFileSync, not cpSync: on some mounted file systems cpSync leaves a copy that cannot be read or replaced.
 copyFileSync(join(consumer, 'package-lock.json'), join(artifactDir, 'consumer-package-lock.json'));
-assert.equal(lstatSync(join(consumer, 'node_modules/@wise/flow')).isSymbolicLink(), false);
+assert.equal(lstatSync(join(consumer, 'node_modules', pkg.name)).isSymbolicLink(), false);
 run(process.execPath, ['--experimental-loader', './deny-react.mjs', 'core.mjs'], consumer);
 run(process.execPath, ['bpmn.mjs'], consumer);
 writeFileSync(join(consumer, 'tsconfig.json'), JSON.stringify({ compilerOptions: { target: 'ES2022', module: 'NodeNext', moduleResolution: 'NodeNext', strict: true, noEmit: true, skipLibCheck: false, lib: ['ES2022', 'DOM'] }, files: ['types.ts'] }));
 run(process.execPath, ['node_modules/typescript/bin/tsc', '-p', '.'], consumer);
 const installedRequire = createRequire(join(consumer, 'package.json'));
 for (const path of ['tokens.css', 'style.css', 'style.unlayered.css', 'react-flow.css', 'bpmn.css', 'bpmn/assets/bpmn-font/css/bpmn.css', 'bpmn/assets/bpmn-font/font/bpmn.woff2', 'elk-worker.min.js', 'dagre-worker.min.js']) {
-  assert.ok(readFileSync(installedRequire.resolve(`@wise/flow/${path}`)).length > 0);
+  assert.ok(readFileSync(installedRequire.resolve(`${pkg.name}/${path}`)).length > 0);
 }
-for (const path of ['LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md', 'dist/licenses/bpmn-js.txt', 'dist/licenses/elkjs.txt', 'dist/licenses/@xyflow-react.txt', 'dist/licenses/@dagrejs-dagre.txt', 'dist/licenses/@dagrejs-graphlib.txt']) assert.ok(existsSync(join(consumer, 'node_modules/@wise/flow', path)));
+for (const path of ['LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md', 'dist/licenses/bpmn-js.txt', 'dist/licenses/elkjs.txt', 'dist/licenses/@xyflow-react.txt', 'dist/licenses/@dagrejs-dagre.txt', 'dist/licenses/@dagrejs-graphlib.txt']) assert.ok(existsSync(join(consumer, 'node_modules', pkg.name, path)));
 // Load tooling from the consumer too, so its bundling cannot see checkout dependencies.
 const { build, preview } = await import(pathToFileURL(join(consumer, 'node_modules/vite/dist/node/index.js')).href);
 await build({ root: consumer, configFile: false, build: { target: 'es2022', assetsInlineLimit: 0 } });

@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 The abstraction panel is the panel "Detail" ("Detailgrad") and selects by

@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 The scene now carries one resolved mark per overlay (`FlowScene.marks`,

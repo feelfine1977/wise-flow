@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 An SVG export that withholds edges ends its accessible label with the note,

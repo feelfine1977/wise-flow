@@ -174,7 +174,7 @@ export const storyMaps = 'stories/maps.tsx';
 const mapComponents = new Set(['ProcessMap', 'ViewSwitcher', 'CanvasMap']);
 const isMap = (node, tree) => (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && mapComponents.has(node.tagName.getText(tree));
 // The React entry point, from the source or from the built package.
-const reactEntry = (file, name) => name === '@wise/flow/react' || (name.startsWith('.') && ['src/react', 'dist/react'].some((dir) => within(resolve(dirname(file), name), dir)));
+const reactEntry = (file, name) => name === 'wise-flow/react' || (name.startsWith('.') && ['src/react', 'dist/react'].some((dir) => within(resolve(dirname(file), name), dir)));
 
 /**
  * Stories draw with a fixed edge budget, so that the browser and visual lanes

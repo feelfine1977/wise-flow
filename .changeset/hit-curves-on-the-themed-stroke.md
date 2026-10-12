@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 The Canvas map, `CanvasRenderer.hitAt` and the hit index of `prepareScene`

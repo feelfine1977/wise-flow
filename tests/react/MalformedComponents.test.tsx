@@ -1,6 +1,6 @@
 /**
  * Malformed input at the components, hooks and description functions of
- * `@wise/flow/react` other than the map: each runs once per malformed case
+ * `wise-flow/react` other than the map: each runs once per malformed case
  * (see `tests/core/malformed-input.test.ts`) with the case's graph,
  * positions and overlays, and with junk traces, cohorts, filters, previews,
  * paths, actions and numbers a host may compute. Nothing may throw an untyped
@@ -119,7 +119,7 @@ function Hooks({ c }: { c: MalformedCase }) {
   return <span data-status={stable.status}>{overlays.length}</span>;
 }
 
-describe("malformed input at the components of @wise/flow/react", () => {
+describe("malformed input at the components of wise-flow/react", () => {
   it("tables, path lists, filter chips, legends and overlay layers", async () => {
     const calls = new Calls(fail, 20_000);
     for (const c of CASES) {

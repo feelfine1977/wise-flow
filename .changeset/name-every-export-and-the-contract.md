@@ -1,16 +1,16 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 `docs/API.md` names every name the four entry points export, among them the
-nineteen long-standing helpers of `@wise/flow` it did not name (`hasTag`,
+nineteen long-standing helpers of `wise-flow` it did not name (`hasTag`,
 `hashKey`, `hexToRgb`, `interpolatePalette`, `normalizeGraph`,
 `straightRoute`, `defaultNodeSize`, the tags `COLLAPSED_TAG`, `DIFF_TAGS`,
 `RECONNECTED_TAG`, `OverlayPresetOptions`, `withObservedSelfLoops`,
 `wrapActivityText` and the `activity*` helpers, and also `contrastRatio`,
 `strengths` and `strings`), the props and options types that appeared only
 inline (`IdResolverOptions`, `BpmnElementRef` and `ActivityRenaming` of
-`@wise/flow/bpmn` among them), and a tooling test keeps it so.
+`wise-flow/bpmn` among them), and a tooling test keeps it so.
 
 It states the contract for versions: while the version is 0.x a minor
 release may remove or change a name, named in its Changeset and the upgrade

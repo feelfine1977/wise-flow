@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 With `keepConnected`, a collapsed stage without members weighs nothing when

@@ -33,7 +33,7 @@ export function checkBudgets() {
     libraryJavaScriptGzipBytes: libraryJavaScriptGzipBytes(),
     workerBytes: workerPaths.reduce((sum, path) => sum + statSync(path).size, 0),
     consumerAllJavaScriptGzipBytes: assets.allJavaScriptGzipBytes,
-    tarballBytes: statSync(resolve(artifactDir, `wise-flow-${pkg.version}.tgz`)).size,
+    tarballBytes: statSync(resolve(artifactDir, `${pkg.name}-${pkg.version}.tgz`)).size,
   };
   writeFileSync(resolve(artifactDir, 'size-budgets.json'), JSON.stringify({ measured, limits }, null, 2) + '\n');
   assertBudgets(measured, limits);

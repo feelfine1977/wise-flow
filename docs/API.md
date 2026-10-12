@@ -4,8 +4,8 @@ The contract the 0.3 release implements: the 0.1 and 0.2 surface unchanged,
 the interaction model (selection, actions menu, paths, filters, lanes) and
 the Canvas renderer with `toPNG` added. Changes against the earlier draft
 and between the milestones are listed at the end. Types are exported from
-`@wise/flow`, components from `@wise/flow/react`, the BPMN bridge from
-`@wise/flow/bpmn`, the Canvas renderer from `@wise/flow/canvas`.
+`wise-flow`, components from `wise-flow/react`, the BPMN bridge from
+`wise-flow/bpmn`, the Canvas renderer from `wise-flow/canvas`.
 
 ## Model (`#/components/schemas/FlowGraph` of the workbench API)
 
@@ -172,7 +172,7 @@ without being declared; their declared types are `string`, `boolean` and
 
 ## Label sizing (headless, opt-in)
 
-These helpers export the map text counter-scaling policy through `@wise/flow`.
+These helpers export the map text counter-scaling policy through `wise-flow`.
 They read only numbers and do not enable styling or change any renderer defaults,
 layout coordinates, fit lifecycle, selection or controls.
 
@@ -587,9 +587,9 @@ usable. Caller keys inside a scope go to the
 shared cache as above. `clearLayoutCache()` without a key forgets every cached
 layout, every scope's included.
 
-Workers. With `elkWorkerUrl` (the URL of `@wise/flow/elk-worker.min.js` or
+Workers. With `elkWorkerUrl` (the URL of `wise-flow/elk-worker.min.js` or
 `elkjs/lib/elk-worker.min.js` as served) ELK runs in a Web Worker; with
-`dagreWorkerUrl` (the URL of `@wise/flow/dagre-worker.min.js`, Dagre and the
+`dagreWorkerUrl` (the URL of `wise-flow/dagre-worker.min.js`, Dagre and the
 package's Dagre step, MIT) Dagre runs in one, whether asked for by
 `engine: "dagre"` or as the fallback; it gives the same positions as on the
 calling thread. Without a worker URL, or where `Worker` does not exist (Node),
@@ -1394,7 +1394,7 @@ as 100, a fraction is cut and `NaN` counts as 0; up to 0.3.5 a number
 outside threw a `RangeError`. A value that is not a finite number (`NaN`,
 an infinity, a string) prints as `–` in every formatter.
 
-## React (`@wise/flow/react`)
+## React (`wise-flow/react`)
 
 ```ts
 export function ProcessMap(props: {
@@ -1473,8 +1473,8 @@ export interface CanvasMapProps { scene: PreparedScene | undefined; state: DrawS
 export interface FlowComparisonProps { cohorts: FlowComparisonCohort[]; noun?: string; onSelect?: (cohortId: string) => void }
 export interface FlowComparisonCohort { id: string; label: string; cases: number; graph: FlowGraph }   // cases: distinct, with those without events
 export type ViewSwitcherProps = Parameters<typeof ViewSwitcher>[0];   // see "Views"
-export type BpmnViewProps = Parameters<typeof BpmnView>[0];   // see "BPMN"; also from @wise/flow/bpmn
-export const emptyBpmnSelection: BpmnSelection;   // { tasks: [], flows: [], lanes: [] }; also from @wise/flow/bpmn
+export type BpmnViewProps = Parameters<typeof BpmnView>[0];   // see "BPMN"; also from wise-flow/bpmn
+export const emptyBpmnSelection: BpmnSelection;   // { tasks: [], flows: [], lanes: [] }; also from wise-flow/bpmn
 ```
 
 The node and edge components draw what the scene's marks say: texts,
@@ -1607,10 +1607,10 @@ layout is unavailable; the map shows a provisional arrangement." (string
 "Arranging the map…" with `data-layout-status="pending"` for good. Other
 layout errors are shown as before.
 
-Stylesheets: `@wise/flow/tokens.css` (design tokens, light and dark) and
-`@wise/flow/style.css` (components and React Flow's styles, in the cascade
-layer `wf`), or, on a page with an unlayered reset, `@wise/flow/style.unlayered.css`
-after `@wise/flow/react-flow.css` (see "Styling contract").
+Stylesheets: `wise-flow/tokens.css` (design tokens, light and dark) and
+`wise-flow/style.css` (components and React Flow's styles, in the cascade
+layer `wf`), or, on a page with an unlayered reset, `wise-flow/style.unlayered.css`
+after `wise-flow/react-flow.css` (see "Styling contract").
 `tokens.css` defines `--wf-font`, `--wf-font-mono`, the themed colours
 (`--wf-paper`, `--wf-surface`, `--wf-ink`, `--wf-ink-muted`, `--wf-line`,
 `--wf-line-strong`, `--wf-focus`, `--wf-pressed`, `--wf-on-pressed`,
@@ -1754,7 +1754,7 @@ returned in `views[i].style` and `domains` (`"edgeWidth:count"` as `[0,
 max]`, `"edgeColor:medianLagHours"`, …). Up to 0.3 the views shared the
 width's `domain`, the extent of its values.
 
-## BPMN (`@wise/flow/bpmn`, 0.2)
+## BPMN (`wise-flow/bpmn`, 0.2)
 
 ```ts
 // BPMN-lite: BPMN shapes in the FlowGraph vocabulary (activity nodes tagged `task`,
@@ -1845,7 +1845,7 @@ export interface BpmnViewHandle { viewer(): unknown; saveXML(): Promise<string |
   fit(insets?: Partial<Insets>): void }   // the diagram inside the view less the insets; default clear of the view's panels (see "Controls and panels")
 export function ViewSwitcher(props: { views: ViewSet; mode?: "single" | "grid"; onModeChange?; activeView?; onActiveViewChange?;
   columns?; locale?; selection?; onSelect?; onHover?; legend?; lod?; minimap?; className?; containerStyle?;
-  edgeBudget?: EdgeBudget | "adaptive"; theme?: ThemeSetting }): JSX.Element;   // from @wise/flow/react; edgeBudget and theme are passed to every view's map
+  edgeBudget?: EdgeBudget | "adaptive"; theme?: ThemeSetting }): JSX.Element;   // from wise-flow/react; edgeBudget and theme are passed to every view's map
 ```
 
 Layout of a BPMN model where no `Worker` exists (Node): `layoutBpmn`, and
@@ -2023,7 +2023,7 @@ change the renaming for the table counted as a new selection, and "Selected:
 …" was spoken again.
 Every id the view matches (overlay targets, controlled selection, reported
 selection and hover) goes through `createIdResolver` with the import's id
-map and `mapping`. Stylesheets: `@wise/flow/bpmn.css` (bpmn-js's
+map and `mapping`. Stylesheets: `wise-flow/bpmn.css` (bpmn-js's
 `diagram-js.css`, `bpmn-js.css` and `bpmn-font/css/bpmn.css`, shipped with the
 package) in addition to the package's.
 
@@ -2049,8 +2049,8 @@ Additions only; the 0.1 surface is unchanged.
   they replace); `<ProcessMap/>` and `toSVG` colour `flow` edges through
   the scales like paths (constraint edges keep the fixed colour).
 - New strings `bpmn.*` and `views.*` in English and German.
-- New entry point `@wise/flow/bpmn`; `<BpmnView/>` and `<ViewSwitcher/>`
-  are also exported from `@wise/flow/react`.
+- New entry point `wise-flow/bpmn`; `<BpmnView/>` and `<ViewSwitcher/>`
+  are also exported from `wise-flow/react`.
 
 ## Interaction (0.3)
 
@@ -2268,9 +2268,9 @@ children with a label strip, a top-level pool spans all lanes).
 `direct` (role bands) moves a route with its ends and drops it across lanes
 so the renderer draws it directly; `routed` (BPMN) routes every edge around
 the shapes with `routeSequenceFlows`, the orthogonal obstacle router.
-`manhattanRoute` was removed from `@wise/flow/bpmn`; use `routeSequenceFlows`.
+`manhattanRoute` was removed from `wise-flow/bpmn`; use `routeSequenceFlows`.
 
-### React (`@wise/flow/react`, 0.3)
+### React (`wise-flow/react`, 0.3)
 
 ```ts
 export function ContextMenu(props: { x; y; title; subtitle?; note?; actions: MenuAction[]; locale?; onAction: (a: MenuAction) => void;
@@ -2318,7 +2318,7 @@ bands (`laneBands`). Renderer choice: `auto` (default) uses the Canvas
 renderer above `canvasThreshold` elements; the container carries
 `data-renderer="svg" | "canvas" | "table"`, `data-lanes`, `data-focus`.
 
-## Canvas (`@wise/flow/canvas`, 0.3)
+## Canvas (`wise-flow/canvas`, 0.3)
 
 ```ts
 export interface PreparedScene extends FlowScene { shapes: OverlayShape[]; nodes: SceneNode[]; edges: SceneEdge[];
@@ -2467,8 +2467,8 @@ Additions only, except the keyboard route for Enter.
   `lanes`, `contextMenu`, `onContextMenu`, `onAction`, `announce`,
   `canvasThreshold`; `renderer: "canvas"` now draws on the Canvas
   renderer and `"auto"` chooses it above the threshold.
-- New entry point `@wise/flow/canvas`; `<ContextMenu/>`, `<PathList/>`,
-  `<FilterChips/>` and `<CanvasMap/>` exported from `@wise/flow/react`.
+- New entry point `wise-flow/canvas`; `<ContextMenu/>`, `<PathList/>`,
+  `<FilterChips/>` and `<CanvasMap/>` exported from `wise-flow/react`.
 - New strings `selection.*`, `menu.*`, `paths.*`, `filters.*`, `clause.*`,
   `lanes.*`, `unit.*`, `map.focus`, `map.focusPair`, `map.focused`,
   `map.renderer.canvas`, `map.zoomIn`, `map.zoomOut`, `map.fit` (en, de);
@@ -2502,7 +2502,7 @@ the scope is released when the component unmounts. Supplying an explicit
 
 ## Cohort comparison (0.3.2 candidate)
 
-`FlowComparison` from `@wise/flow/react` accepts `cohorts: { id, label, cases, graph }[]`, optional plural `noun`, and optional `onSelect(cohortId)`. Import the package tokens and stylesheet.
+`FlowComparison` from `wise-flow/react` accepts `cohorts: { id, label, cases, graph }[]`, optional plural `noun`, and optional `onSelect(cohortId)`. Import the package tokens and stylesheet.
 
 The two tabs align activity labels or ordered activity pairs across graphs. Cells show distinct `metrics.cases` divided by the supplied cohort case count, plus the count itself. Repeated occurrences and supplied shares never substitute for case counts. Reverse pairs and self-loops remain separate. The default eight rows have the largest percentage-point range across available cohorts; search and Show all reveal the rest. Arrow keys navigate the tabs. Cohort headings optionally invoke the host navigation callback.
 
@@ -2553,7 +2553,7 @@ export function truncateText(text: string, maxWidth: number, font: { size: numbe
 export function wrapText(text: string, width: number, font: { size: number; weight?: number }, measure?: TextMeasure): string[];
 export function fitText(t: MarkText, measure?: TextMeasure): string;
 export function fitLead(t: MarkText, fit: (text: string) => string): { lead: string; text: string };
-// @wise/flow/canvas
+// wise-flow/canvas
 export function canvasTextMeasure(family?: string, context?: { font: string; measureText(s: string): { width: number } } | null): TextMeasure;
 ```
 
@@ -3083,12 +3083,12 @@ the drawing. A constraint arc is not an observed process route.
 
 `repositionNodes` keeps supplied edge identities, directions and metrics unchanged; an edge without an id is routed like any other (up to 0.3.5 it threw a `TypeError`). It routes around all visible boxes, including a moved box obstructing an unrelated edge; self loops remain node-anchored overlays. During an overlapping drag, an unroutable edge falls back to a clipped direct route rather than throwing. Positions and routes are immutable, and bounds include the rerouted edges. Manual placement is local to the mounted map unless the host persists it.
 
-Custom child controls should import `useReactFlow`, `useNodesInitialized` and `useStore` from `@wise/flow/react`, so they share the renderer's context even when a host resolves different Node/browser entry points of React Flow.
+Custom child controls should import `useReactFlow`, `useNodesInitialized` and `useStore` from `wise-flow/react`, so they share the renderer's context even when a host resolves different Node/browser entry points of React Flow.
 
 ## Theme of a map in a page
 
 ```ts
-// @wise/flow/react
+// wise-flow/react
 export function useFlowTheme(host: RefObject<Element | null>, setting?: ThemeSetting): FlowTheme;
 export interface FlowTheme { theme: Theme; scheme: ColorScheme }
 // <ProcessMap theme?>, <CanvasMap theme?>, <ViewSwitcher theme?>: ThemeSetting
@@ -3167,8 +3167,8 @@ export interface ZoomControlProps { zoom?: number; locale?: Locale; onZoomIn(): 
   fitLabel?: string;   // default "Fit the map" / "Karte einpassen"
   label?: string;      // the group's name; default "Zoom"
   disabled?: boolean; children?: ReactNode; className?: string }
-export function ZoomControl(props: ZoomControlProps): JSX.Element;   // @wise/flow/react
-// @wise/flow: the fitted view, used by all three
+export function ZoomControl(props: ZoomControlProps): JSX.Element;   // wise-flow/react
+// wise-flow: the fitted view, used by all three
 export interface Insets { top: number; right: number; bottom: number; left: number }
 export interface FitView { x: number; y: number; zoom: number }
 export interface FitOptions { insets?: Partial<Insets>; padding?: number; minZoom?: number; maxZoom?: number }   // padding default 0.08
@@ -3518,22 +3518,22 @@ breaking change for the host stylesheets written against it.
 [data-wf-part="mark"][data-wf-kind="badge"] text { font-size: 12px; }
 ```
 
-**Stylesheets.** `@wise/flow/style.css` puts React Flow's stylesheet and the
+**Stylesheets.** `wise-flow/style.css` puts React Flow's stylesheet and the
 library's rules into the cascade layer `wf`, React Flow's in the sublayer
 `wf.react-flow` below the library's. Any rule of the host outside a layer wins
 over both, whatever its specificity and wherever it is loaded, so host CSS needs
-no specificity contest. Load `@wise/flow/tokens.css` next to it, and do not load
+no specificity contest. Load `wise-flow/tokens.css` next to it, and do not load
 React Flow's stylesheet (`@xyflow/react/dist/style.css` or
-`@wise/flow/react-flow.css`) as well: outside a layer, it would win over the
+`wise-flow/react-flow.css`) as well: outside a layer, it would win over the
 library's rules where they overlap.
 
 An unlayered reset wins over layered rules just as well. The browser lane shows
 it (`tests/browser/styling.spec.ts`): with a reset like Tailwind 3's preflight
 (`*, ::before, ::after { border-width: 0; border-style: solid }`) on the page,
 an activity's border disappears under `style.css`. For such a page,
-`@wise/flow/style.unlayered.css` holds the library's rules without a layer, as
+`wise-flow/style.unlayered.css` holds the library's rules without a layer, as
 `style.css` did before; load it after the reset and after React Flow's
-stylesheet (`@wise/flow/react-flow.css`). Under it, a host rule needs the
+stylesheet (`wise-flow/react-flow.css`). Under it, a host rule needs the
 specificity of the library's rule it overrides and the later place, and the
 stroke of a path is set by React Flow's rule for `.react-flow__edge-path`, so a
 host rule for it needs two attribute selectors, as in the example above. A reset
@@ -3573,9 +3573,24 @@ the scene's values handed to the stylesheet as custom properties
 The legend's samples and the table's swatches show data colours inline; they
 are panels, not elements of the map.
 
+## Package name
+
+The package is `wise-flow`, without a scope, as its repository. Up to 0.3.5
+it was named `@wise/flow`; that scope belongs to another organisation on npm,
+so the package was never published under it. Only the name changed: the entry
+points keep their sub-paths (`wise-flow`, `wise-flow/react`,
+`wise-flow/bpmn`, `wise-flow/canvas`, the stylesheets and the worker assets)
+and export the same names, and class names, CSS variables (`--wf-*`) and data
+attributes (`data-wf-*`) are unchanged.
+
+Migration: a host replaces its dependency entry (`"@wise/flow": "…"` becomes
+`"wise-flow": "…"`, then installs again) and every import specifier that
+starts with `@wise/flow` (`@wise/flow/react` becomes `wise-flow/react`, and so
+on, also for the stylesheets and the `?url` imports of the workers).
+
 ## Deprecated names
 
-### `@wise/flow`
+### `wise-flow`
 
 | Name | Replacement |
 | --- | --- |
@@ -3584,7 +3599,7 @@ are panels, not elements of the map.
 | `nodeCount` | `textTokens.activityNumber` and `activityShare`, the cases and their share on a card's number line |
 | `TimeMode."events_inside"` | a time clause on `case_start`, `case_end` or `active`, which keeps whole cases; removed in the next minor version (see "Filters") |
 
-### `@wise/flow/canvas`
+### `wise-flow/canvas`
 
 | Name | Replacement |
 | --- | --- |
@@ -3613,7 +3628,7 @@ exported all of them except three types added since (`PatternShape`,
 host moving from 0.3.5 meets them removed. The one consumer uses none of
 them. Each row names what to use instead.
 
-### `@wise/flow`
+### `wise-flow`
 
 | Name | Replacement |
 | --- | --- |
@@ -3636,17 +3651,17 @@ them. Each row names what to use instead.
 | `FollowsSelfLoopOptions` | `NonNullable<Parameters<typeof followsSelfLoops>[1]>` |
 | `NodeMarkOptions` | `Parameters<typeof nodeMark>[2]` |
 
-### `@wise/flow/react`
+### `wise-flow/react`
 
 | Name | Replacement |
 | --- | --- |
 | `OverlayLayerProps.showArcs` | nothing: the layer draws every mark on the map from its `minZoom` at the map's zoom, or at `zoom` where given (`zoom={Infinity}` draws every mark) |
 | `OverlayLayerProps.showSelfLoops` | nothing, as for `showArcs` |
-| `ActivityNodeData.badges` | `ActivityNodeData.marks`, drawn at `origin` (for example with `markSvg` from `@wise/flow`) |
+| `ActivityNodeData.badges` | `ActivityNodeData.marks`, drawn at `origin` (for example with `markSvg` from `wise-flow`) |
 | `GroupNodeData.chips` | `GroupNodeData.marks`, drawn at `origin` |
 
-### `@wise/flow/bpmn`
+### `wise-flow/bpmn`
 
 | Name | Replacement |
 | --- | --- |
-| `manhattanRoute` | `routeSequenceFlows` from `@wise/flow` |
+| `manhattanRoute` | `routeSequenceFlows` from `wise-flow` |

@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 `abstract` selects what a map shows by two detail shares, `activityDetail`

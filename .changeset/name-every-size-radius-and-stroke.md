@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 Every size, radius, stroke width, dash, text size and weight, opacity,

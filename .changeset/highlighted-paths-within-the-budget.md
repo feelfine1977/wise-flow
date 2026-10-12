@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 Highlighted paths of a focus are drawn within the edge budget. This changes

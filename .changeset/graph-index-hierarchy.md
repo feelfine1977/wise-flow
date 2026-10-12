@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 The graph index answers the group hierarchy: `GraphIndex.ancestors`, `allMembers`

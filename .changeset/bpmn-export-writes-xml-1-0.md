@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 `exportBpmn` writes XML 1.0 that any conforming parser reads. Characters XML

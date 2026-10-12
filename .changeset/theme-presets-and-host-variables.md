@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 A host sets the theme as a preset, as changes over a preset, or as CSS
@@ -36,7 +36,7 @@ variables, and the exports take it too.
   light unless `scheme: "dark"` is passed.
 - In the dark scheme the marks draw the scheme's neutral and constraint
   colours (the default theme's are the light ones, so nothing changes).
-- `@wise/flow/react`: `useFlowTheme(ref, setting?)` resolves a theme in a
+- `wise-flow/react`: `useFlowTheme(ref, setting?)` resolves a theme in a
   page: the setting over the `--wf-*` variables of the element (every part of
   a theme has one; values `tokens.css` sets are left out) over the preset, in
   the scheme `tokens.css` draws in, with any CSS colour turned into a literal,

@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 The note on withheld paths ("Showing n of m flows") counts the paths that
