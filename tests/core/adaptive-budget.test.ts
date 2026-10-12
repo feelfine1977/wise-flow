@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { type FlowEdge, type FlowGraph, type FlowNode, createPositions } from "../../src/index";
+import { type FlowEdge, type FlowGraph, type FlowNode, createPositions, emptySelection } from "../../src/index";
 import { CanvasRenderer, type DrawContext, prepareScene } from "../../src/canvas/index";
 import { FIRST_STEP, type FrameCounts, edgeBudgetAdapter } from "../../src/core/edge-budget";
 
@@ -104,23 +104,28 @@ describe("adaptive edge budget", () => {
     expect(adapter.budget).toBe(2000);
   });
 
-  it("finding: steps down after slow frames whose edges were mostly protected, although the step below would draw the same edges", () => {
-    // 2,500 protected edges of 5,000 in view: 2,000 draws them and nothing else, and so would 1,000. The documented
-    // rule takes no step that draws the same edges; the adapter counts a slow frame that drew more than half its
-    // budget, which these did, and steps down to 1,000, then to 500. Whether the rule or the adapter should change
-    // is not decided yet; this test holds what the adapter does today.
+  it("does not step down after slow frames whose drawn edges the step below would draw as well, being protected", () => {
+    // 2,500 protected edges of 5,000 in view: 2,000 draws them and nothing else, and so would 1,000 and 500. No
+    // step that draws the same edges is taken.
     const clock = frameClock();
     const adapter = edgeBudgetAdapter(clock);
-    const mostlyProtected = (budget: number) => ({ shown: Math.max(2500, budget), total: 5000 });
-    expect(gesture(adapter, clock, times(5, SLOW), mostlyProtected)).toBe(true);
-    expect(adapter.budget).toBe(1000);
-    expect(gesture(adapter, clock, times(5, SLOW), mostlyProtected)).toBe(true);
-    expect(adapter.budget).toBe(500);
+    const mostlyProtected = (budget: number) => ({ shown: Math.max(2500, budget), total: 5000, kept: 2500 });
+    expect(gesture(adapter, clock, times(5, SLOW), mostlyProtected)).toBe(false);
+    expect(gesture(adapter, clock, times(20, SLOW), mostlyProtected)).toBe(false);
+    expect(adapter.budget).toBe(2000);
     // Likewise when every edge in view is protected and drawn, so that nothing was withheld to begin with.
     const other = frameClock();
     const all = edgeBudgetAdapter(other);
-    expect(gesture(all, other, times(5, SLOW), () => ({ shown: 1500, total: 1500 }))).toBe(true);
-    expect(all.budget).toBe(1000);
+    expect(gesture(all, other, times(5, SLOW), () => ({ shown: 1500, total: 1500, kept: 1500 }))).toBe(false);
+    expect(all.budget).toBe(2000);
+    // 1,200 protected of 5,000: 2,000 draws 800 more than 1,000 would, and 1,000 none more than 500 would.
+    const some = frameClock();
+    const part = edgeBudgetAdapter(some);
+    const partlyProtected = (budget: number) => ({ shown: Math.max(1200, budget), total: 5000, kept: 1200 });
+    expect(gesture(part, some, times(5, SLOW), partlyProtected)).toBe(true);
+    expect(part.budget).toBe(1000);
+    expect(gesture(part, some, times(5, SLOW), partlyProtected)).toBe(false);
+    expect(part.budget).toBe(1000);
   });
 
   it("does not change while overlapping gestures are under way, and moves once the last ends", () => {
@@ -195,6 +200,48 @@ describe("adaptive edge budget in the Canvas renderer", () => {
     // A budget of 1 with a protected edge: the protected edge and nothing else. The order is h->t1, h->t2, … by count.
     const drawn = renderer.lastDraw!.withheld!.drawn;
     expect([...drawn].filter((i) => i !== lightest).sort((a, b) => a - b)).toEqual(Array.from({ length: 499 }, (_, i) => i));
+  });
+
+  it("does not step down while the edges it draws are protected ones that every step below would draw too", () => {
+    let now = 0;
+    const clock = vi.fn(() => (now += SLOW));
+    const { renderer } = rendererOf(n, clock);
+    // Half the hub's paths selected: 2,500 protected edges of 5,000 in view.
+    const half = { nodes: [], edges: Array.from({ length: n / 2 }, (_, k) => `h->t${2 * k + 1}`), groups: [] };
+    renderer.setState({ selection: half });
+    renderer.draw();
+    expect(renderer.lastDraw).toMatchObject({ kept: 2500, withheld: { shown: 2500, total: n, kept: 2500 } });
+    expect(pan(renderer, 6, false)).toEqual(times(6, 2500));
+    expect(pan(renderer, 6, false)).toEqual(times(6, 2500));
+    expect(renderer.lastDraw!.withheld).toMatchObject({ shown: 2500, total: n });
+    // Once the selection is cleared the budget is still the first step.
+    renderer.setState({ selection: emptySelection });
+    renderer.draw();
+    expect(renderer.lastDraw!.withheld).toMatchObject({ shown: 2000, total: n, kept: 0 });
+  });
+
+  it("does not step down while every edge in view is protected and drawn, though nothing is withheld", () => {
+    let now = 0;
+    const clock = vi.fn(() => (now += SLOW));
+    const { renderer } = rendererOf(1500, clock);
+    renderer.setState({ selection: { nodes: [], edges: Array.from({ length: 1500 }, (_, k) => `h->t${k + 1}`), groups: [] } });
+    for (let g = 0; g < 2; g++) {
+      renderer.beginGesture();
+      for (let k = 0; k < 6; k++) {
+        renderer.panBy(1, 0);
+        renderer.draw();
+        expect(renderer.lastDraw).toMatchObject({ edges: 1500, kept: 1500 });
+        expect(renderer.lastDraw!.withheld).toBeUndefined();
+      }
+      renderer.endGesture();
+    }
+    // Without the selection the next slow gesture finds 1,500 drawn where 1,000 would draw 1,000.
+    renderer.setState({ selection: emptySelection });
+    renderer.beginGesture();
+    for (let k = 0; k < 6; k++) renderer.draw();
+    renderer.endGesture();
+    renderer.draw();
+    expect(renderer.lastDraw!.withheld).toMatchObject({ shown: 1000, total: 1500, kept: 0 });
   });
 
   it("steps up after fast frames of a gesture while edges are withheld", () => {

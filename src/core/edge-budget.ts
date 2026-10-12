@@ -32,6 +32,8 @@ export interface EdgeSelection {
   drawn: Set<number>;
   shown: number;
   total: number;
+  /** How many of the drawn edges every budget draws: the protected ones. */
+  kept: number;
 }
 
 // Per scene: each edge's rank by weight and id, and whether a mark is on it; kept with the edge marks for the
@@ -66,7 +68,7 @@ export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "styl
       const i = inView ? inView[k] : k;
       if (named.has(scene.edgeMarks[i].id)) drawn.add(i);
     }
-    return drawn.size < total ? { drawn, shown: drawn.size, total: budget.total } : undefined;
+    return drawn.size < total ? { drawn, shown: drawn.size, total: budget.total, kept: drawn.size } : undefined;
   }
   // Not a number (NaN) withholds nothing, as "all" does.
   if (budget === undefined || budget === "all" || !(total > budget)) return undefined;
@@ -80,9 +82,10 @@ export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "styl
     if (marked[i] || selected.has(id) || protection.focused === id || protection.highlighted?.has(id)) drawn.add(i);
     else rest.push(i);
   }
-  rest.sort((a, b) => rank[a] - rank[b]);
-  for (let k = 0, room = Math.floor(budget) - drawn.size; k < room && k < rest.length; k++) drawn.add(rest[k]);
-  return drawn.size < total ? { drawn, shown: drawn.size, total } : undefined;
+  const kept = drawn.size;
+  const room = Math.floor(budget) - kept;
+  if (room > 0) for (const i of rest.sort((a, b) => rank[a] - rank[b]).slice(0, room)) drawn.add(i);
+  return drawn.size < total ? { drawn, shown: drawn.size, total, kept } : undefined;
 }
 
 /** The adaptive budget's first step; the steps are 500, 1,000, 2,000, … */
@@ -90,17 +93,19 @@ export const FIRST_STEP = 2000;
 const TARGET_MS = 16.7;
 const RUN = 5;
 
-/** The edges a frame drew and those in view. */
+/** The edges a frame drew, those in view, and how many of those drawn every step draws (protected). */
 export interface FrameCounts {
   shown: number;
   total: number;
+  kept?: number;
 }
 
 /**
  * The adaptive budget. It times the frames of gestures with `clock` (ms) and,
  * as the last gesture ends, moves one step: down after RUN frames in a row
- * above the target that drew more than the step below, up after RUN below
- * half of it (a step doubles the edges) that withheld edges.
+ * above the target that drew more than the step below would (half the budget,
+ * or the protected edges where they are more), up after RUN below half of it
+ * (a step doubles the edges) that withheld edges.
  */
 export function edgeBudgetAdapter(clock: () => number) {
   let budget = FIRST_STEP;
@@ -123,9 +128,9 @@ export function edgeBudgetAdapter(clock: () => number) {
     frame(draw: (budget: number) => FrameCounts) {
       if (!gestures) return void draw(budget);
       const started = clock();
-      const { shown, total } = draw(budget);
+      const { shown, total, kept = 0 } = draw(budget);
       const ms = clock() - started;
-      slow = ms > TARGET_MS && budget > 500 && shown > budget / 2 ? slow + 1 : 0;
+      slow = ms > TARGET_MS && budget > 500 && shown > Math.max(kept, budget / 2) ? slow + 1 : 0;
       fast = ms < TARGET_MS / 2 && shown < total ? fast + 1 : 0;
       if (slow === RUN) due = -1;
       if (fast === RUN) due = 1;

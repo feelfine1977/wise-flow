@@ -1327,6 +1327,7 @@ export interface DrawState { selection: Selection; hovered?: string | null; focu
 export interface DrawOptions { tokens?: CanvasTokens; cull?: boolean; background?: boolean | string; lodZoom?: number; createCanvas?;
   edgeBudget?: EdgeBudget | ShownEdges }   // default "all"
 export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, state?: DrawState, o?: DrawOptions): { nodes; edges; shapes; culled;
+  kept?: number;   // with an edge budget other than "all": the protected edges drawn, which every budget draws
   withheld?: EdgeSelection };   // present when the edge budget left edges in view out
 export function drawLegend(ctx: DrawContext, scene: PreparedScene, x, y, width, tokens?, o?: { createCanvas? }): number;   // the scene's legend; returns legendLayout(scene.legend).height
 export function tracePath(ctx: DrawContext, d: string): { last?; beforeLast? };
@@ -1677,7 +1678,7 @@ targets are dropped before their order is fixed.
 ```ts
 export type EdgeBudget = number | "all";
 export interface EdgeProtection { selection?: { edges: readonly string[] }; focused?: string | null; highlighted?: ReadonlySet<string> }
-export interface EdgeSelection { drawn: Set<number>; shown: number; total: number }   // positions in scene.edgeMarks
+export interface EdgeSelection { drawn: Set<number>; shown: number; total: number; kept: number }   // positions in scene.edgeMarks
 export interface ShownEdges { edges: readonly string[]; total: number }   // what a map draws, as onEdgesShown reports it
 export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style">, budget: EdgeBudget | ShownEdges | undefined,
   protection?: EdgeProtection, inView?: readonly number[]): EdgeSelection | undefined;
@@ -1721,7 +1722,8 @@ there the activities dominate the frame).
 `budgetEdges` returns undefined when the budget is `"all"`, undefined, null or
 not a number (`NaN`), or when it withholds nothing (no more edges in view than the budget, or every
 edge protected); otherwise the positions in `scene.edgeMarks` of the edges
-drawn, how many that is (`shown`) and how many were in view (`total`). The
+drawn, how many that is (`shown`), how many were in view (`total`) and how
+many of those drawn are protected (`kept`), which every budget draws. The
 edges in view are `inView` (positions in `scene.edgeMarks`), or every edge
 of the scene without it. The order by weight is computed once per scene and
 kept with its `edgeMarks` while they live, together with the metric and the
@@ -1771,6 +1773,16 @@ frame at rest is then drawn in full with the new budget, at once, without
 any transition, also when reduced motion is asked for. Because the order is
 stable, a smaller step only removes the weakest unprotected edges. Frames
 drawn while the view is at rest (a hover, a selection) are not timed.
+
+The step below draws the protected edges and then up to half the budget, so a
+slow frame counts only when it drew more edges than both: each draw says how
+many of its edges are protected (`kept` in the statistics of `drawScene`).
+With 2,500 protected paths of 5,000 in view (a selection or a focus of paths
+that large) every step draws the same 2,500, so slow frames leave the budget
+at 2,000; so do 1,500 edges in view that are all protected. Up to this change
+a slow frame counted whenever it drew more than half the budget: such a view
+stepped from 2,000 to 1,000 and 500, and once the selection was cleared the
+map drew 500 paths until fast gestures brought the budget back.
 
 The React Flow map moves its elements with a transform and has no frame of
 its own to time; there `"adaptive"` keeps its first step, 2,000 edges, which

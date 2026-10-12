@@ -287,7 +287,8 @@ describe("edge budget in the Canvas drawing", () => {
     const plain = calls();
     expect(plain.stats.withheld).toBeUndefined();
     expect(calls("all")).toEqual(plain);
-    expect(calls(7)).toEqual(plain);
+    // A number also says how many of the drawn edges every budget draws: none is protected here.
+    expect(calls(7)).toEqual({ ...plain, stats: { ...plain.stats, kept: 0 } });
   });
 
   it("does not hit an edge the last draw withheld", () => {

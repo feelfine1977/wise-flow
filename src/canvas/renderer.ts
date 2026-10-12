@@ -195,7 +195,7 @@ export class CanvasRenderer {
     let stats!: ReturnType<typeof drawScene>;
     const run = (budget: EdgeBudget | undefined) => {
       stats = drawScene(ctx, this.scene!, view, this.state, { ...options, edgeBudget: budget, tokens: this.tokens });
-      return stats.withheld ?? { shown: stats.edges, total: stats.edges };
+      return { shown: stats.edges, total: stats.withheld?.total ?? stats.edges, kept: stats.kept };
     };
     if (edgeBudget === "adaptive") (this.adapter ??= edgeBudgetAdapter(this.clock)).frame(run);
     else run(edgeBudget);
