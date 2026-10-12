@@ -9,8 +9,8 @@ printed "at least …" as before); `collapseGroups` now also records, in
 `meta.collapsedCasesAtMost` (new, by stage id), the sum of its activities'
 cases, at most all cases of the graph (`meta.cases`) and at least the stage's
 own `cases`. `abstract` measures a stage's strength by that bound, against the
-same maximum or total as every activity's, for thresholds and detail shares
-alike, also on a graph collapsed beforehand.
+same maximum or total as every activity's for its thresholds, also on a graph
+collapsed beforehand. Detail shares still rank a stage by its own `cases`.
 
 A stage of four activities with 25 cases each beside an activity of 100 cases
 read 25 of 100 and went at 50 %; it now reads 100 of 100 and stays. On the

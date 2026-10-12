@@ -468,7 +468,9 @@ export function thresholded(graph: FlowGraph, options: AbstractOptions = {}): Th
     }
   }
   const scalable = base.nodes.filter((n) => !isStructuralNode(n));
-  const nodeStrength = strengthsOf(scalable, nodeCandidates, relativeTo, comparison, base.meta?.collapsedCasesAtMost as Record<string, unknown> | undefined);
+  // Thresholds compare a collapsed stage by an upper bound of its cases; detail shares rank it by its own.
+  const byDetail = options.activityDetail !== undefined || options.pathDetail !== undefined;
+  const nodeStrength = strengthsOf(scalable, nodeCandidates, relativeTo, comparison, byDetail ? undefined : (base.meta?.collapsedCasesAtMost as Record<string, unknown> | undefined));
   const unmeasured = new Set([...base.edges.filter((e) => !edgeRank.has(e.id)), ...scalable.filter((n) => !nodeStrength.has(n.id))].map((el) => el.id));
   const edgeStrength = new Map(base.edges.map((e) => [e.id, Math.min(1, edgeRank.get(e.id) ?? 1)]));
   for (const n of base.nodes) if (!nodeStrength.has(n.id)) nodeStrength.set(n.id, 1);

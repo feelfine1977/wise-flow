@@ -274,7 +274,7 @@ records an upper bound in `meta.collapsedCasesAtMost` (by stage id), the sum
 of its activities' `cases` (an inner collapsed stage's bound in place of its
 own), at most all cases of the graph (`meta.cases`) and at least its own
 `cases`, and its strength is that bound against the same maximum or total
-as every other activity's (detail shares rank it by the bound too). A
+as every other activity's. Detail shares rank a stage by its own `cases`. A
 stage of four activities with 25 cases each, which up to 100 cases touch,
 reads 100 of 100 beside an activity of 100 cases and stays at 50 %; it still
 prints "at least 25". Up to 0.3.5 it read 25 and went, with or without

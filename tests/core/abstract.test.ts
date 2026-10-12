@@ -408,6 +408,8 @@ describe("abstract", () => {
     expect(collapseGroups(ninety, "all").meta?.collapsedCasesAtMost).toEqual({ S: 90 });
     expect(abstract(ninety, { collapse: "all", minNodeShare: 0.95 }).nodes.map((n) => n.id)).toEqual(["X"]);
     expect(abstract(g, { collapse: "all", minNodeShare: 0.95 }).nodes.map((n) => n.id)).toEqual(["S", "X"]);
+    // Detail shares rank the stage by its own cases, 25, below X: half of the two activities shows X alone.
+    expect(abstract(g, { collapse: "all", activityDetail: 0.5 }).nodes.map((n) => n.id)).toEqual(["X"]);
     // Collapsed again inside a larger stage, the inner stage counts by its bound: 100 + 100.
     const nested: FlowGraph = { ...g, nodes: g.nodes.map((n) => (n.id === "X" ? { ...n, group: "T" } : n)), groups: [{ id: "T", kind: "stage", label: "Outer" }, { id: "S", kind: "stage", label: "Stage", parent: "T" }] };
     expect(collapseGroups(collapseGroups(nested, ["S"]), ["T"]).meta?.collapsedCasesAtMost).toEqual({ S: 100, T: 200 });
