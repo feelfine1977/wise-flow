@@ -4,6 +4,7 @@
  */
 import { type ColorScheme, type EdgeBudget, type FigurePreset, type Scene, type ShownEdges, type TextMeasure, type ThemeSetting, budgetEdges, figureFrame, figureMetrics, formatCount, t } from "../core/index.js";
 import { type DrawContext, drawLegend, drawScene, fontOf } from "./draw.js";
+import { assertExportable } from "../core/model.js";
 import { prepareScene } from "./scene.js";
 import { type CanvasTokens, sceneTokens } from "./tokens.js";
 
@@ -71,6 +72,7 @@ function defaultCreateCanvas(width: number, height: number): CanvasLike {
 
 /** Draw the scene into a canvas and return it (synchronous). */
 export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
+  assertExportable(scene.graph);
   const locale = scene.locale ?? "en";
   const prepared = prepareScene(scene.graph, scene.positions, { style: scene.style, overlays: scene.overlays, locale, lanes: scene.lanes, selfLoops: scene.selfLoops, activityLabels: scene.activityLabels, lodBySize: false, theme: options.theme, scheme: options.scheme, textMeasure: options.textMeasure });
   const tokens: CanvasTokens = { ...sceneTokens(prepared), ...(options.tokens ?? {}) };

@@ -342,13 +342,34 @@ export interface GraphIssue {
   id?: string;
 }
 
+/** The ids of a graph that name a member of `Object.prototype` (`__proto__`, `constructor`, …): records keyed by id cannot hold them as their own. */
+function reservedIds(graph: FlowGraph): GraphIssue[] {
+  return [...graph.nodes, ...graph.edges, ...(graph.groups ?? [])].flatMap(({ id }) => (typeof id === "string" && id in Object.prototype ? [{ level: "error" as const, message: "reserved id", id }] : []));
+}
+
+/** A graph an export refuses: its `issues` say why (an id named like a member of `Object.prototype`). */
+export class InvalidGraphError extends Error {
+  override name = "InvalidGraphError";
+  readonly issues: GraphIssue[];
+  constructor(issues: GraphIssue[]) {
+    super(issues.map((i) => `${i.message}: ${i.id}`).join("; "));
+    this.issues = issues;
+  }
+}
+
+/** Throw `InvalidGraphError` for a graph with a reserved id, which the exports cannot write. */
+export function assertExportable(graph: FlowGraph): void {
+  const issues = reservedIds(graph);
+  if (issues.length) throw new InvalidGraphError(issues);
+}
+
 /**
  * Structural validation of a FlowGraph as received from an API: duplicate ids,
- * dangling edge endpoints, unknown groups, cycles of group parents, overlays on
- * unknown targets.
+ * reserved ids (named like a member of `Object.prototype`), dangling edge
+ * endpoints, unknown groups, cycles of group parents, overlays on unknown targets.
  */
 export function validateGraph(graph: FlowGraph): GraphIssue[] {
-  const issues: GraphIssue[] = [];
+  const issues: GraphIssue[] = reservedIds(graph);
   const nodeIds = new Set<string>();
   for (const n of graph.nodes) {
     if (nodeIds.has(n.id)) issues.push({ level: "error", message: `duplicate node id`, id: n.id });

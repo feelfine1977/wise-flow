@@ -18,7 +18,9 @@ that are zero, negative, fractional, huge or not finite. Option objects and
 the library's own structures passed back to it (scales, scenes, marks,
 selections, menu targets) are taken as typed: a wrong JavaScript type there is
 a programming error TypeScript reports. Ids named like members of
-`Object.prototype` are an open decision (`tests/core/prototype-ids.test.ts`).
+`Object.prototype` are reserved (after 0.3.5): validation reports them and the
+exports refuse them with `InvalidGraphError` (`tests/core/prototype-ids.test.ts`);
+the searches do not generate them.
 
 Every function below must return, or fail as its documentation says, never
 with a `TypeError`, `RangeError` or other untyped error, and settle within the
@@ -40,7 +42,8 @@ Test: `tests/core/malformed-input.test.ts` › "model and aggregation".
 | `metric` | `.` | A value that is not a finite number (missing, `NaN`, a string) yields the fallback. | Returns. |
 | `hasTag` | `.` | Not documented. | Returns. |
 | `indexGraph` | `.` | `ancestors` ends at an unknown parent and before a group would repeat; `label` falls back to the id. | Returns. |
-| `validateGraph` | `.` | Errors: duplicate node, edge and group ids, unknown edge ends, unknown group parents, cycles of group parents (after 0.3.5); warnings: unknown node groups, overlays on unknown targets. Not reported: missing, empty or unknown-kind elements, metric values. | Returns. |
+| `validateGraph` | `.` | Errors: duplicate node, edge and group ids, reserved ids and cycles of group parents (both after 0.3.5), unknown edge ends, unknown group parents; warnings: unknown node groups, overlays on unknown targets. Not reported: missing, empty or unknown-kind elements, metric values. | Returns. |
+| `InvalidGraphError` | `.` | Named `InvalidGraphError`, with the `issues` it is given (after 0.3.5). | Returns. |
 | `validateGateways` | `.` | Warnings only; rejects nothing. | Returns. |
 | `normalizeGraph` | `.` | Not documented. | Returns the elements de-duplicated by id (the first kept) and sorted. |
 | `strengths` | `.` | Not documented. | Returns. |
@@ -184,7 +187,7 @@ Test: `tests/core/malformed-input.test.ts` › "scene, marks, legend, figure and
 | `legendItemHeight` | `.` | Not documented. | Returns. |
 | `legendLayout` | `.` | Not documented. | Returns. |
 | `figureFrame` | `.` | Not documented. | Finite for sound options; a width, padding or scale out of range (10³⁰⁸, a padding of 10⁻³²⁰ on an empty map) gives sizes that are not finite. |
-| `toSVG` | `.` | Every text and id is escaped (after 0.3.5 for kinds); deterministic. | Returns well-formed SVG; no `NaN` or `Infinity` for accepted input and sound options. |
+| `toSVG` | `.` | Every text and id is escaped (after 0.3.5 for kinds); deterministic; `InvalidGraphError` on a reserved id (after 0.3.5). | Returns well-formed SVG; no `NaN` or `Infinity` for accepted input and sound options. |
 | `resolveViews` | `.` | Not documented. | Returns. |
 | `viewsSharePositions` | `.` | Not documented. | Returns. |
 | `stateStyle` | `.` | Not documented. | Returns, for every part and state. |
@@ -265,8 +268,8 @@ Test: `tests/core/malformed-input.test.ts` › "the Canvas entry point's headles
 | `drawScene` | `./canvas` | Not documented. | Draws with finite numbers for a sound view. |
 | `drawLegend` | `./canvas` | Not documented. | Returns. |
 | `tracePath` | `./canvas` | Not documented. | Returns. |
-| `toPNGCanvas` | `./canvas` | As `toSVG` for the scene. | Draws with finite numbers for accepted input and a scale in (0, 16]; a scale of 10³⁰⁸ gives a canvas of infinite size. |
-| `toPNGDataUrl` | `./canvas` | Not documented. | Returns. |
+| `toPNGCanvas` | `./canvas` | As `toSVG` for the scene, `InvalidGraphError` included. | Draws with finite numbers for accepted input and a scale in (0, 16]; a scale of 10³⁰⁸ gives a canvas of infinite size. |
+| `toPNGDataUrl` | `./canvas` | `InvalidGraphError` on a reserved id (after 0.3.5); otherwise not documented. | Returns. |
 | `canvasTextMeasure` | `./canvas` | The estimate without a context. | Returns a measure; measuring returns. |
 
 ## BPMN bridge, synchronous
@@ -288,7 +291,7 @@ Test: `tests/core/malformed-input.test.ts` › "the BPMN bridge's synchronous fu
 | `applyMapping` | `./bpmn` | Not documented. | Returns. |
 | `mappingIndex` | `./bpmn` | Not documented. | Returns. |
 | `normalizeLabel` | `./bpmn` | Not documented. | Returns. |
-| `createIdResolver` | `./bpmn` | Not documented. | Returns; a mapping under an id named like a member of `Object.prototype` throws a `TypeError` (finding, `tests/core/prototype-ids.test.ts`). |
+| `createIdResolver` | `./bpmn` | Not documented. | Returns; a mapping under a reserved id (named like a member of `Object.prototype`, which validation reports) throws a `TypeError` (`tests/core/prototype-ids.test.ts`). |
 | `createIdMap` | `./bpmn` | Takes nothing. | Returns. |
 | `registerId` | `./bpmn` | Not documented. | Returns. |
 | `renameToActivities` | `./bpmn` | Not documented. | Returns. |
@@ -305,7 +308,7 @@ Test: `tests/core/malformed-layout.test.ts` › "layout, layoutUnion, a layout s
 | `layoutUnion` | `.` | As `layout`. | Returns, or a plain error: `LayoutUnavailableError` and "layout timed out after … ms" (documented); the engines' own errors on a graph validation rejects (ELK on edges to missing nodes and missing ids, Dagre on cycles of group parents; not documented). |
 | `createLayoutScope` | `.` | As `layout` for its layouts. | Returns, or a plain error: `LayoutUnavailableError` and "layout timed out after … ms" (documented); the engines' own errors on a graph validation rejects (ELK on edges to missing nodes and missing ids, Dagre on cycles of group parents; not documented). |
 | `buildViews` | `.` | As `layout` and `resolveViews`. | Returns, or a plain error: `LayoutUnavailableError` and "layout timed out after … ms" (documented); the engines' own errors on a graph validation rejects (ELK on edges to missing nodes and missing ids, Dagre on cycles of group parents; not documented). |
-| `toPNG` | `./canvas` | Not documented. | Returns. |
+| `toPNG` | `./canvas` | Rejects with `InvalidGraphError` on a reserved id (after 0.3.5); otherwise not documented. | Returns. |
 | `LayoutUnavailableError` | `.` | Named `LayoutUnavailableError`. | Returns. |
 
 ## BPMN bridge, asynchronous
@@ -315,7 +318,7 @@ Test: `tests/core/malformed-bpmn.test.ts` › "lays out, exports, imports and va
 | Function | Entry | Documented for invalid input | Observed |
 | --- | --- | --- | --- |
 | `layoutBpmn` | `./bpmn` | Unroutable geometry raises a descriptive error; groups on a cycle of parents are laid out with lane bands or `ignore` (after 0.3.5); with `compound` the engine rejects them (finding 4). | Returns, or the documented plain `Error`, or the engines' errors on a graph validation rejects (not documented). |
-| `exportBpmn` | `./bpmn` | Elements without a position are listed in `warnings`; every element gets its own id and shape; non-finite boxes are left out (after 0.3.5). | Returns XML without `NaN`, `Infinity` or a repeated id. |
+| `exportBpmn` | `./bpmn` | Elements without a position are listed in `warnings`; every element gets its own id and shape; non-finite boxes are left out; rejects with `InvalidGraphError` on a reserved id (all after 0.3.5). | Returns XML without `NaN`, `Infinity` or a repeated id. |
 | `importBpmn` | `./bpmn` | Rejects only text that is not BPMN definitions, with the parser's plain `Error` (`unparsable content …`, `failed to parse document …`); everything else imports with `warnings`, including every `validateGraph` issue. | As documented. |
 | `validateBpmn` | `./bpmn` | Reads nesting deeper than the call stack (after 0.3.5); otherwise not documented for text that is not BPMN. | Returns, or the parser's plain `Error` (not documented). |
 | `positionsFromDi` | `./bpmn` | Shapes and routes that are not finite are left out and reported. | As documented. |
@@ -528,24 +531,15 @@ changes the public behaviour here.
 ## Open decisions
 
 **Ids named like members of `Object.prototype`** (`__proto__`,
-`constructor`, `toString`, …; `tests/core/prototype-ids.test.ts`). Validation
-accepts them, and Dagre lays them out (after 0.3.5), but `Positions`
-and many tables of the library are plain objects keyed by id: a `__proto__`
-box is not stored as the record's own, so `filterPositions` drops it and
-`toSVG` throws a `TypeError`; `createIdResolver` throws a `TypeError` for an
-activity mapped under such an id, and the BPMN round trip loses the node. A
-host meets this only when a backend names an activity so; `JSON.parse` does
-create an own `__proto__` key. Options:
-
-- **A.** `validateGraph` reports such an id as an error (`reserved id`), and
-  the API document says ids must not name a member of `Object.prototype`.
-  Small, no change for any other graph; the host must rename.
-- **B.** Every record keyed by id inside the library is created without a
-  prototype (`Object.create(null)`) or is a `Map`, and lookups use own
-  properties only. Supports every id; touches many modules and the size
-  budget; `Positions` built by a host as an object literal still cannot hold
-  `__proto__` as its own key, so the public type would need a note too.
-- **C.** Leave it, and document that such ids are not supported.
+`constructor`, `toString`, …; `tests/core/prototype-ids.test.ts`), decided
+after 0.3.5 as option A of this list: `validateGraph` reports such an id of a
+node, an edge or a group as an error (`reserved id`), the API document says
+ids must not name a member of `Object.prototype`, and the exports (`toSVG`,
+`toPNGCanvas`, `toPNGDataUrl`, `toPNG`, `exportBpmn`) refuse a graph with one
+with `InvalidGraphError` instead of failing with a `TypeError`. Other
+functions do not check; `createIdResolver` still throws a `TypeError` for an
+activity mapped under such an id. The other options were prototype-free
+records or `Map`s everywhere (B) and leaving it documented as unsupported (C).
 
 **React's key warnings** (finding 5) and **the host's unsound numbers**
 (finding 6) change what a host sees in the console and the DOM; they wait for

@@ -7,6 +7,7 @@ export {
   indexGraph,
   validateGraph,
   validateGateways,
+  InvalidGraphError,
   normalizeGraph,
   MAP_TARGET,
 } from "./model.js";

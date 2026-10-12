@@ -8,7 +8,7 @@ import { type FigurePreset, type LegendLayout, figureFrame, figureMetrics, legen
 import { type Locale, formatCount } from "./format.js";
 import { type Box, type Positions } from "./layout.js";
 import { type LaneMode } from "./lanes.js";
-import type { FlowGraph, Overlay } from "./model.js";
+import { type FlowGraph, type Overlay, assertExportable } from "./model.js";
 import type { OverlayGeometryOptions } from "./overlays.js";
 import { type MarkSvgOptions, arrowMarker, markSvg, svgMarkup } from "./mark-svg.js";
 import { type MarkPaint, type MarkText, type OverlayMark, markArrowhead, overlayArrow } from "./overlay-marks.js";
@@ -265,6 +265,7 @@ function drawLegend(ctx: Ctx, width: number, layout: LegendLayout): string {
  * no time-dependent data is embedded.
  */
 export function toSVG(given: Scene, options: ExportOptions = {}): string {
+  assertExportable(given.graph);
   const scene = sceneOf(given.graph, given.positions, {
     overlays: given.overlays,
     style: given.style,

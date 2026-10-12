@@ -57,6 +57,9 @@ export const MAP_TARGET = "__map";      // overlay target for map-level chips
 export function hasTag(el: { tags?: string[] } | undefined, tag: string): boolean;   // the element carries the tag
 export function normalizeGraph(g: FlowGraph): FlowGraph;   // shallow copy with sorted, de-duplicated element arrays
 export function validateGraph(g: FlowGraph): GraphIssue[];
+export class InvalidGraphError extends Error {   // name "InvalidGraphError"; thrown by the exports for a reserved id
+  readonly issues: GraphIssue[];                 // what validateGraph reports for the reserved ids
+}
 export function validateGateways(g: FlowGraph): GraphIssue[];   // warnings: unpaired parallel gateways
 export function indexGraph(g: FlowGraph): GraphIndex;
 export interface GraphIndex {
@@ -97,6 +100,20 @@ inside such a cycle is not. It reports as warnings a node group that names no
 group and an overlay whose target names no node, edge or group. Up to 0.3.5 a
 cycle of group parents passed validation; `collapseGroups(g, "all")` then
 collapsed nothing and `layout` rejected with the engine's plain error.
+
+Ids are opaque, but an id must not name a member of `Object.prototype`
+(`__proto__`, `constructor`, `toString`, `hasOwnProperty`, `valueOf`, …):
+positions and many records of the library are plain objects keyed by id,
+which cannot hold `__proto__` as their own key and find the prototype's
+member under `constructor` where nothing was stored. `validateGraph` reports
+such an id of a node, an edge or a group as an error, `reserved id`. The
+exports refuse a graph with one: `toSVG`, `toPNGCanvas`, `toPNGDataUrl`
+throw, and `toPNG` and `exportBpmn` reject, with `InvalidGraphError`, whose
+`issues` are those errors and whose message names them ("reserved id:
+__proto__"). Up to 0.3.5 validation passed such ids, `toSVG` threw a
+`TypeError` on a node or group named so, every export on an edge named so,
+and the BPMN round trip lost the node. Other functions do not check: given
+such an id they may fail or drop the element.
 
 `validateGateways` checks the pairing of parallel gateways in any graph with
 gateways, generated or imported: a parallel split (a `gateway` node tagged
