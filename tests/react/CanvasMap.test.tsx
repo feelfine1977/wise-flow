@@ -1,7 +1,7 @@
-import { cleanup, render, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { constraintItems, vendorScene, vendorSceneKey } from "../../fixtures/bpic2019";
-import { type FlowGraph, abstract, layout, overlaysFor } from "../../src/index";
+import { type FlowGraph, abstract, createPositions, layout, overlaysFor } from "../../src/index";
 import { ProcessMap } from "../../src/react/index";
 
 afterEach(() => {
@@ -115,5 +115,51 @@ describe("the live Canvas map and the theme", () => {
     await waitFor(() => expect(labels()).toEqual(["#dddddd"]));
     view.unmount();
     expect(listeners.length).toBe(0);
+  });
+});
+
+describe("pointer hits on the Canvas map", () => {
+  // jsdom has no pointer events; the Canvas map listens to them.
+  const hadPointer = "PointerEvent" in window;
+  beforeAll(() => {
+    if (hadPointer) return;
+    class PointerEvent extends MouseEvent {
+      pointerId: number;
+      constructor(type: string, init: PointerEventInit = {}) {
+        super(type, init);
+        this.pointerId = init.pointerId ?? 1;
+      }
+    }
+    Object.defineProperty(window, "PointerEvent", { configurable: true, writable: true, value: PointerEvent });
+  });
+  afterAll(() => {
+    if (!hadPointer) delete (window as { PointerEvent?: unknown }).PointerEvent;
+  });
+
+  it("selects the activity under the pointer inside a tinted stage, not the stage", async () => {
+    const graph: FlowGraph = {
+      nodes: [
+        { id: "a", kind: "activity", label: "A", group: "g", metrics: { cases: 4 } },
+        { id: "b", kind: "activity", label: "B", group: "g", metrics: { cases: 4 } },
+      ],
+      edges: [{ id: "ab", kind: "follows", source: "a", target: "b", metrics: { count: 4 } }],
+      groups: [{ id: "g", kind: "stage", label: "G" }],
+      overlays: [{ kind: "tint", target: "g", payload: { constraintId: "balance", constraintType: "balance", value: 0.5 } }],
+    };
+    const positions = createPositions({ nodes: { a: { x: 100, y: 76, width: 180, height: 48 }, b: { x: 400, y: 76, width: 180, height: 48 } }, groups: { g: { x: 0, y: 0, width: 700, height: 200 } }, edges: {} }, "given", "RIGHT");
+    // Hit-testing needs no drawing.
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+    const onSelect = vi.fn();
+    const { container } = render(
+      <div style={{ width: 1200, height: 800 }}>
+        <ProcessMap graph={graph} positions={positions} renderer="canvas" edgeBudget="all" fitView={false} controls={false} legend={false} onSelect={onSelect} />
+      </div>,
+    );
+    await waitFor(() => expect(container.querySelector(".wf-canvas-map")).toBeTruthy());
+    const host = container.querySelector(".wf-canvas-map")!;
+    // Without fitting, the viewport is the identity: a screen point is a point of the layout. A's centre lies inside the tinted stage.
+    fireEvent.pointerDown(host, { clientX: 190, clientY: 100, button: 0, pointerId: 1 });
+    fireEvent.pointerUp(host, { clientX: 190, clientY: 100, button: 0, pointerId: 1 });
+    expect(onSelect).toHaveBeenLastCalledWith({ nodes: ["a"], edges: [], groups: [] });
   });
 });

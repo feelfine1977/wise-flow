@@ -383,7 +383,8 @@ export interface Scales {
   domains: { edgeWidth?: [number, number]; edgeColor?: number[]; nodeColor?: number[] };
 }
 
-function extentOf(values: number[]): [number, number] | undefined {
+/** The smallest and largest finite value, or `undefined` when there is none. */
+export function extentOf(values: number[]): [number, number] | undefined {
   let lo = Infinity;
   let hi = -Infinity;
   for (const v of values) {
@@ -394,7 +395,7 @@ function extentOf(values: number[]): [number, number] | undefined {
   return lo === Infinity ? undefined : [lo, hi];
 }
 
-function isShareMetric(name: string): boolean {
+export function isShareMetric(name: string): boolean {
   return /share/i.test(name);
 }
 
@@ -419,7 +420,8 @@ function categoricalEntry(key: string, theme: Theme, index = hashKey(key) % them
 /**
  * The entries of keys in their order: each takes its hashed colour or the
  * next one not yet taken; once every colour is taken they are free again
- * and the next round shifts the pattern twins by one.
+ * and the next round shifts the pattern twins by one. A key that is not a
+ * string has no entry.
  */
 export function orderedCategorical(keys: Iterable<string>, theme: Theme = defaultTheme): Map<string, CategoricalEntry> {
   const size = theme.palette.categorical.length;
@@ -427,7 +429,7 @@ export function orderedCategorical(keys: Iterable<string>, theme: Theme = defaul
   const taken = new Set<number>();
   let round = 0;
   for (const key of keys) {
-    if (out.has(key) || !size) continue;
+    if (typeof key !== "string" || out.has(key) || !size) continue;
     if (taken.size === size) {
       taken.clear();
       round++;
@@ -500,7 +502,11 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
           ? scaleLinear().domain(safeDomain).range(onto).clamp(true)
           : scaleSqrt().domain(safeDomain).range(onto).clamp(true);
     domains.edgeWidth = safeDomain;
-    const at = (v: number) => Math.max(floor, Number(s(kind === "log" ? Math.max(1e-9, v) : v).toFixed(2)));
+    const at = (v: number) => {
+      const w = s(kind === "log" ? Math.max(1e-9, v) : v);
+      // A domain or value that is not a number gives no width: the thinnest line.
+      return Math.max(floor, typeof w === "number" && Number.isFinite(w) ? Number(w.toFixed(2)) : range[0]);
+    };
     widthFn = (e) => {
       const v = e.metrics?.[widthSpec.metric];
       if (typeof v !== "number" || !Number.isFinite(v)) return range[0];
@@ -628,7 +634,7 @@ function categoricalKey(nodeSpec: ColorSpec | undefined): (n: FlowNode) => strin
   };
 }
 
-function symmetricDomain(values: number[]): number[] {
+export function symmetricDomain(values: number[]): number[] {
   const ext = extentOf(values);
   if (!ext) return [-1, 0, 1];
   const m = Math.max(Math.abs(ext[0]), Math.abs(ext[1])) || 1;

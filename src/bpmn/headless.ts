@@ -1,8 +1,4 @@
-/**
- * The headless part of the BPMN bridge: everything `@wise/flow/bpmn` offers
- * except `<BpmnView/>`. It loads bpmn-moddle and the core, never React or
- * bpmn-js, so Node code and tests import it without a DOM.
- */
+/** The headless part of the BPMN bridge, everything but `<BpmnView/>`: no React, no bpmn-js, so it runs in Node. */
 export {
   liteFromStages,
   liteFromGraph,

@@ -21,7 +21,8 @@ Visible changes:
 - SVG: a gateway shows its glyph (×, + or ○, 14 px bold) instead of its
   label, as on the map.
 - SVG: a note is drawn as a note: on the surface colour with a dotted
-  border, without a colour band, its label at 11 px and at every zoom.
+  border, without a colour band and without the case count it had, its label
+  at 11 px and at every zoom.
 - SVG: an event's label sits inside its circle at 9 px, as on the map (it
   was below the circle at 10 px).
 - SVG: a stage shows its members before its cases ("4 · 1.5k") and its

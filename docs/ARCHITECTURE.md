@@ -3,28 +3,35 @@
 ## 1. Layers
 
 ```
-┌────────────────────────────────────────────────────────────┐
-│ react/   <ProcessMap/> <TableAlternative/> <TraceTimeline/> │
+┌──────────────────────────────────────────────────────────────┐
+│ react/   <ProcessMap/> <TableAlternative/> <TraceTimeline/>  │
 │          <BpmnView/> <ViewSwitcher/> <ContextMenu/>          │
 │          <PathList/> <FilterChips/> <CanvasMap/> <Legend/>   │
-│          <ZoomControl/> · panel primitives · fit             │
+│          <AbstractionControls/> <OverlayLayer/>              │
+│          <FlowComparison/> <PatternSwatch/> <ZoomControl/>   │
+│          panel primitives · fit · ActivityTooltip            │
 │          useMapController · map-pointer · map-actions ·      │
-│          map-elements · nodes · edges · marks · theme        │
+│          map-elements · nodes · edges · marks · describe ·   │
+│          types · parts · theme                               │
 │          hooks: useFlowGraph, useStableLayout, useOverlays   │
-├──────────────────────────┬─────────────────────────────────┤
-│ canvas/  scene · draw ·  │ bpmn/  lite · layout · export ·   │
-│          renderer · png  │        import · ids · vocabulary · │
-│          · tokens        │        scene · projection ·        │
-│                          │        viewer · bpmn-js · moddle   │
-├──────────────────────────┴─────────────────────────────────┤
-│ core/    model · aggregate · layout · lanes · routing ·     │
-│          courses · scene · overlays · overlay-geometry ·    │
-│          overlay-marks · element-marks · mark-svg · figure ·│
-│          text · tokens · theme · style · hit · export ·     │
-│          views · selection · map-controller · actions ·     │
-│          paths · filters · format · metrics · strings ·     │
-│          viewport · detail                                  │
-└────────────────────────────────────────────────────────────┘
+├──────────────────────────┬───────────────────────────────────┤
+│ canvas/  scene · draw ·  │ bpmn/ lite · layout · export ·    │
+│          renderer · png  │       import · ids · scene ·      │
+│          · tokens        │       vocabulary · projection ·   │
+│                          │       viewer · bpmn-js · moddle · │
+│                          │       headless                    │
+├──────────────────────────┴───────────────────────────────────┤
+│ core/    model · aggregate · detail · detail-statement ·     │
+│          layout · layout-key · lanes · routing · courses ·   │
+│          provisional · scene · overlays · overlay-geometry · │
+│          overlay-marks · observed-loops · element-marks ·    │
+│          mark-svg · figure · text · edge-budget · tokens ·   │
+│          theme · rules · style · hit · export · views ·      │
+│          selection · map-controller · actions · paths ·      │
+│          describe · filters · format · metrics · strings ·   │
+│          viewport · activity-labels · label-sizing ·         │
+│          collapsed-members                                   │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 Dependencies point downwards only. `core` has no DOM and no React; it is
@@ -111,6 +118,9 @@ groups into stage nodes (semantic zoom) and restores connectivity: first a
 maximum spanning forest over the strongest direct edges between the kept
 nodes, then the cheapest paths of the original graph through removed nodes,
 then one edge per activity that lost all incoming or all outgoing paths.
+A re-added activity brings back its constraint and flow edges to elements on
+the map; constraint and flow edges otherwise go only with an element at one
+of their ends, and `meta.abstraction.removedEdges` counts them.
 Re-added elements are tagged `reconnected` and drawn dashed. A collapsed
 stage takes the maximum of its activities' `cases` and `share` and weighted
 means of other metrics; the graph holds no case sets, so these are not the
@@ -120,8 +130,9 @@ metric registry: "at least 211,379", "lag, mean of medians". Merged parallel
 paths are marked the same way; summed counts stay exact. The thresholded
 part is monotone in the thresholds; the reconnection is bounded (paths
 between components plus one edge per open need) but not a global optimum,
-so the total element count may differ by one re-added edge between
-neighbouring thresholds. `diff(a, b)` returns a graph with `b`'s metrics,
+so the total element count is not monotone: a higher threshold can re-add
+more than it removes, a removed node and two edges, say, where a lower one
+re-added one direct edge. `diff(a, b)` returns a graph with `b`'s metrics,
 `a_<metric>` and `delta_<metric>`, one-sided elements tagged. In such a
 comparison (`meta.diff`) an element's strength is the larger of its relative
 strength on side b and on side a (`a_<metric>`), each relative to the
@@ -230,12 +241,15 @@ Web Worker with `dagreWorkerUrl` (the package's `dagre-worker.min.js`, which
 runs the compiled `dagreJob` of the layout module, so both places give the same
 positions), otherwise on the calling thread only up to `fallbackLimit` nodes
 plus edges; above it the layout fails with `LayoutUnavailableError` and the
-map keeps its provisional arrangement. **Stopping**: each layout is a job that
+map keeps its provisional arrangement, as it does when ELK and then the Dagre
+worker fail. **Stopping**: each layout is a job that
 runs while somebody waits for it; a caller's `signal`, a newer request to the
-same scope and `timeoutMs` (per engine run) stop waiting, and a job nobody
+same scope, disposing that scope and `timeoutMs` (per engine run) stop waiting, and a job nobody
 waits for terminates its worker (one worker per running job, so no other
 layout is affected) and reads nothing it sends afterwards. In-process ELK
-cannot be interrupted; its result is discarded.
+cannot be interrupted: its runs go one at a time, each timed from its start,
+and a run that finished is answered even past its timeout; an aborted run's
+result is discarded.
 Elements are sorted by id before the engine runs, so positions are
 deterministic. `Positions` holds absolute boxes for nodes and groups, edge
 routes, bounds, engine and direction. **Stable layout**: `layoutUnion(scenes)`
@@ -372,7 +386,7 @@ the corner, a group's chips in its title row or in rows above and below it
 where they cover no activity, title, badge, self-loop or other chip and
 cross the fewest paths, and then the labels: a self-loop's label
 and an arc's pill where they cover no activity, badge, chip, other label or
-group title) within a declared margin
+group title, and an arc's pill no path count either) within a declared margin
 around the layout, and their visibility by zoom level. Overlays are drawn in a
 canonical order so that exports do not depend on input order. The scene
 carries one resolved mark per placed overlay (box or path, fill, stroke,
@@ -415,7 +429,12 @@ they place marks rather than fit text.
 
 ### 2.6 Hit-testing and export
 An R-tree (rbush) over nodes, groups, edge segments and overlay shapes for
-hover and click on Canvas and in exports. `buildScene` resolves graph,
+hover and click on Canvas and in exports; a hit lists what is painted on
+top first (marks above the nodes, nodes, arcs, edges, tints, groups), and
+an item's bounds may cover more than the element's box (what the Canvas
+drawing puts beyond it) while the hit test keeps to what the element draws:
+its box, an edge's segments, an arc's or a self-loop's curve and label, a
+gateway's diamond. `buildScene` resolves graph,
 positions and options once into the scene renderers read (activity
 references, lane bands, scales, the overlays to show with the follows
 self-loops in canonical order, level-of-detail rules, overlay geometry,
@@ -554,7 +573,9 @@ context calls for a viewport (groups and bands from their marks, tints, edges wi
 arcs, nodes with pattern twins, the other overlay marks, edge labels), decides the level of
 detail from the zoom and, above 1,500 elements, draws only what the R-tree
 finds inside the viewport, reading each element by its position in the
-scene's lists so that a draw costs what the view holds. With an edge
+scene's lists so that a draw costs what the view holds; the R-tree holds
+each element's drawn extent (outline, selection ring, arrowheads, labels),
+so an element is drawn as soon as any of that reaches into the view. With an edge
 budget it draws only the edges in view that the core's `budgetEdges` keeps
 (protected ones, then the heaviest), the same rule the React Flow map
 applies to all its edges, and the map says how many it shows. The default
@@ -590,7 +611,8 @@ level (XOR split where a node has several successors, XOR join where it
 has several predecessors, on request an AND split and AND join as a pair
 around successors that follow each other in both orders and lead to one
 common node, loop markers for self-loops, start and end events kept or
-added, groups as lanes). Parallel gateways come only in pairs: a parallel
+added, every node then put on a path from a start to an end, groups as
+lanes). Parallel gateways come only in pairs: a parallel
 split and a parallel join enclose the same branches, each running from the
 split to the join without leaving the block; every other split and join is
 exclusive, so a generated model never waits at a join for a token that an
@@ -614,7 +636,12 @@ output. `importBpmn` reads supported BPMN 2.0 elements (tasks of all types,
 gateways, events, lanes, pools, expanded sub-processes as stages, sequence
 and message flows, annotations), reads positions from the DI and returns
 a task ↔ activity mapping table that `matchActivities` fills by id, label
-and alias and `applyMapping` applies to the graph. One vocabulary table
+and alias and `applyMapping` applies to the graph. A file that is not BPMN
+definitions is rejected with the parser's error; any other is imported, with
+what is wrong in it (the parser's warnings, flows without an end, coordinates
+that are not finite, and what `validateGraph` reports on the graph) in
+`warnings`. Elements are looked up by the moddle objects references resolve
+to, and nested containers are read on an explicit stack. One vocabulary table
 (`vocabulary.ts`: event definitions, gateway types, event roles, loop
 marker, default flow, generated gateways) is read by export and import.
 The id resolver (`ids.ts`) converts between FlowGraph ids, BPMN ids and

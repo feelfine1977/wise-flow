@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type FlowEdge, type FlowGraph, type FlowNode, abstract, isConnected } from "../../src/index";
+import { families } from "../support/graphs";
 import { seededCyclicGraph } from "./abstract-cases";
 
 /** Elements whose every property read counts as one visit. */
@@ -128,6 +129,25 @@ describe("abstraction work", () => {
     }
     expect(large.visits / small.visits).toBeLessThanOrEqual(2.3);
   });
+
+  for (const family of ["cyclic", "components"] as const) {
+    for (const [name, options] of [["the default options", {}], ["thresholds that remove", { minEdgeShare: 0.3, minNodeShare: 0.2 }]] as const) {
+      it(`abstracts the ${family} family with work near-linear in its size under ${name}`, () => {
+        const n = 5000;
+        const small = visitsOf(families[family](n, 3), options);
+        const large = visitsOf(families[family](2 * n, 3), options);
+        // The components family is disconnected, and the joining stays within the input component
+        // it starts from; "islands" above joins many components of a connected input.
+        if (family === "cyclic") {
+          for (const { result } of [small, large]) {
+            expect(isConnected(result)).toBe(true);
+            expect(result.nodes.some((node) => node.tags?.includes("reconnected")), "re-adds activities").toBe("minNodeShare" in options);
+          }
+        }
+        expect(large.visits / small.visits).toBeLessThanOrEqual(2.3);
+      });
+    }
+  }
 
   it("reconnects a simplified cyclic graph of 100,000 activities", () => {
     // Slow: about two seconds here, where one search per join did not finish in 500 s.

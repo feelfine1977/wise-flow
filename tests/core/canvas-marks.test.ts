@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { type Overlay, type TextMeasure, buildScene, toSVG } from "../../src/index";
-import { type DrawContext, type DrawState, defaultTokens, drawScene, prepareScene, toPNGCanvas } from "../../src/canvas/index";
+import { type FlowNode, type Overlay, type TextMeasure, buildScene, createPositions, toSVG } from "../../src/index";
+import { type DrawContext, type DrawState, canvasTextMeasure, defaultTokens, drawScene, prepareScene, toPNGCanvas } from "../../src/canvas/index";
 import * as elements from "./element-kinds";
 import { graph, overlays, positions } from "./overlay-kinds";
 
@@ -325,6 +325,30 @@ describe("Canvas node and edge marks", () => {
     expect(names()).toEqual(["Change Approval for", "Purchase Order Item…", "Re-added"]);
     // A measure of 6 per character: 25 a line, the second line 24 and the ellipsis.
     expect(names((s) => Array.from(s).length * 6)).toEqual(["Change Approval for", "Purchase Order Item of a…", "Re-added"]);
+  });
+
+  it("cuts labels again in another font, as after the theme changed the font family", () => {
+    const long = { ...elements.graph, nodes: elements.graph.nodes.map((n) => (n.id === "a" ? { ...n, label: "Change Approval for Purchase Order Item of a Framework Contract" } : n)) };
+    // One context measures for both fonts: 12 per character in the wide family, 6 in any other.
+    const { ctx } = drawingContext();
+    ctx.measureText = (text: string) => ({ width: text.length * (ctx.font.endsWith("Wide") ? 12 : 6) });
+    const names = (family: string) => written(drawElements(undefined, 1, long, canvasTextMeasure(family, ctx))).filter((t) => t.font === font("500 13px")).map((t) => t.text);
+    // The name has 154 inside the card. The narrow font: 25 a line, the second line 24 and the ellipsis. The same name in
+    // the wide font after it: 12 a line ("Change Approval" is 15), the second line 11 and the ellipsis.
+    expect(names("Narrow")).toEqual(["Change Approval for", "Purchase Order Item of a…", "Re-added"]);
+    expect(names("Wide")).toEqual(["Change", "Approval fo…", "Re-added"]);
+  });
+
+  it("cuts a label again for a width that rounds to the same whole number", () => {
+    // Two cards with one name; inside the padding and the outline their names may be 126.4 − 26 = 100.4 and 125.6 − 26 = 99.6 wide.
+    const nodes = ["wide", "narrow"].map((id): FlowNode => ({ id, kind: "activity", label: "abcdefghijklmnopqrstuvwxyzabcd" }));
+    const boxes = { wide: { x: 0, y: 0, width: 126.4, height: 48 }, narrow: { x: 0, y: 100, width: 125.6, height: 48 } };
+    const scene = prepareScene({ nodes, edges: [] }, createPositions({ nodes: boxes, groups: {}, edges: {} }, "given", "RIGHT"), { selfLoops: false, lodBySize: false, textMeasure: (text) => Array.from(text).length * 10 });
+    const { ctx, ops } = drawingContext();
+    drawScene(ctx, scene, { x: 0, y: 0, zoom: 1, width: 1000, height: 600 }, undefined, { cull: false });
+    // At 10 per character ten characters take 100: they fit 100.4 a line, and nine and the ellipsis the second line;
+    // 99.6 takes nine a line, and eight and the ellipsis.
+    expect(written(ops).filter((t) => t.font === font("500 13px")).map((t) => t.text)).toEqual(["abcdefghij", "klmnopqrs…", "abcdefghi", "jklmnopq…"]);
   });
 
   it("draws the marks it is given rather than the other node and edge fields", () => {

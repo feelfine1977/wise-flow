@@ -76,6 +76,13 @@ describe("overlay marks", () => {
     ]);
   });
 
+  it("draws an arc whose coverage is not a finite number at the default width", () => {
+    const arc = (coverage: unknown): Overlay => ({ kind: "arc", target: "a->b", payload: { coverage: coverage as number } });
+    // Every arc is drawn at the theme's one arc width, 1, whatever its coverage, also one that is not a finite number.
+    expect([NaN, Infinity, -Infinity, "0.5", undefined].map((c) => arcWidth(arc(c)))).toEqual([1, 1, 1, 1, 1]);
+    expect([0, 0.25, 1, 1.5, -0.5].map((c) => arcWidth(arc(c)))).toEqual([1, 1, 1, 1, 1]);
+  });
+
   it("lays a chip out as the map does: glyph, gauge, the label in bold and the text", () => {
     const chips: Overlay[] = [
       { kind: "chip", target: "s2", payload: { glyph: "◔", label: "Touches", text: "2.1 ⌀", value: 0.5, gauge: { value: 2.1, threshold: 2, width: 1 } } },

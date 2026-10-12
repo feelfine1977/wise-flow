@@ -19,7 +19,7 @@ import {
   liteFromStages,
   validateBpmn,
 } from "../src/bpmn/index";
-import { type FlowGraph, type Overlay, overlaysFor } from "../src/index";
+import { type FlowGraph, type Overlay, colorTokens, overlaysFor } from "../src/index";
 import { ProcessMap } from "./maps";
 
 const meta: Meta = {
@@ -313,7 +313,7 @@ export const RoundTrip: StoryObj = {
           <Counts graph={lite} />
           <span data-testid="roundtrip" data-pass={pass}>
             {checks.map(([label, ok]) => (
-              <span key={String(label)} style={{ marginRight: 10, color: ok ? "var(--wf-pass)" : "var(--wf-fail)" }}>
+              <span key={String(label)} style={{ marginRight: 10, color: ok ? colorTokens.pass : "var(--wf-fail)" }}>
                 {ok ? "✓" : "✗"} {label}
               </span>
             ))}

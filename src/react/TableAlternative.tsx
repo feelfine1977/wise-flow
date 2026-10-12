@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { flushSync } from "react-dom";
 import { type ElementRef, type FlowGraph, type Locale, type Overlay, type Scales, type StringKey, buildScales, defaultStyle, describeOverlay, emptySelection, formatCount, formatShare, metricBasis, t } from "../core/index.js";
 import { clickSelection } from "../core/map-controller.js";
 import { formatMetric, metricColumns, metricLabel } from "./describe.js";
@@ -45,16 +46,21 @@ function usePage<T>(rows: T[], text: (row: T) => string, query: string, pageSize
   const at = page.query === query ? Math.min(page.at, last) : 0;
   const from = at * pageSize;
   const shown = matching.slice(from, from + pageSize);
-  const go = (to: number) => setPage({ query, at: to });
+  const go = (to: number, button: HTMLButtonElement) => {
+    const focused = document.activeElement === button;
+    flushSync(() => setPage({ query, at: to }));
+    // A button disabled at the first or last page hands its focus on.
+    if (focused && button.disabled) button.parentElement?.querySelector<HTMLElement>("button:enabled")?.focus();
+  };
   const pager = (
     <div className="wf-table__pager">
-      <Button disabled={at === 0} onClick={() => go(at - 1)}>
+      <Button disabled={at === 0} onClick={(e) => go(at - 1, e.currentTarget)}>
         {t(locale, "table.previous")}
       </Button>
       <span role="status">
         {matching.length ? t(locale, "table.rows", { from: formatCount(from + 1, locale), to: formatCount(from + shown.length, locale), total: formatCount(matching.length, locale) }) : t(locale, "table.empty")}
       </span>
-      <Button disabled={at >= last} onClick={() => go(at + 1)}>
+      <Button disabled={at >= last} onClick={(e) => go(at + 1, e.currentTarget)}>
         {t(locale, "table.next")}
       </Button>
     </div>

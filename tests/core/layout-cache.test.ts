@@ -222,13 +222,13 @@ describe("ELK workers", () => {
     expect(FakeWorker.created).toHaveLength(2);
   });
 
-  it("keeps a worker alive for a layout in flight when its scope is disposed", async () => {
+  it("stops a layout in flight when its scope is disposed, without the caller aborting it", async () => {
     vi.stubGlobal("Worker", FakeWorker);
     const scope = createLayoutScope();
     const pending = scope.layout(pair, viaWorker);
     scope.dispose();
-    expect((await pending).nodes.b.x).toBe(100);
-    await vi.waitFor(() => expect(FakeWorker.created[0].terminated).toBe(true));
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    await vi.waitFor(() => expect(FakeWorker.created.every((w) => w.terminated)).toBe(true));
   });
 
   it("does not terminate an ELK instance the caller supplies", async () => {

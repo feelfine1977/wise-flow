@@ -47,7 +47,10 @@ export function truncateText(text: string, maxWidth: number, font: { size: numbe
 
 /**
  * Lines of `text` at most `width` wide (at least the font's size): words in
- * order, a word wider than a line broken between characters.
+ * order, a word wider than a line broken between characters. The measure is
+ * taken to grow with the text, as `truncateText` takes it: where a word breaks,
+ * the characters that still fit are found by doubling and halving, so a long
+ * word costs about as many measures as it has lines.
  */
 export function wrapText(text: string, width: number, font: { size: number; weight?: number }, measure: TextMeasure = estimateTextWidth): string[] {
   const limit = Math.max(font.size, width);
@@ -60,12 +63,32 @@ export function wrapText(text: string, width: number, font: { size: number; weig
       line = "";
     }
     if (line) line += " ";
-    for (const char of word) {
-      if (line && !fits(line + char)) {
+    const chars = Array.from(word);
+    for (let at = 0; at < chars.length; ) {
+      const part = (n: number) => line + chars.slice(at, at + n).join("");
+      // The most characters from `at` that fit: `fit` do, `over` do not (or run past the word).
+      let fit = 0;
+      let over = 1;
+      while (at + over <= chars.length && fits(part(over))) [fit, over] = [over, over * 2];
+      over = Math.min(over, chars.length - at + 1);
+      while (over - fit > 1) {
+        const mid = (fit + over) >> 1;
+        if (fits(part(mid))) fit = mid;
+        else over = mid;
+      }
+      // Not one more fits: a line with text ends; an empty one takes a character anyway.
+      if (!fit && line) {
+        lines.push(line);
+        line = "";
+        continue;
+      }
+      const taken = Math.max(1, fit);
+      line = part(taken);
+      at += taken;
+      if (at < chars.length) {
         lines.push(line);
         line = "";
       }
-      line += char;
     }
   }
   if (line) lines.push(line);

@@ -17,7 +17,7 @@ copy(join(root, "src/tokens.css"), "tokens.css");
 const reactFlowCss = readFileSync(join(dependency("@xyflow/react"), "dist/style.css"), "utf8");
 const flowCss = readFileSync(join(root, "src/react/style.css"), "utf8");
 const layered = `@layer wf.react-flow {\n${reactFlowCss}\n}\n@layer wf {\n${flowCss}\n}\n`;
-for (const to of ["style.css", "react/style.css"]) writeFileSync(join(root, "dist", to), layered);
+writeFileSync(join(root, "dist/style.css"), layered);
 copy(join(root, "src/react/style.css"), "style.unlayered.css");
 copy(join(dependency("@xyflow/react"), "dist/style.css"), "react-flow.css");
 // File by file: Node's recursive copy fails on some mounted file systems.

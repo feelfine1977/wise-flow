@@ -69,6 +69,17 @@ describe("PathList", () => {
     expect(within(outgoing).getAllByRole("row")).toHaveLength(2);
   });
 
+  it("lists the paths of a node that came without an id", () => {
+    // A null column of a backend: typed around the model, so the id reads undefined; the edges name it the same way.
+    const none = undefined as unknown as string;
+    const unnamed: FlowGraph = {
+      nodes: [{ id: "a", kind: "activity", label: "Approve" }, { id: none, kind: "activity", label: "Unnamed" }],
+      edges: [{ id: "in", kind: "follows", source: "a", target: none, metrics: { count: 4 } }],
+    };
+    render(<PathList graph={unnamed} focus={none} />);
+    expect(screen.getAllByRole("row").some((row) => row.textContent?.includes("Approve"))).toBe(true);
+  });
+
   it("shows the path between two activities and the reverse path", () => {
     render(<PathList graph={g} focus={["b", "d"]} />);
     const section = screen.getByRole("region", { name: "Path from B to D" });

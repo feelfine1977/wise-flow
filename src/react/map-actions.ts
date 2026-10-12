@@ -1,9 +1,4 @@
-/**
- * What the map's default menu actions do: filter actions change the host's
- * filter, `paths` and `clear-focus` set the focus of paths, `collapse` and
- * `expand` change the abstraction. The host may then replace the actions or
- * suppress the menu (`onContextMenu`).
- */
+/** What the map's default menu actions do: change the host's filter, the focus of paths or the abstraction. */
 import { useCallback } from "react";
 import { type FlowGraph, type Focus, type MenuAction, type MenuTarget, addClause, asFilter, describeClause, t } from "../core/index.js";
 import type { MapEvent } from "../core/map-controller.js";

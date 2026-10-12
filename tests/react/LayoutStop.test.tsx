@@ -1,7 +1,8 @@
+import { StrictMode } from "react";
 import { act, cleanup, render, renderHook, waitFor } from "@testing-library/react";
 import type { ELK, ElkNode } from "elkjs/lib/elk-api.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { type FlowGraph, type LayoutOptions, LayoutUnavailableError } from "../../src/index";
+import { type FlowGraph, type LayoutOptions, LayoutUnavailableError, clearLayoutCache } from "../../src/index";
 import { ProcessMap, type StableLayout, useStableLayout } from "../../src/react/index";
 
 afterEach(() => {
@@ -65,12 +66,37 @@ describe("a refined layout that is unavailable", () => {
     await waitFor(() => expect(panel()!.textContent).toBe("Das verfeinerte Layout ist nicht verfügbar; die Karte zeigt eine vorläufige Anordnung."));
   });
 
-  it("keeps the provisional positions in useStableLayout, with the error", async () => {
+  it("keeps the provisional positions in useStableLayout, with the error, and marks them final", async () => {
     const { result, results } = recorded(chain, unavailable);
     await waitFor(() => expect(result.current.status).toBe("error"));
     expect(result.current.error).toBeInstanceOf(LayoutUnavailableError);
     expect(result.current.provisional).toBe(true);
-    expect(result.current.positions).toBe(results[0].positions);
+    // The same arrangement as while pending, now final: no layout replaces it.
+    expect(results[0].positions!.final).toBeUndefined();
+    expect(result.current.positions).toEqual({ ...results[0].positions, final: true });
+    expect(result.current.positions!.engine).toBe("provisional");
+  });
+
+  it("is shown as unavailable, not as arranging, by a map given the positions the hook keeps", async () => {
+    function Host() {
+      const own = useStableLayout(chain, unavailable);
+      return (
+        <div style={{ width: 800, height: 600 }}>
+          <ProcessMap graph={chain} positions={own.positions} />
+        </div>
+      );
+    }
+    const { container } = render(<Host />);
+    const map = container.querySelector(".wf-process-map")!;
+    expect(map.getAttribute("data-layout-status")).toBe("pending");
+    expect(panel()!.textContent).toBe("Arranging the map…");
+    await waitFor(() => expect(map.getAttribute("data-layout-status")).toBe("error"));
+    expect(panel()!.textContent).toBe("The refined layout is unavailable; the map shows a provisional arrangement.");
+    expect(map.getAttribute("data-engine")).toBe("provisional");
+    expect([translate(container, "a"), translate(container, "b"), translate(container, "c")]).toEqual([{ x: 0, y: 0 }, { x: 244, y: 0 }, { x: 488, y: 0 }]);
+    const description = document.getElementById(map.getAttribute("aria-describedby")!)!.textContent!;
+    expect(description).toContain("The refined layout is unavailable");
+    expect(description).not.toContain("Arranging");
   });
 });
 
@@ -120,5 +146,104 @@ describe("useStableLayout", () => {
     expect(result.current).toMatchObject({ status: "ready", provisional: false });
     expect(Object.keys(result.current.positions!.nodes).sort()).toEqual(["a", "b", "d"]);
     expect(results.filter((r) => r.positions?.engine === "elk").every((r) => !r.positions!.nodes.c)).toBe(true);
+  });
+
+  it("lays out once when the host passes a new ELK instance on every render, also with a cache key", async () => {
+    // As up to 0.3.5, an engine instance created anew on each render does not start the layout again.
+    for (const cacheKey of [undefined, "fresh-elk-test"]) {
+      let runs = 0;
+      let renders = 0;
+      const fresh = () => ({ layout: (graph: ElkNode) => (runs++, Promise.resolve({ ...graph, children: (graph.children ?? []).map((child, i) => ({ ...child, x: 100 * i, y: 0 })) })) }) as unknown as ELK;
+      const { result, unmount } = renderHook(() => (renders++, useStableLayout(chain, { engine: "elk", elk: fresh(), cacheKey })));
+      await waitFor(() => expect(result.current.status).toBe("ready"));
+      await act(async () => new Promise((resolve) => setTimeout(resolve, 100)));
+      expect(runs, `cache key ${cacheKey}`).toBe(1);
+      expect(renders, `cache key ${cacheKey}`).toBeLessThan(10);
+      unmount();
+    }
+    clearLayoutCache("fresh-elk-test");
+  });
+});
+
+describe("a map mounted twice by StrictMode", () => {
+  /** Answers `register` at once and a layout a little later, every node 100 apart in id order; records termination. */
+  class AnsweringWorker {
+    static created: AnsweringWorker[] = [];
+    onmessage: ((event: { data: unknown }) => void) | null = null;
+    terminated = false;
+    layouts = 0;
+    constructor() {
+      AnsweringWorker.created.push(this);
+    }
+    postMessage(message: { id: number; cmd: string; graph?: ElkNode }) {
+      if (message.cmd === "register") queueMicrotask(() => this.onmessage?.({ data: { id: message.id, data: true } }));
+      if (message.cmd !== "layout") return;
+      this.layouts++;
+      const graph = message.graph!;
+      setTimeout(() => {
+        if (!this.terminated) this.onmessage?.({ data: { id: message.id, data: { ...graph, children: (graph.children ?? []).map((child, i) => ({ ...child, x: 100 * i, y: 0 })) } } });
+      }, 10);
+    }
+    terminate() {
+      this.terminated = true;
+    }
+  }
+
+  it("leaves one worker at most, draws the layout, lays out nothing again for the same inputs and stops its workers on unmount", async () => {
+    vi.stubGlobal("Worker", AnsweringWorker);
+    const options: LayoutOptions = { engine: "elk", elkWorkerUrl: "https://example.test/elk-worker.min.js" };
+    const { container, rerender, unmount } = render(
+      <StrictMode>
+        <div style={{ width: 800, height: 600 }}>
+          <ProcessMap graph={chain} layout={options} fitView={false} />
+        </div>
+      </StrictMode>,
+    );
+    const map = container.querySelector(".wf-process-map")!;
+    await waitFor(() => expect(map.getAttribute("data-layout-status")).toBe("ready"));
+    // The remount joins the layout the first mount started: one worker, one layout.
+    const created = AnsweringWorker.created;
+    expect(created.filter((w) => !w.terminated)).toHaveLength(1);
+    expect(created.reduce((n, w) => n + w.layouts, 0)).toBe(1);
+    expect(map.getAttribute("data-engine")).toBe("elk");
+    expect(translate(container, "c")).toEqual({ x: 200, y: 0 });
+    // The same inputs again: the scope holds the layout, no worker is asked.
+    rerender(
+      <StrictMode>
+        <div style={{ width: 800, height: 600 }}>
+          <ProcessMap graph={chain} layout={options} fitView={false} locale="de" />
+        </div>
+      </StrictMode>,
+    );
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 30)));
+    expect(created.reduce((n, w) => n + w.layouts, 0)).toBe(1);
+    expect(AnsweringWorker.created).toBe(created);
+    unmount();
+    await waitFor(() => expect(created.every((w) => w.terminated)).toBe(true));
+  });
+
+  it("joins the layout it started when it is mounted again in the same task, instead of laying out twice", async () => {
+    // An engine that is called at once, unlike a worker that loads first: the layout of the first mount has
+    // begun when StrictMode mounts the map again, and the second mount waits for that one.
+    const runs: string[] = [];
+    const elk = {
+      layout: (graph: ElkNode) => {
+        runs.push((graph.children ?? []).map((c) => c.id).join(","));
+        return new Promise<ElkNode>((resolve) => setTimeout(() => resolve({ ...graph, children: (graph.children ?? []).map((child, i) => ({ ...child, x: 100 * i, y: 0 })) }), 5));
+      },
+    } as unknown as ELK;
+    const { container, unmount } = render(
+      <StrictMode>
+        <div style={{ width: 800, height: 600 }}>
+          <ProcessMap graph={chain} layout={{ engine: "elk", elk }} fitView={false} />
+        </div>
+      </StrictMode>,
+    );
+    const map = container.querySelector(".wf-process-map")!;
+    await waitFor(() => expect(map.getAttribute("data-layout-status")).toBe("ready"));
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 20)));
+    expect(runs).toEqual(["a,b,c"]);
+    expect(translate(container, "c")).toEqual({ x: 200, y: 0 });
+    unmount();
   });
 });

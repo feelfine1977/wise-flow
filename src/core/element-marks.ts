@@ -1,8 +1,4 @@
-/**
- * Node and edge marks: what each node and edge looks like, resolved once for
- * every renderer. Texts carry what is drawn: shortened to the width they are
- * limited to, or wrapped into lines, by the scene's text measure.
- */
+/** Node and edge marks: what each node and edge looks like, resolved once for every renderer, texts fitted by the scene's measure. */
 import { type ActivityLabelOptions, activityDescription, activityLabel } from "./activity-labels.js";
 import { type Locale, formatCount, formatPathCount } from "./format.js";
 import { elementMetric, formatMetricValue, metricBasis } from "./metrics.js";
@@ -330,11 +326,13 @@ const heads = new Map<number, Arrowhead>();
 /**
  * The arrowhead of a path `width` wide: the rule's size, or `perWidth` times
  * the width rounded up where that is more (`arrowheadTokens.edge`: 12, so a
- * path 8 wide ends in a head of 32, 14.4 wide with its outline). One frozen
- * head per size.
+ * path 8 wide ends in a head of 32, 14.4 wide with its outline); a width whose
+ * head would not be a finite number ends in the rule's head. One frozen head
+ * per size.
  */
 export function pathArrowhead(width: number, rule: Arrowhead = arrowheadTokens.edge): Arrowhead {
-  const size = Math.max(rule.size, Math.ceil((rule.perWidth ?? 0) * width));
+  const scaled = Math.ceil((rule.perWidth ?? 0) * width);
+  const size = Math.max(rule.size, Number.isFinite(scaled) ? scaled : 0);
   if (rule !== arrowheadTokens.edge) return { ...rule, size };
   let head = heads.get(size);
   if (!head) heads.set(size, (head = Object.freeze({ ...rule, size })));

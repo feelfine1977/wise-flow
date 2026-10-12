@@ -1,5 +1,5 @@
 import type { ELK, ElkNode } from "elkjs/lib/elk-api.js";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import * as dagre from "@dagrejs/dagre";
 import { abstract, createLayoutScope, type FlowGraph, layout, LayoutUnavailableError, type LayoutOptions } from "../../src/index";
 import { type DagreInput, dagreJob, knownLayout } from "../../src/core/layout";
@@ -33,6 +33,7 @@ class FakeWorker {
   steps = 0;
   dagreRuns = 0;
   layouts: { id: number; graph: ElkNode }[] = [];
+  dagreInputs: DagreInput[] = [];
   private timer: ReturnType<typeof setInterval> | undefined;
   constructor(readonly url: string) {
     FakeWorker.created.push(this);
@@ -43,6 +44,7 @@ class FakeWorker {
   postMessage(message: { id: number; cmd: string; graph?: ElkNode } & DagreInput) {
     if (this.url === dagreUrl) {
       this.dagreRuns++;
+      this.dagreInputs.push(message);
       this.timer ??= setInterval(() => this.steps++, 1);
       if (!FakeWorker.holdDagre) this.send({ output: dagreJob(real, message) });
       return;
@@ -58,6 +60,10 @@ class FakeWorker {
     clearInterval(this.timer);
     this.timer = undefined;
     this.send({ id: this.layouts[k].id, data: place(this.layouts[k].graph) });
+  }
+  /** Answers a held Dagre input, the last one unless told otherwise. */
+  answerDagre(k = this.dagreInputs.length - 1) {
+    this.send({ output: dagreJob(real, this.dagreInputs[k]) });
   }
   /** Answers the last layout with an engine error. */
   fail(k = this.layouts.length - 1) {
@@ -214,6 +220,43 @@ describe("stopping a layout", () => {
     scope.dispose();
   });
 
+  it("keeps a layout whose answer is being read as its last waiter leaves, instead of laying it out again", async () => {
+    // The answer's reading and the leaving are a few microtasks apart; every distance must give one answer.
+    const options: LayoutOptions = { engine: "dagre", dagreWorkerUrl: dagreUrl };
+    for (let distance = 0; distance <= 8; distance++) {
+      FakeWorker.created = [];
+      FakeWorker.holdDagre = true;
+      const scope = createLayoutScope();
+      try {
+        const stop = new AbortController();
+        const first = scope.layout(pair, { ...options, signal: stop.signal }).then(() => "answered", () => "aborted");
+        await vi.waitFor(() => expect(FakeWorker.created[0]?.dagreRuns).toBe(1));
+        FakeWorker.created[0].answerDagre();
+        for (let i = 0; i < distance; i++) await Promise.resolve();
+        stop.abort();
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        // What the scope knows and what it does for the next request must agree, and the worker is not asked twice.
+        const outcome = await first;
+        const known = knownLayout(scope, pair, options);
+        FakeWorker.holdDagre = false;
+        const again = await scope.layout(pair, options);
+        const runs = FakeWorker.created.reduce((n, w) => n + w.dagreRuns, 0);
+        const where = `the caller left ${distance} microtasks after the answer and was ${outcome}`;
+        // The answer reaches the module a microtask after it is sent: leaving before that stops the layout, which is
+        // not kept; a caller that received the layout leaves it finished, and a finished layout is kept.
+        if (distance === 0) expect(known, where).toBeUndefined();
+        if (outcome === "answered") expect(known, where).toBeDefined();
+        if (known) {
+          expect(again, where).toBe(known);
+          expect(runs, where).toBe(1);
+        } else expect(runs, where).toBe(2);
+      } finally {
+        // Disposed even when an assertion fails, so that the scope's idle worker does not reach the next test.
+        scope.dispose();
+      }
+    }
+  });
+
   it("does not stop a finished layout when a newer request replaces it", async () => {
     const scope = createLayoutScope();
     const first = scope.layout(pair, viaWorker);
@@ -230,6 +273,37 @@ describe("stopping a layout", () => {
     scope.dispose();
   });
 
+  it("answers a request for a finished layout even when a newer request follows in the same turn", async () => {
+    const scope = createLayoutScope();
+    const first = scope.layout(pair, viaWorker);
+    (await running()).answer();
+    const done = await first;
+    // The pair's layout is known: asked for again and replaced at once, it has nothing left to stop.
+    const again = scope.layout(pair, viaWorker);
+    const next = scope.layout(trio, viaWorker);
+    await expect(again).resolves.toBe(done);
+    const worker = await running();
+    await vi.waitFor(() => expect(worker.layouts).toHaveLength(2));
+    worker.answer();
+    expect((await next).nodes.c.x).toBe(200);
+    scope.dispose();
+  });
+
+  it("waits as long as a timer can for a timeout beyond a timer's reach, as for Infinity", async () => {
+    // Timers fire at once for a delay above 2³¹ − 1 ms; such a timeout must not end the layout before the engine answers.
+    for (const timeoutMs of [Infinity, 2 ** 31, Number.MAX_SAFE_INTEGER]) {
+      let answer: (() => void) | undefined;
+      const elk = { layout: (graph: ElkNode) => new Promise<ElkNode>((resolve) => (answer = () => resolve({ ...graph, children: graph.children?.map((c) => ({ ...c, x: 0, y: 0 })) }))) } as unknown as ELK;
+      let settled = "";
+      const pending = layout(pair, { elk, engine: "elk", timeoutMs }).then(() => (settled = "resolved"), (e: Error) => (settled = e.message));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(settled, String(timeoutMs)).toBe("");
+      answer!();
+      await pending;
+      expect(settled, String(timeoutMs)).toBe("resolved");
+    }
+  });
+
   it("rejects at once for an ELK instance the caller supplies, which cannot be interrupted", async () => {
     const terminateWorker = vi.fn();
     const elk = { layout: () => new Promise<ElkNode>(() => undefined), terminateWorker } as unknown as ELK;
@@ -239,6 +313,35 @@ describe("stopping a layout", () => {
     await expect(pending).rejects.toMatchObject({ name: "AbortError" });
     await expect(layout(pair, { elk, engine: "elk", timeoutMs: 5 })).rejects.toThrow("timed out");
     expect(terminateWorker).not.toHaveBeenCalled();
+  });
+});
+
+describe("ELK without a worker", () => {
+  // In-process ELK blocks the thread while it runs: the vendor scene takes tens of milliseconds, two nodes almost none.
+  beforeAll(async () => void (await layout(pair, { engine: "elk" })));
+
+  it("times a layout from when it starts, after an aborted layout ahead of it has run, on every run of ten", async () => {
+    for (let run = 0; run < 10; run++) {
+      const stop = new AbortController();
+      const long = layout(vendorScene, { engine: "elk", signal: stop.signal }).catch((error: Error) => error);
+      const waiting = layout(pair, { timeoutMs: 5 });
+      // Aborted once the thread is free again, that is after the vendor scene's run has started.
+      let aborted = false;
+      setTimeout(() => ((aborted = true), stop.abort()));
+      const short = await waiting;
+      expect(aborted, `run ${run}`).toBe(true);
+      expect((await long as Error).name, `run ${run}`).toBe("AbortError");
+      // The two nodes waited for the vendor scene and were then laid out by ELK within their 5 ms, not by the fallback.
+      expect(short.engine, `run ${run}`).toBe("elk");
+    }
+  });
+
+  it("answers with a layout that finished after its timeout passed, as the thread was busy, on every run of ten", async () => {
+    for (let run = 0; run < 10; run++) {
+      // The vendor scene takes longer than 1 ms; ELK holds the thread until it is done, so its result is there before the timeout can fire.
+      expect((await layout(vendorScene, { timeoutMs: 1 })).engine, `run ${run}`).toBe("elk");
+    }
+    expect(onCallingThread).not.toHaveBeenCalled();
   });
 });
 
@@ -288,6 +391,34 @@ describe("the Dagre fallback", () => {
     expect((await layout(pair, { elk: failing, dagreWorkerUrl: dagreUrl, fallbackLimit: 0 })).engine).toBe("dagre");
     expect(FakeWorker.created.map((w) => [w.url, w.dagreRuns, w.terminated])).toEqual([[dagreUrl, 1, true]]);
     expect(onCallingThread).not.toHaveBeenCalled();
+  });
+
+  it("is unavailable when ELK fails and the Dagre worker then fails or times out, as without a worker", async () => {
+    vi.spyOn(FakeWorker.prototype, "postMessage").mockImplementationOnce(function (this: FakeWorker) {
+      queueMicrotask(() => this.onmessage?.({ data: { error: "no such node" } }));
+    });
+    const failed = layout(pair, { elk: failing, dagreWorkerUrl: dagreUrl });
+    await expect(failed).rejects.toBeInstanceOf(LayoutUnavailableError);
+    await expect(failed).rejects.toThrow("no such node");
+    FakeWorker.holdDagre = true;
+    const timedOut = layout(pair, { elk: failing, dagreWorkerUrl: dagreUrl, timeoutMs: 30 }).catch((error: Error) => error);
+    await vi.waitFor(() => expect(FakeWorker.created[1]?.dagreRuns).toBe(1));
+    const error = await timedOut;
+    expect(error).toBeInstanceOf(LayoutUnavailableError);
+    expect((error as Error).message).toContain("layout timed out after 30 ms");
+    expect(FakeWorker.created[1].terminated).toBe(true);
+    expect(onCallingThread).not.toHaveBeenCalled();
+    // Dagre asked for by name has no other engine to fall back from: its error stays its own.
+    const named = layout(pair, { engine: "dagre", dagreWorkerUrl: dagreUrl, timeoutMs: 30 }).catch((e: Error) => e);
+    expect(await named).toEqual(new Error("layout timed out after 30 ms"));
+    expect(await named).not.toBeInstanceOf(LayoutUnavailableError);
+  });
+
+  it("keeps ELK's own error when ELK is asked for by name, though a Dagre worker is given", async () => {
+    const error = await layout(pair, { engine: "elk", elk: failing, dagreWorkerUrl: dagreUrl }).catch((e: Error) => e);
+    expect(error).toEqual(new Error("engine down"));
+    expect(error).not.toBeInstanceOf(LayoutUnavailableError);
+    expect(FakeWorker.created).toHaveLength(0);
   });
 
   it("stops the Dagre worker on abort and on timeout", async () => {

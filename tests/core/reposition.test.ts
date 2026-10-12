@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { layout, repositionNodes, type Box, type FlowGraph, type Positions, type XY } from "../../src/index";
+import { layout, repositionNodes, routeSequenceFlows, type Box, type FlowGraph, type Positions, type XY } from "../../src/index";
 import raw from "../fixtures/o2c-observed.json";
 
 const graph = raw as unknown as FlowGraph;
@@ -56,6 +56,56 @@ const simple: FlowGraph = {
 const positions: Positions = { engine: "given", direction: "RIGHT", groups: {}, nodes: {
   a: { x: 0, y: 0, width: 100, height: 60 }, b: { x: 400, y: 0, width: 100, height: 60 }, c: { x: 200, y: 200, width: 100, height: 60 },
 }, edges: { ab: { points: [{ x: 100, y: 30 }, { x: 400, y: 30 }] } }, bounds: { x: 0, y: 0, width: 500, height: 260 } };
+
+describe("repositioning malformed input", () => {
+  it("routes edges without an id like any other", () => {
+    // A null column of a backend: typed around the model, so the ids read undefined.
+    const none = undefined as unknown as string;
+    const graph: FlowGraph = {
+      nodes: [{ id: "a", kind: "activity", label: "A" }, { id: "b", kind: "activity", label: "B" }],
+      edges: [{ id: "e1", kind: "follows", source: "a", target: "b" }, { id: none, kind: "follows", source: "b", target: "a" }],
+    };
+    const boxes = { a: { x: 0, y: 0, width: 180, height: 60 }, b: { x: 400, y: 0, width: 180, height: 60 } };
+    const given: Positions = { nodes: boxes, groups: {}, edges: {}, bounds: { x: 0, y: 0, width: 580, height: 60 }, engine: "given", direction: "RIGHT" };
+    const moved = repositionNodes(graph, given, { a: { x: 0, y: 200 } });
+    expect(moved.nodes.a).toEqual({ x: 0, y: 200, width: 180, height: 60 });
+    expect(moved.nodes.b).toEqual(boxes.b);
+    expect(Object.keys(moved.edges).sort()).toEqual(["e1", "undefined"]);
+  });
+
+  it("leaves a box with a number that is not finite out of routing instead of searching without end", () => {
+    // Shrunk from a search: the box of n3 is -Infinity high; the search ran in a loop until the route outgrew an array.
+    const graph: FlowGraph = {
+      nodes: ["n0", "n2", "n3"].map((id) => ({ id, kind: "activity" as const, label: id })),
+      edges: [{ id: "n3->n2", kind: "follows", source: "n3", target: "n2" }, { id: "n0->n2", kind: "follows", source: "n0", target: "n2" }],
+    };
+    const nodes: Record<string, Box> = { n0: { x: 40, y: 40, width: 180, height: 48 }, n2: { x: 480, y: 0, width: 180, height: 48 }, n3: { x: 0, y: 100, width: 180, height: -Infinity } };
+    const routes = routeSequenceFlows(graph, nodes, { allowOverlap: true });
+    expect(Object.keys(routes)).toEqual(["n0->n2"]);
+    expect(routes["n0->n2"].points.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))).toBe(true);
+  });
+
+  it("gives up at once on a target the grid cannot reach, however many boxes overlap", () => {
+    // Found by a search: boxes dropped onto each other leave targets no route reaches, and the search for
+    // each went over the grid again and again, its time growing with about the fifth power of the boxes.
+    const n = 40;
+    const graph: FlowGraph = { nodes: [], edges: [] };
+    const nodes: Record<string, Box> = {};
+    for (let i = 0; i < n; i++) {
+      nodes[`n${i}`] = { x: (i * 97) % 600, y: (i * 61) % 600, width: 180, height: 48 };
+      graph.nodes.push({ id: `n${i}`, kind: "activity", label: `N${i}` });
+      graph.edges.push({ id: `e${i}`, kind: "follows", source: `n${i}`, target: `n${(i * 7 + 3) % n}` });
+    }
+    const start = performance.now();
+    const routes = routeSequenceFlows(graph, nodes, { allowOverlap: true });
+    expect(performance.now() - start).toBeLessThan(2000);
+    for (const e of graph.edges) {
+      const points = routes[e.id].points;
+      expect(onBoundary(points[0], nodes[e.source]), e.id).toBe(true);
+      expect(onBoundary(points.at(-1)!, nodes[e.target]), e.id).toBe(true);
+    }
+  });
+});
 
 describe("manual repositioning", () => {
   it("reroutes even nonincident edges around a moved obstacle and preserves evidence", () => {

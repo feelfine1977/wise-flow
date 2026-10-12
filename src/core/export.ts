@@ -12,7 +12,7 @@ import type { FlowGraph, Overlay } from "./model.js";
 import type { OverlayGeometryOptions } from "./overlays.js";
 import { type MarkSvgOptions, arrowMarker, markSvg, svgMarkup } from "./mark-svg.js";
 import { type MarkPaint, type MarkText, type OverlayMark, markArrowhead, overlayArrow } from "./overlay-marks.js";
-import { type FlowScene, buildScene } from "./scene.js";
+import { type FlowScene, sceneOf } from "./scene.js";
 import { type StyleSpec, lodAt, patternDefs } from "./style.js";
 import { t } from "./strings.js";
 import type { TextMeasure } from "./text.js";
@@ -159,7 +159,7 @@ function drawNodes(ctx: Ctx): string {
     const b = m.box;
     const paint = (p: MarkPaint) => paintOf(ctx, m.color, m.color, p);
     const stroke = `fill="${paint(m.fill)}" stroke="${paint(m.stroke.paint)}" stroke-width="${num(m.stroke.width)}"${m.stroke.dash ? ` stroke-dasharray="${m.stroke.dash.join(" ")}"` : ""}`;
-    out.push(`<g class="wf-node wf-node-${m.kind}" data-id="${esc(m.id)}"${opacity(m)}>`);
+    out.push(`<g class="wf-node wf-node-${esc(m.kind)}" data-id="${esc(m.id)}"${opacity(m)}>`);
     const cx = b.x + b.width / 2;
     const cy = b.y + b.height / 2;
     if (m.shape === "circle") {
@@ -265,7 +265,7 @@ function drawLegend(ctx: Ctx, width: number, layout: LegendLayout): string {
  * no time-dependent data is embedded.
  */
 export function toSVG(given: Scene, options: ExportOptions = {}): string {
-  const scene = buildScene(given.graph, given.positions, {
+  const scene = sceneOf(given.graph, given.positions, {
     overlays: given.overlays,
     style: given.style,
     locale: given.locale,
@@ -276,7 +276,7 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
     theme: resolveTheme(options.theme),
     scheme: options.scheme,
     textMeasure: options.textMeasure,
-  });
+  }, true);
   const { locale, colors, theme } = scene;
   const font = options.fontFamily ?? theme.font.family;
   const lodZoom = options.lodZoom ?? 1;
@@ -285,9 +285,11 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
   const frame = figureFrame(scene, { title: !!given.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: options.width, withheld, caption: options.caption });
   const { padding: pad, width: totalW, height: totalH, outWidth: outW, outHeight: outH } = frame;
 
+  // The note on withheld edges is announced with the figure's name.
+  const label = given.title ?? t(locale, "map.description", { nodes: scene.graph.nodes.length, edges: scene.graph.edges.length, groups: scene.graph.groups?.length ?? 0 });
   const parts: string[] = [];
   parts.push(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${num(outW)}" height="${num(outH)}" viewBox="0 0 ${num(totalW)} ${num(totalH)}" font-family="${esc(font)}" role="img" aria-label="${esc(given.title ?? t(locale, "map.description", { nodes: scene.graph.nodes.length, edges: scene.graph.edges.length, groups: scene.graph.groups?.length ?? 0 }))}">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${num(outW)}" height="${num(outH)}" viewBox="0 0 ${num(totalW)} ${num(totalH)}" font-family="${esc(font)}" role="img" aria-label="${esc(frame.note ? `${label.replace(/\.?$/, ".")} ${frame.note.text}.` : label)}">`,
   );
   parts.push(`<defs>${patternDefs("wf-pattern", colors.patternInk, colors.outOfScope, theme.pattern)}`);
   // The rule's head, then each larger head a path drawn ends in, by size.

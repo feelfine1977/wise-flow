@@ -177,6 +177,12 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
     r.requestDraw();
   }, [edgeBudget]);
 
+  // A host that starts listening is told what the next draw withholds.
+  const listening = !!onEdgesShown;
+  useEffect(() => {
+    if (listening) rendererRef.current?.requestDraw();
+  }, [listening]);
+
   useImperativeHandle(
     ref,
     () => ({

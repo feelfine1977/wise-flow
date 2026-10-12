@@ -7,10 +7,6 @@ Canvas renderers, the table alternative and `<BpmnView/>` take their
 transitions from the map controller in the core. Props, exports and DOM roles
 and labels are unchanged. Visible changes:
 
-- Choosing a menu entry with Enter now runs it once and leaves the menu
-  closed with the action's sentence in the live region. Before, the key also
-  reached the map and opened the menu again; Space also toggled the selection
-  of the element on the map.
 - `<BpmnView/>` announces a selection with the sentences of `<ProcessMap/>`
   ("Selected: Approve Invoice.", "Selected: path A → B.", "Selected: 3
   elements.", "Selection cleared.") instead of counts ("Selected: 1 tasks,

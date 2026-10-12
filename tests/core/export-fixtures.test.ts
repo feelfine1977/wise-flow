@@ -149,16 +149,24 @@ const observed: Variant = {
  * that the live map's panel keeps it on two lines: only the texts "whole
  * graph" (it read "scale of the whole graph") and "≤ 3,044" (it read "≤ 3,044
  * (thinnest)") changed.
+ * Recorded once more when arc labels began to keep clear of the paths' counts
+ * too: compared element by element, only the pill and the text of arc labels
+ * changed; no arc's course and nothing else. Of the global map's twelve arcs
+ * two labels had their pill on a count ("80,164" and "112k") and four more
+ * moved along their arcs as the places nearest their middle were freed or
+ * taken; with stage bands in German three were on a count ("80.164", "108k",
+ * "112k") and five more moved; of `unfiltered`'s three, the one on "80,164".
+ * The vendor's and `plain` are the same.
  */
 
 const before: Record<string, string> = {
-  overlays: "370ea9d2f36f75f231f7ea9856f24c8c30d19a7173451b065f1f1397c63989ad",
-  stagesGerman: "51672ef73ffb3cbe46de2aef8b11ed6594bc32ea4467e84f24d8e83bec385168",
+  overlays: "d8f670a79e25346deb62347b3cc85902aa17f409bef49a66fc6bbb86ef9e794a",
+  stagesGerman: "f44bfea02ff01b29224272724ea040efe5728964e7e0f98612617e88ce25787e",
   vendor: "42b0e99980ad3b8d13fc4f3b2b42c3ed4c137022b63a166aa0330fddb789e5d5",
-  unfiltered: "d0a054163330e7d0f118981aef4f4f7a9c1a67c18dce0e363477c9bcdd394c6a",
+  unfiltered: "a433540e00b212b2c50f387e5622a412dbb70a63d79f9d2e226357b1d611423a",
   plain: "2920ba1ebe834de63f37f3d67f44ed24f738cf49c50b8724b4552c8dd07a89ad",
 };
-const beforeObserved = "ece257718a15a45141944b3de23d9afdea74802037d7f3ab65f12e7977b50134";
+const beforeObserved = "8537f2790539ca29f5b8c3e497f3a61f1c85f5eb049c9ad9c7b9de682acc0188";
 
 describe("toSVG on the committed fixtures", () => {
   it("matches the recorded output once follows self-loops are hidden", () => {

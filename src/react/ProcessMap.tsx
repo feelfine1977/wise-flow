@@ -135,7 +135,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   // hover, the actions menu and the live region: the core's map controller.
   const controller = useMapController(props);
   const { dispatch } = controller;
-  const { abstraction, view, selection, hovered, active: focused, focusWithin: hasFocus, menu, focus: explicitFocus } = controller.state;
+  const { abstraction, view, selection, hovered, active, focusWithin: hasFocus, menu, focus: explicitFocus } = controller.state;
   const setAbstraction = useCallback((a: AbstractOptions) => void dispatch({ type: "setAbstraction", abstraction: a }), [dispatch]);
   const setView = (v: "map" | "table") => void dispatch({ type: "setView", view: v });
 
@@ -163,8 +163,8 @@ function ProcessMapInner(props: ProcessMapProps) {
   const reducedMotion = usePrefersReducedMotion();
   const target = needsOwnLayout ? own.positions : givenPositions;
   const arrival = useArrival(target, provisional, reducedMotion);
-  // Without a refined layout the provisional arrangement stays, and the map says so.
-  const unavailable = needsOwnLayout && own.error instanceof LayoutUnavailableError;
+  // Without a refined layout the provisional arrangement stays (also given, when final), and the map says so.
+  const unavailable = needsOwnLayout ? own.error instanceof LayoutUnavailableError : !!givenPositions?.final;
   const arranging = (provisional && !unavailable) || arrival.moving;
   const notice = arranging ? t(locale, "map.arranging") : unavailable ? t(locale, "map.layoutUnavailable") : undefined;
   const [manual, setManual] = useState<{ key: ProcessMapProps["layoutResetKey"]; points: Record<string, XY> }>({ key: layoutResetKey, points: {} });
@@ -184,6 +184,8 @@ function ProcessMapInner(props: ProcessMapProps) {
   const descriptions = useElementDescriptions(shown, overlays, locale, activityLabels, notes);
   const { describeElement, index } = descriptions;
   const labelOf = index.label;
+  // The keyboard position while on the map.
+  const focused = active !== null && (index.nodes.has(active) || index.edges.has(active)) ? active : null;
   const onNodesChange = useCallback<OnNodesChange<WfNode | WfGroupNode>>((changes) => {
     if (!nodesDraggable || !positions) return;
     const points: Record<string, XY> = {};
@@ -249,14 +251,30 @@ function ProcessMapInner(props: ProcessMapProps) {
   // React Flow nodes and edges, or the Canvas scene, its state and the elements listed for assistive technology.
   const flow = useFlowElements({ enabled: !useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, nodesDraggable, edgeBudget, highlighted });
   // The Canvas map reports the edges it draws itself; the detail panel says how many paths it withholds.
-  const tellShown = useEdgesShownAcross(props.onEdgesShown, useCanvas);
+  const mapShown = view !== "table";
+  const tellShown = useEdgesShownAcross(props.onEdgesShown, useCanvas, mapShown);
   const [canvasWithheld, setCanvasWithheld] = useState<number | undefined>(undefined);
+  // What the Canvas map reported last: a host that starts listening is told it.
+  const canvasLast = useRef<Parameters<NonNullable<typeof tellShown>>[0]>(undefined);
   const canvasShown = useCallback((s: Parameters<NonNullable<typeof tellShown>>[0]) => {
+    canvasLast.current = s;
     setCanvasWithheld(s && s.total - s.edges.length);
     tellShown?.(s);
   }, [tellShown]);
+  useEffect(() => {
+    if (tellShown && useCanvas && mapShown && canvasLast.current) tellShown(canvasLast.current);
+  }, [tellShown]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Without a Canvas map shown nothing it reported holds: the next one reports what it withholds, or nothing.
+  const canvasDrawn = useCanvas && mapShown;
+  useEffect(() => {
+    if (canvasDrawn) return;
+    canvasLast.current = undefined;
+    setCanvasWithheld(undefined);
+  }, [canvasDrawn]);
   const reportShown = useEdgesShown(useCanvas ? undefined : tellShown);
-  useEffect(() => reportShown(flow.withheld, scene.edgeMarks), [flow.withheld, scene, reportShown]);
+  // A host that starts listening is told what the map withholds; the table view withholds nothing.
+  const listening = !!tellShown;
+  useEffect(() => reportShown(mapShown ? flow.withheld : undefined, scene.edgeMarks), [flow.withheld, scene, reportShown, listening, mapShown]);
   // React Flow draws new nodes a commit later; until then the layout is not in place.
   const laidBy = useRef(new WeakMap<object, Positions | undefined>()).current;
   laidBy.set(flow.nodes, laidPositions);
@@ -355,17 +373,19 @@ function ProcessMapInner(props: ProcessMapProps) {
     [positions, rf, reducedMotion, useCanvas],
   );
   controller.screen.current = { reveal, place: elementScreenPoint, focus: () => containerRef.current?.focus() } satisfies MapScreen;
-  // Keys on the map and in its menu; Escape that closes the menu goes no further.
+  // Keys on the map and in its menu; Escape that closes the menu goes no further. The table view's keys are
+  // the table's (its rows, search field and pages, where no menu is shown); Escape from a row clears, as on the map.
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
       // Keys on a control of a panel (the legend's toggle, a slider, a button) are the control's, not the map's.
       const target = e.target as Element;
       if (target !== e.currentTarget && target.closest?.(".wf-panel") && !target.closest('[role="menu"]')) return;
+      if (view === "table" && (e.key !== "Escape" || target.tagName === "INPUT")) return;
       const step = dispatch({ type: "key", key: e.key, shiftKey: e.shiftKey, altKey: e.altKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey });
       if (step.handled) e.preventDefault();
       if (e.key === "Escape" && step.intents.some((i) => i.kind === "returnFocus")) e.stopPropagation();
     },
-    [dispatch],
+    [dispatch, view],
   );
 
   const tooltipTarget = hovered ?? (hasFocus ? focused : null);
@@ -396,7 +416,8 @@ function ProcessMapInner(props: ProcessMapProps) {
     .join(" ");
   const hasStages = (baseGraph.groups ?? []).some((g) => g.kind === "stage") || !!abstraction.collapse;
   const showFilters = props.filters !== undefined || props.onFilterChange !== undefined;
-  const activeDescendant = focused ? (index.edges.has(focused) ? `wf-edge-${focused}` : `wf-node-${focused}`) : undefined;
+  // The table view renders neither list nor elements.
+  const activeDescendant = focused && view !== "table" ? (index.edges.has(focused) ? `wf-edge-${focused}` : `wf-node-${focused}`) : undefined;
 
   const sidePanel = showPaths ? (
     <div className="wf-process-map__side">
@@ -420,10 +441,10 @@ function ProcessMapInner(props: ProcessMapProps) {
     />
   ) : null;
   const legendElement = legend ? (
-    <Legend scales={scales} legend={scene.legend} locale={locale} onAnnounce={controller.announce} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} />) : undefined} />
+    <Legend scales={scales} legend={scene.legend} locale={locale} onAnnounce={controller.announce} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} locale={locale} />) : undefined} />
   ) : null;
   // Where the map draws fewer paths than are selected (at a small zoom, by the path budget), the panel says both numbers.
-  const withheldPaths = view === "table" ? 0 : useCanvas ? (canvasWithheld ?? 0) : flow.withheld ? flow.withheld.total - flow.withheld.drawn.size : 0;
+  const withheldPaths = view === "table" ? 0 : useCanvas ? (canvasWithheld ?? 0) : flow.withheld ? flow.withheld.total - flow.withheld.shown : 0;
   const selectedPaths = shown.meta?.shown?.paths.shown ?? shown.edges.filter((e) => e.kind !== "constraint" && !hasTag(e, INDIRECT_TAG)).length;
   const drawnPaths = withheldPaths > 0 ? { selected: selectedPaths, drawn: Math.max(0, selectedPaths - withheldPaths) } : undefined;
   const controlsElement = controls ? (
@@ -466,7 +487,7 @@ function ProcessMapInner(props: ProcessMapProps) {
       onFocusCapture={(event) => void dispatch({ type: "focusIn", id: (event.target as HTMLElement).closest?.(".react-flow__node")?.getAttribute("data-id") ?? undefined })}
       onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) dispatch({ type: "focusOut" }); }}
       data-activity-labels={activityLabels?.mode}
-      data-layout-status={arranging || (needsOwnLayout && flowBehind) ? "pending" : needsOwnLayout ? own.status : "given"}
+      data-layout-status={arranging || (needsOwnLayout && flowBehind) ? "pending" : needsOwnLayout ? own.status : unavailable ? "error" : "given"}
       data-engine={positions?.engine}
       data-renderer={view === "table" ? "table" : useCanvas ? "canvas" : "svg"}
       data-lanes={lanes}

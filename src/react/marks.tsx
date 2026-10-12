@@ -1,11 +1,7 @@
-/**
- * Overlay marks in the DOM: the SVG elements of `markSvg` with paints that
- * follow the theme's CSS tokens through classes a host rule can override. The React map and the BPMN view both draw
- * through this module, so a new overlay kind needs no change in either.
- */
+/** Overlay marks in the DOM, painted with the theme's tokens through classes a host rule can override; the React map and the BPMN view draw through it. */
 import { useStore } from "@xyflow/react";
 import { createElement, type ReactNode } from "react";
-import { type Arrowhead, type MarkPaint, type MarkSvgOptions, type OverlayMark, type SvgElement, MAP_TARGET, arrowMarker, createPositions, hatchSvg, hatchTokens, hexToRgb, markArrowhead, markSvg, overlayArrow, overlayGeometry, overlayMarks } from "../core/index.js";
+import { type Arrowhead, type Locale, type MarkPaint, type MarkSvgOptions, type OverlayMark, type SvgElement, MAP_TARGET, arrowMarker, chipText, createPositions, hatchSvg, hatchTokens, hexToRgb, markArrowhead, markSvg, overlayArrow, overlayGeometry, overlayMarks } from "../core/index.js";
 import type { Overlay } from "../core/index.js";
 
 const TOKENS: Record<Exclude<MarkPaint, "value" | "onValue" | `#${string}`>, string> = {
@@ -37,7 +33,7 @@ export interface MarkIds {
 export const MARK_IDS: MarkIds = { arrow: "wf-mark-arrow", pattern: "wf-mark-outofscope" };
 
 /** Paints as CSS: tokens as variables; a hovered mark shows its value in the focus colour. */
-export function domMarkOptions(ids: MarkIds, hovered = false): MarkSvgOptions {
+function domMarkOptions(ids: MarkIds, hovered = false): MarkSvgOptions {
   return {
     paint: (m, paint) => (paint === "value" ? (hovered ? "var(--wf-focus)" : m.color) : paint === "onValue" ? (hovered ? TOKENS.paper : m.onColor) : token(paint)),
     arrowId: ids.arrow,
@@ -116,10 +112,13 @@ export function coverBackground(marks: OverlayMark[]): string | undefined {
 }
 
 /** A mark drawn on its own, at the size of its box (map-level chips in the legend). */
-export function MarkFigure({ mark }: { mark: OverlayMark }) {
+export function MarkFigure({ mark, locale }: { mark: OverlayMark; locale?: Locale }) {
   const { x, y, width, height } = mark.box;
+  // Drawn on its own (a legend's chip), it says what it shows: its last text with the label before it, whole, where the chip shortens it.
+  const text = mark.kind === "chip" ? chipText(mark.overlay, locale) : mark.texts.at(-1);
+  const name = text?.text || text?.lead ? `${text.lead ?? ""}${text.text}` : mark.title;
   return (
-    <svg className="wf-mark" width={width} height={height} viewBox={`${x} ${y} ${width} ${height}`} overflow="visible" aria-hidden="true">
+    <svg className="wf-mark" width={width} height={height} viewBox={`${x} ${y} ${width} ${height}`} overflow="visible" {...(name ? { role: "img", "aria-label": name } : { "aria-hidden": true })}>
       {svgReact(mapMark(mark, MARK_IDS))}
     </svg>
   );

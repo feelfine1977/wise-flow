@@ -44,7 +44,7 @@ export interface StableLayout {
    * (status `pending`): the earlier positions of the nodes still present with
    * new nodes beside their neighbours, or a provisional arrangement. Also true
    * when they stay instead of a layout that is unavailable (status `error`
-   * with a `LayoutUnavailableError`).
+   * with a `LayoutUnavailableError`); then `positions.final` is true.
    */
   provisional: boolean;
 }
@@ -61,10 +61,20 @@ export interface StableLayout {
 export function useStableLayout(scenes: FlowGraph | FlowGraph[] | undefined, options?: LayoutOptions): StableLayout {
   const list = useMemo(() => (scenes === undefined ? [] : Array.isArray(scenes) ? scenes : [scenes]), [scenes]);
   const union = useMemo(() => (list.length === 0 ? undefined : unionGraph(list)), [list]);
-  // Size callbacks count by the dimensions they return, so equivalent callbacks do not restart layout.
-  const inputs = union ? layoutInputKey(union, options ?? {}) : undefined;
+  // Size callbacks count by the dimensions they return, and an `elk` instance made anew on each render is the same
+  // engine, so equivalent options do not restart layout.
+  const inputs = union ? layoutInputKey(union, { ...options, elk: undefined }) : undefined;
   const [scope] = useState(createLayoutScope);
-  useEffect(() => () => scope.dispose(), [scope]);
+  // Released on unmount; mounted again before the task ends (StrictMode), the scope keeps its layouts and the
+  // layout that is running is joined again rather than started twice.
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      queueMicrotask(() => mounted.current || scope.dispose());
+    };
+  }, [scope]);
   const shown = useRef<Positions>(undefined);
   // What a request shows until its layout arrives.
   const request = useMemo(() => {
@@ -89,7 +99,8 @@ export function useStableLayout(scenes: FlowGraph | FlowGraph[] | undefined, opt
       const { error } = result;
       if (!error) return { positions: result.positions, status: "ready", provisional: false };
       const kept = error instanceof LayoutUnavailableError;
-      return { positions: kept ? request.positions : undefined, status: "error", error, provisional: kept };
+      // Kept for good: a map given them says the layout is unavailable.
+      return { positions: kept ? { ...request.positions, final: true } : undefined, status: "error", error, provisional: kept };
     }
     return request.known ? { positions: request.known, status: "ready", provisional: false } : { positions: request.positions, status: "pending", provisional: true };
   }, [request, result]);
@@ -105,9 +116,9 @@ export function useOverlays(
   return useMemo(() => (items ? overlaysFor(items, options) : []), [items, options?.graph, options?.locale, options?.outOfScopeMinShare]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
-export type MapSceneOptions = Pick<FlowSceneOptions, "style" | "locale" | "lanes" | "activityLabels" | "selfLoops" | "lod" | "theme" | "scheme" | "textMeasure">;
+type MapSceneOptions = Pick<FlowSceneOptions, "style" | "locale" | "lanes" | "activityLabels" | "selfLoops" | "lod" | "theme" | "scheme" | "textMeasure">;
 
-export interface MapScene {
+interface MapScene {
   /** Built on empty positions while none are known. */
   scene: FlowScene;
   positions: Positions | undefined;
@@ -154,7 +165,7 @@ export function usePrefersReducedMotion(): boolean {
 /** Milliseconds a layout takes to move into the place of a provisional arrangement. */
 const ARRIVAL_MS = 300;
 
-export interface Arrival {
+interface Arrival {
   /** The positions to draw; on the way from the provisional arrangement to the layout while `moving`. */
   positions: Positions | undefined;
   moving: boolean;
@@ -207,12 +218,16 @@ export function useArrival(positions: Positions | undefined, provisional: boolea
 /** Reports the edges a map draws to `onEdgesShown` when they change. */
 export function useEdgesShown(onEdgesShown: ((shown: ShownEdges | undefined) => void) | undefined) {
   const callback = useRef(onEdgesShown);
-  useLayoutEffect(() => void (callback.current = onEdgesShown));
   const last = useRef("");
+  useLayoutEffect(() => {
+    // Nobody listens: whoever listens next is told from every edge drawn.
+    if (!onEdgesShown) last.current = "";
+    callback.current = onEdgesShown;
+  });
   return useCallback((withheld: EdgeSelection | undefined, marks: readonly { id: string }[]) => {
     // Nobody listens: start again from every edge drawn.
     if (!callback.current) return void (last.current = "");
-    const edges = withheld ? [...withheld.drawn].sort((a, b) => a - b).map((i) => marks[i].id) : [];
+    const edges = withheld ? [...[...withheld.drawn].sort((a, b) => a - b).map((i) => marks[i].id), ...withheld.loops] : [];
     const key = withheld ? `${withheld.total}\n${edges.join("\n")}` : "";
     if (key === last.current) return;
     last.current = key;
@@ -220,8 +235,8 @@ export function useEdgesShown(onEdgesShown: ((shown: ShownEdges | undefined) => 
   }, []);
 }
 
-/** Reports for both renderers; a switch starts again from every edge drawn. */
-export function useEdgesShownAcross(onEdgesShown: ((shown: ShownEdges | undefined) => void) | undefined, canvas: boolean) {
+/** Reports for both renderers; a switch, and the table view of a Canvas map, start again from every edge drawn. */
+export function useEdgesShownAcross(onEdgesShown: ((shown: ShownEdges | undefined) => void) | undefined, canvas: boolean, mapShown = true) {
   const callback = useRef(onEdgesShown);
   useLayoutEffect(() => void (callback.current = onEdgesShown));
   const told = useRef<ShownEdges | undefined>(undefined);
@@ -232,5 +247,10 @@ export function useEdgesShownAcross(onEdgesShown: ((shown: ShownEdges | undefine
   useLayoutEffect(() => {
     if (told.current) tell(undefined);
   }, [canvas, tell]);
+  // The table view lists every edge; the Canvas map it replaces reports nothing, and draws again from every edge.
+  const canvasHidden = canvas && !mapShown;
+  useLayoutEffect(() => {
+    if (canvasHidden && told.current) tell(undefined);
+  }, [canvasHidden, tell]);
   return onEdgesShown && tell;
 }

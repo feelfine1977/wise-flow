@@ -1,11 +1,4 @@
-/**
- * Lanes: the map's groups as bands. Stage groups become ordered bands along
- * the flow direction (the order the ELK partitioning produced); lane groups
- * (roles) become bands stacked across the flow, and their members move into
- * their band. Positions of the nodes are otherwise untouched, so a map keeps
- * its layout when the lane mode changes. The lane model (`laneModel`,
- * `stackLanes`, `spanLanes`, `laneRoutes`) is shared with the BPMN layout.
- */
+/** Lanes: stage groups as bands along the flow, lane groups as bands across it; the lane model is shared with the BPMN layout. */
 import { type Box, type EdgeRoute, type Positions, createPositions, positionsBounds, unionBoxes } from "./layout.js";
 import { type FlowGraph, type FlowGroup, type FlowNode, indexGraph } from "./model.js";
 import { routeSequenceFlows } from "./routing.js";
@@ -119,9 +112,9 @@ function nestedLanes(graph: FlowGraph): { lanes: FlowGroup[]; laneOf: Map<string
   };
   walk(undefined);
   const laneIds = new Set(lanes.map((l) => l.id));
+  // At most one step per group, also on a cycle of parents.
   const firstLeafUnder = (id: string): string | undefined => {
-    if (laneIds.has(id)) return id;
-    for (const g of groups) if (g.parent === id) return firstLeafUnder(g.id);
+    for (let cur: string | undefined = id, n = groups.length; cur !== undefined && n-- >= 0; cur = groups.find((g) => g.parent === cur)?.id) if (laneIds.has(cur)) return cur;
     return undefined;
   };
   return { lanes, laneOf: assign(graph, lanes, (n) => (n.group ? firstLeafUnder(n.group) : undefined)) };
@@ -219,10 +212,14 @@ export function spanLanes(graph: FlowGraph, model: LaneModel, laneBoxes: Readonl
     }
     return spans;
   }
+  // A cycle of parents stops where it returns.
+  const path = new Set<string>();
   const boxOf = (id: string): Box | undefined => {
     const own = laneBoxes[id] ?? spans[id];
-    if (own) return own;
+    if (own || path.has(id)) return own;
+    path.add(id);
     const children = all.filter((g) => g.parent === id).map((g) => boxOf(g.id)).filter((b): b is Box => !!b);
+    path.delete(id);
     return children.length ? span(children) : undefined;
   };
   for (const g of all) {

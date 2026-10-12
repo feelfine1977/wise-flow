@@ -10,10 +10,11 @@ two DOM renderers create the same elements with the theme's CSS variables as
 paints. Chip marks carry what the map's chips show (`MarkText.lead`,
 `OverlayMark.gauge`, `MarkGauge`, `chipText`, `chipLayout`, the paint
 `line` and `fixedColors.line`). `OverlayLayerProps` gains `marks` and `zoom`;
-`shapes` becomes optional and `showArcs` and `showSelfLoops` are deprecated
-(without `zoom` the layer behaves as before). `ActivityNodeData` gains
-`tint`; it and `GroupNodeData` gain `marks` and `origin`; `ActivityNodeData.badges`
-and `GroupNodeData.chips` are deprecated. `GroupNodeData.tint` held one CSS
+`shapes` becomes optional, and `showArcs` and `showSelfLoops` are removed in
+this release (without `zoom` the layer draws every mark). `ActivityNodeData`
+gains `tint`; it and `GroupNodeData` gain `marks` and `origin`;
+`ActivityNodeData.badges` and `GroupNodeData.chips` are removed in this
+release. `GroupNodeData.tint` held one CSS
 colour; it now holds CSS background layers (`linear-gradient(…)`), which
 `background` accepts and `background-color` does not.
 
@@ -39,7 +40,10 @@ Visible changes:
   `wf-lod-*` classes. Self-loop labels are 10 px, as in the exports (11 px
   before).
 - Map and BPMN view: map-level chips in the legend, `<Chip/>` and `<Badges/>`
-  are SVG drawings of their marks.
+  are SVG drawings of their marks. A chip drawn on its own is an image named
+  by its label and reading for assistive technology, as its text was read
+  before, whole where the chip shortens it; badges are described with their
+  element.
 - BPMN view: badges, chips, tints and hatching are the same SVG drawings as
   on the map, inside the bpmn-js overlays; chips gain the gauge. Self-loops
   are drawn at full opacity (0.9 before) with 10 px labels. Overlay elements

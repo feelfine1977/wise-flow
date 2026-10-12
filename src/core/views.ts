@@ -1,12 +1,8 @@
-/**
- * Named views of one map: the same graph and positions under several metric
- * and overlay sets (for example Finance, Logistics, Compliance, Automation),
- * with colour and width scales shared across the views so that they compare.
- */
+/** Named views of one map: metric and overlay sets on the same graph and positions, with shared scales. */
 import { type AbstractOptions, abstract, collapseGroups } from "./aggregate.js";
 import { type LayoutOptions, type Positions, filterPositions, layout } from "./layout.js";
 import { type FlowGraph, type Metrics, type Overlay, metric } from "./model.js";
-import { type ChannelSpec, type ColorSpec, type Scales, type StyleSpec, buildScales, defaultStyle, pathScaleMax } from "./style.js";
+import { type ChannelSpec, type ColorSpec, type Scales, type StyleSpec, buildScales, defaultStyle, extentOf, isShareMetric, pathScaleMax, symmetricDomain } from "./style.js";
 
 /** What one view encodes. Metrics are merged over the base graph's metrics by id. */
 export interface ViewSpec {
@@ -70,17 +66,6 @@ function withMetrics(base: FlowGraph, view: ViewSpec): FlowGraph {
   };
 }
 
-function extent(values: number[]): [number, number] | undefined {
-  let lo = Infinity;
-  let hi = -Infinity;
-  for (const v of values) {
-    if (!Number.isFinite(v)) continue;
-    lo = Math.min(lo, v);
-    hi = Math.max(hi, v);
-  }
-  return lo === Infinity ? undefined : [lo, hi];
-}
-
 /**
  * Resolve views on known positions: every view gets its graph (base metrics
  * merged with its own), its overlays and scales. With shared scales the domain
@@ -96,7 +81,6 @@ export function resolveViews(base: FlowGraph, views: ViewSpec[], positions: Posi
   const domains: Record<string, number[]> = {};
   const edgeValues = (name: string): number[] => graphs.flatMap((g) => g.edges.filter((e) => e.kind !== "constraint").map((e) => metric(e, name, NaN)));
   const nodeValues = (name: string): number[] => graphs.flatMap((g) => g.nodes.map((n) => metric(n, name, NaN)));
-  const isShare = (name: string) => /share/i.test(name);
 
   // Paths count cases, or transitions where no view gives cases for them (as `buildScales` decides for one graph).
   const measured = (name: string) => edgeValues(name).some(Number.isFinite);
@@ -106,7 +90,7 @@ export function resolveViews(base: FlowGraph, views: ViewSpec[], positions: Posi
   const widthMax = (spec: ChannelSpec): number => {
     if (spec.max !== undefined) return spec.max;
     const key = `edgeWidth:${spec.metric}`;
-    if (!domains[key]) domains[key] = [0, graphs.reduce((m, g) => Math.max(m, pathScaleMax(g, spec.metric) ?? 0), extent(edgeValues(spec.metric))?.[1] ?? 0) || 1];
+    if (!domains[key]) domains[key] = [0, graphs.reduce((m, g) => Math.max(m, pathScaleMax(g, spec.metric) ?? 0), extentOf(edgeValues(spec.metric))?.[1] ?? 0) || 1];
     return domains[key][1];
   };
   const colorDomain = (channel: "edgeColor" | "nodeColor", spec: ColorSpec): number[] | undefined => {
@@ -117,13 +101,11 @@ export function resolveViews(base: FlowGraph, views: ViewSpec[], positions: Posi
       const values = channel === "edgeColor" ? edgeValues(spec.metric) : nodeValues(spec.metric);
       const palette = spec.palette ?? "sequential";
       if (palette === "diverging") {
-        const ext = extent(values);
-        const m = ext ? Math.max(Math.abs(ext[0]), Math.abs(ext[1])) || 1 : 1;
-        domains[key] = [-m, 0, m];
-      } else if (isShare(spec.metric)) {
+        domains[key] = symmetricDomain(values);
+      } else if (isShareMetric(spec.metric)) {
         domains[key] = [0, 1];
       } else {
-        domains[key] = extent(values) ?? [0, 1];
+        domains[key] = extentOf(values) ?? [0, 1];
       }
     }
     return domains[key];

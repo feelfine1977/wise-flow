@@ -1,16 +1,10 @@
-/**
- * The scene every renderer reads: a graph with its positions resolved once
- * into activity references, lane bands, scales, the overlays to show in their
- * canonical order, level-of-detail rules, overlay geometry and the marks
- * that say what every node, edge, group and overlay looks like in the theme
- * and colour scheme, and what the legend lists.
- */
+/** The scene every renderer reads: a graph with its positions resolved once into the theme's marks, overlays, scales and the legend. */
 import { type ActivityLabelOptions, activityReferences } from "./activity-labels.js";
 import { pathCourses } from "./courses.js";
 import { type EdgeMark, type GroupMark, type NodeMark, edgeColor, edgeMarks, edgePoints, groupMarks, nodeMarks } from "./element-marks.js";
 import { type SceneLegend, legendOfScene } from "./figure.js";
 import type { Locale } from "./format.js";
-import { type Box, type Positions, type XY, unionBoxes } from "./layout.js";
+import { type Box, type Positions, type XY, filterPositions, finitePositions, unionBoxes } from "./layout.js";
 import { type LaneBand, type LaneMode, laneBands } from "./lanes.js";
 import { type FlowGraph, type Overlay, MAP_TARGET } from "./model.js";
 import { withFollowsSelfLoops } from "./observed-loops.js";
@@ -108,6 +102,11 @@ function shownOverlays(graph: FlowGraph, given: Overlay[], options: FlowSceneOpt
 
 /** Resolve a graph with positions into the scene the renderers draw. */
 export function buildScene(graph: FlowGraph, givenPositions: Positions, options: FlowSceneOptions = {}): FlowScene {
+  return sceneOf(graph, givenPositions, options);
+}
+
+/** `buildScene`; `own` places the overlays on the graph's own positions, as on the map (an export's may hold more). */
+export function sceneOf(graph: FlowGraph, givenPositions: Positions, options: FlowSceneOptions, own?: boolean): FlowScene {
   const locale = options.locale ?? "en";
   const style = options.style ?? defaultStyle;
   const theme = options.theme ?? defaultTheme;
@@ -116,8 +115,8 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
   // The marks draw the neutral colour, the accent and the palettes of the scheme; every other paint they name by role.
   const marked = scheme === "light" ? theme : { ...theme, color: colors, palette: themePalettes(theme, scheme) };
   const measure = options.textMeasure ?? estimateTextWidth;
-  const laid = laneBands(graph, givenPositions, { lanes: options.lanes ?? "none" });
-  const positions = options.moved ? repositionNodes(graph, laid.positions, options.moved) : laid.positions;
+  const laid = laneBands(graph, finitePositions(givenPositions), { lanes: options.lanes ?? "none" });
+  const positions = options.moved ? finitePositions(repositionNodes(graph, laid.positions, options.moved)) : laid.positions;
   const activityLabels = options.activityLabels ? { ...options.activityLabels, references: activityReferences(graph, options.activityLabels.references) } : undefined;
   const overlays = canonicalOverlays(shownOverlays(graph, options.overlays ?? graph.overlays ?? [], options, locale));
   const rules = { ...(style.lod ?? {}), ...(options.lod ?? {}) };
@@ -126,11 +125,16 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
   // Backward paths below the flow and opposite paths side by side; the scene's positions carry their courses, which chips keep clear of.
   const courses = pathCourses(graph, positions, { width: scales.edgeWidth, bands: new Set(laid.bands.map((b) => b.id)) });
   const routes = graph.edges.flatMap((e) => (e.kind === "constraint" || e.source === e.target ? [] : [edgePoints(courses.positions, e) ?? []]));
-  const geometry = placeOverlays(overlays, positions, { locale, ...(options.overlayGeometry ?? {}), lod }, groupTitles(graph.groups ?? [], positions), measure, theme.text, routes);
+  const edges = edgeMarks(graph, courses.positions, scales, locale, marked, courses);
+  // Arc labels keep clear of the paths' counts (from their baseline up a full size).
+  const counts = edges.flatMap((e) => e.texts.map((t) => {
+    const width = measure(t.text, t);
+    return { x: t.x - (t.anchor === "middle" ? width / 2 : t.anchor === "end" ? width : 0), y: t.y - t.size, width, height: t.size };
+  }));
+  const geometry = placeOverlays(overlays, own ? filterPositions(positions, graph) : positions, { locale, ...(options.overlayGeometry ?? {}), lod }, groupTitles(graph.groups ?? [], positions), measure, theme.text, routes, counts);
   // Elements a hatch covers are outside the scope the host evaluates; the state resolves here and reaches every renderer.
   const outOfScope = new Set(overlays.filter((o) => o.kind === "hatch").map((o) => o.target));
   const nodes = nodeMarks(graph, positions, scales, { locale, activityLabels, theme: marked, measure, outOfScope });
-  const edges = edgeMarks(graph, courses.positions, scales, locale, marked, courses);
   const groups = groupMarks(graph, positions, laid.bands, scales, marked);
   // A self-loop that stands for a path takes the path's colour; a tint follows the corners of what it covers.
   const byId = new Map(graph.edges.map((e) => [e.id, e]));
