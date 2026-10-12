@@ -60,7 +60,9 @@ export const POOL_ID = "__pool";
  */
 export async function layoutBpmn(graph: FlowGraph, options: BpmnLayoutOptions = {}): Promise<Positions> {
   const { lanes: laneMode, rowGap = 56, lanePadding = 48, labelWidth = 30, poolPadding = 40, ...rest } = options;
-  const base: LayoutOptions = { ...rest, direction: "RIGHT", nodeSize: rest.nodeSize ?? bpmnNodeSize, spacing: { node: 56, layer: 80, ...(rest.spacing ?? {}) } };
+  // Where no Worker exists (Node) there is no page to freeze: the Dagre fallback runs whatever the size.
+  const fallbackLimit = rest.fallbackLimit ?? (typeof Worker === "undefined" ? Infinity : undefined);
+  const base: LayoutOptions = { ...rest, fallbackLimit, direction: "RIGHT", nodeSize: rest.nodeSize ?? bpmnNodeSize, spacing: { node: 56, layer: 80, ...(rest.spacing ?? {}) } };
   const model = laneModel(graph, BPMN_LANES);
   const mode = laneMode ?? (model.lanes.length ? "bands" : "ignore");
   if (mode === "compound") return layout(graph, { ...base, groups: "compound" });

@@ -918,6 +918,15 @@ export function ViewSwitcher(props: { views: ViewSet; mode?: "single" | "grid"; 
   edgeBudget?: EdgeBudget | "adaptive" }): JSX.Element;   // from @wise/flow/react; edgeBudget is passed to every view's map
 ```
 
+Layout of a BPMN model where no `Worker` exists (Node): `layoutBpmn`, and
+`exportBpmn` without `positions`, run the Dagre fallback whatever the size
+(`fallbackLimit` defaults to no limit there), since there is no page to
+freeze; a model whose ELK layout fails or times out is laid out by Dagre, as
+up to 0.3.5. In a browser the limit of 500 nodes plus flows stays (pass
+`dagreWorkerUrl` to lay out larger models when ELK fails), and a
+`fallbackLimit` given is kept everywhere. Up to this change such a model
+ended in `LayoutUnavailableError` in Node too.
+
 Gateways of `liteFromGraph`: a node with several successors gets an XOR
 split `gw_split_<id>`, a node with several predecessors an XOR join
 `gw_join_<id>`. With `andGateways`, parallel gateways are emitted only as a
