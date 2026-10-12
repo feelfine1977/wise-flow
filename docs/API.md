@@ -1173,7 +1173,7 @@ export interface HitItem { minX; minY; maxX; maxY; id: string; kind: "node" | "e
   box?: Box; layer?: "below" | "between" | "above";   // box: of a node, group or overlay shape, what hit tests read; layer: of an overlay shape
   curve?: { points: XY[]; reach: number; label?: Box };   // an arc's or a self-loop's curve, half its stroke, its label's box
   diamond?: boolean;   // a node hit by its diamond
-  stroke?: { line: [XY, XY]; reach: number; head?: { points: [XY, XY, XY]; reach: number } } }   // a path's line along the segment, half its width, its head
+  stroke?: { line: [XY, XY]; reach: number; head?: { points: XY[]; reach: number } } }   // a path's line along the segment, half its width, its head
 export interface Scene { graph; positions; overlays?; style?; title?; subtitle?; locale?; lanes?: LaneMode;
   activityLabels?: ActivityLabelOptions; selfLoops?: boolean }
 export interface ExportOptions { preset?: "single-column" | "double-column" | "slide" | "none"; width?; legend?;

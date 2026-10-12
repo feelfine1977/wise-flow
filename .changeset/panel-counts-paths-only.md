@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"@wise/flow": minor
 ---
 
 The detail panel's "n selected · m drawn at this zoom" counts paths only, on
