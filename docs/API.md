@@ -1365,7 +1365,7 @@ export function ProcessMap(props: {
   lanes?: LaneMode; contextMenu?: boolean;
   onContextMenu?: (target: MenuTarget, actions: MenuAction[]) => MenuAction[] | false | void;
   onAction?: (action: MenuAction, target: MenuTarget) => void | string; announce?: string;
-  describedLimit?: number;   // default 500 activities plus groups
+  describedLimit?: number;   // default 500 activities plus groups; below 1 read as 1
   edgeBudget?: EdgeBudget | "adaptive";   // default "adaptive"; see "Edge budget"
   onEdgesShown?: (shown: ShownEdges | undefined) => void;   // the edges drawn while some are withheld, for toSVG and toPNG
 }): JSX.Element;
@@ -1481,7 +1481,9 @@ all of them. Above the same limit the table view shows 100 rows per page with
 a search field (`TableAlternative` with `pageSize`), whichever renderer draws
 the map: a React Flow map above the limit gets the paged table too, while its
 own elements stay in the DOM as before. At or below the limit nothing
-changes.
+changes. A limit below one is read as one, so that the list always holds the
+element the keyboard is on (up to 0.3.5 a limit of 0 or less left the list
+empty while `aria-activedescendant` named the keyboard position).
 New strings `map.described.bounded`, `table.search`, `table.rows`,
 `table.previous` and `table.next` in English and German.
 

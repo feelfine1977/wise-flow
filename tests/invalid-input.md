@@ -330,7 +330,7 @@ Test: `tests/react/MalformedMap.test.tsx` › "renders every case in each render
 
 | Function | Entry | Documented for invalid input | Observed |
 | --- | --- | --- | --- |
-| `ProcessMap` | `./react` | Given positions are used as long as they cover the graph (finite boxes after 0.3.5); `describedLimit`, `pageSize`, `edgeBudget` and thresholds are not documented for junk values. | Renders; nothing logged but React's key warnings for ids missing or repeated (findings). No coordinate that is not finite is drawn for accepted input and sound props; the Canvas map draws with finite numbers. |
+| `ProcessMap` | `./react` | Given positions are used as long as they cover the graph (finite boxes after 0.3.5); a `describedLimit` below one is one (after 0.3.5); `pageSize`, `edgeBudget`, thresholds and a `describedLimit` that is not a number are not documented for junk values. | Renders; nothing logged but React's key warnings for ids missing or repeated (findings). No coordinate that is not finite is drawn for accepted input and sound props; the Canvas map draws with finite numbers. |
 
 ## React: the view switcher
 
