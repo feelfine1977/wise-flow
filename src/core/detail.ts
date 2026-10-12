@@ -10,6 +10,9 @@ export const ANCHOR_TAG = "anchor";
 /** Tag of a path that stands for a way through activities not shown; it has no count. */
 export const INDIRECT_TAG = "indirect";
 
+/** The payload of an indirect path: the activities not shown it passes, in their order on the way. */
+export const indirectWay = (e: FlowEdge): { hiddenActivities: number; via: string[] } | undefined => (hasTag(e, INDIRECT_TAG) ? (e.payload as { hiddenActivities: number; via: string[] }) : undefined);
+
 /** A binary heap: entries leave by key, then by `tie`; no two entries in one heap share both. */
 export class MinHeap<T> {
   private items: { key: number; tie: string; value: T }[] = [];
@@ -82,6 +85,9 @@ export interface DetailSelection {
   keeps: Record<string, string[]>;
   /** The measured paths in their rank, strongest first. */
   ranked: FlowEdge[];
+  /** The numbers of activities the share can show (`rankActivities`) and how many it shows. */
+  stops: number[];
+  count: number;
 }
 
 interface Way {
@@ -90,7 +96,17 @@ interface Way {
 }
 
 const EPSILON = 1e-9;
-const within = (share: number, n: number) => Math.min(n, Math.max(0, Math.ceil(Math.min(1, Math.max(0, share)) * n - EPSILON)));
+/** How many of `n` ranked elements a share shows: the share of them rounded up. */
+export const within = (share: number, n: number) => Math.min(n, Math.max(0, Math.ceil(Math.min(1, Math.max(0, share)) * n - EPSILON)));
+
+/** The measured activities in their rank (cases, then events, then id) and the numbers that end a tie of cases and events. */
+export function rankActivities(nodes: FlowNode[], nodeStrength: Map<string, number>, nodeEvents: Map<string, number>, unmeasured: Set<string>): { measured: FlowNode[]; stops: number[] } {
+  const events = (n: FlowNode) => nodeEvents.get(n.id) ?? 0;
+  const strength = (n: FlowNode) => nodeStrength.get(n.id)!;
+  const measured = nodes.filter((n) => !isStructuralNode(n) && !unmeasured.has(n.id)).sort((a, b) => strength(b) - strength(a) || events(b) - events(a) || byId(a, b));
+  const stops = measured.flatMap((n, i) => (i + 1 < measured.length && strength(measured[i + 1]) === strength(n) && events(measured[i + 1]) === events(n) ? [] : [i + 1]));
+  return { measured, stops };
+}
 
 /**
  * The anchoring way of `v` (`back`: into it, otherwise out of it): its
@@ -170,11 +186,9 @@ export function selectByDetail(input: DetailInput): DetailSelection {
   const strengthOf = (e: FlowEdge) => edgeStrength.get(e.id) ?? 1;
   const ordered = base.nodes.filter((n) => !isStructuralNode(n)).sort((a, b) => nodeStrength.get(b.id)! - nodeStrength.get(a.id)! || nodeEvents(b) - nodeEvents(a) || byId(a, b));
   const rank = new Map([...base.nodes.filter(isStructuralNode).sort(byId), ...ordered].map((n, i) => [n.id, i]));
-  // The share counts the measured activities; an activity nothing measured is always shown.
-  const measured = ordered.filter((n) => !unmeasured.has(n.id));
-  let count = measured.length ? Math.max(1, within(input.activityDetail, measured.length)) : 0;
-  const tied = (a: FlowNode, b: FlowNode) => nodeStrength.get(a.id) === nodeStrength.get(b.id) && nodeEvents(a) === nodeEvents(b);
-  while (count < measured.length && tied(measured[count], measured[count - 1])) count++;
+  // The share counts the measured activities, up to the end of a tie; an activity nothing measured is always shown.
+  const { measured, stops } = rankActivities(base.nodes, nodeStrength, input.nodeEvents, unmeasured);
+  const count = stops.find((n) => n >= within(input.activityDetail, measured.length)) ?? 0;
   const byShare = new Set([...base.nodes.filter((n) => isStructuralNode(n) || unmeasured.has(n.id)), ...measured.slice(0, count)].map((n) => n.id));
   const shown = new Set(byShare);
   for (const id of required) if (nodeById.has(id)) shown.add(id);
@@ -263,5 +277,5 @@ export function selectByDetail(input: DetailInput): DetailSelection {
     used.add(id);
     return { id, kind: "follows" as const, source, target, tags: [INDIRECT_TAG], payload: { hiddenActivities: via.length, via } };
   });
-  return { nodes, edges: [...edges, ...added.sort(byId)], byShare, frequent, anchors, keeps: keepsOut, ranked };
+  return { nodes, edges: [...edges, ...added.sort(byId)], byShare, frequent, anchors, keeps: keepsOut, ranked, stops, count };
 }

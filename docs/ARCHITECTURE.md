@@ -50,6 +50,7 @@ read what it resolves and do not decide it again.
 | Legend and figure frame (`core/figure.ts`) | `FlowScene.legend` (`legendOfScene`), `LegendRow`, `legendLayout`, `figureFrame`, `figureCaption` | the legend's typed rows from what the scene draws (the measure and its unit, the scales titled by metric and unit, a key per kind of mark drawn), their heights and texts at the export's width, the exported figure's frame, its caption line and the note on withheld edges in it (§2.6) | `toSVG`, `toPNG`, Canvas `drawLegend`, `<Legend/>` |
 | Fitted view (`core/viewport.ts`) | `fitViewport(bounds, area, { insets, padding })`, `panelInsets(panels, area, bounds)` | the view that shows a map whole inside its area less insets, and the insets that keep it clear of the panels over it (each panel kept clear across or along the area, whichever leaves the larger zoom) | `ProcessMap` (React Flow), `CanvasRenderer.fit` and `CanvasMap`, `BpmnView` |
 | Selection by detail (`core/detail.ts`, through `abstract` in `core/aggregate.ts`) | `abstract(graph, { activityDetail, pathDetail, marks })` → `FlowGraph` with `meta.shown`; `ANCHOR_TAG`, `INDIRECT_TAG` | which activities and paths two detail shares show: activities by rank, paths by their rank in the whole graph, each shown activity's anchors (its strongest path from and to a more frequent node, or the way through rarer ones whose rarest is the most frequent), indirect paths for stretches through activities not shown, the elements of protected marks, and what is shown and what of the marks is not (§2.2) | `<ProcessMap/>` through `useFlowGraph`, `buildViews`, `liteFromGraph`; hosts |
+| Statements of the detail shares (`core/detail-statement.ts`) | `detailStatement(graph, { locale, marks, labelOf })`, `detailNotes(base, shown, options)` | what a graph abstracted by `abstract` shows, in words: the short and full statements beside the detail sliders (activities and their share of events; paths by frequency, kept, the strongest not shown), the marks not shown, the elements shown for a protected deviation; what the tooltips of the shown elements add (§2.2) | `<AbstractionControls/>` through `<ProcessMap/>`, `figureCaption`; hosts |
 | Metric registry (`core/metrics.ts`) | `metricRegistry`, `formatMetricValue`, `elementMetric`, `metricLabelOf`, `channelTitle` | for each metric its name, unit and number format in English and German, and how a lower bound and a mean of merged values read (§2.2, §2.6) | the legend, the node and edge marks, the descriptions, `<TableAlternative/>`, `<PathList/>` |
 | Design tokens (`core/tokens.ts`) | `designTokens` and its parts, `patternTwin`, `tokenVariables` | colours, palettes, fonts, node sizes, the arrowhead rule, pattern twins, and every size, radius, stroke, dash, text size and weight, opacity, spacing step and z-order by role; `tokens.css` is generated from it and checked against it (§2.4) | marks, SVG export, Canvas drawing and `readTokens`, PNG export, React components, `tokens.css` and through it the stylesheet |
 | Graph index and positions (`core/model.ts`, `core/layout.ts`) | `indexGraph`, `createPositions` | lookups, adjacency, group ancestors, nested members, labels; positions whose bounds always match their contents (§2.1, §2.3) | selection, filters, paths, lanes, layout, every renderer |
@@ -168,6 +169,17 @@ induction over the rank. The anchors depend on the graph only, the
 shown set grows with either share, and a walk split at more shown nodes
 keeps every path it had: so neither share removes an element as it grows,
 except an indirect edge whose activities come into view.
+
+**What the shares show, in words** (`core/detail-statement.ts`).
+`abstract` records in `meta.shown` the sliders' positions (the numbers of
+activities that end a tie, the measured paths, and where the shares or the
+thresholds stand), the paths shown by frequency, the weakest path shown and
+the events shown. `detailStatement` turns `meta.shown` into the statements of
+the detail panel and of an export's caption; `detailNotes`, given the graph
+before and after the shares, into what the tooltips of the shown elements
+add (passages on paths not shown, what a kept path keeps, what an indirect
+path passes, an element shown for a protected deviation). Both read only
+the core's model and strings.
 
 **Joining components.** An edge costs a reconnecting path `1 + (1 −
 strength)`: 1 for the edge, so every removed node on a path adds at least 1

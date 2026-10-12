@@ -6,7 +6,8 @@
 import { scaleLinear, scaleLog, scaleSqrt } from "d3-scale";
 import { hatchSvg, patternTwinSvg, svgMarkup } from "./mark-svg.js";
 import { metricKind } from "./metrics.js";
-import { type FlowEdge, type FlowGraph, type FlowNode, metric } from "./model.js";
+import { INDIRECT_TAG } from "./detail.js";
+import { type FlowEdge, type FlowGraph, type FlowNode, hasTag, metric } from "./model.js";
 import type { StringKey } from "./strings.js";
 import { ruleDeviations } from "./rules.js";
 import { type ColorScheme, type Theme, type ThemePalettes, colorChannels, defaultTheme, themeColors, themePalettes } from "./theme.js";
@@ -477,7 +478,9 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
   // Edge width: one scale per graph, from 0 to its strongest path before abstraction, or over a given domain.
   const widthSpec = spec.edgeWidth && { ...spec.edgeWidth, metric: resolved(spec.edgeWidth.metric) };
   const pathMetric = widthSpec && metricKind(widthSpec.metric) === "count" ? widthSpec.metric : resolved("cases");
-  const notEvaluated = (e: FlowEdge) => e.kind === "follows" && !Number.isFinite(metric(e, pathMetric, NaN));
+  // An indirect path has no count, as it is no path of the graph: it is not a path not evaluated.
+  const indirect = (e: FlowEdge) => hasTag(e, INDIRECT_TAG);
+  const notEvaluated = (e: FlowEdge) => e.kind === "follows" && !indirect(e) && !Number.isFinite(metric(e, pathMetric, NaN));
   let widthFn: (e: FlowEdge) => number = () => theme.stroke.path;
   let samples: { value: number; width: number; floor?: boolean }[] | undefined;
   const upper = widthSpec && (widthSpec.max ?? pathScaleMax(graph, widthSpec.metric));
@@ -537,7 +540,7 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
       return root ? interpolatePalette(themePalette(theme, palette), root(v)) : color(v, palette, domain);
     };
   }
-  const pathColorFn = (e: FlowEdge) => (notEvaluated(e) ? theme.color.line : edgeColorFn(e));
+  const pathColorFn = (e: FlowEdge) => (notEvaluated(e) || indirect(e) ? theme.color.line : edgeColorFn(e));
 
   // Node colour and pattern
   const nodeSpec = spec.nodeColor;

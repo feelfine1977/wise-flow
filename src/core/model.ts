@@ -162,12 +162,42 @@ export interface ShownMeta {
   weakestByFrequency?: number;
   /** Detail shares: the count of the strongest path not shown; absent when every path is shown. */
   strongestNotShown?: number;
+  /** Detail shares: the shown paths whose rank lies within the paths share (with every path nothing measured). */
+  byFrequency?: number;
+  /** Detail shares: the count of the weakest path shown, kept paths included; absent when none is. */
+  weakestShown?: number;
   /** Thresholds without `keepConnected`: the shown activities that have no path to or from another node. */
   withoutPath?: number;
+  /** The events of the shown activities and stages, of all; absent when no activity carries a count of events. */
+  events?: { shown: number; of: number };
+  /** Where the detail sliders stand, for detail shares and thresholds alike. */
+  positions: DetailPositions;
   /** The marks not shown because their element is not, by id (`kind:target:n`, see `abstract`). */
   marksNotShown: string[];
   /** The activities and paths shown only because a protected mark sits on them. */
   forProtected: string[];
+}
+
+/**
+ * The positions of the two detail sliders on a graph: the activities by rank
+ * and the paths by frequency, each counted from the most frequent.
+ */
+export interface DetailPositions {
+  /**
+   * The numbers of activities the activity share can show, ascending: the
+   * last of every tie (activities with equal counts enter together), the
+   * last being every activity measured. Empty when no activity is measured.
+   */
+  activities: number[];
+  /** The measured paths in their rank: the paths share shows from 0 to this many by frequency. */
+  paths: number;
+  /**
+   * Where the shares stand (or the thresholds, as the activities and paths
+   * they pass): how many activities by rank and how many paths by frequency.
+   * The share `activities / activities.at(-1)` shows the same activities,
+   * `paths / paths` the same paths by frequency.
+   */
+  at: { activities: number; paths: number };
 }
 
 /**

@@ -5,6 +5,7 @@
  */
 import { type ActivityLabelOptions, activityKeyLines } from "./activity-labels.js";
 import { shownActivityIds } from "./collapsed-members.js";
+import { detailStatement } from "./detail-statement.js";
 import { asFilter, describeClause } from "./filters.js";
 import { type Locale, formatCount } from "./format.js";
 import type { Box } from "./layout.js";
@@ -28,9 +29,10 @@ export const FIGURE_WIDTHS: Record<Exclude<FigurePreset, "none">, number> = {
 /**
  * What a legend key row explains: an overlay kind (a badge row per glyph),
  * reverse-order arcs, paths and activities not directly observed (re-added),
- * paths not evaluated, and the start and end of the process.
+ * paths through activities not shown, paths not evaluated, and the start and
+ * end of the process.
  */
-export type LegendKeyKind = "badge" | "arc" | "reverse" | "selfLoop" | "outOfScope" | "reconnected" | "notEvaluated" | "start" | "end";
+export type LegendKeyKind = "badge" | "arc" | "reverse" | "selfLoop" | "outOfScope" | "reconnected" | "indirect" | "notEvaluated" | "start" | "end";
 
 export interface LegendKey {
   kind: LegendKeyKind;
@@ -73,6 +75,7 @@ const KEYS: readonly LegendKey[] = [
   { kind: "selfLoop", glyph: "↻", title: "legend.selfLoop" },
   { kind: "outOfScope", glyph: "▨", title: "legend.outOfScope" },
   { kind: "reconnected", glyph: "┄", title: "legend.reconnected" },
+  { kind: "indirect", glyph: "┄", title: "legend.indirect" },
   { kind: "notEvaluated", glyph: "─", title: "legend.notEvaluated" },
   { kind: "start", glyph: "○", title: "legend.start" },
   { kind: "end", glyph: "◉", title: "legend.end" },
@@ -155,7 +158,7 @@ export interface LegendSource {
   scales: { legend: LegendItem[]; /** The metric paths are labelled with; default the width's. */ pathMetric?: string };
   marks: readonly OverlayMark[];
   nodeMarks: readonly { reconnected: boolean; node?: FlowNode }[];
-  edgeMarks: readonly { reconnected: boolean; notEvaluated?: boolean }[];
+  edgeMarks: readonly { reconnected: boolean; indirect?: boolean; notEvaluated?: boolean }[];
   locale: Locale;
   /** Its graph, whose `meta.cases` the measure's shares are of. */
   graph?: Pick<FlowGraph, "meta">;
@@ -173,6 +176,7 @@ export function legendOfScene(scene: LegendSource): SceneLegend {
   const event = (tag: string) => nodeMarks.some((m) => m.node?.kind === "event" && !!m.node.tags?.includes(tag));
   const present = (k: LegendKeyKind) =>
     k === "reconnected" ? nodeMarks.some((m) => m.reconnected) || edgeMarks.some((m) => m.reconnected)
+    : k === "indirect" ? edgeMarks.some((m) => m.indirect)
     : k === "notEvaluated" ? edgeMarks.some((m) => m.notEvaluated)
     : k === "start" || k === "end" ? event(k)
     : marks.some((m) => m.inMap && m.kind === overlayKind(k) && (k !== "reverse" || !!m.overlay.payload?.reverse));
@@ -267,8 +271,9 @@ const counted = (v: unknown) => typeof v === "number" && Number.isFinite(v);
  * reads "filter: none") and how much of the model is shown ("7 of 12
  * activities, 13 of 31 paths shown", from `meta.model`; a collapsed stage
  * shows its activities, and with one the paths are left out: merged paths are
- * not the model's). A part whose data is missing is left out; without any,
- * there is no caption.
+ * not the model's; for a graph abstracted by detail shares, the statements of
+ * the detail panel, `detailStatement`). A part whose data is missing is left
+ * out; without any, there is no caption.
  */
 export function figureCaption(graph: FlowGraph, locale: Locale = "en", labelOf?: (id: string) => string): string | undefined {
   const meta = graph.meta ?? {};
@@ -282,6 +287,12 @@ export function figureCaption(graph: FlowGraph, locale: Locale = "en", labelOf?:
   if (meta.filters !== undefined && meta.filters !== null && typeof meta.filters === "object") {
     const clauses = asFilter(meta.filters as Parameters<typeof asFilter>[0]).and;
     parts.push(clauses.length ? t(locale, "caption.filters", { filters: clauses.map((c) => describeClause(c, locale, labelOf)).join("; ") }) : t(locale, "caption.noFilters"));
+  }
+  // A graph abstracted by detail says what it shows as the detail panel does.
+  const statement = meta.shown?.byFrequency !== undefined ? detailStatement(graph, { locale, labelOf }) : undefined;
+  if (statement) {
+    parts.push([statement.activities.full, statement.paths.full, ...[statement.marks, statement.protected].flatMap((line) => (line ? [`${line.short}.`] : []))].join(" "));
+    return parts.join(" · ");
   }
   const model = meta.model ?? {};
   // A collapsed stage shows its activities; its merged paths are not the model's, so their share is not known.
