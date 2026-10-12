@@ -13,7 +13,7 @@ import { type FlowGraph, type Positions, createPositions, validateGraph } from "
 const BPMN = "http://www.omg.org/spec/BPMN/20100524/MODEL";
 const WISE = "http://wise-workbench.org/schema/flow";
 /** What XML 1.0 does not allow anywhere in a document (its `Char` production, read the other way round). */
-const NOT_XML = /[^\t\n\r -퟿-�\u{10000}-\u{10FFFF}]/u;
+const NOT_XML = /[^\t\n\r\u0020-\uD7FF\uE000-\uFFFD\u{10000}-\u{10FFFF}]/u;
 const dropped = (id: string) => `label of ${id}: characters XML 1.0 does not allow are dropped`;
 
 /** The document a conforming parser reads; it must find no error. */
@@ -41,7 +41,7 @@ function model(labels: { a: string; b: string; note: string; flow: string; lane:
 
 describe("labels in a BPMN export", () => {
   it("lose the characters XML 1.0 does not allow, with a warning for each label", async () => {
-    const { graph, positions } = model({ a: "Bell\u0007 rings", b: "Form\u000Cfeed ￿\uD800end", note: "Note\u001F", flow: "yes\u0000", lane: "Lane\u0001" });
+    const { graph, positions } = model({ a: "Bell\u0007 rings", b: "Form\u000Cfeed \uFFFF\uD800end", note: "Note\u001F", flow: "yes\u0000", lane: "Lane\u0001" });
     const out = await exportBpmn(graph, { positions });
     expect(out.warnings).toEqual([dropped("a"), dropped("b"), dropped("n"), dropped("a->b"), dropped("lane")]);
     expect(NOT_XML.test(out.xml)).toBe(false);

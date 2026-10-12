@@ -37,8 +37,9 @@ export interface BpmnExport {
   warnings: string[];
 }
 
-/** A character XML 1.0 does not allow (`g`: or a tab or carriage return, which `toXml` writes as references). */
+/** A character XML 1.0 does not allow (its `Char` production, read the other way round). */
 const NOT_XML = /[^\t\n\r\u0020-\uD7FF\uE000-\uFFFD\u{10000}-\u{10FFFF}]/u;
+/** What `toXml` rewrites: a character XML 1.0 does not allow, a tab or a carriage return. */
 const TO_WRITE = /[^\n\u0020-\uD7FF\uE000-\uFFFD\u{10000}-\u{10FFFF}]/gu;
 
 /** An XML-safe id derived from an arbitrary id; unique against `taken`. */
