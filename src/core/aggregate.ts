@@ -590,8 +590,9 @@ function restoreFlowContext(
 /**
  * Abstract a graph: optionally collapse stage groups, then remove weak activities and
  * weak follows edges, then (by default) restore connectivity with the strongest removed
- * elements. Structural nodes (events, gateways), constraint and flow edges are kept.
- * The result keeps the input order of elements; re-added elements are tagged.
+ * elements. Events, gateways and `keep` are kept; a constraint or flow edge goes only
+ * with an element at one of its ends. The result keeps the input order of elements;
+ * re-added elements are tagged.
  */
 export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowGraph {
   const { minEdgeShare = 0, minNodeShare = 0, keepConnected = true, collapse = false } = options;
