@@ -387,9 +387,9 @@ export function checkReading({ fitted, full, budgeted, expect }: CheckOptions): 
   const want = { cards: shown.nodes.map((n) => n.id).sort(), paths: shown.edges.filter((e) => !isLoop(e)).length, loops: shown.edges.filter(isLoop).map((e) => e.id).sort() };
   const drawnCards = reading.cards.map((c) => c.id).sort();
   if (drawnCards.join() !== want.cards.join()) fail("counts", `cards ${drawnCards.length}, abstraction ${want.cards.length}: ${diff(drawnCards, want.cards)}`);
-  // Paths a budget withholds count as the note says.
-  const total = noteCounts(reading.note, expect.locale)?.total ?? reading.paths.length;
-  if (total !== want.paths) fail("counts", `paths ${total}, abstraction ${want.paths}`);
+  // Paths a budget withholds count as the note says, which counts the self-loops too.
+  const total = noteCounts(reading.note, expect.locale)?.total ?? reading.paths.length + want.loops.length;
+  if (total !== want.paths + want.loops.length) fail("counts", `paths ${total}, abstraction ${want.paths + want.loops.length}`);
   for (const p of reading.paths) if (!edges.has(p.id)) fail("counts", `path ${p.id} is not in the abstraction`);
   const loops = [...new Set(reading.loops)].sort();
   if (loops.join() !== want.loops.join()) fail("counts", `self-loops ${loops.length}, abstraction ${want.loops.length}: ${diff(loops, want.loops)}`);
@@ -483,8 +483,10 @@ export function checkReading({ fitted, full, budgeted, expect }: CheckOptions): 
   if (withheld > 0 && !note) fail("note", `${noted.paths.length} of ${want.paths} paths drawn without a note`);
   if (withheld <= 0 && note) fail("note", `a note while every path is drawn: ${JSON.stringify(note)}`);
   if (withheld > 0 && note) {
+    // The self-loops are never withheld and count in both numbers.
     const counts = noteCounts(note, expect.locale);
-    if (counts?.shown !== noted.paths.length || counts?.total !== want.paths) fail("note", `the note says ${counts?.shown} of ${counts?.total}, the map draws ${noted.paths.length} of ${want.paths}`);
+    const [shown, all] = [noted.paths.length + want.loops.length, want.paths + want.loops.length];
+    if (counts?.shown !== shown || counts?.total !== all) fail("note", `the note says ${counts?.shown} of ${counts?.total}, the map draws ${shown} of ${all}`);
   }
   if (budgeted) for (const p of budgeted.paths) if (!edges.has(p.id)) fail("counts", `path ${p.id} is not in the abstraction`);
   return out;

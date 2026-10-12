@@ -173,7 +173,10 @@ function expected(scene: PreparedScene, view: View, state: DrawState, oracle: re
   const inView = [...new Set(visits.filter((v) => v.list === "edges").map((v) => v.index))].sort((a, b) => a - b);
   const kept = keptEdges(scene, inView, budget, state);
   if (kept) visits = visits.filter((v) => v.list !== "edges" || kept.has(v.index));
-  return { visits, ...(kept ? { shown: kept.size, total: inView.length } : {}) };
+  // The paths that loop on an activity in view count in both numbers; they are never withheld.
+  const nodesInView = new Set(visits.filter((v) => v.list === "nodes").map((v) => scene.nodes[v.index].node.id));
+  const loops = scene.graph.edges.filter((e) => e.source === e.target && nodesInView.has(e.source)).length;
+  return { visits, ...(kept ? { shown: kept.size + loops, total: inView.length + loops } : {}) };
 }
 
 /**

@@ -1678,10 +1678,11 @@ targets are dropped before their order is fixed.
 ```ts
 export type EdgeBudget = number | "all";
 export interface EdgeProtection { selection?: { edges: readonly string[] }; focused?: string | null; highlighted?: ReadonlySet<string> }
-export interface EdgeSelection { drawn: Set<number>; shown: number; total: number; kept: number }   // positions in scene.edgeMarks
+export interface EdgeSelection { drawn: Set<number>; shown: number; total: number; kept: number;   // positions in scene.edgeMarks
+  loops: readonly string[] }   // the paths in view that loop on one activity, counted in shown and total
 export interface ShownEdges { edges: readonly string[]; total: number }   // what a map draws, as onEdgesShown reports it
-export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style">, budget: EdgeBudget | ShownEdges | undefined,
-  protection?: EdgeProtection, inView?: readonly number[]): EdgeSelection | undefined;
+export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style" | "graph" | "positions">, budget: EdgeBudget | ShownEdges | undefined,
+  protection?: EdgeProtection, inView?: readonly number[], loops?: readonly string[]): EdgeSelection | undefined;
 ```
 
 When tens of thousands of edges are in view (a hub, or a fitted large map),
@@ -1719,13 +1720,28 @@ path highlighted against 9.3 ms under the default budget (2,000 drawn), and a
 hub of 25,001 activities and 50,000 paths 316 ms against 124 ms (500 drawn;
 there the activities dominate the frame).
 
+**Paths that loop on one activity** (an edge from a node to itself) have no
+line: the map draws them as loops at their activity (`selfLoops`), and the
+budget never withholds them. They count in both numbers of the note, so its
+total is the number of paths the map's description, the canvas sentence, the
+bounded list's sentence and the table count: with the whole map in view,
+every edge of the shown graph. "Showing 5 of 10 flows" is a hub of eight
+paths and two loops under a budget of 3: the three heaviest lines and both
+loops. They are counted also where `selfLoops: false` hides them, since the
+descriptions and the table list them too. Up to this change the note counted
+only the lines (on the BPIC global scene "of 656" where the description says
+677 paths).
+
 `budgetEdges` returns undefined when the budget is `"all"`, undefined, null or
 not a number (`NaN`), or when it withholds nothing (no more edges in view than the budget, or every
 edge protected); otherwise the positions in `scene.edgeMarks` of the edges
-drawn, how many that is (`shown`), how many were in view (`total`) and how
-many of those drawn are protected (`kept`), which every budget draws. The
-edges in view are `inView` (positions in `scene.edgeMarks`), or every edge
-of the scene without it. The order by weight is computed once per scene and
+drawn, how many paths are shown (`shown`: those edges and the loops), how
+many are in view (`total`: the edges in view and the loops), how many of the
+drawn edges are protected (`kept`), which every budget draws, and the ids of
+the loops (`loops`). The edges in view are `inView` (positions in
+`scene.edgeMarks`), or every edge of the scene without it; the loops in view
+are `loops`, or every edge of the scene from a node with a box to itself
+without it. The order by weight is computed once per scene and
 kept with its `edgeMarks` while they live, together with the metric and the
 overlay marks it was read from: a scene object that shares the edge marks but
 has other `marks` or another `style` is ordered and protected by its own.
@@ -1741,8 +1757,8 @@ edges in view, median of 5: 23 ms for a scene of 50,000 edges, 87 ms for
 scene in view and passes only the drawn ones to React Flow. The Canvas map
 (`drawScene` with `DrawOptions.edgeBudget`, `CanvasRenderer` through its
 `draw` options, `<CanvasMap edgeBudget/>`) counts as in view what it would
-draw: in a culled view the edges the hit index finds there, otherwise every
-edge; withheld edges are drawn neither as lines nor with their labels, and
+draw: in a culled view the edges the hit index finds there and the loops of
+the activities it finds there, otherwise every edge; withheld edges are drawn neither as lines nor with their labels, and
 `CanvasRenderer.hitAt` does not return an edge its last draw withheld. While
 edges are withheld the map shows a note with both numbers, "Showing 2,000 of
 49,999 flows" (`map.edges.withheld`, English and German), as text at the
@@ -1815,8 +1831,9 @@ nothing when it names every edge in view.
 
 `<ProcessMap onEdgesShown/>` (and `<CanvasMap onEdgesShown/>`) is called
 whenever the edges the map draws change: while the budget withholds edges,
-with their ids (`edges`, in the scene's order) and the number the map's note
-counts (`total`); with undefined once every edge is drawn again. It is not
+with their ids (`edges`: the edges drawn in the scene's order, then the paths
+that loop on one activity in view) and the number the map's note counts
+(`total`); with undefined once every edge is drawn again. It is not
 called while nothing was ever withheld; a host that starts listening while
 edges are withheld is told them at once. A culled Canvas map counts the edges
 in its view, so a pan can change the value. When `<ProcessMap/>` switches
@@ -1827,7 +1844,8 @@ with what the map then withholds, if anything.
 `toSVG`, `toPNG`, `toPNGCanvas` and `toPNGDataUrl` take `edgeBudget`:
 
 - the last `ShownEdges` the map reported: the figure draws exactly those
-  edges (with their labels), and the note states the map's two numbers;
+  edges (with their labels), and the note states the map's two numbers (the
+  loops it names count as shown);
 - a number: the figure draws by the map's order, protecting the edges with
   an overlay mark on them (a figure has no selection, keyboard position or
   highlighted path), and counts every edge of the figure;

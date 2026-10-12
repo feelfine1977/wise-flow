@@ -30,10 +30,13 @@ export interface EdgeProtection {
 /** The edges drawn under a budget that withholds some: positions in `scene.edgeMarks`. */
 export interface EdgeSelection {
   drawn: Set<number>;
+  /** The paths the note counts as shown and in view: the edges drawn and in view, and the loops. */
   shown: number;
   total: number;
   /** How many of the drawn edges every budget draws: the protected ones. */
   kept: number;
+  /** The paths in view that loop on one activity (ids): drawn as loops, never withheld. */
+  loops: readonly string[];
 }
 
 // Per scene: each edge's rank by weight and id, and whether a mark is on it; kept with the edge marks for the
@@ -56,11 +59,30 @@ function orderOf(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style">) {
   return known;
 }
 
-/** The edges a budget draws of those in view (all when omitted), or those a map reported; undefined when it withholds none. */
-export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style">, budget: EdgeBudget | ShownEdges | undefined, protection: EdgeProtection = {}, inView?: readonly number[]): EdgeSelection | undefined {
+type BudgetScene = Pick<FlowScene, "edgeMarks" | "marks" | "style" | "graph" | "positions">;
+
+// Per scene: the edges from a placed node to itself, by node.
+const loopsByNode = new WeakMap<readonly EdgeMark[], Map<string, string[]>>();
+
+/** The paths that loop on one activity, by activity: edges from a placed node to itself. */
+export function selfLoopsOf(scene: Pick<BudgetScene, "edgeMarks" | "graph" | "positions">): Map<string, string[]> {
+  let loops = loopsByNode.get(scene.edgeMarks);
+  if (!loops) {
+    loopsByNode.set(scene.edgeMarks, (loops = new Map()));
+    for (const e of scene.graph.edges) if (e.source === e.target && scene.positions.nodes[e.source]) loops.set(e.source, [...(loops.get(e.source) ?? []), e.id]);
+  }
+  return loops;
+}
+
+/**
+ * The edges a budget draws of those in view (all when omitted), or those a map reported; undefined when it
+ * withholds none. The paths that loop on one activity in view (`loops`, all when omitted) count in both numbers.
+ */
+export function budgetEdges(scene: BudgetScene, budget: EdgeBudget | ShownEdges | undefined, protection: EdgeProtection = {}, inView?: readonly number[], loops?: readonly string[]): EdgeSelection | undefined {
   const total = inView ? inView.length : scene.edgeMarks.length;
   // No value withholds nothing, also null where a host keeps "no value" so.
   if (budget === null) return undefined;
+  loops ??= [...selfLoopsOf(scene).values()].flat();
   if (typeof budget === "object") {
     const named = new Set(budget.edges);
     const drawn = new Set<number>();
@@ -68,7 +90,8 @@ export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "styl
       const i = inView ? inView[k] : k;
       if (named.has(scene.edgeMarks[i].id)) drawn.add(i);
     }
-    return drawn.size < total ? { drawn, shown: drawn.size, total: budget.total, kept: drawn.size } : undefined;
+    loops = loops.filter((id) => named.has(id));
+    return drawn.size < total ? { drawn, shown: drawn.size + loops.length, total: budget.total, kept: drawn.size, loops } : undefined;
   }
   // Not a number (NaN) withholds nothing, as "all" does.
   if (budget === undefined || budget === "all" || !(total > budget)) return undefined;
@@ -85,7 +108,7 @@ export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "styl
   const kept = drawn.size;
   const room = Math.floor(budget) - kept;
   if (room > 0) for (const i of rest.sort((a, b) => rank[a] - rank[b]).slice(0, room)) drawn.add(i);
-  return drawn.size < total ? { drawn, shown: drawn.size, total, kept } : undefined;
+  return drawn.size < total ? { drawn, shown: drawn.size + loops.length, total: total + loops.length, kept, loops } : undefined;
 }
 
 /** The adaptive budget's first step; the steps are 500, 1,000, 2,000, … */

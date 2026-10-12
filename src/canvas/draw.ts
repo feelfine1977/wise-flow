@@ -5,6 +5,7 @@
  * a recording stub in tests. When the scene is large, only the elements the
  * scene's R-tree finds in the viewport are read, in the order of a full draw.
  */
+import { selfLoopsOf } from "../core/edge-budget.js";
 import { type Arrowhead, type Box, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type Selection, type ShownEdges, arrowheadExtent, arrowheadTokens, fitChars, fitLead, fixedColors, formatCompact, formatNumber, formatShare, hatchTokens, legendLayout, legendMetrics, budgetEdges, lodAt, markArrowhead, patternTokens, patternTwin, t, truncateText } from "../core/index.js";
 import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene.js";
 import { type CanvasTokens, defaultTokens } from "./tokens.js";
@@ -525,7 +526,8 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
   if (options.edgeBudget !== undefined && options.edgeBudget !== "all") {
     const inView: number[] = [];
     if (found) each(scene.edges, "edge", edgeId, (_, i) => inView.push(i));
-    withheld = budgetEdges(scene, options.edgeBudget, state, found && inView);
+    const loops = found?.flatMap((it) => (it.kind === "node" && selfLoopsOf(scene).get(it.id)) || []);
+    withheld = budgetEdges(scene, options.edgeBudget, state, found && inView, loops);
     // Withholding nothing, every budget draws the protected edges: those a budget of 0 keeps, or all.
     kept = (withheld ?? budgetEdges(scene, 0, state, found && inView))?.kept ?? (found ? inView : scene.edges).length;
   }

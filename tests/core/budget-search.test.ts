@@ -38,8 +38,11 @@ interface Expected {
   withheld: boolean;
 }
 
-/** What a budget draws of `viewIds`, the ids of the edges in view in the scene's order. */
-function expectedDrawn(graph: FlowGraph, style: StyleSpec | undefined, viewIds: readonly string[], budget: number, protection: Protection): Expected {
+/** The paths that loop on one activity: edges from a node with a box to itself. Drawn as loops, never withheld, counted in both numbers of the note. */
+const loopsOf = (graph: FlowGraph, positions: Positions) => graph.edges.filter((e) => e.source === e.target && positions.nodes[e.source]).map((e) => e.id);
+
+/** What a budget draws of `viewIds`, the ids of the edges in view in the scene's order, with `loops` paths that loop on one activity in view. */
+function expectedDrawn(graph: FlowGraph, style: StyleSpec | undefined, viewIds: readonly string[], budget: number, protection: Protection, loops = 0): Expected {
   const byId = new Map(graph.edges.map((e) => [e.id, e]));
   const overlays = graph.overlays ?? [];
   const metricName = style?.edgeWidth?.metric ?? "count";
@@ -54,7 +57,7 @@ function expectedDrawn(graph: FlowGraph, style: StyleSpec | undefined, viewIds: 
       return a < b ? -1 : a > b ? 1 : 0;
     });
   const drawn = [...kept, ...others.slice(0, Math.max(0, budget - kept.length))];
-  return { drawn, kept: kept.length, shown: drawn.length, total: viewIds.length, withheld: drawn.length < viewIds.length };
+  return { drawn, kept: kept.length, shown: drawn.length + loops, total: viewIds.length + loops, withheld: drawn.length < viewIds.length };
 }
 
 /** The note's text, by hand; every count here is below a thousand. */
@@ -180,10 +183,10 @@ function holds(check: Check) {
 // The checks.
 
 const everyBudget: Check = (c) => {
-  const { scene, viewIds, inView, protection, graph, style } = c;
+  const { scene, viewIds, inView, protection, graph, style, positions } = c;
   const total = viewIds.length;
   for (let budget = total + 1; budget >= 0; budget--) {
-    const want = expectedDrawn(graph, style, viewIds, budget, protection);
+    const want = expectedDrawn(graph, style, viewIds, budget, protection, loopsOf(graph, positions).length);
     const got = budgetEdges(scene, budget, protection, inView);
     if (!want.withheld) {
       if (got !== undefined) return `budget ${budget} withholds nothing by the rule but reported ${got.shown} of ${got.total}`;
@@ -229,7 +232,7 @@ const reported: Check = (c) => {
     const budget = rng.int(0, total);
     const sel = budgetEdges(scene, budget, protection, inView);
     // What a map reports: the drawn ids in the scene's order and the total of its note; sometimes an id of no edge too.
-    const drawnIds = sel ? [...sel.drawn].sort((a, b) => a - b).map((i) => scene.edgeMarks[i].id) : viewIds;
+    const drawnIds = sel ? [...[...sel.drawn].sort((a, b) => a - b).map((i) => scene.edgeMarks[i].id), ...loopsOf(c.graph, c.positions)] : viewIds;
     const shown: ShownEdges = { edges: rng.chance(0.3) ? [...drawnIds, "ghost"] : drawnIds, total: sel ? sel.total : total };
     const again = budgetEdges(scene, shown, {}, inView);
     if (!sel) {
@@ -268,7 +271,7 @@ const exported: Check = (c) => {
   const rng = createRandom(c.seed + 800_008);
   for (const budget of [rng.int(0, all.length), all.length, "all" as const]) {
     // A figure has no selection, keyboard position or highlighted path: the overlay marks alone protect.
-    const want = typeof budget === "number" ? expectedDrawn(graph, style, all, budget, {}) : { drawn: all, shown: all.length, total: all.length, withheld: false };
+    const want = typeof budget === "number" ? expectedDrawn(graph, style, all, budget, {}, loopsOf(graph, positions).length) : { drawn: all, shown: all.length, total: all.length, withheld: false };
     const wantNote = want.withheld ? noteText(want.shown, want.total) : undefined;
     const svg = toSVG(given, { edgeBudget: budget });
     if (!same(svgEdges(svg), sorted(want.drawn))) return `SVG with budget ${budget} drew [${svgEdges(svg)}] instead of [${sorted(want.drawn)}]`;
@@ -301,12 +304,12 @@ const canvasDrawing: Check = (c) => {
   const prepared = prepareScene(graph, positions, { style, selfLoops: false, lodBySize: false });
   const all = prepared.edgeMarks.map((m) => m.id);
   const budget = createRandom(c.seed + 600_006).int(0, all.length);
-  const want = expectedDrawn(graph, style, all, budget, protection);
+  const want = expectedDrawn(graph, style, all, budget, protection, loopsOf(graph, positions).length);
   const { scene, read } = watched(prepared);
   const state = { selection: { nodes: [], edges: protection.selection.edges, groups: [] }, focused: protection.focused, highlighted: protection.highlighted };
   const stats = drawScene(quiet, scene, { x: 0, y: 0, zoom: 1, width: 400, height: 300 }, state, { cull: false, edgeBudget: budget, lodZoom: 2 });
   if (!same(read(), sorted(want.drawn))) return `the Canvas drawing with budget ${budget} read [${read()}] instead of [${sorted(want.drawn)}]`;
-  if (stats.edges !== want.shown) return `the Canvas drawing with budget ${budget} counted ${stats.edges} edges instead of ${want.shown}`;
+  if (stats.edges !== want.drawn.length) return `the Canvas drawing with budget ${budget} counted ${stats.edges} edges instead of ${want.drawn.length}`;
   if (!want.withheld) return stats.withheld === undefined ? undefined : `the Canvas drawing with budget ${budget} withheld nothing by the rule but reported ${stats.withheld.shown} of ${stats.withheld.total}`;
   if (!stats.withheld) return `the Canvas drawing with budget ${budget} reported nothing withheld`;
   if (stats.withheld.shown !== want.shown || stats.withheld.total !== want.total) return `the Canvas drawing with budget ${budget} reported ${stats.withheld.shown} of ${stats.withheld.total} instead of ${want.shown} of ${want.total}`;

@@ -223,7 +223,7 @@ export function useEdgesShown(onEdgesShown: ((shown: ShownEdges | undefined) => 
   return useCallback((withheld: EdgeSelection | undefined, marks: readonly { id: string }[]) => {
     // Nobody listens: start again from every edge drawn.
     if (!callback.current) return void (last.current = "");
-    const edges = withheld ? [...withheld.drawn].sort((a, b) => a - b).map((i) => marks[i].id) : [];
+    const edges = withheld ? [...[...withheld.drawn].sort((a, b) => a - b).map((i) => marks[i].id), ...withheld.loops] : [];
     const key = withheld ? `${withheld.total}\n${edges.join("\n")}` : "";
     if (key === last.current) return;
     last.current = key;
