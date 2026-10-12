@@ -1269,9 +1269,10 @@ route whatever its width: the outer part of a path 8 wide, and of its head,
 which reaches 7.2 to each side, answered no hit, where the React Flow map
 hits a path within 7 of its line (`strokeTokens.pathHit`, 14 wide) and on
 its stroke. Without `pathOf` an edge is hit within `tolerance` of its route's
-segments, as before. An item's bounds stay its segment grown by
-`edgeTolerance`; `extentOf` grows them to the drawn line and head, as the
-Canvas scene's does.
+segments, as before. An item's bounds are its segment grown by
+`edgeTolerance`, and with `pathOf` also by half the path's width and around
+its head, so an index built without `extentOf` finds what it hits; `extentOf`
+grows them further (the Canvas scene's covers the highlight stroke).
 
 Arcs and self-loops are hit where they are drawn: within `tolerance` plus
 half their stroke of their curve (`HitItem.curve`: the cubic of the path cut

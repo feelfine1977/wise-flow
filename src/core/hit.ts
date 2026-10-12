@@ -203,13 +203,24 @@ function edgeItems(id: string, route: EdgeRoute, tolerance: number, index: numbe
     const last = i + 2 === pts.length;
     const head = end && last ? headTriangle(a, end, path!.arrow) : undefined;
     const stroke = path && { line: [a, last ? end! : b] as [XY, XY], reach: path.width / 2, ...(head && { head: { points: head, reach: arrowheadExtent(path.arrow).outline / 2 } }) };
+    // The bounds cover the segment grown by the tolerance, and what is drawn: the line and the head grown by their reach.
+    const grown = [{ points: [a, b], reach: Math.max(tolerance, stroke?.reach ?? 0) }, ...(stroke?.head ? [stroke.head] : [])];
+    let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const { points, reach } of grown) {
+      for (const p of points) {
+        minX = Math.min(minX, p.x - reach);
+        minY = Math.min(minY, p.y - reach);
+        maxX = Math.max(maxX, p.x + reach);
+        maxY = Math.max(maxY, p.y + reach);
+      }
+    }
     out.push({
       id,
       kind: "edge",
-      minX: Math.floor(Math.min(a.x, b.x) - tolerance),
-      minY: Math.floor(Math.min(a.y, b.y) - tolerance),
-      maxX: Math.ceil(Math.max(a.x, b.x) + tolerance),
-      maxY: Math.ceil(Math.max(a.y, b.y) + tolerance),
+      minX: Math.floor(minX),
+      minY: Math.floor(minY),
+      maxX: Math.ceil(maxX),
+      maxY: Math.ceil(maxY),
       segment: pts.length === 2 ? (pts as [XY, XY]) : [a, b],
       index,
       ...(stroke && { stroke }),

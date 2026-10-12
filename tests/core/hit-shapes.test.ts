@@ -117,6 +117,24 @@ describe("hits on arcs, self-loops and gateways, where they are drawn", () => {
     expect(top(scene, 380, 20 + 6.4 + 0.8 + 3.9)).toBeUndefined();
   });
 
+  it("returns a path on its stroke and head from an index built with the marks alone, without bounds grown by the host", () => {
+    // The path of the test above, 8 wide with a head of 32, its route given; no `extentOf` grows the items' bounds.
+    const graph: FlowGraph = { nodes: ["a", "b"].map(activity), edges: [{ id: "a->b", kind: "follows", source: "a", target: "b", metrics: { cases: 100 } }] };
+    const box = (x: number) => ({ x, y: 0, width: 100, height: 40 });
+    const scene = prepareScene(graph, createPositions({ nodes: { a: box(0), b: box(400) }, groups: {}, edges: {} }, "given", "RIGHT"));
+    const path = scene.edges[0].mark;
+    const positions = createPositions({ nodes: {}, groups: {}, edges: { "a->b": { points: path.points } } }, "given", "RIGHT");
+    const index = HitIndex.fromScene(positions, undefined, undefined, undefined, undefined, undefined, undefined, (id) => (id === "a->b" ? path : undefined));
+    const at = (x: number, y: number) => index.at(x, y).map((it) => it.id);
+    // Outwards from a corner of the head's base (6.4 from the line), its outline's half (0.8) and the tolerance (4).
+    expect(at(392, 20 + 6.4 + 0.8 + 3.9)).toEqual(["a->b"]);
+    expect(at(392, 20 - 6.4 - 0.8 - 3.9)).toEqual(["a->b"]);
+    expect(at(392, 20 + 6.4 + 0.8 + 4.1)).toEqual([]);
+    // Beyond the tip (400) by the tolerance, and the line's half width (4) and the tolerance from it.
+    expect(at(400 + 3.9, 20)).toEqual(["a->b"]);
+    expect(at(250, 20 + 4 + 3.9)).toEqual(["a->b"]);
+  });
+
   it("returns a gateway inside its diamond, also where the diamond reaches beyond its box, and not in the box's corners", () => {
     // A gateway 60 wide and 30 tall: its diamond's points are 30 from its centre (30, 15), above and below the box too.
     const graph: FlowGraph = { nodes: [{ id: "g", kind: "gateway", label: "G", tags: ["xor"] }], edges: [] };

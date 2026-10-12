@@ -12,4 +12,6 @@ side, answered no hit on the Canvas map, where the React Flow map hits it.
 New: an eighth argument of `HitIndex.fromScene`, `pathOf(edgeId)`, the mark
 an edge is drawn as, and `HitItem.stroke`, the line along a segment with
 half its width and, on the last segment, the head's triangle with half its
-outline, which hit tests read. Without `pathOf` an edge is hit as before.
+outline, which hit tests read. With `pathOf` an edge item's bounds cover
+its line and head, so an index built without `extentOf` finds the hit too.
+Without `pathOf` an edge is hit as before.
