@@ -221,11 +221,13 @@ with an element at an end by kind (`{ constraint, flow }`, absent while none
 went; abstracting an abstracted graph adds to the count it carries). With
 thresholds and `keepConnected` an activity re-added to keep the map
 connected brings back its constraint and flow edges to elements on the map,
-tagged `reconnected` like everything re-added. Collapsing a stage folds the
-edges between its members, of every kind, into its `internalCount`. Up to
-this version the documentation said constraint and flow edges were never
-removed, nothing counted the ones that went, and a re-added activity came
-back without them. With thresholds the thresholded part is monotone (a
+tagged `reconnected` like everything re-added. Collapsing a stage drops the
+edges between its members, of every kind; its `internalCount` counts the
+follows edges among them, by their `count`, else their `cases`, and nothing
+for an edge with neither. Up to 0.3.5 every such edge counted: a constraint
+edge, a flow edge or a follows edge without a `count` as one transition each;
+the documentation said constraint and flow edges were never removed, nothing
+counted the ones that went, and a re-added activity came back without them. With thresholds the thresholded part is monotone (a
 higher threshold yields a subset); with `keepConnected` the result is one
 connected component whenever the input is, restored by a maximum spanning
 forest over the strongest direct edges, then by the cheapest paths through
@@ -245,11 +247,15 @@ activities with 25 different cases each, which 100 cases touch, reads 25 and
 goes at 50 % beside an activity of 100 cases, with or without
 `keepConnected`. Its `events` add up, so with `nodeMetric: "events"` the
 stage reads 100 and stays. Edges of one kind between the same two shown
-nodes merge into one, named `source->target`, or `source->target:kind:n`
-where that id is taken; merged edges take their names in the order of their
-smallest original id, not of the input. Parallel paths merged into one are
-combined the same way. The graph holds no case sets, so the cases of a stage
-(or of a merged path) cannot be computed exactly: two activities of one
+nodes, one of them a collapsed stage, merge into one, named `source->target`,
+or `source->target:kind:n` where that id is taken; merged edges take their
+names in the order of their smallest original id, not of the input. Parallel
+paths merged into one are combined the same way. Edges between two nodes
+outside every collapsed stage stay as they are, with their ids, metrics,
+tags and payloads; up to 0.3.5 they merged too, and two constraint edges
+between the same two activities lost their payloads. The graph holds no
+case sets, so the cases of a stage (or of a merged path) cannot be computed
+exactly: two activities of one
 stage that one case each touches give the stage at least one case and at
 most two. The values are not changed; the result says what they are in
 `metricBasis` (by metric name, in the order of the names): of more than one

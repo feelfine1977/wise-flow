@@ -610,19 +610,28 @@ describe("abstract: small and degenerate graphs", () => {
 });
 
 describe("abstract: findings", () => {
-  it("finding: counts a constraint edge, a flow edge and a follows edge without a count inside a collapsed stage as one transition each", () => {
-    // Only a->b's 5 are observed transitions; the constraint, the flow and the uncounted self-loop add 1 each.
+  it("counts only the follows edges inside a collapsed stage, by their count or else their cases, as its internal transitions", () => {
+    // Stage s: a->b counts 5 and the self-loop b->b gives 6 cases; the constraint, the flow and the follows edge b->a
+    // without a count or cases count nothing. Stage t holds only a constraint: no transition, so no internalCount.
     const graph: FlowGraph = {
-      nodes: [{ id: "a", kind: "activity", label: "A", group: "s" }, { id: "b", kind: "activity", label: "B", group: "s" }],
+      nodes: [
+        { id: "a", kind: "activity", label: "A", group: "s" },
+        { id: "b", kind: "activity", label: "B", group: "s" },
+        { id: "c", kind: "activity", label: "C", group: "t" },
+        { id: "d", kind: "activity", label: "D", group: "t" },
+      ],
       edges: [
         { id: "a->b", kind: "follows", source: "a", target: "b", metrics: { count: 5 } },
         { id: "k", kind: "constraint", source: "a", target: "b" },
         { id: "f", kind: "flow", source: "b", target: "a" },
-        { id: "b->b", kind: "follows", source: "b", target: "b", metrics: { cases: 4 } },
+        { id: "b->b", kind: "follows", source: "b", target: "b", metrics: { cases: 6 } },
+        { id: "b->a", kind: "follows", source: "b", target: "a" },
+        { id: "c~d", kind: "constraint", source: "c", target: "d" },
       ],
-      groups: [{ id: "s", kind: "stage", label: "S" }],
+      groups: [{ id: "s", kind: "stage", label: "S" }, { id: "t", kind: "stage", label: "T" }],
     };
-    expect(collapseGroups(graph, ["s"]).nodes[0].metrics?.internalCount).toBe(8);
+    const stages = collapseGroups(graph, ["s", "t"]).nodes;
+    expect(stages.map((n) => [n.id, n.metrics?.internalCount])).toEqual([["s", 11], ["t", undefined]]);
   });
 
   it("finding: a collapsed group without members can be where the joining starts, and then nothing is joined", () => {
@@ -648,11 +657,13 @@ describe("abstract: findings", () => {
     expect([g.nodes.map((n) => n.id), g.edges.map((e) => e.id), readded(g)]).toEqual([["m", "n", "x", "y"], ["m->n"], []]);
   });
 
-  it("finding: collapsing a stage merges parallel edges between nodes outside it and keeps no payload", () => {
+  it("merges only the parallel edges with an end in a collapsed stage, and leaves those between other nodes as they are", () => {
+    // k1 and k2 run between b and c, outside every collapsed stage: they stay, each with its payload. a->c and a2->c
+    // run from stage s to c and merge into s->c, their counts summed.
     const graph: FlowGraph = {
-      nodes: [{ id: "a", kind: "activity", label: "A", group: "s" }, ...activities({ b: 1, c: 1 })],
+      nodes: [{ id: "a", kind: "activity", label: "A", group: "s" }, { id: "a2", kind: "activity", label: "A2", group: "s" }, ...activities({ b: 1, c: 1 })],
       edges: [
-        ...follows([["a", "b", 3]]),
+        ...follows([["a", "b", 3], ["a", "c", 2], ["a2", "c", 4]]),
         { id: "k1", kind: "constraint", source: "b", target: "c", payload: { constraintId: "first" } },
         { id: "k2", kind: "constraint", source: "b", target: "c", payload: { constraintId: "second" } },
       ],
@@ -661,8 +672,10 @@ describe("abstract: findings", () => {
     const shown = collapseGroups(graph, ["s"]);
     expect(shown.edges).toEqual([
       { id: "a->b", kind: "follows", source: "s", target: "b", metrics: { count: 3 } },
-      { id: "b->c", kind: "constraint", source: "b", target: "c", metrics: {}, tags: [] },
+      { id: "s->c", kind: "follows", source: "s", target: "c", metrics: { count: 6 }, tags: [] },
+      graph.edges[3],
+      graph.edges[4],
     ]);
-    expect(shown.meta?.collapsedEdgeTargets).toMatchObject({ k1: "b->c", k2: "b->c" });
+    expect(shown.meta?.collapsedEdgeTargets).toEqual({ "a->b": "a->b", "a->c": "s->c", "a2->c": "s->c", k1: "k1", k2: "k2" });
   });
 });

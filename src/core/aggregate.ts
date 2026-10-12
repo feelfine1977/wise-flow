@@ -165,9 +165,11 @@ function sumMetrics(unordered: { id: string; metrics?: Metrics; metricBasis?: Pa
 
 /**
  * Collapse the members of the given stage groups into one `stage` node per group.
- * The stage node takes the group's id and label. Internal edges are dropped and
- * counted in the stage node's `internalCount`; parallel edges are merged (counts
- * summed, cases and shares taken as the maximum, other metrics averaged by weight).
+ * The stage node takes the group's id and label. Internal edges are dropped; the
+ * follows edges among them are counted in the stage node's `internalCount` by their
+ * count, else their cases. Parallel edges with an end in a collapsed stage are merged
+ * (counts summed, cases and shares taken as the maximum, other metrics averaged by
+ * weight); those between other nodes stay as they are.
  * Of more than one merged element, the maximum of cases and share is marked a lower
  * bound and an average a mean (`metricBasis`); the values themselves are not changed.
  * Overlays remain separate: member/internal-edge targets move to the stage and
@@ -241,22 +243,25 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
   const edgeTarget = new Map<string, string>();
   const internal = new Map<string, number[]>();
   const order: string[] = [];
-  for (const e of graph.edges) {
+  graph.edges.forEach((e, i) => {
     const s = nodeTarget.get(e.source) ?? e.source;
     const t = nodeTarget.get(e.target) ?? e.target;
+    const inStage = nodeTarget.has(e.source) || nodeTarget.has(e.target);
     if (s === t && nodeTarget.has(e.source) && nodeTarget.has(e.target)) {
-      if (!internal.has(s)) internal.set(s, []);
-      internal.get(s)!.push(metric(e, "count", 1));
+      // Only follows edges are transitions, counted by their count or else their cases.
+      const v = e.kind === "follows" ? firstMetric(e, ["count", "cases"]) : undefined;
+      if (v !== undefined) internal.set(s, [...(internal.get(s) ?? []), v]);
       edgeTarget.set(e.id, s);
-      continue;
+      return;
     }
-    const key = JSON.stringify([e.kind, s, t]);
+    // Only edges with an end in a collapsed stage merge.
+    const key = inStage ? JSON.stringify([e.kind, s, t]) : String(i);
     if (!merged.has(key)) {
       merged.set(key, []);
       order.push(key);
     }
-    merged.get(key)!.push({ ...e, source: s, target: t });
-  }
+    merged.get(key)!.push(inStage ? { ...e, source: s, target: t } : e);
+  });
   // Keep singleton ids unchanged and reserve node/group ids to avoid ambiguous targets.
   const usedIds = new Set([...nodes.map((n) => n.id), ...(graph.groups ?? []).map((g) => g.id), ...[...merged.values()].filter((list) => list.length === 1).map((list) => list[0].id)]);
   // Merged edges are named in the order of their smallest original id.
