@@ -683,7 +683,8 @@ layout is unavailable; the map shows a provisional arrangement." (string
 `"error"`. Other layout errors are shown as before.
 
 Stylesheets: `@wise/flow/tokens.css` (design tokens, light and dark),
-`@wise/flow/style.css` (components) and `@xyflow/react/dist/style.css`.
+`@wise/flow/style.css` (components) and `@wise/flow/react-flow.css` (React
+Flow's own stylesheet, shipped with the package).
 `tokens.css` defines `--wf-font`, `--wf-font-mono`, the themed colours
 (`--wf-paper`, `--wf-surface`, `--wf-ink`, `--wf-ink-muted`, `--wf-line`,
 `--wf-line-strong`, `--wf-focus`, `--wf-on-focus`, `--wf-selection`,
@@ -1009,9 +1010,9 @@ announced counts ("Selected: 1 tasks, 0 flows, 0 lanes.") and said nothing
 when the selection was cleared.
 Every id the view matches (overlay targets, controlled selection, reported
 selection and hover) goes through `createIdResolver` with the import's id
-map and `mapping`. Stylesheets: `bpmn-js/dist/assets/diagram-js.css`,
-`bpmn-js/dist/assets/bpmn-js.css` and
-`bpmn-js/dist/assets/bpmn-font/css/bpmn.css` in addition to the package's.
+map and `mapping`. Stylesheets: `@wise/flow/bpmn.css` (bpmn-js's
+`diagram-js.css`, `bpmn-js.css` and `bpmn-font/css/bpmn.css`, shipped with the
+package) in addition to the package's.
 
 When the view reports: `data-bpmn-status` on its root becomes `ready` once
 the viewer has imported the XML and fitted the viewport (with `fitView`), and

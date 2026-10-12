@@ -13,11 +13,11 @@ require React and React DOM 18 or later; the packed consumer is tested with the
 React 18.3.1 and 19.2.8. CI covers Node 22/React 18 with Chromium and Node 24/React 19 with Chromium, Firefox and WebKit. The package is ESM with TypeScript
 declarations; CommonJS `require()` is not a supported entry point.
 
-Version **0.3.1 is a local packaging candidate, not a published release**. Given
+Version **0.3.5 is a local packaging candidate, not a published release**. Given
 a supplied tarball, place it in your application's `vendor/` directory and run:
 
 ```sh
-npm install --save-exact ./vendor/wise-flow-0.3.1.tgz react react-dom
+npm install --save-exact ./vendor/wise-flow-0.3.5.tgz react react-dom
 ```
 
 Commit the tarball and application lockfile for a standalone `npm ci`. No sibling

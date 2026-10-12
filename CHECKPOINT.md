@@ -1,6 +1,6 @@
 # Checkpoints
 
-How to try the milestones by hand. Requires Node 18.18 or later and npm 10.
+How to try the milestones by hand. Requires Node 22 or 24 and npm.
 Commands run from this directory. CP-E1 covers milestone 0.1, CP-E2
 milestone 0.2 (section 6), CP-E3 milestone 0.3 (section 7).
 
@@ -8,7 +8,7 @@ milestone 0.2 (section 6), CP-E3 milestone 0.3 (section 7).
 
 ```sh
 npm install
-npm test                # Vitest: 23 files, 126 tests
+npm test                # Vitest
 npm run build           # tsc → dist/ (ESM + types) and the stylesheets
 ```
 
@@ -110,13 +110,12 @@ npm run test:visual
 Playwright starts Storybook on port 6007 and compares the P2P map, the
 stable-layout story, the BPMN stage-model diagram, the view grid, the
 paths of a focused activity and the stage lanes with the baselines in
-`tests/visual/__screenshots__/` (recorded on macOS; Linux baselines exist
-for the 0.1 and 0.2 stories), checks that the viewport of the BPMN model
-does not move while overlay datasets switch, operates the actions menu by
-keyboard, adds and removes filter chips and hovers and right-clicks on the
-Canvas renderer. On a platform without a baseline the first run records
-one and reports it as a failure; the second run passes. Refresh baselines
-after an intended change with `npm run test:visual -- --update-snapshots`.
+`tests/visual/__screenshots__/` (macOS and Linux), checks that the viewport
+of the BPMN model does not move while overlay datasets switch, operates the
+actions menu by keyboard, adds and removes filter chips and hovers and
+right-clicks on the Canvas renderer. A missing or changed baseline fails;
+approving an intended change is a deliberate local step, described in
+[tests](tests/README.md#strict-visual-ci-and-deliberate-approval).
 
 ## 4. Fixture
 
@@ -438,8 +437,8 @@ its legend.
 ## Not done
 
 - Orthogonal edge routing and bundling on the abstracted map and the
-  position cache keyed by norm fingerprint and mapping version: moved to
-  0.4 (see `docs/ROADMAP.md`).
+  position cache keyed by norm fingerprint and mapping version: see
+  `docs/ROADMAP.md`.
 - The Canvas renderer draws the whole scene in one pass per frame (with
   viewport culling above 1,500 elements); there is no dirty-rectangle
   redraw yet. Edge labels on the canvas are drawn at the polyline midpoint
@@ -452,30 +451,25 @@ its legend.
   straight connections); a swimlane routing lives in `layoutBpmn`.
 - BPMN authoring forms: `<BpmnView/>` reports selected tasks, flows and
   lanes; the forms that turn a selection into a constraint belong to the
-  workbench (0.4 in the roadmap).
+  workbench.
 - `liteFromGraph` decides AND gateways with the directly-follows heuristic
   (successors that follow each other in both orders) and emits them only as
   a split and join pair around such branches; it does not mine concurrency
   from the log, finds no nested parallel blocks, and a model above a low
   threshold can carry many gateways. BPMN-lite does not produce
   sub-processes, message flows or boundary events; the importer reads them.
-- `layoutBpmn` places every lane as one band and routes flows with a
-  three-segment Manhattan rule; back edges run below the shapes and may
-  cross tasks in a dense lane. The ELK compound layout is available with
-  `lanes: "compound"` when a swimlane picture is not wanted.
+- `layoutBpmn` places every lane as one band. The ELK compound layout is
+  available with `lanes: "compound"` when a swimlane picture is not wanted.
 - `<BpmnView/>` in modeler mode offers bpmn-js's own editing; overlays are
   re-projected after every change, but arcs are recomputed from the
   element boxes, not from the modeller's connection routes.
 - bpmn-js needs SVG geometry that jsdom does not provide, so the component
-  tests cover the headless import, the table alternative and the controls;
-  rendering is checked in Storybook and Playwright.
-- The keep-connected reconnection is bounded but not a global optimum:
-  between neighbouring thresholds the number of re-added paths may differ
-  by one (documented in `docs/API.md`, tested on the fixture and 40 random
-  graphs).
+  tests drive `<BpmnView/>` on an in-memory viewer; bpmn-js's own rendering
+  is checked in Storybook and Playwright.
+- The keep-connected reconnection is bounded but not a global optimum, so
+  the number of elements is not monotone in the thresholds (see
+  `docs/ARCHITECTURE.md` §2.2).
 - German strings exist for the core, the map and the BPMN view, not yet
   for every story text; the workbench's design-tokens package does not
   exist yet, so `src/tokens.css` carries the variables under the intended
   names.
-- Playwright baselines exist for macOS only; Linux baselines have to be
-  recorded once in CI.
