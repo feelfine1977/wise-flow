@@ -253,10 +253,18 @@ export function liteFromGraph(graph: FlowGraph, options: LiteFromGraphOptions = 
   const selfLoops = options.selfLoops ?? "marker";
   const groupIds = new Set((base.groups ?? []).map((g) => g.id));
 
+  // Edges between the same two nodes are one, named by the smallest id, with their counts and cases summed.
+  const pairs = new Map<string, FlowEdge[]>();
+  for (const e of base.edges) {
+    const key = JSON.stringify([e.source, e.target]);
+    if (e.kind !== "constraint") (pairs.get(key) ?? pairs.set(key, []).get(key)!).push(e);
+  }
+  const paths = [...pairs.values()].map((same) => (same.length > 1 ? { ...same.reduce((a, b) => (b.id < a.id ? b : a)), metrics: sumMetrics(same) } : same[0]));
+
   // Nodes: tasks from activities and stages, events and gateways as they are.
   const nodes: FlowNode[] = [];
   const loops = new Map<string, FlowEdge>();
-  for (const e of base.edges) if (e.source === e.target && e.kind !== "constraint") loops.set(e.source, e);
+  for (const e of paths) if (e.source === e.target) loops.set(e.source, e);
   for (const n of base.nodes) {
     if (n.kind === "note") continue;
     const group = lanes === "groups" && n.group && groupIds.has(n.group) ? n.group : undefined;
@@ -278,8 +286,7 @@ export function liteFromGraph(graph: FlowGraph, options: LiteFromGraphOptions = 
 
   // Edges: paths and flows between kept nodes; constraints are overlays, not flows.
   let edges: FlowEdge[] = [];
-  for (const e of base.edges) {
-    if (e.kind === "constraint") continue;
+  for (const e of paths) {
     if (!nodeIds.has(e.source) || !nodeIds.has(e.target)) continue;
     if (e.source === e.target) {
       if (selfLoops !== "flow") continue;
@@ -395,7 +402,7 @@ export function liteFromGraph(graph: FlowGraph, options: LiteFromGraphOptions = 
       }
       const [join] = exits;
       const ins = inc.get(join)!;
-      if (!entered || exits.size !== 1 || join === n.id || (flowLoops && loops.has(join)) || byId.get(join)!.kind === "gateway" || block.size < branches.length || ins.length !== block.size || branches.some((b) => !ins.some((e) => e.source === b))) continue;
+      if (!entered || exits.size !== 1 || join === n.id || (flowLoops && loops.has(join)) || byId.get(join)!.kind === "gateway" || ins.length !== block.size || branches.some((b) => !ins.some((e) => e.source === b))) continue;
       andSplits.add(n.id);
       andJoins.add(join);
       for (const b of branches) for (const e of out.get(b)!) if (block.has(e.target)) interleaved.add(e);
@@ -424,7 +431,7 @@ export function liteFromGraph(graph: FlowGraph, options: LiteFromGraphOptions = 
       glue.push(flowEdge(id, n.id, sumMetrics(ins)));
     }
   }
-  // Two edges between the same nodes become two flows: the second id gets ":1", and so on.
+  // An id another flow has already taken gets ":1", and so on.
   const taken = new Set(edges.map((e) => e.id));
   const rerouted: FlowEdge[] = edges.map((e) => {
     const s = splitOf.get(e.source) ?? e.source;

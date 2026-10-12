@@ -1829,10 +1829,14 @@ flows. Every split or join without such a partner is XOR, so a generated
 model has no parallel join that waits for a branch an exclusive split did
 not take, and no parallel split whose branches an exclusive merge lets
 through twice; `validateGateways` reports nothing on it. Without
-`andGateways` every gateway is XOR, as before. Two edges between the same two
-nodes (a follows edge and a flow, say) become two flows; where a gateway
-takes the place of an end, the second keeps the id the first takes with
-`:1` after it (`:2` for a third). Up to 0.3.5 both took one id.
+`andGateways` every gateway is XOR, as before. Edges between the same two
+nodes other than constraints (two follows edges, or a follows edge and a
+flow) become one flow, with the id, tags and payload of the edge with the
+smallest id and their counts and cases summed; self-loops between one node
+likewise become one loop marker with their counts summed. Up to 0.3.5 they
+became several flows with one id, so the graph failed `validateGraph` and
+its BPMN export wrote one id twice. A flow whose id another edge of the input
+already has gets `:1` after it (`:2` next).
 
 Lanes of `liteFromStages` with `lanes: "role"`: a lane per role, in the
 order the activities first use them; the split and join of a choice,
