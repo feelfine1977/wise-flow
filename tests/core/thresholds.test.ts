@@ -100,13 +100,12 @@ const summary = (failures: readonly Failure[]) => failures.slice(0, 6).map((f) =
 /**
  * The open findings at each rung of the committed scenes, as written up with
  * their pictures: on the whole log and on the vendor, laid out by ELK (the
- * whole log at 0 % by Dagre). Pinned again on the new look of the map: cards
- * write their names at 13 px and their number line at 11, so collapsed stages
- * no longer draw text below 9 px at the fitted zoom; paths are counted in
- * cases, written in full up to 99,999, so more counts cover a card or each
- * other where stages are shown; paths back run below the flow, which ends some
- * covered counts; and on the whole log at 5 %, not connected, one arc's pill
- * has no free place.
+ * whole log at 0 % by Dagre). Cards write their names at 13 px and their
+ * number line at 11, so collapsed stages draw no text below 9 px at the fitted
+ * zoom; paths are counted in cases, written in full up to 99,999, so counts
+ * cover a card or each other where stages are shown; paths back run below the
+ * flow, clear of the counts of the paths forward; and on the whole log at 5 %,
+ * not connected, one arc's pill has no free place.
  */
 const WRITTEN_UP: Record<string, string> = {
   "global · 0 % · connected · stages shown": "path counts, small text",
