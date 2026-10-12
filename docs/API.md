@@ -1815,6 +1815,17 @@ up to 0.3.5. In a browser the limit of 500 nodes plus flows stays (pass
 `fallbackLimit` given is kept everywhere. Up to this change such a model
 ended in `LayoutUnavailableError` in Node too.
 
+Text in `exportBpmn`: the file is XML 1.0 that any conforming parser reads.
+A character XML 1.0 does not allow (U+0000 to U+001F other than tab, line
+feed and carriage return, U+FFFE, U+FFFF, an unpaired surrogate) is dropped
+from every text the export writes, and `warnings` names each label (`label
+of <id>: …`) and each id kept in `wise:flowId` (`id <id>: …`) that lost one.
+Tab and carriage return are written as `&#9;` and `&#13;`, as a line feed is
+as `&#10;`, so that a parser keeps them in names and texts alike, and the
+library's import reads them back unchanged. Up to 0.3.5 they were written
+as they were: other XML tools rejected a file with such a character, and a
+conforming parser read a tab or a carriage return as a space or a line feed.
+
 Gateways of `liteFromGraph`: a node with several successors gets an XOR
 split `gw_split_<id>`, a node with several predecessors an XOR join
 `gw_join_<id>`. With `andGateways`, parallel gateways are emitted only as a

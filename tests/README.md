@@ -112,7 +112,10 @@ wrong element types, moved elements, the `wise` extension, entities).
 token per flow is explored) and reports stuck, unsafe and trapped states and
 nodes that never take a token; `isWrong` judges a game that stopped at its
 limit only by what it saw. Generators are hand-written and seeded; a
-test adds no dependency.
+test adds no dependency. `core/bpmn-xml-text.test.ts` runs in jsdom
+(`@vitest-environment jsdom`) to read a BPMN export with a second parser,
+jsdom's `DOMParser`, which checks XML 1.0 well-formedness as the library's
+own parser does not.
 
 The shape of a searching test:
 

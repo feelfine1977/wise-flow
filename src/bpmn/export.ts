@@ -33,9 +33,13 @@ export interface BpmnExport {
   xml: string;
   positions: Positions;
   ids: IdMap;
-  /** Elements that have no BPMN counterpart (constraint edges, notes without position). */
+  /** Elements that have no BPMN counterpart (constraint edges, notes without position), labels and ids that lose characters XML 1.0 does not allow. */
   warnings: string[];
 }
+
+/** A character XML 1.0 does not allow (`g`: or a tab or carriage return, which `toXml` writes as references). */
+const NOT_XML = /[^\t\n\r\u0020-\uD7FF\uE000-\uFFFD\u{10000}-\u{10FFFF}]/u;
+const TO_WRITE = /[^\n\u0020-\uD7FF\uE000-\uFFFD\u{10000}-\u{10FFFF}]/gu;
 
 /** An XML-safe id derived from an arbitrary id; unique against `taken`. */
 export function xmlId(id: string, taken?: Set<string>, prefix = ""): string {
@@ -78,10 +82,12 @@ interface Ctx {
   taken: Set<string>;
   ids: IdMap;
   extension: boolean;
+  warnings: string[];
 }
 
 // Every element gets an id of its own; a FlowGraph id shared by a node, an edge or a group maps to the first.
 function idFor(ctx: Ctx, flowId: string, prefix = ""): string {
+  if (NOT_XML.test(flowId)) ctx.warnings.push(`id ${flowId}: characters XML 1.0 does not allow are dropped`);
   const id = xmlId(flowId ?? "", ctx.taken, prefix);
   ctx.ids.toBpmn[flowId] ??= id;
   ctx.ids.toFlow[id] = flowId;
@@ -106,6 +112,17 @@ function origin(ctx: Ctx, el: ModdleElement, flowId: string, kind: string | unde
   }
 }
 
+// A label as it is written: `toXml` drops what XML 1.0 does not allow, and a warning says so.
+function text<T>(ctx: Ctx, label: T, id: string): T | string {
+  if (typeof label !== "string") return label;
+  if (NOT_XML.test(label)) ctx.warnings.push(`label of ${id}: characters XML 1.0 does not allow are dropped`);
+  // The writer turns a line feed and a carriage return after it into one line feed; a character `toXml` drops keeps them apart.
+  return label.replace(/\n\r/g, "\n\0\r");
+}
+
+// Tab and carriage return as references, which a conforming parser keeps; what XML 1.0 does not allow, dropped.
+const toXml = (xml: string) => xml.replace(TO_WRITE, (c) => (c === "\t" ? "&#9;" : c === "\r" ? "&#13;" : ""));
+
 function connect(source: ModdleElement, target: ModdleElement, flow: ModdleElement): void {
   (source.get("outgoing") as ModdleElement[]).push(flow);
   (target.get("incoming") as ModdleElement[]).push(flow);
@@ -122,8 +139,8 @@ export async function exportBpmn(graph: FlowGraph, options: ExportBpmnOptions = 
   // The DI carries two decimals; the returned positions are the ones written.
   const positions = roundPositions(finitePositions(options.positions ?? (await layoutBpmn(graph, options.layout))));
   const moddle = createModdle();
-  const ctx: Ctx = { moddle, taken: new Set(), ids: createIdMap(), extension: options.extension ?? true };
   const warnings: string[] = [];
+  const ctx: Ctx = { moddle, taken: new Set(), ids: createIdMap(), extension: options.extension ?? true, warnings };
   const format = options.format ?? true;
 
   const definitionsId = options.id ?? "Definitions_wise";
@@ -138,7 +155,7 @@ export async function exportBpmn(graph: FlowGraph, options: ExportBpmnOptions = 
   });
   const rootElements = definitions.get("rootElements") as ModdleElement[];
   const process = moddle.create("bpmn:Process", { id: processId, isExecutable: false });
-  if (options.name ?? graph.meta?.label) process.set("name", String(options.name ?? graph.meta?.label));
+  if (options.name ?? graph.meta?.label) process.set("name", text(ctx, String(options.name ?? graph.meta?.label), processId));
   rootElements.push(process);
   const flowElements = process.get("flowElements") as ModdleElement[];
   const artifacts = process.get("artifacts") as ModdleElement[];
@@ -153,10 +170,10 @@ export async function exportBpmn(graph: FlowGraph, options: ExportBpmnOptions = 
     const el = moddle.create(type, { id });
     nodeElements.push(el);
     if (type === "bpmn:TextAnnotation") {
-      el.set("text", n.label);
+      el.set("text", text(ctx, n.label, n.id));
       artifacts.push(el);
     } else {
-      if (!isGeneratedGateway(n)) el.set("name", n.label);
+      if (!isGeneratedGateway(n)) el.set("name", text(ctx, n.label, n.id));
       if (n.kind === "event") {
         const defs = eventDefinitionTypes(n.tags ?? []);
         if (defs.length) el.set("eventDefinitions", defs.map((d) => moddle.create(d)));
@@ -193,9 +210,9 @@ export async function exportBpmn(graph: FlowGraph, options: ExportBpmnOptions = 
     const id = idFor(ctx, e.id, "Flow_");
     const flow = moddle.create("bpmn:SequenceFlow", { id, sourceRef: source, targetRef: target });
     const payload = typeof e.payload === "object" && e.payload ? (e.payload as Record<string, unknown>) : {};
-    if (typeof payload.label === "string" && payload.label) flow.set("name", payload.label);
+    if (typeof payload.label === "string" && payload.label) flow.set("name", text(ctx, payload.label, e.id));
     if (typeof payload.condition === "string" && payload.condition) {
-      flow.set("conditionExpression", moddle.create("bpmn:FormalExpression", { body: payload.condition }));
+      flow.set("conditionExpression", moddle.create("bpmn:FormalExpression", { body: text(ctx, payload.condition, e.id) }));
     }
     if (hasTag(e, V.defaultFlow)) source.set("default", flow);
     connect(source, target, flow);
@@ -216,7 +233,7 @@ export async function exportBpmn(graph: FlowGraph, options: ExportBpmnOptions = 
     const pool = pools[0];
     const pid = pool ? idFor(ctx, pool.id, "Participant_") : xmlId("Participant_wise", ctx.taken);
     participant = moddle.create("bpmn:Participant", { id: pid, processRef: process });
-    participant.set("name", pool?.label ?? options.name ?? (typeof graph.meta?.label === "string" ? graph.meta.label : "Process"));
+    participant.set("name", text(ctx, pool?.label ?? options.name ?? (typeof graph.meta?.label === "string" ? graph.meta.label : "Process"), pid));
     if (pool) origin(ctx, participant, pool.id, undefined, undefined, undefined);
     if (pools.length > 1) warnings.push(`only the first pool group is exported as a participant; ${pools.length - 1} more treated as lanes`);
     (collaboration.get("participants") as ModdleElement[]).push(participant);
@@ -228,7 +245,7 @@ export async function exportBpmn(graph: FlowGraph, options: ExportBpmnOptions = 
     (process.get("laneSets") as ModdleElement[]).push(laneSet);
     const groupIds = new Set(laneGroups.map((g) => g.id));
     const build = (g: FlowGroup): ModdleElement => {
-      const lane = moddle.create("bpmn:Lane", { id: idFor(ctx, g.id, "Lane_"), name: g.label });
+      const lane = moddle.create("bpmn:Lane", { id: idFor(ctx, g.id, "Lane_"), name: text(ctx, g.label, g.id) });
       origin(ctx, lane, g.id, g.kind === "lane" ? undefined : g.kind, undefined, undefined);
       laneElements.set(g.id, lane);
       const children = laneGroups.filter((c) => c.parent === g.id);
@@ -298,7 +315,7 @@ export async function exportBpmn(graph: FlowGraph, options: ExportBpmnOptions = 
   }
 
   const { xml } = await moddle.toXML(definitions, { format });
-  return { xml, positions, ids: ctx.ids, warnings };
+  return { xml: toXml(xml), positions, ids: ctx.ids, warnings };
 }
 
 function round(n: number): number {
