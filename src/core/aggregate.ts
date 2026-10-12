@@ -269,7 +269,10 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
     if (s === t && nodeTarget.has(e.source) && nodeTarget.has(e.target)) {
       // Only follows edges are transitions, counted by their count or else their cases.
       const v = e.kind === "follows" ? firstMetric(e, ["count", "cases"]) : undefined;
-      if (v !== undefined) internal.set(s, [...(internal.get(s) ?? []), v]);
+      if (v !== undefined) {
+        if (!internal.has(s)) internal.set(s, []);
+        internal.get(s)!.push(v);
+      }
       edgeTarget.set(e.id, s);
       return;
     }

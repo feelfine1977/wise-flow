@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type Box, type FlowEdge, type FlowGraph, createPositions, pathBetween, pathsFor, positionsBounds, unionBoxes } from "../../src/index";
+import { type Box, type FlowEdge, type FlowGraph, collapseGroups, createPositions, pathBetween, pathsFor, positionsBounds, unionBoxes } from "../../src/index";
 import { prepareScene } from "../../src/canvas/index";
 
 // Engines limit the number of arguments of a call (about 150,000 to a few
@@ -48,6 +48,15 @@ describe("graph-sized inputs", () => {
     expect(loops.map((s) => s.overlay.target)).toEqual(["n0", "n1", "n2"]);
     // n2's repeat is e2000 with count 2,001; the largest follows count is 1,001,000.
     expect(loops[2].overlay.payload?.value).toBe(2001 / 1_001_000);
+  });
+
+  it("collapses a stage around a million follows edges, counting each once as an internal transition", () => {
+    const dense = denseGraph();
+    const graph: FlowGraph = { ...dense, nodes: dense.nodes.map((n) => ({ ...n, group: "s" })), groups: [{ id: "s", kind: "stage", label: "S" }] };
+    const collapsed = collapseGroups(graph, ["s"]);
+    expect(collapsed.edges).toEqual([]);
+    // The counts 1 … 1,001,000 add up to 1,001,000 · 1,001,001 / 2.
+    expect(collapsed.nodes.map((n) => [n.id, n.metrics?.internalCount])).toEqual([["s", 501_001_000_500]]);
   });
 
   it("lists the paths of an activity and the path between two of a million edges", () => {
