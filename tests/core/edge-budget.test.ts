@@ -93,6 +93,14 @@ describe("edge budget", () => {
     expect(ids(byCases, budgetEdges(byCases, 2)?.drawn)).toEqual(["e1", "e5"]);
   });
 
+  it("orders by cases where only a path that loops on one activity gives them, as the width does", () => {
+    // b's loop gives cases, so the width reads cases: e1 and e2 have none, are drawn equally thin, and the ids decide.
+    const loop = { ...follows("e3", "b", "b", 2), metrics: { count: 2, cases: 2 } };
+    const scene = sceneOf(["a", "b", "c"], [follows("e1", "a", "b", 5), follows("e2", "b", "c", 9), loop]);
+    expect(scene.scales.pathMetric).toBe("cases");
+    expect(ids(scene, budgetEdges(scene, 1)?.drawn)).toEqual(["e1"]);
+  });
+
   it("reads protection from the scene's marks and the weight from its style, also for edge marks it has seen", () => {
     // The scene's order is known already; a scene object that shares its edge marks but not its marks
     // or style is chosen from by its own: the arc of `marked` on e4, then the order by share, which no path has (ids decide).

@@ -2768,7 +2768,8 @@ view, chosen once in the core by `budgetEdges` so that the Canvas map and
 the React Flow map draw the same ones. The order is fixed: protected edges
 first, then the weight descending (the value the edge width reads:
 `style.edgeWidth.metric`, `cases` by default, or the paths' transitions,
-`count`, where no path of the scene gives cases, as the scales resolve it;
+`count`, where no path of the graph gives cases, a path that loops on one
+activity included, as the scales resolve it;
 an edge without it comes last, as it is drawn at the thinnest width), then
 the id. Before this version a path without cases among paths with cases was
 ranked by its transitions. A budget of n draws the first n edges of that order,

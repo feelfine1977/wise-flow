@@ -7,8 +7,9 @@ An edge budget bounds how many of the edges in view a map draws. The new
 `"adaptive"` with the adaptive budget of this release) is resolved once by the new core function `budgetEdges`
 (`EdgeBudget`, `EdgeProtection`, `EdgeSelection`), so the Canvas map and the
 React Flow map draw the same edges: protected edges first, then by weight
-(the metric the edge width reads: the cases, or the count where no path has
-cases) descending, then by id.
+(the metric the edge width reads: the cases, or the count where no path of
+the graph, a path that loops on one activity included, has cases) descending,
+then by id.
 An edge is protected, and drawn even beyond the budget, when it carries an
 overlay mark (one naming it through `edgeId`, or an arc from its source to
 its target), when it is selected or at the keyboard

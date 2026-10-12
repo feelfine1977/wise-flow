@@ -37,14 +37,14 @@ export interface EdgeSelection {
 // metric and the overlay marks they were read from.
 const orders = new WeakMap<readonly EdgeMark[], { given: string; overlays: FlowScene["marks"]; rank: Int32Array; marked: Uint8Array }>();
 
-function orderOf(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style">) {
+function orderOf(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style" | "graph">) {
   const marks = scene.edgeMarks;
   const given = scene.style.edgeWidth?.metric ?? "count";
   let known = orders.get(marks);
   if (known && known.given === given && known.overlays === scene.marks) return known;
-  // The metric the width reads, as the scales resolve it: cases, or the transitions where no path gives cases.
-  const paths = marks.filter((m) => m.edge.kind !== "constraint");
-  const has = (name: string) => paths.some((m) => Number.isFinite(metric(m.edge, name, NaN)));
+  // The metric the width reads, as the scales resolve it: cases, or the transitions where no path of the graph (loops too) gives cases.
+  const paths = scene.graph.edges.filter((e) => e.kind === "follows" || e.kind === "flow");
+  const has = (name: string) => paths.some((e) => Number.isFinite(metric(e, name, NaN)));
   const name = given === "cases" && !has("cases") && has("count") ? "count" : given;
   const weight = marks.map((m) => metric(m.edge, name, -Infinity));
   const sorted = marks.map((_, i) => i).sort((a, b) => weight[b] - weight[a] || (marks[a].id < marks[b].id ? -1 : 1));
