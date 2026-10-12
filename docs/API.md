@@ -679,6 +679,25 @@ export function midpoint(points: XY[]): XY;   // routeMidpoint
 export type ActivityNodeData = { node; color; pattern; hatched; direction; focused; hovered; dimmed; locale; description;
   activityLabels?; labelWidth?; labelHeight?; meta?; mark?: NodeMark };
 export type FollowsEdgeData = { edge; route?; width; color; label?; reconnected; hovered; dimmed; focused; description; mark?: EdgeMark };
+// The React Flow elements of the map, and the id of a group's compound node there.
+export type WfNode = Node<ActivityNodeData, NodeKind>; export type WfGroupNode = Node<GroupNodeData, "wfGroup">;
+export type WfEdge = Edge<FollowsEdgeData, EdgeKind>; export function groupNodeId(groupId: string): string;
+// The props of each component by name (the components' signatures in this document spell them out):
+export interface AbstractionControlsProps { value: AbstractOptions; onChange; locale?; hasStages?; view?; onViewChange? }
+export interface TableAlternativeProps { graph; overlays?; scales?; locale?; selection?; onSelect?; tables?; pageSize?; className? }
+export interface TraceTimelineProps { traces: Trace[]; anchor?; annotations?; locale?; width?; rowHeight?; colorKey?; onSelect?; table?; className? }
+export interface TraceEvent { activity: string; canonicalId?; timestamp: string | number | Date; resource?; lifecycle?; violates?: string[] }
+export interface ContextMenuProps { x; y; title: string; subtitle?; note?; actions: MenuAction[]; locale?; onAction; onClose; returnFocusTo?;
+  boundsRef?; className? }
+export interface PathListProps { graph; focus: Focus; paths?: FlowPaths; locale?; selection?; onSelect?; onHover?; onClose?; sort?; ascending?;
+  onSortChange?; className? }
+export interface FilterChipsProps { filter?: Filter | FilterClause[]; preview?; locale?; labelOf?; onFilterChange?; onAnnounce?; clearable?; className? }
+export interface CanvasMapProps { scene: PreparedScene | undefined; state: DrawState; edgeBudget?; onEdgesShown?; … }   // see "Canvas"
+export interface FlowComparisonProps { cohorts: FlowComparisonCohort[]; noun?: string; onSelect?: (cohortId: string) => void }
+export interface FlowComparisonCohort { id: string; label: string; cases: number; graph: FlowGraph }   // cases: distinct, with those without events
+export type ViewSwitcherProps = Parameters<typeof ViewSwitcher>[0];   // see "Views"
+export type BpmnViewProps = Parameters<typeof BpmnView>[0];   // see "BPMN"; also from @wise/flow/bpmn
+export const emptyBpmnSelection: BpmnSelection;   // { tasks: [], flows: [], lanes: [] }; also from @wise/flow/bpmn
 ```
 
 The node and edge components draw what the scene's marks say: texts,
@@ -750,7 +769,19 @@ moved since it was last fitted (or `fitView` is false): then its zoom stays
 and the node nearest the centre of the view stays where it is on screen.
 Given positions that cover the graph are drawn as given, without motion;
 positions from `useStableLayout` are treated as above while they are
-provisional.
+provisional. Given positions that stop covering the graph (a node added
+that they do not place) hand the map to its own layout: its first scene then
+starts from the map's own earlier layout, if it had one, not from the given
+positions on screen. That case lies outside the first scene described here,
+which is that of a map without positions; how a map moves from one set of
+given positions to the next is for a later version to define.
+
+Hiding a map with React's `<Activity mode="hidden">` runs the cleanups of its
+effects, as an unmount does: its layout scope is released (the layouts kept
+for earlier abstraction levels are forgotten and idle workers terminated) and
+a running layout is aborted. Showing it again lays the map out again, with the
+provisional arrangement first. React does not tell hiding apart from
+unmounting, so the map does not keep the scope while hidden.
 
 `useStableLayout(scenes, options)` returns `positions` from the first render:
 a finished layout of the same inputs (status `"ready"`), or provisional
@@ -845,7 +876,16 @@ described with the element.
 Ids are opaque and stable; all numbers arrive pre-aggregated; every
 component accepts `locale` and renders a table alternative on request;
 colour never carries meaning alone (patterns, glyphs and numbers are
-redundant); breaking changes only in major versions.
+redundant).
+
+Versions. While the version is 0.x, a minor release may remove or change a
+name, a type or a behaviour a host relies on; each such change is named in
+its Changeset (as `minor`) and in the upgrade notes of the release. From
+1.0 on, a change that breaks
+a host comes only in a major version, and a name to be removed is first
+deprecated (marked `@deprecated` and listed under "Deprecated names") for at
+least one minor release. The names this round removed in its minor release
+(see "Removed in the next version") stay removed.
 
 ## Changes against the draft
 
@@ -898,9 +938,12 @@ views; the filled-in domains are returned in `views[i].style` and
 export interface StageActivity { id; label?; role?; optional?; loop?; tags?; metrics? }
 export interface Stage { id; label?; activities: (StageActivity | string)[]; role?; flow?: "sequence" | "choice" | "parallel"; optional? }
 export interface StageModel { id?; label?; stages: Stage[] }
-export function liteFromStages(model: StageModel, o?: { lanes?: "stage" | "role" | "none"; startLabel?; endLabel? }): FlowGraph;
-export function liteFromGraph(g: FlowGraph, o?: { abstraction?: AbstractOptions; andGateways?: boolean;   // AND only as a split/join pair
-  lanes?: "groups" | "none"; selfLoops?: "marker" | "flow" | "drop" }): FlowGraph;
+export interface LiteFromStagesOptions { lanes?: "stage" | "role" | "none"; startLabel?; endLabel? }
+export function liteFromStages(model: StageModel, o?: LiteFromStagesOptions): FlowGraph;
+export interface LiteFromGraphOptions { abstraction?: AbstractOptions; andGateways?: boolean;   // AND only as a split/join pair
+  lanes?: "groups" | "none"; selfLoops?: "marker" | "flow" | "drop" }
+export function liteFromGraph(g: FlowGraph, o?: LiteFromGraphOptions): FlowGraph;
+export function gatewayLabel(tags: string[] | undefined): string;   // Choice, Merge (XOR), Parallel, Join (AND)
 export function stageModelFromGraph(g: FlowGraph, o?: { limit?: number; label?: string }): StageModel;
 export function liteCounts(g: FlowGraph): { tasks; gateways; events; flows; lanes };
 export const START_ID = "__start", END_ID = "__end", TASK_TAG = "task", LOOP_TAG = "loop", GENERATED_TAG = "generated";
@@ -911,11 +954,18 @@ export function layoutBpmn(g: FlowGraph, o?: BpmnLayoutOptions): Promise<Positio
 export interface BpmnLayoutOptions extends Omit<LayoutOptions, "direction" | "groups"> {
   lanes?: "bands" | "compound" | "ignore"; rowGap?; lanePadding?; labelWidth?; poolPadding? }
 export const POOL_ID = "__pool";   // pool box in Positions.groups when the graph has lanes but no pool group
+export const BPMN_SIZES: Record<NodeKind, NodeSize>;   // the shape sizes bpmn-js and Camunda Modeler draw
+export function bpmnNodeSize(n: FlowNode): NodeSize;   // BPMN_SIZES of the node's kind
 
 // Export → BPMN 2.0 XML with BPMNDiagram / BPMNShape / BPMNEdge from the positions.
-export function exportBpmn(g: FlowGraph, o?: { positions?: Positions; layout?: BpmnLayoutOptions; id?; processId?; name?;
-  format?: boolean; extension?: boolean; participant?: boolean }): Promise<{ xml: string; positions: Positions; ids: IdMap; warnings: string[] }>;
-export function validateBpmn(xml: string): Promise<{ ok: boolean; warnings: string[]; counts; missingDi: string[] }>;
+export interface ExportBpmnOptions { positions?: Positions; layout?: BpmnLayoutOptions; id?; processId?; name?;
+  format?: boolean; extension?: boolean; participant?: boolean }
+export interface BpmnExport { xml: string; positions: Positions; ids: IdMap; warnings: string[] }
+export function exportBpmn(g: FlowGraph, o?: ExportBpmnOptions): Promise<BpmnExport>;
+export interface BpmnValidation { ok: boolean; warnings: string[]; counts; missingDi: string[] }
+export function validateBpmn(xml: string): Promise<BpmnValidation>;
+export function exportableEdges(g: FlowGraph): FlowEdge[];   // the edges the export turns into sequence flows
+export const EXPORTER_NAME = "wise-flow", EXPORTER_VERSION, TARGET_NAMESPACE = "http://wise-workbench.org/bpmn";   // written into the XML
 export function xmlId(id: string, taken?: Set<string>, prefix?: string): string;
 export function roundPositions(p: Positions): Positions;
 export interface IdMap { toBpmn: Record<string, string>; toFlow: Record<string, string> }
@@ -923,8 +973,9 @@ export interface IdMap { toBpmn: Record<string, string>; toFlow: Record<string, 
 // Import ← BPMN 2.0 XML.
 export interface ActivityRef { id: string; label?: string; aliases?: string[] }
 export interface MappingRow { taskId; nodeId; label; type; lane?; activityId?; matchedBy?: "id" | "label" | "alias" | "manual" }
-export function importBpmn(xml: string, o?: { activities?: ActivityRef[]; positions?: boolean; keepIds?: boolean;
-  subProcesses?: "stage" | "activity"; normalize?: (s: string) => string }):
+export interface ImportBpmnOptions { activities?: ActivityRef[]; positions?: boolean; keepIds?: boolean;
+  subProcesses?: "stage" | "activity"; normalize?: (s: string) => string }
+export function importBpmn(xml: string, o?: ImportBpmnOptions):
   Promise<{ graph: FlowGraph; mapping: MappingRow[]; positions?: Positions; warnings: string[]; ids: IdMap; processId? }>;
 export function matchActivities(mapping: MappingRow[], activities: ActivityRef[], o?): MappingRow[];
 export function applyMapping(g: FlowGraph, mapping: MappingRow[] | Record<string, string>): FlowGraph;
@@ -935,23 +986,26 @@ export function positionsFromDi(definitions: ModdleElement, ids: IdMap, warnings
 // Ids: FlowGraph id ↔ BPMN id ↔ activity id. An element is named by its BPMN id, its FlowGraph id
 // and every activity id the mapping points at either of them (the alias rule).
 export type ActivityMapping = MappingRow[] | Record<string, string>;   // activity id → task (FlowGraph or BPMN id)
-export function createIdResolver(o?: { ids?: IdMap; mapping?: ActivityMapping }): IdResolver;
+export interface IdResolverOptions { ids?: IdMap; mapping?: ActivityMapping }   // ids of importBpmn or exportBpmn
+export function createIdResolver(o?: IdResolverOptions): IdResolver;
+export type BpmnElementRef = string | ModdleElement;   // a BPMN id or a moddle element
 export interface IdResolver {
-  flowId(element: string | ModdleElement): string;        // BPMN id or moddle element → FlowGraph id
+  flowId(element: BpmnElementRef): string;                // BPMN id or moddle element → FlowGraph id
   bpmnId(flowId: string): string | undefined;
   activityId(flowId: string): string | undefined;
   flowIdsOfActivity(activityId: string): string[];
-  names(element: string | ModdleElement): string[];       // BPMN id, FlowGraph id, mapped activity ids
-  matches(element: string | ModdleElement, id: string): boolean;
+  names(element: BpmnElementRef): string[];               // BPMN id, FlowGraph id, mapped activity ids
+  matches(element: BpmnElementRef, id: string): boolean;
 }
-export function renameToActivities(nodeIds: string[], r: IdResolver): { renamed: Map<string, string>; toMapped(id): string; toFlow(id): string };
+export interface ActivityRenaming { renamed: Map<string, string>; toMapped(flowId: string): string; toFlow(mappedId: string): string }
+export function renameToActivities(nodeIds: string[], r: IdResolver): ActivityRenaming;   // as applyMapping renames: <activity>#2, #3 for more
 export function createIdMap(): IdMap;
 export function registerId(ids: IdMap, bpmnId: string, flowId: string): void;
 
 // bpmn-moddle with the `wise` extension (ids, kinds, tags, metrics through the XML).
 export function createModdle(): BpmnModdleInstance;
 export const wiseModdleDescriptor, WISE_NS = "http://wise-workbench.org/schema/flow";
-export function flowIdOf(el), wiseAttr(el, name), isType(el, type), tagOfType(type), typeOfTag(tag);
+export function flowIdOf(el), wiseAttr(el, name), isType(el, type), isAnyType(el, types), tagOfType(type), typeOfTag(tag);
 
 // React
 export function BpmnView(props: {
@@ -1424,8 +1478,12 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
   withheld?: EdgeSelection };   // present when the edge budget left edges in view out
 export function drawLegend(ctx: DrawContext, scene: PreparedScene, x, y, width, tokens?, o?: { createCanvas? }): number;   // the scene's legend; returns legendLayout(scene.legend).height
 export function tracePath(ctx: DrawContext, d: string): { last?; beforeLast? };
-export class CanvasRenderer { constructor(canvas: HTMLCanvasElement, o?: { tokens?; devicePixelRatio?; minZoom?; maxZoom?;
-    draw?: RendererDrawOptions; clock?: () => number });   // clock: ms, read by the adaptive edge budget only; default performance.now
+export const emptyState: DrawState;   // nothing selected, hovered or focused
+export function selfLoopOverlays(g: FlowGraph, locale?: Locale): Overlay[];   // followsSelfLoops, as <ProcessMap/> draws them
+export function groupLabelOf(scene: PreparedScene, id: string | undefined): string | undefined;
+export interface CanvasRendererOptions { tokens?; devicePixelRatio?; minZoom?; maxZoom?;
+  draw?: RendererDrawOptions; clock?: () => number }   // clock: ms, read by the adaptive edge budget only; default performance.now
+export class CanvasRenderer { constructor(canvas: HTMLCanvasElement, o?: CanvasRendererOptions);
   drawOptions: RendererDrawOptions;   // DrawOptions without tokens; edgeBudget may also be "adaptive"
   beginGesture(); endGesture();   // a pan or zoom gesture; see "Edge budget"
   resize(w, h); setScene(s); getScene(); setState(patch: Partial<DrawState>); getState(); setTokens(t);
@@ -1438,7 +1496,9 @@ export const defaultTokens: CanvasTokens;   // from the token table (`colorToken
 export function readTokens(element: Element | null | undefined, overrides?: Partial<CanvasTokens>): CanvasTokens;   // from the CSS variables (`cssVariable(key)`)
 export interface PngOptions { preset?: FigurePreset; width?; scale?; background?; legend?; padding?; lodZoom?; tokens?; createCanvas?; context?;
   edgeBudget?: EdgeBudget | ShownEdges }   // default every edge; see "Edge budget"
-export function toPNGCanvas(scene: Scene, o?: PngOptions): { canvas; width; height; cssWidth; cssHeight; scale };
+export interface CanvasLike { width; height; getContext(kind: "2d"): unknown; toBlob?; convertToBlob?; toDataURL? }   // HTMLCanvasElement, OffscreenCanvas
+export interface PngCanvas { canvas: CanvasLike; width; height; cssWidth; cssHeight; scale }   // bitmap and CSS size
+export function toPNGCanvas(scene: Scene, o?: PngOptions): PngCanvas;
 export function toPNG(scene: Scene, o?: PngOptions): Promise<Blob>;
 export function toPNGDataUrl(scene: Scene, o?: PngOptions): string;
 ```
@@ -1446,7 +1506,12 @@ export function toPNGDataUrl(scene: Scene, o?: PngOptions): string;
 `prepareScene` is pure and runs in Node: it builds the core scene
 (`buildScene`) and adds what the Canvas renderer needs, every element's box
 or route, colours and labels resolved once and the R-tree that serves
-hover, click and viewport culling. The overlays are `o.overlays`, or
+hover, click and viewport culling. The hit index and the edge budget find an
+element by its place in the scene's lists (`nodes`, `edges`, `groups`,
+`marks`, `edgeMarks`), so a host does not replace those lists (with a
+filtered copy, say): a culled draw then drops elements, and a budget draws
+other edges than it chose. To draw fewer elements, filter the graph and
+prepare the scene again. The overlays are `o.overlays`, or
 `graph.overlays` without it, each drawn once. `lodBySize` (default true)
 tightens the level of detail with the number of nodes for a fitted live
 map; `bands` keeps caller-computed bands and the positions as given. `drawScene` issues plain 2D
@@ -2020,7 +2085,11 @@ replacement, and that every listed name is deprecated.
 `scripts/core-exports.json` holds the names of the `.` entry point and the
 deprecated ones; a tooling test compares the built `index.d.ts` with it. Outside
 the core, the package imports a name the entry point provides from the entry
-point.
+point. This document names every name the four entry points export: a tooling
+test (`tests/tooling/exports.test.mjs`) compares the names of the built
+declarations with those this document gives in code (in a `ts` block or in
+backticks, outside "Removed in the next version") and fails on an exported
+name it does not find.
 
 ## Removed in the next version
 
