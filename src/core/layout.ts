@@ -692,6 +692,9 @@ async function compute(graph: FlowGraph, options: LayoutOptions, signal: AbortSi
       }
     }
     return await layoutDagre(p, options, signal, dagre, engine !== "dagre");
+  } catch (err) {
+    // ELK failed and so did the Dagre worker: no engine gives a layout, as when the fallback may not run here.
+    throw dagre && engine !== "dagre" && !signal.aborted ? new LayoutUnavailableError(`Neither ELK nor the Dagre worker laid out the graph: ${(err as Error).message}`) : err;
   } finally {
     dagre?.done();
   }

@@ -364,6 +364,27 @@ describe("the Dagre fallback", () => {
     expect(onCallingThread).not.toHaveBeenCalled();
   });
 
+  it("is unavailable when ELK fails and the Dagre worker then fails or times out, as without a worker", async () => {
+    vi.spyOn(FakeWorker.prototype, "postMessage").mockImplementationOnce(function (this: FakeWorker) {
+      queueMicrotask(() => this.onmessage?.({ data: { error: "no such node" } }));
+    });
+    const failed = layout(pair, { elk: failing, dagreWorkerUrl: dagreUrl });
+    await expect(failed).rejects.toBeInstanceOf(LayoutUnavailableError);
+    await expect(failed).rejects.toThrow("no such node");
+    FakeWorker.holdDagre = true;
+    const timedOut = layout(pair, { elk: failing, dagreWorkerUrl: dagreUrl, timeoutMs: 30 }).catch((error: Error) => error);
+    await vi.waitFor(() => expect(FakeWorker.created[1]?.dagreRuns).toBe(1));
+    const error = await timedOut;
+    expect(error).toBeInstanceOf(LayoutUnavailableError);
+    expect((error as Error).message).toContain("layout timed out after 30 ms");
+    expect(FakeWorker.created[1].terminated).toBe(true);
+    expect(onCallingThread).not.toHaveBeenCalled();
+    // Dagre asked for by name has no other engine to fall back from: its error stays its own.
+    const named = layout(pair, { engine: "dagre", dagreWorkerUrl: dagreUrl, timeoutMs: 30 }).catch((e: Error) => e);
+    expect(await named).toEqual(new Error("layout timed out after 30 ms"));
+    expect(await named).not.toBeInstanceOf(LayoutUnavailableError);
+  });
+
   it("stops the Dagre worker on abort and on timeout", async () => {
     FakeWorker.holdDagre = true;
     const stop = new AbortController();

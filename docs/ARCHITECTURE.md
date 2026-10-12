@@ -167,7 +167,8 @@ Web Worker with `dagreWorkerUrl` (the package's `dagre-worker.min.js`, which
 runs the compiled `dagreJob` of the layout module, so both places give the same
 positions), otherwise on the calling thread only up to `fallbackLimit` nodes
 plus edges; above it the layout fails with `LayoutUnavailableError` and the
-map keeps its provisional arrangement. **Stopping**: each layout is a job that
+map keeps its provisional arrangement, as it does when ELK and then the Dagre
+worker fail. **Stopping**: each layout is a job that
 runs while somebody waits for it; a caller's `signal`, a newer request to the
 same scope, disposing that scope and `timeoutMs` (per engine run) stop waiting, and a job nobody
 waits for terminates its worker (one worker per running job, so no other

@@ -338,7 +338,14 @@ after ELK failed or timed out) runs on the calling thread only up to
 `fallbackLimit` nodes plus edges (default 500; Dagre's cost grows quickly
 with dense graphs, from tenths of a second at 500 to many seconds). Above it
 the layout rejects with `LayoutUnavailableError` instead of freezing the page.
-`engine: "dagre"` runs whatever the size.
+`engine: "dagre"` runs whatever the size. When ELK fails or times out and the
+Dagre worker then fails or times out too, the layout rejects with
+`LayoutUnavailableError` as well ("Neither ELK nor the Dagre worker laid out
+the graph: …" with the worker's error): a map keeps its provisional scene and
+says the layout is unavailable, as without a worker. Up to this change it
+rejected with the worker's plain error, and the map dropped the provisional
+scene and showed that message. `engine: "dagre"` in a worker that fails
+rejects with its own error.
 
 ## Style
 
