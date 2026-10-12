@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { type FlowEdge, type FlowGraph, type FlowNode, type ShownEdges, createPositions, toSVG } from "../../src/index";
 import { type DrawContext, toPNGCanvas } from "../../src/canvas/index";
 import { ProcessMap } from "../../src/react/index";
+import { svgNote } from "../support/svg";
 
 afterEach(() => {
   cleanup();
@@ -54,7 +55,6 @@ function pngTexts(edgeBudget: ShownEdges | undefined) {
 }
 
 const svgEdges = (svg: string) => [...svg.matchAll(/<g class="wf-edge" data-id="([^"]*)"/g)].map((m) => m[1]).sort();
-const svgNote = (svg: string) => /<text [^>]*class="wf-edge-note"[^>]*>([^<]*)<\/text>/.exec(svg)?.[1];
 const note = () => screen.queryByTestId("wf-edge-note")?.textContent;
 
 describe("exporting what the map shows", () => {

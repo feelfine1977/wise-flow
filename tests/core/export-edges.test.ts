@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { type FlowEdge, type FlowGraph, type FlowNode, type Positions, type SceneLegend, budgetEdges, buildScene, createPositions, figureFrame, toSVG } from "../../src/index";
 import { type DrawContext, toPNGCanvas } from "../../src/canvas/index";
+import { svgNote } from "../support/svg";
 
 /** A hub `h` with a path `h-t1` … to each activity, with these counts, and the activities in a column. */
 function hub(counts: number[]): { graph: FlowGraph; positions: Positions } {
@@ -15,7 +16,6 @@ const small = hub([10, 50, 30, 30, 70, 20, 60, 40]);
 const all = ["h-t1", "h-t2", "h-t3", "h-t4", "h-t5", "h-t6", "h-t7", "h-t8"];
 
 const svgEdges = (svg: string) => [...svg.matchAll(/<g class="wf-edge" data-id="([^"]*)"/g)].map((m) => m[1]).sort();
-const svgNote = (svg: string) => /<text [^>]*class="wf-edge-note"[^>]*>([^<]*)<\/text>/.exec(svg)?.[1];
 const viewBox = (svg: string) => /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(svg)!.slice(1).map(Number);
 
 /** A 2D context that records every text with the position and font it was drawn at. */

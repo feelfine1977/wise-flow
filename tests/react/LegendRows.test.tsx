@@ -4,12 +4,11 @@ import { constraintItems, globalScene, vendorScene, vendorSceneKey } from "../..
 import { type DrawContext, drawLegend, prepareScene } from "../../src/canvas/index";
 import { type FlowGraph, type Locale, type Overlay, type Positions, abstract, createPositions, estimateTextWidth, layout, overlaysFor, toSVG } from "../../src/index";
 import { Chip, ProcessMap } from "../../src/react/index";
+import { unescape } from "../support/svg";
 
 /** The rows a legend writes, in order, and the texts of its map-level chips. */
 type Rows = { rows: string[]; chips: number; chipTexts?: string[] };
 type Fixture = { graph: FlowGraph; positions: Positions; overlays?: Overlay[]; locale?: Locale };
-
-const unescape = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
 
 function fromSVG({ graph, positions, overlays, locale }: Fixture, chips: number): Rows {
   const svg = toSVG({ graph, positions, overlays, locale });

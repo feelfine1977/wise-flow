@@ -10,6 +10,7 @@ import { CanvasMap, type CanvasMapHandle, ProcessMap } from "../../src/react/ind
 import { type FamilyName, families } from "../support/graphs";
 import { type Random, caseCount, caseLabel, createRandom, seeds } from "../support/random";
 import { positionsOf } from "../support/scenes";
+import { svgEdges, svgNote } from "../support/svg";
 
 afterEach(() => {
   cleanup();
@@ -64,10 +65,6 @@ const rfEdges = (container: HTMLElement) => [...container.querySelectorAll(".rea
 /** The note's text by hand, with the English grouping of thousands. */
 const group = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 const noteText = (shown: number, total: number) => `Showing ${group(shown)} of ${group(total)} flows`;
-
-const unescape = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
-const svgEdges = (svg: string) => [...svg.matchAll(/<g class="wf-edge" data-id="([^"]*)"/g)].map((m) => unescape(m[1])).sort();
-const svgNote = (svg: string) => /<text [^>]*class="wf-edge-note"[^>]*>([^<]*)<\/text>/.exec(svg)?.[1];
 
 /** The note a PNG export without its legend writes, if any. */
 function pngNote(scene: Parameters<typeof toPNGCanvas>[0], edgeBudget: ShownEdges | undefined): string | undefined {
