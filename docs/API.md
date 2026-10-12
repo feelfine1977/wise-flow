@@ -1375,7 +1375,21 @@ fields of `SceneNode` and `SceneEdge` stay as data. `SceneGroup.tint` and `Scene
 group's tint and the node's hatching, but the group and node routines no
 longer paint them: the tint and hatch marks do, once each. `CanvasRenderer` owns the
 viewport (zoom clamped to `minZoom` … `maxZoom`), draws on animation
-frames and follows the device pixel ratio. `toPNG` uses the same figure
+frames and follows the device pixel ratio. A renderer whose scene is
+replaced keeps the ids of the edges its last draw drew, not that scene, so
+that until the next draw a hit on the new scene (or none, after
+`setScene(undefined)`) still leaves out the edges the last draw withheld.
+`dispose()` stops drawing and lets go of the scene, the drawing context,
+`onDraw` and `onViewportChange` (`lastDraw`, which holds counts and no scene,
+stays readable); afterwards every method that
+changes something (`resize`, `setScene`, `setState`, `setTokens`,
+`setViewport`, `fit`, `panBy`, `zoomBy`, `centerOn`, `beginGesture`,
+`endGesture`, `requestDraw`, `draw`) returns without an effect, and
+`getScene()`, `screenBox` and `hitAt` return `undefined`. Up to this version
+a cleared renderer kept the last scene it drew until it drew another, and a
+disposed one kept its scene, context and callbacks while it stayed
+reachable, and still resized its canvas, took a new scene and called
+`onViewportChange`. `toPNG` uses the same figure
 frame (`figureFrame`) and legend as `toSVG` and reads the same
 scene: overlays, follows self-loops (`Scene.selfLoops`, default shown) and
 level of detail at `lodZoom` (default 1, without tightening by size)
