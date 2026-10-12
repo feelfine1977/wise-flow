@@ -84,6 +84,7 @@ export interface LayoutOptions {
   /**
    * Milliseconds each engine run may take (ELK; Dagre in a worker). Its worker is
    * then terminated; `auto` falls back to Dagre, otherwise the layout fails. Default 20000.
+   * In-process ELK is timed from when it starts and, holding the thread, is answered once done.
    */
   timeoutMs?: number;
   /**
@@ -309,27 +310,36 @@ class LayoutTimeout extends Error {}
 
 /**
  * `promise`, unless the signal aborts or `ms` pass first: then `stop` ends the
- * run and the result rejects with the abort reason or a timeout.
+ * run and the result rejects with the abort reason or a timeout. A run without
+ * a worker (no `stop`) is timed from its `turn` on, and a result it sent
+ * before its timeout could fire (the thread was busy with it) is read first.
  */
-function guard<T>(promise: Promise<T>, ms: number, signal: AbortSignal, stop?: () => void): Promise<T> {
+function guard<T>(promise: Promise<T>, ms: number, signal: AbortSignal, stop?: () => void, turn?: Promise<unknown>): Promise<T> {
   return new Promise((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let done = false;
     const end = (error: unknown) => {
       clear();
       stop?.();
       reject(error);
     };
     const abort = () => end(signal.reason);
-    // Timers fire at once beyond 2³¹ − 1 ms.
-    const timer = setTimeout(() => end(new LayoutTimeout(`layout timed out after ${ms} ms`)), Math.min(ms, 2 ** 31 - 1));
+    const late = () => end(new LayoutTimeout(`layout timed out after ${ms} ms`));
     const clear = () => {
+      done = true;
       clearTimeout(timer);
       signal.removeEventListener("abort", abort);
     };
     if (signal.aborted) return abort();
     signal.addEventListener("abort", abort);
+    // Timers fire at once beyond 2³¹ − 1 ms.
+    void (turn ?? Promise.resolve()).then(() => done || (timer = setTimeout(stop ? late : () => (timer = setTimeout(late)), Math.min(ms, 2 ** 31 - 1))));
     promise.then((value) => (clear(), resolve(value)), (error) => (clear(), reject(error)));
   });
 }
+
+/** In-process ELK runs one layout at a time; the next starts once the last has settled, aborted or not. */
+let inProcessTurn: Promise<unknown> = Promise.resolve();
 
 interface Prepared {
   nodes: FlowNode[];
@@ -451,7 +461,12 @@ async function layoutElk(p: Prepared, o: LayoutOptions, signal: AbortSignal, wor
   const attempt = async (part: boolean) => {
     const elk = await (work ? work.get().elk() : o.elk ?? (inProcessElk ??= loadBundledCtor().then((Ctor) => new Ctor())));
     signal.throwIfAborted();
-    return fromElk(await guard(elk.layout(elkGraph(p, o, part)), ms, signal, work?.stop), p);
+    if (work || o.elk) return fromElk(await guard(elk.layout(elkGraph(p, o, part)), ms, signal, work?.stop), p);
+    // In-process: after the runs ahead of it, unless it was aborted while it waited.
+    const turn = inProcessTurn;
+    const run = turn.then(() => (signal.throwIfAborted(), elk.layout(elkGraph(p, o, part))));
+    inProcessTurn = run.catch(() => undefined);
+    return fromElk(await guard(run, ms, signal, undefined, turn), p);
   };
   try {
     return await attempt(partition);

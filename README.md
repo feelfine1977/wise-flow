@@ -76,9 +76,11 @@ const positions = await layout(graph);
 const svg = toSVG({ graph, positions, title: 'Example process' });
 ```
 
-ELK runs in-process by default, with Dagre fallback. In-process ELK cannot be
-interrupted, and without a Dagre worker the fallback runs on the calling thread
-only up to 500 nodes plus edges. For browser workers in Vite:
+ELK runs in-process by default, with Dagre fallback. In a browser, pass the
+workers: in-process ELK holds the page while it runs and cannot be
+interrupted (a layout nobody waits for any more runs to its end, and its
+timeout cannot cut it short), and without a Dagre worker the fallback runs on
+the calling thread only up to 500 nodes plus edges. For browser workers in Vite:
 
 ```ts
 import elkWorkerUrl from '@wise/flow/elk-worker.min.js?url';

@@ -327,11 +327,26 @@ Dagre, `"elk"` and `"dagre"` reject with "layout timed out after … ms". A
 timeout does not try ELK again (without stage partitions, as an ELK error
 still does). A timeout longer than a timer can wait (2³¹ − 1 ms, about 24
 days), `Infinity` included, waits that long; up to 0.3.5 the timer fired at
-once and the layout timed out before the engine answered. **In-process ELK, and an `elk` instance the caller supplies,
-cannot be interrupted**: an abort or timeout rejects at once, but the engine
-finishes its run in the background and its result is discarded; in-process
-ELK also blocks the calling thread while it runs, so a timeout cannot end it
-early. Pass `elkWorkerUrl` wherever a worker can be served.
+once and the layout timed out before the engine answered.
+
+**Without a worker, ELK cannot be interrupted.** Pass `elkWorkerUrl` (and
+`dagreWorkerUrl`) wherever a worker can be served: only a layout in a worker
+is stopped when nobody waits for it any more, and only there does the page
+stay responsive while it runs. In-process ELK (no `elkWorkerUrl` and no
+`elk`; the default of `<ProcessMap/>`, and the only way in Node) runs on the
+calling thread one layout at a time: a layout waits until the runs ahead of
+it have finished, an aborted one included, and its `timeoutMs` counts from
+when it starts, not from the request; aborted while it waits, it never
+starts. Once started it holds the thread until it is done, so its timeout
+cannot fire before, and a run that finished is answered with its layout even
+when it took longer than `timeoutMs`: the timeout does not shorten in-process
+ELK. An `elk` instance the caller supplies is not queued; an abort or timeout
+rejects at once and its later result is discarded, but a result it sent
+before its timeout could fire is taken. Up to this change the timeout counted
+from the request, so a layout behind an aborted long one timed out and fell
+back to Dagre although it took milliseconds (two nodes with `timeoutMs: 300`
+came back from Dagre after 8.8 s), and a run past its timeout ended in its
+layout or in the timeout depending on timing.
 
 Fallback limit. Without `dagreWorkerUrl` the Dagre fallback (`engine: "auto"`
 after ELK failed or timed out) runs on the calling thread only up to

@@ -173,7 +173,9 @@ runs while somebody waits for it; a caller's `signal`, a newer request to the
 same scope, disposing that scope and `timeoutMs` (per engine run) stop waiting, and a job nobody
 waits for terminates its worker (one worker per running job, so no other
 layout is affected) and reads nothing it sends afterwards. In-process ELK
-cannot be interrupted; its result is discarded.
+cannot be interrupted: its runs go one at a time, each timed from its start,
+and a run that finished is answered even past its timeout; an aborted run's
+result is discarded.
 Elements are sorted by id before the engine runs, so positions are
 deterministic. `Positions` holds absolute boxes for nodes and groups, edge
 routes, bounds, engine and direction. **Stable layout**: `layoutUnion(scenes)`

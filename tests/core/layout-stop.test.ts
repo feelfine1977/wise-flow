@@ -1,5 +1,5 @@
 import type { ELK, ElkNode } from "elkjs/lib/elk-api.js";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import * as dagre from "@dagrejs/dagre";
 import { abstract, createLayoutScope, type FlowGraph, layout, LayoutUnavailableError, type LayoutOptions } from "../../src/index";
 import { type DagreInput, dagreJob, knownLayout } from "../../src/core/layout";
@@ -313,6 +313,31 @@ describe("stopping a layout", () => {
     await expect(pending).rejects.toMatchObject({ name: "AbortError" });
     await expect(layout(pair, { elk, engine: "elk", timeoutMs: 5 })).rejects.toThrow("timed out");
     expect(terminateWorker).not.toHaveBeenCalled();
+  });
+});
+
+describe("ELK without a worker", () => {
+  // In-process ELK blocks the thread while it runs: the vendor scene takes tens of milliseconds, two nodes almost none.
+  beforeAll(async () => void (await layout(pair, { engine: "elk" })));
+
+  it("times a layout from when it starts, after an aborted layout ahead of it has run, on every run of ten", async () => {
+    for (let run = 0; run < 10; run++) {
+      const stop = new AbortController();
+      const long = layout(vendorScene, { engine: "elk", signal: stop.signal }).catch((error: Error) => error);
+      stop.abort();
+      const short = await layout(pair, { timeoutMs: 5 });
+      expect((await long as Error).name, `run ${run}`).toBe("AbortError");
+      // The two nodes waited for the vendor scene and were then laid out by ELK within their 5 ms, not by the fallback.
+      expect(short.engine, `run ${run}`).toBe("elk");
+    }
+  });
+
+  it("answers with a layout that finished after its timeout passed, as the thread was busy, on every run of ten", async () => {
+    for (let run = 0; run < 10; run++) {
+      // The vendor scene takes longer than 1 ms; ELK holds the thread until it is done, so its result is there before the timeout can fire.
+      expect((await layout(vendorScene, { timeoutMs: 1 })).engine, `run ${run}`).toBe("elk");
+    }
+    expect(onCallingThread).not.toHaveBeenCalled();
   });
 });
 
