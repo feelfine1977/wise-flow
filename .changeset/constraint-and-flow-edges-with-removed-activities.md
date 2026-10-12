@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"@wise/flow": minor
 ---
 
 `abstract` says and does the same about constraint and flow edges. They were
