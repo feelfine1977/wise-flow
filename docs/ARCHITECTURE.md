@@ -163,7 +163,7 @@ positions), otherwise on the calling thread only up to `fallbackLimit` nodes
 plus edges; above it the layout fails with `LayoutUnavailableError` and the
 map keeps its provisional arrangement. **Stopping**: each layout is a job that
 runs while somebody waits for it; a caller's `signal`, a newer request to the
-same scope and `timeoutMs` (per engine run) stop waiting, and a job nobody
+same scope, disposing that scope and `timeoutMs` (per engine run) stop waiting, and a job nobody
 waits for terminates its worker (one worker per running job, so no other
 layout is affected) and reads nothing it sends afterwards. In-process ELK
 cannot be interrupted; its result is discarded.
