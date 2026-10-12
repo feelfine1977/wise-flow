@@ -1,7 +1,7 @@
 {
-  "approved": "2026-10-10",
-  "approvedBy": "repository owner, locally, after comparing expected, actual and difference images",
-  "sourceCommit": "13d33f740c437837ef69c2017ff5b18ac82c3638",
+  "approved": "2026-10-12",
+  "approvedBy": "repository owner, locally, after comparing the approved and the new images",
+  "sourceCommit": "72c275f043eac34c909672c7829f307bdd67cf08",
   "playwright": "1.61.1",
   "darwin": {
     "os": "macOS 26.6.2, arm64",
@@ -16,51 +16,51 @@
   "screenshots": [
     {
       "path": "tests/visual/__screenshots__/bpmn.spec.ts/bpmn-from-stages-darwin.png",
-      "sha256": "a9a35517e3fc7da0c7bef47755d557768eadddcb791da8cec5c1260c8a0d8998"
+      "sha256": "784847b566cdd5be0daf5cb9823ef554e352fe3cdec22c54891545c0f97b8933"
     },
     {
       "path": "tests/visual/__screenshots__/bpmn.spec.ts/bpmn-from-stages-linux.png",
-      "sha256": "e91f389c4717dc18dd4fb51e93f131a79bee9369460cc2465c37bff4a7bb6813"
+      "sha256": "6980d4110eca34e0a7a43383a49b5be43389a9b6f8a3eb1d3fc913f7af8a320a"
     },
     {
       "path": "tests/visual/__screenshots__/bpmn.spec.ts/views-grid-darwin.png",
-      "sha256": "c464f5dd3f40f19fe5445d5e5c0d10385bf3e55f8c6a414c8b0e98be6c7d6e30"
+      "sha256": "65bcb14407b2950f16d45fa9e30cfe6adeb492c80144355a2521e261eadbd307"
     },
     {
       "path": "tests/visual/__screenshots__/bpmn.spec.ts/views-grid-linux.png",
-      "sha256": "9dd13242ac485b1a1413b4eb6d840bf9e6c033775b5388e4666d11d21df7cf9c"
+      "sha256": "a8047557d03b5c3b46936bed6b5f4f0941148b9f641253a1d521490b07111814"
     },
     {
       "path": "tests/visual/__screenshots__/interaction.spec.ts/paths-for-activity-darwin.png",
-      "sha256": "4c5b9f92364fc14082cfe58e5f1da155e2de1ef53c0456c832cd63f93d3a490c"
+      "sha256": "f2f19e771abf909e33024e506557d5886dda221c7949318534535fc5de6f10d5"
     },
     {
       "path": "tests/visual/__screenshots__/interaction.spec.ts/paths-for-activity-linux.png",
-      "sha256": "5dfbfffad264e0bf1cfcd2a4b179268fa1f6148426f27f686a85425387a92196"
+      "sha256": "f9ca17ad12bd69b0da5d07da2142505a78496d5d62c74333c13357feaa90906a"
     },
     {
       "path": "tests/visual/__screenshots__/interaction.spec.ts/stage-lanes-darwin.png",
-      "sha256": "b93ea9fcd4f14da2d456b2c49074959857053059b6ffc43263ce0bc6a1ba8287"
+      "sha256": "505c97a3c98b798b2d8f76c18a9d04eb2e34aaa7d36d725d562524ee8bfacfed"
     },
     {
       "path": "tests/visual/__screenshots__/interaction.spec.ts/stage-lanes-linux.png",
-      "sha256": "d1a928ba597eb2de0ebd3286454aabb8c3d356e2b97bde55e7ee78fe8aaf3852"
+      "sha256": "047fd073e672c401c3c941864499f0bb897291f7cf1be4c2172289b333f9600b"
     },
     {
       "path": "tests/visual/__screenshots__/p2p.spec.ts/p2p-map-darwin.png",
-      "sha256": "4e1316eac300ec522ce4b7bf1c33bba7d22d3e1d145bd44d2816dff5d6fc2dc1"
+      "sha256": "ff96abf4256cb7072ec2a838a2ee75d72b5b4b25530ab152cc233a75aecf2c0d"
     },
     {
       "path": "tests/visual/__screenshots__/p2p.spec.ts/p2p-map-linux.png",
-      "sha256": "41603a76023e66b4d7056b8bd48fc1b0d62c0aaa4965ec3dfa00586be5607b53"
+      "sha256": "c59ace55fb7f8a3c162240d185afa51df7a3fa665d237f0503f6a70076e28aa3"
     },
     {
       "path": "tests/visual/__screenshots__/p2p.spec.ts/stable-layout-darwin.png",
-      "sha256": "085c9dae875b656e502b887209b95d139fc51e578eb5c74718a37dbc781ce84d"
+      "sha256": "92e245b858c309540cb044f4faaffc8e83ce50fbdad8c58a44f4083c54ed00ad"
     },
     {
       "path": "tests/visual/__screenshots__/p2p.spec.ts/stable-layout-linux.png",
-      "sha256": "50ffd68581899e5c59698fb391f6c1092938a268e1d470d3e3b2da7a4964f1d1"
+      "sha256": "e282b1bf83175cf81df00de178c8600bf9309499b147909731e821c1a3beb773"
     }
   ]
 }
