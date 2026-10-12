@@ -885,8 +885,8 @@ its Changeset (as `minor`) and in the upgrade notes of the release. From
 1.0 on, a change that breaks
 a host comes only in a major version, and a name to be removed is first
 deprecated (marked `@deprecated` and listed under "Deprecated names") for at
-least one minor release. The names this round removed in its minor release
-(see "Removed in the next version") stay removed.
+least one minor release. The names listed under "Removed in the next
+version" stay removed.
 
 ## Changes against the draft
 
