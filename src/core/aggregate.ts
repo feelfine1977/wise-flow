@@ -3,7 +3,7 @@ import { collapsedActivityIds, shownActivityIds } from "./collapsed-members.js";
  * Aggregation: abstraction by frequency or performance with a keep-connected
  * guarantee, stage collapse (semantic zoom) and diff maps.
  */
-import { INDIRECT_TAG, MinHeap, rankActivities, selectByDetail, within } from "./detail.js";
+import { INDIRECT_TAG, MinHeap, isPath, rankActivities, selectByDetail, within } from "./detail.js";
 import type { MetricBasis } from "./metrics.js";
 import { canonicalOverlays } from "./overlays.js";
 import {
@@ -681,7 +681,6 @@ function restoreFlowContext(
 }
 
 const isActivity = (n: FlowNode) => n.kind === "activity" || n.kind === "stage";
-const isPath = (e: FlowEdge) => e.kind !== "constraint" && !hasTag(e, INDIRECT_TAG);
 
 /**
  * Abstract a graph: optionally collapse stage groups, then remove weak activities and

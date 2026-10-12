@@ -17,7 +17,7 @@ import { type MapContext, mapEmphasis, menuHeading } from "../core/map-controlle
 import { markedThemeKey, themeStyle } from "../core/theme.js";
 import { ActivityTooltip } from "./ActivityTooltip.js";
 import { AbstractionControls } from "./AbstractionControls.js";
-import { CanvasMap, type CanvasMapHandle, EdgeNote } from "./CanvasMap.js";
+import { CanvasMap, type CanvasMapHandle, EdgeNote, PathsNotShown } from "./CanvasMap.js";
 import { MenuView } from "./ContextMenu.js";
 import { type MapScreen, useMapController } from "./controller.js";
 import { describeMap } from "./describe.js";
@@ -250,7 +250,7 @@ function ProcessMapInner(props: ProcessMapProps) {
 
   // React Flow nodes and edges, or the Canvas scene, its state and the elements listed for assistive technology.
   const flow = useFlowElements({ enabled: !useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, nodesDraggable, edgeBudget, highlighted });
-  // The Canvas map reports the edges it draws itself; the detail panel says how many paths it withholds.
+  // The Canvas map reports the edges it draws itself, and tells the detail panel how many paths it withholds.
   const mapShown = view !== "table";
   const tellShown = useEdgesShownAcross(props.onEdgesShown, useCanvas, mapShown);
   const [canvasWithheld, setCanvasWithheld] = useState<number | undefined>(undefined);
@@ -258,7 +258,6 @@ function ProcessMapInner(props: ProcessMapProps) {
   const canvasLast = useRef<Parameters<NonNullable<typeof tellShown>>[0]>(undefined);
   const canvasShown = useCallback((s: Parameters<NonNullable<typeof tellShown>>[0]) => {
     canvasLast.current = s;
-    setCanvasWithheld(s && s.total - s.edges.length);
     tellShown?.(s);
   }, [tellShown]);
   useEffect(() => {
@@ -445,8 +444,8 @@ function ProcessMapInner(props: ProcessMapProps) {
   const legendElement = legend ? (
     <Legend scales={scales} legend={scene.legend} locale={locale} onAnnounce={controller.announce} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} locale={locale} />) : undefined} />
   ) : null;
-  // Where the map draws fewer paths than are selected (at a small zoom, by the path budget), the panel says both numbers.
-  const withheldPaths = view === "table" ? 0 : useCanvas ? (canvasWithheld ?? 0) : flow.withheld ? flow.withheld.total - flow.withheld.shown : 0;
+  // Where the map draws fewer paths than are selected (at a small zoom, by the path budget), the panel says both numbers; both count paths only.
+  const withheldPaths = view === "table" ? 0 : useCanvas ? (canvasWithheld ?? 0) : (flow.withheld?.pathsNotShown ?? 0);
   const selectedPaths = shown.meta?.shown?.paths.shown ?? shown.edges.filter((e) => e.kind !== "constraint" && !hasTag(e, INDIRECT_TAG)).length;
   const drawnPaths = withheldPaths > 0 ? { selected: selectedPaths, drawn: Math.max(0, selectedPaths - withheldPaths) } : undefined;
   const controlsElement = controls ? (
@@ -514,28 +513,30 @@ function ProcessMapInner(props: ProcessMapProps) {
         ) : useCanvas ? (
           <>
             <div className="wf-process-map__main">
-              <CanvasMap
-                ref={canvasRef}
-                scene={canvasScene}
-                state={canvas.state}
-                locale={locale}
-                fitKey={fitKey}
-                fitView={fitView}
-                fitInsets={fitInsets}
-                describe={canvas.describe}
-                {...canvasHandlers}
-                onViewportChange={setCanvasViewport}
-                descendants={canvas.descendants}
-                edgeBudget={edgeBudget}
-                onAnnounce={announce}
-                onEdgesShown={canvasShown}
-                theme={look.theme}
-              >
-                {controlsElement ? <div className="wf-overlay-panel wf-overlay-panel--top-left">{controlsElement}</div> : null}
-                {legendElement ? <div className="wf-overlay-panel wf-overlay-panel--bottom-right">{legendElement}</div> : null}
-                {statusElement ? <div className="wf-overlay-panel wf-overlay-panel--top-right">{statusElement}</div> : null}
-                {children}
-              </CanvasMap>
+              <PathsNotShown.Provider value={setCanvasWithheld}>
+                <CanvasMap
+                  ref={canvasRef}
+                  scene={canvasScene}
+                  state={canvas.state}
+                  locale={locale}
+                  fitKey={fitKey}
+                  fitView={fitView}
+                  fitInsets={fitInsets}
+                  describe={canvas.describe}
+                  {...canvasHandlers}
+                  onViewportChange={setCanvasViewport}
+                  descendants={canvas.descendants}
+                  edgeBudget={edgeBudget}
+                  onAnnounce={announce}
+                  onEdgesShown={canvasShown}
+                  theme={look.theme}
+                >
+                  {controlsElement ? <div className="wf-overlay-panel wf-overlay-panel--top-left">{controlsElement}</div> : null}
+                  {legendElement ? <div className="wf-overlay-panel wf-overlay-panel--bottom-right">{legendElement}</div> : null}
+                  {statusElement ? <div className="wf-overlay-panel wf-overlay-panel--top-right">{statusElement}</div> : null}
+                  {children}
+                </CanvasMap>
+              </PathsNotShown.Provider>
             </div>
             {sidePanel}
             {menuElement}

@@ -2850,7 +2850,8 @@ export type EdgeBudget = number | "all";
 export interface EdgeProtection { selection?: { edges: readonly string[] }; focused?: string | null; highlighted?: ReadonlySet<string> }
 export interface EdgeSelection { drawn: Set<number>; shown: number; total: number; kept: number;   // positions in scene.edgeMarks
   loops: readonly string[];      // the paths in view that loop on one activity, counted in shown and total
-  highlightedNotShown: number }  // the highlighted edges in view the budget withholds
+  highlightedNotShown: number;   // the highlighted edges in view the budget withholds
+  pathsNotShown: number }        // the edges in view it withholds that are paths (follows and flow edges, not indirect)
 export interface ShownEdges { edges: readonly string[]; total: number }   // what a map draws, as onEdgesShown reports it
 export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style" | "graph" | "positions">, budget: EdgeBudget | ShownEdges | undefined,
   protection?: EdgeProtection, inView?: readonly number[], loops?: readonly string[]): EdgeSelection | undefined;
@@ -2921,8 +2922,11 @@ edge protected); otherwise the positions in `scene.edgeMarks` of the edges
 drawn, how many paths are shown (`shown`: those edges and the loops), how
 many are in view (`total`: the edges in view and the loops), how many of the
 drawn edges are protected (`kept`), which every budget draws, the ids of
-the loops (`loops`), and how many highlighted edges in view it withholds
-(`highlightedNotShown`; 0 for a map's report). The edges in view are `inView` (positions in
+the loops (`loops`), how many highlighted edges in view it withholds
+(`highlightedNotShown`; 0 for a map's report), and how many of the edges in
+view it withholds are paths (`pathsNotShown`: follows and flow edges, not a
+constraint edge nor an indirect path, as `meta.shown.paths` counts them; also
+for a map's report). The edges in view are `inView` (positions in
 `scene.edgeMarks`), or every edge of the scene without it; the loops in view
 are `loops`, or every edge of the scene from a node with a box to itself
 without it. The order by weight is computed once per scene and
@@ -3262,7 +3266,12 @@ option stays in `AbstractOptions` for hosts.
   region).
 - Further lines, each only where it has something to say: "61 selected · 40
   drawn at this zoom" where the map withholds paths at its zoom or by the
-  path budget (`drawn`); "3 marks not shown", a disclosure whose summary has
+  path budget (`drawn`). Both numbers count paths only, follows edges and
+  self-loops, on the React Flow map and the Canvas map alike
+  (`EdgeSelection.pathsNotShown`): a constraint edge the budget withholds is
+  no path not drawn. Up to 0.3.5 the panel counted it as one (three paths and
+  a constraint edge under a budget of 3 read "3 selected · 2 drawn at this
+  zoom"). "3 marks not shown", a disclosure whose summary has
   the full form as its title and which lists the marks; "2 shown for a
   protected deviation".
 - `counts` is read where no `statement` is given: the value texts say what

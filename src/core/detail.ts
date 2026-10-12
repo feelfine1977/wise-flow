@@ -10,6 +10,9 @@ export const ANCHOR_TAG = "anchor";
 /** Tag of a path that stands for a way through activities not shown; it has no count. */
 export const INDIRECT_TAG = "indirect";
 
+/** A path of the graph, as `meta.shown` counts them: a follows or flow edge (a loop too), not an indirect one. */
+export const isPath = (e: FlowEdge) => e.kind !== "constraint" && !hasTag(e, INDIRECT_TAG);
+
 /** The payload of an indirect path: the activities not shown it passes, in their order on the way. */
 export const indirectWay = (e: FlowEdge): { hiddenActivities: number; via: string[] } | undefined => (hasTag(e, INDIRECT_TAG) ? (e.payload as { hiddenActivities: number; via: string[] }) : undefined);
 

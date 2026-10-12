@@ -190,3 +190,34 @@ describe("the paths drawn of those selected, after the table view", () => {
     expect(shown.at(-1)).toBeUndefined();
   });
 });
+
+describe("the paths drawn of those selected, beside a constraint edge", () => {
+  it.each(["svg", "canvas"] as const)("counts only paths on the %s map, not a constraint edge the budget withholds", async (renderer) => {
+    // Three paths a → b → c → d of falling weight and a constraint edge from a to c, which nothing weighs: it comes last.
+    const nodes: FlowNode[] = ["a", "b", "c", "d"].map((id) => ({ id, kind: "activity", label: id.toUpperCase(), metrics: { cases: 10 } }));
+    const edges: FlowEdge[] = [
+      { id: "a->b", kind: "follows", source: "a", target: "b", metrics: { cases: 9 } },
+      { id: "b->c", kind: "follows", source: "b", target: "c", metrics: { cases: 8 } },
+      { id: "c->d", kind: "follows", source: "c", target: "d", metrics: { cases: 7 } },
+      { id: "a=>c", kind: "constraint", source: "a", target: "c" },
+    ];
+    const boxes = Object.fromEntries(nodes.map((n, i) => [n.id, { x: 200 * i, y: 0, width: 120, height: 48 }]));
+    const positions = createPositions({ nodes: boxes, groups: {}, edges: {} }, "dagre", "RIGHT");
+    if (renderer === "canvas") vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => recorder().ctx as unknown as CanvasRenderingContext2D);
+    const shown: unknown[] = [];
+    const map = (edgeBudget: number) => (
+      <div style={{ width: 1200, height: 800 }}>
+        <ProcessMap graph={{ nodes, edges }} positions={positions} renderer={renderer} edgeBudget={edgeBudget} fitView={false} legend={false} onEdgesShown={(s) => shown.push(s)} />
+      </div>
+    );
+    const { container, rerender } = render(map(2));
+    const note = () => container.querySelector(".wf-controls__note--drawn")?.textContent;
+    // A budget of two withholds the constraint edge and c → d: three paths selected, two drawn.
+    await waitFor(() => expect(shown.at(-1)).toEqual({ edges: ["a->b", "b->c"], total: 4 }));
+    await waitFor(() => expect(note()).toBe("3 selected · 2 drawn at this zoom"));
+    // A budget of three withholds only the constraint edge: every path is drawn, and the panel has no such line.
+    rerender(map(3));
+    await waitFor(() => expect(shown.at(-1)).toEqual({ edges: ["a->b", "b->c", "c->d"], total: 4 }));
+    expect(note()).toBeUndefined();
+  });
+});
