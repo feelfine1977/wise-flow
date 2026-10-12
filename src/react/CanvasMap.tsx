@@ -1,8 +1,8 @@
-import { createContext, forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { type Box, type EdgeBudget, type HitItem, type Insets, type Locale, type ShownEdges, type ThemeSetting, type XY, formatCount, t, themeColors } from "../core/index.js";
 import { CanvasRenderer, type DrawState, type PreparedScene } from "../canvas/index.js";
 import { sceneTokens } from "../canvas/tokens.js";
-import { useEdgesShown } from "./hooks.js";
+import { PathsNotShown, useEdgesShown } from "./hooks.js";
 import { part } from "./parts.js";
 import { ZoomControl, clearOfPanels } from "./primitives.js";
 import { useFlowTheme } from "./theme.js";
@@ -58,9 +58,6 @@ export interface CanvasMapHandle {
   screenBox(id: string): Box | undefined;
   renderer(): CanvasRenderer | null;
 }
-
-/** Told after every draw how many paths in view it withheld (`EdgeSelection.pathsNotShown`), undefined for none: the map that holds a Canvas map counts them for its panel. */
-export const PathsNotShown = createContext<((count: number | undefined) => void) | undefined>(undefined);
 
 const ZOOM_STEP = 1.2;
 const FIT_PADDING = 0.08;

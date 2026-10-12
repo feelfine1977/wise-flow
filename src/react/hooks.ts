@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   type AbstractOptions,
   type Box,
@@ -214,6 +214,9 @@ export function useArrival(positions: Positions | undefined, provisional: boolea
   }, [arrival]); // eslint-disable-line react-hooks/exhaustive-deps
   return { positions: drawn, moving: progress < 1, count: arrival.count };
 }
+
+/** Told after every draw of a Canvas map how many paths in view it withheld (`EdgeSelection.pathsNotShown`), undefined for none: the map that holds it counts them for its panel. */
+export const PathsNotShown = createContext<((count: number | undefined) => void) | undefined>(undefined);
 
 /** Reports the edges a map draws to `onEdgesShown` when they change. */
 export function useEdgesShown(onEdgesShown: ((shown: ShownEdges | undefined) => void) | undefined) {

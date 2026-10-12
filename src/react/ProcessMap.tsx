@@ -17,13 +17,13 @@ import { type MapContext, mapEmphasis, menuHeading } from "../core/map-controlle
 import { markedThemeKey, themeStyle } from "../core/theme.js";
 import { ActivityTooltip } from "./ActivityTooltip.js";
 import { AbstractionControls } from "./AbstractionControls.js";
-import { CanvasMap, type CanvasMapHandle, EdgeNote, PathsNotShown } from "./CanvasMap.js";
+import { CanvasMap, type CanvasMapHandle, EdgeNote } from "./CanvasMap.js";
 import { MenuView } from "./ContextMenu.js";
 import { type MapScreen, useMapController } from "./controller.js";
 import { describeMap } from "./describe.js";
 import { edgeTypes } from "./edges.js";
 import { FilterChips } from "./FilterChips.js";
-import { useArrival, useEdgesShown, useEdgesShownAcross, useFlowGraph, useMapScene, usePrefersReducedMotion, useStableLayout } from "./hooks.js";
+import { PathsNotShown, useArrival, useEdgesShown, useEdgesShownAcross, useFlowGraph, useMapScene, usePrefersReducedMotion, useStableLayout } from "./hooks.js";
 import { Legend } from "./Legend.js";
 import { useMenuActions } from "./map-actions.js";
 import { edgeArrowId, useCanvasElements, useElementDescriptions, useFlowElements, useTextMeasure } from "./map-elements.js";
