@@ -124,7 +124,10 @@ of their ends, and `meta.abstraction.removedEdges` counts them.
 Re-added elements are tagged `reconnected` and drawn dashed. A collapsed
 stage takes the maximum of its activities' `cases` and `share` and weighted
 means of other metrics; the graph holds no case sets, so these are not the
-stage's own numbers. The result keeps the values and marks them in
+stage's own numbers. Thresholds and detail shares compare a stage by an
+upper bound of its cases instead (`meta.collapsedCasesAtMost`: its
+activities' cases summed, at most all cases of the graph), so that no stage
+is removed for a number that may be too low. The result keeps the values and marks them in
 `metricBasis` (`atLeast`, `mean`), and every surface reads them with the
 metric registry: "at least 211,379", "lag, mean of medians". Merged parallel
 paths are marked the same way; summed counts stay exact. The thresholded

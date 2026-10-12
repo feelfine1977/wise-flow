@@ -241,12 +241,18 @@ group's id; counts are summed, `cases` and `share` are maxima, other metrics
 weighted means over the members that carry them (plain means where none has
 a weight; summed in id order, so that no input order changes them), internal
 transitions land in `internalCount` (summed in ascending order). A stage's
-`cases` is therefore a lower bound of the cases that touch it, and
-`minNodeShare` compares a collapsed stage by that bound: a stage of four
-activities with 25 different cases each, which 100 cases touch, reads 25 and
-goes at 50 % beside an activity of 100 cases, with or without
+`cases` is therefore a lower bound of the cases that touch it. A threshold
+does not compare a stage by that bound, which may be too low: the stage
+records an upper bound in `meta.collapsedCasesAtMost` (by stage id), the sum
+of its activities' `cases` (an inner collapsed stage's bound in place of its
+own), at most all cases of the graph (`meta.cases`) and at least its own
+`cases`, and its strength is that bound against the same maximum or total
+as every other activity's (detail shares rank it by the bound too). A
+stage of four activities with 25 cases each, which up to 100 cases touch,
+reads 100 of 100 beside an activity of 100 cases and stays at 50 %; it still
+prints "at least 25". Up to 0.3.5 it read 25 and went, with or without
 `keepConnected`. Its `events` add up, so with `nodeMetric: "events"` the
-stage reads 100 and stays. Edges of one kind between the same two shown
+stage is compared by its summed events. Edges of one kind between the same two shown
 nodes, one of them a collapsed stage, merge into one, named `source->target`,
 or `source->target:kind:n` where that id is taken; merged edges take their
 names in the order of their smallest original id, not of the input. Parallel
@@ -2403,7 +2409,8 @@ Additions only, except the keyboard route for Enter.
 `abstract` and `collapseGroups` preserve response `focus` and `paths` so a focused
 payload cannot be relabeled as another activity's paths. Collapsed stages retain
 original activity IDs in `graph.meta.collapsedMembers`; original edge IDs map to
-displayed edges or containing stages in `graph.meta.collapsedEdgeTargets`. These
+displayed edges or containing stages in `graph.meta.collapsedEdgeTargets`; an
+upper bound of each stage's cases is in `graph.meta.collapsedCasesAtMost`. These
 are JSON-compatible metadata records, not exact case membership sets.
 
 Stage keep/exclude actions use original activities, including nested stages. A

@@ -186,6 +186,7 @@ function canonical(graph: FlowGraph): string {
   const meta = { ...graph.meta } as Record<string, unknown>;
   if (meta.collapsedMembers) meta.collapsedMembers = sortedEntries(meta.collapsedMembers).map(([k, v]) => [k, [...(v as string[])].sort()]);
   if (meta.collapsedEdgeTargets) meta.collapsedEdgeTargets = sortedEntries(meta.collapsedEdgeTargets);
+  if (meta.collapsedCasesAtMost) meta.collapsedCasesAtMost = sortedEntries(meta.collapsedCasesAtMost);
   return JSON.stringify({ ...graph, nodes: [...graph.nodes].sort(byIdOrder).map(tagsSorted), edges: [...graph.edges].sort(byIdOrder).map(tagsSorted), meta });
 }
 

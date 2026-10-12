@@ -262,10 +262,12 @@ describe("detail shares", () => {
   });
 
   it("give the same result whatever the order of the nodes and edges", () => {
-    // What the collapse records of the members and merged paths follows the input order; the selection does not.
+    // What the collapse records of the members and merged paths follows the input order; the selection does not,
+    // nor the stages' upper bounds, but for the order they are listed in.
     const inIdOrder = (g: FlowGraph) => {
-      const { collapsedMembers: _members, collapsedEdgeTargets: _targets, ...meta } = g.meta ?? {};
-      return JSON.stringify({ ...g, nodes: [...g.nodes].sort((a, b) => (a.id < b.id ? -1 : 1)), edges: [...g.edges].sort((a, b) => (a.id < b.id ? -1 : 1)), meta });
+      const { collapsedMembers: _members, collapsedEdgeTargets: _targets, collapsedCasesAtMost: bounds, ...meta } = g.meta ?? {};
+      const sortedBounds = bounds && Object.entries(bounds).sort(([a], [b]) => (a < b ? -1 : 1));
+      return JSON.stringify({ ...g, nodes: [...g.nodes].sort((a, b) => (a.id < b.id ? -1 : 1)), edges: [...g.edges].sort((a, b) => (a.id < b.id ? -1 : 1)), meta, sortedBounds });
     };
     const cases: [FlowGraph, AbstractOptions[]][] = [
       [globalScene, [byShares(0, 0), byShares(0.3, 0.1), byShares(0.7, 0.5)]],

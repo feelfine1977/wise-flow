@@ -87,18 +87,26 @@ function firstMetric(el: { metrics?: Metrics }, candidates: string[]): number | 
 /** Summed in ascending order, which no input order changes. */
 const total = (values: number[]) => values.sort((a, b) => a - b).reduce((sum, v) => sum + v, 0);
 
-/** The relative strength of every element that has one of the metrics, as `strengths` computes it. */
-function measuredStrengths<T extends { id: string; metrics?: Metrics }>(items: T[], candidates: string[], relativeTo: "max" | "total"): Map<string, number> {
+/**
+ * The relative strength of every element that has one of the metrics, as `strengths` computes it. An element
+ * measured by its cases that has an upper bound of them (a collapsed stage) is compared by it, against the same
+ * maximum or total.
+ */
+function measuredStrengths<T extends { id: string; metrics?: Metrics }>(items: T[], candidates: string[], relativeTo: "max" | "total", upper?: Record<string, unknown>): Map<string, number> {
   const values = new Map<string, number>();
+  const bounds = new Map<string, number>();
   let max = 0;
   for (const it of items) {
-    const v = firstMetric(it, candidates);
-    if (v === undefined) continue;
+    const name = candidates.find((c) => Number.isFinite(it.metrics?.[c]));
+    if (name === undefined) continue;
+    const v = it.metrics![name];
+    const bound = name === "cases" ? upper?.[it.id] : undefined;
     values.set(it.id, Math.max(0, v));
     max = Math.max(max, v);
+    if (typeof bound === "number" && bound > v) bounds.set(it.id, bound);
   }
   const denominator = relativeTo === "max" ? max : total([...values.values()]);
-  for (const [id, v] of values) values.set(id, denominator <= 0 ? 1 : v / denominator);
+  for (const [id, v] of values) values.set(id, denominator <= 0 ? 1 : (bounds.get(id) ?? v) / denominator);
   return values;
 }
 
@@ -196,6 +204,8 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
   const rootOf = (groupId: string): string | undefined => chainOf(groupId).filter((g) => collapsedRoots.has(g.id)).pop()?.id;
   const roots = requested.filter((id) => rootOf(id) === id);
   const collapsedMembers = new Map(Object.entries((graph.meta?.collapsedMembers ?? {}) as Record<string, string[]>));
+  const casesAtMost = new Map(Object.entries((graph.meta?.collapsedCasesAtMost ?? {}) as Record<string, number>));
+  const allCases = graph.meta?.cases;
   const nodeTarget = new Map<string, string>();
   const membersOf = new Map<string, FlowNode[]>();
   for (const n of graph.nodes) {
@@ -221,6 +231,12 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
     const members = membersOf.get(root)!;
     collapsedMembers.set(root, [...new Set(members.flatMap((member) => collapsedActivityIds(graph, member.id) ?? (member.kind === "activity" ? [member.id] : [])))]);
     const { metrics, basis } = sumMetrics(members, ["cases", "events"]);
+    // An upper bound of the cases that touch the stage: its members' cases (an inner stage's bound) summed, at most all cases.
+    const cases = members.flatMap((m) => {
+      const v = casesAtMost.get(m.id) ?? m.metrics?.cases;
+      return Number.isFinite(v) ? [Math.max(0, v!)] : [];
+    });
+    if (cases.length) casesAtMost.set(root, Math.max(metrics.cases ?? 0, Math.min(total(cases), Number.isFinite(allCases) ? (allCases as number) : Infinity)));
     nodes.push({
       id: root,
       kind: "stage",
@@ -325,7 +341,7 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
     edges,
     groups: (graph.groups ?? []).filter((g) => !collapsedAll.has(g.id)),
     overlays,
-    meta: { ...(graph.meta ?? {}), collapsed: roots, collapsedMembers: Object.fromEntries(collapsedMembers), collapsedEdgeTargets: Object.fromEntries(collapsedEdgeTargets) },
+    meta: { ...(graph.meta ?? {}), collapsed: roots, collapsedMembers: Object.fromEntries(collapsedMembers), collapsedEdgeTargets: Object.fromEntries(collapsedEdgeTargets), ...(casesAtMost.size && { collapsedCasesAtMost: Object.fromEntries(casesAtMost) }) },
   };
 }
 
@@ -414,10 +430,10 @@ const sideA = (candidates: string[]) => candidates.map((c) => `a_${c}`);
  * comparison the larger of side b's and side a's (`a_<metric>`), each relative to
  * its own side. An element neither side measured has no entry.
  */
-function strengthsOf<T extends { id: string; metrics?: Metrics }>(items: T[], candidates: string[], relativeTo: "max" | "total", comparison: boolean): Map<string, number> {
+function strengthsOf<T extends { id: string; metrics?: Metrics }>(items: T[], candidates: string[], relativeTo: "max" | "total", comparison: boolean, upper?: Record<string, unknown>): Map<string, number> {
   const out = new Map<string, number>();
   for (const side of comparison ? [candidates, sideA(candidates)] : [candidates]) {
-    for (const [id, v] of measuredStrengths(items, side, relativeTo)) out.set(id, Math.max(out.get(id) ?? 0, v));
+    for (const [id, v] of measuredStrengths(items, side, relativeTo, upper)) out.set(id, Math.max(out.get(id) ?? 0, v));
   }
   return out;
 }
@@ -449,7 +465,7 @@ export function thresholded(graph: FlowGraph, options: AbstractOptions = {}): Th
     }
   }
   const scalable = base.nodes.filter((n) => !isStructuralNode(n));
-  const nodeStrength = strengthsOf(scalable, nodeCandidates, relativeTo, comparison);
+  const nodeStrength = strengthsOf(scalable, nodeCandidates, relativeTo, comparison, base.meta?.collapsedCasesAtMost as Record<string, unknown> | undefined);
   const unmeasured = new Set([...base.edges.filter((e) => !edgeRank.has(e.id)), ...scalable.filter((n) => !nodeStrength.has(n.id))].map((el) => el.id));
   const edgeStrength = new Map(base.edges.map((e) => [e.id, Math.min(1, edgeRank.get(e.id) ?? 1)]));
   for (const n of base.nodes) if (!nodeStrength.has(n.id)) nodeStrength.set(n.id, 1);

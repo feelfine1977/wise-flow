@@ -384,8 +384,8 @@ describe("abstract", () => {
     expect(abstract(g, { minNodeShare: 0.5, keepConnected: false }).meta?.abstraction).toMatchObject({ removedEdges: { flow: 1 } });
   });
 
-  it("finding: compares a collapsed stage by the largest of its activities' cases, a lower bound of the cases that touch it", () => {
-    // A stage of four activities with 25 different cases each, which 100 cases touch, and an activity X of 100 cases.
+  it("compares a collapsed stage by an upper bound of the cases that touch it: its activities' cases summed, at most all cases", () => {
+    // A stage of four activities with 25 cases each, which up to 100 cases touch, and an activity X of 100 cases.
     const g: FlowGraph = {
       nodes: [
         ...["p", "q", "r", "t"].map((id): FlowNode => ({ id, kind: "activity", label: id, group: "S", metrics: { cases: 25, events: 25 } })),
@@ -394,11 +394,23 @@ describe("abstract", () => {
       edges: ["p", "q", "r", "t"].map((id): FlowEdge => ({ id: `X${id}`, kind: "follows", source: "X", target: id, metrics: { count: 25, cases: 25 } })),
       groups: [{ id: "S", kind: "stage", label: "Stage" }],
     };
-    expect(collapseGroups(g, "all").nodes.find((n) => n.id === "S")?.metrics).toMatchObject({ cases: 25, events: 100 });
-    // At 50 % the stage reads 25 of 100 and goes, with and without keepConnected; X stays alone.
-    for (const keepConnected of [true, false]) expect(abstract(g, { collapse: "all", minNodeShare: 0.5, keepConnected }).nodes.map((n) => n.id)).toEqual(["X"]);
-    // By its events, which add up, the stage reads 100 of 100 and stays.
-    expect(abstract(g, { collapse: "all", minNodeShare: 0.5, nodeMetric: "events" }).nodes.map((n) => n.id)).toEqual(["S", "X"]);
+    // The stage still prints the largest of its activities' cases, at least 25; the bound is 100.
+    const collapsed = collapseGroups(g, "all");
+    expect(collapsed.nodes.find((n) => n.id === "S")).toMatchObject({ metrics: { cases: 25, events: 100 }, metricBasis: { cases: "atLeast" } });
+    expect(collapsed.meta?.collapsedCasesAtMost).toEqual({ S: 100 });
+    // At 50 % the stage reads 100 of 100 and stays, with and without keepConnected, collapsed in one call or before.
+    for (const keepConnected of [true, false]) {
+      expect(abstract(g, { collapse: "all", minNodeShare: 0.5, keepConnected }).nodes.map((n) => n.id)).toEqual(["S", "X"]);
+      expect(abstract(collapsed, { minNodeShare: 0.5, keepConnected }).nodes.map((n) => n.id)).toEqual(["S", "X"]);
+    }
+    // All cases of the graph bound it too: 90 of them, so the stage reads 90 against X's 100 and goes at 95 %.
+    const ninety = { ...g, meta: { cases: 90 } };
+    expect(collapseGroups(ninety, "all").meta?.collapsedCasesAtMost).toEqual({ S: 90 });
+    expect(abstract(ninety, { collapse: "all", minNodeShare: 0.95 }).nodes.map((n) => n.id)).toEqual(["X"]);
+    expect(abstract(g, { collapse: "all", minNodeShare: 0.95 }).nodes.map((n) => n.id)).toEqual(["S", "X"]);
+    // Collapsed again inside a larger stage, the inner stage counts by its bound: 100 + 100.
+    const nested: FlowGraph = { ...g, nodes: g.nodes.map((n) => (n.id === "X" ? { ...n, group: "T" } : n)), groups: [{ id: "T", kind: "stage", label: "Outer" }, { id: "S", kind: "stage", label: "Stage", parent: "T" }] };
+    expect(collapseGroups(collapseGroups(nested, ["S"]), ["T"]).meta?.collapsedCasesAtMost).toEqual({ S: 100, T: 200 });
   });
 
   it("collapses stage groups into stage nodes with summed counts", () => {
