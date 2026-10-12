@@ -144,18 +144,22 @@ export function routeSequenceFlows(graph: FlowGraph, given: Record<string, Box>,
   const reached = new Uint32Array(size * 4), estimated = new Uint32Array(size), estimates = new Float64Array(size);
   let generation = 0;
   // A search for a goal in another part of the grid than every start went over the grid many times.
-  const seen = new Uint32Array(size), stack = new Int32Array(size);
-  const reaches = (starts: number[], goals: Map<number, unknown>) => {
-    let top = 0;
-    const visit = (id: number) => id < 0 || seen[id] === generation || ((seen[id] = generation), (stack[top++] = id));
-    starts.forEach(visit);
-    while (top) {
-      const id = stack[--top];
-      if (goals.has(id)) return true;
-      for (let d = 0; d < 4; d++) visit(links[id * 4 + d]);
+  // The parts are labelled once: a walk per edge doubled the time of ordinary routing.
+  const part = new Int32Array(size).fill(-1), stack = new Int32Array(size);
+  for (let first = 0; first < size; first++) {
+    if (part[first] >= 0) continue;
+    part[first] = first;
+    for (let top = 0, id = first; ; id = stack[--top]) {
+      for (let d = 0; d < 4; d++) {
+        const next = links[id * 4 + d];
+        if (next < 0 || part[next] >= 0) continue;
+        part[next] = first;
+        stack[top++] = next;
+      }
+      if (!top) break;
     }
-    return false;
-  };
+  }
+  const reaches = (starts: number[], goals: Map<number, unknown>) => starts.some((s) => [...goals.keys()].some((g) => part[g] === part[s]));
   const queue = new Queue();
   const result: Record<string, EdgeRoute> = {};
   // Local connections take the direct tracks first; long returns use the gutters.
