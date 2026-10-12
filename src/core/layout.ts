@@ -1,9 +1,4 @@
-/**
- * Layout: ELK layered and Dagre (each in a Web Worker when its worker URL is
- * given, in-process otherwise), Dagre as fallback, and union layouts for stable
- * positions across compared scenes. A layout runs while somebody waits for it:
- * a worker whose layout nobody waits for any more is terminated.
- */
+/** Layout: ELK and Dagre, in workers or in-process, Dagre as fallback; a layout runs while somebody waits for it. */
 import type { ELK, ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api.js";
 import * as dagreModule from "@dagrejs/dagre";
 import { type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, byId, indexGraph } from "./model.js";
@@ -311,8 +306,7 @@ class LayoutTimeout extends Error {}
 /**
  * `promise`, unless the signal aborts or `ms` pass first: then `stop` ends the
  * run and the result rejects with the abort reason or a timeout. A run without
- * a worker (no `stop`) is timed from its `turn` on, and a result it sent
- * before its timeout could fire (the thread was busy with it) is read first.
+ * a worker is timed from its `turn`, and a result it sent first wins.
  */
 function guard<T>(promise: Promise<T>, ms: number, signal: AbortSignal, stop?: () => void, turn?: Promise<unknown>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -338,7 +332,7 @@ function guard<T>(promise: Promise<T>, ms: number, signal: AbortSignal, stop?: (
   });
 }
 
-/** In-process ELK runs one layout at a time; the next starts once the last has settled, aborted or not. */
+/** In-process ELK runs one layout after another, aborted ones included. */
 let inProcessTurn: Promise<unknown> = Promise.resolve();
 
 interface Prepared {
@@ -462,7 +456,6 @@ async function layoutElk(p: Prepared, o: LayoutOptions, signal: AbortSignal, wor
     const elk = await (work ? work.get().elk() : o.elk ?? (inProcessElk ??= loadBundledCtor().then((Ctor) => new Ctor())));
     signal.throwIfAborted();
     if (work || o.elk) return fromElk(await guard(elk.layout(elkGraph(p, o, part)), ms, signal, work?.stop), p);
-    // In-process: after the runs ahead of it, unless it was aborted while it waited.
     const turn = inProcessTurn;
     const run = turn.then(() => (signal.throwIfAborted(), elk.layout(elkGraph(p, o, part))));
     inProcessTurn = run.catch(() => undefined);
@@ -708,7 +701,7 @@ async function compute(graph: FlowGraph, options: LayoutOptions, signal: AbortSi
     }
     return await layoutDagre(p, options, signal, dagre, engine !== "dagre");
   } catch (err) {
-    // ELK failed and so did the Dagre worker: no engine gives a layout, as when the fallback may not run here.
+    // ELK and then the Dagre worker failed.
     throw dagre && engine !== "dagre" && !signal.aborted ? new LayoutUnavailableError(`Neither ELK nor the Dagre worker laid out the graph: ${(err as Error).message}`) : err;
   } finally {
     dagre?.done();

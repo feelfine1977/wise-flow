@@ -1,10 +1,4 @@
-/**
- * The edge budget: how many of the edges in view a map draws, resolved here
- * so that every renderer draws the same ones. The order is protected edges
- * first, then the weight (the metric the edge width reads, `count` by
- * default) descending, then the id; a budget of n draws the first n of it,
- * and every protected edge even beyond n.
- */
+/** The edge budget: which of the edges in view a map draws (protected first, then by weight, then id), for every renderer. */
 import type { EdgeMark } from "./element-marks.js";
 import { metric } from "./model.js";
 import type { FlowScene } from "./scene.js";
@@ -61,7 +55,6 @@ function orderOf(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style">) {
 
 type BudgetScene = Pick<FlowScene, "edgeMarks" | "marks" | "style" | "graph" | "positions">;
 
-// Per scene: the edges from a placed node to itself, by node.
 const loopsByNode = new WeakMap<readonly EdgeMark[], Map<string, string[]>>();
 
 /** The paths that loop on one activity, by activity: edges from a placed node to itself. */
@@ -74,10 +67,7 @@ export function selfLoopsOf(scene: Pick<BudgetScene, "edgeMarks" | "graph" | "po
   return loops;
 }
 
-/**
- * The edges a budget draws of those in view (all when omitted), or those a map reported; undefined when it
- * withholds none. The paths that loop on one activity in view (`loops`, all when omitted) count in both numbers.
- */
+/** The edges a budget draws of those in view (all when omitted), or those a map reported; undefined when it withholds none. The loops in view count too. */
 export function budgetEdges(scene: BudgetScene, budget: EdgeBudget | ShownEdges | undefined, protection: EdgeProtection = {}, inView?: readonly number[], loops?: readonly string[]): EdgeSelection | undefined {
   const total = inView ? inView.length : scene.edgeMarks.length;
   // No value withholds nothing, also null where a host keeps "no value" so.
@@ -126,9 +116,8 @@ export interface FrameCounts {
 /**
  * The adaptive budget. It times the frames of gestures with `clock` (ms) and,
  * as the last gesture ends, moves one step: down after RUN frames in a row
- * above the target that drew more than the step below would (half the budget,
- * or the protected edges where they are more), up after RUN below half of it
- * (a step doubles the edges) that withheld edges.
+ * above the target that drew more than the step below would, up after RUN
+ * below half of it (a step doubles the edges) that withheld edges.
  */
 export function edgeBudgetAdapter(clock: () => number) {
   let budget = FIRST_STEP;

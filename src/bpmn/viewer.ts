@@ -1,9 +1,4 @@
-/**
- * The viewer seam: what `<BpmnView/>` needs from a BPMN diagram viewer, and
- * how the elements it reports become FlowGraph ids. bpmn-js satisfies it
- * through `connectBpmnJs`; tests use an in-memory viewer with the same
- * interface.
- */
+/** The viewer seam: what `<BpmnView/>` needs of a diagram viewer, met by bpmn-js and, in tests, an in-memory viewer. */
 import type { Box } from "../core/index.js";
 import type { IdResolver } from "./ids.js";
 import { type ModdleElement, isType } from "./moddle.js";

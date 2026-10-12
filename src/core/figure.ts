@@ -1,8 +1,4 @@
-/**
- * The legend and the figure frame, described once: which rows the legend
- * lists and how tall they are, and where the title, the map, the legend and
- * the activity key sit in an exported figure.
- */
+/** The legend's rows and the exported figure's frame, described once. */
 import { type ActivityLabelOptions, activityKeyLines } from "./activity-labels.js";
 import { estimateTextWidth } from "./element-marks.js";
 import { type Locale, formatCount } from "./format.js";

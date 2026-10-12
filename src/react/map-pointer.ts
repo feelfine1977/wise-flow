@@ -1,9 +1,4 @@
-/**
- * Pointer input of both map renderers as the controller's events. React Flow
- * names nodes, groups (as compound nodes) and edges; the Canvas map hits
- * scene items and overlay shapes. Both end up as the same `click`,
- * `clickOverlay`, `openMenu`, `dismissMenu` and `hover` events.
- */
+/** Pointer input of both map renderers as the controller's events. */
 import type { EdgeMouseHandler, NodeMouseHandler } from "@xyflow/react";
 import type { ElementRef, FlowGraph, HitItem, Overlay, OverlayShape, XY } from "../core/index.js";
 import type { MapEvent } from "../core/map-controller.js";

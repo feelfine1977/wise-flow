@@ -1,9 +1,4 @@
-/**
- * Filter clauses of the workbench contract (`{"and": [clause, …]}`) as typed
- * data, their canonical form, plain-word descriptions for chips, and the
- * clauses that map actions produce. The map never filters data itself: it
- * renders the chips and calls back with the changed filter.
- */
+/** Filter clauses of the workbench contract as typed data: canonical form, descriptions, and the clauses map actions make. */
 import { type Locale, formatCount, formatNumber } from "./format.js";
 import { COLLAPSED_TAG } from "./aggregate.js";
 import { collapsedActivityIds } from "./collapsed-members.js";

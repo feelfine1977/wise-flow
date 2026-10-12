@@ -1,8 +1,4 @@
-/**
- * Named views of one map: the same graph and positions under several metric
- * and overlay sets (for example Finance, Logistics, Compliance, Automation),
- * with colour and width scales shared across the views so that they compare.
- */
+/** Named views of one map: metric and overlay sets on the same graph and positions, with shared scales. */
 import { type AbstractOptions, abstract } from "./aggregate.js";
 import { type LayoutOptions, type Positions, filterPositions, layout } from "./layout.js";
 import { type FlowGraph, type Metrics, type Overlay, metric } from "./model.js";

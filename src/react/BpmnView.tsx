@@ -72,8 +72,7 @@ const MARK_IDS: MarkIds = { arrow: "wf-bpmn-arrow", pattern: "wf-bpmn-outofscope
 
 const NO_GRAPH: FlowGraph = { nodes: [], edges: [] };
 
-// The table names mapped tasks by activity id; the controller and the selections that leave the view, by FlowGraph id,
-// so that a new mapping or the import changes no selection the controller has announced.
+// The table names mapped tasks by activity id; the controller and the view's reports, by FlowGraph id.
 const toTable = (s: BpmnSelection, renaming?: ActivityRenaming): Selection => ({ nodes: s.tasks.map((id) => renaming?.toMapped(id) ?? id), edges: s.flows, groups: s.lanes });
 // A host's selection may name tasks by activity id.
 const toFlow = (s: BpmnSelection, resolver: IdResolver): Selection => ({ nodes: s.tasks.map((id) => resolver.flowIdsOfActivity(id)[0] ?? id), edges: s.flows, groups: s.lanes });

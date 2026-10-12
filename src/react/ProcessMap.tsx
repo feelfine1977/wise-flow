@@ -137,7 +137,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   const reducedMotion = usePrefersReducedMotion();
   const target = needsOwnLayout ? own.positions : givenPositions;
   const arrival = useArrival(target, provisional, reducedMotion);
-  // Without a refined layout the provisional arrangement stays, and the map says so; given positions say so when final.
+  // Without a refined layout the provisional arrangement stays (also given, when final), and the map says so.
   const unavailable = needsOwnLayout ? own.error instanceof LayoutUnavailableError : !!givenPositions?.final;
   const arranging = (provisional && !unavailable) || arrival.moving;
   const notice = arranging ? t(locale, "map.arranging") : unavailable ? t(locale, "map.layoutUnavailable") : undefined;

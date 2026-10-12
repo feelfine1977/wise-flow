@@ -1,10 +1,4 @@
-/**
- * Ids of the BPMN bridge in one place. A BPMN element has a BPMN id (its XML
- * id) and a FlowGraph id (`wise:flowId` when the FlowGraph id is not an XML id,
- * the XML id otherwise); a task can be mapped to activity ids. The resolver
- * converts between the three and states which ids name an element: its BPMN
- * id, its FlowGraph id and every activity id mapped to either of them.
- */
+/** Ids of the BPMN bridge: BPMN, FlowGraph and activity ids, and which of them name an element. */
 import type { MappingRow } from "./import.js";
 import { type ModdleElement, flowIdOf } from "./moddle.js";
 

@@ -1,9 +1,4 @@
-/**
- * Incoming and outgoing paths of an activity, the path between two
- * activities, and the sets a renderer highlights for a focus. The numbers
- * come from the response's `paths` block when the API was asked with
- * `focus`, and from the graph's own follows edges otherwise.
- */
+/** Paths of an activity, the path between two activities, and the sets a renderer highlights for a focus. */
 import { type FlowEdge, type FlowGraph, type FlowPath, type FlowPaths, type GraphIndex, byId, hasTag, indexGraph, metric } from "./model.js";
 import { RECONNECTED_TAG } from "./aggregate.js";
 

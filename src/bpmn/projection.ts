@@ -1,9 +1,4 @@
-/**
- * The overlay projection of the BPMN view: where the scene's overlay marks go
- * on a diagram, from the marks and the boxes of the rendered elements. Marks
- * with a path run between elements and go into an SVG layer; boxes become
- * overlays on the element they name, at the offset of their box.
- */
+/** Where the scene's overlay marks go on a BPMN diagram: paths into an SVG layer, boxes as overlays on their element. */
 import type { OverlayMark } from "../core/index.js";
 import type { RegistryElement } from "./scene.js";
 

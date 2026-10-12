@@ -1,9 +1,4 @@
-/**
- * BPMN 2.0 XML export of a BPMN-lite graph with diagram interchange (DI) from
- * a layout, so that the file opens in bpmn-js and Camunda Modeler. FlowGraph
- * ids, kinds, tags and metrics travel in the `wise` extension so that an
- * export → import round trip is lossless.
- */
+/** BPMN 2.0 XML export of a BPMN-lite graph with diagram interchange; the `wise` extension makes the round trip lossless. */
 import { type Box, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Positions, createPositions, edgePoints, hasTag } from "../core/index.js";
 import { finitePositions } from "../core/layout.js";
 import { type BpmnLayoutOptions, POOL_ID, layoutBpmn } from "./layout.js";

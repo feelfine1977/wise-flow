@@ -1,11 +1,4 @@
-/**
- * Map controller: the interaction state of a map (selection, the focus of
- * paths, abstraction, view, the element the keyboard is on, hover, the
- * actions menu) and the transitions a click, a key, a hover or a focus makes.
- * A transition returns the next state, the sentence for the live region and
- * the intents the host carries out (callbacks, bringing an element into view,
- * placing the menu on screen). No DOM and no React.
- */
+/** Map controller: a map's interaction state and the transitions events make, with the live region's sentence and the host's intents. */
 import { type MenuAction, type MenuTarget, defaultActions, menuTargetFor, menuTitle } from "./actions.js";
 import { type AbstractOptions } from "./aggregate.js";
 import { describeEdge } from "./describe.js";

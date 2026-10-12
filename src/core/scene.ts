@@ -1,10 +1,4 @@
-/**
- * The scene every renderer reads: a graph with its positions resolved once
- * into activity references, lane bands, scales, the overlays to show in their
- * canonical order, level-of-detail rules, overlay geometry and the marks
- * that say what every node, edge and overlay looks like, and what the legend
- * lists.
- */
+/** The scene every renderer reads: a graph with its positions resolved once into marks, overlays, scales and the legend. */
 import { type ActivityLabelOptions, activityReferences } from "./activity-labels.js";
 import { type EdgeMark, type NodeMark, edgeMarks, estimateTextWidth, nodeMarks } from "./element-marks.js";
 import { type SceneLegend, sceneLegend } from "./figure.js";
@@ -86,10 +80,7 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
   return sceneOf(graph, givenPositions, options);
 }
 
-/**
- * `buildScene`; with `own` the overlays are placed on the positions of the graph's own elements, as on the
- * map, which is given no others: an export's positions may hold more (another scene's), and keep their frame.
- */
+/** `buildScene`; `own` places the overlays on the graph's own positions, as on the map (an export's may hold more). */
 export function sceneOf(graph: FlowGraph, givenPositions: Positions, options: FlowSceneOptions, own?: boolean): FlowScene {
   const locale = options.locale ?? "en";
   const style = options.style ?? defaultStyle;
