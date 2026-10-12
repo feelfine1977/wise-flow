@@ -12,7 +12,8 @@ import {
   type OnNodesChange,
 } from "@xyflow/react";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { type AbstractOptions, type ElementRef, type FlowGraph, type Insets, type Positions, type XY, INDIRECT_TAG, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, defaultStyle, detailNotes, detailStatement, dimensionTokens, fitViewport, formatCount, hasTag, lodAt, spaceTokens, strokeTokens, t, themeColors } from "../core/index.js";
+import { type AbstractOptions, type ElementRef, type FlowGraph, type Insets, type Positions, type XY, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, defaultStyle, detailNotes, detailStatement, dimensionTokens, fitViewport, formatCount, lodAt, spaceTokens, strokeTokens, t, themeColors } from "../core/index.js";
+import { isPath } from "../core/detail.js";
 import { type MapContext, mapEmphasis, menuHeading } from "../core/map-controller.js";
 import { markedThemeKey, themeStyle } from "../core/theme.js";
 import { ActivityTooltip } from "./ActivityTooltip.js";
@@ -446,7 +447,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   ) : null;
   // Where the map draws fewer paths than are selected (at a small zoom, by the path budget), the panel says both numbers; both count paths only.
   const withheldPaths = view === "table" ? 0 : useCanvas ? (canvasWithheld ?? 0) : (flow.withheld?.pathsNotShown ?? 0);
-  const selectedPaths = shown.meta?.shown?.paths.shown ?? shown.edges.filter((e) => e.kind !== "constraint" && !hasTag(e, INDIRECT_TAG)).length;
+  const selectedPaths = shown.meta?.shown?.paths.shown ?? shown.edges.filter(isPath).length;
   const drawnPaths = withheldPaths > 0 ? { selected: selectedPaths, drawn: Math.max(0, selectedPaths - withheldPaths) } : undefined;
   const controlsElement = controls ? (
     <AbstractionControls
