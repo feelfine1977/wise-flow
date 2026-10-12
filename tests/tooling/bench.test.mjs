@@ -48,7 +48,7 @@ test('measures every case the benchmark promises, in both modes', () => {
   const promised = [
     'prepare.100k', 'prepare.100k.self-loops', 'prepare.500k', 'prepare.500k.self-loops', 'prepare.1m', 'prepare.1m.self-loops',
     'simplify.50k.default', 'simplify.50k.unconnected', 'simplify.100k.default', 'simplify.100k.unconnected',
-    'draw.sparse-100k', 'draw.hub-50k.adaptive', 'draw.hub-50k.all', 'draw.fit-all-50k',
+    'draw.sparse-100k', 'draw.hub-50k.adaptive', 'draw.hub-50k.all', 'draw.hub-50k.highlighted', 'draw.hub-5k.adaptive', 'draw.hub-5k.highlighted', 'draw.fit-all-50k',
     'map-ready.1000', 'map-ready.5000', 'map-ready.10000', 'map-ready.20000',
     'first-scene.sparse-100', 'first-scene.dense-100', 'first-scene.sparse-500', 'first-scene.dense-500',
     'refined-layout.sparse-100', 'refined-layout.dense-100', 'refined-layout.sparse-500', 'refined-layout.dense-500',
@@ -65,6 +65,7 @@ test('measures every case the benchmark promises, in both modes', () => {
   assert.deepEqual(spec('prepare.1m.self-loops'), { kind: 'prepare', flows: 1_000_000, selfLoops: true });
   assert.deepEqual(spec('simplify.100k.unconnected'), { kind: 'simplify', activities: 100_000, options: { keepConnected: false } });
   assert.deepEqual(spec('draw.hub-50k.all'), { kind: 'draw', scene: 'hub', size: 50_000, budget: 'all' });
+  assert.deepEqual(spec('draw.hub-5k.highlighted'), { kind: 'draw', scene: 'hub', size: 5_000, budget: 'adaptive', highlighted: true });
   assert.deepEqual(spec('map-ready.20000'), { kind: 'ready', activities: 20_000 });
   assert.deepEqual(spec('refined-layout.dense-500'), { kind: 'firstScene', shape: 'dense', activities: 500 });
 });

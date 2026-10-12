@@ -1700,6 +1700,18 @@ edge of the order while the protected edges fit in the budget (the note's
 numbers stay) and beyond it otherwise (the note counts one more), and it is
 withheld again once the keyboard moves on.
 
+Protected edges have no cap, and overlay marks and edge labels are not
+budgeted at all. When more protected edges are in view than the budget, all of
+them are drawn and the note counts them (25 highlighted of 30 under a budget
+of 10: "Showing 25 of 30 flows"); when every edge in view is protected,
+nothing is withheld and no note is shown. A focus on the paths of a hub
+therefore draws every path of it, whatever the budget: measured in headless
+Chromium on a loaded sandbox (the renderer's draw time per frame in motion,
+median of 30), a hub of 2,501 activities and 5,000 paths took 44 ms with every
+path highlighted against 9.3 ms under the default budget (2,000 drawn), and a
+hub of 25,001 activities and 50,000 paths 316 ms against 124 ms (500 drawn;
+there the activities dominate the frame).
+
 `budgetEdges` returns undefined when the budget is `"all"`, undefined, null or
 not a number (`NaN`), or when it withholds nothing (no more edges in view than the budget, or every
 edge protected); otherwise the positions in `scene.edgeMarks` of the edges
@@ -1709,6 +1721,12 @@ of the scene without it. The order by weight is computed once per scene and
 kept with its `edgeMarks` while they live, together with the metric and the
 overlay marks it was read from: a scene object that shares the edge marks but
 has other `marks` or another `style` is ordered and protected by its own.
+Computing it ranks every edge of the scene, not only those in view, so the
+first call that withholds edges (on the Canvas map, the first frame with more
+edges in view than the budget) costs more than the ones after it, which read
+only the edges in view. Measured in Node 24 on a shared sandbox with 5,000
+edges in view, median of 5: 23 ms for a scene of 50,000 edges, 87 ms for
+200,000 and 471 ms for 1,001,000; every later call took 1.4 ms or less.
 
 `<ProcessMap edgeBudget/>` applies it in both renderers (default
 `"adaptive"`, below). The React Flow map has every edge of the

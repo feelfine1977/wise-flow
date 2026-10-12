@@ -174,8 +174,9 @@ scene preparation of 100,000 to 1,000,000 flows with and without self-loops,
 simplification of the cyclic family at 50,000 and 100,000 activities (default
 options, `keepConnected: false`, and thresholds 0.3/0.2), the Canvas draw per
 frame of a moving view (a sparse 100,000-activity scene, a hub with 50,000 flows
-in view with the default budget and with `"all"`, a fit-all view of 50,000
-activities), the React map's readiness with supplied positions for 1,000 to
+in view with the default budget, with `"all"` and with every flow highlighted,
+the same hub with 5,000 flows with the default budget and with every flow
+highlighted, a fit-all view of 50,000 activities), the React map's readiness with supplied positions for 1,000 to
 20,000 activities, the first scene and the refined layout of a map without
 positions (sparse and dense, 100 and 500 activities), the time from aborting a
 layout to its terminated worker, and the scene memory retained per activity
