@@ -2700,7 +2700,9 @@ the hit index and the culling follow them too):
   direction runs against it. It leaves its source from the side away from the
   flow (below it for a flow to the right or the left, right of it for a flow
   down or up), runs as its own line 20 below the lowest node and group of the
-  stretch it returns over (groups drawn as bands are not in its way) and
+  graph on the stretch it returns over (groups drawn as bands are not in its
+  way, nor the positions given for nodes and groups the graph does not have,
+  as an export's of a larger graph may hold; up to 0.3.5 they were) and
   enters its target from that side, so that its head points against the flow.
   Several over one stretch lie 6 apart besides their half widths, shorter
   ones nearer the flow; the ends of several on one node are spread along its

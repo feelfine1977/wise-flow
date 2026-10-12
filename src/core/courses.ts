@@ -93,7 +93,8 @@ function simplified(points: XY[]): XY[] {
  *   reading direction (`positions.direction`) runs against it. It leaves its
  *   source from the side away from the flow (below, for a flow to the right or
  *   the left; right of it, for a flow down or up), runs below every node and
- *   group between its two ends (groups drawn as `bands` are not in its way)
+ *   group of the graph between its two ends (groups drawn as `bands`, and
+ *   positions given for elements the graph does not have, are not in its way)
  *   and enters its target from that side, so its head points against the flow
  *   and never along a group's frame. Backward paths over the same stretch lie
  *   one below the other, shorter ones nearer the flow; the ends of several on
@@ -127,8 +128,10 @@ export function pathCourses(graph: FlowGraph, positions: Positions, options: { w
 
   const edges = { ...positions.edges };
   const labels = new Map<string, CourseLabel>();
-  const nodeSpans = Object.entries(nodes).map(([id, b]) => ({ id, ...span(b) }));
-  const obstacles = [...nodeSpans, ...Object.entries(positions.groups).filter(([id]) => !options.bands?.has(id)).map(([id, b]) => ({ id, ...span(b) }))];
+  // The graph's own nodes and groups: positions given for elements it does not have are no obstacle.
+  const nodeSpans = graph.nodes.flatMap((n) => (nodes[n.id] ? [{ id: n.id, ...span(nodes[n.id]) }] : []));
+  const groupSpans = (graph.groups ?? []).flatMap((g) => (positions.groups[g.id] && !options.bands?.has(g.id) ? [{ id: g.id, ...span(positions.groups[g.id]) }] : []));
+  const obstacles = [...nodeSpans, ...groupSpans];
 
   // Backward paths: their stretch along the flow, then their line's depth, shorter ones first and so nearer the flow.
   const lines = backward

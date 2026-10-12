@@ -100,6 +100,27 @@ describe("a path against the reading direction", () => {
     expect(crossed(back.points, groups)).toEqual(["s1"]);
   });
 
+  it("runs below the graph's own activities only, not below positions given for nodes and groups the graph does not have", () => {
+    // B returns to A; the positions also hold a node and a group of a larger graph, far below the stretch it returns over.
+    const activity = (id: string) => ({ id, kind: "activity" as const, label: id.toUpperCase(), metrics: { cases: 10 } });
+    const graph: FlowGraph = {
+      nodes: [activity("a"), activity("b")],
+      edges: [
+        { id: "a->b", kind: "follows", source: "a", target: "b", metrics: { cases: 10 } },
+        { id: "b->a", kind: "follows", source: "b", target: "a", metrics: { cases: 3 } },
+      ],
+    };
+    const box = (x: number, y: number) => ({ x, y, width: 100, height: 40 });
+    const positions = createPositions({ nodes: { a: box(0, 0), b: box(200, 0), gone: box(100, 200) }, groups: { old: { x: 80, y: 300, width: 140, height: 100 } }, edges: {} }, "given", "RIGHT");
+    // From B's bottom middle (250, 40) 20 below the two activities (40) besides its half width, √(3 / 10) × 8 / 2 = 2.19,
+    // to A's bottom middle (50, 40); neither the node at 200 to 240 nor the group at 300 to 400 holds it down.
+    const course = [{ x: 250, y: 40 }, { x: 250, y: 62.19 }, { x: 50, y: 62.19 }, { x: 50, y: 40 }];
+    expect(buildScene(graph, positions, { selfLoops: false }).edgeMarks.find((m) => m.id === "b->a")!.points).toEqual(course);
+    // The exports place the graph on its own positions as well.
+    const d = /<g class="wf-edge" data-id="b-&gt;a"><path d="([^"]+)"/.exec(toSVG({ graph, positions, selfLoops: false }))?.[1];
+    expect(d?.split(/[ML]/).filter(Boolean).slice(0, 3)).toEqual(["250 40", "250 62.19", "50 62.19"]);
+  });
+
   it("is drawn so by the SVG export too, with its own head", () => {
     const svg = toSVG({ graph: backAcrossStages, positions: laid, selfLoops: false });
     const d = /<g class="wf-edge" data-id="check-&gt;create"><path d="([^"]+)"[^>]*marker-end="url\(#wf-arrow(-\d+)?\)"/.exec(svg)?.[1];
