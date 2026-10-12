@@ -115,9 +115,9 @@ export function useOverlays(
   return useMemo(() => (items ? overlaysFor(items, options) : []), [items, options?.graph, options?.locale, options?.outOfScopeMinShare]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
-export type MapSceneOptions = Pick<FlowSceneOptions, "overlays" | "style" | "locale" | "lanes" | "activityLabels" | "selfLoops" | "lod">;
+type MapSceneOptions = Pick<FlowSceneOptions, "overlays" | "style" | "locale" | "lanes" | "activityLabels" | "selfLoops" | "lod">;
 
-export interface MapScene {
+interface MapScene {
   /** Built on empty positions while none are known. */
   scene: FlowScene;
   positions: Positions | undefined;
@@ -161,7 +161,7 @@ export function usePrefersReducedMotion(): boolean {
 /** Milliseconds a layout takes to move into the place of a provisional arrangement. */
 const ARRIVAL_MS = 300;
 
-export interface Arrival {
+interface Arrival {
   /** The positions to draw; on the way from the provisional arrangement to the layout while `moving`. */
   positions: Positions | undefined;
   moving: boolean;

@@ -54,7 +54,7 @@ export function useElementDescriptions(shown: FlowGraph, overlays: Overlay[], lo
   return { describeElement, index, overlaysByTarget, groupIndex, memberCount };
 }
 
-export type ElementDescriptions = ReturnType<typeof useElementDescriptions>;
+type ElementDescriptions = ReturnType<typeof useElementDescriptions>;
 
 interface FlowInput {
   /** React Flow draws the map; otherwise nothing is built. */

@@ -8,7 +8,7 @@ import type { OverlayMark } from "../core/index.js";
 import type { RegistryElement } from "./scene.js";
 
 /** A mark drawn as an overlay that follows its element. */
-export interface BoxPlacement {
+interface BoxPlacement {
   mark: OverlayMark;
   /** Registry id of the element the overlay is attached to. */
   element: string;
@@ -25,7 +25,7 @@ export interface BoxPlacement {
 }
 
 /** A mark drawn in the SVG layer of the diagram. */
-export interface PathPlacement {
+interface PathPlacement {
   mark: OverlayMark;
   /** Zoom from which the path is shown. */
   minZoom: number;
@@ -33,7 +33,7 @@ export interface PathPlacement {
   selects: string[];
 }
 
-export interface Projection {
+interface Projection {
   boxes: BoxPlacement[];
   paths: PathPlacement[];
 }

@@ -17,9 +17,9 @@ import { type Focus, focusHighlight } from "./paths.js";
 import { type ElementRef, type Selection, describeSelection, emptySelection, isSelected, relatedToSelection, selectElement, selectionEquals } from "./selection.js";
 import { type StringKey, t } from "./strings.js";
 
-export type MapView = "map" | "table";
+type MapView = "map" | "table";
 
-export interface MapMenu {
+interface MapMenu {
   /** The element the menu was opened on. */
   element: ElementRef;
   target: MenuTarget;
@@ -76,7 +76,7 @@ export type MapEvent =
   | { type: "collapse"; group: string; collapsed: boolean }
   | { type: "setView"; view: MapView };
 
-export type MapIntent =
+type MapIntent =
   | { kind: "select"; selection: Selection }
   | { kind: "focus"; focus: Focus | undefined }
   | { kind: "hover"; id: string | null }
@@ -147,7 +147,7 @@ export function clickSelection(selection: Selection, element: ElementRef, multi 
   return selectElement(selection, element, multi ? "toggle" : "replace");
 }
 
-export interface MapEmphasis {
+interface MapEmphasis {
   /** The focus of paths in effect: the map's, else the pair of activities or stages a selection of two names. */
   focus: Focus | undefined;
   /** Every element of the focus is on the graph, so its paths are shown. */
@@ -273,7 +273,7 @@ export function firstEntry(actions: readonly MenuAction[]): number {
 }
 
 /** What a key does in a menu whose keyboard is on entry `active`. */
-export interface MenuKey {
+interface MenuKey {
   /** The entry the keyboard is on afterwards. */
   active: number;
   /** The entry the key chose. */

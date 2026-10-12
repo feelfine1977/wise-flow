@@ -62,7 +62,7 @@ export function ContextMenu({ actions, onAction, onClose, returnFocusTo, ...view
   return <MenuView {...view} actions={actions} active={active} onKeyDown={onKeyDown} onPoint={setActive} onChoose={choose} onClose={close} />;
 }
 
-export interface MenuViewProps extends Omit<ContextMenuProps, "onAction" | "returnFocusTo"> {
+interface MenuViewProps extends Omit<ContextMenuProps, "onAction" | "returnFocusTo"> {
   /** Index of the entry the keyboard is on; it has the input focus. */
   active: number;
   onKeyDown?: (event: React.KeyboardEvent) => void;

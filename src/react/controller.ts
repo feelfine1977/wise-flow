@@ -28,7 +28,7 @@ export interface DispatchedStep extends MapStep {
   waiting: boolean;
 }
 
-export interface MapController {
+interface MapController {
   /** The interaction state, with the values the host controls. */
   state: MapState;
   /** Text of the live region. */

@@ -12,7 +12,7 @@ import type { WfEdge, WfGroupNode, WfNode } from "./types.js";
 export const GROUP_PREFIX = "group:";
 
 /** What the pointer is on: an element, an overlay (with the element it is drawn for), or nothing. */
-export type PointerTarget = { element?: ElementRef; overlay?: Overlay } | null;
+type PointerTarget = { element?: ElementRef; overlay?: Overlay } | null;
 
 interface Modifiers {
   shiftKey: boolean;
@@ -21,18 +21,18 @@ interface Modifiers {
 }
 
 /** A click: on an overlay it selects what the overlay is about, elsewhere it is a click on the element or beside them. */
-export function pointerClick(target: PointerTarget, mod: Modifiers): MapEvent {
+function pointerClick(target: PointerTarget, mod: Modifiers): MapEvent {
   if (target?.overlay) return { type: "clickOverlay", overlay: target.overlay };
   return { type: "click", element: target?.element ?? null, multi: mod.shiftKey || mod.metaKey || mod.ctrlKey };
 }
 
 /** A right click opens the menu of the element (an overlay's: the element it is drawn for) or closes an open one. */
-export function pointerMenu(target: PointerTarget, at: XY): MapEvent {
+function pointerMenu(target: PointerTarget, at: XY): MapEvent {
   return target?.element ? { type: "openMenu", element: target.element, at } : { type: "dismissMenu" };
 }
 
 /** The element of a React Flow node id. */
-export function flowElement(id: string): ElementRef {
+function flowElement(id: string): ElementRef {
   return id.startsWith(GROUP_PREFIX) ? { kind: "group", id: id.slice(GROUP_PREFIX.length) } : { kind: "node", id };
 }
 
@@ -43,7 +43,7 @@ function elementOf(graph: FlowGraph, id: string): ElementRef | undefined {
 }
 
 /** What a Canvas hit is on; an overlay's shape is looked up in the scene. */
-export function canvasTarget(hit: HitItem | undefined, shapes: ReadonlyMap<string, OverlayShape> | undefined, graph: FlowGraph): PointerTarget {
+function canvasTarget(hit: HitItem | undefined, shapes: ReadonlyMap<string, OverlayShape> | undefined, graph: FlowGraph): PointerTarget {
   if (!hit) return null;
   if (hit.kind !== "overlay") return { element: { kind: hit.kind, id: hit.id } };
   const shape = shapes?.get(hit.shapeId ?? "");
@@ -52,7 +52,7 @@ export function canvasTarget(hit: HitItem | undefined, shapes: ReadonlyMap<strin
 }
 
 /** The hovered id of a Canvas hit: an overlay's shape, or the element. */
-export const canvasHoverId = (hit: HitItem | null): string | null => (hit ? (hit.kind === "overlay" ? (hit.shapeId ?? hit.id) : hit.id) : null);
+const canvasHoverId = (hit: HitItem | null): string | null => (hit ? (hit.kind === "overlay" ? (hit.shapeId ?? hit.id) : hit.id) : null);
 
 type Send = (event: MapEvent) => unknown;
 
