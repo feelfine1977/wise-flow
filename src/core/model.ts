@@ -415,7 +415,7 @@ export function validateGraph(graph: FlowGraph): GraphIssue[] {
   return issues;
 }
 
-/** Warnings for parallel gateways without a partner (docs/API.md); rejects nothing. */
+/** Warnings for parallel gateways without a partner (docs/API.md); rejects nothing and looks at no other node. */
 export function validateGateways(graph: FlowGraph): GraphIssue[] {
   const idx = indexGraph({ nodes: graph.nodes, edges: graph.edges.filter((e) => e.kind !== "constraint" && !hasTag(e, "message") && !hasTag(e, "association")) });
   const outs = (id: string) => idx.outgoing.get(id) ?? [];

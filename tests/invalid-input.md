@@ -279,7 +279,7 @@ Test: `tests/core/malformed-input.test.ts` › "the BPMN bridge's synchronous fu
 | Function | Entry | Documented for invalid input | Observed |
 | --- | --- | --- | --- |
 | `liteFromStages` | `./bpmn` | Role lanes get the lane of a gateway's role (documented). | Returns, or plain `Error` "liteFromStages: duplicate id …" (tested, not documented). |
-| `liteFromGraph` | `./bpmn` | Every node on a path from start to end; edges between the same nodes get ids apart (after 0.3.5). | Returns; a graph validation accepts stays acceptable. |
+| `liteFromGraph` | `./bpmn` | Every node on a path from start to end; edges between the same nodes other than constraints are one flow with summed counts and cases (after 0.3.5). | Returns; a graph validation accepts stays acceptable. |
 | `stageModelFromGraph` | `./bpmn` | Not documented. | Returns. |
 | `liteCounts` | `./bpmn` | Not documented. | Returns. |
 | `gatewayLabel` | `./bpmn` | Not documented. | Returns. |
@@ -318,7 +318,7 @@ Test: `tests/core/malformed-bpmn.test.ts` › "lays out, exports, imports and va
 | Function | Entry | Documented for invalid input | Observed |
 | --- | --- | --- | --- |
 | `layoutBpmn` | `./bpmn` | Unroutable geometry raises a descriptive error; groups on a cycle of parents are laid out with lane bands or `ignore` (after 0.3.5); with `compound` the engine rejects them (finding 4). | Returns, or the documented plain `Error`, or the engines' errors on a graph validation rejects (not documented). |
-| `exportBpmn` | `./bpmn` | Elements without a position are listed in `warnings`; every element gets its own id and shape; non-finite boxes are left out; rejects with `InvalidGraphError` on a reserved id (all after 0.3.5). | Returns XML without `NaN`, `Infinity` or a repeated id. |
+| `exportBpmn` | `./bpmn` | Elements without a position are listed in `warnings`; every element gets its own id and shape; non-finite boxes are left out; rejects with `InvalidGraphError` on a reserved id (all after 0.3.5); characters XML 1.0 does not allow are dropped from the text with a warning, tab and carriage return are written as references (after 0.3.5). | Returns XML without `NaN`, `Infinity`, a repeated id or a character XML 1.0 does not allow (`tests/core/bpmn-xml-text.test.ts`, read by a second parser). |
 | `importBpmn` | `./bpmn` | Rejects only text that is not BPMN definitions, with the parser's plain `Error` (`unparsable content …`, `failed to parse document …`); everything else imports with `warnings`, including every `validateGraph` issue. | As documented. |
 | `validateBpmn` | `./bpmn` | Reads nesting deeper than the call stack (after 0.3.5); otherwise not documented for text that is not BPMN. | Returns, or the parser's plain `Error` (not documented). |
 | `positionsFromDi` | `./bpmn` | Shapes and routes that are not finite are left out and reported. | As documented. |
@@ -333,7 +333,7 @@ Test: `tests/react/MalformedMap.test.tsx` › "renders every case in each render
 
 | Function | Entry | Documented for invalid input | Observed |
 | --- | --- | --- | --- |
-| `ProcessMap` | `./react` | Given positions are used as long as they cover the graph (finite boxes after 0.3.5); `describedLimit`, `pageSize`, `edgeBudget` and thresholds are not documented for junk values. | Renders; nothing logged but React's key warnings for ids missing or repeated (findings). No coordinate that is not finite is drawn for accepted input and sound props; the Canvas map draws with finite numbers. |
+| `ProcessMap` | `./react` | Given positions are used as long as they cover the graph (finite boxes after 0.3.5); a `describedLimit` below one is one (after 0.3.5); `pageSize`, `edgeBudget`, thresholds and a `describedLimit` that is not a number are not documented for junk values. | Renders; nothing logged but React's key warnings for ids missing or repeated (findings). No coordinate that is not finite is drawn for accepted input and sound props; the Canvas map draws with finite numbers. |
 
 ## React: the view switcher
 

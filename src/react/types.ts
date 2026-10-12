@@ -167,7 +167,7 @@ export interface ProcessMapProps {
    * Activities plus groups above which the Canvas map lists for assistive
    * technology only the element at the keyboard position and its neighbours
    * (predecessors, successors, group), and the table view shows its rows in
-   * pages with a search field. Default 500.
+   * pages with a search field. Default 500; a limit below one is one.
    */
   describedLimit?: number;
   /**

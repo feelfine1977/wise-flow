@@ -162,19 +162,73 @@ describe("liteFromGraph", () => {
 });
 
 describe("liteFromGraph of edges between the same nodes", () => {
-  it("names the flows of two edges between the same activities apart", () => {
-    // A follows edge and a flow between a and b, and a second successor c, so that a gets a split and b a join.
+  const activity = (id: string): FlowNode => ({ id, kind: "activity", label: id.toUpperCase(), metrics: { cases: 5 } });
+
+  it("merges them into one flow with their counts and cases summed, named by the smallest id", () => {
+    // Two follows edges and a flow between a and b, and a second successor c, so that a gets a split.
     const graph: FlowGraph = {
-      nodes: ["a", "b", "c"].map((id) => ({ id, kind: "activity" as const, label: id.toUpperCase(), metrics: { cases: 5 } })),
+      nodes: ["a", "b", "c"].map(activity),
       edges: [
-        { id: "a->b", kind: "follows", source: "a", target: "b", metrics: { count: 2 } },
+        { id: "a->b", kind: "follows", source: "a", target: "b", metrics: { count: 2, cases: 2 } },
         { id: "f1", kind: "flow", source: "a", target: "b" },
+        { id: "a->b again", kind: "follows", source: "a", target: "b", metrics: { count: 3, cases: 1 } },
         { id: "a->c", kind: "follows", source: "a", target: "c", metrics: { count: 1 } },
       ],
     };
     const lite = liteFromGraph(graph);
     expect(validateGraph(lite)).toEqual([]);
-    expect(lite.edges.filter((e) => e.source === "gw_split_a").map((e) => e.id)).toEqual(["gw_split_a->gw_join_b", "gw_split_a->gw_join_b:1", "gw_split_a->c"]);
+    // One flow from the split to b, which has one predecessor and so no join.
+    expect(lite.nodes.some((n) => n.id === "gw_join_b")).toBe(false);
+    const fromSplit = lite.edges.filter((e) => e.source === "gw_split_a");
+    expect(fromSplit.map((e) => e.id)).toEqual(["gw_split_a->b", "gw_split_a->c"]);
+    expect(fromSplit[0]).toMatchObject({ target: "b", kind: "flow", metrics: { count: 5, cases: 3 }, payload: { origin: "a->b" } });
+    // The split carries all that leaves a: 2 + 3 + 1.
+    expect(lite.edges.find((e) => e.id === "a->gw_split_a")?.metrics).toEqual({ count: 6, cases: 3 });
+  });
+
+  it("merges them where no gateway takes the place of an end, whatever the order of the edges", () => {
+    const graph: FlowGraph = {
+      nodes: ["a", "b"].map(activity),
+      edges: [
+        { id: "x", kind: "follows", source: "a", target: "b", metrics: { count: 4 } },
+        { id: "f", kind: "flow", source: "a", target: "b" },
+      ],
+    };
+    for (const edges of [graph.edges, [...graph.edges].reverse()]) {
+      const lite = liteFromGraph({ ...graph, edges });
+      expect(validateGraph(lite)).toEqual([]);
+      expect(lite.nodes.map((n) => n.id)).toEqual([START_ID, "a", "b", END_ID]);
+      expect(lite.edges.filter((e) => e.source === "a")).toEqual([{ id: "f", kind: "flow", source: "a", target: "b", metrics: { count: 4 }, payload: { origin: "f" } }]);
+    }
+  });
+
+  it("gives a flow another id where an edge of the input has the one it would take", () => {
+    // The path from a to b leaves through a's split; an unrelated edge already has its id.
+    const graph: FlowGraph = {
+      nodes: ["a", "b", "c", "d", "e"].map(activity),
+      edges: [
+        { id: "a->b", kind: "follows", source: "a", target: "b" },
+        { id: "a->c", kind: "follows", source: "a", target: "c" },
+        { id: "gw_split_a->b", kind: "follows", source: "d", target: "e" },
+      ],
+    };
+    const lite = liteFromGraph(graph);
+    expect(validateGraph(lite)).toEqual([]);
+    expect(lite.edges.filter((e) => e.source === "gw_split_a").map((e) => e.id)).toEqual(["gw_split_a->b:1", "gw_split_a->c"]);
+  });
+
+  it("marks a task with the summed count of its self-loops", () => {
+    const graph: FlowGraph = {
+      nodes: ["a"].map(activity),
+      edges: [
+        { id: "a->a", kind: "follows", source: "a", target: "a", metrics: { count: 2 } },
+        { id: "a->a 2", kind: "follows", source: "a", target: "a", metrics: { count: 3 } },
+      ],
+    };
+    expect(liteFromGraph(graph).nodes.find((n) => n.id === "a")?.metrics).toEqual({ cases: 5, loopCount: 5 });
+    // As a flow, the loop leaves through a's split and returns through its join, once.
+    const flows = liteFromGraph(graph, { selfLoops: "flow" }).edges.filter((e) => (e.payload as { origin?: string } | undefined)?.origin !== undefined);
+    expect(flows).toEqual([{ id: "gw_split_a->gw_join_a", kind: "flow", source: "gw_split_a", target: "gw_join_a", metrics: { count: 5 }, payload: { origin: "a->a" } }]);
   });
 });
 
@@ -257,13 +311,17 @@ describe("liteFromGraph parallel gateways", () => {
     expect(validateGateways(and)).toEqual([]);
   });
 
-  it("keeps a split exclusive when it leads to one branch twice", () => {
-    // With self-loops as flows, b b counts as following itself, so b, b and c look concurrent.
+  it("reads a split that leads to one branch on two paths as leading to it once", () => {
+    // The two paths from a to b are one flow, so the branches are b and c, not b, b and c; with
+    // self-loops as flows, b repeats inside its branch through a split and a join of its own.
     const g = graph("a b c d", "a>b a>c b>c c>b b>d c>d b>b");
-    g.edges.push({ id: "a->b again", kind: "follows", source: "a", target: "b", metrics: { count: 1 } });
     const and = liteFromGraph(g, { andGateways: true, selfLoops: "flow" });
-    expect(and.nodes.filter((n) => hasTag(n, "and"))).toEqual([]);
-    expect(validateGateways(and)).toEqual([]);
+    g.edges.push({ id: "a->b again", kind: "follows", source: "a", target: "b", metrics: { count: 1 } });
+    const twice = liteFromGraph(g, { andGateways: true, selfLoops: "flow" });
+    expect(twice.nodes.filter((n) => hasTag(n, "and")).map((n) => n.id)).toEqual(["gw_split_a", "gw_join_d"]);
+    expect(shape(twice)).toEqual(shape(and));
+    expect(validateGateways(twice)).toEqual([]);
+    expect(playTokens(twice)).toMatchObject({ complete: true, completes: true, stuck: [], unsafe: [], trapped: [], dead: [] });
   });
 
   it("keeps a split exclusive when the branches lead to a gateway of the input, which gets no join", () => {

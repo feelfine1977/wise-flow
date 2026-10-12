@@ -4,6 +4,7 @@ import { constraintItems, globalScene, vendorScene, vendorSceneKey } from "../..
 import { type FlowEdge, type FlowGraph, type FlowNode, type Locale, type Overlay, type Positions, abstract, activityReferences, buildScene, createPositions, overlaysFor } from "../../src/index";
 import { describeEdge, describeGroup, describeNode } from "../../src/react/index";
 import { useCanvasElements, useElementDescriptions, useFlowElements } from "../../src/react/map-elements";
+import { GROUP_PREFIX } from "../../src/react/map-pointer";
 
 // Count the indexes the map's descriptions build; the core's own modules import it from `model.js`.
 vi.mock("../../src/core/index.js", async (importOriginal) => {
@@ -110,6 +111,40 @@ describe("element descriptions", () => {
     expect(indexGraph).toHaveBeenCalledTimes(2);
   });
 
+  it("count the activities inside a group at any depth", () => {
+    // A pool of two lanes with 5 and 7 activities, none of them directly in the pool; a stage of
+    // 2 activities and a nested stage of 3; an activity outside every group.
+    const activities = (n: number, group: string) => Array.from({ length: n }, (_, i): FlowNode => ({ id: `${group}-${i}`, kind: "activity", label: `${group} ${i}`, group }));
+    const graph: FlowGraph = {
+      nodes: [...activities(5, "sales"), ...activities(7, "billing"), ...activities(2, "outer"), ...activities(3, "inner"), { id: "free", kind: "activity", label: "Free" }],
+      edges: [],
+      groups: [
+        { id: "pool", kind: "pool", label: "Pool" },
+        { id: "sales", kind: "lane", label: "Sales", parent: "pool" },
+        { id: "billing", kind: "lane", label: "Billing", parent: "pool" },
+        { id: "outer", kind: "stage", label: "Outer" },
+        { id: "inner", kind: "stage", label: "Inner", parent: "outer" },
+      ],
+    };
+    const positions = createPositions({ nodes: Object.fromEntries(graph.nodes.map((n, i) => [n.id, { x: i * 200, y: 0, width: 150, height: 60 }])), groups: {}, edges: {} }, "dagre", "RIGHT");
+    const scene = buildScene(graph, positions);
+    const groupBoxes = { ...positions, groups: Object.fromEntries(graph.groups!.map((g, i) => [g.id, { x: 0, y: i * 100, width: 4000, height: 90 }])) };
+    for (const [locale, texts] of [
+      ["en", ["Pool, pool. 12 activities.", "Sales, lane. 5 activities.", "Billing, lane. 7 activities.", "Outer, stage. 5 activities.", "Inner, stage. 3 activities."]],
+      ["de", ["Pool, Pool. 12 Aktivitäten.", "Sales, Bahn. 5 Aktivitäten.", "Billing, Bahn. 7 Aktivitäten.", "Outer, Phase. 5 Aktivitäten.", "Inner, Phase. 3 Aktivitäten."]],
+    ] as const) {
+      const { result } = renderHook(() => {
+        const descriptions = useElementDescriptions(graph, [], locale, undefined);
+        const common = { scene, graph, positions: groupBoxes, selection: { nodes: [], edges: [], groups: [] }, hovered: null, focused: null, bright: undefined, locale, activityLabels: undefined };
+        return { descriptions, flow: useFlowElements({ ...common, enabled: true, descriptions, nodesDraggable: false }) };
+      });
+      const { descriptions, flow } = result.current;
+      expect(graph.groups!.map((g) => descriptions.describeElement({ kind: "group", id: g.id }))).toEqual(texts);
+      // The React Flow map names its group nodes alike.
+      expect(graph.groups!.map((g) => flow.nodes.find((n) => n.id === GROUP_PREFIX + g.id)?.ariaLabel)).toEqual(texts);
+    }
+  });
+
   it("name an element it does not know by its id", () => {
     const { result } = renderHook(() => useElementDescriptions(chain(3).graph, [], "en", undefined));
     for (const kind of ["node", "edge", "group"] as const) expect(result.current.describeElement({ kind, id: "missing" })).toBe("missing");
@@ -149,8 +184,14 @@ describe("element descriptions of the fixtures", () => {
             expect(describeElement({ kind: "node", id: n.id })).toBe(describeNode(n, on(n.id), locale, label(n.group), n.kind === "activity" ? labels : undefined));
           }
           for (const e of graph.edges) expect(describeElement({ kind: "edge", id: e.id })).toBe(describeEdge(e, graph, locale));
+          // A node is inside a group when the group is its own or above it, through the parents.
+          const above = (n: FlowNode) => {
+            const out: string[] = [];
+            for (let id = n.group; id !== undefined && !out.includes(id); id = graph.groups?.find((g) => g.id === id)?.parent) out.push(id);
+            return out;
+          };
           for (const g of graph.groups ?? []) {
-            const members = graph.nodes.filter((n) => n.group === g.id).length;
+            const members = graph.nodes.filter((n) => above(n).includes(g.id)).length;
             expect(describeElement({ kind: "group", id: g.id })).toBe(describeGroup(g, members, on(g.id), locale));
           }
         });

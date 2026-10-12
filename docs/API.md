@@ -125,8 +125,14 @@ returns a warning for a parallel split without a partner and for a
 parallel join that is the partner of no parallel split; flows are the edges
 other than constraints, messages and associations. Nothing is rejected: an
 imported model loads as before, and a host decides what to do with the
-warnings. A sound model whose parallel branches are not nested as blocks is
-reported too.
+warnings. The check looks at parallel gateways only. It does not report a
+node other than a gateway with several outgoing flows and no gateway (BPMN
+takes them all, as a parallel split), a loop without an exit, or a node that
+no flow reaches; the models `liteFromGraph` and `liteFromStages` generate
+never have these, while a file from another tool can. It is cautious the
+other way: a sound model whose parallel branches are not nested as blocks (a
+three-way split with one branch ending on its own, two splits feeding one
+join, blocks that cross) completes every case but is reported too.
 
 `GraphIndex` answers the group hierarchy. `ancestors` returns the groups
 enclosing an element, innermost first: for a node its group and upwards, for
@@ -141,9 +147,11 @@ members. `label` is the node's label, else the group's, else the id.
 keeps its nested activities bright (`relatedToSelection`), a group focus
 stands for them (`focusMembers`, `neighbourhood`, `focusHighlight`), "filter
 to" a stage covers them (`clauseForTarget`), stage bands span them
-(`laneBands`) and `collapseGroups` folds them into the outermost collapsed
-stage. For a group without nested groups this is the same as its direct
-members.
+(`laneBands`), `collapseGroups` folds them into the outermost collapsed
+stage, and the map's description of a group counts them: a pool whose
+activities sit in its lanes reads "Pool, pool. 12 activities." (up to 0.3.5
+it counted direct members only, "0 activities"). For a group without nested
+groups this is the same as its direct members.
 
 Metric names the defaults read: nodes `cases`, `events`, `share`,
 `violationShare`; follows edges `count`, `cases`, `share`, `violationShare`,
@@ -1407,7 +1415,7 @@ export function ProcessMap(props: {
   lanes?: LaneMode; contextMenu?: boolean;
   onContextMenu?: (target: MenuTarget, actions: MenuAction[]) => MenuAction[] | false | void;
   onAction?: (action: MenuAction, target: MenuTarget) => void | string; announce?: string;
-  describedLimit?: number;   // default 500 activities plus groups
+  describedLimit?: number;   // default 500 activities plus groups; below 1 read as 1
   edgeBudget?: EdgeBudget | "adaptive";   // default "adaptive"; see "Edge budget"
   onEdgesShown?: (shown: ShownEdges | undefined) => void;   // the edges drawn while some are withheld, for toSVG and toPNG
 }): JSX.Element;
@@ -1494,12 +1502,14 @@ described.
 and gets its own layout; thresholds filter positions, so sliding the
 controls never moves the surviving elements. Given `positions` are used
 as long as they cover the graph. Follows self-loops become self-loop
-overlays. Keyboard: arrow keys move focus between activities, Alt with an
-arrow key along the paths, Space selects, Enter opens the actions menu
+overlays. Keyboard: arrow keys move focus between the elements with a box
+(activities, events, gateways, notes and stage nodes), Alt with an arrow key
+along the paths, Space selects, Enter opens the actions menu
 (selects when `contextMenu` is false), Shift with an arrow key extends the
-selection, Escape clears, Home and End jump. In the table view the keys are
-the table's (its rows, search field and pages); only Escape from a row
-clears the selection there, as on the map. `aria-activedescendant`
+selection, Escape clears, Home and End jump to the first and the last
+element with a box, left to right and top to bottom. In the table view the
+keys are the table's (its rows, search field and pages); only Escape from a
+row clears the selection there, as on the map. `aria-activedescendant`
 points at the focused node or path while it is on the map, and at nothing
 in the table view, which renders neither; when it leaves the map (a stage
 expanded, a threshold raised, a host filter), the attribute goes and the
@@ -1517,13 +1527,15 @@ plus groups) the list holds at most that many elements: the element the
 keyboard is on (before the first key, the selected activity or the one Home
 goes to), the ends of a path, their group, and their predecessors and
 successors. Every keyboard move re-centres it, so the keys reach every
-activity along the paths. The live region and the map's description then
+element along the paths. The live region and the map's description then
 say how many activities and paths there are and that the table view lists
 all of them. Above the same limit the table view shows 100 rows per page with
 a search field (`TableAlternative` with `pageSize`), whichever renderer draws
 the map: a React Flow map above the limit gets the paged table too, while its
 own elements stay in the DOM as before. At or below the limit nothing
-changes.
+changes. A limit below one is read as one, so that the list always holds the
+element the keyboard is on (up to 0.3.5 a limit of 0 or less left the list
+empty while `aria-activedescendant` named the keyboard position).
 New strings `map.described.bounded`, `table.search`, `table.rows`,
 `table.previous` and `table.next` in English and German.
 
@@ -1845,6 +1857,17 @@ up to 0.3.5. In a browser the limit of 500 nodes plus flows stays (pass
 `fallbackLimit` given is kept everywhere. Up to this change such a model
 ended in `LayoutUnavailableError` in Node too.
 
+Text in `exportBpmn`: the file is XML 1.0 that any conforming parser reads.
+A character XML 1.0 does not allow (U+0000 to U+001F other than tab, line
+feed and carriage return, U+FFFE, U+FFFF, an unpaired surrogate) is dropped
+from every text the export writes, and `warnings` names each label (`label
+of <id>: …`) and each id kept in `wise:flowId` (`id <id>: …`) that lost one.
+Tab and carriage return are written as `&#9;` and `&#13;`, as a line feed is
+as `&#10;`, so that a parser keeps them in names and texts alike, and the
+library's import reads them back unchanged. Up to 0.3.5 they were written
+as they were: other XML tools rejected a file with such a character, and a
+conforming parser read a tab or a carriage return as a space or a line feed.
+
 Gateways of `liteFromGraph`: a node with several successors gets an XOR
 split `gw_split_<id>`, a node with several predecessors an XOR join
 `gw_join_<id>`. With `andGateways`, parallel gateways are emitted only as a
@@ -1859,10 +1882,14 @@ flows. Every split or join without such a partner is XOR, so a generated
 model has no parallel join that waits for a branch an exclusive split did
 not take, and no parallel split whose branches an exclusive merge lets
 through twice; `validateGateways` reports nothing on it. Without
-`andGateways` every gateway is XOR, as before. Two edges between the same two
-nodes (a follows edge and a flow, say) become two flows; where a gateway
-takes the place of an end, the second keeps the id the first takes with
-`:1` after it (`:2` for a third). Up to 0.3.5 both took one id.
+`andGateways` every gateway is XOR, as before. Edges between the same two
+nodes other than constraints (two follows edges, or a follows edge and a
+flow) become one flow, with the id, tags and payload of the edge with the
+smallest id and their counts and cases summed; self-loops between one node
+likewise become one loop marker with their counts summed. Up to 0.3.5 they
+became several flows with one id, so the graph failed `validateGraph` and
+its BPMN export wrote one id twice. A flow whose id another edge of the input
+already has gets `:1` after it (`:2` next).
 
 Lanes of `liteFromStages` with `lanes: "role"`: a lane per role, in the
 order the activities first use them; the split and join of a choice,

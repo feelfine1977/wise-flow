@@ -98,9 +98,9 @@ describe("validateGateways", () => {
     }
   });
 
-  it("finding: reports sound models whose parallel branches are not nested as blocks", () => {
+  it("reports sound models whose parallel branches are not nested as blocks, as documented", () => {
     // Each model completes every case without a stuck or unsafe state; the check,
-    // which looks for blocks, reports them as documented.
+    // which looks for blocks, reports them: cautious, and cheap next to a search of the states.
     const sound = [
       // The third branch of a three-way split ends on its own.
       "start>and1 and1>a and1>b and1>c a>and2 b>and2 c>end2 and2>end",
@@ -116,9 +116,10 @@ describe("validateGateways", () => {
     }
   });
 
-  it("finding: does not look at wrong models without a wrong parallel gateway", () => {
+  it("does not look at wrong models without a wrong parallel gateway, as documented", () => {
     // The token game finds each of these wrong; the check, which looks at the pairing of
-    // parallel gateways only, reports none of them.
+    // parallel gateways only, reports none of them. Generated models never have them
+    // (bpmn-soundness-search.test.ts); a file from another tool can.
     const cases: [string, keyof Pick<ReturnType<typeof playTokens>, "unsafe" | "trapped" | "dead">][] = [
       // a has two outgoing flows and no gateway: BPMN takes both, and the merge passes twice.
       ["start>a a>b a>c b>xor1 c>xor1 xor1>end", "unsafe"],

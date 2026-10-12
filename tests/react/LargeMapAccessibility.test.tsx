@@ -127,6 +127,31 @@ describe("the hidden element list of a large Canvas map", () => {
     expect(ids().slice(0, 4)).toEqual([`edge:${edge.id}`, "node:n0", `node:${edge.target}`, "group:s0"]);
   });
 
+  it("reads a limit below one as one, so that the element the keyboard is on is listed", () => {
+    const { graph, positions } = seeded(60, { seed: 3 });
+    const edge = graph.edges.find((e) => e.source === "n0")!;
+    for (const limit of [0, -1, 0.5, -Infinity]) {
+      const m = mountMap(graph, positions, { describedLimit: limit });
+      const ids = () => m.listed().map((el) => `${el.getAttribute("data-kind")}:${el.getAttribute("data-id")}`);
+      // Before any key: the activity Home goes to, alone.
+      expect(ids(), `limit ${limit}`).toEqual(["node:n0"]);
+      act(() => m.map.focus());
+      m.key("Home");
+      expect(m.at(), `limit ${limit}`).toEqual({ id: "n0", kind: "node" });
+      m.key("ArrowRight", { altKey: true });
+      expect(m.at(), `limit ${limit}`).toEqual({ id: edge.id, kind: "edge" });
+      expect(ids(), `limit ${limit}`).toEqual([`edge:${edge.id}`]);
+      cleanup();
+      // A map of one activity is within a limit of one: its whole list, and a table without pages.
+      const one = seeded(1);
+      const single = mountMap({ ...one.graph, groups: [] }, one.positions, { describedLimit: limit, controls: true });
+      expect(single.listed().map((el) => el.getAttribute("data-id")), `limit ${limit}`).toEqual(["n0"]);
+      fireEvent.click(single.getByRole("button", { name: "Table view" }));
+      expect(single.container.querySelector("input[type=search]"), `limit ${limit}`).toBeNull();
+      cleanup();
+    }
+  });
+
   it("lets the keyboard reach every activity of a connected graph along its paths", () => {
     const limit = 12;
     const { graph, positions } = seeded(90, { extra: 30, seed: 5 });

@@ -43,11 +43,15 @@ export function useElementDescriptions(shown: FlowGraph, overlays: Overlay[], lo
   }, [overlays]);
   const index = useMemo(() => indexGraph(shown), [shown]);
   const groupIndex = index.groups;
+  // The nodes inside each group at any depth.
   const memberCount = useMemo(() => {
     const m = new Map<string, number>();
-    for (const n of shown.nodes) if (n.group) m.set(n.group, (m.get(n.group) ?? 0) + 1);
+    for (const n of shown.nodes) {
+      const group = n.group === undefined ? undefined : groupIndex.get(n.group);
+      if (group) for (const g of [group, ...index.ancestors(group.id, "group")]) m.set(g.id, (m.get(g.id) ?? 0) + 1);
+    }
     return m;
-  }, [shown]);
+  }, [shown, index, groupIndex]);
   const describeOwn = useCallback(
     (ref: ElementRef): string => {
       if (ref.kind === "node") {

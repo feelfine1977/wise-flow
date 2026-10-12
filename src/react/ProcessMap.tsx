@@ -279,8 +279,10 @@ function ProcessMapInner(props: ProcessMapProps) {
   const laidBy = useRef(new WeakMap<object, Positions | undefined>()).current;
   laidBy.set(flow.nodes, laidPositions);
   const flowBehind = useStore((s) => view !== "table" && !useCanvas && laidBy.get(s.nodes) !== laidPositions);
-  const canvas = useCanvasElements({ enabled: useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, highlighted, limit: describedLimit });
-  const largeTable = shown.nodes.length + (shown.groups?.length ?? 0) > describedLimit;
+  // A limit below one is one: the element the keyboard is on is always listed.
+  const limit = Math.max(1, describedLimit);
+  const canvas = useCanvasElements({ enabled: useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, highlighted, limit });
+  const largeTable = shown.nodes.length + (shown.groups?.length ?? 0) > limit;
   // A bounded element list says so, with the totals the table view lists.
   const bounded = canvas.bounded ? t(locale, "map.described.bounded", { nodes: formatCount(shown.nodes.length, locale), edges: formatCount(shown.edges.length, locale) }) : undefined;
   const { announce } = controller;
