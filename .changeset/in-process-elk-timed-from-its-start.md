@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 In-process ELK (no `elkWorkerUrl`, no `elk`) runs one layout at a time and

@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 Exports can show what the map shows. `<ProcessMap/>` and `<CanvasMap/>`

@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 `validateGraph` reports a cycle of group parents as an error: every group

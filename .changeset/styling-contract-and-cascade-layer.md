@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 The interactive map and its panels have a styling contract. Every part carries
@@ -8,12 +8,12 @@ The interactive map and its panels have a styling contract. Every part carries
 `reconnected`); `docs/styling-contract.json` lists them and `docs/API.md`
 ("Styling contract") describes them. The existing classes stay.
 
-`@wise/flow/style.css` now puts React Flow's base styles and the library's
+`wise-flow/style.css` now puts React Flow's base styles and the library's
 rules into the cascade layer `wf`, so that any unlayered host rule wins. Load it
 without React Flow's stylesheet. A page with an unlayered reset (Tailwind 3's
 preflight) loses the library's borders under it: such a page loads the new
-`@wise/flow/style.unlayered.css`, the rules as `style.css` held them before,
-after `@wise/flow/react-flow.css` and the reset.
+`wise-flow/style.unlayered.css`, the rules as `style.css` held them before,
+after `wise-flow/react-flow.css` and the reset.
 
 Paints that were inline styles moved where a host rule can override them: the
 stroke colour, width, dash and dimmed opacity of a path come from the custom

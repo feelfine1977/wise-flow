@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 Where every path a map shows has the same count, the legend's path width row

@@ -39,7 +39,7 @@ function cell(text) {
 export function markdown(run, reference) {
   const { meta } = run;
   const lines = [];
-  lines.push('# @wise/flow benchmark', '');
+  lines.push('# wise-flow benchmark', '');
   lines.push(`- Commit: \`${meta.commit}\`${meta.dirty ? ' with uncommitted changes' : ''}, ${meta.date}`);
   lines.push(`- Mode: ${meta.mode}; ${meta.trials} trials after ${meta.warmup} warm-up${meta.warmup === 1 ? '' : 's'} per measurement${meta.framesPerGesture ? ` (a Canvas trial is a gesture of ${meta.framesPerGesture} frames, each frame a sample)` : ''}`);
   lines.push(`- Machine: ${meta.machine.cpu}, ${meta.machine.cores} cores, ${meta.machine.memoryGB} GB, ${meta.machine.platform} ${meta.machine.release} ${meta.machine.arch}; load average ${meta.machine.loadBefore.join(' / ')} before and ${meta.machine.loadAfter.join(' / ')} after`);

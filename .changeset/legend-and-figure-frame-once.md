@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 The legend and the figure frame are described once. The scene carries the

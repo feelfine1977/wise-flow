@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 A culled Canvas draw reads an element whose drawing reaches into the view by

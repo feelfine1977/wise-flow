@@ -1,10 +1,10 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 One set of controls, and a dark scheme with values of its own.
 
-- **One zoom control** (new, `@wise/flow/react`): `ZoomControl` and
+- **One zoom control** (new, `wise-flow/react`): `ZoomControl` and
   `ZoomControlProps`: zoom in, zoom out, the current zoom and fit, as icon
   buttons with accessible names in a group named "Zoom". The DOM map, the
   Canvas map and the BPMN view draw it. The React Flow map no longer renders
@@ -12,7 +12,7 @@ One set of controls, and a dark scheme with values of its own.
   `data-wf-part="controls"` is on the new control. The Canvas map's group was
   named "Fit the map" and is now "Zoom"; the BPMN view's text pills are icon
   buttons with the same names ("Readable size" a fifth one).
-- **Fit inside insets** (new, `@wise/flow`): `fitViewport`, `panelInsets`
+- **Fit inside insets** (new, `wise-flow`): `fitViewport`, `panelInsets`
   and the types `Insets`, `FitView`, `FitOptions`. `CanvasRenderer.fit` takes
   insets after its padding, `CanvasMapHandle.fit` and `BpmnViewHandle.fit`
   take insets, and `<ProcessMap/>` and `<CanvasMap/>` take `fitInsets`. By

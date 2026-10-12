@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 Disposing a layout scope (`createLayoutScope().dispose()`) stops waiting for

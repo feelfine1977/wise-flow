@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 The time mode `events_inside` (`TimeMode`) is deprecated; it is removed in the

@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 /**
  * Host stylesheets against the styling contract, in the Storybook build, which
- * loads the stylesheets as `@wise/flow/style.css` ships them (in the cascade
+ * loads the stylesheets as `wise-flow/style.css` ships them (in the cascade
  * layer `wf`). A host stylesheet goes in at the start of the head, before them.
  */
 const UNLAYERED = readFileSync(fileURLToPath(new URL("../../src/react/style.css", import.meta.url)), "utf8");
@@ -63,7 +63,7 @@ test("an unlayered reset wins over the layered stylesheet, and the unlayered sty
   // The part of Tailwind 3's preflight that every element meets.
   await addSheet(page, "*, ::before, ::after { box-sizing: border-box; border-width: 0; border-style: solid; border-color: #e5e7eb; }");
   expect(await computed(page, node, border)).toEqual(["0px", "solid"]);
-  // `@wise/flow/style.unlayered.css` (a copy of the source) after the reset.
+  // `wise-flow/style.unlayered.css` (a copy of the source) after the reset.
   await addSheet(page, UNLAYERED, true);
   expect(await computed(page, node, border)).toEqual(["1px", "solid"]);
 });

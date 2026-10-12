@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 `CanvasRenderer` counts the gestures its host reports whatever the edge

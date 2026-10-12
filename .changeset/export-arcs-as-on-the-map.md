@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 `toSVG`, `toPNG` and `prepareScene` place overlays on the positions of the

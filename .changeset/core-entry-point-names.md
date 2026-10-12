@@ -1,8 +1,8 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
-The `@wise/flow` entry point lists each of its names instead of re-exporting
+The `wise-flow` entry point lists each of its names instead of re-exporting
 whole modules, and import paths are unchanged. Eighteen names that the
 package's renderers, its tests and its documentation do not use were marked
 `@deprecated` with it and are removed in this release (see the Changeset that

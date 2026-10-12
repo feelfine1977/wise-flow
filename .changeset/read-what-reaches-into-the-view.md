@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 A culled Canvas draw (above 1,500 elements, or `cull: true`) now draws every

@@ -1,6 +1,6 @@
 /**
  * Malformed input at the synchronous functions of the core entry point
- * (`@wise/flow`), the Canvas entry point's headless functions and the BPMN
+ * (`wise-flow`), the Canvas entry point's headless functions and the BPMN
  * bridge's synchronous functions. Every function runs once per malformed case
  * (`malformedCase`: the invalid families, group cycles, empty and one-activity
  * graphs, zero cases, very long and markup labels, junk overlays, unknown kinds,

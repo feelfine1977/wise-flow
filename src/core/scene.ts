@@ -48,7 +48,7 @@ export interface FlowSceneOptions {
    * What every text is measured by: node labels and chip texts are shortened,
    * activity names wrapped, chips and the figure sized by it, so that every
    * renderer draws the same lines. Default `estimateTextWidth`, which needs no
-   * DOM; in a browser `canvasTextMeasure` (`@wise/flow/canvas`) measures with
+   * DOM; in a browser `canvasTextMeasure` (`wise-flow/canvas`) measures with
    * the font.
    */
   textMeasure?: TextMeasure;

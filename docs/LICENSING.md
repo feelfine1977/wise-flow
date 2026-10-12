@@ -1,6 +1,6 @@
 # Licensing
 
-`@wise/flow` is licensed under **PolyForm Noncommercial 1.0.0**, as declared in
+`wise-flow` is licensed under **PolyForm Noncommercial 1.0.0**, as declared in
 `package.json` and the root [LICENSE](../LICENSE). This cleanup does not relicense
 Flow. Public distribution is not an unrestricted commercial-use grant. Refer
 to the licence's permitted purposes, organisation provisions and notice terms;

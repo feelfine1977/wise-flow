@@ -151,7 +151,7 @@ test('stories take their maps from the shared module and never ask for an adapti
     [story, 'export { ProcessMap } from "../src/react/index";'],
     [story, 'export * from "../src/react/index";'],
     [story, 'import { ProcessMap } from "../dist/react/index.js";'],
-    [story, 'import { ProcessMap } from "@wise/flow/react";'],
+    [story, 'import { ProcessMap } from "wise-flow/react";'],
     [shared, 'export { CanvasMap } from "../src/react/index";'],
   ]) assert.ok(storyViolations(path, source).length > 0, source);
   for (const [path, source] of [

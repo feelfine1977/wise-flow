@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 `BpmnView` reads the core scene: the order of the overlays, the level of

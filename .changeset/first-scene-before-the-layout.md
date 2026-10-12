@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 `<ProcessMap/>` without `positions` draws at once instead of staying blank

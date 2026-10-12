@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 Colours, palettes, the font stack, the default node sizes, the sizes of the

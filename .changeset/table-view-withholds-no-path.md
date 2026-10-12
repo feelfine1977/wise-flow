@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 While `<ProcessMap/>` shows its table view, which lists every path,

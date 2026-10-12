@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 When ELK fails or times out and the Dagre worker (`dagreWorkerUrl`) then

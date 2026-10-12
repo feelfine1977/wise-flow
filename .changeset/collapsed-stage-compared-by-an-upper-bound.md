@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 A threshold after collapsing compares a stage by an upper bound of the cases

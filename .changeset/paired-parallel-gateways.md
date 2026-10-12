@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 Generated BPMN models no longer contain unpaired parallel gateways. With
@@ -13,7 +13,7 @@ exclusive splits (it never completes) or a parallel split merged
 exclusively (it completes more than once); the model of the BPIC 2019 log
 at the default abstraction had such a join. Models without parallel
 gateways, and every model without `andGateways`, are generated as before.
-The new `validateGateways(graph)` in `@wise/flow` reports, as warnings, a
+The new `validateGateways(graph)` in `wise-flow` reports, as warnings, a
 parallel split whose branches do not all reach one parallel join and a
 parallel join that is the partner of no parallel split, on generated and
 imported graphs alike; it rejects nothing.

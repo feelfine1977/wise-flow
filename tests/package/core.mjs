@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { layout, validateGraph, toSVG, LABEL_PX, MIN_LABEL_PX, MAX_LABEL_PX, MAX_LABEL_UNITS, MIN_READABLE_ZOOM, labelUnitsAt, smallLabelUnitsAt, mapScaleAt, labelScreenPx } from '@wise/flow';
-import { prepareScene } from '@wise/flow/canvas';
+import { layout, validateGraph, toSVG, LABEL_PX, MIN_LABEL_PX, MAX_LABEL_PX, MAX_LABEL_UNITS, MIN_READABLE_ZOOM, labelUnitsAt, smallLabelUnitsAt, mapScaleAt, labelScreenPx } from 'wise-flow';
+import { prepareScene } from 'wise-flow/canvas';
 const graph = { nodes: [{ id: 'a', kind: 'activity', label: 'Receive' }, { id: 'b', kind: 'activity', label: 'Complete' }], edges: [{ id: 'ab', kind: 'follows', source: 'a', target: 'b' }] };
 assert.equal(typeof document, 'undefined');
 assert.deepEqual([LABEL_PX, MIN_LABEL_PX, MAX_LABEL_PX, MAX_LABEL_UNITS, MIN_READABLE_ZOOM], [12, 11, 14, 64, 0.171875]);

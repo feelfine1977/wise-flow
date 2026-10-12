@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 Build the scene a renderer draws once in the core: `buildScene` resolves a graph

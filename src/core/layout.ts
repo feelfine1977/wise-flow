@@ -68,7 +68,7 @@ export interface LayoutOptions {
    */
   elkWorkerUrl?: string | URL;
   /**
-   * URL of `@wise/flow/dagre-worker.min.js` as served by the application; when
+   * URL of `wise-flow/dagre-worker.min.js` as served by the application; when
    * given and `Worker` exists, Dagre runs in a Web Worker, also as the fallback.
    */
   dagreWorkerUrl?: string | URL;

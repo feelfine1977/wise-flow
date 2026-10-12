@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 The map's keyboard instructions say what the keys do: the arrow keys, Home

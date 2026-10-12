@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 A scene retains less memory: the node and edge marks share the parts that do not

@@ -1,6 +1,6 @@
 /**
- * `@wise/flow/react` — React components on React Flow.
- * Import `@wise/flow/tokens.css`, `@wise/flow/style.css` and `@xyflow/react/dist/style.css`.
+ * `wise-flow/react` — React components on React Flow.
+ * Import `wise-flow/tokens.css`, `wise-flow/style.css` and `@xyflow/react/dist/style.css`.
  */
 export { ProcessMap, groupNodeId } from "./ProcessMap.js";
 export { TableAlternative, type TableAlternativeProps } from "./TableAlternative.js";

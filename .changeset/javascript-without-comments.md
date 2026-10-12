@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 The package's JavaScript files no longer carry the comments of the source;

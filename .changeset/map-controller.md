@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 `<ProcessMap/>` takes its selection, focus, keyboard and menu transitions and

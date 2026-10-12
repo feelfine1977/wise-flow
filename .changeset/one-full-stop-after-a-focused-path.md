@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 The sentence the live region speaks when Alt with an arrow key moves onto a

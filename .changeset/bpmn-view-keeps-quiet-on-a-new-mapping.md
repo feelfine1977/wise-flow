@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 `<BpmnView/>` no longer announces a selection that stays the same when only

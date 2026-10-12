@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 Every renderer draws an activity, and a stage node, as one card: a 1 px

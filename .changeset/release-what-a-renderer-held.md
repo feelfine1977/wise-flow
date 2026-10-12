@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 `CanvasRenderer` lets go of what it no longer draws. `setScene(undefined)`

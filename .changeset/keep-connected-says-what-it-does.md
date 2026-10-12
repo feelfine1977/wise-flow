@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 The documentation of `keepConnected` (in `AbstractOptions`, `docs/API.md` and

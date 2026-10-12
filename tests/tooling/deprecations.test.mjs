@@ -53,7 +53,7 @@ export function documentedDeprecations(markdown) {
 }
 
 /** The entry point that exports the names declared under a source directory. */
-const entryOf = (file) => ({ react: '@wise/flow/react', bpmn: '@wise/flow/bpmn', canvas: '@wise/flow/canvas' })[relative(resolve(root, 'src'), file).split(sep)[0]] ?? '@wise/flow';
+const entryOf = (file) => ({ react: 'wise-flow/react', bpmn: 'wise-flow/bpmn', canvas: 'wise-flow/canvas' })[relative(resolve(root, 'src'), file).split(sep)[0]] ?? 'wise-flow';
 
 function filesAt(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -85,12 +85,12 @@ test('every deprecated name of the package is listed in docs/API.md with its rep
 });
 
 test('a new deprecation fails the check until it is documented under its entry point with a replacement', () => {
-  const found = (source) => new Map(deprecatedNames('x.ts', source).map((name) => [name, '@wise/flow']));
+  const found = (source) => new Map(deprecatedNames('x.ts', source).map((name) => [name, 'wise-flow']));
   const added = found('export const a = 1;\n/** @deprecated Use `a`. */\nexport const b = 2;\n');
-  const section = (rows) => documentedDeprecations(`\n## Deprecated names\n\n### \`@wise/flow\`\n\n| Name | Replacement |\n| --- | --- |\n${rows}\n## Later\n`);
+  const section = (rows) => documentedDeprecations(`\n## Deprecated names\n\n### \`wise-flow\`\n\n| Name | Replacement |\n| --- | --- |\n${rows}\n## Later\n`);
   assert.deepEqual(deprecationProblems(added, section('')), ['b is deprecated but not listed under "Deprecated names" in docs/API.md']);
   assert.deepEqual(deprecationProblems(added, section('| `b` | none |\n')), ['b has no replacement in docs/API.md']);
-  assert.deepEqual(deprecationProblems(new Map([['b', '@wise/flow/react']]), section('| `b` | `a` |\n')), ['b is listed under @wise/flow instead of @wise/flow/react in docs/API.md']);
+  assert.deepEqual(deprecationProblems(new Map([['b', 'wise-flow/react']]), section('| `b` | `a` |\n')), ['b is listed under wise-flow instead of wise-flow/react in docs/API.md']);
   assert.deepEqual(deprecationProblems(new Map(), section('| `b` | `a` |\n')), ['docs/API.md lists b, which is not deprecated']);
   assert.deepEqual(deprecationProblems(added, section('| `b` | `a` |\n')), []);
 });

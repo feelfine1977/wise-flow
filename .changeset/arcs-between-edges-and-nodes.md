@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 Constraint arcs are drawn above the edges and below the nodes, so that an

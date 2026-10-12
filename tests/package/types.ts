@@ -1,7 +1,7 @@
-import { layout, labelUnitsAt, smallLabelUnitsAt, mapScaleAt, labelScreenPx, type FlowGraph, type Positions } from '@wise/flow';
-import { ProcessMap, BpmnView, type ProcessMapProps } from '@wise/flow/react';
-import { exportBpmn, liteFromStages, type BpmnViewProps } from '@wise/flow/bpmn';
-import { prepareScene } from '@wise/flow/canvas';
+import { layout, labelUnitsAt, smallLabelUnitsAt, mapScaleAt, labelScreenPx, type FlowGraph, type Positions } from 'wise-flow';
+import { ProcessMap, BpmnView, type ProcessMapProps } from 'wise-flow/react';
+import { exportBpmn, liteFromStages, type BpmnViewProps } from 'wise-flow/bpmn';
+import { prepareScene } from 'wise-flow/canvas';
 const graph: FlowGraph = { nodes: [], edges: [] };
 const positions: Positions = await layout(graph);
 const props: ProcessMapProps = { graph, positions };

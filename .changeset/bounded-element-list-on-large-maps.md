@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 `<ProcessMap/>` takes `describedLimit` (default 500 activities plus groups).

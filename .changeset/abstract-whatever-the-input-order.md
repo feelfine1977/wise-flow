@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 `abstract` with `relativeTo: "total"` divides each strength by a sum taken in

@@ -8,7 +8,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 export const tokensPath = resolve(root, 'src/tokens.css');
 
 const HEADER = `/*
- * Design tokens of @wise/flow as CSS variables, generated from the token
+ * Design tokens of wise-flow as CSS variables, generated from the token
  * table of the core (\`src/core/tokens.ts\`, \`tokenVariables\`) by
  * \`npm run tokens\`; do not edit by hand. A tooling test fails when this file
  * and the table differ. The workbench ships its own tokens package; an

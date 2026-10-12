@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 A constraint arc whose course crosses an activity other than its ends now

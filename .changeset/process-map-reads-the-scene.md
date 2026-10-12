@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 `ProcessMap` reads the core scene: bands, scales, overlays, level-of-detail

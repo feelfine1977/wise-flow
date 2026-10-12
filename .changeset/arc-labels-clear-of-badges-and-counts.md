@@ -1,5 +1,5 @@
 ---
-"@wise/flow": patch
+"wise-flow": patch
 ---
 
 An arc's label keeps clear of badges and of the paths' counts as it keeps

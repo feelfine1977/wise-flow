@@ -1,5 +1,5 @@
 ---
-"@wise/flow": minor
+"wise-flow": minor
 ---
 
 `<ProcessMap/>`, `<OverlayLayer/>` and `<BpmnView/>` draw overlays from the
