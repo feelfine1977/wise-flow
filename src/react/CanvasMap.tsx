@@ -44,13 +44,13 @@ export interface CanvasMapProps {
   onViewportChange?: (v: { x: number; y: number; zoom: number }) => void;
   /** Elements listed for assistive technology (`aria-activedescendant` targets). */
   descendants?: { id: string; kind: "node" | "edge" | "group"; description: string }[];
-  /** How many of the edges in view are drawn (`budgetEdges`), or `"adaptive"` (default): a step fitted to the frame time of gestures. A note says when edges are withheld, by the budget or at a small zoom. */
+  /** How many edges of the whole map are let through after the zoom rule, with connecting and protected paths always kept, or `"adaptive"` (default): a step fitted to the frame time of gestures. Culling draws those in view; the note counts over the whole map. */
   edgeBudget?: EdgeBudget | "adaptive";
   /** The clock (ms) the adaptive edge budget times frames with, read from mount. Default `performance.now`. */
   clock?: () => number;
   /** Called with the note once its numbers have settled, for a live region. */
   onAnnounce?: (text: string) => void;
-  /** Called when the edges drawn change: while the budget withholds some, with those drawn (for `toSVG` and `toPNG`); undefined once every edge is drawn again. */
+  /** Called when the edges let through over the whole map change: while the budget or zoom rule withholds some, with those let through (for `toSVG` and `toPNG`); undefined once every edge is let through again. */
   onEdgesShown?: (shown: ShownEdges | undefined) => void;
   /**
    * The colours and font the map is drawn in: a preset's name or changes over

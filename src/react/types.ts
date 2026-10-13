@@ -188,12 +188,12 @@ export interface ProcessMapProps {
    */
   describedLimit?: number;
   /**
-   * How many of the edges in view the map draws (`budgetEdges`): protected
-   * edges (with an overlay mark on them, selected, at the keyboard
-   * position) first, then those on a highlighted path, then the others, each
-   * by weight and id. While edges are withheld the map says how many it shows
-   * (and how many highlighted ones it does not); the table view lists every
-   * edge. A number or `"all"` is fixed. `"adaptive"` (the default)
+   * How many edges of the whole map are let through after the zoom rule:
+   * marked, selected, focused and highlighted paths and the paths connecting
+   * each activity from start to end always stay, even beyond the budget;
+   * the others follow by weight and id. Canvas culling then draws those in
+   * view. While edges are withheld the map says how many it lets through;
+   * the table view lists every edge. A number or `"all"` is fixed. `"adaptive"` (the default)
    * starts at 2,000 and, on the Canvas map, moves through the steps 500,
    * 1,000, 2,000, 4,000, … after several consecutive frames of a pan or zoom
    * gesture above 16.7 ms or below half of it, and only once the view is at

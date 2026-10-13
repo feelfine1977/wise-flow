@@ -3233,13 +3233,16 @@ only the edges in view. Measured in Node 24 on a shared sandbox with 5,000
 edges in view, median of 5: 23 ms for a scene of 50,000 edges, 87 ms for
 200,000 and 471 ms for 1,001,000; every later call took 1.4 ms or less.
 
-`<ProcessMap edgeBudget/>` applies it in both renderers (default
-`"adaptive"`, below). The React Flow map has every edge of the
-scene in view and passes only the drawn ones to React Flow. The Canvas map
-(`drawScene` with `DrawOptions.edgeBudget`, `CanvasRenderer` through its
-`draw` options, `<CanvasMap edgeBudget/>`) counts as in view what it would
-draw: in a culled view the edges the hit index finds there and the loops of
-the activities it finds there, otherwise every edge; withheld edges are drawn neither as lines nor with their labels, and
+`<ProcessMap edgeBudget/>` and `<CanvasMap edgeBudget/>` apply the budget
+in both renderers (default `"adaptive"`, below) after the zoom rule, over
+the whole scene, preserving connecting and highlighted paths even beyond
+the budget (see "Paths at a small zoom"). The React Flow map passes only
+the let-through edges to React Flow. Canvas draws the let-through edges
+that its hit index finds in view; culling does not change the note or the
+reported selection. Low-level `drawScene` without a `pathRule` retains
+the budget over the edges in view: those its hit index finds there and the
+loops of the activities it finds there, otherwise every edge. Withheld
+edges are drawn neither as lines nor with their labels, and
 `CanvasRenderer.hitAt` does not return an edge its last draw withheld. While
 edges are withheld the map shows a note with both numbers, "Showing 2,000 of
 49,999 flows" (`map.edges.withheld`, English and German), with how many
@@ -3255,7 +3258,7 @@ in motion does not flood it. The table view always lists every edge.
 export interface ZoomedPaths { through: number[]; withheld: number }   // positions in scene.edgeMarks let through, in its order; the paths withheld
 export function pathsAtZoom(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style" | "graph">, zoom: number, minPx: number,
   protection?: EdgeProtection): ZoomedPaths | undefined;
-export const viewTokens: { openingZoom: 0.75; pathPx: 0.5; overview: { width: 200; height: 120 } };
+export const viewTokens: { openingZoom: 0.75; pathPx: 0.5; overview: { width: 200; height: 120 } };   // also designTokens.view
 ```
 
 **The rule: a path is drawn while its line is at least half a pixel wide

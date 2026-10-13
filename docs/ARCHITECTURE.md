@@ -635,10 +635,11 @@ detail and the readable state (§2.5) from the zoom and, above 1,500 elements, d
 finds inside the viewport, reading each element by its position in the
 scene's lists so that a draw costs what the view holds; the R-tree holds
 each element's drawn extent (outline, selection ring, arrowheads, labels),
-so an element is drawn as soon as any of that reaches into the view. With an edge
-budget it draws only the edges in view that the core's `budgetEdges` keeps
-(protected ones, then the heaviest), the same rule the React Flow map
-applies to all its edges, and the map says how many it shows. The default
+so an element is drawn as soon as any of that reaches into the view. With a path rule and edge budget it draws the let-through edges in view
+that the core's `mapEdges` keeps over the whole scene (connecting and
+protected paths, then the heaviest), the same rule the React Flow map
+applies to all its edges. The note counts that whole-map selection. Without
+a path rule, low-level drawing retains `budgetEdges` over the edges in view. The default
 budget is adaptive: `CanvasRenderer` times the frames of the gestures its host
 reports with an injected clock and, once the view is at rest, moves the
 budget one step (500, 1,000, 2,000, …) towards 16.7 ms per frame; a number or
