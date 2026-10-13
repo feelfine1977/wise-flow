@@ -9,7 +9,7 @@
 // The Node that runs this script runs Vitest: put another Node first on the PATH to use it.
 // The module is also the Vitest reporter that records each test's duration and time limit.
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -85,6 +85,8 @@ function main(args) {
   let failures = 0;
   for (let run = 1; run <= runs; run++) {
     const report = resolve(out, `node-${process.versions.node.split('.')[0]}-run-${run}.json`);
+    // A run that ends before the reporter writes must not be read as an earlier run's report.
+    rmSync(report, { force: true });
     const started = Date.now();
     const command = processors ? ['taskset', ['-c', processors, process.execPath, ...vitest]] : [process.execPath, vitest];
     const { status } = spawnSync(...command, { cwd: root, stdio: 'inherit', env: { ...process.env, CI: 'true', FLOW_HOSTED_REPORT: report } });
