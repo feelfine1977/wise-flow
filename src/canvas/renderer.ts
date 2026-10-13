@@ -214,6 +214,7 @@ export class CanvasRenderer {
   /** A pan or zoom starts: an adaptive edge budget times its frames, and the paths drawn stay as they are until the view rests. */
   beginGesture(): void {
     if (this.disposed) return;
+    this.restZoom ??= this.viewport.zoom;
     this.gestures = (this.gestures ?? 0) + 1;
     (this.adapter ??= edgeBudgetAdapter(this.clock)).start();
   }

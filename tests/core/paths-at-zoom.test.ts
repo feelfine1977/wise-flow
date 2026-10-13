@@ -60,6 +60,22 @@ describe("the paths a map draws at a zoom", () => {
     expect(through(scene, 0.1, 0.5, { highlighted: new Set(["b->c"]) })).toBeUndefined();
   });
 
+  it("holds the opening zoom when a gesture starts before the first frame", () => {
+    const ink = inkContext();
+    const r = new CanvasRenderer({ getContext: () => ink.ctx, style: {} } as unknown as HTMLCanvasElement, { draw: { pathRule: { minPx: 0.5 } } });
+    r.resize(1400, 900);
+    r.setScene(prepareScene(scene.graph, scene.positions, { selfLoops: false }));
+    r.setViewport({ x: 0, y: 0, zoom: 0.1 });
+    r.beginGesture();
+    r.zoomBy(10);
+    r.draw();
+    expect(r.lastDraw!.withheld).toMatchObject({ shown: 5, total: 6 });
+    r.endGesture();
+    r.draw();
+    expect(r.lastDraw!.withheld).toBeUndefined();
+    r.dispose();
+  });
+
   it("keeps connecting and protected paths under a budget, even when the zoom rule withholds nothing", () => {
     const prepared = prepareScene(scene.graph, scene.positions, { selfLoops: false });
     const ink = inkContext();
