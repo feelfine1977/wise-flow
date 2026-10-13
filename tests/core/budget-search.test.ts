@@ -152,7 +152,7 @@ function dress(given: FlowGraph, seed: number, family: FamilyName, size: number)
 }
 
 /** Searching tests run fifty times longer in deep mode; so may their timeout. */
-const TIMEOUT = 30_000 * caseCount(1);
+const TIMEOUT = 60_000 * caseCount(1);
 
 const cases = new Map<number, BudgetCase>();
 function caseOf(seed: number): BudgetCase {

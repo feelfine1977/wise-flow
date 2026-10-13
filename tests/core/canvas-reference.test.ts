@@ -594,6 +594,7 @@ function counting(scene: PreparedScene): { scene: PreparedScene; reads: { count:
 }
 
 describe("the work of a culled draw", () => {
+  // About 18 seconds on two cores with coverage, as the hosted runners have.
   it("reads a number of elements bounded by the candidates, the same for 2,000, 20,000 and 200,000 elements", () => {
     // Columns 4 to 7 and rows 4 to 6 of the grid, away from its edges; the row 7 group begins 20 above its nodes, at 820.
     const view = { x: -1000, y: -500, zoom: 1, width: 900, height: 330 };
@@ -628,7 +629,7 @@ describe("the work of a culled draw", () => {
     expect(results.map((r) => r.candidates)).toEqual([results[0].candidates, results[0].candidates, results[0].candidates]);
     expect(results.map((r) => r.reads)).toEqual([results[0].reads, results[0].reads, results[0].reads]);
     expect(results.map((r) => r.stats)).toEqual([results[0].stats, results[0].stats, results[0].stats]);
-  });
+  }, 60_000);
 });
 
 // ---------------------------------------------------------------------------

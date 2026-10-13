@@ -13,7 +13,7 @@
 import type { DrawContext } from "../../src/canvas/index";
 import { type FlowGraph, type FlowGroup, type FlowNode, type GraphIssue, type Overlay, type Positions, MAP_TARGET, validateGraph } from "../../src/index";
 import { type InvalidFamilyName, families, invalidFamilies } from "./graphs";
-import { type Random, createRandom } from "./random";
+import { type Random, caseCount, createRandom } from "./random";
 import { brokenPositionsOf, positionsOf } from "./scenes";
 
 /** Defects beyond the invalid families. */
@@ -316,6 +316,13 @@ export class Calls {
     );
   }
 }
+
+/**
+ * The time limit of a search that renders, lays out or exports every malformed case: 300 cases take 25 to 66
+ * seconds on two cores with coverage, as the hosted runners have, which is more than Vitest's 30. Searches run
+ * fifty times as many cases in deep mode; so may their time limit.
+ */
+export const SEARCH_TIMEOUT = 180_000 * caseCount(1);
 
 let inFlight: Promise<unknown> = Promise.resolve();
 

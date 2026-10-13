@@ -11,6 +11,8 @@ import { caseCount, caseLabel, createRandom, seeds } from "../support/random";
 // 150 ms here, so the bound only catches a hang, also under coverage. The race catches
 // an import that never settles; most of the work runs without yielding, so a slow one
 // is caught by its measured time (an endless loop only by the run's own timeout).
+/** A thousand files take about 25 seconds on two cores with coverage, as the hosted runners have; fifty times as many in deep mode. */
+const TIMEOUT = 120_000 * caseCount(1);
 const BOUND_MS = 10_000;
 
 type Outcome = { imported: BpmnImport; ms: number } | { rejected: unknown; ms: number } | { hung: true; ms: number };
@@ -91,7 +93,7 @@ describe("importBpmn on mutated files", () => {
       `importer: ${count} mutated files, slowest ${Math.round(slowest)} ms\n` +
         [...tally].map(([kind, r]) => `  ${kind}: ${r.imported} imported (${r.warned} with warnings), ${r.rejected} rejected, ${r.unchanged} unchanged, ${Math.round(r.ms)} ms`).join("\n"),
     );
-  });
+  }, TIMEOUT);
 
   it("rejects text that is not BPMN with the parser's error and its warnings", async () => {
     for (const xml of ["", "not xml at all", "<", '{"nodes": []}', "<definitions/>", '<?xml version="1.0"?><bpmn:task xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"/>']) {

@@ -15,7 +15,7 @@ import { describe, expect, it } from "vitest";
 import { type IdMap, type ModdleElement, createIdMap, createModdle, exportBpmn, flowIdOf, importBpmn, isAnyType, isType, layoutBpmn, positionsFromDi, validateBpmn, wiseAttr } from "../../src/bpmn/headless";
 import { validateGraph } from "../../src/index";
 import { mutate } from "../support/bpmn-files";
-import { Calls, type MalformedCase, failure, junkCoordinate, junkString, malformedCase } from "../support/malformed";
+import { Calls, type MalformedCase, failure, junkCoordinate, junkString, malformedCase, SEARCH_TIMEOUT } from "../support/malformed";
 import { caseCount, seeds } from "../support/random";
 
 const fixture = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../fixtures/p2p_small.bpmn"), "utf8");
@@ -99,5 +99,5 @@ describe("malformed input at the BPMN bridge", () => {
     expect(calls.ranAtLeast(["layoutBpmn", "exportBpmn", "importBpmn", "validateBpmn", "positionsFromDi", "flowIdOf", "wiseAttr", "isType", "isAnyType"], CASES.length)).toEqual([]);
     expect(calls.unknown(KNOWN), "plain errors that are not documented").toEqual([]);
     if (process.env.WISE_DEEP) console.info(`plain errors over ${CASES.length} cases:\n${calls.report()}`);
-  });
+  }, SEARCH_TIMEOUT);
 });

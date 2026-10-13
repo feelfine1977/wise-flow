@@ -138,8 +138,8 @@ function traceOf(seed: number): Trace {
   return { steps, total, kept, bias };
 }
 
-/** Searching tests run fifty times longer in deep mode; so may their timeout. */
-const TIMEOUT = 30_000 * caseCount(1);
+/** Searching tests run fifty times longer in deep mode; so may their timeout. The longest takes about 27 seconds on two cores with coverage, as the hosted runners have. */
+const TIMEOUT = 120_000 * caseCount(1);
 
 const isStep = (budget: number) => Number.isInteger(Math.log2(budget / SMALLEST)) && budget >= SMALLEST;
 

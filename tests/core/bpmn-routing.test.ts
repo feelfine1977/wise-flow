@@ -64,7 +64,8 @@ describe("swimlane connector routing", () => {
     const overlap = { ...nodes, b: { ...nodes.a } };
     expect(() => routeSequenceFlows(graph([["a", "b"]]), overlap)).toThrow(/Cannot route/);
   });
-  // Each of the two dense layouts takes about a minute alone under coverage and twice that on a loaded host.
+  // Each of the two dense layouts takes about a minute alone under coverage and twice that on a loaded host;
+  // the first up to 161 seconds on two cores with coverage, as the hosted runners have.
   it("routes the complete dense recorded process without crossing shapes", async () => {
     const g = liteFromGraph(globalScene, { lanes: "groups", selfLoops: "marker" });
     const p = await layoutBpmn(g, { engine: "dagre" });
@@ -74,7 +75,7 @@ describe("swimlane connector routing", () => {
       expect(point.x).toBeGreaterThanOrEqual(pool.x); expect(point.x).toBeLessThanOrEqual(pool.x + pool.width);
       expect(point.y).toBeGreaterThanOrEqual(pool.y); expect(point.y).toBeLessThanOrEqual(pool.y + pool.height);
     }
-  }, 300000);
+  }, 600000);
   it("reserves the actual custom node height when placing rows", async () => {
     const g = liteFromGraph(globalScene, { lanes: "groups" });
     const p = await layoutBpmn(g, { engine: "dagre", nodeSize: { width: 160, height: 140 } });

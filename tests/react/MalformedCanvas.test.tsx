@@ -21,7 +21,7 @@ import { BpmnView } from "../../src/bpmn/index";
 import { createBpmnView } from "../../src/react/BpmnView";
 import { CanvasMap } from "../../src/react/index";
 import { mutate } from "../support/bpmn-files";
-import { Calls, caseSettled, eachCase, type MalformedCase, failure, junkCoordinate, junkNumber, junkString, malformedCase, nonFinite } from "../support/malformed";
+import { Calls, caseSettled, eachCase, type MalformedCase, failure, junkCoordinate, junkNumber, junkString, malformedCase, nonFinite, SEARCH_TIMEOUT } from "../support/malformed";
 import { caseCount, seeds } from "../support/random";
 import { memoryViewers } from "./memory-viewer";
 
@@ -178,5 +178,5 @@ describe("malformed input at the Canvas map and renderer and the BPMN view", () 
     });
     expect(calls.ranAtLeast(["BpmnView"], CASES.length)).toEqual([]);
     expect(calls.unknown({}), "plain errors").toEqual([]);
-  });
+  }, SEARCH_TIMEOUT);
 });

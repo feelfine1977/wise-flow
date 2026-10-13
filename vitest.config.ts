@@ -7,7 +7,8 @@ export default defineConfig({
     projects: [
       { extends: true, test: { name: "core", include: ["tests/core/**/*.test.ts"], exclude: [...largeInputs], environment: "node" } },
       // Holds a million-edge scene (about 1.9 GB per fork with coverage): run alone, after the others.
-      { extends: true, test: { name: "large", include: largeInputs, environment: "node", sequence: { groupOrder: 1 }, maxWorkers: 1 } },
+      // Each test takes about 26 seconds with coverage on two cores, as the hosted runners have: its own time limit.
+      { extends: true, test: { name: "large", include: largeInputs, environment: "node", sequence: { groupOrder: 1 }, maxWorkers: 1, testTimeout: 120000 } },
       { extends: true, test: { name: "react", include: ["tests/react/**/*.test.tsx"], environment: "jsdom", setupFiles: ["tests/react/setup.ts"] } },
     ],
     // Hosted runners have two to four cores; more forks than that only multiply the memory a run needs.

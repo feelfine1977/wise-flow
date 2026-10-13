@@ -13,7 +13,7 @@ import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type FilterClause, type Locale, activityReferences, resolveViews } from "../../src/index";
 import { ProcessMap, ViewSwitcher } from "../../src/react/index";
-import { Calls, caseSettled, eachCase, type MalformedCase, failure, junkNumber, junkString, junkValue, malformedCase, nonFinite } from "../support/malformed";
+import { Calls, caseSettled, eachCase, type MalformedCase, failure, junkNumber, junkString, junkValue, malformedCase, nonFinite, SEARCH_TIMEOUT } from "../support/malformed";
 import { caseCount, seeds } from "../support/random";
 
 afterEach(async () => {
@@ -157,7 +157,7 @@ describe("malformed input at the process map", () => {
     expect(drawn).toBeGreaterThan(CASES.length);
     expect(calls.ranAtLeast(["ProcessMap"], CASES.length)).toEqual([]);
     expect(calls.unknown({}), "plain errors").toEqual([]);
-  });
+  }, SEARCH_TIMEOUT);
 
   it("renders every case's views in the view switcher, side by side and one at a time", async ({ signal }) => {
     const calls = new Calls(fail, 20_000);
@@ -184,5 +184,5 @@ describe("malformed input at the process map", () => {
     });
     expect(calls.ranAtLeast(["ViewSwitcher"], CASES.length)).toEqual([]);
     expect(calls.unknown({}), "plain errors").toEqual([]);
-  });
+  }, SEARCH_TIMEOUT);
 });

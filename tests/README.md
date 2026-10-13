@@ -131,8 +131,10 @@ for (const seed of seeds(caseCount(20))) {
   (`WISE_DEEP=3` runs a hundred and fifty times as many). Each searching test
   is run in deep mode at least once before it is merged, and its deep run is
   recorded with the seed range, the number of cases, the duration and the result.
-  A deep run of a large search outlives Vitest's test timeout of 30 seconds;
-  pass `--testTimeout=1800000 --hookTimeout=1800000` to let it finish.
+  A search that takes more than half of Vitest's 30 seconds on two cores names
+  its own time limit, scaled with `caseCount(1)` (`SEARCH_TIMEOUT` for the
+  searches over malformed input). A deep run of a large search outlives other
+  limits; pass `--testTimeout=1800000 --hookTimeout=1800000` to let it finish.
 - `seeds(count)` are the seeds, `1 … count` by default and `count` seeds from
   `WISE_SEED` on when it is set. Every assertion names its seed through
   `caseLabel(seed, detail)`, so the failure prints

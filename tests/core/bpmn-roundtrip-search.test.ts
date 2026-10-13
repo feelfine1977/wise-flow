@@ -35,6 +35,7 @@ function shape(g: FlowGraph) {
 }
 
 describe("export → import of generated models", () => {
+  // About 14 seconds on two cores with coverage, as the hosted runners have; fifty times as many cases in deep mode.
   it("gives back the same model: ids, kinds, flows, lanes, default flows and loop markers", async () => {
     let flows = 0;
     let defaults = 0;
@@ -63,7 +64,7 @@ describe("export → import of generated models", () => {
     // The cases must hold what the round trip is about.
     expect(Math.min(defaults, loops, lanes, renamed)).toBeGreaterThan(count / 10);
     console.log(`round trip: ${count} models, ${flows} flows, ${defaults} default flows, ${loops} loop markers, ${lanes} lanes, ${renamed} ids made XML-safe`);
-  });
+  }, 60_000 * caseCount(1));
 
   it("keeps labels with markup characters unchanged and writes them escaped", async () => {
     const markup = AWKWARD_LABELS.filter((l) => /[<>&"']/.test(l));

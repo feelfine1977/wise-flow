@@ -33,7 +33,11 @@ matrix yet; local macOS execution does not prove Windows support.
 Vitest 4 uses separate Node and jsdom projects, at most four forks at a time (the
 hosted runners have two to four cores). `tests/core/graph-size.test.ts` holds a
 million-edge scene, about 1.9 GB per fork with coverage, so its own project runs it
-alone after the others. Coverage includes **all production
+alone after the others, with a time limit of two minutes per test. Vitest's limit
+is 30 seconds per test; a test that needs more on two cores names its own limit,
+twice what it takes there, scaled with `caseCount(1)` when it is a search
+(`SEARCH_TIMEOUT` in `tests/support/malformed.ts` for the searches over malformed
+input), never a global raise and never a retry. Coverage includes **all production
 TS/TSX files**, excluding declaration-only files; unimported implementation files
 remain counted. Thresholds are statements **93%**, lines **95%**, branches **84%**,
 functions **92%**: the measured whole-source values (93.3%, 95.08%, 84.18%, 92.24%

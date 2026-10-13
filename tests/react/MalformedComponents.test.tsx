@@ -52,7 +52,7 @@ import {
   useStableLayout,
 } from "../../src/react/index";
 import { families } from "../support/graphs";
-import { Calls, caseSettled, eachCase, type MalformedCase, failure, junkCoordinate, junkNumber, junkString, junkValue, malformedCase } from "../support/malformed";
+import { Calls, caseSettled, eachCase, type MalformedCase, failure, junkCoordinate, junkNumber, junkString, junkValue, malformedCase, SEARCH_TIMEOUT } from "../support/malformed";
 import { caseCount, seeds } from "../support/random";
 
 afterEach(async () => {
@@ -151,7 +151,7 @@ describe("malformed input at the components of wise-flow/react", () => {
     });
     expect(calls.ranAtLeast(["TableAlternative", "PathList", "FilterChips", "Legend", "OverlayLayer", "Badges", "Chip", "PatternSwatch"], CASES.length)).toEqual([]);
     expect(calls.unknown({}), "plain errors").toEqual([]);
-  });
+  }, SEARCH_TIMEOUT);
 
   it("menus, controls, timelines, comparisons, hooks and descriptions", async ({ signal }) => {
     const calls = new Calls(fail, 20_000);
@@ -192,5 +192,5 @@ describe("malformed input at the components of wise-flow/react", () => {
     });
     expect(calls.ranAtLeast(["ContextMenu", "AbstractionControls", "TraceTimeline", "FlowComparison", "useFlowGraph", "ZoomControl", "useFlowTheme", "useStableLayout", "useOverlays", "describeNode", "describeEdge", "describeGroup", "describeMap", "groupNodeId", "midpoint"], CASES.length)).toEqual([]);
     expect(calls.unknown({}), "plain errors").toEqual([]);
-  });
+  }, SEARCH_TIMEOUT);
 });
