@@ -42,13 +42,8 @@ async function measured(page: Page) {
   });
 }
 
-test("no text of the DOM map is smaller than 9 px on the screen, at the fitted zoom and zoomed out", async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto("/iframe.html?id=process-map--map&viewMode=story");
-  await page.waitForSelector('[data-layout-status="ready"], [data-layout-status="given"]', { timeout: 60_000 });
-  await expect(page.locator(".react-flow__node").first()).toBeVisible();
-  // The map fits itself again once React Flow has measured its nodes: wait until its zoom holds for half a second.
+/** The map fits itself again once React Flow has measured its nodes: waits until its zoom holds for half a second. */
+async function settle(page: Page) {
   let settled = NaN;
   await expect.poll(async () => {
     const before = settled;
@@ -56,6 +51,15 @@ test("no text of the DOM map is smaller than 9 px on the screen, at the fitted z
     settled = (await measured(page)).zoom;
     return settled === before;
   }, { timeout: 30_000 }).toBe(true);
+}
+
+test("no text of the DOM map is smaller than 9 px on the screen, at the fitted zoom and zoomed out", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/iframe.html?id=process-map--map&viewMode=story");
+  await page.waitForSelector('[data-layout-status="ready"], [data-layout-status="given"]', { timeout: 60_000 });
+  await expect(page.locator(".react-flow__node").first()).toBeVisible();
+  await settle(page);
   const zoomOut = page.getByRole("button", { name: "Zoom out" });
   const seen: { zoom: number; level?: string; texts: number }[] = [];
   for (let step = 0; step <= 6; step++) {
@@ -71,4 +75,28 @@ test("no text of the DOM map is smaller than 9 px on the screen, at the fitted z
   // The steps reach the levels without the number line and without names, and texts were measured at each.
   expect(seen.some((s) => s.level === "wf-text--box")).toBe(true);
   expect(seen[0].texts).toBeGreaterThan(0);
+});
+
+test("group titles and pills are scaled up to the floor where the cards' own texts need no boost but theirs do", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/iframe.html?id=process-map--map&viewMode=story");
+  // The host's theme: names at 15, number lines at 13, group titles at 11 (8.25 pt, as checkTheme allows).
+  await page.addStyleTag({ content: ".wf-process-map { --wf-text-activity-name: 15px; --wf-text-stage-label: 15px; --wf-text-activity-number: 13px; --wf-text-activity-share: 13px; --wf-text-group-label: 11px; }" });
+  await page.waitForSelector('[data-layout-status="ready"], [data-layout-status="given"]', { timeout: 60_000 });
+  await expect(page.locator(".react-flow__node").first()).toBeVisible();
+  await settle(page);
+  // Zoomed in until the cards are drawn as they are while the floor (9 px over the zoom) still passes 11 layout units.
+  const zoomIn = page.getByRole("button", { name: "Zoom in" });
+  let state = await measured(page);
+  for (let i = 0; i < 12 && !(state.level === "wf-text--plain" && state.zoom < 9 / 11); i++) {
+    await zoomIn.click();
+    await expect.poll(async () => (await measured(page)).zoom).toBeGreaterThan(state.zoom);
+    state = await measured(page);
+  }
+  expect([state.level, state.zoom < 9 / 11], `zoom ${state.zoom.toFixed(3)}`).toEqual(["wf-text--plain", true]);
+  const titles = await page.locator(".wf-group__label").count();
+  expect(titles).toBeGreaterThan(0);
+  const small = state.texts.filter((t) => t.px < 9 - 0.01).map((t) => `"${t.text}" ${t.px.toFixed(2)} px`);
+  expect(small, `zoom ${state.zoom.toFixed(3)}`).toEqual([]);
 });

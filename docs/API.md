@@ -1172,8 +1172,10 @@ name at 0.3 (`ReadableRules`: full 14.1, name 24.0, line 31.1).
 **DOM map.** The map writes the state on its root as classes, one string, so a
 zoom change writes the root once and no card: `wf-text--plain` (the cards'
 own texts, unboosted), `wf-text--full`, `--name`, `--line` or `--box`; the
-rung (`wf-text-f26`), which `tokens.css` turns into `--wf-text-floor`; and
-`wf-text-hide-path`, `-loop`, `-event`, `-glyph`, `-note` and `-pills` for
+rung (`wf-text-f26`), which `tokens.css` turns into `--wf-text-floor`;
+`wf-text-grow` where group titles and pills are scaled up (below the plain
+level, and wherever the floor passes the smallest of their own texts, as the
+Canvas map scales them); and `wf-text-hide-path`, `-loop`, `-event`, `-glyph`, `-note` and `-pills` for
 what is shed. Each card holds a block of texts per level
 (`.wf-activity-copy.wf-copy--plain`, `--full`, `--name`, `--line`); the
 stylesheet shows the root's level and scales it with `transform`, dividing

@@ -11,9 +11,9 @@ import { useReactFlow } from "@xyflow/react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { constraintItems, globalScene } from "../../fixtures/bpic2019";
 import type { DrawContext, DrawOptions, PreparedScene, View } from "../../src/canvas/index";
-import { type FlowGraph, type Positions, type Readable, abstract, buildScene, layout, overlaysFor, readableAt } from "../../src/index";
+import { type FlowGraph, type Positions, type Readable, type ThemeSetting, abstract, buildScene, layout, overlaysFor, readableAt } from "../../src/index";
 import { CanvasMap, type CanvasMapHandle, ProcessMap } from "../../src/react/index";
-import { MIN_TEXT_PX } from "../support/reading";
+import { MIN_TEXT_PX, readCanvas } from "../support/reading";
 import { readReactMap } from "./map-reading";
 
 /** The frames the Canvas map draws: the view and the readable state each was drawn in. */
@@ -76,10 +76,10 @@ function Zoom() {
   return null;
 }
 
-async function domMap() {
+async function domMap(theme?: ThemeSetting) {
   const view = render(
     <div style={{ width: 1200, height: 800 }}>
-      <ProcessMap graph={graph} positions={positions} renderer="svg" fitView={false} controls={false} legend={false} contextMenu={false} pathList={false}>
+      <ProcessMap graph={graph} positions={positions} renderer="svg" fitView={false} controls={false} legend={false} contextMenu={false} pathList={false} theme={theme}>
         <Zoom />
       </ProcessMap>
     </div>,
@@ -139,6 +139,28 @@ describe("the DOM map of the BPIC fixture", () => {
     // The rung moves every few steps: the root was written, once each time, on many of the 76 changes.
     expect(changes).toBeGreaterThan(20);
   }, 60_000);
+
+  it("scales group titles and pills up with the Canvas map where the cards' own texts need no boost but theirs do", async () => {
+    // Cards that write their names at 15 and their number line at 13, group titles at 11 (8.25 pt, as checkTheme allows).
+    const theme = { text: { activityName: { size: 15 }, stageLabel: { size: 15 }, activityNumber: { size: 13 }, activityShare: { size: 13 }, groupLabel: { size: 11 } } };
+    const { container, root, zoomTo } = await domMap(theme);
+    const { prepareScene } = await import("../../src/canvas/index");
+    const canvas = prepareScene(graph, positions, { theme });
+    expect([canvas.readable.levels.full.size, canvas.readable.pills]).toEqual([13, 11]);
+    // 0.8: 9 / 0.8 = 11.25, rung 28 (8 · log2 11.25 = 27.93): 11.31. Under the cards' 13, so they are drawn as they are,
+    // but over the titles' and the pills' 11: those are scaled 11.31 / 11, as on the Canvas map, not left at 8.8 px.
+    for (const zoom of [0.9, 0.8, 0.75]) {
+      zoomTo(zoom);
+      const classes = [...root.classList];
+      expect(classes.includes("wf-text--plain"), `zoom ${zoom}`).toBe(true);
+      expect(classes.includes("wf-text-grow"), `zoom ${zoom}`).toBe(zoom < 0.85);
+      const small = (texts: { role: string; size: number }[]) => texts.filter((t) => t.size * zoom < MIN_TEXT_PX - 1e-9).map((t) => `${t.role} ${(t.size * zoom).toFixed(2)} px`);
+      const dom = readReactMap(container).fitted.texts;
+      expect(small(dom), `DOM at ${zoom}`).toEqual([]);
+      expect(small(readCanvas(canvas, { x: 0, y: 0, zoom, width: 1200, height: 800 }).texts), `Canvas at ${zoom}`).toEqual([]);
+      if (zoom === 0.8) expect([...new Set(dom.filter((t) => t.role === "group" || t.role === "chip").map((t) => Number((t.size * zoom).toFixed(2))))]).toEqual([9.05]);
+    }
+  });
 
   it("gives a card without text its name as its hover title and its accessible name", async () => {
     const { container, root, zoomTo } = await domMap();

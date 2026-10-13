@@ -15,8 +15,9 @@
  * shows the card block of the root's level (`wf-text--*`), scales it, a
  * group's title and the pills by the root's floor (the rung class
  * `wf-text-f*`, whose floor `tokens.css` gives, over the text size the
- * element names), and leaves out the labels the root sheds
- * (`wf-text-hide-*`). The browser lane checks the stylesheet itself.
+ * element names; a title and a pill where the root has `wf-text-grow`),
+ * and leaves out the labels the root sheds (`wf-text-hide-*`). The browser
+ * lane checks the stylesheet itself.
  */
 import { fireEvent } from "@testing-library/react";
 import { type Box, type Locale, type NodeKind, type XY, readableTokens } from "../../src/index";
@@ -30,11 +31,12 @@ function rootState(map: Element) {
   // The rung's floor, 2^(k/8) layout units (tokens.css writes it rounded up at the fourth decimal).
   const rung = classes.find((c) => /^wf-text-f\d+$/.test(c));
   const shed = new Set(classes.filter((c) => c.startsWith("wf-text-hide-")).map((c) => c.slice(13)));
-  return { level, floor: rung ? 2 ** (Number(rung.slice(9)) / readableTokens.steps) : 0, shed, plain: level === "plain" };
+  return { level, floor: rung ? 2 ** (Number(rung.slice(9)) / readableTokens.steps) : 0, shed, plain: level === "plain", grow: classes.includes("wf-text-grow") };
 }
 
-/** The scale the stylesheet gives an element whose smallest text is `size`: the floor over it, at least 1, except at the plain level. */
-const boostOf = (state: ReturnType<typeof rootState>, size: number) => (state.plain || !(size > 0) ? 1 : Math.max(1, state.floor / size));
+/** The scale the stylesheet gives an element whose smallest text is `size`: the floor over it, at least 1; a card's block except at the plain level, a group's title and a pill where the root says they grow. */
+const boostOf = (state: ReturnType<typeof rootState>, size: number, scaled = !state.plain) => (!scaled || !(size > 0) ? 1 : Math.max(1, state.floor / size));
+const grownBy = (state: ReturnType<typeof rootState>, size: number) => boostOf(state, size, state.grow);
 
 /** The size in pixels of a text the map draws in the size of its mark. */
 function textSize(el: Element): number {
@@ -103,7 +105,7 @@ export function readReactMap(container: Element, locale: Locale = "en"): DomRead
   const viewport = container.querySelector<HTMLElement>(".react-flow__viewport");
   const zoom = Number(/scale\(([-\d.e]+)\)/.exec(viewport?.style.transform ?? "")?.[1] ?? 1);
   const state = rootState(map);
-  const none = { level: "plain", floor: 0, shed: new Set<string>(), plain: true };
+  const none = { level: "plain", floor: 0, shed: new Set<string>(), plain: true, grow: false };
   const sizeOf = (level: string) => parseFloat((map as HTMLElement).style.getPropertyValue(`--wf-text-s-${level}`));
   // The smallest text of the pills, which the stylesheet scales each up by.
   const pills = parseFloat((map as HTMLElement).style.getPropertyValue("--wf-pill-size"));
@@ -126,7 +128,7 @@ export function readReactMap(container: Element, locale: Locale = "en"): DomRead
       } else {
         const title = wrapper.querySelector(".wf-group__label");
         if (title && look.level !== "box") {
-          const size = textSize(title) * boostOf(look, textSize(title));
+          const size = textSize(title) * grownBy(look, textSize(title));
           shown(title, { owner: id, role: "group", text: title.textContent ?? "", box: { x: box.x + 12, y: box.y + 8, width: 0, height: size }, size });
         }
       }
@@ -138,10 +140,10 @@ export function readReactMap(container: Element, locale: Locale = "en"): DomRead
       for (const g of wrapper.querySelectorAll(".wf-marks g.wf-overlay")) {
         const markId = g.getAttribute("data-overlay-id")!;
         if (g.classList.contains("wf-badge")) {
-          badges.push({ id: markId, owner: id, box: scaled(rectBox(g.querySelector("rect")!), boostOf(look, pills), corner) });
+          badges.push({ id: markId, owner: id, box: scaled(rectBox(g.querySelector("rect")!), grownBy(look, pills), corner) });
         } else if (g.classList.contains("wf-chip")) {
           const b = rectBox(g.querySelector("rect")!);
-          const k = boostOf(look, pills);
+          const k = grownBy(look, pills);
           for (const t of g.querySelectorAll("text")) shown(t, svgText(t, markId, "chip", k, { x: b.x + b.width / 2, y: b.y + b.height / 2 }));
         }
       }
@@ -170,7 +172,7 @@ export function readReactMap(container: Element, locale: Locale = "en"): DomRead
       // An arc's label grows with its pill from the pill's middle.
       const pill = g.querySelector(".wf-arc-pill");
       const b = pill ? rectBox(pill.querySelector("rect")!) : undefined;
-      for (const t of g.querySelectorAll("text")) shown(t, b ? svgText(t, markId, role, boostOf(look, pills), { x: b.x + b.width / 2, y: b.y + b.height / 2 }) : svgText(t, markId, role));
+      for (const t of g.querySelectorAll("text")) shown(t, b ? svgText(t, markId, role, grownBy(look, pills), { x: b.x + b.width / 2, y: b.y + b.height / 2 }) : svgText(t, markId, role));
     }
     const note = container.querySelector(".wf-edge-note")?.textContent ?? undefined;
     return { renderer: "react", zoom, cards, texts, badges, paths, loops, note, ...legend };

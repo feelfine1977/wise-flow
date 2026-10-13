@@ -27,7 +27,7 @@ import { FilterChips } from "./FilterChips.js";
 import { PathsNotShown, useArrival, useEdgesShown, useEdgesShownAcross, useFlowGraph, useMapScene, usePrefersReducedMotion, useStableLayout } from "./hooks.js";
 import { Legend } from "./Legend.js";
 import { useMenuActions } from "./map-actions.js";
-import { edgeArrowId, readableClasses, readableSizes, useCanvasElements, useElementDescriptions, useFlowElements, useTextMeasure } from "./map-elements.js";
+import { edgeArrowId, grownTextSize, readableClasses, readableSizes, useCanvasElements, useElementDescriptions, useFlowElements, useTextMeasure } from "./map-elements.js";
 import { GROUP_PREFIX, canvasPointer, flowPointer, overlayPointer } from "./map-pointer.js";
 import { MarkDefs, MarkFigure } from "./marks.js";
 import { PatternTheme } from "./patterns.js";
@@ -225,6 +225,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   const readable = readableAt(scene.readable, zoom, scene.theme.text.minScreenPx, readableBefore.current);
   useEffect(() => void (readableBefore.current = readable));
   const textSizes = useMemo(() => readableSizes(scene.readable), [scene.readable]);
+  const grown = useMemo(() => grownTextSize(scene), [scene]);
   const bodyRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<CanvasMapHandle>(null);
@@ -482,7 +483,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   const map = (
     <div
       ref={containerRef}
-      className={`wf-process-map ${lodClasses} ${readableClasses(readable)}${showPaths ? " wf-process-map--side" : ""}${className ? ` ${className}` : ""}`}
+      className={`wf-process-map ${lodClasses} ${readableClasses(readable, grown)}${showPaths ? " wf-process-map--side" : ""}${className ? ` ${className}` : ""}`}
       style={{ width: "100%", height: "100%", ...textSizes, ...containerStyle, ...themed }}
       role="group"
       {...part("map")}
