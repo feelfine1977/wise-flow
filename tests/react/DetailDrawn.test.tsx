@@ -192,8 +192,8 @@ describe("the paths drawn of those selected, after the table view", () => {
 });
 
 describe("the paths drawn of those selected, beside a constraint edge", () => {
-  it.each(["svg", "canvas"] as const)("counts only paths on the %s map, not a constraint edge the budget withholds", async (renderer) => {
-    // Three paths a → b → c → d of falling weight and a constraint edge from a to c, which nothing weighs: it comes last.
+  it.each(["svg", "canvas"] as const)("counts only paths on the %s map while the budget preserves a constraint edge", async (renderer) => {
+    // Three paths a → b → c → d of falling weight and an unmeasured constraint edge from a to c, always kept.
     const nodes: FlowNode[] = ["a", "b", "c", "d"].map((id) => ({ id, kind: "activity", label: id.toUpperCase(), metrics: { cases: 10 } }));
     const edges: FlowEdge[] = [
       { id: "a->b", kind: "follows", source: "a", target: "b", metrics: { cases: 9 } },
@@ -212,12 +212,15 @@ describe("the paths drawn of those selected, beside a constraint edge", () => {
     );
     const { container, rerender } = render(map(2));
     const note = () => container.querySelector(".wf-controls__note--drawn")?.textContent;
-    // A budget of two withholds the constraint edge and c → d: three paths selected, two drawn.
-    await waitFor(() => expect(shown.at(-1)).toEqual({ edges: ["a->b", "b->c"], total: 4 }));
-    await waitFor(() => expect(note()).toBe("3 selected · 2 drawn at this zoom"));
-    // A budget of three withholds only the constraint edge: every path is drawn, and the panel has no such line.
+    // The constraint uses one place in each budget but counts as no path: one of three paths is drawn.
+    await waitFor(() => expect(shown.at(-1)).toEqual({ edges: ["a->b", "a=>c"], total: 4 }));
+    await waitFor(() => expect(note()).toBe("3 selected · 1 drawn at this zoom"));
+    // With three places, two paths and the constraint are drawn; all three paths return with four.
     rerender(map(3));
-    await waitFor(() => expect(shown.at(-1)).toEqual({ edges: ["a->b", "b->c", "c->d"], total: 4 }));
+    await waitFor(() => expect(shown.at(-1)).toEqual({ edges: ["a->b", "b->c", "a=>c"], total: 4 }));
+    await waitFor(() => expect(note()).toBe("3 selected · 2 drawn at this zoom"));
+    rerender(map(4));
+    await waitFor(() => expect(shown.at(-1)).toBeUndefined());
     expect(note()).toBeUndefined();
   });
 });

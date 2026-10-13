@@ -3233,16 +3233,14 @@ only the edges in view. Measured in Node 24 on a shared sandbox with 5,000
 edges in view, median of 5: 23 ms for a scene of 50,000 edges, 87 ms for
 200,000 and 471 ms for 1,001,000; every later call took 1.4 ms or less.
 
-`<ProcessMap edgeBudget/>` and `<CanvasMap edgeBudget/>` apply the budget
-in both renderers (default `"adaptive"`, below) after the zoom rule, over
-the whole scene, preserving connecting and highlighted paths even beyond
-the budget (see "Paths at a small zoom"). The React Flow map passes only
-the let-through edges to React Flow. Canvas draws the let-through edges
-that its hit index finds in view; culling does not change the note or the
-reported selection. Low-level `drawScene` without a `pathRule` retains
-the budget over the edges in view: those its hit index finds there and the
-loops of the activities it finds there, otherwise every edge. Withheld
-edges are drawn neither as lines nor with their labels, and
+`<ProcessMap edgeBudget/>` and `<CanvasMap edgeBudget/>` (default
+`"adaptive"`, below) apply the budget after the zoom rule over the whole
+scene, keeping connecting and highlighted paths even beyond the budget
+(see "Paths at a small zoom"). React Flow receives the let-through edges.
+Canvas draws those its hit index finds in view; culling changes neither
+the note nor the reported selection. Without a `pathRule`, low-level
+`drawScene` budgets the edges in view and loops on visible activities,
+or every edge in an unculled draw. Withheld edges have neither lines nor labels, and
 `CanvasRenderer.hitAt` does not return an edge its last draw withheld. While
 edges are withheld the map shows a note with both numbers, "Showing 2,000 of
 49,999 flows" (`map.edges.withheld`, English and German), with how many

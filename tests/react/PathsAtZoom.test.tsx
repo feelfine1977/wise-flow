@@ -10,7 +10,7 @@
  */
 import { useReactFlow, useStoreApi } from "@xyflow/react";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { globalScene } from "../../fixtures/bpic2019";
 import { type FlowGraph, type FlowScene, type Positions, type Selection, type ShownEdges, abstract, buildScene, fitViewport, layout, toSVG } from "../../src/index";
 import { ProcessMap } from "../../src/react/index";
@@ -34,7 +34,10 @@ beforeAll(async () => {
   scene = buildScene(shown, positions, {});
   fitted = fitViewport(positions.bounds, AREA, { padding: 0.04 }).zoom;
 }, 60_000);
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 let move: (v: { x: number; y: number; zoom: number }) => void = () => {};
 let gesture: (start: boolean) => void = () => {};
@@ -60,11 +63,13 @@ async function mount(props: { selection?: Selection; onEdgesShown?: (s: ShownEdg
   );
   const result = render(element(props));
   await waitFor(() => expect(result.container.querySelectorAll(".react-flow__edge").length).toBe(656));
+  // Control the settling timer after React Flow mounts: rendering time must not advance a zoom step's clock.
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   const lines = () => [...result.container.querySelectorAll(".react-flow__edge")].map((e) => e.getAttribute("data-id")!).sort();
   const note = () => screen.queryByTestId("wf-edge-note")?.textContent ?? undefined;
   const drawnLine = () => result.container.querySelector(".wf-controls__note--drawn")?.textContent ?? undefined;
   const to = (v: { x: number; y: number; zoom: number }) => act(() => move(v));
-  const rest = () => act(() => new Promise((done) => setTimeout(done, REST)));
+  const rest = (ms = REST) => act(() => void vi.advanceTimersByTime(ms));
   return { ...result, lines, note, drawnLine, to, rest, rerender: (p: typeof props) => result.rerender(element(p)) };
 }
 
@@ -124,7 +129,9 @@ describe("the paths the React map draws at a small zoom", () => {
       await map.to({ x: 0, y: 0, zoom });
       // Not yet at rest: what is drawn stays.
       expect(map.lines(), `moving to ${zoom}`).toEqual(was);
-      await map.rest();
+      await map.rest(199);
+      expect(map.lines(), `before rest at ${zoom}`).toEqual(was);
+      await map.rest(1);
       const now = map.lines();
       expect(now, `at rest at ${zoom}`).toEqual(ruleAt(scene, zoom));
       if (zoom > previous) expect(was.filter((id) => !now.includes(id)), `in to ${zoom}`).toEqual([]);
@@ -151,6 +158,7 @@ describe("the paths the React map draws at a small zoom", () => {
     expect(svgNote(figure)).toBe(map.note());
     expect(svgEdges(toSVG({ graph: shown, positions }))).toHaveLength(656);
     // The table lists every path at any zoom.
+    vi.useRealTimers();
     map.rerender({ view: "table", onEdgesShown: (s) => reported.push(s) });
     await waitFor(() => expect(screen.getAllByRole("table").length).toBeGreaterThan(0));
     const rows = (name: RegExp) => screen.getAllByRole("table").find((t) => name.test(t.getAttribute("aria-label") ?? t.querySelector("caption")?.textContent ?? ""));

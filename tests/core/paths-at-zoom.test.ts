@@ -194,7 +194,8 @@ describe("the paths drawn of the whole log at a small zoom", () => {
       r.draw();
       const w = r.lastDraw!.withheld!;
       const ids = [...w.drawn].map((i) => prepared.edgeMarks[i].id).sort();
-      const box = { x: -x / zoom, y: 0, width: 1400 / zoom, height: 900 / zoom };
+      const v = r.getViewport();
+      const box = { x: -v.x / v.zoom, y: -v.y / v.zoom, width: 1400 / v.zoom, height: 900 / v.zoom };
       const visible = new Set(prepared.hit.within(box).filter((it) => it.kind === "edge").map((it) => it.id));
       const inked = [...new Set(ink.visits.filter((v) => v.list === "edges" && v.ink).map((v) => v.id))].sort();
       expect(inked).toEqual(ids.filter((id) => visible.has(id)));

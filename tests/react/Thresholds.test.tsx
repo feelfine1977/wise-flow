@@ -196,21 +196,33 @@ async function check(annotate: TestContext["annotate"], mounted: Mounted, readin
     const path = savePicture(name, pictureOf(svg, failures, name));
     await annotate(`${name}: ${failures.length} failing, picture ${path}`, { path, contentType: "image/svg+xml" });
   }
-  return { name, unexpected, findings, fitted };
+  const countOverlaps = failures.filter((f) => findingOf(f, shown, base, places) === "path counts").map((f) => f.detail).sort();
+  return { name, unexpected, findings, fitted, countOverlaps };
 }
 
 const summary = (failures: readonly Failure[]) => failures.slice(0, 6).map((f) => `${f.property}: ${f.detail}`).join("\n  ");
 
+/** Exact count-label overlaps newly exposed by connecting paths kept beyond the budget; another overlap at these rungs fails. */
+const CONNECTING_COUNT_OVERLAPS: Record<string, string[]> = {
+  "0 %": [
+    'path label "3" of change_final_invoice_indicator->clear_invoice covers path label "6,734" of create_purchase_order_item->delete_purchase_order_item',
+    'path label "3" of change_payment_term->record_goods_receipt covers path label "77,406" of create_purchase_order_item->record_goods_receipt',
+    'path label "405" of create_purchase_order_item->srm_change_was_transmitted covers path label "167" of block_purchase_order_item->__end',
+  ].sort(),
+  default: ['path label "1,033" of record_goods_receipt->change_delivery_indicator covers record_service_entry_sheet'],
+};
+
 /** The open findings at each rung of the committed scenes on the two maps (Dagre layouts), as written up. */
+// Connecting paths survive the budget, exposing existing count-label overlaps when the full reading shows every LOD.
 const WRITTEN_UP: Record<Renderer, Record<string, string>> = {
   react: {
-    "global · 0 % · connected · stages shown": "",
-    "global · default · connected · stages shown": "",
+    "global · 0 % · connected · stages shown": "path counts",
+    "global · default · connected · stages shown": "path counts",
     "global · 5 % · connected · stages shown": "",
     "global · 10 % · connected · stages shown": "",
     "global · 25 % · connected · stages shown": "",
     "global · 50 % · connected · stages shown": "",
-    "global · 0 % · not connected · stages shown": "",
+    "global · 0 % · not connected · stages shown": "path counts",
     "global · default · not connected · stages shown": "",
     "global · 5 % · not connected · stages shown": "",
     "global · 10 % · not connected · stages shown": "path counts",
@@ -254,13 +266,13 @@ const WRITTEN_UP: Record<Renderer, Record<string, string>> = {
     "vendor · 50 % · not connected · stages collapsed": "",
   },
   canvas: {
-    "global · 0 % · connected · stages shown": "",
-    "global · default · connected · stages shown": "",
+    "global · 0 % · connected · stages shown": "path counts",
+    "global · default · connected · stages shown": "path counts",
     "global · 5 % · connected · stages shown": "",
     "global · 10 % · connected · stages shown": "",
     "global · 25 % · connected · stages shown": "",
     "global · 50 % · connected · stages shown": "",
-    "global · 0 % · not connected · stages shown": "",
+    "global · 0 % · not connected · stages shown": "path counts",
     "global · default · not connected · stages shown": "",
     "global · 5 % · not connected · stages shown": "",
     "global · 10 % · not connected · stages shown": "path counts",
@@ -316,8 +328,12 @@ describe("how the map reads across thresholds and sizes, on the React map and th
         for (const rung of RUNGS) {
           const step = await show(mounted, renderer, scene, rung, "en");
           mounted = step.mounted;
-          const { name, unexpected, findings } = await check(annotate, mounted, step.readings, scene, rung, step.shown, step.positions, "en");
+          const { name, unexpected, findings, countOverlaps } = await check(annotate, mounted, step.readings, scene, rung, step.shown, step.positions, "en");
           expect(unexpected, `${name}:\n  ${summary(unexpected)}`).toEqual([]);
+          if (scene.name === "global" && !rung.collapse && (rung.step === 0 || (rung.step === 1 && rung.keepConnected))) {
+            expect(countOverlaps, name).toEqual(CONNECTING_COUNT_OVERLAPS[rung.name.startsWith("0 %") ? "0 %" : "default"]);
+            expect(step.readings.fitted.texts.filter((t) => t.role === "path"), `${name}: count labels shed at fit`).toEqual([]);
+          }
           found[`${scene.name} · ${rung.name}`] = findings.join(", ");
         }
         cleanup();
