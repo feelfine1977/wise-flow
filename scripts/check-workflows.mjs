@@ -40,14 +40,16 @@ export function visualLaneViolations(text, provenance) {
 const xmlComments = /<!--[\s\S]*?-->/g;
 // The browser must take its fonts from the repository's fontconfig file, whose
 // rules turn system-ui and the generic sans into Liberation Sans before the
-// system configuration adds its own aliases and fallbacks.
+// system configuration adds its own aliases and fallbacks. Chromium asks
+// fontconfig for sans when it resolves system-ui, so that rule is the one the
+// map's text depends on.
 export function fontArrangementViolations(fontconfigFile, fontconfigText) {
   const expected = resolve(root, 'tests/visual/fonts.conf');
   if (fontconfigFile !== expected) return [`The browser of the visual lane must get FONTCONFIG_FILE=${expected}, not ${fontconfigFile ?? 'nothing'}`];
   const text = fontconfigText.replace(xmlComments, '');
   const include = text.search(/<include\b[^>]*>\s*\/etc\/fonts\/fonts\.conf\s*<\/include>/);
   const errors = include < 0 ? ['The fonts of the visual lane must include the system configuration /etc/fonts/fonts.conf after their own rules'] : [];
-  for (const family of ['system-ui', 'sans-serif']) {
+  for (const family of ['system-ui', 'sans-serif', 'sans']) {
     const rule = new RegExp(`<match\\s+target="pattern">\\s*<test\\s+name="family"><string>${family}</string></test>\\s*<edit\\s+name="family"\\s+mode="assign"\\s+binding="strong"><string>Liberation Sans</string></edit>\\s*</match>`);
     const at = text.search(rule);
     if (at < 0) errors.push(`The fonts of the visual lane must assign Liberation Sans, strongly bound, to ${family}`);

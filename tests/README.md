@@ -347,4 +347,6 @@ docker run --rm --platform linux/amd64 --ipc=host -v "$PWD":/work -w /work "$ima
 
 Use `fc-match 'system\-ui'` to ask fontconfig about `system-ui`, with
 `FONTCONFIG_FILE=tests/visual/fonts.conf` for the lane's view: unescaped, the
-hyphen starts a size and the name asked about is `system`.
+hyphen starts a size and the name asked about is `system`. Chromium itself
+resolves `system-ui` by asking fontconfig for `sans`, so `fc-match sans` and
+`fc-match sans:bold` give the faces the map's text is drawn in.

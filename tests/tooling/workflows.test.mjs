@@ -48,15 +48,17 @@ const rule = (family) => `  <match target="pattern">\n    <test name="family"><s
 const include = '  <include ignore_missing="yes">/etc/fonts/fonts.conf</include>\n';
 const conf = (body) => `<?xml version="1.0"?>\n<fontconfig>\n${body}</fontconfig>\n`;
 test('the visual lane\'s fonts map system-ui and the generic sans to Liberation Sans ahead of the system configuration', () => {
-  assert.deepEqual(fontArrangementViolations(fontconfig, conf(rule('system-ui') + rule('sans-serif') + include)), []);
-  assert.match(fontArrangementViolations(undefined, conf(rule('system-ui') + rule('sans-serif') + include))[0], /FONTCONFIG_FILE/);
-  assert.match(fontArrangementViolations('/etc/fonts/fonts.conf', conf(rule('system-ui') + rule('sans-serif') + include))[0], /FONTCONFIG_FILE/);
-  assert.match(fontArrangementViolations(fontconfig, conf(rule('sans-serif') + include))[0], /system-ui/);
-  assert.match(fontArrangementViolations(fontconfig, conf(rule('system-ui') + include))[0], /sans-serif/);
-  assert.match(fontArrangementViolations(fontconfig, conf(include + rule('system-ui') + rule('sans-serif')))[0], /system-ui.*before/);
-  assert.match(fontArrangementViolations(fontconfig, conf(rule('system-ui') + rule('sans-serif')))[0], /system configuration/);
-  assert.match(fontArrangementViolations(fontconfig, conf(rule('system-ui').replace('binding="strong"', 'binding="weak"') + rule('sans-serif') + include))[0], /system-ui/);
-  assert.match(fontArrangementViolations(fontconfig, conf(`<!--\n${rule('system-ui')}-->\n` + rule('sans-serif') + include))[0], /system-ui/);
+  assert.deepEqual(fontArrangementViolations(fontconfig, conf(rule('system-ui') + rule('sans-serif') + rule('sans') + include)), []);
+  assert.match(fontArrangementViolations(undefined, conf(rule('system-ui') + rule('sans-serif') + rule('sans') + include))[0], /FONTCONFIG_FILE/);
+  assert.match(fontArrangementViolations('/etc/fonts/fonts.conf', conf(rule('system-ui') + rule('sans-serif') + rule('sans') + include))[0], /FONTCONFIG_FILE/);
+  assert.match(fontArrangementViolations(fontconfig, conf(rule('sans-serif') + rule('sans') + include))[0], /system-ui/);
+  assert.match(fontArrangementViolations(fontconfig, conf(rule('system-ui') + rule('sans') + include))[0], /sans-serif/);
+  // Chromium resolves system-ui through sans: without this rule the map is drawn in the system's default font.
+  assert.deepEqual(fontArrangementViolations(fontconfig, conf(rule('system-ui') + rule('sans-serif') + include)), ['The fonts of the visual lane must assign Liberation Sans, strongly bound, to sans']);
+  assert.match(fontArrangementViolations(fontconfig, conf(include + rule('system-ui') + rule('sans-serif') + rule('sans')))[0], /system-ui.*before/);
+  assert.match(fontArrangementViolations(fontconfig, conf(rule('system-ui') + rule('sans-serif') + rule('sans')))[0], /system configuration/);
+  assert.match(fontArrangementViolations(fontconfig, conf(rule('system-ui').replace('binding="strong"', 'binding="weak"') + rule('sans-serif') + rule('sans') + include))[0], /system-ui/);
+  assert.match(fontArrangementViolations(fontconfig, conf(`<!--\n${rule('system-ui')}-->\n` + rule('sans-serif') + rule('sans') + include))[0], /system-ui/);
 });
 test('the strict visual configuration and its approval hand the repository\'s fonts to the browser', async () => {
   const { default: strict } = await import('../visual/playwright.config.ts');
