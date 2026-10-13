@@ -333,6 +333,9 @@ fails if they are not Liberation Sans; it is skipped on macOS, whose images
 depend on the system font of the macOS version in the record (Chromium on
 macOS ignores fontconfig). The library's own font list is unchanged: on an
 analyst's Linux machine `system-ui` stays the right first choice.
+A tooling test imports the visual configuration to check that it hands the
+file to the browser; Node strips its TypeScript types from 22.18 on, so
+`npm run test:tooling` needs Node 22.18 or later, or 24.
 
 To check or capture the Linux images, run the record's `command` in its image,
 in a clone used only for this (its `npm ci` installs Linux packages into the
