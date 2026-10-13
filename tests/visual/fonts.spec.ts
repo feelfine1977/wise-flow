@@ -42,20 +42,32 @@ test("the map's text is drawn in the lane's own font, bold where bold and with d
   const fonts = { heading: await drawnFonts(page, heading), name: await drawnFonts(page, name), counts: await drawnFonts(page, counts) };
   test.info().annotations.push({ type: "drawn fonts", description: JSON.stringify(fonts) });
   expect(fonts).toEqual({ heading: ["LiberationSans-Bold"], name: ["LiberationSans"], counts: ["LiberationSans", "LiberationSans-Bold"] });
-  // A card's count is bold beside its regular share. Counts ask for tabular digits:
-  // drawn as the count is, in its font and with its numeric variant, as many ones
-  // are as wide as as many eights. (A canvas cannot stand in: the computed `font`
-  // shorthand is empty when a numeric variant is set, so it would measure its own
-  // default font.)
-  const advances = await counts.evaluate((element) => ["1111", "8888"].map((digits) => {
-    const probe = element.firstElementChild!.cloneNode() as HTMLElement;
-    probe.textContent = digits;
-    element.append(probe);
-    const width = probe.getBoundingClientRect().width;
+  // A card's count is bold beside its regular share. Counts are drawn with digits of one width: the count's own font,
+  // numeric variant and kerning, set at 100px outside the map so that neither the zoom the story fits to nor hinting
+  // at a few pixels decides, draw as many ones as wide as as many eights and noughts. A face with proportional digits
+  // fails (FreeSans Bold with proportional-nums: 168 against 233.2px), and so does one whose ones kern unless the
+  // counts turn kerning off (Liberation Sans 2 Bold: 205.9 against 222.5px). (A canvas cannot stand in: the computed `font`
+  // shorthand is empty when a numeric variant is set.)
+  const advances = await counts.evaluate((element) => {
+    const drawn = getComputedStyle(element.firstElementChild!);
+    const probe = document.createElement("span");
+    for (const name of ["fontFamily", "fontWeight", "fontStyle", "fontStretch", "fontVariantNumeric", "fontKerning", "fontFeatureSettings", "letterSpacing"] as const) {
+      probe.style[name] = drawn[name];
+    }
+    probe.style.fontSize = "100px";
+    probe.style.whiteSpace = "pre";
+    document.body.append(probe);
+    const widths = ["1111", "8888", "0000"].map((digits) => {
+      probe.textContent = digits;
+      return probe.getBoundingClientRect().width;
+    });
     probe.remove();
-    return width;
-  }));
+    return widths;
+  });
+  test.info().annotations.push({ type: "digit advances at 100px", description: JSON.stringify(advances) });
   expect(advances[0]).toBeGreaterThan(0);
   expect(advances[0]).toBe(advances[1]);
+  expect(advances[2]).toBe(advances[1]);
   await expect(counts).toHaveCSS("font-variant-numeric", "tabular-nums");
+  await expect(counts).toHaveCSS("font-kerning", "none");
 });

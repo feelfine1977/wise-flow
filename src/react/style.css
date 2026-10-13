@@ -1362,6 +1362,8 @@
 .wf-activity-counts {
   line-height: var(--wf-leading-activity-number);
   font-variant-numeric: tabular-nums;
+  /* Liberation Sans and Arial kern "11" even with tabular digits. */
+  font-kerning: none;
 }
 .wf-activity-counts > span {
   font-size: var(--wf-text-size);
