@@ -219,7 +219,7 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
   useEffect(() => {
     const r = rendererRef.current;
     if (!r) return;
-    r.drawOptions = { ...r.drawOptions, edgeBudget, pathRule: minPathPx > 0 ? { minPx: minPathPx } : undefined };
+    r.drawOptions = { ...r.drawOptions, edgeBudget, pathRule: { minPx: minPathPx } };
     r.requestDraw();
   }, [edgeBudget, minPathPx]);
 

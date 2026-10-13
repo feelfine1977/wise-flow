@@ -185,14 +185,18 @@ export function pathsAtZoom(scene: Pick<FlowScene, "edgeMarks" | "marks" | "styl
 }
 
 /**
- * What a map draws when the rule of `pathsAtZoom` withholds paths: the edges
- * it lets through, less those of `candidates` (the edges let through in view)
- * that the budget's selection `cut` withholds. The numbers count over the
- * whole map: every edge and every path that loops on one activity.
+ * The live map's selection over the whole scene, before viewport culling.
+ * Both the zoom rule and the budget preserve connecting and highlighted
+ * paths. Exporters without a path rule keep the plain budget's behavior.
  */
-export function zoomedSelection(scene: Pick<FlowScene, "edgeMarks" | "graph" | "positions">, zoomed: ZoomedPaths, cut: EdgeSelection | undefined, candidates: readonly number[] = zoomed.through): EdgeSelection {
-  const drawn = new Set(zoomed.through);
-  if (cut) for (const i of candidates) if (!cut.drawn.has(i)) drawn.delete(i);
+export function mapEdges(scene: BudgetScene, budget: EdgeBudget | ShownEdges | undefined, protection: EdgeProtection, zoom: number, minPx: number): EdgeSelection | undefined {
+  const zoomed = pathsAtZoom(scene, zoom, minPx, protection);
+  if (!zoomed && (budget === undefined || budget === "all")) return undefined;
+  const selected = new Set([...anchorsOf(scene), ...(protection.selection?.edges ?? []), ...(protection.highlighted ?? [])]);
+  for (const m of scene.edgeMarks) if (!isPath(m.edge)) selected.add(m.id);
+  const cut = budgetEdges(scene, budget, { ...protection, selection: { edges: [...selected] } }, zoomed?.through);
+  if (!zoomed) return cut;
+  const drawn = cut?.drawn ?? new Set(zoomed.through);
   const loops = [...selfLoopsOf(scene).values()].flat();
   return { drawn, shown: drawn.size + loops.length, total: scene.edgeMarks.length + loops.length, kept: cut?.kept ?? drawn.size, loops, highlightedNotShown: cut?.highlightedNotShown ?? 0, pathsNotShown: zoomed.withheld + (cut?.pathsNotShown ?? 0) };
 }

@@ -1,7 +1,7 @@
 /** Drawing routines of the canvas renderer: plain 2D context calls for a scene, a viewport and a state, culled on large scenes; `canvasTextMeasure`. */
-import { selfLoopsOf, zoomedSelection } from "../core/edge-budget.js";
+import { mapEdges, selfLoopsOf } from "../core/edge-budget.js";
 import { headTriangle } from "../core/element-marks.js";
-import { type Arrowhead, type Box, type BoxSide, type XY, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type PatternLook, type Readable, type Selection, type ShownEdges, type StateStyle, type TextMeasure, type Theme, arrowheadExtent, dimensionTokens, fixedColors, hatchTokens, legendLayout, legendMetrics, budgetEdges, pathsAtZoom, defaultTheme, estimateTextWidth, lineEnd, lodAt, markArrowhead, markInState, patternTwin, readableAt, ruleTextRole, stateStyle } from "../core/index.js";
+import { type Arrowhead, type Box, type BoxSide, type XY, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type PatternLook, type Readable, type Selection, type ShownEdges, type StateStyle, type TextMeasure, type Theme, arrowheadExtent, dimensionTokens, fixedColors, hatchTokens, legendLayout, legendMetrics, budgetEdges, defaultTheme, estimateTextWidth, lineEnd, lodAt, markArrowhead, markInState, patternTwin, readableAt, ruleTextRole, stateStyle } from "../core/index.js";
 import { isPill, nodeTexts, readableMark, titleTexts } from "../core/readable.js";
 import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene.js";
 import { type CanvasTokens, sceneTokens } from "./tokens.js";
@@ -589,24 +589,17 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
   let withheld: EdgeSelection | undefined;
   let kept: number | undefined;
   const budgeted = options.edgeBudget !== undefined && options.edgeBudget !== "all";
-  const zoomed = options.pathRule && pathsAtZoom(scene, options.pathRule.zoom ?? view.zoom, options.pathRule.minPx, state);
-  if (budgeted || zoomed) {
+  if (options.pathRule) {
+    withheld = mapEdges(scene, options.edgeBudget, state, options.pathRule.zoom ?? view.zoom, options.pathRule.minPx);
+    if (budgeted) kept = withheld?.kept;
+  } else if (budgeted) {
     let inView: number[] | undefined;
     if (found) each(scene.edges, "edge", edgeId, (_, i) => (inView ??= []).push(i));
     if (found) inView ??= [];
     const loops = found?.flatMap((it) => (it.kind === "node" && selfLoopsOf(scene).get(it.id)) || []);
-    if (!zoomed) {
-      withheld = budgetEdges(scene, options.edgeBudget, state, inView, loops);
-      // Withholding nothing, the protected edges are those a budget of 0 keeps, or all.
-      kept = (withheld ?? budgetEdges(scene, 0, state, inView))?.kept ?? (inView ?? scene.edges).length;
-    } else {
-      // The budget chooses among the paths let through that are in view; the numbers count over the whole map.
-      const through = new Set(zoomed.through);
-      const candidates = inView ? inView.filter((i) => through.has(i)) : zoomed.through;
-      const cut = budgeted ? budgetEdges(scene, options.edgeBudget, state, candidates, loops) : undefined;
-      if (budgeted) kept = (cut ?? budgetEdges(scene, 0, state, candidates))?.kept ?? candidates.length;
-      withheld = zoomedSelection(scene, zoomed, cut, candidates);
-    }
+    withheld = budgetEdges(scene, options.edgeBudget, state, inView, loops);
+    // Withholding nothing, the protected edges are those a budget of 0 keeps, or all.
+    kept = (withheld ?? budgetEdges(scene, 0, state, inView))?.kept ?? (inView ?? scene.edges).length;
   }
 
   each(scene.groups, "group", groupId, (g) => drawGroup(ctx, scene, g, tokens, state.selection.groups.includes(g.group.id), readable));

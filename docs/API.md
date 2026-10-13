@@ -3266,7 +3266,7 @@ thinnest lines go, and the wider ones at smaller zooms, each at its own
 zoom. Always drawn, whatever the zoom: every edge that is not a path (a
 constraint edge, an indirect path), a path that loops on one activity, a
 path with an overlay mark on it, a selected or focused one, one on a
-highlighted path (as under the edge budget), and the paths that keep every
+highlighted path (also beyond the edge budget), and the paths that keep every
 activity on a way from a start to an end: each activity's strongest path
 from and to a more frequent activity, a start or an end, as the detail
 shares keep them (`abstract(scene.graph, { activityDetail: 1, pathDetail: 0
@@ -3288,12 +3288,13 @@ are unchanged.
 **On the maps.** `<ProcessMap minPathPx/>` and `<CanvasMap minPathPx/>`
 (default `viewTokens.pathPx`, 0.5; 0 turns the rule off) apply it in both
 renderers, decided when the view is at rest, as the adaptive budget moves:
-the React Flow map once its zoom has stayed the same for 200 ms, the Canvas
-map at the zoom of its last frame drawn outside a gesture (a drag, or a run
+the React Flow map once its view has stayed the same for 200 ms and no
+pan gesture is active, the Canvas map at the zoom of its last frame drawn outside a gesture (a drag, or a run
 of wheel or pinch events; the zoom buttons are no gesture), so a pan or a
 zoom in progress draws the paths of the view before it. The edge budget then
-chooses among the paths let through: on the React Flow map among all of
-them, on the Canvas map among those in view (the budget limits the frame).
+chooses among the paths let through over the whole map, preserving the
+connecting and protected paths even beyond the budget. Canvas culling then
+draws only those chosen paths that intersect the view.
 `drawScene` takes it as `DrawOptions.pathRule` (`{ minPx, zoom? }`, the
 view's zoom when `zoom` is omitted; default none, so the exports and the
 pinned recordings draw as before), and `CanvasRenderer` passes the zoom its
@@ -3301,22 +3302,23 @@ view last rested at unless `drawOptions.pathRule.zoom` names one. Stories
 and tests use a fixed zoom and the default rule, so what they draw does not
 depend on the machine.
 
-While the rule withholds a path, the map shows the note on withheld paths
-and the detail panel its line ("677 selected · 105 drawn at this zoom"),
+While the rule or the path budget withholds a path, the map shows the note
+on withheld paths and the detail panel its line ("677 selected · 105 drawn at this zoom"),
 both counting over the whole map, not over the part in view: the note's
 total is every edge the map's scene draws and every loop (as with the
 budget, "Showing 105 of 677 flows" on the whole BPIC log fitted), and its
 first number those let through, also where they lie outside the view, so a
-pan never changes it. Where the budget withholds paths in view as well, they
-are subtracted (on the Canvas map these depend on the view). Zooming in
+pan never changes it. Where the budget withholds paths as well, they
+are subtracted over the whole map; panning changes neither number. Zooming in
 brings paths back in steps, one width at a time, and the note follows;
 zooming out never brings one back. `onEdgesShown` reports the edges let
 through over the whole map and the note's total, so `toSVG`/`toPNG` given
 that report draw exactly the paths the map draws, with the same note; an
-export without it draws every path. `budgetEdges` and its numbers are
-unchanged where the rule withholds nothing. Internal: `zoomedSelection`
-(not exported) turns what the rule and the budget let through into the
-`EdgeSelection` both maps draw.
+export without it draws every path. With `minPathPx={0}`, the width rule
+withholds no paths; the maps still apply the budget over the whole map and preserve connecting and protected
+paths. Calling `drawScene` without a path rule retains its previous budget
+behavior. Internal: `mapEdges` (not exported) combines
+the rule and budget into the `EdgeSelection` both maps draw.
 
 ### Adaptive budget
 

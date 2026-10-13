@@ -239,7 +239,7 @@ function ProcessMapInner(props: ProcessMapProps) {
     const timer = setTimeout(() => setRestZoom(rfZoom), REST_MS);
     return () => clearTimeout(timer);
   }, [rfZoom, restZoom]);
-  const pathRule = useMemo(() => (minPathPx > 0 ? { minPx: minPathPx, zoom: restZoom } : undefined), [minPathPx, restZoom]);
+  const pathRule = useMemo(() => ({ minPx: minPathPx, zoom: restZoom }), [minPathPx, restZoom]);
   const lod = lodAt(zoom, scene.lod);
   // What the texts show at the zoom, within the hysteresis of what they showed: the map writes it on its root as classes.
   const readableBefore = useRef<Readable | undefined>(undefined);

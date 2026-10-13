@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { globalScene } from "../../fixtures/bpic2019";
 import { type FlowEdge, type FlowGraph, type FlowNode, type FlowScene, type Overlay, abstract, buildScene, createPositions, fitViewport, layout, pathsAtZoom, viewTokens } from "../../src/index";
-import { CanvasRenderer, prepareScene } from "../../src/canvas/index";
+import { CanvasRenderer, drawScene, prepareScene } from "../../src/canvas/index";
 import { inkContext, watch } from "../support/ink";
 import { offWay, ruleAt } from "./zoom-cases";
 
@@ -58,6 +58,21 @@ describe("the paths a map draws at a zoom", () => {
     expect(through(scene, 0.1, 0.5, { selection: { edges: ["b->c"] } })).toBeUndefined();
     expect(through(scene, 0.1, 0.5, { focused: "b->c" })).toBeUndefined();
     expect(through(scene, 0.1, 0.5, { highlighted: new Set(["b->c"]) })).toBeUndefined();
+  });
+
+  it("keeps connecting and protected paths under a budget, even when the zoom rule withholds nothing", () => {
+    const prepared = prepareScene(scene.graph, scene.positions, { selfLoops: false });
+    const ink = inkContext();
+    const frame = (zoom: number, protection = {}, minPx = 0.5) => drawScene(ink.ctx, prepared, { x: 0, y: 0, zoom, width: 1400, height: 900 }, { selection: { nodes: [], edges: [], groups: [] }, ...protection }, { edgeBudget: 0, pathRule: { minPx } }).withheld;
+    // Five paths connect a, b and c between the terminals; the constraint also stays. Only b → c may go.
+    for (const zoom of [0.1, 0.3, 1]) {
+      expect(frame(zoom, {}, 0)).toMatchObject({ shown: 6, total: 7 });
+      expect(frame(zoom)).toMatchObject({ shown: 6, total: 7, pathsNotShown: 1 });
+      expect([...frame(zoom)!.drawn].map((i) => prepared.edgeMarks[i].id).sort()).toEqual(all.filter((id) => id !== "b->c"));
+      expect(frame(zoom, { selection: { nodes: [], edges: ["b->c"], groups: [] } })).toBeUndefined();
+      expect(frame(zoom, { focused: "b->c" })).toBeUndefined();
+      expect(frame(zoom, { highlighted: new Set(["b->c"]) })).toBeUndefined();
+    }
   });
 });
 
@@ -164,6 +179,39 @@ describe("the paths drawn of the whole log at a small zoom", () => {
     // At zoom 1 every path is drawn and nothing is noted.
     r.setViewport({ x: 0, y: 0, zoom: 1 });
     expect(frame().note).toBeUndefined();
+  }, 60_000);
+
+  it("keeps the budget's whole-map selection through pans, with connected activities and monotone zoom counts", async () => {
+    const { prepared } = await whole;
+    const ink = inkContext();
+    const canvas = { getContext: () => ink.ctx, width: 0, height: 0, style: {} } as unknown as HTMLCanvasElement;
+    const r = new CanvasRenderer(canvas, { devicePixelRatio: 1, draw: { cull: true, edgeBudget: 100, pathRule: { minPx: 0.5 } } });
+    r.resize(1400, 900);
+    r.setScene(watch(prepared, ink.begin));
+    const check = (x: number, zoom: number) => {
+      r.setViewport({ x, y: 0, zoom });
+      ink.visits.length = 0;
+      r.draw();
+      const w = r.lastDraw!.withheld!;
+      const ids = [...w.drawn].map((i) => prepared.edgeMarks[i].id).sort();
+      const box = { x: -x / zoom, y: 0, width: 1400 / zoom, height: 900 / zoom };
+      const visible = new Set(prepared.hit.within(box).filter((it) => it.kind === "edge").map((it) => it.id));
+      const inked = [...new Set(ink.visits.filter((v) => v.list === "edges" && v.ink).map((v) => v.id))].sort();
+      expect(inked).toEqual(ids.filter((id) => visible.has(id)));
+      expect(offWay(prepared.graph, prepared.graph.edges.filter((e) => ids.includes(e.id)))).toEqual([]);
+      expect(w.total).toBe(677);
+      return { ids, shown: w.shown };
+    };
+    let before = 0;
+    for (const zoom of [0.02, 0.05, 0.1, 0.2, 0.5, 1]) {
+      const here = check(0, zoom);
+      expect(here.shown).toBeGreaterThanOrEqual(before);
+      expect(check(-900, zoom)).toEqual(here);
+      before = here.shown;
+    }
+    // 100 let-through lines plus all 21 loops, independent of the view.
+    expect(before).toBe(121);
+    r.dispose();
   }, 60_000);
 });
 

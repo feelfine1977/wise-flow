@@ -74,7 +74,7 @@ activity's strongest path from and to a more frequent one, counted there
 without the library: 84 of 656 lines), everything at zoom 1, more as the
 zoom grows, and every activity between the start and the end at each step.
 It drives a culled `CanvasRenderer` on that scene through zoom steps in and
-out, a pan and a gesture: the lines it inks are exactly those let through
+out, a pan and a gesture, with both an unlimited and a finite budget: the lines it inks are exactly those let through
 whose extent the hit index finds in view, the note's numbers count over the
 whole map, never fall going in nor rise going out, stay with a pan and
 change only once the gesture ends. `react/PathsAtZoom.test.tsx` holds the

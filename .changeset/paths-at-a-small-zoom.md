@@ -24,7 +24,11 @@ and the pinned recordings draw as before), and in the core
 `openingView`, `OpeningView`, `OpeningOptions` and `processStart`: the view
 a map opens at, fitted where the whole map fits at a zoom of 0.75 or more,
 otherwise at 0.75 on the start of the process with room for an overview and
-no activity under a panel. The maps do not open with it yet.
+no activity under a panel. The maps use it for their readable opening.
 
 A host that wants every path at every zoom, as up to this version, passes
 `minPathPx={0}`.
+
+The path budget and zoom rule now choose paths over the whole map before
+Canvas culling. Connecting and highlighted paths survive even a budget of
+zero, including at zooms where the width rule alone withholds nothing.

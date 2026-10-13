@@ -103,7 +103,9 @@ describe("the styling contract", () => {
   });
 
   it("draws the note on withheld paths", async () => {
-    const { container } = render(<div style={{ width: 1200, height: 600 }}><ProcessMap graph={grouped} positions={groupedPositions} edgeBudget={1} {...plain} /></div>);
+    // Measured paths without terminals: neither is required to connect an activity from a start to an end.
+    const graph = { ...grouped, edges: grouped.edges.map((e, i) => ({ ...e, metrics: { count: 2 - i } })) };
+    const { container } = render(<div style={{ width: 1200, height: 600 }}><ProcessMap graph={graph} positions={groupedPositions} edgeBudget={1} {...plain} /></div>);
     await waitFor(() => expect(container.querySelector('[data-wf-part="status"]')).not.toBeNull());
     keep(container);
   });
