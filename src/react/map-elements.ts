@@ -17,10 +17,9 @@ type Bright = { nodes: Set<string>; edges: Set<string> } | undefined;
  * The classes the interactive map writes on its root for what its texts show
  * (`readableAt`): the level (`wf-text--plain` for the cards as they are, at a
  * boost of 1), the rung of the floor, which `tokens.css` turns into
- * `--wf-text-floor`, `wf-text-grow` where the groups' titles and the pills
- * are scaled up to it (past the cards' plain texts, or past `grown`, the
- * smallest of their own texts), and each kind of label shed. One string, so
- * that a zoom writes the root once.
+ * `--wf-text-floor`, `wf-text-grow` where titles and pills are scaled (past
+ * `grown`), and each kind of label shed. One string, so that a zoom writes
+ * the root once.
  */
 export function readableClasses(r: Readable, grown = Infinity): string {
   const plain = r.level === "full" && r.boost === 1;
@@ -32,7 +31,7 @@ export function readableClasses(r: Readable, grown = Infinity): string {
   return out.join(" ");
 }
 
-/** The smallest text of a scene that is scaled up to the floor besides the cards': of its pills and its groups' titles. */
+/** The smallest text of the pills and the groups' titles. */
 export const grownTextSize = ({ readable, groupMarks }: Pick<FlowScene, "readable" | "groupMarks">): number => groupMarks.reduce((s, g) => g.texts.reduce((m, t) => Math.min(m, t.size), s), readable.pills);
 
 /** The smallest text of each level of the cards and of the pills, which the stylesheet divides the floor by: written once per scene. */

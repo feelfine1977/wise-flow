@@ -99,11 +99,10 @@
 /*
  * Readable at every zoom: the map writes on its root the level its cards show (wf-text--plain, --full, --name,
  * --line, --box), the rung of the smallest text on the screen (wf-text-f*, which tokens.css turns into
- * --wf-text-floor, in layout units), wf-text-grow where the floor passes the smallest text of the groups' titles and
- * the pills, and each kind of label shed (wf-text-hide-*). A card shows the block of its level, scaled up from its
- * start by the floor over the level's smallest text; a group's title is shed with the names and scaled up from its
- * start; a pill (a row of badges, a chip, an arc's label) is scaled up to the floor from where it sits. Boxes and
- * positions never change.
+ * --wf-text-floor, in layout units), wf-text-grow where titles and pills are scaled and each kind of label shed
+ * (wf-text-hide-*). A card shows the block of its level, scaled up from its start by the floor over the level's
+ * smallest text; a group's title is shed with the names and scaled up from its start; a pill (a row of badges, a chip,
+ * an arc's label) is scaled up to the floor from where it sits. Boxes and positions never change.
  */
 .wf-process-map.wf-text--plain .wf-activity-copy:not(.wf-copy--plain),
 .wf-process-map.wf-text--full .wf-activity-copy:not(.wf-copy--full),
