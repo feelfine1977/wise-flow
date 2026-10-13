@@ -103,6 +103,6 @@ describe("one count of paths everywhere", () => {
         expect(Number(edges.getAttribute("aria-rowcount")) - 1, `${renderer}: the table`).toBe(total);
         table.unmount();
       }
-    }, 30_000);
+    }, 60_000);
   }
 });

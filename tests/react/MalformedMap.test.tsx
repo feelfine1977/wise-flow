@@ -13,10 +13,11 @@ import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type FilterClause, type Locale, activityReferences, resolveViews } from "../../src/index";
 import { ProcessMap, ViewSwitcher } from "../../src/react/index";
-import { Calls, type MalformedCase, failure, junkNumber, junkString, junkValue, malformedCase, nonFinite } from "../support/malformed";
+import { Calls, caseSettled, eachCase, type MalformedCase, failure, junkNumber, junkString, junkValue, malformedCase, nonFinite, SEARCH_TIMEOUT } from "../support/malformed";
 import { caseCount, seeds } from "../support/random";
 
-afterEach(() => {
+afterEach(async () => {
+  await caseSettled();
   cleanup();
   vi.restoreAllMocks();
 });
@@ -93,11 +94,11 @@ function junkClauses(c: MalformedCase): FilterClause[] {
 }
 
 describe("malformed input at the process map", () => {
-  it("renders every case in each renderer and as the table without an error, a broken coordinate or a broken text", async () => {
+  it("renders every case in each renderer and as the table without an error, a broken coordinate or a broken text", async ({ signal }) => {
     const calls = new Calls(fail, 20_000);
     // The checks of what the Canvas map drew hold only if it drew.
     let drawn = 0;
-    for (const c of CASES) {
+    await eachCase(CASES, signal, async (c) => {
       const canvas = recordingCanvas();
       const logged = errorsLogged();
       const renderer = c.rng.pick(["svg", "canvas", "auto"] as const);
@@ -152,15 +153,15 @@ describe("malformed input at the process map", () => {
       cleanup();
       vi.restoreAllMocks();
       must(layoutStatus !== null, c, () => "the map has no layout status");
-    }
+    });
     expect(drawn).toBeGreaterThan(CASES.length);
     expect(calls.ranAtLeast(["ProcessMap"], CASES.length)).toEqual([]);
     expect(calls.unknown({}), "plain errors").toEqual([]);
-  });
+  }, SEARCH_TIMEOUT);
 
-  it("renders every case's views in the view switcher, side by side and one at a time", async () => {
+  it("renders every case's views in the view switcher, side by side and one at a time", async ({ signal }) => {
     const calls = new Calls(fail, 20_000);
-    for (const c of CASES) {
+    await eachCase(CASES, signal, async (c) => {
       recordingCanvas();
       const logged = errorsLogged();
       const columns = c.rng.chance(0.3) ? junkNumber(c.rng) : undefined;
@@ -180,8 +181,8 @@ describe("malformed input at the process map", () => {
       must(unexpected(logged, c).length === 0, c, () => `logged: ${unexpected(logged, c)[0]}`);
       cleanup();
       vi.restoreAllMocks();
-    }
+    });
     expect(calls.ranAtLeast(["ViewSwitcher"], CASES.length)).toEqual([]);
     expect(calls.unknown({}), "plain errors").toEqual([]);
-  });
+  }, SEARCH_TIMEOUT);
 });

@@ -52,10 +52,11 @@ import {
   useStableLayout,
 } from "../../src/react/index";
 import { families } from "../support/graphs";
-import { Calls, type MalformedCase, failure, junkCoordinate, junkNumber, junkString, junkValue, malformedCase } from "../support/malformed";
+import { Calls, caseSettled, eachCase, type MalformedCase, failure, junkCoordinate, junkNumber, junkString, junkValue, malformedCase, SEARCH_TIMEOUT } from "../support/malformed";
 import { caseCount, seeds } from "../support/random";
 
-afterEach(() => {
+afterEach(async () => {
+  await caseSettled();
   cleanup();
   vi.restoreAllMocks();
 });
@@ -120,9 +121,9 @@ function Hooks({ c }: { c: MalformedCase }) {
 }
 
 describe("malformed input at the components of wise-flow/react", () => {
-  it("tables, path lists, filter chips, legends and overlay layers", async () => {
+  it("tables, path lists, filter chips, legends and overlay layers", async ({ signal }) => {
     const calls = new Calls(fail, 20_000);
-    for (const c of CASES) {
+    await eachCase(CASES, signal, async (c) => {
       const g = c.graph;
       const locale: Locale = c.rng.chance() ? "en" : "de";
       const ids = [...g.nodes.map((n) => n.id), "gone", junkString(c.rng)];
@@ -147,14 +148,14 @@ describe("malformed input at the components of wise-flow/react", () => {
       await show(calls, "Badges", c, () => <svg><Badges badges={overlays} locale={locale} /></svg>);
       await show(calls, "Chip", c, () => <Chip chip={c.rng.pick(overlays)} locale={locale} />);
       await show(calls, "PatternSwatch", c, () => <PatternSwatch pattern={c.rng.pick(PATTERNS)} ink={junkString(c.rng)} />);
-    }
+    });
     expect(calls.ranAtLeast(["TableAlternative", "PathList", "FilterChips", "Legend", "OverlayLayer", "Badges", "Chip", "PatternSwatch"], CASES.length)).toEqual([]);
     expect(calls.unknown({}), "plain errors").toEqual([]);
-  });
+  }, SEARCH_TIMEOUT);
 
-  it("menus, controls, timelines, comparisons, hooks and descriptions", async () => {
+  it("menus, controls, timelines, comparisons, hooks and descriptions", async ({ signal }) => {
     const calls = new Calls(fail, 20_000);
-    for (const c of CASES) {
+    await eachCase(CASES, signal, async (c) => {
       const g = c.graph;
       const locale: Locale = c.rng.chance() ? "en" : "de";
       const ids = [...g.nodes.map((n) => n.id), "gone", junkString(c.rng)];
@@ -188,8 +189,8 @@ describe("malformed input at the components of wise-flow/react", () => {
       calls.call("describeMap", c, () => must(!c.accepted || readable(describeMap(g, g.overlays ?? [], locale)), c, () => `describeMap: ${describeMap(g, g.overlays ?? [], locale)}`));
       calls.call("groupNodeId", c, () => groupNodeId(junkString(c.rng)));
       calls.call("midpoint", c, () => midpoint(c.rng.pick([[], [{ x: junkNumber(c.rng), y: 0 }], [{ x: 0, y: 0 }, { x: 10, y: junkNumber(c.rng) }]])));
-    }
+    });
     expect(calls.ranAtLeast(["ContextMenu", "AbstractionControls", "TraceTimeline", "FlowComparison", "useFlowGraph", "ZoomControl", "useFlowTheme", "useStableLayout", "useOverlays", "describeNode", "describeEdge", "describeGroup", "describeMap", "groupNodeId", "midpoint"], CASES.length)).toEqual([]);
     expect(calls.unknown({}), "plain errors").toEqual([]);
-  });
+  }, SEARCH_TIMEOUT);
 });

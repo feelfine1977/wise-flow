@@ -33,7 +33,11 @@ matrix yet; local macOS execution does not prove Windows support.
 Vitest 4 uses separate Node and jsdom projects, at most four forks at a time (the
 hosted runners have two to four cores). `tests/core/graph-size.test.ts` holds a
 million-edge scene, about 1.9 GB per fork with coverage, so its own project runs it
-alone after the others. Coverage includes **all production
+alone after the others, with a time limit of two minutes per test. Vitest's limit
+is 30 seconds per test; a test that needs more on two cores names its own limit,
+twice what it takes there, scaled with `caseCount(1)` when it is a search
+(`SEARCH_TIMEOUT` in `tests/support/malformed.ts` for the searches over malformed
+input), never a global raise and never a retry. Coverage includes **all production
 TS/TSX files**, excluding declaration-only files; unimported implementation files
 remain counted. Thresholds are statements **93%**, lines **95%**, branches **84%**,
 functions **92%**: the measured whole-source values (93.3%, 95.08%, 84.18%, 92.24%
@@ -107,6 +111,30 @@ npm run storybook:build
 npm run test:browser
 npm run test:visual -- --update-snapshots=none
 ```
+
+Before pushing a change that adds tests or makes them slower, run the unit and
+component suites at the hosted runners' size:
+
+```sh
+npm run test:hosted                          # two cores, one run
+npm run test:hosted -- --runs 3              # three runs in a row
+PATH=/path/to/node-22/bin:$PATH npm run test:hosted   # the Node that runs the script runs Vitest
+```
+
+[scripts/test-hosted.mjs](../scripts/test-hosted.mjs) runs `vitest run --coverage`
+with `CI` set, as the workflow's `test:coverage` does, pinned with `taskset` to the
+first two processors the machine allows (`--cores` changes the number), and Vitest's
+four forks share them as on a hosted runner. It lists every test that failed and every
+test that passed in more than half its time limit (`--headroom` changes the share),
+and fails on either. Two cores of an Apple-silicon machine in a Linux container
+came close to a hosted run: on 12 October 2026 the suites took 474 seconds there
+(405 to 420 on the runners), every test that timed out on the runners took 30
+seconds or more, and tests that passed on the runners took up to 27, so only half
+the limit leaves a margin. Arguments after the options go to Vitest; reports are
+written to `reports/hosted/`. `taskset` is
+Linux's (util-linux); elsewhere run the script in a container limited to two
+processors, for example
+`docker run --rm --cpuset-cpus=0-1 -v "$PWD":/work -v /work/node_modules -w /work node:24 sh -c "npm ci && npm run test:hosted"`.
 
 Focused commands: `test:core`, `test:components`, `test:tooling`. Set
 `FLOW_REACT_VERSION=18.3.1 FLOW_REACT_TYPES=18` for a React 18 consumer, or

@@ -8,14 +8,17 @@ The executable CI contract and release procedure are in [docs/CI.md](../docs/CI.
 | `support/` | Seeded generators for searching tests: random stream, graph families, positions and viewports, event schedules, shrinking, event logs and their directly-follows graphs, BPMN-lite models, mutated BPMN files, malformed input for every public entry point; fake layout workers and engines for lifecycle tests; a recording 2D context that says which element inked which canvas pixels; the ladder of abstraction settings with scenes of four magnitudes, readings of what a map drew with the properties they must hold, and the readings of an SVG export several tests share | imported by `core/` and `react/` tests and the story "Thresholds and sizes" |
 | `fixtures/` | A directly-follows graph of an observed order-to-cash process (`o2c-observed.json`), read by the repositioning tests | imported by `core/` tests |
 | `react/` | jsdom callbacks, keyboard interaction, state replacement and renderer lifecycles | `npm run test:components` |
-| `tooling/` | Negative checks for architecture boundaries, the source lint, workflow policies, artifact budgets and the benchmark's report; the core entry point's built declarations against `scripts/core-exports.json`, deprecations and every exported name of the four entry points against `docs/API.md`; the token table and its generated `tokens.css`; the styling contract against the rendered fixtures and the API document; the emitted JavaScript without comments, the declarations with their documentation comments, and their maps; the table of invalid input against the entry points; the package's name `wise-flow` in the manifest, the lockfile and every changeset, Changesets' public access, and the former name only in the changeset and the migration note that give it | `npm run test:tooling` |
+| `tooling/` | Negative checks for architecture boundaries, the source lint, workflow policies, artifact budgets and the benchmark's report; the core entry point's built declarations against `scripts/core-exports.json`, deprecations and every exported name of the four entry points against `docs/API.md`; the token table and its generated `tokens.css`; the styling contract against the rendered fixtures and the API document; the emitted JavaScript without comments, the declarations with their documentation comments, and their maps; the table of invalid input against the entry points; the package's name `wise-flow` in the manifest, the lockfile and every changeset, Changesets' public access, and the former name only in the changeset and the migration note that give it; the processors a run at the hosted runners' size is pinned to and the tests it reports as tight | `npm run test:tooling` |
 | `package/` | Separate consumer of the actual npm tarball; NodeNext types and real browser assets/lifecycle | `npm run test:package` |
 | `browser/` | Production Storybook accessibility and keyboard tests, the map's paint order, host stylesheets against the styling contract and the cascade layer, the computed styles of the map and its panels against their record (only the elements inside the library's roots), the outline and fill of an activity's card when hovered, selected, focused and out of scope, the detail panel (fewer activities and paths drawn at each step of "Activities" to the left, "Paths" in place), the controls (no panel over an activity at the fitted zoom, the dark scheme's panels, controls and table cells and its pattern ink, the controls' accessibility and names in English and German, and every form control's text, border and outline colour a token in every state and both schemes), and the parity of the four renderers, in a real browser | `npm run storybook:build` then `npm run test:browser` |
 | `visual/` | Ten behavior checks including six screenshots and the large Canvas scene | `npm run test:visual` |
 | `bench/` | The benchmark: times on large and dense inputs in Node and in Chromium, beside the numbers measured before the repairs and the targets; not a gate | `npm run bench` |
 
 `npm run check` runs lint, typecheck, architecture/workflow guards, tooling tests
-and unit/component coverage. Vitest counts all implementation files and enforces
+and unit/component coverage. `npm run test:hosted` runs unit/component coverage on
+two cores, as the hosted runners have, and reports the tests that passed in more
+than half their time limit ([CI](../docs/CI.md#local-commands-and-diagnostics)).
+Vitest counts all implementation files and enforces
 reviewed floors (the measured values rounded down). It refuses focused `.only`
 tests in CI. Reported coverage is not a claim of semantic completeness; graph
 routes still differ from observed variants and grouped metric approximations
@@ -131,8 +134,10 @@ for (const seed of seeds(caseCount(20))) {
   (`WISE_DEEP=3` runs a hundred and fifty times as many). Each searching test
   is run in deep mode at least once before it is merged, and its deep run is
   recorded with the seed range, the number of cases, the duration and the result.
-  A deep run of a large search outlives Vitest's test timeout of 30 seconds;
-  pass `--testTimeout=1800000 --hookTimeout=1800000` to let it finish.
+  A search that takes more than half of Vitest's 30 seconds on two cores names
+  its own time limit, scaled with `caseCount(1)` (`SEARCH_TIMEOUT` for the
+  searches over malformed input). A deep run of a large search outlives other
+  limits; pass `--testTimeout=1800000 --hookTimeout=1800000` to let it finish.
 - `seeds(count)` are the seeds, `1 … count` by default and `count` seeds from
   `WISE_SEED` on when it is set. Every assertion names its seed through
   `caseLabel(seed, detail)`, so the failure prints
@@ -167,7 +172,10 @@ backend's, with strings; `junkCoordinate` for coordinates) and strings.
 plain errors are counted, and a search fails on one its list of documented or
 known errors does not name. `core/malformed-*.test.ts` and
 `react/Malformed*.test.tsx` call every function and component of the four
-entry points once per case, `caseCount(300)` cases; what each does with
+entry points once per case, `caseCount(300)` cases; the React searches run
+their cases through `eachCase`, which stops at the next case once the test
+timed out, and await `caseSettled()` after each test, so that a test that
+timed out does not go on rendering into the next one; what each does with
 invalid input, documented and observed, is the table in
 [invalid-input.md](invalid-input.md), which a tooling test keeps complete.
 `react/MarkupSafety.test.tsx` checks that markup in the data stays text in

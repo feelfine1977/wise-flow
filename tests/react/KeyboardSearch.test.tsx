@@ -276,6 +276,7 @@ function checkStep(map: RandomMap, before: MapState, event: MapEvent, after: Map
 // ---------------------------------------------------------------------------
 
 describe("random walks over random maps", () => {
+  // About 14 seconds on two cores with coverage, as the hosted runners have; fifty times as many cases in deep mode.
   it("keep the active descendant listed and drawn and the list within its limit", () => {
     for (const seed of seeds(caseCount(200))) {
       const map = randomMap(seed);
@@ -302,7 +303,7 @@ describe("random walks over random maps", () => {
     expect(tally.menu).toBeGreaterThan(tally.steps / 50);
     expect(tally.ontoWithheld).toBeGreaterThan(100);
     expect(tally.countGrew).toBeGreaterThan(0);
-  });
+  }, 60_000 * caseCount(1));
 });
 
 /**

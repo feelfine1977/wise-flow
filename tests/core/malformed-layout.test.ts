@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import { type FlowGraph, type LayoutOptions, type Positions, LayoutUnavailableError, buildViews, clearLayoutCache, createLayoutScope, layout, layoutUnion } from "../../src/index";
 import { toPNG } from "../../src/canvas/index";
 import { families } from "../support/graphs";
-import { Calls, type MalformedCase, argumentsRecorder, failure, junkCoordinate, junkNumber, junkString, malformedCase } from "../support/malformed";
+import { Calls, type MalformedCase, argumentsRecorder, failure, junkCoordinate, junkNumber, junkString, malformedCase, SEARCH_TIMEOUT } from "../support/malformed";
 import { caseCount, seeds } from "../support/random";
 
 const CASES = seeds(caseCount(300)).map((seed) => malformedCase(seed, { maxSize: 8 }));
@@ -108,5 +108,5 @@ describe("malformed input at the asynchronous core functions", () => {
     expect(calls.ranAtLeast(["layout", "layoutUnion", "createLayoutScope", "buildViews", "toPNG", "LayoutUnavailableError"], CASES.length)).toEqual([]);
     expect(calls.unknown(KNOWN), "plain errors that are not documented").toEqual([]);
     if (process.env.WISE_DEEP) console.info(`plain errors over ${CASES.length} cases:\n${calls.report()}`);
-  });
+  }, SEARCH_TIMEOUT);
 });

@@ -98,8 +98,8 @@ function idsOfCounts(graph: FlowGraph, frame: readonly string[] | undefined): st
   return [...new Set((frame ?? []).filter((s) => /^\d+$/.test(s)))].map((s) => byCount.get(s)!).sort();
 }
 
-/** Searching tests run fifty times longer in deep mode; so may their timeout. */
-const TIMEOUT = 30_000 * caseCount(1);
+/** Searching tests run fifty times longer in deep mode; so may their timeout. A seed takes up to 18 seconds on two cores with coverage, as the hosted runners have. */
+const TIMEOUT = 60_000 * caseCount(1);
 
 const SMALL: readonly FamilyName[] = ["chain", "layered", "tree", "cyclic", "hub", "components", "stages", "lanes", "nested", "overlaid"];
 

@@ -87,6 +87,7 @@ function randomQuery(rng: Random, rows: Row[]): string {
 // ---------------------------------------------------------------------------
 
 describe("the paged table over random graphs and searches", () => {
+  // Up to 25 seconds on two cores with coverage, as the hosted runners have; fifty times as many cases in deep mode.
   it("lists every row once, filters as a naive filter, announces true counts and keeps the focus on a working control", () => {
     let pairs = 0;
     for (const seed of seeds(caseCount(100))) {
@@ -148,5 +149,5 @@ describe("the paged table over random graphs and searches", () => {
       cleanup();
     }
     expect(pairs).toBeGreaterThanOrEqual(300);
-  });
+  }, 90_000 * caseCount(1));
 });

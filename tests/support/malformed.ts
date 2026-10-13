@@ -13,7 +13,7 @@
 import type { DrawContext } from "../../src/canvas/index";
 import { type FlowGraph, type FlowGroup, type FlowNode, type GraphIssue, type Overlay, type Positions, MAP_TARGET, validateGraph } from "../../src/index";
 import { type InvalidFamilyName, families, invalidFamilies } from "./graphs";
-import { type Random, createRandom } from "./random";
+import { type Random, caseCount, createRandom } from "./random";
 import { brokenPositionsOf, positionsOf } from "./scenes";
 
 /** Defects beyond the invalid families. */
@@ -315,6 +315,37 @@ export class Calls {
       [...tally.keys()].filter((msg) => !(known[name] ?? []).some((re) => re.test(msg))).map((msg) => `${name} threw ${msg} (seed ${this.lastCase.get(`${name} ${msg}`)})`),
     );
   }
+}
+
+/**
+ * The time limit of a search that renders, lays out or exports every malformed case: 300 cases take 25 to 66
+ * seconds on two cores with coverage, as the hosted runners have, which is more than Vitest's 30. Searches run
+ * fifty times as many cases in deep mode; so may their time limit.
+ */
+export const SEARCH_TIMEOUT = 180_000 * caseCount(1);
+
+let inFlight: Promise<unknown> = Promise.resolve();
+
+/**
+ * Runs `body` for each case in turn, and stops at the next case once `signal`
+ * is aborted, as Vitest aborts a test's signal when the test times out. No one
+ * awaits a test that timed out: without the stop its loop would go on
+ * rendering, calling `act()` and restoring mocks while the next test runs, and
+ * that test would fail on the overlapping `act()` calls or miss what is logged.
+ * Await `caseSettled()` after each test, before cleaning up.
+ */
+export async function eachCase<C>(cases: readonly C[], signal: AbortSignal, body: (c: C) => Promise<void>): Promise<void> {
+  for (const c of cases) {
+    signal.throwIfAborted();
+    const step = body(c);
+    inFlight = step.catch(() => undefined);
+    await step;
+  }
+}
+
+/** Resolves when the case `eachCase` ran last has ended. */
+export function caseSettled(): Promise<unknown> {
+  return inFlight;
 }
 
 /** Paths to the numbers in a value that are not finite (`NaN`, an infinity), at most `limit` of them. */

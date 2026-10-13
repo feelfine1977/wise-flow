@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { type FlowGraph, type Overlay, MAP_TARGET, validateGraph } from "../../src/index";
 import type { View } from "../../src/canvas/index";
 import { type FamilyName, type InvalidFamilyName, OVERLAY_KINDS, componentCount, families, invalidFamilies, layerOf } from "../support/graphs";
+import { caseSettled, eachCase } from "../support/malformed";
 import { caseCount, caseLabel, createRandom, seeds } from "../support/random";
 import { POSITION_KINDS, SIDES, VIEWPORT_KINDS, brokenPositionsOf, oddPositionsOf, positionsOf, viewportAtSide, viewportsOf } from "../support/scenes";
 import { interleave, schedule } from "../support/schedules";
@@ -167,6 +168,29 @@ describe("the deep-mode convention", () => {
     process.env.WISE_SEED = "not a number";
     expect(seeds(1)).toEqual([1]);
     expect(caseLabel(9, "step 3")).toBe("seed 9 (step 3); replay with WISE_SEED=9");
+  });
+
+  it("stops a search over cases at the next case once its test is aborted, and says when the case in flight has ended", async () => {
+    const controller = new AbortController();
+    const ran: number[] = [];
+    let release = () => {};
+    const search = eachCase([1, 2, 3], controller.signal, async (c) => {
+      ran.push(c);
+      // The test times out while case 2 is in flight.
+      if (c === 2) {
+        controller.abort(new Error("timed out"));
+        await new Promise<void>((resolve) => (release = resolve));
+      }
+    });
+    await Promise.resolve();
+    let settled = false;
+    const waiting = caseSettled().then(() => (settled = true));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(settled).toBe(false);
+    release();
+    await waiting;
+    await expect(search).rejects.toThrow("timed out");
+    expect(ran).toEqual([1, 2]);
   });
 });
 

@@ -6,6 +6,8 @@ import { detailGraph, offWays, seeded, shuffled, wayThrough, wayThroughHidden } 
 
 const isActivity = (n: FlowNode) => n.kind === "activity" || n.kind === "stage";
 const ids = (elements: { id: string }[]) => elements.map((el) => el.id).sort();
+/** Two checks of a fixed size run 25 to 45 seconds on two cores with coverage, as the hosted runners have: more than Vitest's 30. */
+const LONG_TIMEOUT = 120_000;
 const byShares = (activityDetail: number, pathDetail: number, more: AbstractOptions = {}): AbstractOptions => ({ activityDetail, pathDetail, ...more });
 const PATH_SHARES = [0, 0.1, 0.25, 0.5, 1];
 /** Every activity position of the whole log (42 activities), and 0. */
@@ -218,7 +220,7 @@ describe("detail shares", () => {
         }
       }
     }
-  });
+  }, LONG_TIMEOUT);
 
   it("never remove an element when either share moves towards more detail, but an indirect path whose activities come into view", () => {
     const graphs: [string, FlowGraph, AbstractOptions][] = [
@@ -253,7 +255,7 @@ describe("detail shares", () => {
       }
     }
     expect(replaced).toBeGreaterThan(0);
-  });
+  }, LONG_TIMEOUT);
 
   it("keep the counts of the graph and invent no path but an indirect one", () => {
     for (const graph of [globalScene, vendorScene, diffScene]) {
