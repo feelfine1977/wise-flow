@@ -9,11 +9,12 @@
  * and under a budget of 24 paths. The readings are held against what the
  * scene says (`checkReading`).
  *
- * Four kinds of failure are open decisions, written up and pinned below as
- * findings (`findingOf`): texts drawn below 9 px, path counts that cover each
- * other or a card, an arc label on a card or a label where its arc had no free
- * place, and a row of badges wider than its card that covers the card beside
- * it. A fifth is the documented limit of keep connected, which `findingOf`
+ * Three kinds of failure are open decisions, written up and pinned below as
+ * findings (`findingOf`): path counts that cover each other or a card, an arc
+ * label on a card or a label where its arc had no free place, and a row of
+ * badges wider than its card that covers the card beside it. Texts drawn
+ * below 9 px were a fourth until the map kept its texts readable at every
+ * zoom; now one fails the search. A fourth is the documented limit of keep connected, which `findingOf`
  * names too: an activity it leaves without a path from the start or to the
  * end, since it restores flow context only from activities still on the map.
  * The legend's path widths run from 0 to the strongest path of the graph
@@ -25,7 +26,7 @@
 import { readFileSync } from "node:fs";
 import { type TestContext, describe, expect, it } from "vitest";
 import { type PreparedScene, prepareScene } from "../../src/canvas/index";
-import { type FlowGraph, type Locale, type Overlay, type Positions, abstract, createPositions, layout, toSVG } from "../../src/index";
+import { type FlowGraph, type Locale, type Overlay, type Positions, abstract, createPositions, defaultTheme, layout, toSVG } from "../../src/index";
 import { type LadderScene, type Rung, MAGNITUDES, RUNGS, collapsedGraph, committedScenes, generatedScene, optionsOf, randomSetting, rungOf, shownGraph } from "../support/ladder";
 import { type Failure, type Finding, type Reading, arcLabelPlaces, checkReading, findingOf, fitView, pictureOf, readCanvas, weaklyConnected } from "../support/reading";
 import { positionsOf } from "../support/scenes";
@@ -108,50 +109,50 @@ const summary = (failures: readonly Failure[]) => failures.slice(0, 6).map((f) =
 /**
  * The open findings at each rung of the committed scenes, as written up with
  * their pictures: on the whole log and on the vendor, laid out by ELK (the
- * whole log at 0 % by Dagre). Cards write their names at 13 px and their
- * number line at 11, so collapsed stages draw no text below 9 px at the fitted
- * zoom; paths are counted in cases, written in full up to 99,999, so counts
+ * whole log at 0 % by Dagre). No text is drawn below 9 px at the fitted zoom:
+ * the cards scale their texts up to it and shed what does not fit, and
+ * paths' counts go below it; paths are counted in cases, written in full up to 99,999, so counts
  * cover a card or each other where stages are shown; paths back run below the
  * flow, clear of the counts of the paths forward; and on the whole log at 5 %,
  * not connected, one arc's pill has no free place.
  */
 const WRITTEN_UP: Record<string, string> = {
-  "global · 0 % · connected · stages shown": "path counts, small text",
-  "global · default · connected · stages shown": "path counts, small text",
-  "global · 5 % · connected · stages shown": "path counts, small text",
-  "global · 10 % · connected · stages shown": "path counts, small text",
-  "global · 25 % · connected · stages shown": "path counts, small text",
-  "global · 50 % · connected · stages shown": "small text",
-  "global · 0 % · not connected · stages shown": "path counts, small text",
-  "global · default · not connected · stages shown": "path counts, small text",
-  "global · 5 % · not connected · stages shown": "arc label without a place, path counts, small text",
-  "global · 10 % · not connected · stages shown": "path counts, small text",
-  "global · 25 % · not connected · stages shown": "path counts, small text",
-  "global · 50 % · not connected · stages shown": "small text",
-  "global · 0 % · connected · stages collapsed": "small text",
+  "global · 0 % · connected · stages shown": "path counts",
+  "global · default · connected · stages shown": "path counts",
+  "global · 5 % · connected · stages shown": "path counts",
+  "global · 10 % · connected · stages shown": "path counts",
+  "global · 25 % · connected · stages shown": "path counts",
+  "global · 50 % · connected · stages shown": "",
+  "global · 0 % · not connected · stages shown": "path counts",
+  "global · default · not connected · stages shown": "path counts",
+  "global · 5 % · not connected · stages shown": "arc label without a place, path counts",
+  "global · 10 % · not connected · stages shown": "path counts",
+  "global · 25 % · not connected · stages shown": "path counts",
+  "global · 50 % · not connected · stages shown": "",
+  "global · 0 % · connected · stages collapsed": "",
   "global · default · connected · stages collapsed": "",
   "global · 5 % · connected · stages collapsed": "",
   "global · 10 % · connected · stages collapsed": "",
   "global · 25 % · connected · stages collapsed": "",
   "global · 50 % · connected · stages collapsed": "",
-  "global · 0 % · not connected · stages collapsed": "small text",
+  "global · 0 % · not connected · stages collapsed": "",
   "global · default · not connected · stages collapsed": "",
   "global · 5 % · not connected · stages collapsed": "",
   "global · 10 % · not connected · stages collapsed": "",
   "global · 25 % · not connected · stages collapsed": "",
   "global · 50 % · not connected · stages collapsed": "",
-  "vendor · 0 % · connected · stages shown": "path counts, small text",
-  "vendor · default · connected · stages shown": "path counts, small text",
-  "vendor · 5 % · connected · stages shown": "path counts, small text",
-  "vendor · 10 % · connected · stages shown": "small text",
-  "vendor · 25 % · connected · stages shown": "small text",
-  "vendor · 50 % · connected · stages shown": "small text",
-  "vendor · 0 % · not connected · stages shown": "path counts, small text",
-  "vendor · default · not connected · stages shown": "path counts, small text",
-  "vendor · 5 % · not connected · stages shown": "small text",
-  "vendor · 10 % · not connected · stages shown": "small text",
-  "vendor · 25 % · not connected · stages shown": "small text",
-  "vendor · 50 % · not connected · stages shown": "small text",
+  "vendor · 0 % · connected · stages shown": "path counts",
+  "vendor · default · connected · stages shown": "path counts",
+  "vendor · 5 % · connected · stages shown": "path counts",
+  "vendor · 10 % · connected · stages shown": "",
+  "vendor · 25 % · connected · stages shown": "",
+  "vendor · 50 % · connected · stages shown": "",
+  "vendor · 0 % · not connected · stages shown": "path counts",
+  "vendor · default · not connected · stages shown": "path counts",
+  "vendor · 5 % · not connected · stages shown": "",
+  "vendor · 10 % · not connected · stages shown": "",
+  "vendor · 25 % · not connected · stages shown": "",
+  "vendor · 50 % · not connected · stages shown": "",
   "vendor · 0 % · connected · stages collapsed": "",
   "vendor · default · connected · stages collapsed": "",
   "vendor · 5 % · connected · stages collapsed": "",
@@ -279,7 +280,7 @@ describe("the open findings, pinned", () => {
     return { graph, positions: createPositions({ nodes, groups: { s: { x: -20, y: -40, width: n * 200, height: 108 } }, edges: {} }, "given", "RIGHT") };
   };
 
-  it("finding: the map draws texts below 9 px at the zoom it is fitted at, and a stage's title at every zoom", () => {
+  it("closed finding: the map draws no text below 9 px at the zoom it is fitted at, nor a stage's title at any zoom", () => {
     const { graph, positions } = row(8);
     const prepared = prepareScene(graph, positions, { lodBySize: true });
     const view = fitView(prepared.bounds, VIEW.width, VIEW.height);
@@ -287,13 +288,19 @@ describe("the open findings, pinned", () => {
     expect(view.zoom).toBeCloseTo(0.6466, 3);
     const fitted = readCanvas(prepared, view);
     const px = (role: string, text: string) => fitted.texts.filter((t) => t.role === role && t.text === text).map((t) => Number((t.size * view.zoom).toFixed(2)));
-    // A card's name at 13 and its number line at 11 are drawn from zoom 0.2, so on screen at 8.41 and 7.11 px.
-    expect(px("node", "Activity 3")).toEqual([8.41]);
-    expect(px("node", "40")).toEqual(Array(8).fill(7.11));
-    // A stage's title (13, semibold) has no level of detail: at zoom 0.06 it is drawn at 0.78 px.
+    // The floor is 9 / 0.6466 = 13.92 layout units, 14.67 on the ladder (2^(31/8)). The cards are 48 high: their texts
+    // have 48 − 2 − 3 = 43, which holds the name's two lines (32) but not the number line too (46), so the number line is
+    // shed and the name is scaled up 14.67 / 13 = 1.128: 9.49 px on the screen. The paths' counts (11) are shed too.
+    expect(px("node", "Activity 3")).toEqual([9.49]);
+    expect(px("node", "40")).toEqual([]);
+    expect(fitted.texts.filter((t) => t.role === "path")).toEqual([]);
+    // The stage's title goes with the names: at zoom 0.06 the floor, 150, is beyond the ladder's 128, and nothing is written.
     const far = readCanvas(prepared, { ...view, zoom: 0.06 });
-    expect(far.texts.filter((t) => t.role === "group").map((t) => Number((t.size * 0.06).toFixed(2)))).toEqual([0.78]);
-    expect(far.texts.filter((t) => t.role === "node")).toEqual([]);
+    expect(far.texts).toEqual([]);
+    // They were drawn at 8.41 px (the name), 7.11 (the number line) and, at 0.06, 0.78 (the title); a floor of 0 draws them so.
+    const before = prepareScene(graph, positions, { lodBySize: true, theme: { ...defaultTheme, text: { ...defaultTheme.text, minScreenPx: 0 } } });
+    expect(readCanvas(before, view).texts.filter((t) => t.role === "node" && t.text === "Activity 3").map((t) => Number((t.size * view.zoom).toFixed(2)))).toEqual([8.41]);
+    expect(readCanvas(before, { ...view, zoom: 0.06 }).texts.filter((t) => t.role === "group").map((t) => Number((t.size * 0.06).toFixed(2)))).toEqual([0.78]);
   });
 
   it("finding: a path's count has no place of its own and, when wider than the gap it sits in, covers an activity", () => {

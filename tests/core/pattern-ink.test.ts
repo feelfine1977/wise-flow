@@ -19,8 +19,8 @@ function patternInks(svg: string): Set<string> {
 describe("the pattern ink", () => {
   it("is the scheme's own in the SVG export: the ink of the light scheme, and a dark ink on the stage colours in the dark", async () => {
     const positions = await layout(graph, { engine: "dagre" });
-    expect(patternInks(toSVG({ graph, positions, style }))).toEqual(new Set(["#1f1f1f"]));
-    expect(patternInks(toSVG({ graph, positions, style }, { scheme: "dark" }))).toEqual(new Set(["#101114"]));
+    expect(patternInks(toSVG({ graph, positions, style }, { theme: "default" }))).toEqual(new Set(["#1f1f1f"]));
+    expect(patternInks(toSVG({ graph, positions, style }, { theme: "default", scheme: "dark" }))).toEqual(new Set(["#101114"]));
   });
 
   it("is the scheme's own on the Canvas", async () => {

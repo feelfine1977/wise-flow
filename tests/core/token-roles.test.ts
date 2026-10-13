@@ -23,7 +23,7 @@ function recording() {
 /** The scene with counted paths and a dimmed activity, drawn as SVG and on a Canvas. */
 function drawn() {
   const counted: FlowGraph = { ...graph, edges: graph.edges.map((e) => ({ ...e, metrics: { count: 12 } })) };
-  const svg = toSVG({ graph: counted, positions }, { legend: false });
+  const svg = toSVG({ graph: counted, positions }, { legend: false, theme: "default" });
   const scene = prepareScene(counted, positions, { lodBySize: false });
   const { ctx, log } = recording();
   drawScene(ctx, scene, { x: 0, y: 0, zoom: 1, width: 600, height: 100 }, { selection: { nodes: [], edges: [], groups: [] }, bright: { nodes: new Set(["a"]), edges: new Set(["ab", "bc"]) } }, { cull: false });

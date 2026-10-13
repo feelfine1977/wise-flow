@@ -96,6 +96,9 @@ export function mapMark(m: OverlayMark, ids: MarkIds, hovered = false): SvgEleme
   const g = domMark(m, ids, hovered);
   g.attrs.push(["data-wf-part", "mark"], ["data-wf-kind", m.kind]);
   if (hovered) g.attrs.push(["data-wf-state", "hovered"]);
+  // An arc's pill and label in one group, which the stylesheet scales up to the floor with a chip and a row of badges.
+  const pill = m.kind === "arc" ? g.children.findIndex((c) => typeof c !== "string" && c.attrs.some(([k, v]) => k === "class" && v === "wf-pill")) : -1;
+  if (pill >= 0) g.children.push({ tag: "g", attrs: [["class", "wf-arc-pill"]], children: g.children.splice(pill) });
   return g;
 }
 
@@ -140,9 +143,15 @@ export function marksAtOrigin(overlays: Overlay[], locale: Parameters<typeof ove
 export function ElementMarks({ marks, origin }: { marks: OverlayMark[]; origin: { x: number; y: number } }) {
   const shown = useStore((s) => marks.map((m) => (s.transform[2] >= m.minZoom ? "1" : "0")).join(""));
   if (!marks.length) return null;
+  const drawn = marks.filter((_, i) => shown[i] === "1");
+  // The element's badges in one row, which the stylesheet scales up from its bottom-right corner.
+  const badges = drawn.filter((m) => m.kind === "badge");
   return (
     <svg className="wf-marks" overflow="visible" aria-hidden="true">
-      <g transform={`translate(${-origin.x} ${-origin.y})`}>{marks.map((m, i) => (shown[i] === "1" ? svgReact(mapMark(m, MARK_IDS), m.id) : null))}</g>
+      <g transform={`translate(${-origin.x} ${-origin.y})`}>
+        {drawn.map((m) => (m.kind === "badge" ? null : svgReact(mapMark(m, MARK_IDS), m.id)))}
+        {badges.length ? svgReact({ tag: "g", attrs: [["class", "wf-pill-row"]], children: badges.map((m) => mapMark(m, MARK_IDS)) }, "badges") : null}
+      </g>
     </svg>
   );
 }

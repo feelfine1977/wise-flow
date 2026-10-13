@@ -22,6 +22,7 @@ import {
   type MarkText,
   type NodeMark,
   type Overlay,
+  type OverlayMark,
   type OverlayGeometryOptions,
   type OverlayShape,
   type PatternId,
@@ -41,6 +42,7 @@ import {
   tintColor,
   unionBoxes,
 } from "../core/index.js";
+import { LADDER_TOP, boostMark, boostText, isPill, namedUpTo, pillBoost } from "../core/readable.js";
 import { sceneOf } from "../core/scene.js";
 import { ruleTokens } from "../core/tokens.js";
 
@@ -281,6 +283,12 @@ export function retainScene(scene: FlowScene): PreparedScene {
   const halo = Math.max(1.5, stroke.halo / 2);
   const withTexts = (box: Box, texts: readonly ExtentText[]): Box => unionBoxes([box, ...texts.map((t) => textBox(t, scene.textMeasure, halo))]);
   const labelAt = new Map<number, number>();
+  // Texts scaled up to the floor reach beyond their element: a group's title up to where the cards show names, a pill up to the ladder's top.
+  const titleFloor = namedUpTo(scene.readable);
+  const grown = (m: OverlayMark): OverlayMark => {
+    const { boost, origin } = pillBoost(m, LADDER_TOP, scene.readable);
+    return boostMark(m, boost, origin);
+  };
   const extentOf = (it: HitItem): Box | undefined => {
     const i = it.index;
     if (i === undefined) return undefined;
@@ -291,11 +299,14 @@ export function retainScene(scene: FlowScene): PreparedScene {
       }
       case "group": {
         const m = groups[i].mark;
-        return withTexts(grow(groups[i].box, Math.max(groupReach, m.stroke.width / 2, (m.rule?.width ?? 0) / 2)), m.texts);
+        return withTexts(grow(groups[i].box, Math.max(groupReach, m.stroke.width / 2, (m.rule?.width ?? 0) / 2)), [...m.texts, ...m.texts.map((t) => boostText(t, Math.max(1, titleFloor / t.size), t))]);
       }
       case "overlay": {
         const m = marks[i];
-        return withTexts(grow(m.box, Math.max(m.stroke ? m.stroke.width / 2 : 0, m.arrow ? reach(arrowheadExtent(markArrowhead(m.arrow))) : 0)), m.texts);
+        const box = withTexts(grow(m.box, Math.max(m.stroke ? m.stroke.width / 2 : 0, m.arrow ? reach(arrowheadExtent(markArrowhead(m.arrow))) : 0)), m.texts);
+        if (!isPill(m)) return box;
+        const big = grown(m);
+        return unionBoxes([box, withTexts(grow(big.pill?.box ?? big.box, (big.pill ?? big).stroke?.width ?? 0), big.texts)]);
       }
       default: {
         const e = edges[i];

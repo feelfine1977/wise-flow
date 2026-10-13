@@ -187,3 +187,46 @@
     animation: none !important;
   }
 }
+
+/* The smallest text on the screen in layout units, by the class the map writes as it zooms. */
+.wf-process-map.wf-text-f16 { --wf-text-floor: 4; }
+.wf-process-map.wf-text-f17 { --wf-text-floor: 4.3621; }
+.wf-process-map.wf-text-f18 { --wf-text-floor: 4.7569; }
+.wf-process-map.wf-text-f19 { --wf-text-floor: 5.1874; }
+.wf-process-map.wf-text-f20 { --wf-text-floor: 5.6569; }
+.wf-process-map.wf-text-f21 { --wf-text-floor: 6.1689; }
+.wf-process-map.wf-text-f22 { --wf-text-floor: 6.7272; }
+.wf-process-map.wf-text-f23 { --wf-text-floor: 7.3361; }
+.wf-process-map.wf-text-f24 { --wf-text-floor: 8; }
+.wf-process-map.wf-text-f25 { --wf-text-floor: 8.7241; }
+.wf-process-map.wf-text-f26 { --wf-text-floor: 9.5137; }
+.wf-process-map.wf-text-f27 { --wf-text-floor: 10.3748; }
+.wf-process-map.wf-text-f28 { --wf-text-floor: 11.3138; }
+.wf-process-map.wf-text-f29 { --wf-text-floor: 12.3377; }
+.wf-process-map.wf-text-f30 { --wf-text-floor: 13.4544; }
+.wf-process-map.wf-text-f31 { --wf-text-floor: 14.6721; }
+.wf-process-map.wf-text-f32 { --wf-text-floor: 16; }
+.wf-process-map.wf-text-f33 { --wf-text-floor: 17.4482; }
+.wf-process-map.wf-text-f34 { --wf-text-floor: 19.0274; }
+.wf-process-map.wf-text-f35 { --wf-text-floor: 20.7495; }
+.wf-process-map.wf-text-f36 { --wf-text-floor: 22.6275; }
+.wf-process-map.wf-text-f37 { --wf-text-floor: 24.6754; }
+.wf-process-map.wf-text-f38 { --wf-text-floor: 26.9087; }
+.wf-process-map.wf-text-f39 { --wf-text-floor: 29.3442; }
+.wf-process-map.wf-text-f40 { --wf-text-floor: 32; }
+.wf-process-map.wf-text-f41 { --wf-text-floor: 34.8963; }
+.wf-process-map.wf-text-f42 { --wf-text-floor: 38.0547; }
+.wf-process-map.wf-text-f43 { --wf-text-floor: 41.4989; }
+.wf-process-map.wf-text-f44 { --wf-text-floor: 45.2549; }
+.wf-process-map.wf-text-f45 { --wf-text-floor: 49.3508; }
+.wf-process-map.wf-text-f46 { --wf-text-floor: 53.8174; }
+.wf-process-map.wf-text-f47 { --wf-text-floor: 58.6883; }
+.wf-process-map.wf-text-f48 { --wf-text-floor: 64; }
+.wf-process-map.wf-text-f49 { --wf-text-floor: 69.7925; }
+.wf-process-map.wf-text-f50 { --wf-text-floor: 76.1093; }
+.wf-process-map.wf-text-f51 { --wf-text-floor: 82.9978; }
+.wf-process-map.wf-text-f52 { --wf-text-floor: 90.5097; }
+.wf-process-map.wf-text-f53 { --wf-text-floor: 98.7015; }
+.wf-process-map.wf-text-f54 { --wf-text-floor: 107.6348; }
+.wf-process-map.wf-text-f55 { --wf-text-floor: 117.3766; }
+.wf-process-map.wf-text-f56 { --wf-text-floor: 128; }

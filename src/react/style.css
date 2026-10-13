@@ -96,6 +96,54 @@
   visibility: hidden;
 }
 
+/*
+ * Readable at every zoom: the map writes on its root the level its cards show (wf-text--plain, --full, --name,
+ * --line, --box), the rung of the smallest text on the screen (wf-text-f*, which tokens.css turns into
+ * --wf-text-floor, in layout units), wf-text-grow where titles and pills are scaled at the plain level and each kind
+ * of label shed (wf-text-hide-*). A card shows the block of its level, scaled up from its start by the floor over the
+ * level's smallest text; a group's title is shed with the names and scaled up from its start; a pill (a row of
+ * badges, a chip, an arc's label) is scaled up to the floor from where it sits. Boxes and positions never change.
+ */
+.wf-process-map.wf-text--plain .wf-activity-copy:not(.wf-copy--plain),
+.wf-process-map.wf-text--full .wf-activity-copy:not(.wf-copy--full),
+.wf-process-map.wf-text--name .wf-activity-copy:not(.wf-copy--name),
+.wf-process-map.wf-text--line .wf-activity-copy:not(.wf-copy--line),
+.wf-process-map.wf-text--box .wf-activity-copy,
+.wf-process-map.wf-text--box .wf-group__label,
+.wf-process-map.wf-text-hide-path .wf-edge-label,
+.wf-process-map.wf-text-hide-loop .wf-selfloop > text,
+.wf-process-map.wf-text-hide-event .wf-node--event > .wf-node__label,
+.wf-process-map.wf-text-hide-glyph .wf-node--gateway > .wf-node__label,
+.wf-process-map.wf-text-hide-note .wf-node--note > .wf-node__label,
+.wf-process-map.wf-text-hide-pills :is(.wf-pill-row, .wf-marks .wf-chip, .wf-arc-pill) {
+  display: none;
+}
+.wf-copy--full {
+  --wf-text-s: var(--wf-text-s-full);
+}
+.wf-copy--name {
+  --wf-text-s: var(--wf-text-s-name);
+}
+.wf-copy--line {
+  --wf-text-s: var(--wf-text-s-line);
+}
+.wf-process-map:not(.wf-text--plain) .wf-activity-copy,
+.wf-process-map:is(:not(.wf-text--plain), .wf-text-grow) .wf-group__label {
+  transform-origin: 0 50%;
+  transform: scale(max(1, calc(var(--wf-text-floor, 0) / var(--wf-text-s, 1))));
+}
+.wf-process-map:is(:not(.wf-text--plain), .wf-text-grow) .wf-group__label {
+  transform-origin: 0 100%;
+}
+.wf-process-map:is(:not(.wf-text--plain), .wf-text-grow) :is(.wf-pill-row, .wf-marks .wf-chip, .wf-arc-pill) {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(max(1, calc(var(--wf-text-floor, 0) / var(--wf-pill-size, 1))));
+}
+.wf-process-map:is(:not(.wf-text--plain), .wf-text-grow) .wf-pill-row {
+  transform-origin: 100% 100%;
+}
+
 .wf-sr-only {
   position: absolute;
   width: 1px;

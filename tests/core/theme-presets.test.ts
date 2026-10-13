@@ -37,9 +37,10 @@ describe("the presets", () => {
     expect([printTheme.opacity.tint, printTheme.opacity.groupFill, printTheme.opacity.bandFill, printTheme.opacity.bandOddFill]).toEqual([0, 0, 0, 0]);
     expect(printTheme.patterns).not.toContain("solid");
     expect(printTheme.minimum).toEqual({ text: 7, stroke: 0.75 });
-    // 7 pt is 9⅓ px: the default's smallest text is 11 px and its thinnest stroke 1 px, so print keeps every size.
-    expect([printTheme.text, printTheme.stroke, printTheme.radius, printTheme.font]).toEqual([defaultTheme.text, defaultTheme.stroke, defaultTheme.radius, defaultTheme.font]);
-    expect(Math.min(...Object.values(printTheme.text).flatMap((t) => ("size" in t ? [t.size] : []))) * 0.75).toBeGreaterThanOrEqual(7);
+    // 7 pt is 9⅓ px: the default's smallest text is 11 px and its thinnest stroke 1 px, so print keeps every size; an exported figure keeps 7 pt too.
+    expect([{ ...printTheme.text, minFigurePt: 0 }, printTheme.stroke, printTheme.radius, printTheme.font]).toEqual([defaultTheme.text, defaultTheme.stroke, defaultTheme.radius, defaultTheme.font]);
+    expect([printTheme.text.minFigurePt, defaultTheme.text.minFigurePt, printTheme.text.minScreenPx]).toEqual([7, 0, 9]);
+    expect(Math.min(...Object.values(printTheme.text).flatMap((t) => (typeof t === "object" && "size" in t ? [t.size] : []))) * 0.75).toBeGreaterThanOrEqual(7);
   });
 
   it("keeps print apart in greyscale: every stage colour has its own pattern, drawn in ink that stands out from it, and every path ramp darkens from 3 : 1 on the paper", async () => {

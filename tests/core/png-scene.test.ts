@@ -61,11 +61,18 @@ describe("toPNG reads the scene", () => {
     const labels = [...ids.map((_, i) => `S${i}`), ...ids.map(() => "–"), ...ids.map(() => "· –")];
     const all = [...labels, ...ids.slice(1).map(() => "5")].sort();
     const svgTexts = (svg: string) => [...svg.matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map((m) => m[1]).sort();
-    for (const [options, expected] of [[{}, all], [{ preset: "single-column" as const }, all], [{ lodZoom: 0.21 }, [...labels].sort()]] as const) {
+    // In the print theme a single column of 1,000 pixels draws the 13,960 wide chain at a scale of 0.068: no card shows
+    // its name at 7 pt, so the cards are numbered 1 to 70 along the chain and the key lists them under the map.
+    const numbered = [...ids.map((_, i) => String(i + 1)), "Activities by number", ...ids.map((_, i) => `${i + 1} S${i}`)].sort();
+    const cases = [
+      ["default", {}, all], ["default", { preset: "single-column" as const }, all], ["default", { lodZoom: 0.21 }, [...labels].sort()],
+      ["print", {}, all], ["print", { preset: "single-column" as const }, numbered], ["print", { lodZoom: 0.21 }, [...labels].sort()],
+    ] as const;
+    for (const [theme, options, expected] of cases) {
       const png = textRecorder();
-      toPNGCanvas({ graph: chain, positions }, { ...options, legend: false, scale: 1, createCanvas: png.createCanvas });
-      expect(png.texts.map((t) => t.text).sort(), JSON.stringify(options)).toEqual(expected);
-      expect(svgTexts(toSVG({ graph: chain, positions }, { ...options, legend: false })), JSON.stringify(options)).toEqual(expected);
+      toPNGCanvas({ graph: chain, positions }, { ...options, theme, legend: false, scale: 1, createCanvas: png.createCanvas });
+      expect(png.texts.map((t) => t.text).sort(), `${theme} ${JSON.stringify(options)}`).toEqual(expected);
+      expect(svgTexts(toSVG({ graph: chain, positions }, { ...options, theme, legend: false })), `${theme} ${JSON.stringify(options)}`).toEqual(expected);
     }
   });
 

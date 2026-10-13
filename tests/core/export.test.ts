@@ -108,7 +108,7 @@ describe("toSVG overlays", () => {
 });
 
 describe("toSVG overlay marks", () => {
-  const svg = toSVG({ graph: kinds.graph, positions: kinds.positions, overlays: kinds.overlays, selfLoops: false }, { legend: false });
+  const svg = toSVG({ graph: kinds.graph, positions: kinds.positions, overlays: kinds.overlays, selfLoops: false }, { legend: false, theme: "default" });
   const marks = svg.match(/<g class="wf-overlay[^]*?<\/g>/g) ?? [];
   const accentHalo = 'fill="#b84a00" paint-order="stroke" stroke="#ffffff" stroke-width="2"';
   const arrow = 'marker-end="url(#wf-overlay-arrow)"';
@@ -172,7 +172,7 @@ describe("toSVG overlay marks", () => {
 });
 
 describe("toSVG node and edge marks", () => {
-  const draw = (lodZoom?: number) => toSVG({ graph: elements.graph, positions: elements.positions, style: elements.style }, { legend: false, lodZoom });
+  const draw = (lodZoom?: number) => toSVG({ graph: elements.graph, positions: elements.positions, style: elements.style }, { legend: false, lodZoom, theme: "default" });
   const groups = (svg: string, kind: "node" | "edge") => svg.match(new RegExp(`<g class="wf-${kind}[^]*?</g>`, "g")) ?? [];
   const halo = 'fill="#1f1f1f" paint-order="stroke" stroke="#ffffff" stroke-width="2"';
 

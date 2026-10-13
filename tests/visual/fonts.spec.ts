@@ -20,9 +20,25 @@ test("the map's text is drawn in the lane's own font, bold where bold and with d
   await page.goto("/iframe.html?id=process-map--map&viewMode=story");
   await page.waitForSelector('[data-layout-status="ready"], [data-layout-status="given"]', { timeout: 60_000 });
   const heading = page.locator(".wf-controls h3");
-  const name = page.locator(".wf-activity-name").first();
-  const counts = page.locator(".wf-activity-counts").first();
+  // A card shows the block of texts of the map's level of detail; the others are not drawn.
+  const name = page.locator(".wf-activity-name:visible").first();
+  const counts = page.locator(".wf-activity-counts:visible").first();
   await expect(heading).toHaveText("Detail");
+  // Fitted, the map is too small for the cards' number lines, which the level of detail sheds: once the map has fitted
+  // itself to its measured nodes (its zoom holds for half a second), zoomed in until they show.
+  const zoom = () => page.locator(".react-flow__viewport").evaluate((el) => getComputedStyle(el).transform);
+  let fitted = "";
+  await expect.poll(async () => {
+    const before = fitted;
+    await page.waitForTimeout(500);
+    fitted = await zoom();
+    return fitted === before;
+  }, { timeout: 30_000 }).toBe(true);
+  const zoomIn = page.getByRole("button", { name: "Zoom in" });
+  await expect(async () => {
+    if (!(await counts.count())) await zoomIn.click();
+    expect(await counts.count()).toBe(1);
+  }).toPass({ timeout: 30_000 });
   const fonts = { heading: await drawnFonts(page, heading), name: await drawnFonts(page, name), counts: await drawnFonts(page, counts) };
   test.info().annotations.push({ type: "drawn fonts", description: JSON.stringify(fonts) });
   expect(fonts).toEqual({ heading: ["LiberationSans-Bold"], name: ["LiberationSans"], counts: ["LiberationSans", "LiberationSans-Bold"] });

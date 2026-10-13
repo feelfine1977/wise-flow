@@ -913,7 +913,7 @@ export const patternTokens: { size: 6; strokeWidth: 1; strokeOpacity: 0.6; dotRa
 export function patternTwin(p: PatternId): { size; lines: [x1, y1, x2, y2][]; dots: [cx, cy][] };
 export const hatchTokens: { size: 8; width: 1; domPeriod: 7 };
 export const designTokens: { color; darkColor; palette; darkPalette; font; nodeSize; size; textSize; text; radius; stroke; dash; opacity; space; z;
-  dimension; arrowhead; pattern; hatch; minimum; rule; print };   // darkPalette: the palettes the dark scheme changes (the path ramp)
+  dimension; arrowhead; pattern; hatch; minimum; readable; rule; print };   // readable: readableTokens (see "Readable at every zoom")   // darkPalette: the palettes the dark scheme changes (the path ramp)
 // designTokens.rule: what a theme's rules draw at (see "Rules")
 //   { strokeWeight: { thin: 1; strong: 2 }; radius: { s: 4; m: 8 }; opacity: { min: 0.2; max: 1 }; textMax: 15; weights: [400, 500, 600] }
 export const themedColors: readonly ColorToken[];                  // the colours with a CSS variable
@@ -999,7 +999,8 @@ export interface Theme {
   patterns: readonly PatternId[];                         // the pattern twin of each categorical colour, in the palette's order
   pattern: PatternLook;                                   // how pattern twins are drawn: as patternTokens (tile, widths, opacities)
   font: { family: string; mono: string };
-  text: { [role in keyof typeof textTokens]: { size?; weight?; lineHeight? } };   // as textTokens, any values
+  text: { [role in keyof typeof textTokens]: { size?; weight?; lineHeight? } }   // as textTokens, any values, and:
+    & { minScreenPx: number; minFigurePt: number };       // the smallest text on the screen (px, 9) and in an exported figure (pt, 0; print 7)
   radius: { [role in keyof typeof radiusTokens]: number | string };
   stroke: { [role in keyof typeof strokeTokens]: number };
   opacity: { [role in keyof typeof opacityTokens]: number };   // the tints are tint, groupFill, bandFill, bandOddFill
@@ -1064,16 +1065,25 @@ whose palest stop has 3 : 1 on the paper (`palette.neutral` three greys,
 `shortfall` three oranges, `performance` three blues), no text or stroke in
 its tables under 7 pt and 0.75 pt at the layout's own size (`minimum`; the
 default's smallest text is 11 px and its thinnest stroke 1 px, so print keeps
-every size), and no dark scheme: it draws the same in both. The
-minimum is checked on the tables, at a scale of 1: an export given a narrower
-`width` or `preset` scales the whole figure, text included. Its legend sits beside
-the plot, as in every export. The values are the token table's `printTokens`.
+every size), no text of an exported figure under 7 pt at the width it is
+declared at (`text.minFigurePt`, see "Hit index and export"), and no dark
+scheme: it draws the same in both. The values are the token table's
+`printTokens`.
 
-**Exports.** `toSVG`, `toPNG` and `prepareScene` draw the `default` preset in
-the light scheme unless given `theme` or `scheme`; `theme: "print"` draws the
-print theme. They never read the page: an export of a map in the dark scheme
-is light unless `scheme: "dark"` is passed. To export what a map draws, pass
+**Exports.** `toSVG` and `toPNG` draw the `print` preset unless given `theme`;
+an export never follows the page's scheme (print has no dark one). Up to this
+version they drew `default`, and a host keeps that output, byte for byte, with
+`theme: "default"`: the figure is then one picture scaled to its width, its
+texts at their sizes whatever the scale (`text.minFigurePt` 0). `scheme:
+"dark"` draws a theme's dark scheme. `prepareScene` draws `default` unless
+given a theme, as the live Canvas map does. To export what a map draws, pass
 the theme `useFlowTheme` resolves for its container.
+
+**The smallest text.** `text.minScreenPx` (9) is the smallest text on the
+screen, in CSS pixels; the maps scale texts up to it and shed what does not
+fit (see "Readable at every zoom"). Hosts can set it as `--wf-text-min-screen`.
+`text.minFigurePt` is the smallest text of an exported figure, in points at
+its declared width: 0 in `default`, 7 in `print`.
 
 **`checkTheme(theme)`** returns what falls short, as data, in both schemes:
 text against its ground under 4.5 : 1 (`ink` and `inkMuted` on `paper` and on
@@ -1163,6 +1173,126 @@ and 2 wide); their label sits 4 below the circle, shortened to 96
 (`dimensionTokens.eventLabel`) with the whole label as `title`. The
 interactive map draws no grid of dots behind the map unless
 `backgroundGrid` is set.
+
+## Readable at every zoom
+
+```ts
+export type ReadableLevel = "full" | "name" | "line" | "box";   // name and number line, name on two lines, on one line, nothing
+export type ReadableLabel = "path" | "loop" | "event" | "glyph" | "note";   // texts shed below the floor, never scaled up
+export interface Readable {
+  level: ReadableLevel;
+  boost: number;                    // how much the cards' texts are scaled up: the floor over the level's smallest text, at least 1
+  floor: number;                    // the smallest text on the screen in layout units, rounded up to the ladder; 0 without a floor
+  step?: number;                    // the rung of the ladder: floor = 2 ** (step / readableTokens.steps)
+  labels: Readonly<Record<ReadableLabel, boolean>>;   // the kinds of label drawn
+  pills: boolean;                   // deviation pills drawn; false only beyond the ladder
+}
+export interface ReadableRules {    // FlowScene.readable
+  levels: Readonly<Record<"full" | "name" | "line", { size: number; floor: number }>>;   // smallest text, largest floor it fits at
+  labels: Readonly<Record<ReadableLabel, number>>;   // each kind's text size
+  pills: number;                    // the smallest text of the scene's pills, which each is scaled up by
+}
+export interface CardLevels { origin: XY; full: ElementText[]; name: ElementText[]; line: ElementText[] }   // NodeMark.levels
+export function readableAt(rules: ReadableRules, zoom: number, minScreenPx: number, previous?: Readable): Readable;
+export const readableTokens: { steps: 8; first: 16; last: 56; hysteresis: 0.1; nameChars: 8 };
+// Theme.text.minScreenPx: 9 (CSS variable --wf-text-min-screen); Theme.text.minFigurePt: 0, print 7 (see "Hit index and export")
+```
+
+No text on the map is smaller on the screen than the theme's
+`text.minScreenPx` (default 9 CSS pixels). `readableAt` decides, from the
+zoom, what the texts show; the DOM map, the Canvas map and the exports all
+call it, so they choose the same level at the same zoom. The floor is
+`minScreenPx` over the zoom, in layout units, rounded up to a ladder of rungs
+`2^(1/8)` apart (`readableTokens`: from 4 to 128); at zoom 1 with the default
+floor it is 9.51, under every text of the default theme, and nothing changes
+above a zoom of about 0.86.
+
+- **Cards** (activities and stages) show the most of their texts that fits:
+  `full` (the name on up to two lines and the number line), `name` (the name
+  on up to two lines), `line` (the name on one line) or `box`. The texts are
+  scaled up by `boost`, the floor over the smallest text of the level (the
+  number line's 11 at `full`, the name's 13 below), from their start in the
+  middle of the room above the frequency cue's foot (`CardLevels.origin`),
+  so that the smallest is at the floor. A level fits while every card's block
+  of lines fits its height at the boost, a line holds the first
+  `nameChars` (8) characters of every name with the ellipsis after them and
+  the number line its width, these widths by the estimate (0.55 em a
+  character), so that a map's levels are the same in every font (the lines
+  themselves are fitted by the scene's text measure);
+  `ReadableRules.levels[level].floor` is the largest floor it fits at. When
+  the floor passes it, the level is shed: first the number line, then the
+  second line of the name, then the name. The scene carries each card's lines
+  for each level (`NodeMark.levels`), fitted once when it is built for the
+  largest boost the level is drawn at, so a name may be cut sooner at the
+  `name` and `line` levels than in the card's own `texts`; at `full` with a
+  boost of 1 the card draws its own `texts`, as at every zoom from 1 up.
+  A card without text keeps its name as its hover title and its accessible
+  name (`aria-label` in the DOM map; the tooltip and the element list of the
+  Canvas map). Its box and position never change with the zoom.
+- **Group titles** go with the cards' names (none at `box`) and are scaled up
+  to the floor from their start.
+- **Labels** that are not scaled up go once they would fall below the floor:
+  paths' counts (and the labels of indirect paths), self-loop labels, event
+  labels, gateway glyphs and note labels, each at its own size. With the
+  default sizes paths' labels are the first texts shed.
+- **Deviation pills** (a card's row of badges, from the row's bottom-right
+  corner; a chip and an arc's label pill, from their middle) are scaled up by
+  the floor over the scene's smallest pill text (`ReadableRules.pills`) and
+  are the last texts shed: only beyond the ladder, at a floor
+  above 128 (a zoom under 0.07 with the default floor). Their marks' own
+  level of detail still applies; `defaultLod` draws badges, arcs and chips
+  from 0.2, with the names (they went at 0.22 before, ahead of the names). A
+  boosted pill can cover its neighbours where many meet.
+- **Hysteresis.** Given the state it drew before, `readableAt` brings back a
+  level, a kind of label or a lower rung only once the floor is 10 % below
+  where it went (`hysteresis`), so a zoom that wavers at a boundary does not
+  make text flicker. Shedding happens exactly where a text stops fitting.
+- A `minScreenPx` of 0 keeps every text at its size.
+
+On the BPIC global map (cards 180 × 64), path labels go at a zoom of about
+0.85, the number line at 0.65, the second line of the name at 0.35 and the
+name at 0.3 (`ReadableRules`: full 14.1, name 24.0, line 31.1).
+
+**DOM map.** The map writes the state on its root as classes, one string, so a
+zoom change writes the root once and no card: `wf-text--plain` (the cards'
+own texts, unboosted), `wf-text--full`, `--name`, `--line` or `--box`; the
+rung (`wf-text-f26`), which `tokens.css` turns into `--wf-text-floor`;
+`wf-text-grow` where titles and pills are scaled up at the plain level (as on
+the Canvas map);
+and `wf-text-hide-path`, `-loop`, `-event`, `-glyph`, `-note` and `-pills` for
+what is shed. Each card holds a block of texts per level
+(`.wf-activity-copy.wf-copy--plain`, `--full`, `--name`, `--line`); the
+stylesheet shows the root's level and scales it with `transform`, dividing
+the floor by the level's smallest text, which the map writes once per scene
+on its root (`--wf-text-s-full`, `--wf-text-s-name`, `--wf-text-s-line`).
+Group titles (by their own size, `--wf-text-s` on the title) and pills
+(`.wf-pill-row`, chips, `.wf-arc-pill`, by `--wf-pill-size`, written on the
+root with the others) are scaled the same way. The computed font
+sizes stay those of the marks; the size on the screen is that times the
+transforms. **Canvas map.** `drawScene` decides at `lodZoom` (the view's
+zoom) with the theme's `minScreenPx`, from `DrawOptions.readableFrom`, and
+returns the state it drew in (`readable`); `CanvasRenderer` passes the
+previous frame's, so it picks the level per frame within the hysteresis.
+`DrawOptions.readable` draws a given state. **Exports**: see "Hit index and
+export".
+
+**Replacing counter-scaling CSS.** A host that kept the map's text readable by
+scaling text and its containers with the inverse of the zoom (custom
+properties such as a label size in layout units, a "map scale" applied to
+badges, chips and markers, line clamps and grown boxes, written by a script
+on every zoom change) removes those rules and the script: they depend on the
+map's private structure, change the boxes the layout placed, and cannot reach
+the Canvas map or the exports. It sets the floor instead, in the theme or as
+a CSS variable on the map's container:
+
+```tsx
+<ProcessMap graph={graph} theme={{ text: { minScreenPx: 11 } }} />
+// or, in the host's stylesheet: .my-map { --wf-text-min-screen: 11px; }
+```
+
+Both maps then scale and shed texts by the same rule; boxes keep the size
+the layout reserved, so paths still meet them. A host that wants smaller
+text on the screen than 9 px sets a smaller floor; 0 turns the rule off.
 
 ## Overlays
 
@@ -1261,9 +1391,10 @@ export interface HitItem { minX; minY; maxX; maxY; id: string; kind: "node" | "e
 export interface Scene { graph; positions; overlays?; measure?: Measure; style?; title?; subtitle?; locale?; lanes?: LaneMode;
   activityLabels?: ActivityLabelOptions; selfLoops?: boolean }
 export interface ExportOptions { preset?: "single-column" | "double-column" | "slide" | "none"; width?; legend?;
-  background?; fontFamily?; padding?; lodZoom?; context?;
+  widthMm?: number;   // the width the figure is declared to be printed at; the SVG states its size in mm
+  background?; fontFamily?; padding?; lodZoom?; context?;   // lodZoom: default the map's scale in a figure with a floor, else 1
   edgeBudget?: EdgeBudget | ShownEdges;   // default every edge; see "Edge budget"
-  theme?: ThemeSetting; scheme?: ColorScheme;   // what the figure is drawn in; default the default preset, light
+  theme?: ThemeSetting; scheme?: ColorScheme;   // what the figure is drawn in; default the print preset, light
   textMeasure?: TextMeasure;   // what its texts are measured by; default estimateTextWidth (see "Text measure")
   caption?: boolean }          // the caption line under the figure (figureCaption); default true
 export function toSVG(scene: Scene, o?: ExportOptions): string;   // deterministic, legend embedded
@@ -1294,11 +1425,14 @@ export function legendLayout(legend: SceneLegend, o?: { measure?: TextMeasure; w
 export const figureMetrics: { padding: 24; legendColumn: 220; legendInset: 16; titleHeight: 40; titleBaseline: 26;
   contextHeight: 18; contextBaseline: 44; keyLine: 16; noteRow: 16; noteBaseline: 12; noteSize: 11 };
 export interface FigureFrameOptions { title?: boolean; context?: boolean; legend?: boolean; padding?: number; preset?: FigurePreset; width?: number;
-  withheld?: { shown: number; total: number }; caption?: boolean }
-export interface FigureFrame { padding; header; map: { width; height; offset: XY };
-  legend?: { layout: LegendLayout; x; y; width; rule: { x; top; bottom } }; caption?: { lines: string[]; x; y };
+  withheld?: { shown: number; total: number }; caption?: boolean;
+  floor?: number }   // the smallest text in figure units; with an output width, the figure is fitted (below)
+export interface FigureFrame { padding; header; map: { width; height; offset: XY; scale: number };   // scale: the map's in a fitted figure, else 1
+  legend?: { layout: LegendLayout; x; y; width; rule?: { x; top; bottom } }; caption?: { lines: string[]; x; y };   // no rule below the map
+  readable: Readable;   // what the map's texts show at its scale with the floor (every text without one)
+  numbers?: { texts: { id: string; text: MarkText }[]; lines: string[]; x; y };   // the cards' numbers and the key of their names
   note?: { text: string; x; y }; key: { lines: string[]; y }; width; height; outWidth; outHeight }
-export function figureFrame(scene: FramedScene, o?: FigureFrameOptions): FigureFrame;   // FramedScene: graph, activityLabels?, locale, bounds, legend, textMeasure?, theme?
+export function figureFrame(scene: FramedScene, o?: FigureFrameOptions): FigureFrame;   // FramedScene: graph, activityLabels?, locale, bounds, legend, textMeasure?, theme?, readable?, nodeMarks?, positions?
 export function figureCaption(g: FlowGraph, locale?: Locale, labelOf?: (id: string) => string): string | undefined;
 ```
 
@@ -1440,6 +1574,36 @@ paths out, since its merged paths are not the model's). A
 part whose data is missing is left out, and a graph without any of it has no
 caption: nothing is invented. In SVG the caption is a `<g class="wf-caption">`.
 `toSVG`, `toPNG` and the Canvas `drawLegend` draw from these.
+
+**A figure with a floor.** Given `floor` (the smallest text in figure units)
+and an output width (`width` or `preset`), `figureFrame` lays the figure out
+at that width, one figure unit an output pixel, and scales the map into it
+(`map.scale`): beside the legend's column where that leaves the map at least
+half the width, otherwise with the column below the map. The frame's own
+texts (title, legend, caption, note, keys) keep their sizes, and the map's
+texts are kept readable at its scale with the floor (`readable`, by
+`readableAt`, as on the screen at that zoom). Where the cards cannot show
+their names (`level` `box`), the frame numbers them in reading order (along
+the layout's direction, then across it), writes each number in the middle of
+its card at the floor (`numbers.texts`, in map units) and puts the key of
+names, "Activities by number" and one line per card, under the legend in the
+column (`numbers.lines`). Without a width, or without a floor, the figure is
+laid out at the map's size as before (`map.scale` 1).
+
+`toSVG` and `toPNG` pass the theme's `text.minFigurePt` as the floor, in CSS
+pixels (0.75 pt each): in `print` 7 pt, 9⅓ figure units; in `default` none,
+so a `default` figure is the old one. `widthMm` declares the width the
+figure is printed at: the figure is laid out at that many CSS pixels
+(`width: 85` mm is 321.26) and the SVG states its `width` and `height` in mm,
+so its texts keep 7 pt on paper. `toPNG` draws such a figure `width` CSS
+pixels wide (default its laid-out width). With a floor, the title and the
+context line are shortened to the figure's width, and `lodZoom` defaults to
+the map's scale, so marks below their level of detail at that scale are left
+out as on the screen. The SVG draws the numbers as `<g class="wf-numbers">`
+in the map and the key as `<g class="wf-number-key">`; the PNG draws them
+with the Canvas routines (`DrawOptions.numbers`). At 85 mm the BPIC global
+map is drawn at a scale of 0.095: no card can show its name at 7 pt, so all
+16 are numbered and keyed under the legend, and no text is under 7 pt.
 
 ## Formatting and strings
 
@@ -2445,10 +2609,14 @@ export interface View { x: number; y: number; zoom: number; width: number; heigh
 export interface DrawState { selection: Selection; hovered?: string | null; focused?: string | null; bright?: { nodes: Set<string>; edges: Set<string> };
   highlighted?: ReadonlySet<string> }   // edges on a highlighted path, drawn first, heaviest first, within the edge budget
 export interface DrawOptions { tokens?: CanvasTokens; cull?: boolean; background?: boolean | string; lodZoom?: number; createCanvas?;
-  edgeBudget?: EdgeBudget | ShownEdges }   // default "all"
+  edgeBudget?: EdgeBudget | ShownEdges;   // default "all"
+  readable?: Readable;                    // what the texts show; default readableAt at lodZoom with the theme's minScreenPx
+  readableFrom?: Readable;                // the state of the frame before, whose hysteresis the decision keeps
+  numbers?: readonly MarkText[] }         // texts written over the map last (an exported figure's numbers of the cards)
 export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, state?: DrawState, o?: DrawOptions): { nodes; edges; shapes; culled;
   kept?: number;   // with an edge budget other than "all": the protected edges drawn, which every budget draws
-  withheld?: EdgeSelection };   // present when the edge budget left edges in view out
+  withheld?: EdgeSelection;   // present when the edge budget left edges in view out
+  readable: Readable };   // the state the texts were drawn in
 export function drawLegend(ctx: DrawContext, scene: PreparedScene, x, y, width, tokens?, o?: { createCanvas? }): number;   // the scene's legend rows; returns their height
 export function canvasTextMeasure(family?: string, context?: { font; measureText } | null): TextMeasure;   // Canvas measureText in the font; the estimate without a canvas
 export function tracePath(ctx: DrawContext, d: string): { last?; beforeLast? };
@@ -2463,7 +2631,7 @@ export class CanvasRenderer { constructor(canvas: HTMLCanvasElement, o?: CanvasR
   resize(w, h); setScene(s); getScene(); setState(patch: Partial<DrawState>); getState(); setTokens(t);
   getViewport(); setViewport(v, notify?); fit(padding?, insets?: Partial<Insets>); panBy(dx, dy); zoomBy(factor, centre?); centerOn(point, zoom?);
   toFlow(x, y); toScreen(x, y); screenBox(id); hitAt(x, y, tolerancePx?): HitItem | undefined; requestDraw(); draw(); dispose();
-  onViewportChange?: (v: Viewport) => void; lastDraw?: { nodes; edges; shapes; culled; withheld?; ms };
+  onViewportChange?: (v: Viewport) => void; lastDraw?: { nodes; edges; shapes; culled; withheld?; readable; ms };   // the next draw keeps its readable state's hysteresis
   onDraw?: (stats: { nodes; edges; shapes; culled; withheld?; ms }) => void }   // called after every draw
 export interface CanvasTokens { font; paper; surface; ink; inkMuted; line; lineStrong; cueStripe?; cueFoot?; patternInk?; focus; selection; neutral; outOfScope }
 // cueStripe and cueFoot: the frequency cue's colours; patternInk: the pattern twins' ink (it was `ink`); drawScene, drawLegend
@@ -2471,8 +2639,9 @@ export interface CanvasTokens { font; paper; surface; ink; inkMuted; line; lineS
 export const defaultTokens: CanvasTokens;   // from the token table (`colorTokens`, `fontTokens`); without `tokens` a draw takes the scene's colours and font
 export function readTokens(element: Element | null | undefined, overrides?: Partial<CanvasTokens>): CanvasTokens;   // from the CSS variables (`cssVariable(key)`), as they are; <CanvasMap/> reads them with useFlowTheme instead
 export interface PngOptions { preset?: FigurePreset; width?; scale?; background?; legend?; padding?; lodZoom?; tokens?; createCanvas?; context?;
+  widthMm?: number;   // the width the figure is declared at, as in ExportOptions; drawn `width` CSS pixels wide (default as laid out)
   edgeBudget?: EdgeBudget | ShownEdges;   // default every edge; see "Edge budget"
-  theme?: ThemeSetting; scheme?: ColorScheme;   // what the figure is drawn in (default the default preset, light); `tokens` override the scene's colours and font
+  theme?: ThemeSetting; scheme?: ColorScheme;   // what the figure is drawn in (default the print preset, light); `tokens` override the scene's colours and font
   textMeasure?: TextMeasure }   // as in ExportOptions
 export interface CanvasLike { width; height; getContext(kind: "2d"): unknown; toBlob?; convertToBlob?; toDataURL? }   // HTMLCanvasElement, OffscreenCanvas
 export interface PngCanvas { canvas: CanvasLike; width; height; cssWidth; cssHeight; scale }   // bitmap and CSS size
@@ -2498,7 +2667,10 @@ recording stub in tests): groups and bands, the scene's overlay marks below
 the edges (tints), edges with arrowheads, the marks between the edges and
 the nodes (arcs), nodes with pattern twins, the marks above the nodes, edge
 labels; level of detail follows
-`lodAt(o.lodZoom ?? view.zoom)` and each mark is drawn from its `minZoom`;
+`lodAt(o.lodZoom ?? view.zoom)` and each mark is drawn from its `minZoom`,
+and the texts are kept readable at that zoom (`o.readable`, by default
+`readableAt` with the theme's `text.minScreenPx`; see "Readable at every
+zoom");
 a hovered mark shows its value colour in the focus colour; above 1,500
 elements (or with `cull: true`) only the groups, marks, edges and nodes the
 hit index finds inside the viewport are read and drawn, in the order of a
@@ -2560,8 +2732,9 @@ disposed one kept its scene, context and callbacks while it stayed
 reachable, and still resized its canvas, took a new scene and called
 `onViewportChange`. `toPNG` uses the same figure
 frame (`figureFrame`) and legend as `toSVG` and reads the same
-scene: overlays, follows self-loops (`Scene.selfLoops`, default shown) and
-level of detail at `lodZoom` (default 1, without tightening by size)
+scene: overlays, follows self-loops (`Scene.selfLoops`, default shown),
+level of detail at `lodZoom` (default 1, or the map's scale in a figure with
+a floor, without tightening by size) and the texts the frame keeps readable
 agree with the SVG export; `scale` sets the
 bitmap density (default: the device pixel ratio, at least 2) and
 `createCanvas` supplies a canvas where there is no document.

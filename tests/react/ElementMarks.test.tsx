@@ -8,8 +8,8 @@ import { graph, positions, style } from "../core/element-kinds";
 
 afterEach(cleanup);
 
-/** What a node writes: its name's lines and its number line, or its label. */
-const texts = (el: Element) => [...el.querySelectorAll(".wf-node__label, .wf-activity-name > span, .wf-activity-counts > span")].map((e) => e.textContent);
+/** What a node writes at a zoom of 1: its name's lines and its number line (a card's own block of texts), or its label. */
+const texts = (el: Element) => [...el.querySelectorAll(".wf-node__label, .wf-copy--plain > .wf-activity-name > span, .wf-copy--plain > .wf-activity-counts > span")].map((e) => e.textContent);
 
 async function map(given: FlowGraph = graph) {
   const { container } = render(
@@ -24,7 +24,7 @@ async function map(given: FlowGraph = graph) {
 }
 
 describe("React Flow nodes and edges from their marks", () => {
-  it("shows a gateway's glyph and a note's label at every zoom, other labels and the cards' texts by level of detail", async () => {
+  it("gives a gateway's glyph and a note's label no level-of-detail class (the readable floor sheds them), other labels and the cards' texts theirs", async () => {
     const { node } = await map();
     const glyph = node("g").querySelector(".wf-node__label")!;
     expect(glyph.textContent).toBe("+");
@@ -33,8 +33,9 @@ describe("React Flow nodes and edges from their marks", () => {
     expect(node("n").querySelector(".wf-node__label")!.className).toBe("wf-node__label");
     expect(node("n").querySelector(".wf-node__band")).toBeNull();
     expect(node("start").querySelector(".wf-node__label")!.className).toBe("wf-node__label wf-lod-labels");
-    // A stage's card: its name, then its cases and their share (none: the graph has no cases of its log).
-    expect(node("s").querySelector(".wf-activity-copy")!.className).toBe("wf-activity-copy wf-lod-labels");
+    // A stage's card: its name, then its cases and their share (none: the graph has no cases of its log); each level of
+    // detail has a block of its own (see Readable).
+    expect([...node("s").querySelectorAll(".wf-activity-copy")].map((b) => b.className)).toEqual(["wf-activity-copy wf-copy--plain wf-lod-labels", "wf-activity-copy wf-copy--full wf-lod-labels", "wf-activity-copy wf-copy--name wf-lod-labels", "wf-activity-copy wf-copy--line wf-lod-labels"]);
     expect(texts(node("s"))).toEqual(["Payment", "1,500", "· –"]);
     expect(node("r").className).toContain("wf-node--reconnected");
     // Without cases the card shows a dash for its cases and their share.
@@ -57,7 +58,7 @@ describe("React Flow nodes and edges from their marks", () => {
     const long = { ...graph, nodes: graph.nodes.map((n) => (n.id === "a" ? { ...n, label } : n)) };
     const { node } = await map(long);
     // Without a 2D canvas the map measures by the estimate: 21 characters a line of 154, the second 20 and the ellipsis.
-    expect([...node("a").querySelectorAll(".wf-activity-name > span")].map((e) => e.textContent)).toEqual(["Change Approval for", "Purchase Order Item…"]);
+    expect([...node("a").querySelectorAll(".wf-copy--plain > .wf-activity-name > span")].map((e) => e.textContent)).toEqual(["Change Approval for", "Purchase Order Item…"]);
     expect(node("a").getAttribute("title")).toBe(label);
     expect(node("a").closest(".react-flow__node")!.getAttribute("aria-label")).toContain(label);
   });
@@ -155,7 +156,7 @@ describe("the look of nodes and groups, from their marks", () => {
     expect(at(foot)).toEqual(["7px", "35px", "85.5px", "3px", "var(--wf-cue-foot)", "node-cue-foot"]);
     expect(texts(node("a"))).toEqual(["Check invoice", "1,234", "· 50 %"]);
     // Under the band and the texts.
-    expect([...node("a").children].map((c) => c.className.split(" ")[0]).filter((c) => c.startsWith("wf-"))).toEqual(["wf-node__cue", "wf-node__cue", "wf-node__band", "wf-activity-copy"]);
+    expect([...node("a").children].map((c) => c.className.split(" ")[0]).filter((c) => c.startsWith("wf-"))).toEqual(["wf-node__cue", "wf-node__cue", "wf-node__band", "wf-activity-copy", "wf-activity-copy", "wf-activity-copy", "wf-activity-copy"]);
   });
 
   it("draws a second theme's outline, radius and text size", async () => {

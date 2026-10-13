@@ -27,18 +27,33 @@ const MOTION = `@media (prefers-reduced-motion: reduce) {
 const block = (selector, variables, indent = '') =>
   `${indent}${selector} {\n${Object.entries(variables).map(([name, value]) => `${indent}  ${name}: ${value};`).join('\n')}\n${indent}}`;
 
-/** The text of `tokens.css` for the variables of the table. */
-export function tokensCss({ light, dark }) {
+/**
+ * The class of each rung of the readable ladder (`readableTokens`) and the
+ * floor it sets as `--wf-text-floor`, in layout units rounded up: the
+ * interactive map writes the class of the rung its zoom rounds the floor up to.
+ */
+export function floorClasses({ steps, first, last }) {
+  const out = {};
+  for (let k = first; k <= last; k++) out[`wf-text-f${k}`] = String(Math.ceil(2 ** (k / steps) * 1e4) / 1e4);
+  return out;
+}
+
+/** The floor each rung's class of the readable ladder sets, one rule a line. */
+const FLOORS = (floors) => `/* The smallest text on the screen in layout units, by the class the map writes as it zooms. */\n${Object.entries(floors).map(([name, value]) => `.wf-process-map.${name} { --wf-text-floor: ${value}; }`).join('\n')}`;
+
+/** The text of `tokens.css` for the variables of the table and the floors of the readable ladder. */
+export function tokensCss({ light, dark }, floors = {}) {
   return [
     HEADER,
     block(':root', light),
     `@media (prefers-color-scheme: dark) {\n${block(':root:not([data-theme="light"])', dark, '  ')}\n}`,
     block(':root[data-theme="dark"]', dark),
     MOTION,
+    FLOORS(floors),
   ].join('\n\n') + '\n';
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const tokens = await loadTokens();
-  writeFileSync(tokensPath, tokensCss(tokens.tokenVariables()));
+  writeFileSync(tokensPath, tokensCss(tokens.tokenVariables(), floorClasses(tokens.readableTokens)));
 }

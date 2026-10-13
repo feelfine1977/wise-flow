@@ -1,13 +1,15 @@
 /** The legend's rows and the exported figure's frame, described once. */
-import { type ActivityLabelOptions, activityKeyLines } from "./activity-labels.js";
+import { type ActivityLabelOptions, activityKeyLines, activityLabel } from "./activity-labels.js";
 import { shownActivityIds } from "./collapsed-members.js";
 import { detailStatement } from "./detail-statement.js";
 import { asFilter, describeClause } from "./filters.js";
 import { type Locale, formatCount } from "./format.js";
-import type { Box } from "./layout.js";
+import type { NodeMark } from "./element-marks.js";
+import type { Box, Positions } from "./layout.js";
 import { channelTitle, formatMetricValue, metricEntry, metricName } from "./metrics.js";
 import { type FlowGraph, type FlowNode, type Overlay, MAP_TARGET } from "./model.js";
-import type { OverlayMark } from "./overlay-marks.js";
+import type { MarkText, OverlayMark } from "./overlay-marks.js";
+import { FULL_DETAIL, type Readable, type ReadableRules, readableAt } from "./readable.js";
 import type { LegendItem, Measure, PatternId } from "./style.js";
 import { type StringKey, t } from "./strings.js";
 import { type TextMeasure, estimateTextWidth, truncateText, wrapText } from "./text.js";
@@ -348,6 +350,17 @@ export interface FigureFrameOptions {
   withheld?: { shown: number; total: number };
   /** The caption line under the map and the legend (`figureCaption`). Default true. */
   caption?: boolean;
+  /**
+   * The smallest text of the figure, in its units (CSS pixels at the width
+   * it is declared at: a theme's `text.minFigurePt` over 0.75). Given an
+   * output width, the figure is laid out at it with the map scaled into it,
+   * so that its own texts keep their sizes, and the map's texts are kept
+   * readable at that scale (`readableAt`); where the cards cannot show
+   * their names, they are numbered and the names listed in a key beside the
+   * map, or below it where the figure is too narrow. Default 0: the figure
+   * is laid out at the map's size and scaled as a whole.
+   */
+  floor?: number;
 }
 
 /** Where everything sits in an exported figure, in figure units (the view box). */
@@ -355,17 +368,25 @@ export interface FigureFrame {
   padding: number;
   /** Height of the title and context line. */
   header: number;
-  /** The map's drawing area including its padding; the scene's content is shifted by `offset`. */
-  map: { width: number; height: number; offset: { x: number; y: number } };
+  /** The map's drawing area including its padding; the scene's content is scaled by `scale` (1 unless the figure is fitted, `floor`) and shifted by `offset`. */
+  map: { width: number; height: number; offset: { x: number; y: number }; scale: number };
   legend?: {
     layout: LegendLayout;
     /** Top-left of the rows and their width. */
     x: number;
     y: number;
     width: number;
-    /** The vertical rule left of the legend. */
-    rule: { x: number; top: number; bottom: number };
+    /** The vertical rule left of the legend; none where the legend is below the map. */
+    rule?: { x: number; top: number; bottom: number };
   };
+  /** What the map's texts show at its scale with the figure's floor (`readableAt`); every text at its size without a floor. */
+  readable: Readable;
+  /**
+   * Where the cards cannot show their names at the floor: each card's number,
+   * written on it in map units, and the key of names with the baseline of
+   * its first line, its lines `figureMetrics.keyLine` apart.
+   */
+  numbers?: { texts: { id: string; text: MarkText }[]; lines: string[]; x: number; y: number };
   /** The caption's lines (wrapped to the figure's width) and the baseline of the first, under the map and the legend; lines are `figureMetrics.keyLine` apart. */
   caption?: { lines: string[]; x: number; y: number };
   /** The note on withheld edges and its baseline's start, under the caption. */
@@ -390,43 +411,115 @@ export interface FramedScene {
   textMeasure?: TextMeasure;
   /** Its legend text styles. Default the token table's. */
   theme?: Theme;
+  /** What decides its levels of detail, and its cards: the numbers of a fitted figure. */
+  readable?: ReadableRules;
+  nodeMarks?: readonly NodeMark[];
+  positions?: Pick<Positions, "direction">;
 }
 
-/** Measure the figure of a scene: header, map, legend column, activity key and output size. */
+/** CSS pixels per millimetre, and points per CSS pixel: one figure unit at the width a figure is declared at. */
+const PX_PER_MM = 96 / 25.4;
+const PT_PER_PX = 0.75;
+
+/** The figure units of a declared width in millimetres: CSS pixels, three quarters of a point each. */
+export const millimetres = (mm: number): number => mm * PX_PER_MM;
+
+/** The smallest text of a figure drawn in a theme, in figure units: its `text.minFigurePt` in CSS pixels (0 without one). */
+export const figureFloor = (theme: Theme): number => Math.max(0, theme.text.minFigurePt / PT_PER_PX);
+
+/**
+ * The figure's title and the context line under it (label, cases and events
+ * from the graph's `meta`); in a figure with a floor each shortened to the
+ * figure's width by the measure.
+ */
+export function figureHeading(scene: FramedScene, frame: FigureFrame, title: string, subtitle?: string): { title: string; context: string } {
+  const { locale } = scene;
+  const meta = scene.graph.meta ?? {};
+  const label = subtitle ?? String(meta.label ?? meta.scene ?? "");
+  const count = (n: unknown) => (typeof n === "number" ? formatCount(n, locale) : "–");
+  const context = t(locale, "export.context", { label, cases: count(meta.cases), events: count(meta.events) });
+  if (!(frame.readable.floor > 0)) return { title, context };
+  const text = scene.theme?.text ?? textTokens;
+  const fit = (s: string, font: { size: number; weight?: number }) => truncateText(s, frame.width - 2 * frame.padding, font, scene.textMeasure ?? estimateTextWidth);
+  return { title: fit(title, text.figureTitle), context: fit(context, text.figureText) };
+}
+
+/**
+ * The cards numbered in reading order (along the layout's direction, then
+ * across it, then by id), each number written in the middle of its card at
+ * the floor, and the key of their names.
+ */
+function numbered(scene: FramedScene, floor: number, width: number, measure: TextMeasure): { texts: { id: string; text: MarkText }[]; lines: string[] } {
+  const across = scene.positions?.direction === "DOWN" || scene.positions?.direction === "UP";
+  const at = (m: NodeMark) => (across ? [m.box.y, m.box.x] : [m.box.x, m.box.y]);
+  const cards = (scene.nodeMarks ?? []).filter((m) => m.kind === "activity" || m.kind === "stage").sort((a, b) => at(a)[0] - at(b)[0] || at(a)[1] - at(b)[1] || (a.id < b.id ? -1 : 1));
+  const font = textTokens.figureText;
+  const lines = [t(scene.locale, "export.numbers")];
+  const texts = cards.map((m, i) => {
+    const name = scene.activityLabels && m.kind === "activity" ? activityLabel(m.node, scene.activityLabels) : m.node.label;
+    lines.push(...wrapText(`${i + 1} ${name}`, width, font, measure));
+    const text: MarkText = { text: String(i + 1), x: m.box.x + m.box.width / 2, y: m.box.y + m.box.height / 2, size: floor, weight: textTokens.activityNumber.weight, anchor: "middle", baseline: "middle", paint: "ink", halo: true };
+    return { id: m.id, text };
+  });
+  return { texts, lines };
+}
+
+/**
+ * Measure the figure of a scene: header, map, legend column, activity key and
+ * output size. With a floor and an output width (`FigureFrameOptions.floor`)
+ * the figure is laid out at that width: the map scaled into the width the
+ * legend's column leaves it (the column below the map where beside it the
+ * map would have less than half the width), its texts kept readable at that
+ * scale, the cards numbered where they cannot show their names and the key of
+ * names under the legend, every text of the frame at its size. Otherwise it is
+ * laid out at the map's size, to be scaled as a whole to the output width.
+ */
 export function figureFrame(scene: FramedScene, options: FigureFrameOptions = {}): FigureFrame {
   const f = figureMetrics;
   const pad = options.padding ?? f.padding;
   const measure = scene.textMeasure ?? estimateTextWidth;
   const layout = options.legend === false ? undefined : legendLayout(scene.legend, { measure, text: scene.theme?.text });
-  const column = layout ? f.legendColumn : 0;
   const header = options.title ? f.titleHeight + (options.context !== false ? f.contextHeight : 0) : 0;
   const content = scene.bounds;
-  const mapW = content.width + 2 * pad;
-  const mapH = content.height + 2 * pad;
   const { withheld } = options;
   const { locale } = scene;
   const text = withheld && t(locale, "map.edges.withheld", { shown: formatCount(withheld.shown, locale), total: formatCount(withheld.total, locale) });
+  const given = options.width ?? (options.preset && options.preset !== "none" ? FIGURE_WIDTHS[options.preset] : undefined);
+  const floor = options.floor ?? 0;
+  const fitted = floor > 0 && given !== undefined && content.width > 0;
+  const beside = !!layout && (!fitted || given - 2 * pad - f.legendColumn >= given / 2);
+  const scale = fitted ? (given - 2 * pad - (beside ? f.legendColumn : 0)) / content.width : 1;
+  const readable = floor > 0 && scene.readable ? readableAt(scene.readable, scale, floor) : FULL_DETAIL;
+  const mapW = content.width * scale + 2 * pad;
+  const mapH = content.height * scale + 2 * pad;
   // Widened to fit the note.
-  const width = Math.max(mapW + column, text ? measure(text, { size: f.noteSize }) + 2 * pad : 0);
-  const below = Math.max(mapH, (layout?.height ?? 0) + 2 * pad) + header;
+  const width = fitted ? given : Math.max(mapW + (layout ? f.legendColumn : 0), text ? measure(text, { size: f.noteSize }) + 2 * pad : 0);
+  const names = readable.level === "box" ? numbered(scene, readable.floor, beside ? legendMetrics.width : width - 2 * pad, measure) : undefined;
+  // The column beside the map, or below it: the legend's rows, then the key of names.
+  const column = { x: beside ? mapW + f.legendInset : pad, y: header + (beside ? pad : mapH) };
+  const keyTop = column.y + (layout && names ? layout.height + f.noteRow : (layout?.height ?? 0));
+  const columnHeight = keyTop - column.y + (names ? names.lines.length * f.keyLine : 0);
+  const below = header + (beside ? Math.max(mapH, columnHeight + 2 * pad) : mapH + (columnHeight && columnHeight + pad));
   const captionText = options.caption === false ? undefined : figureCaption(scene.graph, locale);
   const captionLines = captionText ? wrapText(captionText, width - 2 * pad, { size: f.noteSize }, measure) : [];
   const noteTop = below + captionLines.length * f.keyLine;
   const keyY = noteTop + (text ? f.noteRow : 0);
   const lines = activityKeyLines(scene.graph, scene.activityLabels, width - 2 * pad, scene.locale, measure);
   const height = keyY + (lines.length ? lines.length * f.keyLine + 2 * pad : text || captionLines.length ? pad : 0);
-  const outWidth = options.width ?? (options.preset && options.preset !== "none" ? FIGURE_WIDTHS[options.preset] : width);
+  const outWidth = given ?? width;
   return {
     padding: pad,
     header,
-    map: { width: mapW, height: mapH, offset: { x: pad - content.x, y: header + pad - content.y } },
+    map: { width: mapW, height: mapH, offset: { x: pad - content.x * scale, y: header + pad - content.y * scale }, scale },
     legend: layout && {
       layout,
-      x: mapW + f.legendInset,
-      y: header + pad,
+      x: column.x,
+      y: column.y,
       width: legendMetrics.width,
-      rule: { x: mapW, top: header + pad, bottom: (text || captionLines.length ? below : height) - pad },
+      rule: beside ? { x: mapW, top: header + pad, bottom: (text || captionLines.length ? below : height) - pad } : undefined,
     },
+    readable,
+    numbers: names && { ...names, x: column.x, y: keyTop + f.noteBaseline },
     caption: captionLines.length ? { lines: captionLines, x: pad, y: below + f.noteBaseline } : undefined,
     note: text ? { text, x: pad, y: noteTop + f.noteBaseline } : undefined,
     key: { lines, y: keyY + pad },

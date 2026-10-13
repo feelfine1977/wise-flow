@@ -11,6 +11,7 @@ import { withFollowsSelfLoops } from "./observed-loops.js";
 import { type OverlayGeometry, type OverlayGeometryOptions, groupTitles, placeOverlays } from "./overlay-geometry.js";
 import { type OverlayMark, overlayMarks } from "./overlay-marks.js";
 import { canonicalOverlays } from "./overlays.js";
+import { type ReadableRules, readableRules } from "./readable.js";
 import { repositionNodes } from "./routing.js";
 import { type LodRules, type Measure, type Scales, type StyleSpec, buildScales, defaultLod, lodForSize, measureStyle } from "./style.js";
 import { type TextMeasure, estimateTextWidth } from "./text.js";
@@ -86,6 +87,8 @@ export interface FlowScene {
   overlays: Overlay[];
   /** Zoom from which each kind of element is drawn. */
   lod: LodRules;
+  /** What decides how the texts are kept readable at a zoom (`readableAt`): each card level's smallest text and the largest floor it fits at, each label's size. */
+  readable: ReadableRules;
   geometry: OverlayGeometry;
   /** What each shape of the geometry looks like, one mark per shape in the same order. */
   marks: OverlayMark[];
@@ -154,6 +157,8 @@ export function sceneOf(graph: FlowGraph, givenPositions: Positions, options: Fl
     },
     radius: (id) => radii.get(id),
   });
+  // Each card's texts at every level of detail, fitted once; the pills' size and where each row of badges grows from.
+  const readable = readableRules(nodes, marks, marked, measure, activityLabels);
   return {
     graph,
     positions: courses.positions,
@@ -168,6 +173,7 @@ export function sceneOf(graph: FlowGraph, givenPositions: Positions, options: Fl
     scales,
     overlays,
     lod,
+    readable,
     geometry,
     marks,
     nodeMarks: nodes,

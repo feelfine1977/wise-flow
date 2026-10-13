@@ -33,7 +33,7 @@ afterEach(() => {
 });
 
 const label = (container: HTMLElement, id: string) => container.querySelector(`[data-id="${id}"] .wf-edge-label, g.wf-edge[data-id="${id}"] .wf-edge-label`)?.textContent;
-const numberLine = (container: HTMLElement, id: string) => [...container.querySelectorAll(`#wf-node-${id} .wf-activity-counts > span`)].map((s) => s.textContent).join(" ");
+const numberLine = (container: HTMLElement, id: string) => [...container.querySelectorAll(`#wf-node-${id} .wf-copy--plain .wf-activity-counts > span`)].map((s) => s.textContent).join(" ");
 
 describe("the map's measure", () => {
   it("switches path labels, number lines and the legend's measure without a layout, building the scene once", async () => {

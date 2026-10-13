@@ -151,7 +151,7 @@ describe("drawing a culled view of a large scene", () => {
     });
     // Row 0 holds 199 elements and each further row 299: 66 more rows reach 19,933, and row 67 adds
     // column 0 with its upper edge, 21 columns of three and the node and left edge of column 22.
-    expect(culled.stats).toEqual({ culled: true, nodes: 6_723, edges: 13_277, shapes: full.stats.shapes });
+    expect(culled.stats).toEqual({ culled: true, nodes: 6_723, edges: 13_277, shapes: full.stats.shapes, readable: full.stats.readable });
     expect(culled.digest).toBe(full.digest);
   });
 

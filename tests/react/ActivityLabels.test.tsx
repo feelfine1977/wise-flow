@@ -30,11 +30,11 @@ describe("activity label interaction", () => {
     const positions = await layout(graph, { engine: "dagre", nodeSize: (node) => activityNodeSize(node, names) });
     const onSelect = vi.fn();
     const { container } = render(<ProcessMap graph={graph} positions={positions} activityLabels={names} onSelect={onSelect} controls={false} legend={false} fitView={false} contextMenu={false} />);
-    await waitFor(() => expect(container.querySelectorAll(".wf-activity-name")).toHaveLength(2));
-    const labels = Array.from(container.querySelectorAll(".wf-activity-name"), (n) => n.textContent);
+    await waitFor(() => expect(container.querySelectorAll(".wf-copy--plain > .wf-activity-name")).toHaveLength(2));
+    const labels = Array.from(container.querySelectorAll(".wf-copy--plain > .wf-activity-name"), (n) => n.textContent);
     expect(labels).toEqual(["Change Price", "Change Quantity"]);
     // The card's number line: the cases in full, then their share (none: the graph has no cases of its log).
-    const subtitles = Array.from(container.querySelectorAll(".wf-activity-counts"), (n) => Array.from(n.children, (c) => c.textContent));
+    const subtitles = Array.from(container.querySelectorAll(".wf-copy--plain > .wf-activity-counts"), (n) => Array.from(n.children, (c) => c.textContent));
     expect(subtitles).toEqual([["41", "· –"], ["1,107", "· –"]]);
     // The map's own tooltip names the activity; the card has no native one beside it.
     expect(Array.from(container.querySelectorAll(".wf-node--card"), (n) => n.getAttribute("title"))).toEqual([null, null]);
@@ -59,8 +59,8 @@ describe("activity label interaction", () => {
   it("keeps the tooltip hoverable and persistent, closes after leaving, and keeps hidden counts in accessible details", async () => {
     const positions = await layout(graph, { engine: "dagre", nodeSize: (node) => activityNodeSize(node, ids) });
     const { container, rerender } = render(<ProcessMap graph={graph} positions={positions} activityLabels={ids} controls={false} legend={false} fitView={false} />);
-    await waitFor(() => expect(container.querySelectorAll(".wf-activity-name")).toHaveLength(2));
-    expect(Array.from(container.querySelectorAll(".wf-activity-name"), (n) => n.textContent)).toEqual(["A01", "A02"]);
+    await waitFor(() => expect(container.querySelectorAll(".wf-copy--plain > .wf-activity-name")).toHaveLength(2));
+    expect(Array.from(container.querySelectorAll(".wf-copy--plain > .wf-activity-name"), (n) => n.textContent)).toEqual(["A01", "A02"]);
     const before = dimensions(container);
     const trigger = container.querySelector<HTMLElement>('.react-flow__node[data-id="quantity"]')!;
     fireEvent.mouseEnter(trigger);
@@ -74,7 +74,7 @@ describe("activity label interaction", () => {
     fireEvent.mouseLeave(tooltip);
     expect(screen.queryByRole("tooltip")).toBeNull();
     rerender(<ProcessMap graph={graph} positions={positions} activityLabels={{ ...ids, showCounts: false }} controls={false} legend={false} fitView={false} />);
-    expect(container.querySelectorAll(".wf-activity-counts")).toHaveLength(0);
+    expect(container.querySelectorAll(".wf-copy--plain > .wf-activity-counts")).toHaveLength(0);
     expect(dimensions(container)).toEqual(before);
     expect(trigger.getAttribute("aria-label")).toContain("1,107 items · 2,198 events");
   });

@@ -16,7 +16,7 @@
  */
 import type { DrawContext, PreparedScene, View } from "../../src/canvas/index";
 import { drawScene } from "../../src/canvas/index";
-import { type Box, type FlowEdge, type FlowGraph, type FlowNode, type FlowScene, type Locale, type NodeKind, type Positions } from "../../src/index";
+import { type Box, type FlowEdge, type FlowGraph, type FlowNode, type FlowScene, type Locale, type NodeKind, type Positions, type Readable } from "../../src/index";
 import { type ListName, watch } from "./ink";
 import type { Rung } from "./ladder";
 
@@ -67,6 +67,8 @@ export interface Reading {
   widthEnds?: [string, string];
   /** The path colour row of the legend: the metric, its domain and colour stops, and whether values are placed by their square root. */
   colorScale?: { metric: string; domain: number[]; stops: string[]; sqrt?: boolean };
+  /** What the texts showed (`readableAt`), where the renderer says: the Canvas drawing's state. */
+  readable?: Readable;
 }
 
 // ---------------------------------------------------------------------------
@@ -201,13 +203,15 @@ export interface CanvasReadOptions {
   /** Zoom at which the level of detail is decided; default the view's. */
   lodZoom?: number;
   edgeBudget?: number | "all";
+  /** The readable state of the frame before, whose hysteresis the draw keeps (`DrawOptions.readableFrom`). */
+  readableFrom?: Readable;
 }
 
 /** What a Canvas draw of the scene at a view put where, element by element. */
 export function readCanvas(scene: PreparedScene, view: View, options: CanvasReadOptions = {}): Reading {
   const rec = recorder(view);
-  const drawn = drawScene(rec.ctx, watch(scene, rec.begin), view, undefined, { cull: false, background: false, createCanvas: () => null, lodZoom: options.lodZoom, edgeBudget: options.edgeBudget ?? "all" });
-  const reading: Reading = { renderer: "canvas", zoom: view.zoom, cards: [], texts: [], badges: [], paths: [], loops: [] };
+  const drawn = drawScene(rec.ctx, watch(scene, rec.begin), view, undefined, { cull: false, background: false, createCanvas: () => null, lodZoom: options.lodZoom, edgeBudget: options.edgeBudget ?? "all", readableFrom: options.readableFrom });
+  const reading: Reading = { renderer: "canvas", zoom: view.zoom, cards: [], texts: [], badges: [], paths: [], loops: [], readable: drawn.readable };
   if (drawn.withheld) reading.note = { shown: drawn.withheld.shown, total: drawn.withheld.total };
   for (const v of rec.visits) {
     if (!v.ops.length) continue;
@@ -343,8 +347,8 @@ export function pathMetricOf(graph: FlowGraph): "cases" | "count" {
   return !has("cases") && has("count") ? "count" : "cases";
 }
 
-/** The roles the level of detail sheds as the map zooms out, first to last. */
-export const SHEDDING_ORDER: readonly (readonly TextRole[])[] = [["path"], ["loop"], ["badge", "arc", "chip"], ["node"]];
+/** The roles the level of detail sheds as the map zooms out, first to last: deviation pills go last, after the cards' texts. */
+export const SHEDDING_ORDER: readonly (readonly TextRole[])[] = [["path"], ["loop"], ["node"], ["badge", "arc", "chip"]];
 
 export interface CheckOptions {
   /** The reading at the view a person first sees (the fitted map): the texts drawn there and their size on screen. */
@@ -565,11 +569,10 @@ export function arcLabelPlaces(scene: Pick<FlowScene, "graph" | "positions" | "m
 }
 
 /** The open decisions a failure can belong to (written up, pinned as findings), and the documented limit of keep connected ("reach"). */
-export type Finding = "small text" | "path counts" | "reach" | "arc label without a place" | "badges wider than their card";
+export type Finding = "path counts" | "reach" | "arc label without a place" | "badges wider than their card";
 
 /**
- * The open decision a failure belongs to, or none: texts drawn below the
- * minimum; a path's count covering a card, a badge or another count (path
+ * The open decision a failure belongs to, or none: a path's count covering a card, a badge or another count (path
  * counts have no place of their own; an arc label on a count is the arc
  * label's, below); with keep connected, an activity without a path from
  * the start or to the end while the map is in one piece, which is all keep
@@ -581,7 +584,6 @@ export type Finding = "small text" | "path counts" | "reach" | "arc label withou
  * corner in one row, which can be wider than the card).
  */
 export function findingOf(f: Failure, shown: FlowGraph, base: FlowGraph, places?: ReadonlyMap<string, boolean>): Finding | undefined {
-  if (f.property === "text too small") return "small text";
   const covering = f.property === "label covers card" || f.property === "label covers label";
   // An arc label keeps clear of cards, counts, badges and labels; where the rule found no free place on the arc, its label covers the fewest: the rule holds.
   const arcs = [...f.detail.matchAll(/arc label "[^"]*" of (\S+)/g)].map((m) => m[1]);

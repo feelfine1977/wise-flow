@@ -98,7 +98,7 @@ describe("an activity's card", () => {
       for (const t of m.texts) expect(["ink", "inkMuted"]).toContain(t.paint);
     }
     // In the SVG export a stage's colour fills the band of its cards and nothing else of them.
-    const svg = toSVG({ graph: smallP2P, positions: row(smallP2P) }, { legend: false });
+    const svg = toSVG({ graph: smallP2P, positions: row(smallP2P) }, { legend: false, theme: "default" });
     for (const group of svg.match(/<g class="wf-node wf-node-activity"[^]*?<\/g>/g)!) {
       const painted = [...group.matchAll(/<rect[^>]*>/g)].map((r) => r[0]).filter((r) => [...stageColors].some((c) => r.includes(c)));
       expect(painted.length).toBe(1);

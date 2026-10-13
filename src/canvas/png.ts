@@ -2,7 +2,8 @@
  * PNG export: the scene drawn with the canvas routines into an offscreen
  * canvas, in the same figure frame and with the same legend as `toSVG`.
  */
-import { type ColorScheme, type EdgeBudget, type FigurePreset, type Scene, type ShownEdges, type TextMeasure, type ThemeSetting, budgetEdges, figureFrame, figureMetrics, formatCount, t } from "../core/index.js";
+import { type ColorScheme, type EdgeBudget, type FigurePreset, type Scene, type ShownEdges, type TextMeasure, type ThemeSetting, budgetEdges, figureFrame, figureMetrics } from "../core/index.js";
+import { figureFloor, figureHeading, millimetres } from "../core/figure.js";
 import { type DrawContext, drawLegend, drawScene, fontOf } from "./draw.js";
 import { assertExportable } from "../core/model.js";
 import { prepareScene } from "./scene.js";
@@ -23,18 +24,24 @@ export interface PngOptions {
   preset?: FigurePreset;
   /** Explicit output width in CSS pixels; overrides the preset. */
   width?: number;
+  /**
+   * The width the figure is declared to be printed at, in millimetres: the
+   * figure is laid out at it (one figure unit a CSS pixel of it, 0.75 pt) and
+   * drawn `width` CSS pixels wide, or as wide as it is laid out.
+   */
+  widthMm?: number;
   /** Pixel density of the bitmap. Default: the device pixel ratio, at least 2. */
   scale?: number;
   background?: string;
   legend?: boolean;
   padding?: number;
-  /** Zoom level for the level-of-detail decisions. Default 1 (everything visible). */
+  /** Zoom level for the level-of-detail decisions. Default as for `toSVG`: the map's scale in the figure in a theme with a figure floor, otherwise 1. */
   lodZoom?: number;
   /** Colours and font over the scene's (`sceneTokens`). */
   tokens?: Partial<CanvasTokens>;
-  /** The theme the figure is drawn in: a preset's name or changes over a preset (`resolveTheme`). Default the `default` preset. */
+  /** The theme the figure is drawn in, as for `toSVG`: a preset's name or changes over a preset (`resolveTheme`). Default the `print` preset. */
   theme?: ThemeSetting;
-  /** The colour scheme of the theme. Default `light`. */
+  /** The colour scheme of the theme. Default `light`; the print theme has no other. */
   scheme?: ColorScheme;
   /** What the figure's texts are measured by (`FlowSceneOptions.textMeasure`). Default `estimateTextWidth`. */
   textMeasure?: TextMeasure;
@@ -74,13 +81,19 @@ function defaultCreateCanvas(width: number, height: number): CanvasLike {
 export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
   assertExportable(scene.graph);
   const locale = scene.locale ?? "en";
-  const prepared = prepareScene(scene.graph, scene.positions, { measure: scene.measure, style: scene.style, overlays: scene.overlays, locale, lanes: scene.lanes, selfLoops: scene.selfLoops, activityLabels: scene.activityLabels, lodBySize: false, theme: options.theme, scheme: options.scheme, textMeasure: options.textMeasure });
+  const prepared = prepareScene(scene.graph, scene.positions, { measure: scene.measure, style: scene.style, overlays: scene.overlays, locale, lanes: scene.lanes, selfLoops: scene.selfLoops, activityLabels: scene.activityLabels, lodBySize: false, theme: options.theme ?? "print", scheme: options.scheme, textMeasure: options.textMeasure });
   const tokens: CanvasTokens = { ...sceneTokens(prepared), ...(options.tokens ?? {}) };
   const { text: textTokens } = prepared.theme;
   const { edgeBudget } = options;
-  const frame = figureFrame(prepared, { title: !!scene.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: options.width, withheld: budgetEdges(prepared, edgeBudget), caption: options.caption });
-  const { padding: pad, width: totalW, outWidth: cssWidth, outHeight: cssHeight } = frame;
+  const floor = figureFloor(prepared.theme);
+  const declared = options.widthMm !== undefined ? millimetres(options.widthMm) : undefined;
+  const frame = figureFrame(prepared, { title: !!scene.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: declared ?? options.width, withheld: budgetEdges(prepared, edgeBudget), caption: options.caption, floor });
+  const { padding: pad, width: totalW } = frame;
+  // A figure declared in millimetres is drawn at the given width in CSS pixels, or as wide as it is laid out.
+  const cssWidth = declared !== undefined ? (options.width ?? frame.outWidth) : frame.outWidth;
+  const cssHeight = frame.outHeight * (cssWidth / frame.outWidth || 1);
   const k = totalW > 0 ? cssWidth / totalW : 1;
+  const { offset, scale: mapScale } = frame.map;
   const scale = options.scale ?? Math.max(2, typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1);
   const create = options.createCanvas ?? defaultCreateCanvas;
   const canvas = create(Math.max(1, Math.round(cssWidth * scale)), Math.max(1, Math.round(cssHeight * scale)));
@@ -88,10 +101,12 @@ export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
   if (!ctx) throw new Error("toPNG: the canvas has no 2D context");
   ctx.save();
   ctx.scale(scale, scale);
-  drawScene(ctx, prepared, { x: frame.map.offset.x * k, y: frame.map.offset.y * k, zoom: k, width: cssWidth, height: cssHeight }, undefined, {
+  drawScene(ctx, prepared, { x: offset.x * k, y: offset.y * k, zoom: k * mapScale, width: cssWidth, height: cssHeight }, undefined, {
     tokens,
-    // Level of detail is decided at `lodZoom`, independent of the figure scale.
-    lodZoom: options.lodZoom ?? 1,
+    // Level of detail is decided at `lodZoom`, without a figure floor independent of the figure scale; the texts as the frame decided at the map's scale.
+    lodZoom: options.lodZoom ?? (floor > 0 ? mapScale : 1),
+    readable: frame.readable,
+    numbers: frame.numbers?.texts.map((n) => n.text),
     cull: false,
     background: options.background ?? tokens.paper,
     createCanvas: (w, h) => create(w, h),
@@ -100,35 +115,34 @@ export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
   ctx.save();
   ctx.scale(k, k);
   if (scene.title) {
+    const heading = figureHeading(prepared, frame, scene.title, scene.subtitle);
     ctx.fillStyle = tokens.ink;
     ctx.font = fontOf(textTokens.figureTitle, tokens.font);
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
-    ctx.fillText(scene.title, pad, figureMetrics.titleBaseline);
+    ctx.fillText(heading.title, pad, figureMetrics.titleBaseline);
     if (options.context !== false) {
-      const meta = scene.graph.meta ?? {};
-      const label = scene.subtitle ?? String(meta.label ?? meta.scene ?? "");
-      const cases = typeof meta.cases === "number" ? formatCount(meta.cases, locale) : "–";
-      const events = typeof meta.events === "number" ? formatCount(meta.events, locale) : "–";
       ctx.fillStyle = tokens.neutral;
       ctx.font = fontOf(textTokens.figureText, tokens.font);
-      ctx.fillText(t(locale, "export.context", { label, cases, events }), pad, figureMetrics.contextBaseline);
+      ctx.fillText(heading.context, pad, figureMetrics.contextBaseline);
     }
   }
   if (frame.legend) {
     const { rule, x, y, width } = frame.legend;
-    ctx.strokeStyle = tokens.neutral;
-    ctx.globalAlpha = prepared.theme.opacity.legendRule;
-    ctx.lineWidth = 1;
-    ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.moveTo(rule.x, rule.top);
-    ctx.lineTo(rule.x, rule.bottom);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
+    if (rule) {
+      ctx.strokeStyle = tokens.neutral;
+      ctx.globalAlpha = prepared.theme.opacity.legendRule;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(rule.x, rule.top);
+      ctx.lineTo(rule.x, rule.bottom);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
     drawLegend(ctx, prepared, x, y, width, tokens, { createCanvas: (w, h) => create(w, h) });
   }
-  if (frame.caption || frame.note || frame.key.lines.length) {
+  if (frame.caption || frame.note || frame.key.lines.length || frame.numbers) {
     ctx.fillStyle = tokens.ink;
     ctx.font = fontOf(textTokens.figureText, tokens.font);
     ctx.textAlign = "left";
@@ -136,6 +150,7 @@ export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
     if (frame.caption) frame.caption.lines.forEach((line, i) => ctx.fillText(line, frame.caption!.x, frame.caption!.y + i * figureMetrics.keyLine));
     if (frame.note) ctx.fillText(frame.note.text, frame.note.x, frame.note.y);
     frame.key.lines.forEach((line, i) => ctx.fillText(line, pad, frame.key.y + i * figureMetrics.keyLine));
+    frame.numbers?.lines.forEach((line, i) => ctx.fillText(line, frame.numbers!.x, frame.numbers!.y + i * figureMetrics.keyLine));
   }
   ctx.restore();
   ctx.restore();

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import { constraintItems, globalScene, vendorScene, vendorSceneKey } from "../../fixtures/bpic2019";
-import { type ActivityLabelOptions, type FlowGraph, type Overlay, type Positions, abstract, layout, overlaysFor } from "../../src/index";
+import { type ActivityLabelOptions, type FlowGraph, type Overlay, type Positions, type Readable, abstract, layout, overlaysFor, readableAt } from "../../src/index";
 import { type DrawContext, type DrawOptions, type PrepareOptions, type PngOptions, drawLegend, drawScene, prepareScene, toPNGCanvas } from "../../src/canvas/index";
 import type { Scene } from "../../src/index";
 
@@ -43,11 +43,14 @@ const fixtures: Record<string, Fixture> = {
   unfiltered: () => ({ graph: global, positions: positions.global, overlays: overlaysFor(constraintItems()) }),
 };
 
-function drawn(fixture: Fixture, options: PrepareOptions, edgeBudget?: DrawOptions["edgeBudget"]): string {
+/** Every text at its size, every label drawn: the drawing as it was before texts were kept readable (a floor of 0). */
+const ALL: Readable = readableAt({ levels: { full: { size: 0, floor: 0 }, name: { size: 0, floor: 0 }, line: { size: 0, floor: 0 } }, labels: { path: 0, loop: 0, event: 0, glyph: 0, note: 0 }, pills: 0 }, 1, 0);
+
+function drawn(fixture: Fixture, options: PrepareOptions, edgeBudget?: DrawOptions["edgeBudget"], readable?: Readable): string {
   const { graph, positions: p, overlays } = fixture();
   const scene = prepareScene(graph, p, { overlays, ...options });
   const { ctx, digest } = loggingContext();
-  for (const zoom of [1, 0.3, 0.1]) drawScene(ctx, scene, { x: 10, y: 10, zoom, width: 4000, height: 3000 }, undefined, { cull: false, edgeBudget });
+  for (const zoom of [1, 0.3, 0.1]) drawScene(ctx, scene, { x: 10, y: 10, zoom, width: 4000, height: 3000 }, undefined, { cull: false, edgeBudget, readable });
   drawLegend(ctx, scene, 0, 0, 200);
   return digest();
 }
@@ -56,7 +59,7 @@ function drawn(fixture: Fixture, options: PrepareOptions, edgeBudget?: DrawOptio
 type Strip = { x: number; y: number; width: number; height: number };
 
 /** Calls of culled draws of the strip at two zooms, plain and with a selection, hover and focus of paths. */
-function culled(fixture: Fixture, options: PrepareOptions, strip: Strip, edgeBudget?: DrawOptions["edgeBudget"]): { digest: string; drawn: number; total: number } {
+function culled(fixture: Fixture, options: PrepareOptions, strip: Strip, edgeBudget?: DrawOptions["edgeBudget"], readable?: Readable): { digest: string; drawn: number; total: number } {
   const { graph, positions: p, overlays } = fixture();
   const scene = prepareScene(graph, p, { overlays, ...options });
   const { ctx, digest } = loggingContext();
@@ -71,7 +74,7 @@ function culled(fixture: Fixture, options: PrepareOptions, strip: Strip, edgeBud
   for (const zoom of [1, 0.3]) {
     const view = { x: -strip.x * zoom, y: -strip.y * zoom, zoom, width: strip.width * zoom, height: strip.height * zoom };
     for (const s of [undefined, state]) {
-      const stats = drawScene(ctx, scene, view, s, { cull: true, edgeBudget });
+      const stats = drawScene(ctx, scene, view, s, { cull: true, edgeBudget, readable });
       drawn = Math.max(drawn, stats.nodes + stats.edges + stats.shapes);
     }
   }
@@ -211,52 +214,105 @@ const before = {
  * (no element's drawn extent reaches into a strip beyond its box) and only
  * the arc labels' calls changed, of six arcs in the global strip and one in
  * the unfiltered one.
+ * Recorded once more when the index began to hold each pill at its largest
+ * size scaled up to the readable floor: drawn with the readable rule off, every
+ * strip draws, call for call, what it drew before, and three draw the calls of
+ * a few marks more whose scaled-up extent reaches into the strip (the badges
+ * of Clear Invoice and Record Invoice Receipt below the global and the
+ * unfiltered strip; three badges and the chip of the vendor's); the strip of
+ * the global map with stage lanes is the same. Compared with the previous
+ * code block by block, element by element.
  */
 const culledBefore = {
-  culledGlobal: "1351bd458b003976f62be5c39ea5425e2eb92a329ec34ac315d8602936d121d6",
+  culledGlobal: "6cdf6decddd9eee9accb2ef1adcecffd1490975d526ca4158d9006ebcf9a79d4",
   culledGlobalStages: "ae4336f3de55d2e322847918c0ce27731258ab9ab2f40346cb9e1cb1f655e053",
-  culledVendorIds: "928c3b1f8d781016f462dc2c31a07e851368b167a67f9b27dd43afce727061cb",
-  culledUnfiltered: "a3a3cbe1b9c991391cb77af996ef84755c2729dba3a8e518ec4a5cfc80c73ef2",
+  culledVendorIds: "3fe0e2f24c26e3a88cf1311cb7ef0ab75af35ec3bb5f446de5b8f051b52ba98a",
+  culledUnfiltered: "dbbdda743b5146900446259bb21eb307379ee22b6bc2336650ce6aee1582884f",
 };
 
+/**
+ * SHA-256 of the same recordings with the texts kept readable, as the Canvas
+ * map draws them since: the map at zooms 1, 0.3 and 0.1, the culled strips at
+ * 1 and 0.3, and `toPNG` without a theme, which draws the print theme. With
+ * the readable rule turned off (a floor of 0) the map's and the strips'
+ * recordings are the ones above, call for call, and so are the PNGs in the
+ * default theme: nothing else changed (the strips but for the marks their
+ * pills' extent adds, above). With it, at zoom 1 the calls are the same (the
+ * floor, 9.51, is under every text). At 0.3 (floor 32) the maps of the whole
+ * log write no card text and no group title (the first eight characters of a
+ * name and the ellipsis fit a line up to a boost of 2.39), the vendor's with
+ * references writes each card's reference on one line, fitted for a boost of
+ * 3.69, scaled up 2.46 from its start, and its stages' titles scaled up to
+ * the floor; at 0.1 (floor 90.5) no card text and no title. At both, paths' counts, self-loop labels, event
+ * labels and gateway glyphs are not written, and badges, chips and arcs'
+ * labels are scaled up to it from their row's corner or their middle. The PNGs draw the
+ * print theme (its paper, ramps and opaque patterns); `pngVendorIds` and
+ * `pngUnfilteredGerman` are as wide as their map and write every text as
+ * before, while `pngGlobalTitle`, 20,000 pixels wide, is laid out at that
+ * width with the map scaled up 6.89 times and the title, legend and caption
+ * at their sizes.
+ */
+const readableDrawn = {
+  mapGlobalStages: "125d781b161efbba593b1d2f1c65c50f0559392f9be1528e027b823914874bf4",
+  mapVendorIds: "60dfa0d7dac902bd79c36b0fd0b871ff645989a5e3a19b5f603edbb57fa74c14",
+  mapUnfiltered: "896af22cb14903a080ef9bc4ea43c939c9db305059a273f785acf0db13cd7a93",
+  pngGlobalTitle: "35efbfaa8d3f702fd03b45d986b30e432cb75b01fff46140c07b61a474ff4bcb",
+  pngVendorIds: "383c0766dabd578f808eeb48d120f88690cd9fbe4c01d75cf6c800858c876626",
+  pngUnfilteredGerman: "c5343c8c06299d2c333c5fae47461a0259f1d343e8d6a70892892d440803bc10",
+  culledGlobal: "ae0c790a38caac18c7469849170b4fd8c7a8699d9d649bea35987fd293d6967e",
+  culledGlobalStages: "fef0535748d88f5aca1d041668416dd16763f8c82de88dd1290f2af9bbf47a73",
+  culledVendorIds: "a3ae85712e3191a62bb35114a17b9e7a833c48f5938eb6ac7d4b58d842810d5c",
+  culledUnfiltered: "1a7c5d646f79395d0a298c41856f2cc5c1118700488627eedbaab4e694a665df",
+};
+
+const strips = {
+  culledGlobal: [fixtures.global, {}, { x: 0, y: 200, width: 2900, height: 420 }],
+  culledGlobalStages: [fixtures.global, { lanes: "stages" }, { x: 0, y: 300, width: 2900, height: 100 }],
+  culledVendorIds: [fixtures.vendor, { activityLabels: ids }, { x: 0, y: 120, width: 2500, height: 130 }],
+  culledUnfiltered: [fixtures.unfiltered, {}, { x: 0, y: 200, width: 2900, height: 420 }],
+} as const satisfies Record<string, [Fixture, PrepareOptions, Strip]>;
+
+/** The six recordings of the map and of toPNG; `readable` and `theme` as given. */
+const recordings = (readable?: Readable, theme?: PngOptions["theme"]) => ({
+  mapGlobalStages: drawn(fixtures.global, { lanes: "stages" }, undefined, readable),
+  mapVendorIds: drawn(fixtures.vendor, { activityLabels: ids }, undefined, readable),
+  mapUnfiltered: drawn(fixtures.unfiltered, {}, undefined, readable),
+  pngGlobalTitle: exported(fixtures.global, { selfLoops: false, title: "T", lanes: "stages" }, { width: 20000, theme }),
+  pngVendorIds: exported(fixtures.vendor, { activityLabels: ids }, { theme }),
+  pngUnfilteredGerman: exported(fixtures.unfiltered, { selfLoops: false, locale: "de" }, { lodZoom: 1, legend: false, theme }),
+});
+
 describe("Canvas drawing on the committed fixtures", () => {
-  it("records the pinned calls for the Canvas map and for toPNG", () => {
-    expect({
-      mapGlobalStages: drawn(fixtures.global, { lanes: "stages" }),
-      mapVendorIds: drawn(fixtures.vendor, { activityLabels: ids }),
-      mapUnfiltered: drawn(fixtures.unfiltered, {}),
-      pngGlobalTitle: exported(fixtures.global, { selfLoops: false, title: "T", lanes: "stages" }, { width: 20000 }),
-      pngVendorIds: exported(fixtures.vendor, { activityLabels: ids }, {}),
-      pngUnfilteredGerman: exported(fixtures.unfiltered, { selfLoops: false, locale: "de" }, { lodZoom: 1, legend: false }),
-    }).toEqual(before);
+  it("records the pinned calls for the Canvas map and for toPNG, with the readable rule off and in the default theme", () => {
+    expect(recordings(ALL, "default")).toEqual(before);
   });
 
-  it("records the pinned calls for views culled through the R-tree", () => {
-    const views = {
-      culledGlobal: culled(fixtures.global, {}, { x: 0, y: 200, width: 2900, height: 420 }),
-      culledGlobalStages: culled(fixtures.global, { lanes: "stages" }, { x: 0, y: 300, width: 2900, height: 100 }),
-      culledVendorIds: culled(fixtures.vendor, { activityLabels: ids }, { x: 0, y: 120, width: 2500, height: 130 }),
-      culledUnfiltered: culled(fixtures.unfiltered, {}, { x: 0, y: 200, width: 2900, height: 420 }),
-    };
+  it("records the pinned calls for views culled through the R-tree, with the readable rule off", () => {
+    const views = Object.fromEntries(Object.entries(strips).map(([k, [f, o, strip]]) => [k, culled(f, o, strip, undefined, ALL)]));
     for (const v of Object.values(views)) expect(v.drawn).toBeLessThan(v.total);
     expect(Object.fromEntries(Object.entries(views).map(([k, v]) => [k, v.digest]))).toEqual(culledBefore);
   });
 
+  it("records the pinned calls with the texts kept readable and toPNG in the print theme (declared change)", () => {
+    const views = Object.fromEntries(Object.entries(strips).map(([k, [f, o, strip]]) => [k, culled(f, o, strip).digest]));
+    expect({ ...recordings(), ...views }).toEqual(readableDrawn);
+  });
+
   it("records the same calls with the edge budget at all or above the edges in view", () => {
     for (const edgeBudget of ["all", 10_000] as const) {
-      expect(drawn(fixtures.global, { lanes: "stages" }, edgeBudget)).toBe(before.mapGlobalStages);
-      expect(drawn(fixtures.vendor, { activityLabels: ids }, edgeBudget)).toBe(before.mapVendorIds);
-      expect(drawn(fixtures.unfiltered, {}, edgeBudget)).toBe(before.mapUnfiltered);
-      expect(culled(fixtures.global, {}, { x: 0, y: 200, width: 2900, height: 420 }, edgeBudget).digest).toBe(culledBefore.culledGlobal);
-      expect(culled(fixtures.unfiltered, {}, { x: 0, y: 200, width: 2900, height: 420 }, edgeBudget).digest).toBe(culledBefore.culledUnfiltered);
+      expect(drawn(fixtures.global, { lanes: "stages" }, edgeBudget, ALL)).toBe(before.mapGlobalStages);
+      expect(drawn(fixtures.vendor, { activityLabels: ids }, edgeBudget, ALL)).toBe(before.mapVendorIds);
+      expect(drawn(fixtures.unfiltered, {}, edgeBudget)).toBe(readableDrawn.mapUnfiltered);
+      expect(culled(fixtures.global, {}, { x: 0, y: 200, width: 2900, height: 420 }, edgeBudget, ALL).digest).toBe(culledBefore.culledGlobal);
+      expect(culled(fixtures.unfiltered, {}, { x: 0, y: 200, width: 2900, height: 420 }, edgeBudget).digest).toBe(readableDrawn.culledUnfiltered);
     }
     // A budget below the edges in view changes the calls.
-    expect(drawn(fixtures.global, { lanes: "stages" }, 5)).not.toBe(before.mapGlobalStages);
+    expect(drawn(fixtures.global, { lanes: "stages" }, 5, ALL)).not.toBe(before.mapGlobalStages);
   });
 
   it("records the same calls for toPNG with the edge budget at all", () => {
-    expect(exported(fixtures.global, { selfLoops: false, title: "T", lanes: "stages" }, { width: 20000, edgeBudget: "all" })).toBe(before.pngGlobalTitle);
-    expect(exported(fixtures.vendor, { activityLabels: ids }, { edgeBudget: "all" })).toBe(before.pngVendorIds);
-    expect(exported(fixtures.unfiltered, { selfLoops: false, locale: "de" }, { lodZoom: 1, legend: false, edgeBudget: "all" })).toBe(before.pngUnfilteredGerman);
+    expect(exported(fixtures.global, { selfLoops: false, title: "T", lanes: "stages" }, { width: 20000, edgeBudget: "all", theme: "default" })).toBe(before.pngGlobalTitle);
+    expect(exported(fixtures.vendor, { activityLabels: ids }, { edgeBudget: "all" })).toBe(readableDrawn.pngVendorIds);
+    expect(exported(fixtures.unfiltered, { selfLoops: false, locale: "de" }, { lodZoom: 1, legend: false, edgeBudget: "all", theme: "default" })).toBe(before.pngUnfilteredGerman);
   });
 });

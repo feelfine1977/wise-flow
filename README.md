@@ -80,6 +80,11 @@ const positions = await layout(graph);
 const svg = toSVG({ graph, positions, title: 'Example process' });
 ```
 
+Exports draw the `print` theme unless given another (`theme: 'default'` draws
+the screen's look, as exports did before), and keep their texts at 7 pt or
+more at the width a figure is printed at (`widthMm`): where a card cannot show
+its name, it is numbered and the names are listed beside the map.
+
 ELK runs in-process by default, with Dagre fallback. In a browser, pass the
 workers: in-process ELK holds the page while it runs and cannot be
 interrupted (a layout nobody waits for any more runs to its end, and its

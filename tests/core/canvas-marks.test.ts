@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type FlowNode, type Overlay, type TextMeasure, buildScene, createPositions, toSVG } from "../../src/index";
+import { type FlowNode, type Overlay, type TextMeasure, buildScene, createPositions, defaultTheme, toSVG } from "../../src/index";
 import { type DrawContext, type DrawState, canvasTextMeasure, defaultTokens, drawScene, prepareScene, toPNGCanvas } from "../../src/canvas/index";
 import * as elements from "./element-kinds";
 import { graph, overlays, positions } from "./overlay-kinds";
@@ -185,11 +185,12 @@ describe("Canvas overlay marks", () => {
     // Its pill keeps the paper; its outline and its text take the focus colour.
     expect(startingAt(hovered, "M242.55,-20").map((o) => o.color)).toEqual(["#ffffff", defaultTokens.focus]);
     expect(hovered.find((o) => o.text === "≥1 · 25 %")?.color).toBe(defaultTokens.focus);
-    // At zoom 0.18 only the tint (every zoom) and the hatching (from 0.15) remain.
+    // At zoom 0.18 only the tint (every zoom) and the hatching (from 0.15) remain; badges, arcs and chips go at 0.2.
     const far = draw(undefined, 0.18);
     expect(far.filter((o) => o.alpha === 0.18 || o.alpha === 0.55).map((o) => o.color)).toEqual(["#b84a00", "#b0b0b0"]);
     expect(far.filter((o) => o.op === "stroke" && o.alpha === 0.9)).toEqual([]);
-    expect(far.filter((o) => o.op === "fillText").map((o) => o.text)).toEqual(["Stage 1", "Stage 2"]);
+    // The floor, 9 / 0.18 = 50 rounded up to 53.8, leaves no card its name, and the stages' titles go with the names.
+    expect(far.filter((o) => o.op === "fillText").map((o) => o.text)).toEqual([]);
   });
 
   it("fills a group tint once, with and without stage bands", () => {
@@ -313,8 +314,15 @@ describe("Canvas node and edge marks", () => {
     expect(startingAt(drawElements(), "M364,20")).toEqual([{ op: "stroke", path: "M364,20 L382,20 L382,28 L397.75,28", color: "#b84a00", alpha: 1, width: 1, dash: [] }]);
   });
 
-  it("keeps the gateway's glyph and the note's label when zoomed out", () => {
-    expect(written(drawElements(undefined, 0.1)).map((t) => t.text)).toEqual(["+", "Ask the vendor twice"]);
+  it("sheds the gateway's glyph and the note's label once they would fall below the floor (declared change)", () => {
+    const at = (zoom: number) => written(drawElements(undefined, zoom)).filter((t) => t.text === "+" || t.text === "Ask the vendor twice").map((t) => t.text);
+    // The floor at 0.7 is 9 / 0.7 = 12.9, rounded up to 13.45: the note's 11 px label goes, the glyph of 15 stays.
+    expect([at(1), at(0.7), at(0.55)]).toEqual([["+", "Ask the vendor twice"], ["+"], []]);
+    // They were drawn at every zoom; a floor of 0 keeps them so.
+    const scene = prepareScene(elements.graph, elements.positions, { style: elements.style, selfLoops: false, lodBySize: false, theme: { ...defaultTheme, text: { ...defaultTheme.text, minScreenPx: 0 } } });
+    const { ctx, ops } = drawingContext();
+    drawScene(ctx, scene, { x: 0, y: 0, zoom: 0.1, width: 1000, height: 600 }, undefined, { cull: false });
+    expect(written(ops).map((t) => t.text)).toEqual(["+", "Ask the vendor twice"]);
   });
 
   it("writes names as the scene's measure wrapped and cut them, whatever the context measures", () => {

@@ -143,7 +143,7 @@ describe("the note in the figure frame", () => {
     expect(frame.note!.y).toBe(110);
     expect(frame.key.y).toBe(98 + 16 + 24);
     expect(frame.height).toBe(98 + 16 + frame.key.lines.length * 16 + 48);
-    expect(frame.legend!.rule.bottom).toBe(98 - 24);
+    expect(frame.legend!.rule!.bottom).toBe(98 - 24);
   });
 
   it("is inside the exported figure in SVG and PNG", () => {

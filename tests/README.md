@@ -10,7 +10,7 @@ The executable CI contract and release procedure are in [docs/CI.md](../docs/CI.
 | `react/` | jsdom callbacks, keyboard interaction, state replacement and renderer lifecycles | `npm run test:components` |
 | `tooling/` | Negative checks for architecture boundaries, the source lint, workflow policies, artifact budgets and the benchmark's report; the core entry point's built declarations against `scripts/core-exports.json`, deprecations and every exported name of the four entry points against `docs/API.md`; the token table and its generated `tokens.css`; the styling contract against the rendered fixtures and the API document; the emitted JavaScript without comments, the declarations with their documentation comments, and their maps; the table of invalid input against the entry points; the package's name `wise-flow` in the manifest, the lockfile and every changeset, Changesets' public access, and the former name only in the changeset and the migration note that give it; the processors a run at the hosted runners' size is pinned to and the tests it reports as tight | `npm run test:tooling` |
 | `package/` | Separate consumer of the actual npm tarball; NodeNext types and real browser assets/lifecycle | `npm run test:package` |
-| `browser/` | Production Storybook accessibility and keyboard tests, the map's paint order, host stylesheets against the styling contract and the cascade layer, the computed styles of the map and its panels against their record (only the elements inside the library's roots), the outline and fill of an activity's card when hovered, selected, focused and out of scope, the detail panel (fewer activities and paths drawn at each step of "Activities" to the left, "Paths" in place), the controls (no panel over an activity at the fitted zoom, the dark scheme's panels, controls and table cells and its pattern ink, the controls' accessibility and names in English and German, and every form control's text, border and outline colour a token in every state and both schemes), and the parity of the four renderers, in a real browser | `npm run storybook:build` then `npm run test:browser` |
+| `browser/` | Production Storybook accessibility and keyboard tests, the map's paint order, host stylesheets against the styling contract and the cascade layer, the computed styles of the map and its panels against their record (only the elements inside the library's roots), the outline and fill of an activity's card when hovered, selected, focused and out of scope, the detail panel (fewer activities and paths drawn at each step of "Activities" to the left, "Paths" in place), the texts of the DOM map at least 9 px on the screen at every zoom its zoom control steps through, the controls (no panel over an activity at the fitted zoom, the dark scheme's panels, controls and table cells and its pattern ink, the controls' accessibility and names in English and German, and every form control's text, border and outline colour a token in every state and both schemes), and the parity of the four renderers, in a real browser | `npm run storybook:build` then `npm run test:browser` |
 | `visual/` | Eleven behavior checks including six screenshots, the large Canvas scene and the fonts the map is drawn in | `npm run test:visual` |
 | `bench/` | The benchmark: times on large and dense inputs in Node and in Chromium, beside the numbers measured before the repairs and the targets; not a gate | `npm run bench` |
 
@@ -23,6 +23,26 @@ reviewed floors (the measured values rounded down). It refuses focused `.only`
 tests in CI. Reported coverage is not a claim of semantic completeness; graph
 routes still differ from observed variants and grouped metric approximations
 still require host evidence.
+
+## Readable at every zoom
+
+`core/readable.test.ts` holds what `readableAt` decides from the zoom (levels,
+boosts, the labels and pills shed, the ladder, the hysteresis) against rules
+written by hand, a card's lines at each level and where they lie, the pills'
+growth, and the Canvas drawing of the BPIC maps at every zoom from 0.1 to 2 in
+steps of 0.05, out and back in, each frame from the one before: no text under
+9 px on the screen, the shedding order, every card's box where the layout put
+it. It also holds the exports: `print` without a theme, never the page's dark
+scheme, and at 85 mm no text under 7 pt, with the cards' numbers and a key of
+every activity, in the SVG and the PNG. `react/Readable.test.tsx` holds the
+same sweep on the DOM map (read with `map-reading.ts`, whose root classes it
+checks against the core's decision), counts what a zoom change writes (the
+root's classes, once, and nothing of a card), finds a card without text named
+by its title and its accessible name and, on the Canvas map, by its tooltip,
+and has the DOM map and the Canvas map choose the same level at three zooms.
+`browser/readable.spec.ts` measures every text the DOM map of the P2P story
+draws in Chromium, at its fitted zoom and six steps out with its zoom
+control: its computed size times the scale of what is around it.
 
 ## Parity of the four renderers
 
@@ -194,17 +214,23 @@ map's shape is the same at every magnitude and only the numbers change.
 `reading.ts` turns what a renderer drew into a `Reading` (cards, texts with
 their boxes and sizes, badges, path lines with width and colour, self-loops,
 the note on withheld paths, the legend's printed ends): `readCanvas` records
-a Canvas draw, `react/map-reading.ts` reads the React map's DOM.
+a Canvas draw (with the readable state it drew in), `react/map-reading.ts`
+reads the React map's DOM, doing what the stylesheet does with the classes the
+map writes on its root for its readable state (jsdom applies no stylesheet):
+the card block of the root's level, scaled with the group titles and the
+pills by the root's floor, and the labels the root sheds left out.
 `checkReading` holds a reading at the fitted view and one with everything
 any zoom draws against the scene: the map is not empty, with keep connected
 every activity lies between the start and the end, the cards and paths are
 the abstraction's, no card covers another, no arc label, path count or badge
 covers a card or another of them, texts drawn at the fitted view are at
-least 9 px on screen and are shed in the documented order, path widths and
+least 9 px on screen and are shed in the documented order (paths' labels,
+self-loop labels, the cards' texts, the deviation pills last), path widths and
 colours follow the legend, whose ends are the scene's, printed counts read
 back within their precision (`parsePrinted`), and the note says how many
 paths it shows of how many. `findingOf` names the failures that are open
-decisions; every other failure fails the search. `pictureOf` draws a rung
+decisions; every other failure fails the search (a text under 9 px was one
+until the map kept its texts readable at every zoom; now it fails). `pictureOf` draws a rung
 with its failures marked; `savePicture` (`pictures.ts`) writes it under
 `reports/thresholds/`, and the tests attach it to their report (`annotate`,
 copied to `.vitest-attachments/`). `core/thresholds.test.ts` reads the

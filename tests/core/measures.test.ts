@@ -197,7 +197,7 @@ describe("what a measure's style is", () => {
 
 describe("the exports and the Canvas map in a measure", () => {
   it("draw the measure's colours, labels and the cue's accent", () => {
-    const svg = toSVG({ graph, positions, measure: "shortfall" });
+    const svg = toSVG({ graph, positions, measure: "shortfall" }, { theme: "default" });
     expect(svg).toContain('class="wf-cue-accent" fill="#f2ded1"');
     expect(svg).toContain('class="wf-cue-foot-accent" fill="#b84a00"');
     expect(svg).toContain("35 % · 820");

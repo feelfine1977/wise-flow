@@ -10,6 +10,7 @@ import { indirectWay } from "./detail.js";
 import { t } from "./strings.js";
 import { type RuleSet, type RuleState, type RuleTextRole, ruleDash, rulePaint, ruleRadius, ruleSet, ruleText, ruleTextRole, ruleWidth } from "./rules.js";
 import type { CourseLabel, PathCourses } from "./courses.js";
+import type { CardLevels } from "./readable.js";
 import { chipAnchor } from "./overlay-geometry.js";
 import type { MarkFill, MarkPaint, MarkText } from "./overlay-marks.js";
 import { type LineSpec, type PatternId, type Scales, tinted } from "./style.js";
@@ -113,6 +114,8 @@ export interface NodeMark {
   title?: string;
   /** The whole node's opacity, where a theme's rule sets one. */
   opacity?: number;
+  /** An activity's or a stage's card: its texts at each level of detail, fitted once when the scene is built (`readableRules`). */
+  levels?: CardLevels;
 }
 
 export interface EdgeMark {

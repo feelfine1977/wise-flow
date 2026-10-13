@@ -187,7 +187,8 @@ export class CanvasRenderer {
     const { edgeBudget, ...options } = this.drawOptions;
     let stats!: ReturnType<typeof drawScene>;
     const run = (budget: EdgeBudget | undefined) => {
-      stats = drawScene(ctx, this.scene!, view, this.state, { ...options, edgeBudget: budget, tokens: this.tokens });
+      // The level of detail is picked per frame, within the hysteresis of the frame before.
+      stats = drawScene(ctx, this.scene!, view, this.state, { readableFrom: this.lastDraw?.readable, ...options, edgeBudget: budget, tokens: this.tokens });
       return { shown: stats.edges, total: stats.withheld?.total ?? stats.edges, kept: stats.kept };
     };
     if (edgeBudget === "adaptive") (this.adapter ??= edgeBudgetAdapter(this.clock)).frame(run);

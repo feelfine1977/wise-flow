@@ -12,7 +12,7 @@ import {
   type OnNodesChange,
 } from "@xyflow/react";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { type AbstractOptions, type ElementRef, type FlowGraph, type Insets, type Positions, type XY, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, detailNotes, detailStatement, dimensionTokens, fitViewport, formatCount, lodAt, measureStyle, spaceTokens, strokeTokens, t, themeColors } from "../core/index.js";
+import { type AbstractOptions, type ElementRef, type FlowGraph, type Insets, type Positions, type Readable, type XY, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, detailNotes, detailStatement, dimensionTokens, fitViewport, formatCount, lodAt, measureStyle, readableAt, spaceTokens, strokeTokens, t, themeColors } from "../core/index.js";
 import { isPath } from "../core/detail.js";
 import { type MapContext, mapEmphasis, menuHeading } from "../core/map-controller.js";
 import { markedThemeKey, themeStyle } from "../core/theme.js";
@@ -27,7 +27,7 @@ import { FilterChips } from "./FilterChips.js";
 import { PathsNotShown, useArrival, useEdgesShown, useEdgesShownAcross, useFlowGraph, useMapScene, usePrefersReducedMotion, useStableLayout } from "./hooks.js";
 import { Legend } from "./Legend.js";
 import { useMenuActions } from "./map-actions.js";
-import { edgeArrowId, useCanvasElements, useElementDescriptions, useFlowElements, useTextMeasure } from "./map-elements.js";
+import { edgeArrowId, grownTextSize, readableClasses, readableSizes, useCanvasElements, useElementDescriptions, useFlowElements, useTextMeasure } from "./map-elements.js";
 import { GROUP_PREFIX, canvasPointer, flowPointer, overlayPointer } from "./map-pointer.js";
 import { MarkDefs, MarkFigure } from "./marks.js";
 import { PatternTheme } from "./patterns.js";
@@ -229,6 +229,12 @@ function ProcessMapInner(props: ProcessMapProps) {
   const [canvasViewport, setCanvasViewport] = useState({ x: 0, y: 0, zoom: 1 });
   const zoom = useCanvas ? canvasViewport.zoom : rfZoom;
   const lod = lodAt(zoom, scene.lod);
+  // What the texts show at the zoom, within the hysteresis of what they showed: the map writes it on its root as classes.
+  const readableBefore = useRef<Readable | undefined>(undefined);
+  const readable = readableAt(scene.readable, zoom, scene.theme.text.minScreenPx, readableBefore.current);
+  useEffect(() => void (readableBefore.current = readable));
+  const textSizes = useMemo(() => readableSizes(scene.readable), [scene.readable]);
+  const grown = useMemo(() => grownTextSize(scene), [scene]);
   const bodyRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<CanvasMapHandle>(null);
@@ -486,8 +492,8 @@ function ProcessMapInner(props: ProcessMapProps) {
   const map = (
     <div
       ref={containerRef}
-      className={`wf-process-map ${lodClasses}${showPaths ? " wf-process-map--side" : ""}${className ? ` ${className}` : ""}`}
-      style={{ width: "100%", height: "100%", ...containerStyle, ...themed }}
+      className={`wf-process-map ${lodClasses} ${readableClasses(readable, grown)}${showPaths ? " wf-process-map--side" : ""}${className ? ` ${className}` : ""}`}
+      style={{ width: "100%", height: "100%", ...textSizes, ...containerStyle, ...themed }}
       role="group"
       {...part("map")}
       aria-label={ariaLabel ?? t(locale, "map.description", { nodes: shown.nodes.length, edges: shown.edges.length, groups: shown.groups?.length ?? 0 })}

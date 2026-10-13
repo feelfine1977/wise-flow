@@ -1,8 +1,9 @@
 /** What the two map renderers draw: React Flow elements or the Canvas map's retained scene, and their descriptions; the browser's text measure. */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { type ActivityLabelOptions, type Arrowhead, type EdgeBudget, type ElementRef, type FlowGraph, type FlowScene, type GraphIndex, type HitItem, type Locale, type Overlay, type OverlayMark, type Positions, type Selection, type TextMeasure, budgetEdges, describeOverlay, indexGraph, markInState, stateStyle, zTokens } from "../core/index.js";
+import { type ActivityLabelOptions, type Arrowhead, type EdgeBudget, type ElementRef, type FlowGraph, type FlowScene, type GraphIndex, type HitItem, type Locale, type Overlay, type OverlayMark, type Positions, type Readable, type ReadableRules, type Selection, type TextMeasure, budgetEdges, describeOverlay, indexGraph, markInState, readableTokens, stateStyle, zTokens } from "../core/index.js";
 import { type DrawState, type PreparedScene, canvasTextMeasure } from "../canvas/index.js";
 import { retainScene } from "../canvas/scene.js";
+import { LABELS } from "../core/readable.js";
 import { describeIndexedEdge } from "../core/describe.js";
 import { FIRST_STEP } from "../core/edge-budget.js";
 import { describeGroup, describeNode } from "./describe.js";
@@ -11,6 +12,33 @@ import { GROUP_PREFIX } from "./map-pointer.js";
 import type { WfEdge, WfGroupNode, WfNode } from "./types.js";
 
 type Bright = { nodes: Set<string>; edges: Set<string> } | undefined;
+
+/**
+ * The classes the interactive map writes on its root for what its texts show
+ * (`readableAt`): the level (`wf-text--plain` for the cards as they are, at a
+ * boost of 1), the rung of the floor, which `tokens.css` turns into
+ * `--wf-text-floor`, `wf-text-grow` where titles and pills are scaled at the
+ * plain level (past `grown`), and each kind of label shed. One string, so that a zoom writes
+ * the root once.
+ */
+export function readableClasses(r: Readable, grown = Infinity): string {
+  const plain = r.level === "full" && r.boost === 1;
+  const out = [`wf-text--${plain ? "plain" : r.level}`];
+  if (r.step !== undefined && r.step <= readableTokens.last) out.push(`wf-text-f${r.step}`);
+  if (plain && r.floor > grown) out.push("wf-text-grow");
+  for (const k of LABELS) if (!r.labels[k]) out.push(`wf-text-hide-${k}`);
+  if (!r.pills) out.push("wf-text-hide-pills");
+  return out.join(" ");
+}
+
+/** The smallest text of the pills and the groups' titles. */
+export const grownTextSize = ({ readable, groupMarks }: Pick<FlowScene, "readable" | "groupMarks">): number => groupMarks.reduce((s, g) => g.texts.reduce((m, t) => Math.min(m, t.size), s), readable.pills);
+
+/** The smallest text of each level of the cards and of the pills, which the stylesheet divides the floor by: written once per scene. */
+export function readableSizes({ levels, pills }: ReadableRules): Record<string, number> {
+  const sizes = { "--wf-text-s-full": levels.full.size, "--wf-text-s-name": levels.name.size, "--wf-text-s-line": levels.line.size, "--wf-pill-size": pills };
+  return Object.fromEntries(Object.entries(sizes).filter(([, size]) => Number.isFinite(size)));
+}
 
 /**
  * The text measure of a live map: the given one, or the browser's in the

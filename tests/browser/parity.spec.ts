@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { readFileSync, writeFileSync } from "node:fs";
 import { textMeasures } from "../../fixtures/text-measures";
-import { type ActivityLabelOptions, type ColorScheme, type FlowGraph, type LaneMode, type Locale, type Measure, type Overlay, type Positions, type Theme, buildScene, estimateTextWidth, themeColors, toSVG } from "../../src/index";
+import { type ActivityLabelOptions, type ColorScheme, type FlowGraph, type LaneMode, type Locale, type Measure, type Overlay, type Positions, type Theme, buildScene, defaultTheme, estimateTextWidth, themeColors, toSVG } from "../../src/index";
 import { prepareScene, toPNGCanvas } from "../../src/canvas/index";
 import { readCanvasMap, readPng } from "./parity/canvas";
 import { readDom, readDomInPage } from "./parity/dom";
@@ -66,8 +66,9 @@ test("the DOM map, the Canvas map, the SVG export and the PNG export draw the co
     const json = await page.locator('[data-testid="wf-parity-scene"]').textContent({ timeout: 60_000 });
     const { graph, overlays, lanes, theme, activityLabels, locale, measure: named, mapMeasure, positions } = JSON.parse(json!) as StoryScene;
     const given = { graph, positions, overlays, lanes, activityLabels, locale, measure: mapMeasure };
-    // The scene in the story's theme and scheme, its texts measured by the measure the story gave the map.
-    const look = { theme, scheme, textMeasure: textMeasures[named ?? "estimate"] };
+    // The scene in the story's theme (the map's default where it gives none; the exports would draw print) and scheme,
+    // its texts measured by the measure the story gave the map.
+    const look = { theme: theme ?? defaultTheme, scheme, textMeasure: textMeasures[named ?? "estimate"] };
     const scene = buildScene(graph, positions, { overlays, lanes, activityLabels, locale, measure: mapMeasure, ...look });
     const kinds = kindsOf(scene);
     await expect(page.locator(".react-flow__node")).toHaveCount(scene.nodeMarks.length + Object.keys(scene.positions.groups).length);

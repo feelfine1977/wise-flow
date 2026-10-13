@@ -68,7 +68,8 @@ async function fromReact({ graph, positions, activityLabels, locale, textMeasure
   await waitFor(() => expect(container.querySelectorAll(".wf-edge").length).toBe(drawable.length));
   const nodes = new Map<string, string[]>();
   for (const el of container.querySelectorAll<HTMLElement>(".react-flow__node .wf-node")) {
-    nodes.set(el.id.replace(/^wf-node-/, ""), [...el.querySelectorAll(".wf-node__label, .wf-activity-name > span, .wf-activity-counts > span")].map((t) => t.textContent ?? ""));
+    // A card's own block of texts, which it shows from a zoom of 1 (the levels of detail have blocks of their own).
+    nodes.set(el.id.replace(/^wf-node-/, ""), [...el.querySelectorAll(".wf-node__label, .wf-copy--plain > .wf-activity-name > span, .wf-copy--plain > .wf-activity-counts > span")].map((t) => t.textContent ?? ""));
   }
   const edges = new Map<string, string[]>();
   for (const el of container.querySelectorAll<SVGGElement>("g.wf-edge")) {

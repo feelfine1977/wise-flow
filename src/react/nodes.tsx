@@ -64,9 +64,9 @@ function look(m: NodeMark, state?: StateStyle): Record<string, string> {
   return out;
 }
 
-/** A text's size, weight and paint from its mark, as custom properties for the stylesheet. */
-function textLook(t: ElementText, mark: { color: string }): Record<string, string | undefined> {
-  return { "--wf-text-size": px(t.size), "--wf-text-weight": t.weight === undefined ? undefined : String(t.weight), "--wf-text-paint": paintCss(mark, t.paint) };
+/** A text's size, weight and paint from its mark, as custom properties for the stylesheet; with `scaled`, the size as a number too, which the floor is divided by. */
+function textLook(t: ElementText, mark: { color: string }, scaled = false): Record<string, string | undefined> {
+  return { "--wf-text-size": px(t.size), "--wf-text-weight": t.weight === undefined ? undefined : String(t.weight), "--wf-text-paint": paintCss(mark, t.paint), ...(scaled && { "--wf-text-s": String(t.size) }) };
 }
 
 /** A mark's outline as an SVG shape over its box: a diamond (corners half the width from the centre, as in the SVG export), a circle or a rounded box. */
@@ -154,15 +154,45 @@ const Run = ({ t, mark, className, children }: { t: ElementText; mark: NodeMark;
 );
 
 /**
+ * A card's texts at one or more levels of detail (`wf-copy--plain`, `--full`,
+ * `--name`, `--line`): the name's lines and the number line. The map's root
+ * shows one level and scales it up from its start (the stylesheet).
+ */
+function CardCopy({ mark, texts, levels, meta }: { mark: NodeMark; texts: ElementText[]; levels: string; meta?: string }) {
+  const names = texts.filter((t) => t.role === "nameLine");
+  const count = texts.find((t) => t.role === "countLine");
+  const share = texts.find((t) => t.role === "share");
+  return (
+    <span className={`wf-activity-copy ${levels.split(" ").map((l) => `wf-copy--${l}`).join(" ")}${names[0] ? lodClass(names[0]) : ""}`}>
+      {names.length ? (
+        <span className="wf-activity-name" style={textLook(names[0], mark)} {...part("node-label")}>
+          {names.map((t, i) => (
+            <span key={i}>{t.text}</span>
+          ))}
+        </span>
+      ) : null}
+      {count ? (
+        <span className="wf-activity-counts" {...part("node-count")}>
+          <Run t={count} mark={mark}>{meta ?? count.text}</Run>
+          {share ? <Run t={share} mark={mark} className="wf-activity-share" /> : null}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+/** A card's blocks of texts: its own, as fitted unboosted, and each level's. */
+const copies = ({ texts, levels: l }: NodeMark): [ElementText[], string][] => (l ? [[texts, "plain"], [l.full, "full"], [l.name, "name"], [l.line, "line"]] : [[texts, "plain full name line"]]);
+
+/**
  * An activity or a stage as its card: the name on up to two lines and the
  * number line (the cases, then their share), over the frequency cue, with the
- * stage once as the band. The card has the size of its box in the scene.
+ * stage once as the band. The card has the size of its box in the scene,
+ * whatever its texts show at the zoom; without them its name is its title
+ * and its accessible name.
  */
 const Card = memo(function Card({ id, data, selected }: NodeProps<WfNode>) {
   const mark = markOf(data);
-  const names = mark.texts.filter((t) => t.role === "nameLine");
-  const count = mark.texts.find((t) => t.role === "countLine");
-  const share = mark.texts.find((t) => t.role === "share");
   return (
     <div
       id={`wf-node-${id}`}
@@ -176,21 +206,9 @@ const Card = memo(function Card({ id, data, selected }: NodeProps<WfNode>) {
       <NodeOutline mark={mark} />
       <Cue mark={mark} />
       <Band mark={mark} />
-      <span className={`wf-activity-copy${names[0] ? lodClass(names[0]) : ""}`}>
-        {names.length ? (
-          <span className="wf-activity-name" style={textLook(names[0], mark)} {...part("node-label")}>
-            {names.map((t, i) => (
-              <span key={i}>{t.text}</span>
-            ))}
-          </span>
-        ) : null}
-        {count ? (
-          <span className="wf-activity-counts" {...part("node-count")}>
-            <Run t={count} mark={mark}>{data.meta ?? count.text}</Run>
-            {share ? <Run t={share} mark={mark} className="wf-activity-share" /> : null}
-          </span>
-        ) : null}
-      </span>
+      {copies(mark).map(([texts, levels]) => (
+        <CardCopy key={levels} mark={mark} texts={texts} levels={levels} meta={data.meta} />
+      ))}
       {carried(data)}
     </div>
   );
@@ -274,7 +292,7 @@ const Group = memo(function Group({ id, data, selected, width, height }: NodePro
     >
       {mark.stroke.sides ? null : <Outline className="wf-group__outline" mark={mark} fill="none" />}
       {title ? (
-        <span className="wf-group__label" style={textLook(title, mark)} {...part("group-label")}>
+        <span className="wf-group__label" style={textLook(title, mark, true)} {...part("group-label")}>
           {title.text}
         </span>
       ) : null}

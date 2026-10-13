@@ -30,7 +30,7 @@
 │          selection · map-controller · actions · paths ·      │
 │          describe · filters · format · metrics · strings ·   │
 │          viewport · activity-labels · label-sizing ·         │
-│          collapsed-members                                   │
+│          collapsed-members · readable                        │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -49,6 +49,7 @@ read what it resolves and do not decide it again.
 | Overlay marks (`core/overlay-marks.ts`) | `FlowScene.marks`, `OverlayMark` | per placed overlay: box or path, fill, stroke, dash, arrowhead, texts, layer, zoom threshold, whether it is on the map (§2.5) | SVG export, Canvas drawing, React nodes and `OverlayLayer`, BPMN projection |
 | Node, edge and group marks (`core/element-marks.ts`) | `FlowScene.nodeMarks`, `FlowScene.edgeMarks`, `FlowScene.groupMarks` | outline, fill, border, band, texts and their level of detail; an activity's or a stage's card: its name on up to two lines, its number line (cases and their share of the log's), its frequency cue and whether it is out of scope; edge route, colour, dash, count label; a group's tint, outline, band sides and rule, title and chip anchor (§2.5) | SVG export, Canvas drawing, React node, edge and group components |
 | Path courses (`core/courses.ts`) | `pathCourses(graph, positions, { width, bands })` → `PathCourses` | the course of a path against the reading direction (its own line below the flow it returns over, entering its target from below) and of two opposite paths (side by side), and where their labels go (§2.5) | `buildScene`, whose positions and edge marks carry them to every renderer, the hit index and the culling |
+| Readable text (`core/readable.ts`) | `readableAt(rules, zoom, minScreenPx, previous)` → `Readable`; `FlowScene.readable`, `NodeMark.levels` | from the zoom and the theme's `text.minScreenPx`, what the texts show and how much they are scaled up: each card's level (name and number line, name, one line, box) and boost, the labels shed below the floor, the pills scaled up to it, with hysteresis; each card's lines per level, fitted once (§2.5) | `drawScene` (Canvas map, `toPNG`), `toSVG` through `figureFrame`, `ProcessMap` (the classes of its root) |
 | Text measure (`core/text.ts`) | `TextMeasure`, `estimateTextWidth`, `truncateText`, `wrapText`; `buildScene(…, { textMeasure })`; `canvasTextMeasure` (Canvas) | how wide a text is, where it is shortened and how it wraps: node labels, chip texts and their boxes, activity names and boxes, the legend's texts, the figure's note and activity key, measured once when the scene is built (§2.5) | the mark builders, the overlay geometry, the legend layout and the figure frame; the renderers write the fitted texts |
 | Theme (`core/theme.ts`, `checkTheme` in `core/style.ts`) | `Theme`, `defaultTheme`, `printTheme`, `resolveTheme`, `themeColors`, `checkTheme`; `buildScene(…, { theme, scheme })` | what the marks are drawn in: colour roles with the dark scheme's changes, the data palettes and the pattern twins' order and look, fonts, text, radius, stroke, opacity and spacing tables, the place of the frequency cue, density, the smallest text and stroke, rules (none in the presets); the presets (`defaultTheme` is the token table, `printTheme` its `printTokens` over it); a setting as changes over a preset over the host's CSS variables; the CSS variable of every part; what of a theme falls short (§2.4) | the scene and its mark builders and scales; through the scene the SVG export, Canvas drawing, PNG export and React components; `useFlowTheme` (React), which reads the variables |
 | Rules (`core/rules.ts`) | `ThemeRule`, `stateStyle`, `markInState`; `checkTheme` | which rules of a theme apply (the others reported), what they set on an element by part, kind, tag and state in their order with a state's rules last, and the paints, widths, dashes, radii and opacities they resolve to; for the interactive states, what the maps draw over a mark (§2.4) | the node, edge, group and overlay mark builders; `drawScene` (Canvas); the React map's elements |
@@ -320,7 +321,9 @@ gives no cases), and a path without a value is drawn thin in the line colour
 and labelled "–"; text on coloured fills
 uses an ink with contrast ≥ 4.5 : 1. Level-of-detail rules say from which
 zoom labels, edge labels, badges, arcs, chips, hatching and self-loops
-appear; thresholds tighten with the number of nodes. Colours, palettes, the
+appear (badges, arcs and chips with the labels, so that pills are the last
+texts shed); thresholds tighten with the number of nodes; over them the
+readable rule of §2.5 sheds what would be too small on the screen. Colours, palettes, the
 font stack, default node sizes, mark sizes, the arrowhead rule and the
 pattern twins live in one token table (`tokens.ts`), and so does every
 size, radius, stroke width, dash, text size and weight, opacity, spacing step
@@ -362,8 +365,9 @@ categorical colour, ramps that start at 3 : 1 on the paper, no text under
 sets a theme as a preset's name or as changes over a preset; `resolveTheme`
 puts the setting over what the host wrote as CSS variables over the preset,
 and keeps only literal colours, so every paint of an export is a literal. The
-exports draw the `default` preset in the light scheme unless told otherwise
-and never read the page. Every part of a theme has one `--wf-*` variable
+exports draw the `print` preset unless told otherwise (up to 0.3.x the
+`default` one, which `theme: "default"` still draws byte for byte) and never
+read the page. Every part of a theme has one `--wf-*` variable
 (`themeVariables`, `themeFromVariables`); in a page, `useFlowTheme` (React)
 reads them on the map's element (set there or inherited; given a `theme`, the
 map writes its own there and sets them aside while it reads), leaves out what `tokens.css` sets, turns
@@ -451,6 +455,25 @@ label's line. The boxes that keep arc labels, group
 titles and badges clear of each other keep their own widths per character:
 they place marks rather than fit text.
 
+**Readable at every zoom.** No text is smaller on the screen than the
+theme's `text.minScreenPx` (9 px). `readableAt` (`readable.ts`) decides from
+the zoom, once for every renderer: the floor is `minScreenPx` over the zoom,
+in layout units, rounded up to a ladder of rungs `2^(1/8)` apart; each card
+(activity or stage) shows the most of its texts that fits scaled up to it
+(name and number line, name on two lines, name on one line, nothing) and is
+scaled up by the floor over the level's smallest text from the start of its
+texts; paths' labels, self-loop labels and the labels of events, gateways
+and notes are shed once they would fall below it; group titles go with the
+names; deviation pills are scaled up to it and shed last, beyond the ladder.
+A level, a label or a rung that went comes back only 10 % past where it went.
+The scene carries the rules (`FlowScene.readable`: each level's smallest text
+and the largest floor it fits at, measured over every card) and each card's
+lines per level, fitted once by the text measure for the largest boost the
+level is drawn at (`NodeMark.levels`); boxes and positions never change with
+the zoom. The DOM map writes the state on its root as classes in one string,
+the Canvas map decides it per frame within the frame before's hysteresis,
+and an exported figure at the map's scale with the theme's figure floor.
+
 ### 2.6 Hit-testing and export
 An R-tree (rbush) over nodes, groups, edge segments and overlay shapes for
 hover and click on Canvas and in exports; a hit lists what is painted on
@@ -467,8 +490,14 @@ unit, typed rows for the scales of what is drawn titled "channel: metric (unit)"
 one key per kind of mark drawn (per badge glyph, and the start, the end and paths not evaluated too) and the
 map-level chips, so a row exists exactly when its mark is drawn);
 `toSVG(scene)` draws it with figure presets
-(single column, double column, slide), an embedded legend with the scales
-and overlay glyphs, deterministic output. `toPNG` (in `canvas/`) draws the
+(single column, double column, slide) or a width in pixels or millimetres, an
+embedded legend with the scales and overlay glyphs, deterministic output. In
+a theme with a figure floor (`text.minFigurePt`; print's 7 pt) a figure given
+a width is laid out at it with the map scaled into it, its own texts at their
+sizes, and the map's texts kept readable at that scale (§2.5); where the
+cards cannot show their names they are numbered, with a key of the names
+beside the map or below it. Without a floor (the default theme) the figure is
+laid out at the map's size and scaled as a whole, as before. `toPNG` (in `canvas/`) draws the
 same scene, presets and legend into a bitmap. The legend's rows and their
 heights and texts at the export's width (`legendLayout`) and the figure
 frame (`figureFrame`: header, map, legend column, caption line from the
@@ -558,7 +587,10 @@ background layers) and by SVG layers in the viewport (arcs in React Flow's
 edge label layer, above the edges and below the nodes; self-loops above the
 nodes);
 edge labels and node details toggled through level-of-detail classes on the
-container. The detail panel (a slider for activities from "Most frequent"
+container, and the readable state (§2.5) written there as classes once per
+zoom change: each card holds a block of texts per level, the stylesheet shows
+the root's level and scales texts and pills up with `transform` from the
+floor `tokens.css` gives the root's rung. The detail panel (a slider for activities from "Most frequent"
 to "All" and one for paths from "Fewest paths" to "All paths", stage view,
 table view), each slider with the statement of what is shown beside it
 (`detailStatement` of the shown graph, from `meta.shown`), the marks not
@@ -595,7 +627,7 @@ overlays, lane bands, level of detail, overlay geometry and marks) and adds
 retained geometry with the R-tree of the core; `drawScene` issues plain 2D
 context calls for a viewport (groups and bands from their marks, tints, edges with arrowheads that grow with the line,
 arcs, nodes with pattern twins, the other overlay marks, edge labels), decides the level of
-detail from the zoom and, above 1,500 elements, draws only what the R-tree
+detail and the readable state (§2.5) from the zoom and, above 1,500 elements, draws only what the R-tree
 finds inside the viewport, reading each element by its position in the
 scene's lists so that a draw costs what the view holds; the R-tree holds
 each element's drawn extent (outline, selection ring, arrowheads, labels),
