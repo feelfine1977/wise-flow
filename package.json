@@ -59,6 +59,7 @@
     "test:package": "node scripts/test-package.mjs",
     "test:visual:approve": "playwright test -c tests/visual/playwright.approve.config.ts",
     "test:coverage": "vitest run --coverage",
+    "test:hosted": "node scripts/test-hosted.mjs",
     "test:core": "vitest run tests/core",
     "test:components": "vitest run tests/react",
     "test:tooling": "node --test tests/tooling/*.test.mjs",

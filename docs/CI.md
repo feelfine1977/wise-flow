@@ -112,6 +112,30 @@ npm run test:browser
 npm run test:visual -- --update-snapshots=none
 ```
 
+Before pushing a change that adds tests or makes them slower, run the unit and
+component suites at the hosted runners' size:
+
+```sh
+npm run test:hosted                          # two cores, one run
+npm run test:hosted -- --runs 3              # three runs in a row
+PATH=/path/to/node-22/bin:$PATH npm run test:hosted   # the Node that runs the script runs Vitest
+```
+
+[scripts/test-hosted.mjs](../scripts/test-hosted.mjs) runs `vitest run --coverage`
+with `CI` set, as the workflow's `test:coverage` does, pinned with `taskset` to the
+first two processors the machine allows (`--cores` changes the number), and Vitest's
+four forks share them as on a hosted runner. It lists every test that failed and every
+test that passed in more than half its time limit (`--headroom` changes the share),
+and fails on either. Two cores of an Apple-silicon machine in a Linux container
+came close to a hosted run: on 12 October 2026 the suites took 474 seconds there
+(405 to 420 on the runners), every test that timed out on the runners took 30
+seconds or more, and tests that passed on the runners took up to 27, so only half
+the limit leaves a margin. Arguments after the options go to Vitest; reports are
+written to `reports/hosted/`. `taskset` is
+Linux's (util-linux); elsewhere run the script in a container limited to two
+processors, for example
+`docker run --rm --cpuset-cpus=0-1 -v "$PWD":/work -v /work/node_modules -w /work node:24 sh -c "npm ci && npm run test:hosted"`.
+
 Focused commands: `test:core`, `test:components`, `test:tooling`. Set
 `FLOW_REACT_VERSION=18.3.1 FLOW_REACT_TYPES=18` for a React 18 consumer, or
 `FLOW_BROWSER=firefox` / `webkit` for another browser. `FLOW_ARTIFACT_DIR` changes
