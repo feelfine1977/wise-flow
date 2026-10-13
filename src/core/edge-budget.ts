@@ -18,6 +18,8 @@ export type EdgeBudget = number | "all";
 export interface ShownEdges {
   edges: readonly string[];
   total: number;
+  /** The note's shown count when some reported edges (constraints, indirect paths) are not counted as paths. Default the number of drawn edges and loops. */
+  shown?: number;
 }
 
 /**
@@ -104,7 +106,7 @@ export function budgetEdges(scene: BudgetScene, budget: EdgeBudget | ShownEdges 
     const drawnLoops = loops.filter((id) => named.has(id));
     pathsNotShown += loops.length - drawnLoops.length;
     loops = drawnLoops;
-    return drawn.size < total ? { drawn, shown: drawn.size + loops.length, total: budget.total, kept: drawn.size, loops, highlightedNotShown: 0, pathsNotShown } : undefined;
+    return drawn.size < total ? { drawn, shown: budget.shown ?? drawn.size + loops.length, total: budget.total, kept: drawn.size, loops, highlightedNotShown: 0, pathsNotShown } : undefined;
   }
   // Not a number (NaN) withholds nothing, as "all" does.
   if (budget === undefined || budget === "all" || !(total > budget)) return undefined;
@@ -195,10 +197,12 @@ export function mapEdges(scene: BudgetScene, budget: EdgeBudget | ShownEdges | u
   const selected = new Set([...anchorsOf(scene), ...(protection.selection?.edges ?? []), ...(protection.highlighted ?? [])]);
   for (const m of scene.edgeMarks) if (!isPath(m.edge)) selected.add(m.id);
   const cut = budgetEdges(scene, budget, { ...protection, selection: { edges: [...selected] } }, zoomed?.through);
-  if (!zoomed) return cut;
-  const drawn = cut?.drawn ?? new Set(zoomed.through);
+  if (!zoomed && !cut) return undefined;
+  const drawn = cut?.drawn ?? new Set(zoomed!.through);
   const loops = [...selfLoopsOf(scene).values()].flat();
-  return { drawn, shown: drawn.size + loops.length, total: scene.edgeMarks.length + loops.length, kept: cut?.kept ?? drawn.size, loops, highlightedNotShown: cut?.highlightedNotShown ?? 0, pathsNotShown: zoomed.withheld + (cut?.pathsNotShown ?? 0) };
+  const total = scene.graph.meta?.shown?.paths.shown ?? scene.graph.edges.filter(isPath).length;
+  const pathsNotShown = (zoomed?.withheld ?? 0) + (cut?.pathsNotShown ?? 0);
+  return { drawn, shown: total - pathsNotShown, total, kept: cut?.kept ?? drawn.size, loops, highlightedNotShown: cut?.highlightedNotShown ?? 0, pathsNotShown };
 }
 
 /** The adaptive budget's first step; the steps are 500, 1,000, 2,000, … */

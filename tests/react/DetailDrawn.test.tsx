@@ -1,8 +1,10 @@
 import { cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { globalScene } from "../../fixtures/bpic2019";
-import { type Box, type FlowEdge, type FlowNode, type XY, abstract, createPositions, layout } from "../../src/index";
+import { type Box, type FlowEdge, type FlowNode, type ShownEdges, type XY, abstract, createPositions, layout, toSVG } from "../../src/index";
+import { svgNote } from "../support/svg";
 import { ProcessMap } from "../../src/react/index";
+import { toPNGCanvas } from "../../src/canvas/index";
 
 afterEach(() => {
   cleanup();
@@ -169,7 +171,7 @@ describe("the paths drawn of those selected, after the table view", () => {
     const positions = createPositions({ nodes: boxes, groups: {}, edges: {} }, "dagre", "RIGHT");
     const record = recorder();
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => record.ctx as unknown as CanvasRenderingContext2D);
-    const shown: unknown[] = [];
+    const shown: (ShownEdges | undefined)[] = [];
     const map = (view: "map" | "table", edgeBudget: number | "all") => (
       <div style={{ width: 1200, height: 800 }}>
         <ProcessMap graph={{ nodes, edges }} positions={positions} renderer="canvas" view={view} edgeBudget={edgeBudget} legend={false} onEdgesShown={(s) => shown.push(s)} />
@@ -204,7 +206,7 @@ describe("the paths drawn of those selected, beside a constraint edge", () => {
     const boxes = Object.fromEntries(nodes.map((n, i) => [n.id, { x: 200 * i, y: 0, width: 120, height: 48 }]));
     const positions = createPositions({ nodes: boxes, groups: {}, edges: {} }, "dagre", "RIGHT");
     if (renderer === "canvas") vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => recorder().ctx as unknown as CanvasRenderingContext2D);
-    const shown: unknown[] = [];
+    const shown: (ShownEdges | undefined)[] = [];
     const map = (edgeBudget: number) => (
       <div style={{ width: 1200, height: 800 }}>
         <ProcessMap graph={{ nodes, edges }} positions={positions} renderer={renderer} edgeBudget={edgeBudget} fitView={false} legend={false} onEdgesShown={(s) => shown.push(s)} />
@@ -213,11 +215,17 @@ describe("the paths drawn of those selected, beside a constraint edge", () => {
     const { container, rerender } = render(map(2));
     const note = () => container.querySelector(".wf-controls__note--drawn")?.textContent;
     // The constraint uses one place in each budget but counts as no path: one of three paths is drawn.
-    await waitFor(() => expect(shown.at(-1)).toEqual({ edges: ["a->b", "a=>c"], total: 4 }));
+    await waitFor(() => expect(container.querySelector(".wf-edge-note")?.textContent).toBe("Showing 1 of 3 flows"));
+    await waitFor(() => expect(shown.at(-1)).toEqual({ edges: ["a->b", "a=>c"], shown: 1, total: 3 }));
     await waitFor(() => expect(note()).toBe("3 selected · 1 drawn at this zoom"));
+    expect(svgNote(toSVG({ graph: { nodes, edges }, positions }, { edgeBudget: shown.at(-1) }))).toBe("Showing 1 of 3 flows");
+    const texts: string[] = [];
+    const ctx = { ...recorder().ctx, fillText: (text: string) => texts.push(text) };
+    toPNGCanvas({ graph: { nodes, edges }, positions }, { edgeBudget: shown.at(-1), createCanvas: (width, height) => ({ width, height, getContext: () => ctx }) });
+    expect(texts).toContain("Showing 1 of 3 flows");
     // With three places, two paths and the constraint are drawn; all three paths return with four.
     rerender(map(3));
-    await waitFor(() => expect(shown.at(-1)).toEqual({ edges: ["a->b", "b->c", "a=>c"], total: 4 }));
+    await waitFor(() => expect(shown.at(-1)).toEqual({ edges: ["a->b", "b->c", "a=>c"], shown: 2, total: 3 }));
     await waitFor(() => expect(note()).toBe("3 selected · 2 drawn at this zoom"));
     rerender(map(4));
     await waitFor(() => expect(shown.at(-1)).toBeUndefined());

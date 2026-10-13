@@ -66,8 +66,8 @@ describe("the paths a map draws at a zoom", () => {
     const frame = (zoom: number, protection = {}, minPx = 0.5) => drawScene(ink.ctx, prepared, { x: 0, y: 0, zoom, width: 1400, height: 900 }, { selection: { nodes: [], edges: [], groups: [] }, ...protection }, { edgeBudget: 0, pathRule: { minPx } }).withheld;
     // Five paths connect a, b and c between the terminals; the constraint also stays. Only b → c may go.
     for (const zoom of [0.1, 0.3, 1]) {
-      expect(frame(zoom, {}, 0)).toMatchObject({ shown: 6, total: 7 });
-      expect(frame(zoom)).toMatchObject({ shown: 6, total: 7, pathsNotShown: 1 });
+      expect(frame(zoom, {}, 0)).toMatchObject({ shown: 5, total: 6 });
+      expect(frame(zoom)).toMatchObject({ shown: 5, total: 6, pathsNotShown: 1 });
       expect([...frame(zoom)!.drawn].map((i) => prepared.edgeMarks[i].id).sort()).toEqual(all.filter((id) => id !== "b->c"));
       expect(frame(zoom, { selection: { nodes: [], edges: ["b->c"], groups: [] } })).toBeUndefined();
       expect(frame(zoom, { focused: "b->c" })).toBeUndefined();

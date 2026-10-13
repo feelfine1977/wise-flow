@@ -3145,7 +3145,7 @@ export interface EdgeSelection { drawn: Set<number>; shown: number; total: numbe
   loops: readonly string[];      // the paths in view that loop on one activity, counted in shown and total
   highlightedNotShown: number;   // the highlighted edges in view the budget withholds
   pathsNotShown: number }        // the paths in view it withholds (follows and flow edges, not indirect, and loops)
-export interface ShownEdges { edges: readonly string[]; total: number }   // what a map draws, as onEdgesShown reports it
+export interface ShownEdges { edges: readonly string[]; total: number; shown?: number }   // reported ids and note counts; shown defaults to drawn edges plus loops
 export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style" | "graph" | "positions">, budget: EdgeBudget | ShownEdges | undefined,
   protection?: EdgeProtection, inView?: readonly number[], loops?: readonly string[]): EdgeSelection | undefined;
 ```
@@ -3270,8 +3270,7 @@ path with an overlay mark on it, a selected or focused one, one on a
 highlighted path (also beyond the edge budget), and the paths that keep every
 activity on a way from a start to an end: each activity's strongest path
 from and to a more frequent activity, a start or an end, as the detail
-shares keep them (`abstract(scene.graph, { activityDetail: 1, pathDetail: 0
-})`, computed once per scene). So every activity a start reaches and that
+shares keep them. Every activity a start reaches and that
 reaches an end does so through the paths drawn, at every zoom. What it lets
 through only grows as the zoom grows. `pathsAtZoom` returns undefined when
 every path is let through, with `minPx` 0 and at a zoom that is not
@@ -3281,10 +3280,6 @@ activity and path selected, fitted into 1,400 × 900 (zoom 0.078), it lets
 84 of the 656 lines through (the 21 loops are drawn as loops), 84 of them
 the paths that keep the activities connected; at zoom 1 it lets every path
 through.
-
-The rule chooses what is drawn on the screen only: the selection of the
-detail panel, the graph, the table view and an export of the whole figure
-are unchanged.
 
 **On the maps.** `<ProcessMap minPathPx/>` and `<CanvasMap minPathPx/>`
 (default `viewTokens.pathPx`, 0.5; 0 turns the rule off) apply it in both
@@ -3305,21 +3300,19 @@ depend on the machine.
 
 While the rule or the path budget withholds a path, the map shows the note
 on withheld paths and the detail panel its line ("677 selected · 105 drawn at this zoom"),
-both counting over the whole map, not over the part in view: the note's
-total is every edge the map's scene draws and every loop (as with the
-budget, "Showing 105 of 677 flows" on the whole BPIC log fitted), and its
-first number those let through, also where they lie outside the view, so a
-pan never changes it. Where the budget withholds paths as well, they
+both counting selected paths over the whole map, including loops and
+excluding constraints and indirect connectors. The first number counts
+those let through, also outside the viewport ("Showing 105 of 677 flows"
+on the fitted whole BPIC log). Where the budget withholds paths as well, they
 are subtracted over the whole map; panning changes neither number. Zooming in
 brings paths back in steps, one width at a time, and the note follows;
-zooming out never brings one back. `onEdgesShown` reports the edges let
-through over the whole map and the note's total, so `toSVG`/`toPNG` given
+zooming out never brings one back. `onEdgesShown` reports all let-through
+edge ids, the note's total and, when the ids include uncounted connectors,
+its `shown` count, so `toSVG`/`toPNG` given
 that report draw exactly the paths the map draws, with the same note; an
 export without it draws every path. With `minPathPx={0}`, the width rule
 withholds no paths; the maps still apply the budget over the whole map and preserve connecting and protected
-paths. Calling `drawScene` without a path rule retains its previous budget
-behavior. Internal: `mapEdges` (not exported) combines
-the rule and budget into the `EdgeSelection` both maps draw.
+paths. The graph, table and whole-figure exports retain every selected path.
 
 ### Adaptive budget
 
@@ -3379,19 +3372,18 @@ take their maps from `stories/maps.tsx`, which passes `"all"`, and
 asks for `"adaptive"`.
 
 Given a `ShownEdges` instead of a number, `budgetEdges` draws exactly the
-edges it names (of those in view) and states its `total`; it withholds
+edges it names (of those in view) and states its `total` and optional `shown`; it withholds
 nothing when it names every edge in view.
 
 ### Exporting what the map shows
 
 `<ProcessMap onEdgesShown/>` (and `<CanvasMap onEdgesShown/>`) is called
-whenever the edges the map draws change: while the budget withholds edges,
-with their ids (`edges`: the edges drawn in the scene's order, then the paths
-that loop on one activity in view) and the number the map's note counts
-(`total`); with undefined once every edge is drawn again. It is not
-called while nothing was ever withheld; a host that starts listening while
-edges are withheld is told them at once. A culled Canvas map counts the edges
-in its view, so a pan can change the value. When `<ProcessMap/>` switches
+when its whole-map selection changes under the zoom rule or budget.
+`edges` lists let-through ids in scene order, then loops. `total` counts
+selected paths; optional `shown` counts let-through paths when the ids
+include constraints or indirect connectors. Panning does not change the
+report. Undefined restores every edge; listeners joining while paths are
+withheld receive the current report. When `<ProcessMap/>` switches
 renderer (`renderer="auto"` crossing its threshold), it is called with
 undefined and then with what the new renderer withholds, if anything. While
 the table view is shown, which lists every path, it is called with undefined

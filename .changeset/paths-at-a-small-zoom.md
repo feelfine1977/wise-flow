@@ -18,7 +18,7 @@ selection, the table view and an export without that report are unchanged.
 
 New: `pathsAtZoom`, `ZoomedPaths` and `viewTokens` (with the opening zoom
 and the overview's size for the opening view below), the props
-`minPathPx` of `<ProcessMap/>` and `<CanvasMap/>` (0 draws every path, as
+`minPathPx` of `<ProcessMap/>`, `<CanvasMap/>` and `<ViewSwitcher/>` (0 draws every path, as
 before), `DrawOptions.pathRule` (none by default, so `drawScene`, `toPNG`
 and the pinned recordings draw as before), and in the core
 `openingView`, `OpeningView`, `OpeningOptions` and `processStart`: the view
@@ -32,3 +32,8 @@ A host that wants every path at every zoom, as up to this version, passes
 The path budget and zoom rule now choose paths over the whole map before
 Canvas culling. Connecting and highlighted paths survive even a budget of
 zero, including at zooms where the width rule alone withholds nothing.
+
+The note counts selected paths, including loops; constraints and indirect
+connectors remain drawn without contributing to its counts. `ShownEdges.shown`
+optionally carries the shown path count when its edge ids include those
+uncounted connectors, keeping the screen and shown export notes equal.
