@@ -196,7 +196,7 @@ describe("figureFrame", () => {
     const frame = figureFrame(framed, { title: true, preset: "single-column" });
     // Title 40 + context 18; the map 100 + 2 × 24 by 50 + 2 × 24.
     expect(frame.header).toBe(58);
-    expect(frame.map).toEqual({ width: 148, height: 98, offset: { x: 14, y: 62 } });
+    expect(frame.map).toEqual({ width: 148, height: 98, offset: { x: 14, y: 62 }, scale: 1 });
     // The legend (304) is taller than the map: 58 + 304 + 2 × 24.
     expect(frame.height).toBe(410);
     expect(frame.width).toBe(148 + 220);

@@ -1,7 +1,8 @@
 /** Drawing routines of the canvas renderer: plain 2D context calls for a scene, a viewport and a state, culled on large scenes; `canvasTextMeasure`. */
 import { selfLoopsOf } from "../core/edge-budget.js";
 import { headTriangle } from "../core/element-marks.js";
-import { type Arrowhead, type Box, type BoxSide, type XY, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type PatternLook, type Selection, type ShownEdges, type StateStyle, type TextMeasure, type Theme, arrowheadExtent, dimensionTokens, fixedColors, hatchTokens, legendLayout, legendMetrics, budgetEdges, defaultTheme, estimateTextWidth, lineEnd, lodAt, markArrowhead, markInState, patternTwin, ruleTextRole, stateStyle } from "../core/index.js";
+import { type Arrowhead, type Box, type BoxSide, type XY, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type PatternLook, type Readable, type Selection, type ShownEdges, type StateStyle, type TextMeasure, type Theme, arrowheadExtent, dimensionTokens, fixedColors, hatchTokens, legendLayout, legendMetrics, budgetEdges, defaultTheme, estimateTextWidth, lineEnd, lodAt, markArrowhead, markInState, patternTwin, readableAt, ruleTextRole, stateStyle } from "../core/index.js";
+import { isPill, nodeTexts, readableMark, titleTexts } from "../core/readable.js";
 import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene.js";
 import { type CanvasTokens, sceneTokens } from "./tokens.js";
 
@@ -67,6 +68,16 @@ export interface DrawOptions {
   background?: boolean | string;
   /** Zoom at which the level of detail is decided. Default: the view's zoom. */
   lodZoom?: number;
+  /**
+   * What the texts show and how much they are scaled up (`readableAt`).
+   * Default: decided at `lodZoom` with the theme's `text.minScreenPx`, from
+   * `readableFrom`.
+   */
+  readable?: Readable;
+  /** The state the previous frame drew in, whose levels the decision holds within their hysteresis. */
+  readableFrom?: Readable;
+  /** Texts written over the map last, in map units: an exported figure's numbers of the cards. */
+  numbers?: readonly MarkText[];
   /** Factory for pattern tiles; `document.createElement("canvas")` when available. */
   createCanvas?: (width: number, height: number) => { getContext(kind: "2d"): unknown } | null;
   /** How many of the edges in view are drawn (`budgetEdges`), or which (those a map reported). Default `"all"`. */
@@ -310,7 +321,7 @@ function side(ctx: DrawContext, b: Box, which: BoxSide) {
 /** A colour at an opacity: a hex colour with its alpha appended. */
 const withAlpha = (color: string, opacity = 1) => (opacity === 1 ? color : `${color}${alpha(opacity)}`);
 
-function drawGroup(ctx: DrawContext, scene: PreparedScene, g: SceneGroup, tokens: CanvasTokens, selected: boolean) {
+function drawGroup(ctx: DrawContext, scene: PreparedScene, g: SceneGroup, tokens: CanvasTokens, selected: boolean, readable: Readable) {
   const { stroke: strokeTokens } = scene.theme;
   const m = g.mark;
   const b = m.box;
@@ -354,7 +365,8 @@ function drawGroup(ctx: DrawContext, scene: PreparedScene, g: SceneGroup, tokens
     ctx.rect(b.x + 1, b.y + 1, b.width - 2, b.height - 2);
     ctx.stroke();
   }
-  for (const tx of m.texts) drawText(ctx, scene, tx, paint(s?.texts?.label ?? tx.paint), tokens);
+  // A group's title is shed with the cards' names and scaled up to the floor from its start.
+  for (const tx of titleTexts(m.texts, readable)) drawText(ctx, scene, tx, paint(s?.texts?.label ?? tx.paint), tokens);
   if (alpha !== undefined) ctx.globalAlpha = 1;
 }
 
@@ -381,7 +393,7 @@ function drawEdge(ctx: DrawContext, e: SceneEdge, tokens: CanvasTokens, theme: T
   ctx.globalAlpha = 1;
 }
 
-function drawNode(ctx: DrawContext, scene: PreparedScene, n: SceneNode, tokens: CanvasTokens, state: DrawState, lod: ReturnType<typeof lodAt>, options: DrawOptions) {
+function drawNode(ctx: DrawContext, scene: PreparedScene, n: SceneNode, tokens: CanvasTokens, state: DrawState, lod: ReturnType<typeof lodAt>, readable: Readable, options: DrawOptions) {
   const { stroke: strokeTokens, radius: radiusTokens } = scene.theme;
   const m = n.mark;
   const b = m.box;
@@ -432,7 +444,8 @@ function drawNode(ctx: DrawContext, scene: PreparedScene, n: SceneNode, tokens: 
       ctx.fillRect(b.x, b.y, m.band, b.height);
     }
   }
-  for (const tx of m.texts) if (!tx.lod || lod[tx.lod]) drawText(ctx, scene, tx, paintOf(m, s?.texts?.[ruleTextRole(tx.role)] ?? tx.paint, tokens), tokens);
+  // A card writes its texts at the level of detail, scaled up from their start; a label is shed below the floor.
+  for (const tx of nodeTexts(m, readable)) if (!tx.lod || lod[tx.lod]) drawText(ctx, scene, tx, paintOf(m, s?.texts?.[ruleTextRole(tx.role)] ?? tx.paint, tokens), tokens);
   if (selected) {
     // The ring's inner edge lies on the element: its centre line is half its width outside.
     const out = strokeTokens.canvasSelection / 2;
@@ -465,8 +478,8 @@ function paintOf(mark: { color: string; onColor?: string }, paint: MarkPaint, to
   return paint[0] === "#" ? paint : tokens[paint as keyof CanvasTokens]!;
 }
 
-function drawMark(ctx: DrawContext, scene: PreparedScene, given: OverlayMark, tokens: CanvasTokens, hovered: boolean, options: DrawOptions) {
-  const m = hovered ? markInState(given, stateStyle(scene, "mark", given, { hovered })) : given;
+function drawMark(ctx: DrawContext, scene: PreparedScene, given: OverlayMark, tokens: CanvasTokens, hovered: boolean, readable: Readable, options: DrawOptions) {
+  const m = readableMark(hovered ? markInState(given, stateStyle(scene, "mark", given, { hovered })) : given, readable, scene.readable);
   const alpha = m.opacity ?? 1;
   // The pattern tile is drawn before the path is traced.
   const fill = m.fill && ((m.fill.pattern && hatchPattern(ctx, tokens, options)) || paintOf(m, m.fill.paint, tokens, hovered));
@@ -528,12 +541,13 @@ const nodeId = (n: SceneNode) => n.node.id;
  * Draw the scene into a context for a viewport. Returns what was drawn so
  * that callers (and tests) can check the culling.
  */
-export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, state: DrawState = emptyState, options: DrawOptions = {}): { nodes: number; edges: number; shapes: number; culled: boolean; kept?: number; withheld?: EdgeSelection } {
+export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, state: DrawState = emptyState, options: DrawOptions = {}): { nodes: number; edges: number; shapes: number; culled: boolean; kept?: number; withheld?: EdgeSelection; readable: Readable } {
   // Tokens a host built without the frequency cue's colours take the scene's, in its scheme.
   const given = options.tokens;
   const tokens = given ? { ...given, cueStripe: given.cueStripe ?? scene.colors.cueStripe, cueFoot: given.cueFoot ?? scene.colors.cueFoot, patternInk: given.patternInk ?? scene.colors.patternInk } : sceneTokens(scene);
   const lodZoom = options.lodZoom ?? view.zoom;
   const lod = lodAt(lodZoom, scene.lod);
+  const readable = options.readable ?? readableAt(scene.readable, lodZoom, scene.theme.text.minScreenPx, options.readableFrom);
   const cull = options.cull ?? scene.size > CULL_ABOVE;
   ctx.save();
   ctx.setLineDash([]);
@@ -575,13 +589,13 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
     kept = (withheld ?? budgetEdges(scene, 0, state, found && inView))?.kept ?? (found ? inView : scene.edges).length;
   }
 
-  each(scene.groups, "group", groupId, (g) => drawGroup(ctx, scene, g, tokens, state.selection.groups.includes(g.group.id)));
+  each(scene.groups, "group", groupId, (g) => drawGroup(ctx, scene, g, tokens, state.selection.groups.includes(g.group.id), readable));
   let shapes = 0;
   const marks = (layer: OverlayMark["layer"]) =>
     each(scene.marks, "overlay", markId, (m) => {
-      if (m.layer !== layer || !m.inMap || lodZoom < m.minZoom) return;
+      if (m.layer !== layer || !m.inMap || lodZoom < m.minZoom || (!readable.pills && isPill(m))) return;
       // Marks below the edges cover whole elements and are not highlighted on hover.
-      drawMark(ctx, scene, m, tokens, layer !== "below" && state.hovered === m.id, options);
+      drawMark(ctx, scene, m, tokens, layer !== "below" && state.hovered === m.id, readable, options);
       shapes++;
     });
   marks("below");
@@ -599,22 +613,24 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
 
   let nodes = 0;
   each(scene.nodes, "node", nodeId, (n) => {
-    drawNode(ctx, scene, n, tokens, state, lod, options);
+    drawNode(ctx, scene, n, tokens, state, lod, readable, options);
     nodes++;
   });
 
   marks("above");
 
+  // Paths' labels are the first texts shed below the floor.
   each(scene.edges, "edge", edgeId, (e, i) => {
-    if ((withheld && !withheld.drawn.has(i)) || (state.bright && !state.bright.edges.has(e.edge.id))) return;
+    if (!readable.labels.path || (withheld && !withheld.drawn.has(i)) || (state.bright && !state.bright.edges.has(e.edge.id))) return;
     const s = edgeState(scene, e, state);
     const alpha = s?.opacity ?? e.mark.opacity;
     if (alpha !== undefined) ctx.globalAlpha = alpha;
     for (const tx of e.mark.texts) if (!tx.lod || lod[tx.lod]) drawText(ctx, scene, tx, paintOf(e.mark, s?.texts?.label ?? tx.paint, tokens), tokens);
     if (alpha !== undefined) ctx.globalAlpha = 1;
   });
+  for (const tx of options.numbers ?? []) drawText(ctx, scene, tx, tokens.ink, tokens);
   ctx.restore();
-  return { nodes, edges, shapes, culled: cull, ...(kept !== undefined && { kept }), ...(withheld && { withheld }) };
+  return { nodes, edges, shapes, culled: cull, ...(kept !== undefined && { kept }), ...(withheld && { withheld }), readable };
 }
 
 /**

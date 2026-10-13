@@ -45,7 +45,8 @@ describe("overlay marks in the React Flow map", () => {
     const boxes = [...container.querySelectorAll<SVGGElement>(".react-flow__node .wf-marks [data-overlay-id]")].map((g) => {
       // The node sits at its absolute flow position; its marks are shifted back by its origin.
       const [nx, ny] = translate(g.closest<HTMLElement>(".react-flow__node")!.style.transform);
-      const [ox, oy] = translate(g.parentElement!.getAttribute("transform"));
+      // A card's badges lie in its row (`wf-pill-row`) inside the shifted group.
+      const [ox, oy] = translate(g.closest("svg.wf-marks > g")!.getAttribute("transform"));
       const rect = g.querySelector("rect")!;
       return { id: g.dataset.overlayId, x: nx + ox + num(rect.getAttribute("x")), y: ny + oy + num(rect.getAttribute("y")), width: num(rect.getAttribute("width")), height: num(rect.getAttribute("height")) };
     });
@@ -59,7 +60,7 @@ describe("overlay marks in the React Flow map", () => {
   it("draws every mark as the SVG export does", async () => {
     const { container, positions } = await vendorMap();
     const map = lastScene();
-    const svg = toSVG({ graph: vendor, positions }, { legend: false });
+    const svg = toSVG({ graph: vendor, positions }, { legend: false, theme: "default" });
     const exported = lastScene();
     const drawnIds = exported.marks.filter((m) => m.inMap).map((m) => m.id);
     const exportedGroups = svg.match(/<g class="wf-overlay[^]*?<\/g>/g) ?? [];
@@ -173,7 +174,9 @@ function tree(e: Element): unknown {
   });
   if (classes.length) attrs.class = classes.join(" ");
   else delete attrs.class;
-  return { tag: e.tagName, attrs, children: Array.from(e.childNodes).map((c) => (c.nodeType === 3 ? c.textContent : tree(c as Element))) };
+  // An arc's pill and label are grouped in the DOM, so that the stylesheet scales them together; the export writes them in the mark.
+  const children = Array.from(e.childNodes).flatMap((c) => ((c as Element).classList?.contains("wf-arc-pill") ? Array.from(c.childNodes) : [c]));
+  return { tag: e.tagName, attrs, children: children.map((c) => (c.nodeType === 3 ? c.textContent : tree(c as Element))) };
 }
 
 describe("paints of the theme on marks", () => {

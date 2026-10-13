@@ -119,6 +119,7 @@ Test: `tests/core/malformed-input.test.ts` › "style, tokens, label sizing and 
 | `resolveTheme` | `.` | A setting over CSS variables over a preset; not documented for values of the wrong kind. | Returns a theme for an unknown preset, junk values and junk variables. |
 | `themeColors` | `.` | Not documented. | Returns, for an unknown scheme too. |
 | `checkTheme` | `.` | Reports what a theme sets out of range as data. | Returns. |
+| `readableAt` | `.` | A floor that is not a positive number keeps every text; not documented for rules of junk numbers. | Returns a state: a boost of at least 1, at a level the rules allow or none. |
 | `formatPathCount` | `.` | A value that is not a finite number prints as `–`. | Returns a readable text. |
 | `metricEntry` | `.` | None for a metric the registry does not hold. | Returns. |
 | `metricKind` | `.` | From the name for a metric the registry does not hold. | Returns. |

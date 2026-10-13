@@ -44,9 +44,9 @@ const scene = buildScene(graph, positions, { overlays });
 const kinds = kindsOf(scene);
 const measure = (text: string, font: string) => estimateTextWidth(text, { size: Number(/([\d.]+)px/.exec(font)?.[1] ?? 10) });
 
-const svg = () => readSvg(toSVG({ graph, positions, overlays }), exportedMarks(scene));
+const svg = () => readSvg(toSVG({ graph, positions, overlays }, { theme: "default" }), exportedMarks(scene));
 const canvas = (prepared: PreparedScene = prepareScene(graph, positions, { overlays })) => readCanvasMap(prepared, kinds, measure);
-const png = () => readPng((createCanvas) => toPNGCanvas({ graph, positions, overlays }, { scale: 1, createCanvas }), prepareScene(graph, positions, { overlays, lodBySize: false }), kinds, measure);
+const png = () => readPng((createCanvas) => toPNGCanvas({ graph, positions, overlays }, { scale: 1, createCanvas, theme: "default" }), prepareScene(graph, positions, { overlays, lodBySize: false }), kinds, measure);
 
 describe("the parity readers", () => {
   it("read the SVG export's elements from their attributes", () => {
@@ -80,9 +80,9 @@ describe("the parity readers", () => {
     const banded = buildScene(graph, positions, given);
     const bandKinds = kindsOf(banded);
     const read = {
-      svg: readSvg(toSVG(given), exportedMarks(banded)),
+      svg: readSvg(toSVG(given, { theme: "default" }), exportedMarks(banded)),
       canvas: readCanvasMap(prepareScene(graph, positions, given), bandKinds, measure),
-      png: readPng((createCanvas) => toPNGCanvas(given, { scale: 1, createCanvas }), prepareScene(graph, positions, { ...given, lodBySize: false }), bandKinds, measure),
+      png: readPng((createCanvas) => toPNGCanvas(given, { scale: 1, createCanvas, theme: "default" }), prepareScene(graph, positions, { ...given, lodBySize: false }), bandKinds, measure),
     };
     const color = banded.scales.categorical("g").color.toLowerCase();
     // A stage band runs along the flow: outlined left and right in the line colour, its rule 2 wide along its top.
@@ -138,7 +138,7 @@ describe("the parity readers", () => {
       ["canvas", "mark:arc", "pill", "285.6,-58.5,108.8,18 #ffffff #b84a00 1 r9", "285.6,-58.5,108.8,18 #ffffff #b84a00 2 r9", 1],
     ]);
     // An export whose paths have sharp corners and no arrowhead.
-    const sharp = readSvg(toSVG({ graph, positions, overlays }).replace(/ stroke-linejoin="round" marker-end="url\(#wf-arrow(-\d+)?\)"/g, ""), exportedMarks(scene));
+    const sharp = readSvg(toSVG({ graph, positions, overlays }, { theme: "default" }).replace(/ stroke-linejoin="round" marker-end="url\(#wf-arrow(-\d+)?\)"/g, ""), exportedMarks(scene));
     expect(differences([{ name: "small", kinds, svg: sharp, others: { canvas: canvas() } }]).map((d) => [d.kind, d.property, d.svg, d.other, d.elements])).toEqual([
       // Two paths 5.66 wide end in heads 10.35 wide, the path 8 wide in one 14.4 wide.
       ["edge:follows", "arrow", "no", "yes 10.35", 2],
@@ -190,7 +190,7 @@ describe("the parity readers", () => {
     ]);
     // In the SVG export a shadow is a filter on the shape; a drop shadow of standard deviation 2 blurs by 4, as `shadowBlur` 4 does.
     const filtered = readSvg(
-      toSVG({ graph, positions, overlays })
+      toSVG({ graph, positions, overlays }, { theme: "default" })
         .replace(/(<svg[^>]*>)/, '$1<defs><filter id="shade"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000000" flood-opacity="0.25"/></filter><filter id="blur"><feGaussianBlur stdDeviation="1"/></filter></defs>')
         .replace('<rect x="100" y="0"', '<rect filter="url(#shade)" x="100" y="0"')
         .replace('<rect x="400" y="0"', '<rect filter="url(#blur)" x="400" y="0"'),

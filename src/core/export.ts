@@ -4,14 +4,15 @@
 import type { ActivityLabelOptions } from "./activity-labels.js";
 import { type EdgeBudget, type EdgeSelection, type ShownEdges, budgetEdges } from "./edge-budget.js";
 import { type BoxSide, type ElementText, lineEnd } from "./element-marks.js";
-import { type FigurePreset, type LegendLayout, figureFrame, figureMetrics, legendMetrics } from "./figure.js";
-import { type Locale, formatCount } from "./format.js";
+import { type FigurePreset, type LegendLayout, figureFloor, figureFrame, figureHeading, figureMetrics, legendMetrics, millimetres } from "./figure.js";
+import type { Locale } from "./format.js";
 import { type Box, type Positions } from "./layout.js";
 import { type LaneMode } from "./lanes.js";
 import { type FlowGraph, type Overlay, assertExportable } from "./model.js";
 import type { OverlayGeometryOptions } from "./overlays.js";
 import { type MarkSvgOptions, arrowMarker, markSvg, svgMarkup } from "./mark-svg.js";
 import { type MarkPaint, type MarkText, type OverlayMark, markArrowhead, overlayArrow } from "./overlay-marks.js";
+import { type Readable, isPill, nodeTexts, readableMark, titleTexts } from "./readable.js";
 import { type FlowScene, sceneOf } from "./scene.js";
 import { type StyleSpec, lodAt, patternDefs } from "./style.js";
 import { t } from "./strings.js";
@@ -39,11 +40,21 @@ export interface ExportOptions {
   preset?: FigurePreset;
   /** Explicit output width in pixels; overrides the preset. */
   width?: number;
+  /**
+   * The width the figure is declared to be printed at, in millimetres; it
+   * overrides `width` and the preset, and the SVG states its size in
+   * millimetres. One figure unit is a CSS pixel of it (0.75 pt).
+   */
+  widthMm?: number;
   legend?: boolean;
   background?: string;
   fontFamily?: string;
   padding?: number;
-  /** Zoom level used for level-of-detail decisions. Default 1 (everything visible). */
+  /**
+   * Zoom level used for level-of-detail decisions. Default: in a theme with
+   * a figure floor (`text.minFigurePt`, the print theme's), the scale the map
+   * is drawn at in the figure; otherwise 1 (everything visible).
+   */
   lodZoom?: number;
   overlayGeometry?: OverlayGeometryOptions;
   /** Show the scene context line (label, cases, events) under the title. */
@@ -55,9 +66,15 @@ export interface ExportOptions {
    * every edge.
    */
   edgeBudget?: EdgeBudget | ShownEdges;
-  /** The theme the figure is drawn in: a preset's name or changes over a preset (`resolveTheme`). Default the `default` preset. */
+  /**
+   * The theme the figure is drawn in: a preset's name or changes over a
+   * preset (`resolveTheme`). Default the `print` preset, whose texts keep
+   * 7 pt at the figure's width: where the cards cannot show their names, they
+   * are numbered and the names listed in a key. `default` draws the figure
+   * as one picture scaled to its width, as before.
+   */
   theme?: ThemeSetting;
-  /** The colour scheme of the theme. Default `light`. */
+  /** The colour scheme of the theme. Default `light`; the print theme has no other. */
   scheme?: ColorScheme;
   /** What the figure's texts are measured by (see `FlowSceneOptions.textMeasure`). Default `estimateTextWidth`. */
   textMeasure?: TextMeasure;
@@ -81,6 +98,8 @@ interface Ctx {
   lod: ReturnType<typeof lodAt>;
   /** Zoom at which the level of detail is decided. */
   lodZoom: number;
+  /** What the texts show at the map's scale in the figure. */
+  readable: Readable;
   withheld?: EdgeSelection;
 }
 
@@ -117,7 +136,8 @@ function drawGroups(ctx: Ctx): string {
       out.push(rect(b, `rx="${num(m.radius)}" ${fill} stroke="${paint(stroke.paint)}" stroke-width="${num(stroke.width)}"${stroke.dash ? ` stroke-dasharray="${stroke.dash.join(" ")}"` : ""}`));
     }
     if (rule) out.push(`<path d="${sidesPath(b, [rule.side])}" stroke="${paint(rule.paint)}" stroke-width="${num(rule.width)}" fill="none"/>`);
-    for (const tx of m.texts) out.push(markText(ctx, m.color, m.color, tx));
+    // A group's title is shed with the cards' names and scaled up to the floor from its start.
+    for (const tx of titleTexts(m.texts, ctx.readable)) out.push(markText(ctx, m.color, m.color, tx));
     out.push(`</g>`);
   }
   return out.join("");
@@ -133,6 +153,7 @@ function shownTexts(ctx: Ctx, texts: ElementText[]): ElementText[] {
   return texts.filter((t) => !t.lod || ctx.lod[t.lod]);
 }
 
+
 /** The marker of an arrowhead: `wf-arrow` at the rule's size, `wf-arrow-<size>` where it grew with its path. */
 const arrowId = (a: Arrowhead) => (a.size === arrowheadTokens.edge.size ? "wf-arrow" : `wf-arrow-${a.size}`);
 
@@ -147,7 +168,8 @@ function drawEdges(ctx: Ctx): string {
     const end = lineEnd(m.points, m.arrow);
     const d = [...m.points.slice(0, -1), end].map((p, i) => `${i === 0 ? "M" : "L"}${num(p.x)} ${num(p.y)}`).join("");
     out.push(`<g class="wf-edge" data-id="${esc(m.id)}"${opacity(m)}><path d="${d}" fill="none" stroke="${m.color}" stroke-width="${num(m.width)}" stroke-linejoin="round"${dash} marker-end="url(#${arrowId(m.arrow)})"/>`);
-    for (const tx of shownTexts(ctx, m.texts)) out.push(markText(ctx, m.color, m.color, tx));
+    // Paths' labels are the first texts shed below the floor.
+    if (ctx.readable.labels.path) for (const tx of shownTexts(ctx, m.texts)) out.push(markText(ctx, m.color, m.color, tx));
     out.push(`</g>`);
   }
   return out.join("");
@@ -180,7 +202,7 @@ function drawNodes(ctx: Ctx): string {
       if (m.pattern !== "solid") out.push(rect(band, `rx="${rx}" fill="url(#wf-pattern-${m.pattern})"`));
     }
     if (m.title) out.push(`<title>${esc(m.title)}</title>`);
-    for (const tx of shownTexts(ctx, m.texts)) out.push(markText(ctx, m.color, m.color, tx));
+    for (const tx of shownTexts(ctx, nodeTexts(m, ctx.readable))) out.push(markText(ctx, m.color, m.color, tx));
     out.push(`</g>`);
   }
   return out.join("");
@@ -205,9 +227,10 @@ function markText(ctx: Ctx, color: string, onColor: string, m: MarkText): string
 
 function drawMarks(ctx: Ctx, layer: OverlayMark["layer"]): string {
   const options = markOptions(ctx);
-  return ctx.scene.marks
-    .filter((m) => m.layer === layer && m.inMap && ctx.lodZoom >= m.minZoom)
-    .map((m) => svgMarkup(markSvg(m, options)))
+  const { readable, scene } = ctx;
+  return scene.marks
+    .filter((m) => m.layer === layer && m.inMap && ctx.lodZoom >= m.minZoom && (readable.pills || !isPill(m)))
+    .map((m) => svgMarkup(markSvg(readableMark(m, readable, scene.readable), options)))
     .join("");
 }
 
@@ -274,23 +297,26 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
     activityLabels: given.activityLabels,
     selfLoops: given.selfLoops,
     overlayGeometry: options.overlayGeometry,
-    theme: resolveTheme(options.theme),
+    theme: resolveTheme(options.theme ?? "print"),
     scheme: options.scheme,
     textMeasure: options.textMeasure,
   }, true);
   const { locale, colors, theme } = scene;
   const font = options.fontFamily ?? theme.font.family;
-  const lodZoom = options.lodZoom ?? 1;
   const withheld = budgetEdges(scene, options.edgeBudget);
-  const ctx: Ctx = { scene, colors, locale, lod: lodAt(lodZoom, scene.lod), lodZoom, withheld };
-  const frame = figureFrame(scene, { title: !!given.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: options.width, withheld, caption: options.caption });
+  const floor = figureFloor(theme);
+  const frame = figureFrame(scene, { title: !!given.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: options.widthMm !== undefined ? millimetres(options.widthMm) : options.width, withheld, caption: options.caption, floor });
   const { padding: pad, width: totalW, height: totalH, outWidth: outW, outHeight: outH } = frame;
+  const lodZoom = options.lodZoom ?? (floor > 0 ? frame.map.scale : 1);
+  const ctx: Ctx = { scene, colors, locale, lod: lodAt(lodZoom, scene.lod), lodZoom, readable: frame.readable, withheld };
+  // A declared width in millimetres is the figure's size; otherwise its pixels.
+  const size = (n: number) => (options.widthMm !== undefined ? `${num((n * options.widthMm) / outW)}mm` : num(n));
 
   // The note on withheld edges is announced with the figure's name.
   const label = given.title ?? t(locale, "map.description", { nodes: scene.graph.nodes.length, edges: scene.graph.edges.length, groups: scene.graph.groups?.length ?? 0 });
   const parts: string[] = [];
   parts.push(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${num(outW)}" height="${num(outH)}" viewBox="0 0 ${num(totalW)} ${num(totalH)}" font-family="${esc(font)}" role="img" aria-label="${esc(frame.note ? `${label.replace(/\.?$/, ".")} ${frame.note.text}.` : label)}">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size(outW)}" height="${size(outH)}" viewBox="0 0 ${num(totalW)} ${num(totalH)}" font-family="${esc(font)}" role="img" aria-label="${esc(frame.note ? `${label.replace(/\.?$/, ".")} ${frame.note.text}.` : label)}">`,
   );
   parts.push(`<defs>${patternDefs("wf-pattern", colors.patternInk, colors.outOfScope, theme.pattern)}`);
   // The rule's head, then each larger head a path drawn ends in, by size.
@@ -300,29 +326,35 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
   parts.push(`</defs>`);
   parts.push(rect({ x: 0, y: 0, width: totalW, height: totalH }, `fill="${options.background ?? colors.paper}"`));
   if (given.title) {
-    parts.push(text(pad, figureMetrics.titleBaseline, given.title, `${fontAttrs(theme.text.figureTitle)} fill="${colors.ink}"`));
-    if (options.context !== false) {
-      const meta = scene.graph.meta ?? {};
-      const label = given.subtitle ?? String(meta.label ?? meta.scene ?? "");
-      const cases = typeof meta.cases === "number" ? formatCount(meta.cases, locale) : "–";
-      const events = typeof meta.events === "number" ? formatCount(meta.events, locale) : "–";
-      parts.push(text(pad, figureMetrics.contextBaseline, t(locale, "export.context", { label, cases, events }), `${fontAttrs(theme.text.figureText)} fill="${colors.neutral}"`));
-    }
+    const heading = figureHeading(scene, frame, given.title, given.subtitle);
+    parts.push(text(pad, figureMetrics.titleBaseline, heading.title, `${fontAttrs(theme.text.figureTitle)} fill="${colors.ink}"`));
+    if (options.context !== false) parts.push(text(pad, figureMetrics.contextBaseline, heading.context, `${fontAttrs(theme.text.figureText)} fill="${colors.neutral}"`));
   }
-  parts.push(`<g class="wf-map" transform="translate(${num(frame.map.offset.x)} ${num(frame.map.offset.y)})">`);
+  const { offset, scale } = frame.map;
+  parts.push(`<g class="wf-map" transform="translate(${num(offset.x)} ${num(offset.y)})${scale === 1 ? "" : ` scale(${Number(scale.toFixed(6))})`}">`);
   parts.push(drawGroups(ctx));
   parts.push(drawMarks(ctx, "below"));
   parts.push(drawEdges(ctx));
   parts.push(drawMarks(ctx, "between"));
   parts.push(drawNodes(ctx));
   parts.push(drawMarks(ctx, "above"));
+  // Where the cards cannot show their names, their numbers over everything, keyed beside the map.
+  if (frame.numbers) parts.push(`<g class="wf-numbers">${frame.numbers.texts.map((n) => markText(ctx, colors.ink, colors.ink, n.text)).join("")}</g>`);
   parts.push(`</g>`);
   if (frame.legend) {
     const { rule, x, y, width, layout } = frame.legend;
-    parts.push(`<g class="wf-legend" transform="translate(${num(rule.x)} ${num(rule.top)})">`);
-    parts.push(`<path d="M0 0V${num(rule.bottom - rule.top)}" stroke="${colors.neutral}" stroke-opacity="${theme.opacity.legendRule}"/>`);
-    parts.push(`<g transform="translate(${num(x - rule.x)} ${num(y - rule.top)})">${drawLegend(ctx, width, layout)}</g>`);
+    if (rule) {
+      parts.push(`<g class="wf-legend" transform="translate(${num(rule.x)} ${num(rule.top)})">`);
+      parts.push(`<path d="M0 0V${num(rule.bottom - rule.top)}" stroke="${colors.neutral}" stroke-opacity="${theme.opacity.legendRule}"/>`);
+      parts.push(`<g transform="translate(${num(x - rule.x)} ${num(y - rule.top)})">${drawLegend(ctx, width, layout)}</g>`);
+    } else {
+      parts.push(`<g class="wf-legend" transform="translate(${num(x)} ${num(y)})">${drawLegend(ctx, width, layout)}`);
+    }
     parts.push(`</g>`);
+  }
+  if (frame.numbers) {
+    const { lines, x, y } = frame.numbers;
+    parts.push(`<g class="wf-number-key">${lines.map((line, i) => text(x, y + i * figureMetrics.keyLine, line, `${fontAttrs(theme.text.figureText)} fill="${colors.ink}"`)).join("")}</g>`);
   }
   if (frame.caption) {
     const { x, y, lines } = frame.caption;

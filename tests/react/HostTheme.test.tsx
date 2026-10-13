@@ -32,6 +32,8 @@ type ThemeSetting = import("../../src/index").ThemeSetting;
 
 const vendor = abstract(vendorScene, { minEdgeShare: 0.02 });
 const rules = document.createElement("style");
+/** A floor of 0 on the map's element keeps every text at its size at the zoom it is fitted at, so a test can read a name's colour. */
+const FLOOR_OFF = ".wf-process-map { --wf-text-min-screen: 0px; } ";
 
 afterEach(() => {
   cleanup();
@@ -137,6 +139,7 @@ describe("the theme of a map", () => {
     const { label } = recorder();
     const positions = await layout(vendor, { engine: "dagre" });
     document.head.appendChild(rules);
+    rules.textContent = FLOOR_OFF;
     const map = (theme?: ThemeSetting) => (
       <div className="host" style={{ width: 1200, height: 800 }}>
         <ProcessMap graph={vendor} positions={positions} renderer="canvas" edgeBudget="all" controls={false} legend={false} theme={theme} />
@@ -146,7 +149,7 @@ describe("the theme of a map", () => {
     await waitFor(() => expect(label()).toEqual(["#1f1f1f"]));
     view.unmount();
     // As a browser inherits: the rule sets the container and everything in it.
-    rules.textContent = ".host, .host * { --wf-ink: #222222; }";
+    rules.textContent = `${FLOOR_OFF}.host, .host * { --wf-ink: #222222; }`;
     const css = render(map());
     await waitFor(() => expect(label()).toEqual(["#222222"]));
     css.rerender(map({ color: { ink: "#333333" } }));
@@ -157,7 +160,7 @@ describe("the theme of a map", () => {
     const { label, strokes } = recorder();
     // The host changes its container's class; the rules set the container and everything in it, as a browser inherits.
     document.head.appendChild(rules);
-    rules.textContent = ".inked, .inked * { --wf-ink: #123456; } .sized, .sized * { --wf-stroke-node: 3px; }";
+    rules.textContent = `${FLOOR_OFF}.inked, .inked * { --wf-ink: #123456; } .sized, .sized * { --wf-stroke-node: 3px; }`;
     const view = render(
       <div className="host" style={{ width: 1200, height: 800 }}>
         <ProcessMap graph={vendor} layout={{ engine: "dagre" }} renderer="canvas" edgeBudget="all" controls={false} legend={false} />
@@ -189,7 +192,8 @@ describe("the theme of a map", () => {
     const { texts } = recorder();
     const positions = await layout(vendor, { engine: "dagre" });
     document.head.appendChild(rules);
-    rules.textContent = ".wide, .wide * { --wf-font: Wide; }";
+    // A floor of 0 keeps every text at its size, whatever the zoom the map is fitted at: the host's variable sets it.
+    rules.textContent = ".host, .host * { --wf-text-min-screen: 0px; } .wide, .wide * { --wf-font: Wide; }";
     const view = render(
       <div className="host" style={{ width: 1200, height: 800 }}>
         <ProcessMap graph={vendor} positions={positions} renderer="canvas" edgeBudget="all" controls={false} legend={false} />
@@ -230,7 +234,7 @@ describe("the theme of a map", () => {
     const positions = await layout(vendor, { engine: "dagre" });
     document.head.appendChild(rules);
     // As a browser inherits: the rule sets the map's element and everything in it.
-    rules.textContent = ".mine, .mine * { --wf-ink: #123456; }";
+    rules.textContent = `${FLOOR_OFF}.mine, .mine * { --wf-ink: #123456; }`;
     const map = (props: { className?: string; containerStyle?: React.CSSProperties; theme?: ThemeSetting }) => (
       <div style={{ width: 1200, height: 800 }}>
         <ProcessMap graph={vendor} positions={positions} renderer="canvas" edgeBudget="all" controls={false} legend={false} {...props} />

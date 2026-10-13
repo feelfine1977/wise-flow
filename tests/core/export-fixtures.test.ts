@@ -16,16 +16,19 @@ beforeAll(async () => {
 
 type Variant = { scene: () => Scene; options?: ExportOptions };
 
+// Pinned in the default theme, which draws the figure as one picture scaled to its width, as every export did before
+// exports drew the print theme by default.
 const variants: Record<string, Variant> = {
-  overlays: { scene: () => ({ graph: global, positions: positions.global, overlays: overlaysFor(constraintItems(), { graph: global }), title: "P2P" }) },
-  stagesGerman: { scene: () => ({ graph: global, positions: positions.global, overlays: overlaysFor(constraintItems(), { graph: global }), lanes: "stages", locale: "de", title: "Karte" }), options: { preset: "single-column" } },
-  vendor: { scene: () => ({ graph: vendor, positions: positions.vendor, overlays: overlaysFor(constraintItems(vendorSceneKey), { graph: vendor }), title: "Vendor" }), options: { legend: false } },
+  overlays: { scene: () => ({ graph: global, positions: positions.global, overlays: overlaysFor(constraintItems(), { graph: global }), title: "P2P" }), options: { theme: "default" } },
+  stagesGerman: { scene: () => ({ graph: global, positions: positions.global, overlays: overlaysFor(constraintItems(), { graph: global }), lanes: "stages", locale: "de", title: "Karte" }), options: { preset: "single-column", theme: "default" } },
+  vendor: { scene: () => ({ graph: vendor, positions: positions.vendor, overlays: overlaysFor(constraintItems(vendorSceneKey), { graph: vendor }), title: "Vendor" }), options: { legend: false, theme: "default" } },
   // Without `graph` the presets also target activities the abstraction removed.
-  unfiltered: { scene: () => ({ graph: global, positions: positions.global, overlays: overlaysFor(constraintItems()), title: "P2P" }), options: { width: 800 } },
-  plain: { scene: () => ({ graph: global, positions: positions.global }), options: { lodZoom: 0.1 } },
+  unfiltered: { scene: () => ({ graph: global, positions: positions.global, overlays: overlaysFor(constraintItems()), title: "P2P" }), options: { width: 800, theme: "default" } },
+  plain: { scene: () => ({ graph: global, positions: positions.global }), options: { lodZoom: 0.1, theme: "default" } },
 };
 const observed: Variant = {
   scene: () => ({ graph: global, positions: positions.global, overlays: overlaysFor(constraintItems(), { graph: global }), activityLabels: { mode: "ids", references: {} } }),
+  options: { theme: "default" },
 };
 
 /**
@@ -168,7 +171,33 @@ const before: Record<string, string> = {
 };
 const beforeObserved = "8537f2790539ca29f5b8c3e497f3a61f1c85f5eb049c9ad9c7b9de682acc0188";
 
+/**
+ * SHA-256 of `toSVG` for each variant without a theme, which draws the print
+ * theme since exports stopped drawing the default one: white paper, no tints,
+ * an opaque pattern on every stage colour, the print ramps of the paths, and
+ * no text under 7 pt at the figure's width. `overlays`, `vendor` and `plain`
+ * are as wide as their map and keep every text at its size (the floor, 9⅓
+ * units, is under the smallest text); `stagesGerman` (1,000 wide) and
+ * `unfiltered` (800 wide) are laid out at that width, the map scaled into it
+ * beside the legend, so that the title, legend and caption keep their sizes:
+ * the map's texts follow the readable rule at that scale (0.25 and 0.19),
+ * where no card shows its name, so the cards are numbered and keyed under the
+ * legend, the paths' labels are shed and the pills scaled up to the floor.
+ */
+const printed: Record<string, string> = {
+  overlays: "9d67bbb37f1c540bc19b694f5b2aec1ed64a1c0fb27544f6730a8a757b7d5499",
+  stagesGerman: "e411be0c0554d48d1ec893d73984fa5dda6b3e5f424bcba9e283c1bee4261fca",
+  vendor: "ba67db3200e9c9ade97348a6f46d9ea67e1894cddd0ab195b124209ab9950882",
+  unfiltered: "e2e505c25be2cbd52f2b65cf8ec30f8d13cc40b439fcd3a0911288bbfa4f903d",
+  plain: "f20594e42669699f87ed0040ff696e188e083a9d5f01749aed6d4186d7acfa50",
+};
+
 describe("toSVG on the committed fixtures", () => {
+  it("draws the print theme without a theme (declared change)", () => {
+    const print = (o?: ExportOptions) => (o ? { ...o, theme: undefined } : o);
+    expect(Object.fromEntries(Object.entries(variants).map(([name, v]) => [name, sha(toSVG({ ...v.scene(), selfLoops: false }, print(v.options)))]))).toEqual(printed);
+  });
+
   it("matches the recorded output once follows self-loops are hidden", () => {
     expect(Object.fromEntries(Object.entries(variants).map(([name, v]) => [name, sha(toSVG({ ...v.scene(), selfLoops: false }, v.options))]))).toEqual(before);
   });

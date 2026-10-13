@@ -194,7 +194,8 @@ export function readDomInPage(tints: { id: string; target: string }[]): DomEleme
         if (c.textContent) texts.push({ text: c.textContent, size: parseFloat(style.fontSize), weight: Number(style.fontWeight), color: style.fill });
       }
     }
-    const pill = g.querySelector<SVGRectElement>(":scope > rect.wf-pill");
+    // An arc's pill and label are grouped for the stylesheet that scales them up to the readable floor.
+    const pill = g.querySelector<SVGRectElement>(":scope > rect.wf-pill, :scope > .wf-arc-pill > rect.wf-pill");
     const ps = pill && getComputedStyle(pill);
     const p = (k: string) => Number(pill?.getAttribute(k) ?? 0);
     out.push({

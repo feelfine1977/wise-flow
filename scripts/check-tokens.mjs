@@ -45,7 +45,7 @@ export const TOKEN_BLOCKS = [
 ];
 
 /** Differences between `tokens.css` and the variables of the token table (`tokenVariables`), as readable lines. */
-export function tokenDifferences(css, variables) {
+export function tokenDifferences(css, variables, floors = {}) {
   const out = [];
   const blocks = ruleBlocks(css);
   for (const block of TOKEN_BLOCKS) {
@@ -64,9 +64,17 @@ export function tokenDifferences(css, variables) {
     for (const variable of Object.keys(actual)) if (!(variable in expected)) out.push(`${name}: ${variable} is not in the table`);
   }
   const known = new Set(TOKEN_BLOCKS.map(label));
+  // The rungs of the readable ladder (`floorClasses`): each class sets the floor it stands for.
+  const floor = (b) => !b.atRule && /^\.wf-process-map\.(wf-text-f\d+)$/.exec(b.selector)?.[1];
   for (const block of blocks.filter((b) => !known.has(label(b)))) {
-    for (const variable of Object.keys(block.variables)) out.push(`${label(block)}: ${variable} is not in a block of the table`);
+    const rung = floor(block);
+    for (const [variable, value] of Object.entries(block.variables)) {
+      if (rung && variable === '--wf-text-floor' && rung in floors) {
+        if (normal(value) !== floors[rung]) out.push(`${label(block)}: ${variable} is ${value.trim()}, the table has ${floors[rung]}`);
+      } else out.push(`${label(block)}: ${variable} is not in a block of the table`);
+    }
   }
+  for (const rung of Object.keys(floors)) if (!blocks.some((b) => floor(b) === rung)) out.push(`.wf-process-map.${rung}: block missing`);
   return out;
 }
 

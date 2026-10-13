@@ -4,8 +4,9 @@ import { graph, positions, style } from "./element-kinds";
 
 const neutral = "#8c8c8c";
 const text = (t: Partial<ElementText> & Pick<ElementText, "text" | "x" | "y" | "size" | "role">): ElementText => ({ anchor: "start", baseline: "middle", paint: "ink", halo: false, ...t });
-const strip = <T extends { node?: unknown; edge?: unknown }>(m: T) => {
-  const { node, edge, ...rest } = m;
+/** A mark without its element and a card's texts at each level of detail (`levels`, tested with the readable rule). */
+const strip = <T extends { node?: unknown; edge?: unknown; levels?: unknown }>(m: T) => {
+  const { node, edge, levels: _levels, ...rest } = m;
   expect(node ?? edge).toBeDefined();
   return rest;
 };

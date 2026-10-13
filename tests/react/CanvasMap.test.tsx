@@ -48,8 +48,9 @@ describe("ProcessMap with the Canvas renderer", () => {
         <ProcessMap graph={graph} positions={positions} renderer="canvas" edgeBudget="all" lod={{ badges: 0 }} controls={false} legend={false} />
       </div>,
     );
-    // The semibold 11 px centred text is what the drawing routines write into a badge (a chip's semibold label starts left).
-    const badges = () => recorder.frame().filter((t) => t.font.startsWith("600 11px") && t.align === "center").map((t) => t.text).sort();
+    // The semibold centred text is what the drawing routines write into a badge (a chip's semibold label starts left), at
+    // 11 px scaled up to the readable floor at the zoom the map is fitted at.
+    const badges = () => recorder.frame().filter((t) => /^600 [\d.]+px/.test(t.font) && t.align === "center").map((t) => t.text).sort();
     await waitFor(() => expect(badges().length).toBeGreaterThan(0));
     expect(badges()).toEqual(expected);
   });
@@ -58,10 +59,11 @@ describe("ProcessMap with the Canvas renderer", () => {
 describe("the live Canvas map and the theme", () => {
   // The map reads the variables of its element, which inherits its container's. jsdom resolves custom properties
   // only on the element a rule matches, so the theme rules name the container and everything in it, as a browser
-  // inherits them; their values are those of `tokens.css`.
+  // inherits them; their values are those of `tokens.css`. A floor of 0 keeps every text at its size at the zoom the
+  // map is fitted at, so that a name is written in the ink.
   const theme = document.createElement("style");
   theme.textContent = [
-    '.host, .host * { --wf-ink: #1f1f1f; --wf-paper: #ffffff; }',
+    '.host, .host * { --wf-ink: #1f1f1f; --wf-paper: #ffffff; --wf-text-min-screen: 0px; }',
     ':root[data-theme="dark"] .host, :root[data-theme="dark"] .host * { --wf-ink: #ececec; --wf-paper: #16181d; }',
   ].join("\n");
 

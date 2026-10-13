@@ -60,7 +60,7 @@ describe("the theme of a scene", () => {
     expect([scene.colors.neutral, scene.colors.focus, scene.colors.outOfScope]).toEqual(["#8c8c8c", "#0072b2", "#b0b0b0"]);
     expect(themeColors(defaultTheme, "light")).toBe(defaultTheme.color);
 
-    const svg = toSVG({ graph, positions }, { scheme: "dark", legend: false });
+    const svg = toSVG({ graph, positions }, { theme: "default", scheme: "dark", legend: false });
     expect(svg).toMatch(/^<svg[^>]*><defs>.*<\/defs><rect x="0" y="0" width="[\d.]+" height="[\d.]+" fill="#16181d"\/>/);
     expect(svg).toContain('<rect x="100" y="0" width="180" height="40" rx="4" fill="#16181d" stroke="#6b7280" stroke-width="1"/>');
     expect(svg).toContain('fill="#ececec">Check invoice</text>');

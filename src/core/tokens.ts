@@ -106,7 +106,8 @@ export const nodeSizeTokens = {
 
 /**
  * Text by role: size in layout units, weight, line height. Sizes are on the
- * scale 11, 13 and 15, weights 400, 500 and 600.
+ * scale 11, 13 and 15, weights 400, 500 and 600. Then the smallest text the
+ * map draws on screen and in an exported figure (`readableAt`).
  */
 export const textTokens = {
   /** @deprecated No longer read: an activity's card writes its name in `activityName`. */
@@ -160,7 +161,18 @@ export const textTokens = {
   comparisonTab: { weight: 600 },
   comparisonCaption: { weight: 600 },
   comparisonRowHeader: { weight: 500 },
-} as const satisfies Record<string, { size?: number; weight?: number; lineHeight?: number }>;
+  /**
+   * The smallest text on the screen, in CSS pixels: at a zoom below one the
+   * maps scale their texts up to it, and shed what no longer fits its card.
+   */
+  minScreenPx: 9,
+  /**
+   * The smallest text of an exported figure, in points at the width it is
+   * declared to be printed at; 0 draws the figure as one picture scaled to
+   * its width with every text at its size.
+   */
+  minFigurePt: 0,
+} as const satisfies Record<string, number | { size?: number; weight?: number; lineHeight?: number }>;
 
 /**
  * Corner radii by element, on the scale 4, 8 and full (`pill`, which a mark
@@ -482,6 +494,18 @@ export const hatchTokens = { size: 8, width: 1, domPeriod: 7 } as const;
 export const minimumTokens = { text: 8.25, stroke: 0.75 } as const;
 
 /**
+ * How the maps keep their texts readable (`readableAt`). The smallest text
+ * on the screen, in layout units, is rounded up to a ladder of rungs
+ * `2^(1/steps)` apart, from `2^(first/steps)` to `2^(last/steps)` (4 to 128):
+ * the interactive map writes one class as the floor moves a rung, and below
+ * the last rung no text is drawn. A level, a kind of label or a rung that was
+ * shed comes back only once the floor is `hysteresis` below where it went.
+ * An activity's name is shown while a line holds its first `nameChars`
+ * characters and the ellipsis after them.
+ */
+export const readableTokens = { steps: 8, first: 16, last: 56, hysteresis: 0.1, nameChars: 8 } as const;
+
+/**
  * What a theme's rules may set, on the scales: a stroke weight of 1 or 2, a
  * radius of 4, 8 or full (half the shorter side of the box), an opacity from
  * 0.2 to 1 (a value outside is clamped), a text size up to 15 (from the
@@ -500,7 +524,8 @@ export const ruleTokens = {
  * tints, a pattern twin on every categorical colour (five colours, five
  * patterns, none solid, each colour with the twin it had among seven) drawn opaque, ramps whose palest stop has 3 : 1 on the
  * paper (three greys, three oranges, three blues), and no text under 7 pt and
- * no stroke under 0.75 pt. It has no dark scheme.
+ * no stroke under 0.75 pt, in its tables and in an exported figure at its
+ * declared width. It has no dark scheme.
  */
 export const printTokens = {
   color: { paper: "#ffffff", surface: "#ffffff" },
@@ -514,6 +539,7 @@ export const printTokens = {
   pattern: { strokeOpacity: 1, dotOpacity: 1 },
   opacity: { tint: 0, groupFill: 0, bandFill: 0, bandOddFill: 0 },
   minimum: { text: 7, stroke: 0.75 },
+  text: { minFigurePt: 7 },
 } as const satisfies Record<string, unknown> & { patterns: readonly PatternId[] };
 
 /** The table as one object. */
@@ -538,6 +564,7 @@ export const designTokens = {
   pattern: patternTokens,
   hatch: hatchTokens,
   minimum: minimumTokens,
+  readable: readableTokens,
   rule: ruleTokens,
   print: printTokens,
 } as const;
@@ -604,7 +631,7 @@ export function tokenVariables(): { light: Record<string, string>; dark: Record<
     light[`--wf-${kind}-width`] = px(nodeSizeTokens[kind].width);
     light[`--wf-${kind}-height`] = px(nodeSizeTokens[kind].height);
   }
-  const text = textTokens as Record<string, { size?: number | string; weight?: number; lineHeight?: number }>;
+  const text = textTokens as unknown as Record<string, { size?: number | string; weight?: number; lineHeight?: number }>;
   const tables: Record<keyof typeof styledRoles, (role: string) => string> = {
     text: (r) => px(text[r].size!),
     weight: (r) => String(text[r].weight),

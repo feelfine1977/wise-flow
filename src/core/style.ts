@@ -267,12 +267,17 @@ export interface StyleSpec {
   stages?: readonly string[];
 }
 
+/**
+ * Zooms from which each kind of element is drawn. Deviation pills (badges,
+ * arcs with their labels, chips) go with the cards' names, not before them:
+ * they are the last texts the map sheds.
+ */
 export const defaultLod: LodRules = {
   labels: 0.2,
   edgeLabels: 0.6,
-  badges: 0.22,
-  arcs: 0.22,
-  chips: 0.22,
+  badges: 0.2,
+  arcs: 0.2,
+  chips: 0.2,
   hatch: 0.15,
   selfLoops: 0.25,
 };

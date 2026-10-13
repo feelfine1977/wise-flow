@@ -142,7 +142,7 @@ describe("pattern twins", () => {
     expect(defs).toContain('<pattern id="wf-pattern-grid" width="6" height="6" patternUnits="userSpaceOnUse"><path d="M0 3L6 3M3 0L3 6" stroke="#1f1f1f" stroke-width="1" stroke-opacity="0.6"/></pattern>');
     expect(defs).toContain('<pattern id="wf-pattern-outofscope" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M0 8L8 0" stroke="#b0b0b0" stroke-width="1"/></pattern>');
     expect(patternDefs("p", "#000000")).toContain('<pattern id="p-vertical" width="6" height="6" patternUnits="userSpaceOnUse"><path d="M3 0L3 6" stroke="#000000"');
-    const svg = toSVG({ graph: elements.graph, positions: elements.positions }, { legend: false });
+    const svg = toSVG({ graph: elements.graph, positions: elements.positions }, { legend: false, theme: "default" });
     expect(svg).toContain(defs);
   });
 });

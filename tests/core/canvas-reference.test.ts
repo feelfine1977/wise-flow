@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type Box, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Overlay, type OverlayMark, type XY, HitIndex, createPositions } from "../../src/index";
+import { type Box, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Overlay, type OverlayMark, type XY, HitIndex, createPositions, readableAt } from "../../src/index";
 import { type DrawOptions, type DrawState, type PreparedScene, type PrepareOptions, type SceneEdge, type SceneGroup, type SceneNode, type View, CanvasRenderer, drawScene, prepareScene, toPNGCanvas } from "../../src/canvas/index";
 import { type FamilyName, families } from "../support/graphs";
 import { type ListName, type Visit, drawn, inkContext, keyOf, watch } from "../support/ink";
@@ -48,11 +48,39 @@ function nodeExtent(n: SceneNode): Extent {
   return n.mark.texts.reduce((e, t) => join(e, textExtent(t)), extentOf(shape, 6));
 }
 
-/** A group's outline and a band's rule are at most 2 wide (selected), half of it outside; its title is the text its mark writes. */
-const groupExtent = (g: SceneGroup): Extent => g.mark.texts.reduce((e, t) => join(e, textExtent(t)), extentOf(g.box, 1.5));
+/** The largest floor a text is scaled up to: 2^(56/8) layout units, the top of the readable ladder. */
+const TOP = 128;
 
-/** Half the stroke; an arrowhead 12 long and 12 wide with its tip 1.2 beyond the path's end has its base 10.8 behind it, farther than its half width of 6. */
-const markExtent = (m: OverlayMark): Extent => m.texts.reduce((e, t) => join(e, textExtent(t)), extentOf(m.box, Math.max(m.stroke ? m.stroke.width / 2 : 0, m.arrow ? 10.8 : 0)));
+/**
+ * A group's outline and a band's rule are at most 2 wide (selected), half of it outside; its title is the text its
+ * mark writes, and that text scaled up from its start to the largest floor at which a card still shows a name.
+ */
+function groupExtent(g: SceneGroup, scene: PreparedScene): Extent {
+  const { full, name, line } = scene.readable.levels;
+  const named = Math.min(TOP, Math.max(full.floor, name.floor, line.floor));
+  return g.mark.texts.reduce((e, t) => join(join(e, textExtent(t)), textExtent({ ...t, size: t.size * Math.max(1, named / t.size) })), extentOf(g.box, 1.5));
+}
+
+/**
+ * Half the stroke; an arrowhead 12 long and 12 wide with its tip 1.2 beyond the path's end has its base 10.8 behind it,
+ * farther than its half width of 6. A pill (a badge, a chip, an arc's label pill) also as it is scaled up to the top of
+ * the ladder over its smallest text: a badge from the bottom-right corner of its element's badges, the others from the
+ * middle of their box or pill, its box grown by its scaled outline and its texts moved and scaled with it.
+ */
+function markExtent(m: OverlayMark, scene?: PreparedScene): Extent {
+  const own = m.texts.reduce((e, t) => join(e, textExtent(t)), extentOf(m.box, Math.max(m.stroke ? m.stroke.width / 2 : 0, m.arrow ? 10.8 : 0)));
+  const pill = m.kind === "badge" || m.kind === "chip" || (m.kind === "arc" && m.pill);
+  if (!scene || !pill || !m.texts.length) return own;
+  const k = Math.max(1, TOP / Math.min(...m.texts.map((t) => t.size)));
+  const row = scene.marks.filter((b) => b.kind === "badge" && b.overlay.target === m.overlay.target);
+  const b = m.pill?.box ?? m.box;
+  const o: XY = m.kind === "badge" ? { x: Math.max(...row.map((r) => r.box.x + r.box.width)), y: Math.max(...row.map((r) => r.box.y + r.box.height)) } : { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+  const scaled = (x: number, y: number): XY => ({ x: o.x + (x - o.x) * k, y: o.y + (y - o.y) * k });
+  const at = scaled(b.x, b.y);
+  const outline = (m.pill?.stroke ?? m.stroke)?.width ?? 0;
+  const box = extentOf({ x: at.x, y: at.y, width: b.width * k, height: b.height * k }, outline * k);
+  return m.texts.reduce((e, t) => join(e, textExtent({ ...t, ...scaled(t.x, t.y), size: t.size * k, maxWidth: t.maxWidth === undefined ? undefined : t.maxWidth * k })), join(own, box));
+}
 
 /** The segment nearest to a point, the first of two as near: the count is written beside it (in the middle, or beside a course's stretch). */
 function nearestSegment(points: readonly { x: number; y: number }[], p: { x: number; y: number }): number {
@@ -99,9 +127,9 @@ function extentsOf(scene: PreparedScene, v: Pick<Visit, "list" | "index">): Exte
     case "nodes":
       return [whole(nodeExtent(scene.nodes[v.index]))];
     case "groups":
-      return [whole(groupExtent(scene.groups[v.index]))];
+      return [whole(groupExtent(scene.groups[v.index], scene))];
     case "marks":
-      return [whole(markExtent(scene.marks[v.index]))];
+      return [whole(markExtent(scene.marks[v.index], scene))];
     case "edges":
       return edgeExtents(scene.edges[v.index]).map(whole);
   }
@@ -653,10 +681,12 @@ describe("the PNG export against the reference", () => {
       // The export prepares its own scene from the input; a direct uncull draw of the same preparation gives the
       // calls of every element, which do not depend on the view: the export's calls must hold them all, in order, as one block.
       const png = inkContext();
-      const out = toPNGCanvas(input, { ...options, createCanvas: (width, height) => ({ width, height, getContext: () => png.ctx }) });
+      // In the default theme a figure keeps every text at its size: the direct draw is given that state.
+      const out = toPNGCanvas(input, { ...options, theme: "default", createCanvas: (width, height) => ({ width, height, getContext: () => png.ctx }) });
       const prepared = prepareScene(graph, positions, { overlays: input.overlays, locale: input.locale, lanes: input.lanes, selfLoops: input.selfLoops, activityLabels: input.activityLabels, lodBySize: false });
       const view = { x: 0, y: 0, zoom: 1, width: 1, height: 1 };
-      const direct = record(prepared, view, { selection: { nodes: [], edges: [], groups: [] } }, { cull: false, lodZoom: options.lodZoom, edgeBudget: budget });
+      const all = readableAt(prepared.readable, 1, 0);
+      const direct = record(prepared, view, { selection: { nodes: [], edges: [], groups: [] } }, { cull: false, lodZoom: options.lodZoom, edgeBudget: budget, readable: all });
       const block = direct.visits.flatMap((v) => v.calls).join("\n");
       expect(png.outside.join("\n").includes(block), `${label}: the export does not draw the elements as the direct draw does`).toBe(true);
       // Every element with ink once, in paint order: groups, marks below, edges, marks between, nodes, marks above, edge labels.
@@ -668,7 +698,7 @@ describe("the PNG export against the reference", () => {
       for (const v of lines) once.set(keyOf(v), (once.get(keyOf(v)) ?? 0) + 1);
       expect([...once.values()].every((c) => c === 1), label).toBe(true);
       // Under a budget the edges drawn are the kept ones by the hand ranking; only marks protect edges in a figure.
-      const want = expected(prepared, { x: 1e12, y: 1e12, zoom: 1, width: 2e12, height: 2e12 }, { selection: { nodes: [], edges: [], groups: [] } }, record(prepared, view, { selection: { nodes: [], edges: [], groups: [] } }, { cull: false, lodZoom: options.lodZoom }).visits, budget);
+      const want = expected(prepared, { x: 1e12, y: 1e12, zoom: 1, width: 2e12, height: 2e12 }, { selection: { nodes: [], edges: [], groups: [] } }, record(prepared, view, { selection: { nodes: [], edges: [], groups: [] } }, { cull: false, lodZoom: options.lodZoom, readable: all }).visits, budget);
       expect(inked.filter((v) => v.list === "edges").map((v) => v.id), label).toEqual(want.visits.filter((v) => v.list === "edges").map((v) => v.id));
       expect(out.cssWidth, label).toBeGreaterThan(0);
       cases++;

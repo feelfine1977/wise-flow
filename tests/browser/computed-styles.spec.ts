@@ -82,6 +82,21 @@ import { fileURLToPath } from "node:url";
  * the vendor's tables three more rows. After the right click on
  * "Clear Invoice" the pointer rests on the menu's first item, which the
  * record held before. Every other element is the same.
+ * They were recorded once more when the map began to keep its texts readable
+ * at every zoom. Matched element by element, every element the record held is
+ * there with the same computed styles, except that what a story's zoom sheds
+ * is not displayed (`display: none`): paths' labels, self-loop labels, the
+ * labels of events, gateways and notes, and a card's own block of texts
+ * where the map's level shows another (the P2P map, its lanes, the selection,
+ * hover, focus and filter states at the name level; the overlays at the full
+ * level scaled up; the paths, narrowed by their list, at the box level, where
+ * the stages' titles go too). New elements: an arc's pill and
+ * label in a group (`g.wf-arc-pill`) and an element's badges in a row
+ * (`g.wf-pill-row`). The stage view and the table in the map draw at a zoom
+ * where nothing is shed. Texts and pills are scaled up with `transform`,
+ * which the record does not hold; `readable.spec.ts` measures it. A card's
+ * blocks of the other levels are left out of the record (`LEVELS`): how many
+ * lines they hold depends on the font.
  * Geometry
  * that depends on the fonts of the machine (widths, heights, positions) is left
  * out, so the record holds on every operating system.
@@ -191,16 +206,22 @@ const SCENES: Scene[] = [
  */
 const ROOTS = "[data-wf-part], [data-bpmn-status]";
 
+/**
+ * A card's blocks of texts for the levels of detail below its own: their lines are fitted by the text measure for a
+ * larger size, so how many there are depends on the font, as geometry does. Left out; `readable.spec.ts` measures them.
+ */
+const LEVELS = ".wf-copy--full, .wf-copy--name, .wf-copy--line";
+
 /** Each element inside the library's roots as its tag, classes and id, with the values of its computed style in the order of `PROPERTIES` (bpmn-js names its markers at random). */
 async function computedStyles(page: Page, properties: string[]): Promise<[string, string][]> {
-  return page.evaluate(({ properties, roots }) => {
+  return page.evaluate(({ properties, roots, levels }) => {
     const root = document.querySelector("#storybook-root")!;
-    return [...root.querySelectorAll("*")].filter((element) => element.closest(roots)).map((element) => {
+    return [...root.querySelectorAll("*")].filter((element) => element.closest(roots) && !element.closest(levels)).map((element) => {
       const style = getComputedStyle(element);
       const name = `${element.tagName.toLowerCase()}${[...element.classList].filter((c) => c.startsWith("wf-") || c.startsWith("react-flow__")).map((c) => `.${c}`).join("")}${element.getAttribute("data-id") ? `[${element.getAttribute("data-id")}]` : ""}`;
       return [name, properties.map((p) => style.getPropertyValue(p).replace(/#marker-[a-z0-9]+/, "#marker")).join("; ")] as [string, string];
     });
-  }, { properties, roots: ROOTS });
+  }, { properties, roots: ROOTS, levels: LEVELS });
 }
 
 /** An element's name without the classes that carry the paints of marks, which name no element. */

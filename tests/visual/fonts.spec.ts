@@ -20,8 +20,9 @@ test("the map's text is drawn in the lane's own font, bold where bold and with d
   await page.goto("/iframe.html?id=process-map--map&viewMode=story");
   await page.waitForSelector('[data-layout-status="ready"], [data-layout-status="given"]', { timeout: 60_000 });
   const heading = page.locator(".wf-controls h3");
-  const name = page.locator(".wf-activity-name").first();
-  const counts = page.locator(".wf-activity-counts").first();
+  // A card shows the block of texts of the map's level of detail; the others are not drawn.
+  const name = page.locator(".wf-activity-name:visible").first();
+  const counts = page.locator(".wf-activity-counts:visible").first();
   await expect(heading).toHaveText("Detail");
   const fonts = { heading: await drawnFonts(page, heading), name: await drawnFonts(page, name), counts: await drawnFonts(page, counts) };
   test.info().annotations.push({ type: "drawn fonts", description: JSON.stringify(fonts) });

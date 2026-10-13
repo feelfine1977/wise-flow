@@ -181,15 +181,17 @@ export function themePalettes(theme: Theme, scheme: ColorScheme = "light"): Read
 
 const kebab = (name: string) => name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
 const TEXT_PREFIX: Record<string, string> = { size: "text", weight: "weight", lineHeight: "leading" };
-/** Tables whose numbers are CSS lengths. */
-const LENGTHS = new Set(["radius", "stroke", "size", "lineHeight"]);
+/** Tables and entries whose numbers are CSS lengths. */
+const LENGTHS = new Set(["radius", "stroke", "size", "lineHeight", "minScreenPx"]);
 
 /** Every CSS variable that writes a part of a theme, with the path of that part: `--wf-paper` is `color.paper`, `--wf-text-panel` is `text.panel.size`. */
 function variableParts(theme: Theme): [string, string[]][] {
   const out: [string, string[]][] = [];
   for (const role of Object.keys(theme.color)) out.push([cssVariable(role), ["color", role]]);
   out.push(["--wf-font", ["font", "family"]], ["--wf-font-mono", ["font", "mono"]]);
-  for (const [role, style] of Object.entries(theme.text)) for (const key of Object.keys(style)) out.push([`--wf-${TEXT_PREFIX[key]}-${kebab(role)}`, ["text", role, key]]);
+  for (const [role, style] of Object.entries(theme.text)) if (typeof style === "object") for (const key of Object.keys(style)) out.push([`--wf-${TEXT_PREFIX[key]}-${kebab(role)}`, ["text", role, key]]);
+  // The smallest text on the screen; a figure's is the export's, which never reads the page.
+  out.push(["--wf-text-min-screen", ["text", "minScreenPx"]]);
   // The names of `tokens.css` for the node's and the large radius, then every radius by its role.
   out.push(["--wf-radius", ["radius", "node"]], ["--wf-radius-lg", ["radius", "large"]]);
   for (const table of ["radius", "stroke", "opacity"] as const) for (const role of Object.keys(theme[table])) out.push([`--wf-${table}-${kebab(role)}`, [table, role]]);
@@ -200,7 +202,7 @@ const at = (theme: Theme, path: string[]): unknown => path.reduce<unknown>((v, k
 
 /** A part's value as CSS: lengths in px, colours and fonts as `tokens.css` writes them. */
 function cssValue(value: unknown, path: string[]): string {
-  if (typeof value === "number") return LENGTHS.has(path[0]) || LENGTHS.has(path[2]) ? `${value}px` : String(value);
+  if (typeof value === "number") return LENGTHS.has(path[0]) || LENGTHS.has(path[path.length - 1]) ? `${value}px` : String(value);
   const s = String(value);
   return path[0] === "font" ? s.replace(/'/g, '"') : s.startsWith("#") ? s.toLowerCase() : s;
 }

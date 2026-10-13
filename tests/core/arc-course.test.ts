@@ -91,11 +91,15 @@ describe("arcs that cross no other activity", () => {
    * chips: compared mark by mark only the chip of stage s2 moved, from its
    * title row over C (442, −4) to below the stage (450, 54); the rows keep
    * their digests.
+   * The marks were recorded again when badges, arcs and chips began to be
+   * drawn from a zoom of 0.2, with the cards' names (`defaultLod`): with their
+   * `minZoom` set back to 0.22 the overlay kinds' marks have the digest they
+   * had; the SVGs, drawn at zoom 1 in the default theme, keep theirs.
    */
   const recorded = {
-    kindsMarks: "92f313412330544a8996cf549e95ec33819daf95fe965c50e01339c4c2638a70",
+    kindsMarks: "e2b2821d4ce686715e744590eb6c71170816e78d400368cbf908ed05f2861720",
     kindsSvg: "61b5130d198250ee01a4df6909f2a55408b06d8b6252492cd4528b18900e4aed",
-    rowsMarks: "e96c088a2c77eb0aab68e807e8d8f733d3ddc156cde9b25f66d8a4a0356fe408",
+    rowsMarks: "cfb3de4681fd95762eb30c1b5ffcdb80c9d0e8a57b8116366250064779e3656f",
     rowsSvg: "300ecc6fea8196351006eabe9ea516d8f2637b8f7fa2a522a5e243196724aebe",
   };
 
@@ -108,9 +112,9 @@ describe("arcs that cross no other activity", () => {
     }
     expect({
       kindsMarks: sha(JSON.stringify(kindsScene.marks)),
-      kindsSvg: sha(toSVG({ graph: kinds.graph, positions: kinds.positions, overlays: kinds.overlays }, { legend: false })),
+      kindsSvg: sha(toSVG({ graph: kinds.graph, positions: kinds.positions, overlays: kinds.overlays }, { legend: false, theme: "default" })),
       rowsMarks: sha(JSON.stringify(rowsScene.marks)),
-      rowsSvg: sha(toSVG({ graph: rows.graph, positions: rows.positions }, { legend: false })),
+      rowsSvg: sha(toSVG({ graph: rows.graph, positions: rows.positions }, { legend: false, theme: "default" })),
     }).toEqual(recorded);
   });
 });

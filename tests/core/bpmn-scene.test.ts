@@ -78,8 +78,8 @@ describe("the scene of a BPMN diagram", () => {
       "arc:a:0", "selfLoop:approve:1", "selfLoop:clear invoice:2", "badge:a:3", "badge:approve:4", "chip:__map:5", "chip:lane1:6",
     ]);
 
-    // Three nodes leave the rules at their defaults, with the given badge zoom.
-    expect(scene.lod).toEqual({ labels: 0.2, edgeLabels: 0.6, badges: 0.5, arcs: 0.22, chips: 0.22, hatch: 0.15, selfLoops: 0.25 });
+    // Three nodes leave the rules at their defaults (badges, arcs and chips with the names, at 0.2), with the given badge zoom.
+    expect(scene.lod).toEqual({ labels: 0.2, edgeLabels: 0.6, badges: 0.5, arcs: 0.2, chips: 0.2, hatch: 0.15, selfLoops: 0.25 });
     const shape = (id: string) => scene.geometry.shapes.find((s) => s.id === id)!;
     // Arc from the top centre of A (150, 100) to C (550, 100), lifted by 0.22 × 400.
     expect(shape("arc:a:0").path).toBe("M150 100 C150 12 550 12 550 100");
@@ -94,7 +94,7 @@ describe("the scene of a BPMN diagram", () => {
     const many: FlowGraph = { nodes: Array.from({ length: 61 }, (_, i) => ({ id: `n${i}`, kind: "activity" as const, label: `N${i}` })), edges: [] };
     const { positions } = registryPositions(registry, ids);
     // Above 60 nodes every rule is raised by 15 %.
-    expect(diagramScene(many, positions, [], ids).scene.lod.badges).toBeCloseTo(0.22 * 1.15);
-    expect(diagramScene(undefined, positions, [], ids).scene.lod.badges).toBe(0.22);
+    expect(diagramScene(many, positions, [], ids).scene.lod.badges).toBeCloseTo(0.2 * 1.15);
+    expect(diagramScene(undefined, positions, [], ids).scene.lod.badges).toBe(0.2);
   });
 });

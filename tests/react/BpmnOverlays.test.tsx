@@ -100,9 +100,9 @@ describe("BpmnView overlays from the scene", () => {
       return { id: element, ...overlay };
     };
     // The badge's pill: "≥1 · 25 %", 66.45 wide, ending at the right edge of the task at (440, 140) and 2 above it
-    // (440 + 100 − 66.45, 140 − 20), shown from the default badge zoom 0.22 (eleven nodes leave it unchanged).
+    // (440 + 100 − 66.45, 140 − 20), shown from the default badge zoom 0.2, with the names (eleven nodes leave it unchanged).
     const badge = added("wf-badge");
-    expect([badge.id, badge.position, badge.show, badge.scale]).toEqual(["Task_CreatePO", { top: -20, left: expect.closeTo(33.55, 5) }, { minZoom: 0.22 }, { min: 0.8, max: 1.2 }]);
+    expect([badge.id, badge.position, badge.show, badge.scale]).toEqual(["Task_CreatePO", { top: -20, left: expect.closeTo(33.55, 5) }, { minZoom: 0.2 }, { min: 0.8, max: 1.2 }]);
     expect(badge.html.querySelector("svg")?.getAttribute("viewBox")).toBe("473.55 120 66.45 18");
     expect(badge.html.querySelector("rect")?.getAttribute("stroke")).toBe("#b84a00");
     // The tint covers the task from every zoom, scales with the diagram and is multiplied onto it.

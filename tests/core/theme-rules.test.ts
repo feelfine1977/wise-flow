@@ -191,7 +191,7 @@ describe("rules that are unknown or out of range", () => {
   ];
 
   it("change nothing", () => {
-    const plain = toSVG({ graph, positions, overlays });
+    const plain = toSVG({ graph, positions, overlays }, { theme: "default" });
     expect(toSVG({ graph, positions, overlays }, { theme: withRules(invalid) })).toBe(plain);
     expect(scene(invalid).nodeMarks).toEqual(scene([]).nodeMarks);
   });
@@ -233,7 +233,7 @@ describe("the default look", () => {
   });
 
   it("is the same with an empty list of rules as without", () => {
-    expect(toSVG({ graph, positions, overlays }, { theme: { rules: [] } })).toBe(toSVG({ graph, positions, overlays }));
+    expect(toSVG({ graph, positions, overlays }, { theme: { rules: [] } })).toBe(toSVG({ graph, positions, overlays }, { theme: "default" }));
     expect(resolveTheme({ rules: [] }).rules).toEqual([]);
   });
 

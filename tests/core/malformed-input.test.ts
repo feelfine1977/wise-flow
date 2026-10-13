@@ -179,6 +179,7 @@ import {
   removeClause,
   repositionNodes,
   resolveTheme,
+  readableAt,
   resolveViews,
   routeMidpoint,
   routeSequenceFlows,
@@ -385,7 +386,7 @@ describe("malformed input at the core entry point", () => {
 
   it(
     "style, tokens, label sizing and formatting",
-    search(["hexToRgb", "interpolatePalette", "contrastRatio", "contrastText", "hashKey", "lodAt", "lodForSize", "buildScales", "patternDefs", "arrowheadExtent", "patternTwin", "cssVariable", "labelUnitsAt", "smallLabelUnitsAt", "mapScaleAt", "labelScreenPx", "formatCount", "formatNumber", "formatShare", "formatDelta", "formatHours", "formatDays", "formatCompact", "t", "metricLabel", "orderedCategorical", "themePalette", "resolveTheme", "themeColors", "checkTheme", "formatPathCount", "metricEntry", "metricKind", "metricName", "metricUnit", "metricBasis", "formatMetricValue", "elementMetric", "metricLabelOf", "metricMeanNote", "channelTitle", "wrapText"], (calls, c) => {
+    search(["hexToRgb", "interpolatePalette", "contrastRatio", "contrastText", "hashKey", "lodAt", "lodForSize", "buildScales", "patternDefs", "arrowheadExtent", "patternTwin", "cssVariable", "labelUnitsAt", "smallLabelUnitsAt", "mapScaleAt", "labelScreenPx", "formatCount", "formatNumber", "formatShare", "formatDelta", "formatHours", "formatDays", "formatCompact", "t", "metricLabel", "orderedCategorical", "themePalette", "resolveTheme", "themeColors", "checkTheme", "formatPathCount", "metricEntry", "metricKind", "metricName", "metricUnit", "metricBasis", "formatMetricValue", "elementMetric", "metricLabelOf", "metricMeanNote", "channelTitle", "wrapText", "readableAt"], (calls, c) => {
       const colour = () => c.rng.pick([junkString(c.rng), "#fff", "#1f77b4", "#ABCDEF", "#abc", "fff"]);
       calls.call("hexToRgb", c, () => hexToRgb(colour()));
       calls.call("interpolatePalette", c, () => interpolatePalette(c.rng.pick([palettes.sequential, palettes.diverging, [colour()], [colour(), colour()]]), junkNumber(c.rng)));
@@ -458,6 +459,14 @@ describe("malformed input at the core entry point", () => {
       calls.call("metricMeanNote", c, () => metricMeanNote(name, L));
       calls.call("channelTitle", c, () => channelTitle(c.rng.pick(["legend.edgeWidth", "legend.edgeColor", "legend.nodeColor"] as StringKey[]), name, L));
       calls.call("wrapText", c, () => wrapText(junkString(c.rng), junkNumber(c.rng), { size: junkNumber(c.rng), weight: c.rng.chance() ? junkNumber(c.rng) : undefined }));
+      // What the texts show at a zoom a host computes, from rules of any numbers and the state before it.
+      const level = () => ({ size: junkNumber(c.rng), floor: junkNumber(c.rng) });
+      const readableRules = { levels: { full: level(), name: level(), line: level() }, labels: { path: junkNumber(c.rng), loop: junkNumber(c.rng), event: junkNumber(c.rng), glyph: junkNumber(c.rng), note: junkNumber(c.rng) }, pills: junkNumber(c.rng) };
+      const before = calls.call("readableAt", c, () => readableAt(readableRules, junkNumber(c.rng), junkNumber(c.rng)));
+      calls.call("readableAt", c, () => {
+        const r = readableAt(readableRules, junkNumber(c.rng), junkNumber(c.rng), before);
+        must(r.boost >= 1 && !Number.isNaN(r.floor) && ["full", "name", "line", "box"].includes(r.level), c, () => `readableAt: ${JSON.stringify(r)}`);
+      });
     }),
   );
 
