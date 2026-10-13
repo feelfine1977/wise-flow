@@ -11,7 +11,7 @@ The executable CI contract and release procedure are in [docs/CI.md](../docs/CI.
 | `tooling/` | Negative checks for architecture boundaries, the source lint, workflow policies, artifact budgets and the benchmark's report; the core entry point's built declarations against `scripts/core-exports.json`, deprecations and every exported name of the four entry points against `docs/API.md`; the token table and its generated `tokens.css`; the styling contract against the rendered fixtures and the API document; the emitted JavaScript without comments, the declarations with their documentation comments, and their maps; the table of invalid input against the entry points; the package's name `wise-flow` in the manifest, the lockfile and every changeset, Changesets' public access, and the former name only in the changeset and the migration note that give it | `npm run test:tooling` |
 | `package/` | Separate consumer of the actual npm tarball; NodeNext types and real browser assets/lifecycle | `npm run test:package` |
 | `browser/` | Production Storybook accessibility and keyboard tests, the map's paint order, host stylesheets against the styling contract and the cascade layer, the computed styles of the map and its panels against their record (only the elements inside the library's roots), the outline and fill of an activity's card when hovered, selected, focused and out of scope, the detail panel (fewer activities and paths drawn at each step of "Activities" to the left, "Paths" in place), the controls (no panel over an activity at the fitted zoom, the dark scheme's panels, controls and table cells and its pattern ink, the controls' accessibility and names in English and German, and every form control's text, border and outline colour a token in every state and both schemes), and the parity of the four renderers, in a real browser | `npm run storybook:build` then `npm run test:browser` |
-| `visual/` | Ten behavior checks including six screenshots and the large Canvas scene | `npm run test:visual` |
+| `visual/` | Eleven behavior checks including six screenshots, the large Canvas scene and the fonts the map is drawn in | `npm run test:visual` |
 | `bench/` | The benchmark: times on large and dense inputs in Node and in Chromium, beside the numbers measured before the repairs and the targets; not a gate | `npm run bench` |
 
 `npm run check` runs lint, typecheck, architecture/workflow guards, tooling tests
@@ -300,9 +300,10 @@ two directories on the same idle host and the same mode.
 ## Strict visual CI and deliberate approval
 
 Strict visual tests use `updateSnapshots: "none"`; missing or changed baselines
-fail without recording. CI pins Playwright 1.61.1 and runs Ubuntu 24.04 Chromium.
-The hosted OS image can change independently and must still pass. For an intended
-visual change, outside CI on the corresponding OS:
+fail without recording. CI pins Playwright 1.61.1 and runs the lane in the
+Playwright image the provenance record names by digest, the image the Linux
+images are captured in. For an intended visual change, outside CI on the
+corresponding OS (for Linux, in that image):
 
 ```sh
 npm run test:visual:approve
@@ -318,5 +319,32 @@ The origin of the current reference images is recorded in
 [visual/baseline-provenance.json](visual/baseline-provenance.json): the source
 commit, the date of the owner's approval, the macOS version and the container
 image the Linux images were captured in, and the SHA-256 of all twelve files.
-The Linux images were captured in that container, not on the hosted runner; a
-strict run on the hosted runner is what qualifies them there.
+The Linux images are captured in that container, and GitHub's strict job runs
+in the same container (`check:workflows` compares the two digests), so an image
+approved locally is checked on GitHub where it was made.
+
+On Linux the browser takes its fonts from [visual/fonts.conf](visual/fonts.conf),
+which the visual configuration passes as `FONTCONFIG_FILE` to both the strict
+run and the approval: `system-ui`, `sans-serif` and `sans` become Liberation
+Sans, so the Linux images show the map in a font with a bold face and do not
+depend on the machine's default font. `visual/fonts.spec.ts` reads from Chromium
+the faces the panel's heading, a card's name and its counts are drawn in and
+fails if they are not Liberation Sans; it is skipped on macOS, whose images
+depend on the system font of the macOS version in the record (Chromium on
+macOS ignores fontconfig). The library's own font list is unchanged: on an
+analyst's Linux machine `system-ui` stays the right first choice.
+
+To check or capture the Linux images, run the record's `command` in its image,
+in a clone used only for this (its `npm ci` installs Linux packages into the
+clone's `node_modules`):
+
+```sh
+image=$(node -p "require('./tests/visual/baseline-provenance.json').linux.image")
+docker run --rm --platform linux/amd64 --ipc=host -v "$PWD":/work -w /work "$image" \
+  bash -c 'npm ci && npm run test:visual -- --update-snapshots=none'
+# To capture the images for approval instead: npm ci && npm run test:visual:approve
+```
+
+Use `fc-match 'system\-ui'` to ask fontconfig about `system-ui`, with
+`FONTCONFIG_FILE=tests/visual/fonts.conf` for the lane's view: unescaped, the
+hyphen starts a size and the name asked about is `system`.
