@@ -1,5 +1,5 @@
-import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
-import { type Box, type Insets, type Locale, formatShare, panelInsets, spaceTokens, t } from "../core/index.js";
+import { type ButtonHTMLAttributes, type HTMLAttributes, type PointerEvent, type ReactNode, useId, useRef } from "react";
+import { type Box, type FlowNode, type Insets, type Locale, type OpeningView, type Positions, type XY, formatShare, openingView, panelInsets, processStart, spaceTokens, t, viewTokens } from "../core/index.js";
 import { part } from "./parts.js";
 
 /**
@@ -114,16 +114,125 @@ export function ZoomControl({ zoom, locale = "en", onZoomIn, onZoomOut, onFit, f
 }
 
 /**
- * The insets that keep `bounds`, fitted into the element `area`, clear of the
- * panels over a map inside `within` (the area itself unless given): the Canvas
- * map's overlay panels, React Flow's panels and the BPMN view's, with a gap of
- * `spaceTokens.unit * 4` between a panel and the fitted bounds.
+ * The boxes of the panels over a map inside `within` (the area itself unless
+ * given), in the pixels of the element `area`: the Canvas map's overlay
+ * panels, React Flow's panels and the BPMN view's; the map's overview among
+ * them unless `overview` is false.
  */
-export function clearOfPanels(area: Element, bounds: Box, padding: number, zoom: { minZoom?: number; maxZoom?: number } = {}, within: Element = area): Insets {
+export function panelBoxes(area: Element, within: Element = area, overview = true): Box[] {
   const origin = area.getBoundingClientRect();
-  const panels = [...within.querySelectorAll(".wf-overlay-panel, .react-flow__panel, .wf-bpmn__panel, .wf-bpmn__navigation")].map((panel) => {
-    const r = panel.getBoundingClientRect();
-    return { x: r.left - origin.left, y: r.top - origin.top, width: r.width, height: r.height };
+  return [...within.querySelectorAll(".wf-overlay-panel, .react-flow__panel, .wf-bpmn__panel, .wf-bpmn__navigation")]
+    .filter((panel) => overview || !panel.classList.contains("wf-overview"))
+    .map((panel) => {
+      const r = panel.getBoundingClientRect();
+      return { x: r.left - origin.left, y: r.top - origin.top, width: r.width, height: r.height };
+    });
+}
+
+/**
+ * The insets that keep `bounds`, fitted into the element `area`, clear of the
+ * panels over a map inside `within` (`panelBoxes`), with a gap of
+ * `spaceTokens.unit * 4` between a panel and the fitted bounds; clear of the
+ * map's overview too unless `overview` is false.
+ */
+export function clearOfPanels(area: Element, bounds: Box, padding: number, zoom: { minZoom?: number; maxZoom?: number } = {}, within: Element = area, overview = true): Insets {
+  return panelInsets(panelBoxes(area, within, overview), area.getBoundingClientRect(), bounds, { ...zoom, padding, gap: spaceTokens.unit * 4 });
+}
+
+/**
+ * The view a map in the element `area` opens at (`openingView`): fitted
+ * inside the insets of its panels where that is readable, otherwise on the
+ * start of the process with room for the overview, which has the map's shape,
+ * `viewTokens.overview` wide and at most as high. `insets` are a host's, used
+ * instead of the panels.
+ */
+export function openingIn(area: Element, bounds: Box, nodes: readonly FlowNode[], positions: Pick<Positions, "nodes" | "direction">, options: { padding: number; minZoom?: number; maxZoom?: number; insets?: Partial<Insets> }): OpeningView {
+  const { width, height } = area.getBoundingClientRect();
+  const scale = Math.min(viewTokens.overview.width / Math.max(bounds.width, 1), viewTokens.overview.height / Math.max(bounds.height, 1));
+  return openingView(bounds, { width, height }, {
+    ...options,
+    panels: options.insets ? [] : panelBoxes(area, area, false),
+    gap: spaceTokens.unit * 4,
+    start: processStart(nodes, positions),
+    direction: positions.direction,
+    boxes: nodes.flatMap((n) => (n.kind === "activity" && positions.nodes[n.id]) || []),
+    overview: { width: Math.max(1, Math.round(bounds.width * scale)), height: Math.max(1, Math.round(bounds.height * scale)) },
   });
-  return panelInsets(panels, origin, bounds, { ...zoom, padding, gap: spaceTokens.unit * 4 });
+}
+
+export interface MapOverviewProps {
+  /** The map's bounds and its nodes' boxes, in layout units. */
+  bounds: Box;
+  nodes: Readonly<Record<string, Box>>;
+  /** The view (a layout point `p` is drawn at `p * zoom + (x, y)`) and the size of the area it is drawn in. */
+  view: { x: number; y: number; zoom: number };
+  area: { width: number; height: number };
+  /** The overview's box in the area's pixels (`OpeningView.overview`). */
+  at: Box;
+  locale?: Locale;
+  /** Centres the view on a point of the map, keeping the zoom. */
+  onMove: (centre: XY) => void;
+}
+
+/** The arrow keys move the view by a tenth of what is in view. */
+const ARROWS: Record<string, number[]> = { ArrowLeft: [-0.1, 0], ArrowRight: [0.1, 0], ArrowUp: [0, -0.1], ArrowDown: [0, 0.1] };
+
+/**
+ * A small overview of the whole map in a corner, shown while the map opens
+ * on its start: the boxes of its nodes and the part in view marked. A click
+ * or a drag centres the view on the point under the pointer; the arrow keys
+ * move it.
+ */
+export function MapOverview({ bounds, nodes, view, area, at, locale = "en", onMove }: MapOverviewProps) {
+  const hint = useId();
+  const drag = useRef(false);
+  const shown = { x: -view.x / view.zoom, y: -view.y / view.zoom, width: area.width / view.zoom, height: area.height / view.zoom };
+  // The point of the map under the pointer: the overview's inside (within its outline) is the map's bounds.
+  const move = (e: PointerEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const r = el.getBoundingClientRect();
+    if (r.width > 0) onMove({ x: bounds.x + ((e.clientX - r.left - el.clientLeft) / (el.clientWidth || r.width)) * bounds.width, y: bounds.y + ((e.clientY - r.top - el.clientTop) / (el.clientHeight || r.height)) * bounds.height });
+  };
+  return (
+    <div
+      className="wf-panel wf-overlay-panel wf-overview"
+      {...part("overview")}
+      style={{ left: at.x, top: at.y, width: at.width, height: at.height }}
+      role="application"
+      aria-label={t(locale, "map.overview")}
+      aria-describedby={hint}
+      tabIndex={0}
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        if (e.button) return;
+        drag.current = true;
+        e.currentTarget.setPointerCapture?.(e.pointerId);
+        move(e);
+      }}
+      onPointerMove={(e) => {
+        e.stopPropagation();
+        if (drag.current) move(e);
+      }}
+      onPointerUp={(e) => {
+        e.stopPropagation();
+        drag.current = false;
+      }}
+      onPointerCancel={() => void (drag.current = false)}
+      onKeyDown={(e) => {
+        const step = ARROWS[e.key];
+        if (!step) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onMove({ x: shown.x + shown.width * (0.5 + step[0]), y: shown.y + shown.height * (0.5 + step[1]) });
+      }}
+    >
+      <span id={hint} className="wf-sr-only">
+        {t(locale, "map.overview.hint")}
+      </span>
+      <svg viewBox={`${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}`} preserveAspectRatio="none" aria-hidden="true" focusable="false">
+        <path className="wf-overview__nodes" d={Object.values(nodes).map((b) => `M${b.x} ${b.y}h${b.width}v${b.height}h${-b.width}z`).join("")} />
+        <rect className="wf-overview__view" {...shown} data-testid="wf-overview-view" />
+      </svg>
+    </div>
+  );
 }

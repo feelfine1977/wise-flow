@@ -6,6 +6,7 @@ import { type FlowGraph, type Positions, activityReferences } from "../../src/in
 import { FilterChips, ProcessMap, TraceTimeline, type Trace } from "../../src/react/index";
 import * as kinds from "../core/element-kinds";
 import * as overlayKinds from "../core/overlay-kinds";
+import { browserBoxes } from "./panels";
 
 /**
  * The fixtures of the node, edge and overlay kinds drawn by the interactive map
@@ -126,6 +127,21 @@ describe("the styling contract", () => {
     fireEvent.mouseEnter(container.querySelector(".wf-event")!);
     await waitFor(() => expect(container.querySelector(".wf-trace-timeline .wf-tooltip")).not.toBeNull());
     keep(container);
+  });
+
+  it("draws the overview of a map that opens on its start", async () => {
+    // Twelve activities in a row, 300 apart: fitted into 1,200 × 600 they would be at 0.31, so the map opens on its start.
+    const ids = Array.from({ length: 12 }, (_, i) => `a${i}`);
+    const row: FlowGraph = { nodes: ids.map((id) => ({ id, kind: "activity", label: id.toUpperCase() })), edges: ids.slice(1).map((id, i) => ({ id: `${ids[i]}->${id}`, kind: "follows", source: ids[i], target: id })) };
+    const nodes = Object.fromEntries(ids.map((id, i) => [id, box(300 * i, 0)]));
+    const restore = browserBoxes({ width: 1200, height: 600 }, { "bottom-left": { width: 150, height: 44 } });
+    try {
+      const { container } = render(<div style={{ width: 1200, height: 600 }}><ProcessMap graph={row} positions={{ nodes, groups: {}, edges: {}, bounds: box(0, 0, 3420, 40), engine: "given", direction: "RIGHT" }} renderer="svg" controls={false} legend={false} /></div>);
+      await waitFor(() => expect(container.querySelector('[data-wf-part="overview"]')).not.toBeNull());
+      keep(container);
+    } finally {
+      restore();
+    }
   });
 
   it("lists exactly what the fixtures draw", () => {

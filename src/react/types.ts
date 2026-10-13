@@ -223,8 +223,18 @@ export interface ProcessMapProps {
   className?: string;
   /** Inline style of the outer element (height is required by React Flow). */
   containerStyle?: React.CSSProperties;
-  /** Fit the view after layout. Default true. */
+  /** Open the view after layout (`opening`). Default true; false leaves the view where it is. */
   fitView?: boolean;
+  /**
+   * The view the map opens at when it is shown first or its graph is
+   * replaced: `"readable"` (default) fits it where the whole map fits at a
+   * zoom of 0.75 or more, and otherwise opens at 0.75 on the start of the
+   * process, at the edge of the room the panels leave, with an overview of
+   * the whole map in a corner no panel occupies; `"fit"` always fits it. Once
+   * the person moved the view, a change of the controls keeps it; once they
+   * pressed "fit", it fits the map again; a new `graph` opens it again.
+   */
+  opening?: "readable" | "fit";
   /**
    * The narrowest line, in screen pixels, of a path the map draws: below it a
    * path is not drawn, unless it is marked, selected, focused, highlighted or

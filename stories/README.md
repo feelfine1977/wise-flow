@@ -6,6 +6,7 @@ One story file per component, rendered with the design tokens of
 | File | Stories |
 |---|---|
 | `ProcessMap.stories.tsx` | P2P map (fixture, overlays, abstraction controls), Dagre fallback, stage view, diff map (vendor vs all), German locale |
+| `Opening.stories.tsx` | readable opening on the whole log at default thresholds, one vendor at 50 %, and the whole log at 50 %, with React and Canvas and a plain-fit option |
 | `Interaction.stories.tsx` | select and context menu (selection, right click or Enter, host action through `onContextMenu`, `onAction`), paths for an activity (`focus`, side list from the response's `paths` block or the map, pair path), filters (chips with a preview, filter actions, canonical filter) |
 | `Layout.stories.tsx` | stage lanes (stage groups as ordered bands), role lanes (BPMN-lite from the stage model with role lanes) |
 | `Canvas.stories.tsx` | large map (5,000 synthetic activities and 20,000 paths on the Canvas renderer; sizes selectable), P2P map on canvas, PNG export |

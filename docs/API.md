@@ -1691,6 +1691,7 @@ export function ProcessMap(props: {
   edgeBudget?: EdgeBudget | "adaptive";   // default "adaptive"; see "Edge budget"
   onEdgesShown?: (shown: ShownEdges | undefined) => void;   // the edges drawn while some are withheld, for toSVG and toPNG
   minPathPx?: number;   // the narrowest line on the screen a path is drawn at; default 0.5, 0 draws every path; see "Paths at a small zoom"
+  opening?: "readable" | "fit";   // default "readable": fitted where that gives 0.75 or more, else 0.75 on the start with an overview; see "Controls and panels"
 }): JSX.Element;
 export interface Selection { nodes: string[]; edges: string[]; groups: string[] }
 
@@ -2564,10 +2565,11 @@ export function CanvasMap(props: { scene: PreparedScene | undefined; state: Draw
   onAnnounce?: (text: string) => void; onEdgesShown?: (shown: ShownEdges | undefined) => void;
   theme?: ThemeSetting;   // its colours and font, over its --wf-* variables; see "Theme of a map in a page"
   fitInsets?: Partial<Insets>;   // kept clear when the view is fitted; default: clear of the panels over the map (see "Controls and panels")
-  minPathPx?: number }   // the narrowest line on the screen a path is drawn at; default 0.5, 0 draws every path; see "Paths at a small zoom"
+  minPathPx?: number;   // the narrowest line on the screen a path is drawn at; default 0.5, 0 draws every path; see "Paths at a small zoom"
+  opening?: "readable" | "fit"; openKey?: string | number }   // default readable; openKey: a replacement graph, default scene.graph
   & { ref?: Ref<CanvasMapHandle> }): JSX.Element;
 export interface CanvasMapHandle { centerOn(id, zoom?); fit(insets?: Partial<Insets>); zoomBy(factor); screenBox(id): Box | undefined; renderer(): CanvasRenderer | null;
-  moved(): boolean }   // true when the view changed since the map was last fitted
+  moved(): boolean }   // true when the view changed since the map last opened or was fitted
 ```
 
 `<CanvasMap/>` (and `<ProcessMap renderer="canvas"/>`) follows the theme: it
@@ -3586,6 +3588,25 @@ with 2 % of their size on each side, up to the zoom 1 as bpmn-js's
 `fit-viewport` does; where no panel is in the way it still uses
 `fit-viewport`.
 
+**Opening.** `<ProcessMap/>` and `<CanvasMap/>` default to
+`opening="readable"`: fit and centre the whole map inside the open panels'
+insets when that gives a zoom of at least 0.75; otherwise open at 0.75,
+with the start at the reading-direction edge of the free area, centred
+across it. Activities stay clear of panels. An overview of the whole map
+(`data-wf-part="overview"`, accessible name "Overview of the map") sits in
+the first free corner, marks the exact viewport, and centres the view on a
+click or drag. Focus it and use arrow keys to move by a tenth of the view.
+The fit button still shows the whole map. `opening="fit"` gives a host the
+plain fit on opening; `fitView={false}` leaves the view to the host.
+After a person moves the view, control changes keep it. Replacing the
+`ProcessMap` graph object applies the opening rule again. After pressing
+fit, control changes fit again until the graph is replaced. On a standalone
+`CanvasMap`, `fitKey` identifies a new layout and `openKey` identifies a
+replacement graph (default: the scene's graph object); a new `openKey`
+applies the opening rule again even if `fitKey` stays the same. Refreshing a
+scene under the same keys preserves the view. Exported figures always show
+the whole map; the opening view does not change exports.
+
 **Legend.** `<Legend/>` opens as a one-line strip: the measure and its unit
 ("Frequency · cases · share of 251,734 cases"), the path width's three
 samples, and a button ("Show the whole legend", `aria-expanded`) that
@@ -3870,6 +3891,7 @@ CSS written against these selectors changes only the interactive DOM map and the
 | `controls` | the zoom control (`<ZoomControl/>`) of the DOM map, the Canvas map and the BPMN view | | |
 | `button` | a button of the panels: the zoom control's, the legend's toggle, the detail panel's toggles and its kept paths' part, the table's pager, the filters' "clear" | | |
 | `zoom-level` | the current zoom in the zoom control | | |
+| `overview` | the overview of a map that opens on its start, in a corner | | |
 | `abstraction-panel` | the detail panel: the sliders, their statements and the toggles of `<AbstractionControls/>` | | |
 | `legend` | `<Legend/>` | | |
 | `status` | the status panel (arranging, layout error) and the note on withheld paths | | |

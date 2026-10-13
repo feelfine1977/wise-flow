@@ -44,6 +44,24 @@ and has the DOM map and the Canvas map choose the same level at three zooms.
 draws in Chromium, at its fitted zoom and six steps out with its zoom
 control: its computed size times the scale of what is around it.
 
+## Opening the map
+
+`core/opening-view.test.ts` checks the fitted/readable boundary, reading
+edges and centring, panel clearance and overview corners with hand-derived
+boxes. `react/Opening.test.tsx` checks both maps at 1,400 × 900 with panels
+placed by `react/panels.ts`: the whole log at the default thresholds opens
+at 0.75 on the start with an overview; the vendor and the whole log at
+50 % fit without one. No panel covers an activity. It checks the viewport
+mark, click, drag and arrow keys, plain-fit opt-out, preserving a move on
+control changes, reopening a graph and fit-then-control changes. A small
+synthetic standalone Canvas map checks opening without keys and replacing
+its graph or `openKey`. `browser/opening.spec.ts` runs the same scenes in
+Chromium at 1,400 × 900, measures actual panel rectangles, reads each Canvas
+frame's viewport independently of its overview, tests pointer and keyboard
+navigation and accessibility, pans and zooms before control changes, and
+replaces the graph. Stories in `stories/Opening.stories.tsx` fix their
+settings and path rule; the small-zoom story fixes its zoom too.
+
 ## Paths at a small zoom
 
 `core/paths-at-zoom.test.ts` holds `pathsAtZoom` against a small graph with

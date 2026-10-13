@@ -211,7 +211,7 @@ describe("the view when the layout arrives", () => {
     const held = heldElk();
     const { container } = render(
       <div style={{ width: 800, height: 600 }}>
-        <ProcessMap graph={chain} layout={{ elk: held.elk, engine: "elk" }} controls={false} legend={false} />
+        <ProcessMap graph={chain} layout={{ elk: held.elk, engine: "elk" }} opening="fit" controls={false} legend={false} />
       </div>,
     );
     await waitFor(() => expect(held.calls).toHaveLength(1));

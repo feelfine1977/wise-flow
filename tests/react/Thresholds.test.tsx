@@ -116,7 +116,7 @@ const EVERYTHING: Partial<LodRules> = { labels: 0, edgeLabels: 0, badges: 0, arc
 function element(renderer: Renderer, graph: FlowGraph, overlays: Overlay[], options: AbstractOptions, positions: Positions, locale: Locale, lod?: Partial<LodRules>) {
   return (
     <div style={{ width: PANE.width, height: PANE.height }}>
-      <ProcessMap graph={graph} overlays={overlays} positions={positions} abstraction={options} renderer={renderer === "react" ? "svg" : "canvas"} edgeBudget={BUDGET} locale={locale} lod={lod} contextMenu={false} pathList={false} />
+      <ProcessMap graph={graph} overlays={overlays} positions={positions} abstraction={options} renderer={renderer === "react" ? "svg" : "canvas"} edgeBudget={BUDGET} opening="fit" locale={locale} lod={lod} contextMenu={false} pathList={false} />
     </div>
   );
 }
@@ -152,7 +152,7 @@ async function show(mounted: Mounted | undefined, renderer: Renderer, scene: Lad
   const everything = again && mounted.everything ? (mounted.everything.rerender(el(EVERYTHING)), mounted.everything) : render(el(EVERYTHING));
   await act(async () => {});
   const readings = { fitted: readReactMap(result.container, locale).fitted, full: readReactMap(everything.container, locale).full };
-  // Read at the view a person first sees, or not at all.
+  // Read at the fitted view, the smallest a person sees with the fit button (the map opens there for the reading), or not at all.
   expect(readings.fitted.zoom, `the React map is fitted (${scene.name} · ${rung.name})`).toBeCloseTo(fittedZoom(result.container, PANE), 9);
   return { mounted: { result, renderer, everything }, shown, positions, readings };
 }
