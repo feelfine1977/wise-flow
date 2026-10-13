@@ -147,6 +147,7 @@ export {
   patternTokens,
   hatchTokens,
   readableTokens,
+  viewTokens,
   designTokens,
   themedColors,
 } from "./tokens.js";
@@ -409,11 +410,13 @@ export type {
 
 export {
   budgetEdges,
+  pathsAtZoom,
 } from "./edge-budget.js";
 export type {
   EdgeBudget,
   EdgeProtection,
   EdgeSelection,
+  ZoomedPaths,
   ShownEdges,
 } from "./edge-budget.js";
 
@@ -441,10 +444,14 @@ export type {
   Insets,
   FitView,
   FitOptions,
+  OpeningView,
+  OpeningOptions,
 } from "./viewport.js";
 export {
   fitViewport,
   panelInsets,
+  openingView,
+  processStart,
 } from "./viewport.js";
 
 export type {

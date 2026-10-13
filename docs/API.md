@@ -3244,6 +3244,43 @@ bottom centre of the map (`role="note"`), and the polite live region
 announces it once its numbers have stayed the same for 400 ms, so a view
 in motion does not flood it. The table view always lists every edge.
 
+### Paths at a small zoom
+
+```ts
+export interface ZoomedPaths { through: number[]; withheld: number }   // positions in scene.edgeMarks let through, in its order; the paths withheld
+export function pathsAtZoom(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style" | "graph">, zoom: number, minPx: number,
+  protection?: EdgeProtection): ZoomedPaths | undefined;
+export const viewTokens: { openingZoom: 0.75; pathPx: 0.5; overview: { width: 200; height: 120 } };
+```
+
+**The rule: a path is drawn while its line is at least half a pixel wide
+on the screen** (`viewTokens.pathPx`, 0.5: its width on the width scale,
+`EdgeMark.width`, times the zoom). At zoom 0.75, where a map that does not
+fit opens, every path is drawn (the thinnest line is 1 wide); below 0.5 the
+thinnest lines go, and the wider ones at smaller zooms, each at its own
+zoom. Always drawn, whatever the zoom: every edge that is not a path (a
+constraint edge, an indirect path), a path that loops on one activity, a
+path with an overlay mark on it, a selected or focused one, one on a
+highlighted path (as under the edge budget), and the paths that keep every
+activity on a way from a start to an end: each activity's strongest path
+from and to a more frequent activity, a start or an end, as the detail
+shares keep them (`abstract(scene.graph, { activityDetail: 1, pathDetail: 0
+})`, computed once per scene). So every activity a start reaches and that
+reaches an end does so through the paths drawn, at every zoom. What it lets
+through only grows as the zoom grows. `pathsAtZoom` returns undefined when
+every path is let through, with `minPx` 0 and at a zoom that is not
+positive; otherwise the positions in `scene.edgeMarks` of the edges let
+through and how many paths it withholds. On the whole BPIC log with every
+activity and path selected, fitted into 1,400 × 900 (zoom 0.078), it lets
+84 of the 656 lines through (the 21 loops are drawn as loops), 84 of them
+the paths that keep the activities connected; at zoom 1 it lets every path
+through.
+
+The rule chooses what is drawn on the screen only: the selection of the
+detail panel, the graph, the table view and an export of the whole figure
+are unchanged. How the maps apply it is under "Opening view and paths at a
+small zoom" in [Controls and panels](#controls-and-panels).
+
 ### Adaptive budget
 
 `edgeBudget` of `<ProcessMap/>`, `<CanvasMap/>` and `<ViewSwitcher/>` also
@@ -3471,6 +3508,13 @@ export interface FitView { x: number; y: number; zoom: number }
 export interface FitOptions { insets?: Partial<Insets>; padding?: number; minZoom?: number; maxZoom?: number }   // padding default 0.08
 export function fitViewport(bounds: Box, area: { width; height }, options?: FitOptions): FitView;
 export function panelInsets(panels: readonly Box[], area: { width; height }, bounds: Box, options?: Omit<FitOptions, "insets"> & { gap?: number }): Insets;
+// wise-flow: the view a map opens at
+export interface OpeningView extends FitView { fitted: boolean; overview?: Box }
+export interface OpeningOptions extends Omit<FitOptions, "insets"> { panels?: readonly Box[]; insets?: Partial<Insets>; gap?: number;
+  readable?: number;          // default viewTokens.openingZoom, 0.75
+  start?: Box; direction?: LayoutDirection; boxes?: readonly Box[]; overview?: { width: number; height: number } }
+export function openingView(bounds: Box, area: { width; height }, options?: OpeningOptions): OpeningView;
+export function processStart(nodes: readonly FlowNode[], positions: Pick<Positions, "nodes" | "direction">): Box | undefined;
 ```
 
 **Zoom.** `<ZoomControl/>` is a group (`role="group"`, named "Zoom", in the

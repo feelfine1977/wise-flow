@@ -506,6 +506,17 @@ export const minimumTokens = { text: 8.25, stroke: 0.75 } as const;
 export const readableTokens = { steps: 8, first: 16, last: 56, hysteresis: 0.1, nameChars: 8 } as const;
 
 /**
+ * How a map opens and what it draws at a small zoom. A map opens fitted where
+ * the whole map fits at `openingZoom` or more; otherwise it opens at
+ * `openingZoom` on the start of the process, with an overview of the whole
+ * map, `overview.width` wide and at most `overview.height` high (screen
+ * pixels), in a corner no panel occupies. A path is drawn while its line is
+ * at least `pathPx` of a screen pixel wide (its width on the width scale
+ * times the zoom), so that at zoom `openingZoom` every path is drawn.
+ */
+export const viewTokens = { openingZoom: 0.75, pathPx: 0.5, overview: { width: 200, height: 120 } } as const;
+
+/**
  * What a theme's rules may set, on the scales: a stroke weight of 1 or 2, a
  * radius of 4, 8 or full (half the shorter side of the box), an opacity from
  * 0.2 to 1 (a value outside is clamped), a text size up to 15 (from the
@@ -565,6 +576,7 @@ export const designTokens = {
   hatch: hatchTokens,
   minimum: minimumTokens,
   readable: readableTokens,
+  view: viewTokens,
   rule: ruleTokens,
   print: printTokens,
 } as const;

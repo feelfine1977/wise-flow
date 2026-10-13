@@ -1,4 +1,10 @@
-/** The edge budget: which of the edges in view a map draws (protected first, then highlighted, then by weight, then id), for every renderer. */
+/**
+ * Which edges a map draws: at a small zoom only the paths whose lines can be
+ * told apart (`pathsAtZoom`), and under an edge budget those of the edges in
+ * view it keeps (protected first, then highlighted, then by weight, then id),
+ * for every renderer.
+ */
+import { abstract } from "./aggregate.js";
 import { isPath } from "./detail.js";
 import type { EdgeMark } from "./element-marks.js";
 import { metric } from "./model.js";
@@ -126,6 +132,56 @@ export function budgetEdges(scene: BudgetScene, budget: EdgeBudget | ShownEdges 
   const highlightedNotShown = highlighted.filter((i) => !drawn.has(i)).length;
   const pathsNotShown = [...paths].filter((i) => !drawn.has(i)).length;
   return drawn.size < total ? { drawn, shown: drawn.size + loops.length, total: total + loops.length, kept, loops, highlightedNotShown, pathsNotShown } : undefined;
+}
+
+/** The paths a map lets through at a zoom (`pathsAtZoom`): positions in `scene.edgeMarks`, and how many paths it withholds. */
+export interface ZoomedPaths {
+  /** The edges let through, in the scene's order. */
+  through: number[];
+  /** The paths withheld (follows and flow edges); every other edge is let through. */
+  withheld: number;
+}
+
+// Per scene: the ids of the paths that keep every activity on a way from a start to an end.
+const anchorsByMarks = new WeakMap<readonly EdgeMark[], ReadonlySet<string>>();
+
+/**
+ * The paths that keep each activity of a scene on a way from a start to an
+ * end: what the detail shares keep of the scene's graph at every activity and
+ * no path by frequency, each activity's strongest path from and to a more
+ * frequent activity, a start or an end (`abstract`).
+ */
+function anchorsOf(scene: Pick<FlowScene, "edgeMarks" | "graph">): ReadonlySet<string> {
+  let anchors = anchorsByMarks.get(scene.edgeMarks);
+  if (!anchors) anchorsByMarks.set(scene.edgeMarks, (anchors = new Set(abstract(scene.graph, { activityDetail: 1, pathDetail: 0 }).edges.map((e) => e.id))));
+  return anchors;
+}
+
+/**
+ * The paths a map lets through at `zoom`: a path is drawn while its line is
+ * at least `minPx` of a screen pixel wide (its width on the width scale,
+ * `EdgeMark.width`, times the zoom). Always let through: every edge that is
+ * not a path (constraint edges, indirect paths), a path that loops on one
+ * activity, a path with a mark on it, a selected or focused one, one on a
+ * highlighted path, and the paths that keep every activity on a way from a
+ * start to an end (each activity's strongest path from and to a more
+ * frequent one). Undefined when every path is let through, also with
+ * `minPx` 0. What it lets through grows as the zoom grows.
+ */
+export function pathsAtZoom(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style" | "graph">, zoom: number, minPx: number, protection: EdgeProtection = {}): ZoomedPaths | undefined {
+  const marks = scene.edgeMarks;
+  if (!(minPx > 0) || !(zoom > 0) || marks.every((m) => m.width * zoom >= minPx)) return undefined;
+  const { marked } = orderOf(scene);
+  const anchors = anchorsOf(scene);
+  const selected = new Set(protection.selection?.edges);
+  const through: number[] = [];
+  let withheld = 0;
+  marks.forEach(({ id, edge, width }, i) => {
+    const kept = !isPath(edge) || edge.source === edge.target || width * zoom >= minPx || marked[i] || selected.has(id) || protection.focused === id || !!protection.highlighted?.has(id) || anchors.has(id);
+    if (kept) through.push(i);
+    else withheld++;
+  });
+  return withheld ? { through, withheld } : undefined;
 }
 
 /** The adaptive budget's first step; the steps are 500, 1,000, 2,000, … */
