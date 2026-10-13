@@ -2,7 +2,7 @@
  * Deterministic SVG export of a scene with an embedded legend and figure presets.
  */
 import type { ActivityLabelOptions } from "./activity-labels.js";
-import { type EdgeBudget, type EdgeSelection, type ShownEdges, budgetEdges } from "./edge-budget.js";
+import { type EdgeBudget, type EdgeSelection, type ShownEdges, budgetEdges, keptLoop } from "./edge-budget.js";
 import { type BoxSide, type ElementText, lineEnd } from "./element-marks.js";
 import { type FigurePreset, type LegendLayout, figureFloor, figureFrame, figureHeading, figureMetrics, legendMetrics, millimetres } from "./figure.js";
 import type { Locale } from "./format.js";
@@ -103,6 +103,7 @@ interface Ctx {
   /** What the texts show at the map's scale in the figure. */
   readable: Readable;
   withheld?: EdgeSelection;
+  keptLoops?: ReadonlySet<string>;
 }
 
 function rect(b: Box, attrs: string): string {
@@ -234,7 +235,7 @@ function drawMarks(ctx: Ctx, layer: OverlayMark["layer"]): string {
   const options = markOptions(ctx);
   const { readable, scene } = ctx;
   return scene.marks
-    .filter((m) => m.layer === layer && m.inMap && ctx.lodZoom >= m.minZoom && (readable.pills || !isPill(m)))
+    .filter((m) => m.layer === layer && m.inMap && (ctx.lodZoom >= m.minZoom || keptLoop(m, ctx.keptLoops)) && (readable.pills || !isPill(m)))
     .map((m) => svgMarkup(markSvg(readableMark(m, readable, scene.readable), options)))
     .join("");
 }
@@ -314,7 +315,7 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
   const frame = figureFrame(scene, { title: !!given.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: options.widthMm !== undefined ? millimetres(options.widthMm) : options.width, withheld, caption: options.caption, floor });
   const { padding: pad, width: totalW, height: totalH, outWidth: outW, outHeight: outH } = frame;
   const lodZoom = options.lodZoom ?? (floor > 0 ? frame.map.scale : 1);
-  const ctx: Ctx = { scene, colors, locale, lod: lodAt(lodZoom, scene.lod), lodZoom, readable: frame.readable, withheld };
+  const ctx: Ctx = { scene, colors, locale, lod: lodAt(lodZoom, scene.lod), lodZoom, readable: frame.readable, withheld, keptLoops: options.edgeBudget && typeof options.edgeBudget === "object" ? new Set(options.edgeBudget.edges) : undefined };
   // A declared width in millimetres is the figure's size; otherwise its pixels.
   const size = (n: number) => (options.widthMm !== undefined ? `${num((n * options.widthMm) / outW)}mm` : num(n));
 

@@ -45,7 +45,6 @@ export class CanvasRenderer {
   /** Gestures under way, and the zoom the view last rested at, which the paths drawn at a small zoom are decided at. */
   private gestures: number | undefined;
   private restZoom: number | undefined;
-  private gestureZoom: number | undefined;
   /** Once the scene changed, the ids of the edges the last draw drew while withholding some. */
   private drawnIds: Set<string> | undefined;
   tokens: CanvasTokens;
@@ -215,7 +214,6 @@ export class CanvasRenderer {
   /** A pan or zoom starts: an adaptive edge budget times its frames, and the paths drawn stay as they are until the view rests. */
   beginGesture(): void {
     if (this.disposed) return;
-    if (!this.gestures) this.gestureZoom = this.viewport.zoom;
     this.gestures = (this.gestures ?? 0) + 1;
     (this.adapter ??= edgeBudgetAdapter(this.clock)).start();
   }
@@ -223,7 +221,7 @@ export class CanvasRenderer {
   /** It ends: an adaptive edge budget may move a step, only with the zoom direction when a path rule is active; once no gesture is under way the view is at rest and drawn. */
   endGesture(): void {
     if (this.gestures) this.gestures--;
-    const stepped = this.adapter?.end(this.drawOptions.pathRule ? this.viewport.zoom - this.gestureZoom! : undefined);
+    const stepped = this.adapter?.end(this.drawOptions.pathRule ? this.viewport.zoom - this.restZoom! : undefined);
     if (stepped || (!this.gestures && this.drawOptions.pathRule && this.restZoom !== this.viewport.zoom)) this.requestDraw();
   }
 
@@ -231,6 +229,6 @@ export class CanvasRenderer {
   dispose(): void {
     this.disposed = true;
     if (this.frame !== undefined && typeof cancelAnimationFrame === "function") cancelAnimationFrame(this.frame);
-    this.frame = this.scene = this.drawnIds = this.ctx = this.adapter = this.onDraw = this.onViewportChange = this.gestures = this.restZoom = this.gestureZoom = undefined;
+    this.frame = this.scene = this.drawnIds = this.ctx = this.adapter = this.onDraw = this.onViewportChange = this.gestures = this.restZoom = undefined;
   }
 }

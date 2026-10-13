@@ -92,6 +92,7 @@ describe("the paths the React map draws at a small zoom", () => {
     await map.to({ x: 0, y: 0, zoom: fitted });
     await map.rest();
     expect(map.lines()).toEqual(ruleAt(scene, fitted));
+    expect(map.container.querySelectorAll(".wf-selfloop")).toHaveLength(21);
     // 84 lines of 656 and the 21 loops, which are never withheld; the panel counts the 677 paths selected.
     expect(map.note()).toBe("Showing 105 of 677 flows");
     expect(map.drawnLine()).toBe("677 selected · 105 drawn at this zoom");
@@ -156,6 +157,9 @@ describe("the paths the React map draws at a small zoom", () => {
     const figure = toSVG({ graph: shown, positions }, { edgeBudget: last });
     expect(svgEdges(figure)).toEqual(map.lines());
     expect(svgNote(figure)).toBe(map.note());
+    const smallFigure = toSVG({ graph: shown, positions }, { edgeBudget: last, lodZoom: fitted });
+    expect([...smallFigure.matchAll(/class="wf-overlay wf-selfloop"/g)]).toHaveLength(21);
+    expect([...toSVG({ graph: shown, positions }, { lodZoom: fitted }).matchAll(/class="wf-overlay wf-selfloop"/g)]).toHaveLength(0);
     expect(svgEdges(toSVG({ graph: shown, positions }))).toHaveLength(656);
     // The table lists every path at any zoom.
     vi.useRealTimers();

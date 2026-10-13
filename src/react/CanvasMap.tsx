@@ -119,7 +119,6 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
   const [overHit, setOverHit] = useState(false);
   const fitted = useRef<{ key?: string; graph: unknown }>(undefined);
   const fittedView = useRef<unknown>(undefined);
-  const [zoom, setZoom] = useState<number>();
   const fitInsetsRef = useRef(fitInsets);
   fitInsetsRef.current = fitInsets;
   const openingRef = useRef(opening);
@@ -165,7 +164,6 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
     if (!canvas || !host) return;
     const renderer = new CanvasRenderer(canvas, { tokens, clock });
     renderer.onViewportChange = (v) => {
-      setZoom(v.zoom);
       setView(v);
       onViewportChange?.(v);
     };
@@ -399,7 +397,7 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
         </div>
       ) : null}
       <div className="wf-overlay-panel wf-overlay-panel--bottom-left">
-        <ZoomControl zoom={zoom} locale={locale} onZoomIn={() => rendererRef.current?.zoomBy(ZOOM_STEP)} onZoomOut={() => rendererRef.current?.zoomBy(1 / ZOOM_STEP)} onFit={() => {
+        <ZoomControl zoom={view?.zoom} locale={locale} onZoomIn={() => rendererRef.current?.zoomBy(ZOOM_STEP)} onZoomOut={() => rendererRef.current?.zoomBy(1 / ZOOM_STEP)} onFit={() => {
             fittedByPerson.current = true;
             fitNow();
           }}

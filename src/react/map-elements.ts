@@ -5,7 +5,7 @@ import { type DrawState, type PreparedScene, canvasTextMeasure } from "../canvas
 import { retainScene } from "../canvas/scene.js";
 import { LABELS } from "../core/readable.js";
 import { describeIndexedEdge } from "../core/describe.js";
-import { FIRST_STEP, mapEdges } from "../core/edge-budget.js";
+import { FIRST_STEP, keptLoop, mapEdges } from "../core/edge-budget.js";
 import { describeGroup, describeNode } from "./describe.js";
 import { coverBackground } from "./marks.js";
 import { GROUP_PREFIX } from "./map-pointer.js";
@@ -289,7 +289,7 @@ export function useFlowElements(input: FlowInput) {
       };
     });
   }, [positions, enabled, scene, describeElement, selection, hovered, focused, bright, withheld]);
-  const shownBetween = useMemo(() => between.map(inHover), [between, inHover]);
+  const shownBetween = useMemo(() => between.map((m) => inHover(pathRule && keptLoop(m, true) ? { ...m, minZoom: 0 } : m)), [between, inHover, pathRule]);
   // The heads the edges end in, one per size.
   const arrows = useMemo(() => [...new Map(rfEdges.map((e) => [e.data!.mark!.arrow.size, e.data!.mark!.arrow])).values()].sort((a, b) => a.size - b.size), [rfEdges]);
   return { nodes: rfNodes, edges: rfEdges, between: shownBetween, withheld, arrows };

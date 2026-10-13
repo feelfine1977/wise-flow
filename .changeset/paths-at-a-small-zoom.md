@@ -40,3 +40,6 @@ uncounted connectors, keeping the screen and shown export notes equal.
 
 Adaptive live-map budgets stay fixed through pure pans and move only with
 the zoom direction, so their settled counts remain monotone when zooming.
+
+Counted path loops remain drawn below the overlay LOD on live maps and in
+shown exports. Default exports keep their previous output.

@@ -3281,6 +3281,9 @@ activity and path selected, fitted into 1,400 × 900 (zoom 0.078), it lets
 the paths that keep the activities connected; at zoom 1 it lets every path
 through.
 
+Counted path loops stay visible below the overlays' level of detail. Shown
+exports keep their named loops too; default exports retain their usual LOD.
+
 **On the maps.** `<ProcessMap minPathPx/>` and `<CanvasMap minPathPx/>`
 (default `viewTokens.pathPx`, 0.5; 0 turns the rule off) apply it in both
 renderers, decided when the view is at rest, as the adaptive budget moves:

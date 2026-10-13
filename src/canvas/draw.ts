@@ -1,5 +1,5 @@
 /** Drawing routines of the canvas renderer: plain 2D context calls for a scene, a viewport and a state, culled on large scenes; `canvasTextMeasure`. */
-import { mapEdges, selfLoopsOf } from "../core/edge-budget.js";
+import { keptLoop, mapEdges, selfLoopsOf } from "../core/edge-budget.js";
 import { headTriangle } from "../core/element-marks.js";
 import { type Arrowhead, type Box, type BoxSide, type XY, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type PatternLook, type Readable, type Selection, type ShownEdges, type StateStyle, type TextMeasure, type Theme, arrowheadExtent, dimensionTokens, fixedColors, hatchTokens, legendLayout, legendMetrics, budgetEdges, defaultTheme, estimateTextWidth, lineEnd, lodAt, markArrowhead, markInState, patternTwin, readableAt, ruleTextRole, stateStyle } from "../core/index.js";
 import { isPill, nodeTexts, readableMark, titleTexts } from "../core/readable.js";
@@ -604,9 +604,10 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
 
   each(scene.groups, "group", groupId, (g) => drawGroup(ctx, scene, g, tokens, state.selection.groups.includes(g.group.id), readable));
   let shapes = 0;
+  const keptLoops = options.pathRule ? true : options.edgeBudget && typeof options.edgeBudget === "object" ? new Set(options.edgeBudget.edges) : undefined;
   const marks = (layer: OverlayMark["layer"]) =>
     each(scene.marks, "overlay", markId, (m) => {
-      if (m.layer !== layer || !m.inMap || lodZoom < m.minZoom || (!readable.pills && isPill(m))) return;
+      if (m.layer !== layer || !m.inMap || (lodZoom < m.minZoom && !keptLoop(m, keptLoops)) || (!readable.pills && isPill(m))) return;
       // Marks below the edges cover whole elements and are not highlighted on hover.
       drawMark(ctx, scene, m, tokens, layer !== "below" && state.hovered === m.id, readable, options);
       shapes++;

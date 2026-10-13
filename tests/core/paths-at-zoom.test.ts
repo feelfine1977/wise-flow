@@ -127,9 +127,10 @@ describe("the paths drawn of the whole log at a small zoom", () => {
       ink.visits.length = 0;
       r.draw();
       const drawn = [...new Set(ink.visits.filter((v) => v.list === "edges" && v.ink).map((v) => v.id))].sort();
+      const drawnLoops = [...new Set(ink.visits.filter((v) => v.list === "marks" && v.ink).map((v) => prepared.marks.find((m) => m.id === v.id)).filter((m) => m?.kind === "selfLoop").map((m) => m!.edgeId!))].sort();
       const w = r.lastDraw!.withheld;
       const through = w ? [...w.drawn].map((i) => prepared.edgeMarks[i].id).sort() : prepared.edgeMarks.map((m) => m.id).sort();
-      return { drawn, through, note: w && { shown: w.shown, total: w.total } };
+      return { drawn, drawnLoops, through, note: w && { shown: w.shown, total: w.total } };
     };
     /** The paths whose drawn extent (the hit index's) reaches into the view. */
     const inView = () => {
@@ -140,6 +141,10 @@ describe("the paths drawn of the whole log at a small zoom", () => {
     const check = (label: string) => {
       const f = frame();
       expect(f.drawn, label).toEqual(f.through.filter((id) => inView().has(id)));
+      const v = r.getViewport();
+      const found = new Set(prepared.hit.within({ x: -v.x / v.zoom, y: -v.y / v.zoom, width: 1400 / v.zoom, height: 900 / v.zoom }).filter((it) => it.kind === "overlay").map((it) => it.shapeId));
+      const expectedLoops = prepared.marks.filter((m) => m.kind === "selfLoop" && m.edgeId && found.has(m.id)).map((m) => m.edgeId!).sort();
+      expect(f.drawnLoops, label).toEqual(expectedLoops);
       // At rest the rule is decided at the view's zoom.
       expect(f.through, label).toEqual(ruleAt(prepared, r.getViewport().zoom));
       expect(offWay(prepared.graph, prepared.graph.edges.filter((e) => f.through.includes(e.id))), label).toEqual([]);
@@ -150,6 +155,14 @@ describe("the paths drawn of the whole log at a small zoom", () => {
     const first = check("fitted");
     expect(first.note).toEqual({ shown: 84 + loops, total: 656 + loops });
     expect(first.drawn).toHaveLength(84);
+    // A shown export uses the same drawing routine, with a report instead of a live path rule: all 21 named loops stay.
+    ink.visits.length = 0;
+    drawScene(ink.ctx, watch(prepared, ink.begin), { ...r.getViewport(), width: 1400, height: 900 }, undefined, {
+      cull: false,
+      edgeBudget: { edges: [...first.through, ...prepared.graph.edges.filter((e) => e.source === e.target).map((e) => e.id)], total: 677 },
+    });
+    const exportedLoops = new Set(ink.visits.filter((v) => v.list === "marks" && v.ink && prepared.marks.find((m) => m.id === v.id)?.kind === "selfLoop").map((v) => v.id));
+    expect(exportedLoops.size).toBe(21);
     // Zoomed in step by step around a point and out again, each step at rest: the number never falls going in, never
     // rises going out; the lines drawn are those let through in view.
     const centre = { x: 700, y: 450 };

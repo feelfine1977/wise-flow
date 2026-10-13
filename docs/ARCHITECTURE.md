@@ -642,7 +642,8 @@ applies to all its edges. The note counts that whole-map selection. Without
 a path rule, low-level drawing retains `budgetEdges` over the edges in view. The default
 budget is adaptive: `CanvasRenderer` times the frames of the gestures its host
 reports with an injected clock and, once the view is at rest, moves the
-budget one step (500, 1,000, 2,000, …) towards 16.7 ms per frame; a number or
+budget one step (500, 1,000, 2,000, …) towards 16.7 ms per frame, only with
+the zoom direction on live maps; a pure pan keeps the budget. A number or
 `"all"` reads no clock. At a small zoom the map draws only the paths
 `pathsAtZoom` lets through at the zoom its view last rested at (a line at
 least half a screen pixel wide, the protected paths, and each activity's

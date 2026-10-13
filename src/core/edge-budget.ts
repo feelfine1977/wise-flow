@@ -8,6 +8,7 @@ import { abstract } from "./aggregate.js";
 import { isPath } from "./detail.js";
 import type { EdgeMark } from "./element-marks.js";
 import { metric } from "./model.js";
+import type { OverlayMark } from "./overlay-marks.js";
 import type { FlowScene } from "./scene.js";
 import { pathMetricOf } from "./style.js";
 
@@ -84,6 +85,11 @@ export function selfLoopsOf(scene: Pick<BudgetScene, "edgeMarks" | "graph" | "po
     for (const e of scene.graph.edges) if (e.source === e.target && scene.positions.nodes[e.source]) loops.set(e.source, [...(loops.get(e.source) ?? []), e.id]);
   }
   return loops;
+}
+
+/** A counted path loop is drawn even below the overlay's level of detail: all on a live map, or those a report names. */
+export function keptLoop(mark: Pick<OverlayMark, "kind" | "edgeId">, paths?: true | ReadonlySet<string>): boolean {
+  return mark.kind === "selfLoop" && !!mark.edgeId && !!paths && (paths === true || paths.has(mark.edgeId));
 }
 
 /** The edges a budget draws of those in view (all when omitted), or those a map reported; undefined when it withholds none. The loops in view count too. */
@@ -200,7 +206,7 @@ export function mapEdges(scene: BudgetScene, budget: EdgeBudget | ShownEdges | u
   if (!zoomed && !cut) return undefined;
   const drawn = cut?.drawn ?? new Set(zoomed!.through);
   const loops = [...selfLoopsOf(scene).values()].flat();
-  const total = scene.graph.meta?.shown?.paths.shown ?? scene.graph.edges.filter(isPath).length;
+  const total = scene.graph.edges.filter(isPath).length;
   const pathsNotShown = (zoomed?.withheld ?? 0) + (cut?.pathsNotShown ?? 0);
   return { drawn, shown: total - pathsNotShown, total, kept: cut?.kept ?? drawn.size, loops, highlightedNotShown: cut?.highlightedNotShown ?? 0, pathsNotShown };
 }
