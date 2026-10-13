@@ -23,5 +23,6 @@ map, the exports and the legend are unchanged.
 New: `Measure`, `LineSpec`; `StyleSpec.measure`, `nodeLine`, `pathLabel` and
 `cueAccent`; `ColorSpec.bins`, `percentile`, `readable` and `required`; the
 legend item kind `classes`, the key kind `shortPart`; `NodeCue.accent`;
+`nodeMark`'s options `line` and `accent`, `edgeMark`'s option `lead`;
 `ThemeDeviation` kind `measure`, which `checkTheme` reports for a palette a
 measure cannot draw, and its check of text on the accent's tint.

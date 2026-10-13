@@ -2780,9 +2780,12 @@ export interface GroupMark { id: string; kind: GroupKind; group: FlowGroup; box:
   radius: number; fill: MarkFill; stroke: { paint: MarkPaint; width: number; dash?: number[]; sides?: BoxSide[] };
   rule?: { paint: MarkPaint; width: number; side: BoxSide }; texts: ElementText[]; chipAnchor: XY; opacity?: number }
 export function nodeMark(n: FlowNode, box: Box, o: { color: string; pattern: PatternId; locale?: Locale; total?: number; outOfScope?: boolean;
-  activityLabels?: ActivityLabelOptions; theme?: Theme; measure?: TextMeasure }): NodeMark;   // total: the log's cases
+  activityLabels?: ActivityLabelOptions; theme?: Theme; measure?: TextMeasure;
+  line?: LineSpec;   // what the number line leads with (StyleSpec.nodeLine)
+  accent?: { metric: string; stripe?: MarkPaint; foot: MarkPaint } }): NodeMark;   // total: the log's cases; accent: the cue's part in the accent (StyleSpec.cueAccent)
 export function edgeMark(e: FlowEdge, points: XY[], o: { color: string; width: number; locale?: Locale; theme?: Theme;
-  label?: CourseLabel; backward?: boolean }): EdgeMark;   // label: the count beside the course instead of 4 above its middle
+  label?: CourseLabel; backward?: boolean;
+  lead?: LineSpec }): EdgeMark;   // label: the count beside the course instead of 4 above its middle; lead: the value before the count (StyleSpec.pathLabel)
 export function groupMark(g: FlowGroup, box: Box, o: { color: string; pattern: PatternId; band?: LaneBand; theme?: Theme }): GroupMark;
 export function nodeMarks(g: FlowGraph, p: Positions, scales: Scales, o?: { locale?; activityLabels?; theme?; measure?; outOfScope?: ReadonlySet<string> }): NodeMark[];
 export function edgeMarks(g: FlowGraph, p: Positions, scales: Scales, locale?: Locale, theme?: Theme,
