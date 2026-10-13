@@ -200,9 +200,10 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
     if (!r) return;
     r.setScene(scene);
     if (scene && fitView && ready && (!fitted.current || fitted.current.key !== fitKey || fitted.current.graph !== (openKey ?? scene.graph))) {
-      if (fitted.current?.graph !== (openKey ?? scene.graph)) fittedByPerson.current = false;
+      const replaced = fitted.current?.graph !== (openKey ?? scene.graph);
+      if (replaced) fittedByPerson.current = false;
       fitted.current = { key: fitKey, graph: openKey ?? scene.graph };
-      openNow();
+      if (replaced || !fittedView.current || r.getViewport() === fittedView.current) openNow();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene, fitKey, openKey, fitView, ready]);

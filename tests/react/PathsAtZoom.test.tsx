@@ -8,7 +8,7 @@
  * end; the table and the default export are unchanged, the export of what
  * the map shows is what it shows.
  */
-import { useReactFlow } from "@xyflow/react";
+import { useReactFlow, useStoreApi } from "@xyflow/react";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { globalScene } from "../../fixtures/bpic2019";
@@ -37,10 +37,16 @@ beforeAll(async () => {
 afterEach(cleanup);
 
 let move: (v: { x: number; y: number; zoom: number }) => void = () => {};
+let gesture: (start: boolean) => void = () => {};
 /** Moves the map's view from inside React Flow. */
 function View() {
   const rf = useReactFlow();
+  const store = useStoreApi();
   move = (v) => void rf.setViewport(v);
+  gesture = (start) => {
+    const handler = start ? store.getState().onMoveStart : store.getState().onMoveEnd;
+    handler?.(new MouseEvent(start ? "mousedown" : "mouseup"), rf.getViewport());
+  };
   return null;
 }
 
@@ -63,6 +69,19 @@ async function mount(props: { selection?: Selection; onEdgesShown?: (s: ShownEdg
 }
 
 describe("the paths the React map draws at a small zoom", () => {
+  it("waits for a held pan to end before applying a zoom change", async () => {
+    const map = await mount();
+    await map.to({ x: 0, y: 0, zoom: fitted });
+    await map.rest();
+    const before = map.lines();
+    act(() => gesture(true));
+    await map.to({ x: 0, y: 0, zoom: 1 });
+    await map.rest();
+    expect(map.lines()).toEqual(before);
+    act(() => gesture(false));
+    await map.rest();
+    expect(map.lines()).toHaveLength(656);
+  });
   it("are those the rule gives over the whole map at the fitted zoom, with the note and the panel's line, and all at zoom 1", async () => {
     const map = await mount();
     await map.to({ x: 0, y: 0, zoom: fitted });

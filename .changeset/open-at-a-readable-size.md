@@ -16,3 +16,7 @@ for graph replacement (defaults to the scene's graph object). A standalone
 Canvas map opens even without a `fitKey`; refreshing its scene under the
 same keys keeps its view. New styling part: `overview`. Its accessible name
 and instructions are available in English and German.
+
+A standalone Canvas map keeps a moved view when its layout key changes,
+and the DOM map waits for active pan gestures to end before updating its
+zoom-dependent path selection.

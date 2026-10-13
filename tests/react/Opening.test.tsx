@@ -234,7 +234,7 @@ describe("a standalone Canvas map", () => {
     };
     const positions: Positions = { nodes: { s: { x: 0, y: 0, width: 36, height: 36 }, a: { x: 200, y: 0, width: 180, height: 64 }, e: { x: 4000, y: 0, width: 36, height: 36 } }, edges: {}, groups: {}, bounds: { x: 0, y: 0, width: 4036, height: 64 }, engine: "given", direction: "RIGHT" };
     const ref = createRef<CanvasMapHandle>();
-    const element = (g = graph, openKey?: number, fitView = true) => <CanvasMap ref={ref} scene={prepareScene(g, positions)} state={{ selection: { nodes: [], edges: [], groups: [] } }} openKey={openKey} fitView={fitView} />;
+    const element = (g = graph, openKey?: number, fitView = true, fitKey?: string) => <CanvasMap ref={ref} scene={prepareScene(g, positions)} state={{ selection: { nodes: [], edges: [], groups: [] } }} openKey={openKey} fitView={fitView} fitKey={fitKey} />;
     const mounted = render(element());
     const zoom = () => ref.current!.renderer()!.getViewport().zoom;
     await waitFor(() => expect(zoom()).toBe(0.75));
@@ -246,6 +246,8 @@ describe("a standalone Canvas map", () => {
     act(() => ref.current!.zoomBy(1.2));
     const moved = ref.current!.renderer()!.getViewport();
     mounted.rerender(element());
+    expect(ref.current!.renderer()!.getViewport()).toEqual(moved);
+    mounted.rerender(element(graph, undefined, true, "controls changed the layout"));
     expect(ref.current!.renderer()!.getViewport()).toEqual(moved);
     mounted.rerender(element(structuredClone(graph)));
     await waitFor(() => expect(zoom()).toBe(0.75));

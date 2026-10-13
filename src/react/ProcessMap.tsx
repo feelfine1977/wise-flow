@@ -234,11 +234,12 @@ function ProcessMapInner(props: ProcessMapProps) {
   const zoom = useCanvas ? canvasViewport.zoom : rfZoom;
   // The zoom the React Flow map's view last rested at: the paths drawn at a small zoom change only then (the Canvas map's renderer keeps its own).
   const [restZoom, setRestZoom] = useState(rfZoom);
+  const [movingView, setMovingView] = useState(false);
   useEffect(() => {
-    if (rfZoom === restZoom) return;
+    if (movingView || rfZoom === restZoom) return;
     const timer = setTimeout(() => setRestZoom(rfZoom), REST_MS);
     return () => clearTimeout(timer);
-  }, [rfZoom, restZoom]);
+  }, [rfZoom, rfX, rfY, restZoom, movingView]);
   const pathRule = useMemo(() => ({ minPx: minPathPx, zoom: restZoom }), [minPathPx, restZoom]);
   const lod = lodAt(zoom, scene.lod);
   // What the texts show at the zoom, within the hysteresis of what they showed: the map writes it on its root as classes.
@@ -605,7 +606,13 @@ function ProcessMapInner(props: ProcessMapProps) {
                 elementsSelectable
                 selectNodesOnDrag={false}
                 {...flowHandlers}
-                onMoveStart={(event) => event && userMove()}
+                onMoveStart={(event) => {
+                  if (event) {
+                    setMovingView(true);
+                    userMove();
+                  }
+                }}
+                onMoveEnd={(event) => { if (event) setMovingView(false); }}
                 minZoom={FLOW_ZOOM.minZoom}
                 maxZoom={FLOW_ZOOM.maxZoom}
                 panOnScroll
