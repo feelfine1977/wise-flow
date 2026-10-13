@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { globalScene } from "../../fixtures/bpic2019";
-import { type FlowGraph, type LegendItem, type Overlay, type Positions, type SceneLegend, MAP_TARGET, abstract, buildScene, collapseGroups, figureCaption, figureFrame, layout, legendLayout, legendOfScene, sceneLegend, toSVG } from "../../src/index";
+import { type FlowGraph, type LegendItem, type Overlay, type Positions, type SceneLegend, type TextMeasure, MAP_TARGET, estimateTextWidth, abstract, buildScene, collapseGroups, figureCaption, figureFrame, layout, legendLayout, legendOfScene, sceneLegend, toSVG } from "../../src/index";
 import { type DrawContext, drawLegend, prepareScene, toPNGCanvas } from "../../src/canvas/index";
 
 const width: LegendItem = { kind: "width", title: "legend.edgeWidth", metric: "count", domain: [1, 9], range: [1, 8] };
@@ -251,6 +251,24 @@ describe("figureFrame", () => {
     expect(frame.key.lines.length).toBeGreaterThan(1);
     expect(frame.key.y).toBe(98 + 24);
     expect(frame.height).toBe(98 + frame.key.lines.length * 16 + 48);
+  });
+
+  it("wraps the activity key of a map as wide as a long name with a few measures of each line, not one per word", () => {
+    for (const words of [250, 1000]) {
+      let measured = 0;
+      const counting: TextMeasure = (s, font) => {
+        measured += s.length;
+        return estimateTextWidth(s, font);
+      };
+      const label = Array.from({ length: words }, () => "invoice").join(" ");
+      // Two activities 10⁷ apart: the key's width holds the whole description of the first on one line.
+      const far: Positions = { nodes: { a: { x: 0, y: 0, width: 280, height: 64 }, b: { x: 1e7, y: 0, width: 280, height: 64 } }, groups: {}, edges: {}, bounds: { x: 0, y: 0, width: 1e7 + 280, height: 64 }, engine: "given", direction: "RIGHT" };
+      const graph: FlowGraph = { nodes: [{ id: "a", kind: "activity", label }, { id: "b", kind: "activity", label: "B" }], edges: [] };
+      expect(toSVG({ graph, positions: far, activityLabels: { mode: "names", references: { a: "A01", b: "A02" } } }, { textMeasure: counting })).toContain(`A01 — ${label}.`);
+      // Doubling and halving over the words measure the line about 2 log₂(words) times; adding one word at a time
+      // measured it once per word, 800 and 3,000 times the name's length.
+      expect(measured, `${words} words`).toBeLessThanOrEqual(4 * Math.log2(words) * label.length);
+    }
   });
 });
 

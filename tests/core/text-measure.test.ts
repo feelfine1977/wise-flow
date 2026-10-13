@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { type ActivityLabelOptions, type FlowGraph, type Overlay, type Positions, type TextMeasure, activityNodeSize, buildScene, defaultTheme, estimateTextWidth, figureFrame, fitText, legendLayout, toSVG, truncateText, wrapActivityText, wrapText } from "../../src/index";
 import { type DrawContext, canvasTextMeasure, drawLegend, drawScene, prepareScene, toPNGCanvas } from "../../src/canvas/index";
 import { leadMeasure } from "../../src/core/text";
+import { caseCount, caseLabel, createRandom, seeds } from "../support/random";
 import * as elements from "./element-kinds";
 
 /** A full em per character: wider than the estimate, so that what it shortens shows which measure was used. */
@@ -63,6 +64,61 @@ describe("the text measure", () => {
     // The estimate at 13 px is 7.15 per character: 29 fit 210.
     expect(wrapActivityText("Change Approval for Purchase Order", 210)).toEqual(["Change Approval for Purchase", "Order"]);
     expect(wrapActivityText("漢字漢字漢字", 28).join("")).toBe("漢字漢字漢字");
+  });
+
+  it("measures a text of many words on one line about as often as the logarithm of their number, not once per word", () => {
+    let measures = 0;
+    let measured = 0;
+    const counting: TextMeasure = (s) => {
+      measures++;
+      measured += s.length;
+      return s.length * 10;
+    };
+    for (const words of [1000, 4000]) {
+      measures = 0;
+      measured = 0;
+      const text = Array.from({ length: words }, (_, i) => `w${i % 10}`).join(" ");
+      expect(wrapText(text, 1e9, { size: 10 }, counting)).toEqual([text]);
+      // Doubling finds the 4,096 or 1,024 words beyond the first in 12 or 10 steps and halving in as many: each measure
+      // holds at most the whole text, so the characters measured are a few times its length, not a thousand times.
+      expect(measures, `${words} words`).toBeLessThanOrEqual(2 * Math.ceil(Math.log2(words)) + 2);
+      expect(measured, `${words} words`).toBeLessThanOrEqual(2 * Math.ceil(Math.log2(words)) * text.length);
+    }
+  });
+
+  it("wraps as a reference that adds a word, and where a word is wider than a line a character, at a time", () => {
+    /** Obviously greedy: the line takes the next word while it fits, a word breaks before the first character that does not. */
+    function reference(text: string, width: number, font: { size: number }, measure: TextMeasure): string[] {
+      const fits = (s: string) => measure(s, font) <= Math.max(font.size, width);
+      const lines: string[] = [];
+      let line = "";
+      for (const word of text.trim().split(/\s+/u)) {
+        if (line && fits(`${line} ${word}`)) {
+          line = `${line} ${word}`;
+          continue;
+        }
+        if (line) lines.push(line);
+        line = "";
+        for (const char of Array.from(word)) {
+          if (line && !fits(line + char)) {
+            lines.push(line);
+            line = "";
+          }
+          line += char;
+        }
+      }
+      if (line) lines.push(line);
+      return lines.length ? lines : [""];
+    }
+    const alphabet = ["a", "b", "W", "i", "ü", "漢", "😀", "-", "."];
+    for (const seed of seeds(caseCount(200))) {
+      const rng = createRandom(seed);
+      const words = Array.from({ length: rng.int(0, 40) }, () => Array.from({ length: rng.int(1, rng.chance(0.1) ? 60 : 12) }, () => rng.pick(alphabet)).join(""));
+      const text = words.join(rng.pick([" ", "  ", "\t", " \n "]));
+      const width = rng.pick([0, 5, 10, 40, 80, 150, 400, 1e6]);
+      const measure = rng.pick([estimateTextWidth, em, tens]);
+      expect(wrapText(text, width, { size: 10 }, measure), caseLabel(seed, `${words.length} words at ${width}`)).toEqual(reference(text, width, { size: 10 }, measure));
+    }
   });
 
   it("measures a lead in its own weight before the rest", () => {

@@ -48,42 +48,45 @@ export function truncateText(text: string, maxWidth: number, font: { size: numbe
 /**
  * Lines of `text` at most `width` wide (at least the font's size): words in
  * order, a word wider than a line broken between characters. The measure is
- * taken to grow with the text, as `truncateText` takes it: where a word breaks,
- * the characters that still fit are found by doubling and halving, so a long
- * word costs about as many measures as it has lines.
+ * taken to grow with the text, as `truncateText` takes it: the words that
+ * still fit on a line, and where a word breaks the characters that still fit,
+ * are found by doubling and halving, so a text costs about as many measures
+ * of a line as it has lines, times the logarithm of its length.
  */
 export function wrapText(text: string, width: number, font: { size: number; weight?: number }, measure: TextMeasure = estimateTextWidth): string[] {
   const limit = Math.max(font.size, width);
   const fits = (s: string) => measure(s, font) <= limit;
+  /** The most of `count` items whose text `of(n)` fits: `fit` do, `over` do not (or run past the items). */
+  const most = (count: number, of: (n: number) => string) => {
+    let fit = 0;
+    let over = 1;
+    while (over <= count && fits(of(over))) [fit, over] = [over, over * 2];
+    over = Math.min(over, count + 1);
+    while (over - fit > 1) {
+      const mid = (fit + over) >> 1;
+      if (fits(of(mid))) fit = mid;
+      else over = mid;
+    }
+    return fit;
+  };
+  const words = text.trim().split(/\s+/u);
   const lines: string[] = [];
   let line = "";
-  for (const word of text.trim().split(/\s+/u)) {
-    if (line && !fits(`${line} ${word}`)) {
+  for (let w = 0; w < words.length; w++) {
+    if (line) {
+      // The words that follow the line on it; the next one starts a line.
+      const joined = most(words.length - w, (n) => `${line} ${words.slice(w, w + n).join(" ")}`);
+      if (joined) line = `${line} ${words.slice(w, w + joined).join(" ")}`;
+      w += joined;
+      if (w === words.length) break;
       lines.push(line);
       line = "";
     }
-    if (line) line += " ";
-    const chars = Array.from(word);
+    const chars = Array.from(words[w]);
     for (let at = 0; at < chars.length; ) {
-      const part = (n: number) => line + chars.slice(at, at + n).join("");
-      // The most characters from `at` that fit: `fit` do, `over` do not (or run past the word).
-      let fit = 0;
-      let over = 1;
-      while (at + over <= chars.length && fits(part(over))) [fit, over] = [over, over * 2];
-      over = Math.min(over, chars.length - at + 1);
-      while (over - fit > 1) {
-        const mid = (fit + over) >> 1;
-        if (fits(part(mid))) fit = mid;
-        else over = mid;
-      }
-      // Not one more fits: a line with text ends; an empty one takes a character anyway.
-      if (!fit && line) {
-        lines.push(line);
-        line = "";
-        continue;
-      }
-      const taken = Math.max(1, fit);
-      line = part(taken);
+      // An empty line takes a character even where none fits.
+      const taken = Math.max(1, most(chars.length - at, (n) => chars.slice(at, at + n).join("")));
+      line = chars.slice(at, at + taken).join("");
       at += taken;
       if (at < chars.length) {
         lines.push(line);
