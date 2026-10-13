@@ -6,7 +6,7 @@ import { detailGraph, offWays, seeded, shuffled, wayThrough, wayThroughHidden } 
 
 const isActivity = (n: FlowNode) => n.kind === "activity" || n.kind === "stage";
 const ids = (elements: { id: string }[]) => elements.map((el) => el.id).sort();
-/** Two checks of a fixed size run 25 to 35 seconds on two cores with coverage, as the hosted runners have: more than Vitest's 30. */
+/** Two checks of a fixed size run 25 to 45 seconds on two cores with coverage, as the hosted runners have: more than Vitest's 30. */
 const LONG_TIMEOUT = 120_000;
 const byShares = (activityDetail: number, pathDetail: number, more: AbstractOptions = {}): AbstractOptions => ({ activityDetail, pathDetail, ...more });
 const PATH_SHARES = [0, 0.1, 0.25, 0.5, 1];
