@@ -26,13 +26,20 @@ test("the map's text is drawn in the lane's own font, bold where bold and with d
   const fonts = { heading: await drawnFonts(page, heading), name: await drawnFonts(page, name), counts: await drawnFonts(page, counts) };
   test.info().annotations.push({ type: "drawn fonts", description: JSON.stringify(fonts) });
   expect(fonts).toEqual({ heading: ["LiberationSans-Bold"], name: ["LiberationSans"], counts: ["LiberationSans", "LiberationSans-Bold"] });
-  // A card's count is bold beside its regular share. Counts ask for tabular digits,
-  // and Liberation Sans draws every digit with one advance.
-  const advances = await counts.evaluate((element) => {
-    const context = document.createElement("canvas").getContext("2d")!;
-    context.font = getComputedStyle(element).font;
-    return [context.measureText("1111").width, context.measureText("8888").width];
-  });
+  // A card's count is bold beside its regular share. Counts ask for tabular digits:
+  // drawn as the count is, in its font and with its numeric variant, as many ones
+  // are as wide as as many eights. (A canvas cannot stand in: the computed `font`
+  // shorthand is empty when a numeric variant is set, so it would measure its own
+  // default font.)
+  const advances = await counts.evaluate((element) => ["1111", "8888"].map((digits) => {
+    const probe = element.firstElementChild!.cloneNode() as HTMLElement;
+    probe.textContent = digits;
+    element.append(probe);
+    const width = probe.getBoundingClientRect().width;
+    probe.remove();
+    return width;
+  }));
+  expect(advances[0]).toBeGreaterThan(0);
   expect(advances[0]).toBe(advances[1]);
   await expect(counts).toHaveCSS("font-variant-numeric", "tabular-nums");
 });
