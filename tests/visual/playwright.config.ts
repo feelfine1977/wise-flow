@@ -2,6 +2,9 @@ import { defineConfig, devices } from "@playwright/test";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
+// On Linux the browser takes its fonts from this file, so the map's text is drawn
+// in Liberation Sans wherever the lane runs; Chromium on macOS ignores it.
+const fontconfig = fileURLToPath(new URL("./fonts.conf", import.meta.url));
 
 // Strict assertions: recording is a separate, explicit approval command.
 export default defineConfig({
@@ -22,6 +25,7 @@ export default defineConfig({
     deviceScaleFactor: 1,
     baseURL: "http://127.0.0.1:6007",
     contextOptions: { reducedMotion: "reduce" },
+    launchOptions: { env: { ...process.env, FONTCONFIG_FILE: fontconfig } },
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
