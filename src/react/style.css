@@ -533,6 +533,12 @@
   margin: 0 0 var(--wf-space-3);
   font-size: var(--wf-text-legend-item);
 }
+.wf-legend__measures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--wf-space-2);
+  margin: 0 0 var(--wf-space-3);
+}
 .wf-legend dl {
   margin: 0;
   display: grid;

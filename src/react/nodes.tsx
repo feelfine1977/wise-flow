@@ -129,16 +129,19 @@ function Band({ mark }: { mark: NodeMark }) {
   ) : null;
 }
 
-/** The frequency cue where the mark places it: its stripe and its foot, inside the border. */
+/** The frequency cue where the mark places it: its stripe and its foot, inside the border, and their part in the accent over them. */
 function Cue({ mark }: { mark: NodeMark }) {
   const { cue, box } = mark;
   if (!cue) return null;
   const border = drawnOutline(mark) ? 0 : mark.stroke.width;
   const at = (b: { x: number; y: number; width: number; height: number }, paint: MarkPaint) => ({ left: px(b.x - box.x - border), top: px(b.y - box.y - border), width: px(b.width), height: px(b.height), background: paintCss(mark, paint) });
+  const accent = cue.accent;
   return (
     <>
       {cue.stripe ? <span className="wf-node__cue" style={at(cue.stripe.box, cue.stripe.paint)} {...part("node-cue")} aria-hidden="true" /> : null}
       {cue.foot ? <span className="wf-node__cue wf-node__cue-foot" style={at(cue.foot.box, cue.foot.paint)} {...part("node-cue-foot")} aria-hidden="true" /> : null}
+      {accent?.stripe ? <span className="wf-node__cue wf-node__cue-accent" style={at(accent.stripe.box, accent.stripe.paint)} aria-hidden="true" /> : null}
+      {accent?.foot ? <span className="wf-node__cue wf-node__cue-foot wf-node__cue-accent" style={at(accent.foot.box, accent.foot.paint)} aria-hidden="true" /> : null}
     </>
   );
 }

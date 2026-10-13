@@ -19,6 +19,9 @@ export interface DomElement {
   /** A card's frequency cue: its stripe and its foot. */
   cue?: { color: string; width: number };
   cueFoot?: { color: string; width: number };
+  /** Their part in the accent. */
+  cueAccent?: { color: string; width: number };
+  cueFootAccent?: { color: string; width: number };
   rule?: { color: string; width: number };
   /** A path's corners and whether it ends in an arrowhead; a path's head as wide as its marker is high. */
   join?: string;
@@ -158,7 +161,7 @@ export function readDomInPage(tints: { id: string; target: string }[]): DomEleme
       const p = el.querySelector<HTMLElement>(`:scope > ${selector}`);
       return p ? { color: getComputedStyle(p).backgroundColor, width: rectBox(p).width } : undefined;
     };
-    out.push({ ...node, ...drawnOutline(shape), fill, band: band ? { color: getComputedStyle(band).backgroundColor, width: band.offsetWidth } : undefined, cue: part(".wf-node__cue:not(.wf-node__cue-foot)"), cueFoot: part(".wf-node__cue-foot") });
+    out.push({ ...node, ...drawnOutline(shape), fill, band: band ? { color: getComputedStyle(band).backgroundColor, width: band.offsetWidth } : undefined, cue: part(".wf-node__cue:not(.wf-node__cue-foot)"), cueFoot: part(".wf-node__cue-foot"), cueAccent: part(".wf-node__cue-accent:not(.wf-node__cue-foot)"), cueFootAccent: part(".wf-node__cue-foot.wf-node__cue-accent") });
   }
   for (const wrapper of document.querySelectorAll<HTMLElement>(".react-flow__node-wfGroup")) {
     const el = wrapper.querySelector<HTMLElement>(":scope > .wf-group")!;
@@ -242,6 +245,8 @@ export function readDom(elements: DomElement[], kinds: Map<string, string>): Dra
       props.band = e.band ? `${paint(e.band.color)} ${num(e.band.width)}` : "none";
       props.cue = cue(e.cue && paint(e.cue.color), e.cue?.width);
       props.cueFoot = cue(e.cueFoot && paint(e.cueFoot.color), e.cueFoot?.width);
+      props.cueAccent = cue(e.cueAccent && paint(e.cueAccent.color), e.cueAccent?.width);
+      props.cueFootAccent = cue(e.cueFootAccent && paint(e.cueFootAccent.color), e.cueFootAccent?.width);
     }
     if (kind.startsWith("edge:")) props.join = e.join ?? "none";
     if (kind === "mark:arc" || kind === "mark:selfLoop") props.arrow = e.arrow ? "yes" : "no";

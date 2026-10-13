@@ -299,7 +299,16 @@ sequential (single hue), diverging (purple–orange) and categorical
 a path by its cases too, on the same square-root scale along the theme's grey
 `neutral` ramp (darker with more cases in the light scheme, brighter in the
 dark), so the main flow is the most visible line; `shortfallStyle` colours it
-by the expectation shortfall share instead. Deviations (badges, chips, arcs,
+by the expectation shortfall share instead. **Measures**: the map shows
+`frequency`, `shortfall` or `performance`, each a named style
+(`measureStyles`; a given style changes it entry by entry, `measureStyle`)
+that the scene resolves once: the path colour (classes by share short, a
+ramp of the median lag from 0 to the 95th percentile of the shown paths over
+the palette's stops at 3 : 1), the value a path's label and an activity's
+number line lead with (an activity's time only from the host's node metric),
+the cases short drawn in the accent of the frequency cue, and the legend's
+sentence and classes; width stays cases and the cue's length the share of all
+cases, so a switch builds the scene again without a layout. Deviations (badges, chips, arcs,
 their labels, tints, constraint edges) are the one hue, the theme's
 `accent`; categorical
 keys take colours with their pattern twins in stage order (the host's stage

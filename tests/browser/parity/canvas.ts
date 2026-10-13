@@ -185,16 +185,18 @@ export function readOps(kind: string, ops: Op[]): Drawn | undefined {
   }
   if (kind.startsWith("node:")) {
     // Rectangles filled after the outline in a colour: the colour band along the left edge, and the frequency cue after
-    // it, its stripe taller than half the outline and its foot lower.
+    // it, its stripe taller than half the outline and its foot lower, each followed by its part in the accent.
     const outer = shapeBox(first.shape)!;
     const fills = drawn.filter((o) => o.op === "fill" && !same(o.shape, first.shape) && !o.paint.startsWith("pattern"));
     const band = fills.find((o) => shapeBox(o.shape)!.x === outer.x);
     const parts = fills.filter((o) => o !== band);
-    const stripe = parts.find((o) => shapeBox(o.shape)!.height > outer.height / 2);
-    const foot = parts.find((o) => shapeBox(o.shape)!.height <= outer.height / 2);
+    const [stripe, stripeAccent] = parts.filter((o) => shapeBox(o.shape)!.height > outer.height / 2);
+    const [foot, footAccent] = parts.filter((o) => shapeBox(o.shape)!.height <= outer.height / 2);
     props.band = band ? `${band.paint} ${num(shapeBox(band.shape)!.width)}` : "none";
     props.cue = cue(stripe?.paint, stripe && shapeBox(stripe.shape)!.width);
     props.cueFoot = cue(foot?.paint, foot && shapeBox(foot.shape)!.width);
+    props.cueAccent = cue(stripeAccent?.paint, stripeAccent && shapeBox(stripeAccent.shape)!.width);
+    props.cueFootAccent = cue(footAccent?.paint, footAccent && shapeBox(footAccent.shape)!.width);
   }
   // A mark drawn as a rounded box (its corners are arcs, of radius 0 too) has a radius; a path has none.
   if (kind.startsWith("mark:") && first.shape.arcs.length) props.radius = radiusOf(first.shape);

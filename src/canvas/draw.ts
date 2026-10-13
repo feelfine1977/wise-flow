@@ -418,7 +418,7 @@ function drawNode(ctx: DrawContext, scene: PreparedScene, n: SceneNode, tokens: 
   ctx.stroke();
   ctx.setLineDash([]);
   // The frequency cue lies inside the outline and under the band and the texts.
-  for (const part of [m.cue?.stripe, m.cue?.foot]) {
+  for (const part of [m.cue?.stripe, m.cue?.foot, m.cue?.accent?.stripe, m.cue?.accent?.foot]) {
     if (!part) continue;
     ctx.fillStyle = paintOf(m, part.paint, tokens);
     ctx.fillRect(part.box.x, part.box.y, part.box.width, part.box.height);

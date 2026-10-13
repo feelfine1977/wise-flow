@@ -12,7 +12,7 @@ import { type OverlayGeometry, type OverlayGeometryOptions, groupTitles, placeOv
 import { type OverlayMark, overlayMarks } from "./overlay-marks.js";
 import { canonicalOverlays } from "./overlays.js";
 import { repositionNodes } from "./routing.js";
-import { type LodRules, type Scales, type StyleSpec, buildScales, defaultLod, defaultStyle, lodForSize } from "./style.js";
+import { type LodRules, type Measure, type Scales, type StyleSpec, buildScales, defaultLod, lodForSize, measureStyle } from "./style.js";
 import { type TextMeasure, estimateTextWidth } from "./text.js";
 import { type ColorScheme, type Theme, defaultTheme, themeColors, themePalettes } from "./theme.js";
 import type { ColorToken } from "./tokens.js";
@@ -20,6 +20,13 @@ import type { ColorToken } from "./tokens.js";
 export interface FlowSceneOptions {
   /** Overlays to show. Default `graph.overlays`. */
   overlays?: Overlay[];
+  /**
+   * The measure the map shows (`measureStyles`): `frequency`, `shortfall` or
+   * `performance`. A `style` given too changes it entry by entry
+   * (`measureStyle`). Default: `style`, else `defaultStyle`, which draws
+   * frequency and names no measure.
+   */
+  measure?: Measure;
   style?: StyleSpec;
   locale?: Locale;
   /** Draw stage or lane groups as bands (see `laneBands`). Default `none`. */
@@ -62,6 +69,7 @@ export interface FlowScene {
   /** The given activity-label options with references for every activity. */
   activityLabels?: ActivityLabelOptions;
   locale: Locale;
+  /** The style drawn: the measure's with the given style over it. */
   style: StyleSpec;
   /** The theme the marks were resolved in. */
   theme: Theme;
@@ -108,7 +116,7 @@ export function buildScene(graph: FlowGraph, givenPositions: Positions, options:
 /** `buildScene`; `own` places the overlays on the graph's own positions, as on the map (an export's may hold more). */
 export function sceneOf(graph: FlowGraph, givenPositions: Positions, options: FlowSceneOptions, own?: boolean): FlowScene {
   const locale = options.locale ?? "en";
-  const style = options.style ?? defaultStyle;
+  const style = measureStyle(options.measure, options.style);
   const theme = options.theme ?? defaultTheme;
   const scheme = options.scheme ?? "light";
   const colors = themeColors(theme, scheme);

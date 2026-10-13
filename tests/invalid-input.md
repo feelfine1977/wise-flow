@@ -97,6 +97,7 @@ Test: `tests/core/malformed-input.test.ts` › "style, tokens, label sizing and 
 | `lodAt` | `.` | Not documented. | Returns. |
 | `lodForSize` | `.` | Not documented. | Returns. |
 | `buildScales` | `.` | Not documented. | Returns; widths from the data alone are finite; a host's domain or range that is not finite gives widths that are not. |
+| `measureStyle` | `.` | Not documented. | Returns; with thresholds or a percentile that are not finite every path still has a colour and a finite width. |
 | `patternDefs` | `.` | Not documented. | Returns. |
 | `arrowheadExtent` | `.` | Not documented. | Returns; numbers that are not finite pass through to the result. |
 | `patternTwin` | `.` | Not documented. | Returns. |
