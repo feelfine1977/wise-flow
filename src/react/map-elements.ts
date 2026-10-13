@@ -17,15 +17,15 @@ type Bright = { nodes: Set<string>; edges: Set<string> } | undefined;
  * The classes the interactive map writes on its root for what its texts show
  * (`readableAt`): the level (`wf-text--plain` for the cards as they are, at a
  * boost of 1), the rung of the floor, which `tokens.css` turns into
- * `--wf-text-floor`, `wf-text-grow` where titles and pills are scaled (past
- * `grown`), and each kind of label shed. One string, so that a zoom writes
+ * `--wf-text-floor`, `wf-text-grow` where titles and pills are scaled at the
+ * plain level (past `grown`), and each kind of label shed. One string, so that a zoom writes
  * the root once.
  */
 export function readableClasses(r: Readable, grown = Infinity): string {
   const plain = r.level === "full" && r.boost === 1;
   const out = [`wf-text--${plain ? "plain" : r.level}`];
   if (r.step !== undefined && r.step <= readableTokens.last) out.push(`wf-text-f${r.step}`);
-  if (!plain || r.floor > grown) out.push("wf-text-grow");
+  if (plain && r.floor > grown) out.push("wf-text-grow");
   for (const k of LABELS) if (!r.labels[k]) out.push(`wf-text-hide-${k}`);
   if (!r.pills) out.push("wf-text-hide-pills");
   return out.join(" ");
