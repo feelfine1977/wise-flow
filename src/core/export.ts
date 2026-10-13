@@ -153,7 +153,6 @@ function shownTexts(ctx: Ctx, texts: ElementText[]): ElementText[] {
   return texts.filter((t) => !t.lod || ctx.lod[t.lod]);
 }
 
-
 /** The marker of an arrowhead: `wf-arrow` at the rule's size, `wf-arrow-<size>` where it grew with its path. */
 const arrowId = (a: Arrowhead) => (a.size === arrowheadTokens.edge.size ? "wf-arrow" : `wf-arrow-${a.size}`);
 

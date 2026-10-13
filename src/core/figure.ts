@@ -432,7 +432,6 @@ export function figureHeading(scene: FramedScene, frame: FigureFrame, title: str
   return { title: fit(title, text.figureTitle), context: fit(context, text.figureText) };
 }
 
-
 /**
  * The cards numbered in reading order (along the layout's direction, then
  * across it, then by id), each number written in the middle of its card at

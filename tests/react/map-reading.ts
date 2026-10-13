@@ -23,7 +23,6 @@ import { fireEvent } from "@testing-library/react";
 import { type Box, type Locale, type NodeKind, type XY, readableTokens } from "../../src/index";
 import { type DrawnText, type Reading, type TextRole, parsePrinted, textBox } from "../support/reading";
 
-
 /** The readable state the map's root says: its level, its floor (0 without a rung) and the kinds it sheds. */
 function rootState(map: Element) {
   const classes = [...map.classList];
@@ -89,8 +88,6 @@ function svgText(el: Element, owner: string, role: TextRole, k = 1, o: XY = { x:
 
 /** The box of an SVG rectangle. */
 const rectBox = (r: Element): Box => ({ x: num(r, "x"), y: num(r, "y"), width: num(r, "width"), height: num(r, "height") });
-
-
 
 export interface DomReadings {
   /** What shows at the map's zoom: texts the level of detail hides or the readable state sheds are left out, the rest at the size the stylesheet scales them to. */

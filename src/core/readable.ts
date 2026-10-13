@@ -174,8 +174,6 @@ export function readableMark(m: OverlayMark, r: Readable, rules: ReadableRules):
   return m.kind === "selfLoop" && !r.labels.loop && m.texts.length ? { ...m, texts: [] } : m;
 }
 
-
-
 const isCard = (m: NodeMark) => m.kind === "activity" || m.kind === "stage";
 const smallest = (texts: readonly MarkText[]) => texts.reduce((s, t) => Math.min(s, t.size), Infinity);
 
