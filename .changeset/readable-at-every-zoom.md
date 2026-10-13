@@ -1,5 +1,5 @@
 ---
-"wise-flow": patch
+"wise-flow": minor
 ---
 
 The map keeps its texts readable at every zoom. A theme's `text.minScreenPx`
