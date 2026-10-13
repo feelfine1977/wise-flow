@@ -26,6 +26,7 @@ import {
   type OverlayShape,
   type PatternId,
   type Positions,
+  type Measure,
   type StyleSpec,
   type XY,
   HitIndex,
@@ -107,6 +108,8 @@ export interface PreparedScene extends FlowScene {
 
 export interface PrepareOptions {
   activityLabels?: ActivityLabelOptions;
+  /** The measure the map shows (see `FlowSceneOptions.measure`). */
+  measure?: Measure;
   style?: StyleSpec;
   /** Overlays to show. Default `graph.overlays`. */
   overlays?: Overlay[];
@@ -190,6 +193,7 @@ export function selfLoopOverlays(graph: FlowGraph, locale: Locale = "en"): Overl
 export function prepareScene(graph: FlowGraph, givenPositions: Positions, options: PrepareOptions = {}): PreparedScene {
   const scene = sceneOf(graph, givenPositions, {
     overlays: options.overlays,
+    measure: options.measure,
     style: options.style,
     locale: options.locale,
     lanes: options.bands ? "none" : options.lanes,

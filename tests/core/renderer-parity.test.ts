@@ -90,6 +90,22 @@ describe("the parity readers", () => {
     expect(differences([{ name: "bands", kinds: bandKinds, svg: read.svg, others: { canvas: read.canvas, png: read.png } }])).toEqual([]);
   });
 
+  it("read the part of a frequency cue in the accent alike from the three", () => {
+    // In the shortfall measure: of `a`'s 10 cases (half of all) 40 % are short, a fifth of all cases, 171 / 5 = 34.2 long.
+    const short = { ...graph, nodes: graph.nodes.map((n) => (n.id === "a" ? { ...n, metrics: { ...n.metrics, violationShare: 0.4 } } : n)) };
+    const given = { graph: short, positions, overlays, measure: "shortfall" as const };
+    const measured = buildScene(short, positions, given);
+    const measuredKinds = kindsOf(measured);
+    const read = {
+      svg: readSvg(toSVG(given), exportedMarks(measured)),
+      canvas: readCanvasMap(prepareScene(short, positions, given), measuredKinds, measure),
+      png: readPng((createCanvas) => toPNGCanvas(given, { scale: 1, createCanvas }), prepareScene(short, positions, { ...given, lodBySize: false }), measuredKinds, measure),
+    };
+    for (const drawn of Object.values(read)) expect(drawn.get("node:a")!.props).toMatchObject({ cue: "#e6e8ec 86", cueFoot: "#5f6672 86", cueAccent: "#f2ded1 34", cueFootAccent: "#b84a00 34" });
+    expect(read.svg.get("node:b")!.props).toMatchObject({ cueAccent: "none", cueFootAccent: "none" });
+    expect(differences([{ name: "shortfall", kinds: measuredKinds, svg: read.svg, others: { canvas: read.canvas, png: read.png } }])).toEqual([]);
+  });
+
   it("read what a theme's rules set alike from the three, an element's opacity in each of its paints", () => {
     const theme = {
       ...defaultTheme,

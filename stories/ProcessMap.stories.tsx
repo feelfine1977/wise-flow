@@ -37,25 +37,52 @@ function Frame({ children }: { children: React.ReactNode }) {
  */
 export const Map: Story = {
   name: "P2P map",
-  render: (args) => {
-    const [abstraction, setAbstraction] = useState<AbstractOptions>(WHOLE_LOG_DETAIL);
-    const [selection, setSelection] = useState<Selection>({ nodes: [], edges: [], groups: [] });
-    const overlays = useMemo(() => overlaysFor(constraintItems("global"), { graph: globalScene, locale: args.locale }), [args.locale]);
-    return (
-      <Frame>
-        <ProcessMap
-          {...args}
-          graph={globalScene}
-          overlays={overlays}
-          abstraction={abstraction}
-          onAbstractionChange={setAbstraction}
-          selection={selection}
-          onSelect={setSelection}
-          layout={layout}
-        />
-      </Frame>
-    );
-  },
+  render: (args) => <P2PMap {...args} />,
+};
+
+/** The P2P map with its overlays and detail, in the measure its arguments name. */
+function P2PMap(args: Story["args"] & {}) {
+  const [abstraction, setAbstraction] = useState<AbstractOptions>(WHOLE_LOG_DETAIL);
+  const [selection, setSelection] = useState<Selection>({ nodes: [], edges: [], groups: [] });
+  const overlays = useMemo(() => overlaysFor(constraintItems("global"), { graph: globalScene, locale: args.locale }), [args.locale]);
+  return (
+    <Frame>
+      <ProcessMap
+        {...args}
+        graph={globalScene}
+        overlays={overlays}
+        abstraction={abstraction}
+        onAbstractionChange={setAbstraction}
+        selection={selection}
+        onSelect={setSelection}
+        layout={layout}
+      />
+    </Frame>
+  );
+}
+
+/**
+ * The P2P map in the shortfall measure: paths coloured by their share short in
+ * three classes (up to 10 %, 10 to 30 %, over 30 %), their labels and the
+ * activities' number lines led by it, the cases short in the accent of each
+ * activity's frequency cue.
+ */
+export const Shortfall: Story = {
+  name: "P2P map, shortfall",
+  args: { measure: "shortfall" },
+  render: (args) => <P2PMap {...args} />,
+};
+
+/**
+ * The P2P map in the performance measure: paths coloured by their median lag
+ * from 0 to the 95th percentile of the paths shown, their labels led by it, and
+ * the activities' number lines by the median time to the next activity the
+ * log gives.
+ */
+export const Performance: Story = {
+  name: "P2P map, performance",
+  args: { measure: "performance" },
+  render: (args) => <P2PMap {...args} />,
 };
 
 /** The same map without overlays, on the Dagre fallback engine. */

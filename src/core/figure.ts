@@ -8,7 +8,7 @@ import type { Box } from "./layout.js";
 import { channelTitle, formatMetricValue, metricEntry, metricName } from "./metrics.js";
 import { type FlowGraph, type FlowNode, type Overlay, MAP_TARGET } from "./model.js";
 import type { OverlayMark } from "./overlay-marks.js";
-import type { LegendItem, PatternId } from "./style.js";
+import type { LegendItem, Measure, PatternId } from "./style.js";
 import { type StringKey, t } from "./strings.js";
 import { type TextMeasure, estimateTextWidth, truncateText, wrapText } from "./text.js";
 import type { Theme } from "./theme.js";
@@ -25,10 +25,11 @@ export const FIGURE_WIDTHS: Record<Exclude<FigurePreset, "none">, number> = {
 /**
  * What a legend key row explains: an overlay kind (a badge row per glyph),
  * reverse-order arcs, paths and activities not directly observed (re-added),
- * paths through activities not shown, paths not evaluated, and the start and
- * end of the process.
+ * paths through activities not shown, paths not evaluated, the cases short in
+ * the accent of an activity's frequency cue, and the start and end of the
+ * process.
  */
-export type LegendKeyKind = "badge" | "arc" | "reverse" | "selfLoop" | "outOfScope" | "reconnected" | "indirect" | "notEvaluated" | "start" | "end";
+export type LegendKeyKind = "badge" | "arc" | "reverse" | "selfLoop" | "outOfScope" | "reconnected" | "indirect" | "notEvaluated" | "shortPart" | "start" | "end";
 
 export interface LegendKey {
   kind: LegendKeyKind;
@@ -73,6 +74,7 @@ const KEYS: readonly LegendKey[] = [
   { kind: "reconnected", glyph: "┄", title: "legend.reconnected" },
   { kind: "indirect", glyph: "┄", title: "legend.indirect" },
   { kind: "notEvaluated", glyph: "─", title: "legend.notEvaluated" },
+  { kind: "shortPart", glyph: "▬", title: "legend.shortPart" },
   { kind: "start", glyph: "○", title: "legend.start" },
   { kind: "end", glyph: "◉", title: "legend.end" },
 ];
@@ -95,10 +97,13 @@ interface LegendContext {
   pathMetric?: string;
   /** All cases of the scene (`meta.cases`), which the shares are of. */
   cases?: number;
+  /** The measure the style names: the measure's row states its sentence. */
+  measure?: Measure;
 }
 
 /** "Shortfall · cases · share of 251,734 cases": the measure the paths' colour shows, the unit and what the shares are of. */
 function measureText(items: LegendItem[], context: LegendContext, locale: Locale): string {
+  if (context.measure) return t(locale, `measure.sentence.${context.measure}`);
   const colour = items.find((i) => i.title === "legend.edgeColor" && i.kind !== "categorical");
   const metric = colour && "metric" in colour ? colour.metric : undefined;
   // A metric outside the registry names the measure itself.
@@ -119,6 +124,12 @@ function legendOf(items: LegendItem[], keys: LegendKey[], chips: Overlay[], loca
       const title = [channelTitle(item.title, item.metric, locale), ...(item.scale ? [t(locale, item.scale === "shared" ? "legend.widthShared" : "legend.widthScale")] : []), ...(item.transitionsOnly ? [t(locale, "legend.transitionsOnly")] : [])].join(" · ");
       const value = (v: number) => formatMetricValue(item.metric, v, locale, { path: true });
       rows.push({ kind: "width", title, samples: samples.map((s) => ({ width: s.width, text: s.floor ? t(locale, "legend.widthFloor", { value: value(s.value) }) : value(s.value) })) });
+    } else if (item.kind === "classes") {
+      // "up to 10 %", "10 to 30 %", "over 30 %": each class with its bounds.
+      const { bounds, metric } = item;
+      const value = (i: number) => formatMetricValue(metric, bounds[i], locale);
+      const text = (i: number) => (i === 0 ? t(locale, "legend.classFirst", { high: value(0) }) : i === bounds.length ? t(locale, "legend.classLast", { low: value(i - 1) }) : t(locale, "legend.classBetween", { low: value(i - 1), high: value(i) }));
+      rows.push({ kind: "swatches", title: channelTitle(item.title, metric, locale), entries: item.colors.map((color, i) => ({ text: text(i), color, pattern: "solid" })) });
     } else if (item.kind === "categorical") {
       const channel = t(locale, item.title);
       rows.push({ kind: "swatches", title: item.entries.some((e) => e.label !== undefined) ? t(locale, "legend.channelBare", { channel, metric: t(locale, "legend.stage") }) : channel, entries: item.entries.map((e) => ({ text: e.label ?? e.key, color: e.color, pattern: e.pattern })) });
@@ -151,9 +162,9 @@ export function sceneLegend(items: LegendItem[], overlays: readonly Overlay[], l
 
 /** The parts of a scene its legend is built from. */
 export interface LegendSource {
-  scales: { legend: LegendItem[]; /** The metric paths are labelled with; default the width's. */ pathMetric?: string };
+  scales: { legend: LegendItem[]; /** The metric paths are labelled with; default the width's. */ pathMetric?: string; /** The style, whose measure the legend names. */ spec?: { measure?: Measure } };
   marks: readonly OverlayMark[];
-  nodeMarks: readonly { reconnected: boolean; node?: FlowNode }[];
+  nodeMarks: readonly { reconnected: boolean; node?: FlowNode; cue?: { accent?: unknown } }[];
   edgeMarks: readonly { reconnected: boolean; indirect?: boolean; notEvaluated?: boolean }[];
   locale: Locale;
   /** Its graph, whose `meta.cases` the measure's shares are of. */
@@ -174,12 +185,13 @@ export function legendOfScene(scene: LegendSource): SceneLegend {
     k === "reconnected" ? nodeMarks.some((m) => m.reconnected) || edgeMarks.some((m) => m.reconnected)
     : k === "indirect" ? edgeMarks.some((m) => m.indirect)
     : k === "notEvaluated" ? edgeMarks.some((m) => m.notEvaluated)
+    : k === "shortPart" ? nodeMarks.some((m) => m.cue?.accent)
     : k === "start" || k === "end" ? event(k)
     : marks.some((m) => m.inMap && m.kind === overlayKind(k) && (k !== "reverse" || !!m.overlay.payload?.reverse));
   const items = scene.scales.legend.filter((item) => (item.title === "legend.nodeColor" ? nodeMarks : edgeMarks).length > 0);
   const keys = [...badgeKeys(marks.filter((m) => m.inMap && m.kind === "badge").map((m) => m.overlay)), ...KEYS.filter((k) => present(k.kind))];
   const cases = scene.graph?.meta?.cases;
-  return legendOf(items, keys, marks.filter((m) => m.kind === "chip" && !m.inMap).map((m) => m.overlay), scene.locale, { pathMetric: scene.scales.pathMetric, cases: typeof cases === "number" ? cases : undefined });
+  return legendOf(items, keys, marks.filter((m) => m.kind === "chip" && !m.inMap).map((m) => m.overlay), scene.locale, { pathMetric: scene.scales.pathMetric, cases: typeof cases === "number" ? cases : undefined, measure: scene.scales.spec?.measure });
 }
 
 /** Row heights of the legend in a figure; text offsets within a row stay with the renderers. */
@@ -207,7 +219,7 @@ export const legendMetrics = {
 export function legendItemHeight(item: LegendItem): number {
   const m = legendMetrics;
   if (item.kind === "width") return m.itemTitle + (item.samples?.length ?? 2) * m.entry + m.entriesEnd;
-  if (item.kind === "categorical") return m.itemTitle + item.entries.length * m.entry + m.entriesEnd;
+  if (item.kind === "categorical" || item.kind === "classes") return m.itemTitle + (item.kind === "classes" ? item.colors : item.entries).length * m.entry + m.entriesEnd;
   return m.itemTitle + m.gradient;
 }
 

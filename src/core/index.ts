@@ -106,6 +106,8 @@ export {
   defaultStyle,
   diffStyle,
   shortfallStyle,
+  measureStyles,
+  measureStyle,
 } from "./style.js";
 export type {
   PatternId,
@@ -117,6 +119,8 @@ export type {
   CategoricalEntry,
   LegendItem,
   Scales,
+  Measure,
+  LineSpec,
 } from "./style.js";
 
 export {

@@ -51,6 +51,7 @@ import {
   asFilter,
   budgetEdges,
   buildScales,
+  measureStyle,
   buildScene,
   canonicalClause,
   canonicalFilter,
@@ -385,7 +386,7 @@ describe("malformed input at the core entry point", () => {
 
   it(
     "style, tokens, label sizing and formatting",
-    search(["hexToRgb", "interpolatePalette", "contrastRatio", "contrastText", "hashKey", "lodAt", "lodForSize", "buildScales", "patternDefs", "arrowheadExtent", "patternTwin", "cssVariable", "labelUnitsAt", "smallLabelUnitsAt", "mapScaleAt", "labelScreenPx", "formatCount", "formatNumber", "formatShare", "formatDelta", "formatHours", "formatDays", "formatCompact", "t", "metricLabel", "orderedCategorical", "themePalette", "resolveTheme", "themeColors", "checkTheme", "formatPathCount", "metricEntry", "metricKind", "metricName", "metricUnit", "metricBasis", "formatMetricValue", "elementMetric", "metricLabelOf", "metricMeanNote", "channelTitle", "wrapText"], (calls, c) => {
+    search(["hexToRgb", "interpolatePalette", "contrastRatio", "contrastText", "hashKey", "lodAt", "lodForSize", "buildScales", "patternDefs", "arrowheadExtent", "patternTwin", "cssVariable", "labelUnitsAt", "smallLabelUnitsAt", "mapScaleAt", "labelScreenPx", "formatCount", "formatNumber", "formatShare", "formatDelta", "formatHours", "formatDays", "formatCompact", "t", "metricLabel", "orderedCategorical", "themePalette", "resolveTheme", "themeColors", "checkTheme", "formatPathCount", "metricEntry", "metricKind", "metricName", "metricUnit", "metricBasis", "formatMetricValue", "elementMetric", "metricLabelOf", "metricMeanNote", "channelTitle", "wrapText", "measureStyle"], (calls, c) => {
       const colour = () => c.rng.pick([junkString(c.rng), "#fff", "#1f77b4", "#ABCDEF", "#abc", "fff"]);
       calls.call("hexToRgb", c, () => hexToRgb(colour()));
       calls.call("interpolatePalette", c, () => interpolatePalette(c.rng.pick([palettes.sequential, palettes.diverging, [colour()], [colour(), colour()]]), junkNumber(c.rng)));
@@ -406,6 +407,12 @@ describe("malformed input at the core entry point", () => {
         const soundSpec = spec !== custom || (!domain && range.every((v) => within(v, 0, 1000)));
         for (const e of c.graph.edges) must((Number.isFinite(scales.edgeWidth(e)) || !soundSpec) && typeof scales.edgeColor(e) === "string", c, () => `edge width ${scales.edgeWidth(e)} of ${e.id}`);
         for (const n of c.graph.nodes) must(typeof scales.nodeColor(n) === "string", c, () => `node colour of ${n.id}`);
+      });
+      calls.call("measureStyle", c, () => {
+        // A measure's style with thresholds and a percentile a host computed: every path still has a colour and a width.
+        const given = c.rng.chance() ? { edgeColor: { bins: [junkNumber(c.rng), junkNumber(c.rng)], percentile: junkNumber(c.rng) } } : undefined;
+        const scales = buildScales(c.graph, measureStyle(c.rng.pick(["frequency", "shortfall", "performance"] as const), given));
+        for (const e of c.graph.edges) must(typeof scales.edgeColor(e) === "string" && Number.isFinite(scales.edgeWidth(e)), c, () => `edge colour ${scales.edgeColor(e)} and width ${scales.edgeWidth(e)} of ${e.id}`);
       });
       calls.call("patternDefs", c, () => patternDefs(junkString(c.rng), colour()));
       calls.call("arrowheadExtent", c, () => arrowheadExtent({ ...arrowheadTokens.edge, size: junkNumber(c.rng), length: junkNumber(c.rng) }));

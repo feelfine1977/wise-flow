@@ -667,7 +667,24 @@ follows.
 
 ```ts
 export interface StyleSpec { edgeWidth?: ChannelSpec; edgeColor?: ColorSpec; nodeColor?: ColorSpec; lod?: Partial<LodRules>;
-  stages?: readonly string[] }   // the host's full stage list in stage order: categorical colours follow it
+  stages?: readonly string[];   // the host's full stage list in stage order: categorical colours follow it
+  measure?: Measure;            // the measure the style shows: the legend states its sentence
+  nodeLine?: LineSpec;          // what an activity's number line leads with; default its cases, then their share
+  pathLabel?: LineSpec;         // what a path's label leads with before its count; default the count alone
+  cueAccent?: string }          // the metric whose share of an activity's cases its frequency cue draws in the accent
+export interface ColorSpec { metric?: string; palette?: PaletteName; scale?: "linear" | "sqrt"; domain?: number[];
+  by?: "group" | "kind" | "tag" | "layer"; tagPrefix?: string;
+  bins?: readonly number[];     // classes instead of a ramp: the bounds between them; a value on a bound is in the class below
+  percentile?: number;          // the domain from 0 to this percentile of the paths' values (nearest rank)
+  readable?: boolean;           // the ramp over the palette's stops at 3 : 1 or more against the paper, least first
+  required?: boolean }          // a path without a value of the metric is not evaluated
+export type Measure = "frequency" | "shortfall" | "performance";
+export interface LineSpec { metric: string;
+  format?: "value" | "short" | "toNext";   // "12 d", "35 % short", "4.7 d to next"
+  then?: "cases" | "share";                 // what follows an activity's value after "·"; default its cases
+  missing?: "dash" | "frequency" }          // without a value: "–" in its place (default), or the line as without the setting
+export const measureStyles: Readonly<Record<Measure, StyleSpec>>;   // the named styles of the three measures (see "Measures")
+export function measureStyle(measure?: Measure, style?: StyleSpec): StyleSpec;   // the measure's style with `style` over it, entry by entry; `style` alone, else defaultStyle, without a measure
 export interface ChannelSpec { metric: string; scale?: "linear" | "sqrt" | "log";
   max?: number;                   // the upper end of the width's scale, which runs from 0 to it; default the graph's strongest path before abstraction
   domain?: [number, number];      // values the range is stretched over instead (the lower end at the thinnest line)
@@ -688,6 +705,7 @@ export type LegendItem =   // `title` is a string key for `t` (it was typed `str
       scale?: "graph" | "shared";                     // from 0 to the graph's strongest path, or to the style's `max`; none with a `domain`
       transitionsOnly?: boolean }                     // the paths give only transition counts
   | { kind: "sequential" | "diverging"; title: StringKey; metric: string; domain: number[]; stops: readonly string[] }
+  | { kind: "classes"; title: StringKey; metric: string; bounds: readonly number[]; colors: string[] }   // ColorSpec.bins: one colour per class
   | { kind: "categorical"; title: StringKey; entries: CategoricalEntry[] };
 export const palettes: { neutral; sequential; sequentialBlue; diverging; categorical };   // colour-blind safe
 export function themePalette(theme: Theme, name: ColorSpec["palette"]): readonly string[];   // "sequential" is the theme's shortfall, "sequentialBlue" its performance
@@ -776,6 +794,72 @@ toSVG({ graph, positions, style: shortfallStyle });
 
 or, keeping the rest of a style, `{ ...style, edgeColor: { metric:
 "violationShare", palette: "shortfall", domain: [0, 1] } }`.
+
+### Measures
+
+The map shows one of three measures, switched by the host: `measure` on
+`<ProcessMap/>`, `buildScene`, `toSVG` and `toPNG` (`Scene.measure`) and Canvas
+`prepareScene` (`PrepareOptions.measure`). Each is a named style
+(`measureStyles`); a `style` given too changes it entry by entry, a channel's
+entries too (`measureStyle`), so `{ edgeColor: { bins: [0.05, 0.2] } }` moves
+the shortfall's thresholds. Without a measure the style given, else
+`defaultStyle`, is drawn as before, and the legend names the measure as it did
+("Frequency · cases · share of 251,734 cases"). In every measure path width is
+cases, and the frequency cue's length is the share of all cases. Switching
+builds the scene again and lays nothing out.
+
+| | `frequency` | `shortfall` | `performance` |
+| --- | --- | --- | --- |
+| Path colour | cases on the neutral ramp, as `defaultStyle` | `violationShare` in three classes: up to 10 % the neutral colour, 10 to 30 %, over 30 % (`bins: [0.1, 0.3]`) | `medianLagHours` from 0 to the 95th percentile of the paths shown on the `performance` palette |
+| Path label | "112,924" | "35 % · 820" | "12 d · 112,924" |
+| Activity's number line | "1,000 · 100 %" | "35 % short · 900" (German "35 % verfehlt · 900") | "4.7 d to next · 93 %" where the host gives `medianNextHours`, else as in frequency |
+| Frequency cue | share of all cases | share of all cases; the cases short in the accent from its start | share of all cases |
+| Legend | "Frequency: cases. Width and shade = cases per path. Bar = share of all cases." | "Shortfall: share of cases missing an expectation. Colour = share short. Width = cases." | "Performance: median wait between activities (h, d). Colour = median lag. Width = cases." |
+
+The legend's measure row states the sentence (German "Häufigkeit: Fälle.
+Breite und Tönung = Fälle je Pfad. Balken = Anteil aller Fälle.",
+"Erwartungslücke: Anteil der Fälle, die eine Erwartung verfehlen. Farbe =
+Lückenanteil. Breite = Fälle.", "Durchlaufzeit: mediane Wartezeit zwischen
+Aktivitäten (h, d). Farbe = Median-Wartezeit. Breite = Fälle."); the map's
+one-line strip shows its first sentence. In the frequency measure the marks
+are those of the default style.
+
+**Classes** (`ColorSpec.bins`): a value on a bound is in the class below it,
+so 10 % is "up to 10 %" and 30 % "10 % to 30 %". The first class is drawn in the
+theme's `neutral` colour, the others along the palette's stops that stand out
+more from the paper than it, from the least to the most (light: `#d94801`,
+`#7f2704`; dark: `#fd8d3c` to `#fff5eb`), so the classes differ in lightness
+and stand out more with more cases short in either scheme. The legend shows a
+swatch per class with its bounds ("up to 10 %", "10 % to 30 %", "over 30 %";
+German "bis 10 %", "10 % bis 30 %", "über 30 %"), in the thresholds given.
+
+**Performance ramp** (`percentile: 95`, `readable: true`): from 0 to the
+95th percentile of the shown paths' median lags by nearest rank (of twenty
+paths the 19th), a path above it drawn at the end; along the palette's stops
+with 3 : 1 or more against the paper (light `#2171b5` to `#08306b`, dark
+`#2171b5` to `#f7fbff`). The legend's ramp shows its ends as durations ("0
+min", "19 h"). An activity's time is the host's node metric
+`medianNextHours`; without it the number line reads as in frequency. No
+time of an activity is derived from its paths' medians.
+
+**Not evaluated** (`required: true`): in the shortfall and the performance
+measure a path without the value is drawn in the `line` colour at the width of
+its cases, its label reads "–" before its count ("– · 820"), and the legend
+gains the row "not evaluated". An activity without a share short reads "– ·
+400".
+
+**Deviations stay in the accent** in every measure. In the shortfall measure
+the accent's hue colours paths too; arcs keep their form: thin curves above
+the flow (below it in reverse), one width, an arrowhead and their result in a
+pill, where a path is an orthogonal route whose width is its cases and whose
+label has no pill. The cue's part in the accent (`NodeCue.accent`): the stripe
+in the accent at the theme's `tint` opacity over the paper (none in `print`,
+which has no tints) and the foot in the accent, keyed in the legend ("Bar in
+the accent: share of all cases that fall short"). `checkTheme` reports a
+theme whose `performance` palette has fewer than two stops at 3 : 1 or whose
+`shortfall` palette has fewer than two that stand out more than the neutral
+colour (`kind: "measure"`), and text under 7 : 1 (the muted ink 4.5 : 1) on
+the accent's tint.
 
 **Deviations are the one hue.** Badges, chips, constraint arcs, their labels,
 tints and constraint self-loops are drawn in the theme's `accent` (orange,
@@ -936,8 +1020,8 @@ export function resolveTheme(setting?: ThemeSetting, variables?: ThemeOverrides)
 export function themeColors(theme: Theme, scheme?: ColorScheme): Readonly<Record<ColorToken, string>>;  // the light roles with the scheme's changes
 export function checkTheme(theme: Theme): ThemeDeviation[];   // empty when nothing falls short
 export type PatternLook = { readonly [K in keyof typeof patternTokens]: number };
-export interface ThemeDeviation { kind: "text" | "line" | "rampOrder" | "rampStart" | "textSize" | "strokeWidth" | "color" | "rule";
-  scheme?: ColorScheme; subject: string; value: number | string; minimum?: number }   // rule: subject "rules[1].set.strokeWeight"
+export interface ThemeDeviation { kind: "text" | "line" | "rampOrder" | "rampStart" | "textSize" | "strokeWidth" | "color" | "rule" | "measure";
+  scheme?: ColorScheme; subject: string; value: number | string; minimum?: number }   // rule: subject "rules[1].set.strokeWeight"; measure: "palette.performance", value the stops that stand out
 ```
 
 Appearance is scene data. `buildScene(graph, positions, { theme, scheme })`
@@ -1174,7 +1258,7 @@ export interface HitItem { minX; minY; maxX; maxY; id: string; kind: "node" | "e
   curve?: { points: XY[]; reach: number; label?: Box };   // an arc's or a self-loop's curve, half its stroke, its label's box
   diamond?: boolean;   // a node hit by its diamond
   stroke?: { line: [XY, XY]; reach: number; head?: { points: XY[]; reach: number } } }   // a path's line along the segment, half its width, its head
-export interface Scene { graph; positions; overlays?; style?; title?; subtitle?; locale?; lanes?: LaneMode;
+export interface Scene { graph; positions; overlays?; measure?: Measure; style?; title?; subtitle?; locale?; lanes?: LaneMode;
   activityLabels?: ActivityLabelOptions; selfLoops?: boolean }
 export interface ExportOptions { preset?: "single-column" | "double-column" | "slide" | "none"; width?; legend?;
   background?; fontFamily?; padding?; lodZoom?; context?;
@@ -1186,18 +1270,18 @@ export function toSVG(scene: Scene, o?: ExportOptions): string;   // determinist
 
 export type FigurePreset = "single-column" | "double-column" | "slide" | "none";
 export const FIGURE_WIDTHS: Record<Exclude<FigurePreset, "none">, number>;   // 1000, 2000, 1600
-export type LegendKeyKind = "badge" | "arc" | "reverse" | "selfLoop" | "outOfScope" | "reconnected" | "indirect" | "notEvaluated" | "start" | "end";
+export type LegendKeyKind = "badge" | "arc" | "reverse" | "selfLoop" | "outOfScope" | "reconnected" | "indirect" | "notEvaluated" | "shortPart" | "start" | "end";   // shortPart: the cue's part in the accent
 export interface LegendKey { kind: LegendKeyKind; glyph: string; title: StringKey }
 export type LegendRow =
-  | { kind: "measure"; text: string }                                                     // "Shortfall · cases · share of 251,734 cases"
+  | { kind: "measure"; text: string }                                                     // "Frequency · cases · share of 251,734 cases"; a named measure's sentence
   | { kind: "width"; title: string; samples: { width: number; text: string }[] }          // path width: three sample strokes
   | { kind: "ramp"; title: string; id: string; stops: readonly string[]; values: string[] }  // a colour ramp: low, (middle,) high
   | { kind: "swatches"; title: string; entries: { text: string; color: string; pattern: PatternId }[] }   // categories with their pattern twins
   | { kind: "key"; key: LegendKeyKind; glyph: string; text: string }                      // one kind of mark drawn
   | { kind: "chip"; chip: Overlay; label: string; text: string };                         // a map-level chip
 export interface SceneLegend { title: string; rows: LegendRow[]; items: LegendItem[]; keys: LegendKey[]; chips: Overlay[] }
-export interface LegendSource { scales: { legend: LegendItem[]; pathMetric?: string }; marks: readonly OverlayMark[];
-  nodeMarks: readonly { reconnected: boolean; node?: FlowNode }[]; edgeMarks: readonly { reconnected: boolean; indirect?: boolean; notEvaluated?: boolean }[];
+export interface LegendSource { scales: { legend: LegendItem[]; pathMetric?: string; spec?: { measure?: Measure } }; marks: readonly OverlayMark[];
+  nodeMarks: readonly { reconnected: boolean; node?: FlowNode; cue?: { accent?: unknown } }[]; edgeMarks: readonly { reconnected: boolean; indirect?: boolean; notEvaluated?: boolean }[];
   locale: Locale; graph?: Pick<FlowGraph, "meta"> }   // a FlowScene is one
 export function legendOfScene(scene: LegendSource): SceneLegend;   // what a scene draws: FlowScene.legend
 export function sceneLegend(items: LegendItem[], overlays: readonly Overlay[], locale?: Locale): SceneLegend;   // from scales and overlays alone
@@ -1421,6 +1505,8 @@ an infinity, a string) prints as `–` in every formatter.
 ```ts
 export function ProcessMap(props: {
   graph: FlowGraph; positions?: Positions; overlays?: Overlay[]; style?: StyleSpec;
+  measure?: Measure;   // frequency, shortfall or performance (see "Measures"); from the prop, else kept by the map; style over it
+  onMeasureChange?: (m: Measure) => void;   // given, the whole legend offers the three measures to switch between
   theme?: ThemeSetting;   // a preset's name or changes over a preset, over the map's --wf-* variables; see "Theme of a map in a page"
   textMeasure?: TextMeasure;   // what labels are shortened, names wrapped and boxes sized by; default the browser's (canvasTextMeasure)
   abstraction?: AbstractOptions; defaultAbstraction?: AbstractOptions; onAbstractionChange?: (o: AbstractOptions) => void;
@@ -1457,7 +1543,8 @@ export function AbstractionControls(props), Legend(props), OverlayLayer(props);
 export interface LegendProps { scales?: Scales; overlays?: Overlay[]; locale?: Locale; chips?: ReactNode;
   legend?: SceneLegend;   // the rows it renders: the scene's legend; without it sceneLegend(scales, overlays)
   expanded?: boolean; defaultExpanded?: boolean;   // the whole key (controlled, or where it starts; default false: the one-line strip)
-  onExpandedChange?: (expanded: boolean) => void; onAnnounce?: (text: string) => void }   // see "Controls and panels"
+  onExpandedChange?: (expanded: boolean) => void; onAnnounce?: (text: string) => void;   // see "Controls and panels"
+  measure?: Measure; onMeasureChange?: (m: Measure) => void }   // both given: the whole key offers the three measures (pressed buttons in a group "Measure")
 export interface AbstractionControlsProps { value; onChange; locale?; hasStages?; view?; onViewChange?;
   counts?: { activities?: KeptCount; paths?: KeptCount };   // what the sliders keep where no statement says it ("7 of 12")
   positions?: DetailPositions;      // where the sliders can stand and stand (`meta.shown.positions`); otherwise per cent of the shares
@@ -2631,7 +2718,7 @@ panel, not map text) keep their CSS ellipsis.
 ## Scene
 
 ```ts
-export interface FlowSceneOptions { overlays?: Overlay[]; style?: StyleSpec; locale?: Locale; lanes?: LaneMode;
+export interface FlowSceneOptions { overlays?: Overlay[]; measure?: Measure; style?: StyleSpec; locale?: Locale; lanes?: LaneMode;
   moved?: Readonly<Record<string, XY>>; activityLabels?: ActivityLabelOptions; selfLoops?: boolean; lod?: Partial<LodRules>; lodBySize?: boolean;
   overlayGeometry?: OverlayGeometryOptions; theme?: Theme; scheme?: ColorScheme;   // default defaultTheme, light; the marks take the scheme's neutral, accent and palettes
   textMeasure?: TextMeasure }   // default estimateTextWidth; see "Text measure"
@@ -2673,7 +2760,8 @@ export function svgMarkup(e: SvgElement | string): string;
 export function fitChars(text: string, maxWidth?: number): string;        // deprecated: truncateText at a chip's 10 px
 
 export interface ElementText extends MarkText { role: "label" | "glyph" | "count" | "nameLine" | "countLine" | "share"; lod?: "labels" | "edgeLabels" }
-export interface NodeCue { share: number; stripe?: { box: Box; paint: MarkPaint }; foot?: { box: Box; paint: MarkPaint } }
+export interface NodeCue { share: number; stripe?: { box: Box; paint: MarkPaint }; foot?: { box: Box; paint: MarkPaint };
+  accent?: { share: number; stripe?: { box: Box; paint: MarkPaint }; foot?: { box: Box; paint: MarkPaint } } }   // the cases StyleSpec.cueAccent counts, over the stripe and foot from their start
 export interface NodeMark { id: string; kind: NodeKind; node: FlowNode; box: Box; shape: "box" | "circle" | "diamond"; radius: number;
   color: string; pattern: PatternId; fill: MarkPaint; stroke: { paint: MarkPaint; width: number; dash?: number[] }; band?: number;
   cue?: NodeCue; texts: ElementText[]; reconnected: boolean; outOfScope: boolean; title?: string; opacity?: number }
@@ -2692,9 +2780,12 @@ export interface GroupMark { id: string; kind: GroupKind; group: FlowGroup; box:
   radius: number; fill: MarkFill; stroke: { paint: MarkPaint; width: number; dash?: number[]; sides?: BoxSide[] };
   rule?: { paint: MarkPaint; width: number; side: BoxSide }; texts: ElementText[]; chipAnchor: XY; opacity?: number }
 export function nodeMark(n: FlowNode, box: Box, o: { color: string; pattern: PatternId; locale?: Locale; total?: number; outOfScope?: boolean;
-  activityLabels?: ActivityLabelOptions; theme?: Theme; measure?: TextMeasure }): NodeMark;   // total: the log's cases
+  activityLabels?: ActivityLabelOptions; theme?: Theme; measure?: TextMeasure;
+  line?: LineSpec;   // what the number line leads with (StyleSpec.nodeLine)
+  accent?: { metric: string; stripe?: MarkPaint; foot: MarkPaint } }): NodeMark;   // total: the log's cases; accent: the cue's part in the accent (StyleSpec.cueAccent)
 export function edgeMark(e: FlowEdge, points: XY[], o: { color: string; width: number; locale?: Locale; theme?: Theme;
-  label?: CourseLabel; backward?: boolean }): EdgeMark;   // label: the count beside the course instead of 4 above its middle
+  label?: CourseLabel; backward?: boolean;
+  lead?: LineSpec }): EdgeMark;   // label: the count beside the course instead of 4 above its middle; lead: the value before the count (StyleSpec.pathLabel)
 export function groupMark(g: FlowGroup, box: Box, o: { color: string; pattern: PatternId; band?: LaneBand; theme?: Theme }): GroupMark;
 export function nodeMarks(g: FlowGraph, p: Positions, scales: Scales, o?: { locale?; activityLabels?; theme?; measure?; outOfScope?: ReadonlySet<string> }): NodeMark[];
 export function edgeMarks(g: FlowGraph, p: Positions, scales: Scales, locale?: Locale, theme?: Theme,

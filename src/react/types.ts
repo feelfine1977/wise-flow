@@ -23,6 +23,7 @@ import type {
   LayoutOptions,
   Locale,
   LodRules,
+  Measure,
   MenuAction,
   MenuTarget,
   NodeMark,
@@ -126,6 +127,22 @@ export interface ProcessMapProps {
    * one to the stage that holds its element.
    */
   overlays?: Overlay[];
+  /**
+   * What the map shows: `frequency` (cases), `shortfall` (the share of cases
+   * missing an expectation) or `performance` (the median lag), each a named
+   * style (`measureStyles`); path width is cases in all three, and switching
+   * builds the scene again without a layout. A `style` given too changes the
+   * measure's entry by entry, `{ edgeColor: { bins: [0.05, 0.2] } }` the
+   * shortfall's classes, say. Taken from the prop when given, kept by the map
+   * otherwise. Default: `style`, else frequency as the default style draws it.
+   */
+  measure?: Measure;
+  /**
+   * Called when the measure is switched. Given, the expanded legend offers
+   * the three measures to switch between.
+   */
+  onMeasureChange?: (measure: Measure) => void;
+  /** Channels of the map's style; over the measure's named style where a `measure` is given. */
   style?: StyleSpec;
   /**
    * What the map is drawn in: a preset's name (`"default"`, `"print"`) or

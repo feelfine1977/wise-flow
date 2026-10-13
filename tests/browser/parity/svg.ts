@@ -188,10 +188,10 @@ export function readSvg(svg: string, markIds: string[]): Drawing {
       const props = { fill: fillOf(shape), ...outline(shape), join: shape.attrs["stroke-linejoin"] ?? "miter", arrow: head(shape) };
       out.set(`edge:${g.attrs["data-id"]}`, { box: boxOf(shape), props, texts });
     } else if (hasClass(g, "wf-node")) {
-      // The band and the frequency cue's stripe and foot are rectangles of their own classes.
+      // The band and the frequency cue's stripe and foot, and their part in the accent, are rectangles of their own classes.
       const part = (name: string) => parts.find((p) => hasClass(p, name));
       const band = part("wf-band");
-      const [stripe, foot] = [part("wf-cue"), part("wf-cue-foot")];
+      const [stripe, foot, stripeAccent, footAccent] = [part("wf-cue"), part("wf-cue-foot"), part("wf-cue-accent"), part("wf-cue-foot-accent")];
       const props = {
         fill: fillOf(shape),
         radius: radiusOf(shape),
@@ -199,6 +199,8 @@ export function readSvg(svg: string, markIds: string[]): Drawing {
         band: band ? `${fillOf(band)} ${num(Number(band.attrs.width))}` : "none",
         cue: cue(stripe && fillOf(stripe), stripe && Number(stripe.attrs.width)),
         cueFoot: cue(foot && fillOf(foot), foot && Number(foot.attrs.width)),
+        cueAccent: cue(stripeAccent && fillOf(stripeAccent), stripeAccent && Number(stripeAccent.attrs.width)),
+        cueFootAccent: cue(footAccent && fillOf(footAccent), footAccent && Number(footAccent.attrs.width)),
         ...outline(shape),
       };
       out.set(`node:${g.attrs["data-id"]}`, { box: boxOf(shape), props, texts });

@@ -1,4 +1,4 @@
-import { type Locale, type Overlay, type Scales, type SceneLegend, sceneLegend, t } from "../core/index.js";
+import { type Locale, type Measure, type Overlay, type Scales, type SceneLegend, sceneLegend, t } from "../core/index.js";
 import { useContext, useId, useState } from "react";
 import { PatternSwatch, PatternTheme } from "./patterns.js";
 import { Button, Panel } from "./primitives.js";
@@ -20,16 +20,22 @@ export interface LegendProps {
   onExpandedChange?: (expanded: boolean) => void;
   /** Says that the legend was expanded or collapsed, for a live region; without it the legend has a live region of its own. */
   onAnnounce?: (text: string) => void;
+  /** The measure shown; given with `onMeasureChange`, the whole key offers the three measures to switch between. */
+  measure?: Measure;
+  onMeasureChange?: (measure: Measure) => void;
 }
+
+const MEASURES: readonly Measure[] = ["frequency", "shortfall", "performance"];
 
 /**
  * Legend for the scales in use and the overlay glyphs, rendered from the rows
  * of the legend. It opens as a one-line strip that names the measure and its
  * unit, with the path width's samples, and a button (`aria-expanded`) that
  * expands it to the whole key and collapses it again; the change is announced.
- * Exports always draw the whole key.
+ * A measure's sentence shows its first sentence, the measure and its unit, in
+ * the strip. Exports always draw the whole key.
  */
-export function Legend({ scales, overlays = [], locale = "en", chips, legend, expanded: expandedProp, defaultExpanded = false, onExpandedChange, onAnnounce }: LegendProps) {
+export function Legend({ scales, overlays = [], locale = "en", chips, legend, expanded: expandedProp, defaultExpanded = false, onExpandedChange, onAnnounce, measure: shown, onMeasureChange }: LegendProps) {
   const { title, rows } = legend ?? sceneLegend(scales?.legend ?? [], overlays, locale);
   const { ink, look } = useContext(PatternTheme);
   const [own, setOwn] = useState(defaultExpanded);
@@ -49,7 +55,7 @@ export function Legend({ scales, overlays = [], locale = "en", chips, legend, ex
   return (
     <Panel part="legend" className={`wf-legend${expanded ? "" : " wf-legend--strip"}`} role="region" aria-label={title}>
       <div className="wf-legend__head">
-        {expanded ? <h3>{title}</h3> : <p className="wf-legend__measure">{measure?.kind === "measure" ? measure.text : title}</p>}
+        {expanded ? <h3>{title}</h3> : <p className="wf-legend__measure">{measure?.kind === "measure" ? measure.text.replace(/\. .*/u, ".") : title}</p>}
         {!expanded && width?.kind === "width" ? (
           <span className="wf-legend__width" aria-hidden="true">
             {width.samples.map((s, j) => <span key={j} className="wf-legend__stroke" style={{ height: s.width }} />)}
@@ -65,6 +71,15 @@ export function Legend({ scales, overlays = [], locale = "en", chips, legend, ex
       {expanded ? (
         <div id={keyId} className="wf-legend__key">
           {measure?.kind === "measure" ? <p className="wf-legend__measure">{measure.text}</p> : null}
+          {shown && onMeasureChange ? (
+            <div className="wf-legend__measures" role="group" aria-label={t(locale, "measure.choice")}>
+              {MEASURES.map((m) => (
+                <Button key={m} pressed={m === shown} onClick={() => onMeasureChange(m)}>
+                  {t(locale, `measure.${m}`)}
+                </Button>
+              ))}
+            </div>
+          ) : null}
           <dl>
             {rows.map((row, i) => {
               if (row.kind === "width") {

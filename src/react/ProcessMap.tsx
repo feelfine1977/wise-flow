@@ -12,7 +12,7 @@ import {
   type OnNodesChange,
 } from "@xyflow/react";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { type AbstractOptions, type ElementRef, type FlowGraph, type Insets, type Positions, type XY, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, defaultStyle, detailNotes, detailStatement, dimensionTokens, fitViewport, formatCount, lodAt, spaceTokens, strokeTokens, t, themeColors } from "../core/index.js";
+import { type AbstractOptions, type ElementRef, type FlowGraph, type Insets, type Positions, type XY, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, detailNotes, detailStatement, dimensionTokens, fitViewport, formatCount, lodAt, measureStyle, spaceTokens, strokeTokens, t, themeColors } from "../core/index.js";
 import { isPath } from "../core/detail.js";
 import { type MapContext, mapEmphasis, menuHeading } from "../core/map-controller.js";
 import { markedThemeKey, themeStyle } from "../core/theme.js";
@@ -85,7 +85,8 @@ function ProcessMapInner(props: ProcessMapProps) {
     graph,
     positions: givenPositions,
     overlays: extraOverlays,
-    style = defaultStyle,
+    style: givenStyle,
+    onMeasureChange,
     controls = true,
     legend = true,
     minimap = false,
@@ -128,6 +129,14 @@ function ProcessMapInner(props: ProcessMapProps) {
   // The pattern twins of the activities and the legend are drawn in the theme's pattern ink of the scheme, as its \`pattern\` says.
   const patternTheme = useMemo(() => ({ ink: themeColors(look.theme, look.scheme).patternInk, look: look.theme.pattern }), [look]);
   const textMeasure = useTextMeasure(props.textMeasure, look.theme.font.family);
+  // The measure (taken from the prop when given, kept by the map otherwise) as its named style, the given style over it.
+  const [ownMeasure, setOwnMeasure] = useState(props.measure);
+  const measure = props.measure ?? ownMeasure;
+  const style = useMemo(() => measureStyle(measure, givenStyle), [measure, givenStyle]);
+  const chooseMeasure = useCallback((m: NonNullable<typeof measure>) => {
+    setOwnMeasure(m);
+    onMeasureChange?.(m);
+  }, [onMeasureChange]);
   const sizedLayoutOptions = useMemo(() => activityLabels && !layoutOptions?.nodeSize ? {
     ...layoutOptions, nodeSize: (node: FlowGraph["nodes"][number]) => activityNodeSize(node, activityLabels, textMeasure),
   } : layoutOptions, [layoutOptions, activityLabels, textMeasure]);
@@ -443,7 +452,7 @@ function ProcessMapInner(props: ProcessMapProps) {
     />
   ) : null;
   const legendElement = legend ? (
-    <Legend scales={scales} legend={scene.legend} locale={locale} onAnnounce={controller.announce} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} locale={locale} />) : undefined} />
+    <Legend scales={scales} legend={scene.legend} locale={locale} onAnnounce={controller.announce} measure={onMeasureChange ? (measure ?? "frequency") : undefined} onMeasureChange={chooseMeasure} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} locale={locale} />) : undefined} />
   ) : null;
   // Where the map draws fewer paths than are selected (at a small zoom, by the path budget), the panel says both numbers; both count paths only.
   const withheldPaths = view === "table" ? 0 : useCanvas ? (canvasWithheld ?? 0) : (flow.withheld?.pathsNotShown ?? 0);

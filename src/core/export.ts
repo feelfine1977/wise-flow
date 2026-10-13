@@ -13,7 +13,7 @@ import type { OverlayGeometryOptions } from "./overlays.js";
 import { type MarkSvgOptions, arrowMarker, markSvg, svgMarkup } from "./mark-svg.js";
 import { type MarkPaint, type MarkText, type OverlayMark, markArrowhead, overlayArrow } from "./overlay-marks.js";
 import { type FlowScene, sceneOf } from "./scene.js";
-import { type StyleSpec, lodAt, patternDefs } from "./style.js";
+import { type Measure, type StyleSpec, lodAt, patternDefs } from "./style.js";
 import { t } from "./strings.js";
 import type { TextMeasure } from "./text.js";
 import { type ColorScheme, type ThemeSetting, resolveTheme } from "./theme.js";
@@ -24,6 +24,8 @@ export interface Scene {
   graph: FlowGraph;
   positions: Positions;
   overlays?: Overlay[];
+  /** The measure the figure shows (see `FlowSceneOptions.measure`). */
+  measure?: Measure;
   style?: StyleSpec;
   title?: string;
   subtitle?: string;
@@ -173,6 +175,10 @@ function drawNodes(ctx: Ctx): string {
     // The frequency cue lies inside the outline and under the band and the texts.
     if (m.cue?.stripe) out.push(rect(m.cue.stripe.box, `class="wf-cue" fill="${paint(m.cue.stripe.paint)}"`));
     if (m.cue?.foot) out.push(rect(m.cue.foot.box, `class="wf-cue-foot" fill="${paint(m.cue.foot.paint)}"`));
+    // Its part in the accent (the cases short) over them, from their start.
+    const accent = m.cue?.accent;
+    if (accent?.stripe) out.push(rect(accent.stripe.box, `class="wf-cue-accent" fill="${paint(accent.stripe.paint)}"`));
+    if (accent?.foot) out.push(rect(accent.foot.box, `class="wf-cue-foot-accent" fill="${paint(accent.foot.paint)}"`));
     if (m.band) {
       const band: Box = { x: b.x, y: b.y, width: m.band, height: b.height };
       const rx = ctx.scene.theme.radius.band;
@@ -268,6 +274,7 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
   assertExportable(given.graph);
   const scene = sceneOf(given.graph, given.positions, {
     overlays: given.overlays,
+    measure: given.measure,
     style: given.style,
     locale: given.locale,
     lanes: given.lanes,
