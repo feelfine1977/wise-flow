@@ -3316,6 +3316,11 @@ paths. The graph, table and whole-figure exports retain every selected path.
 
 ### Adaptive budget
 
+On live maps, pure pans keep the budget; zooming in permits only increases
+and zooming out only decreases. This keeps N stable under pans and monotone
+under zooms, including after gestures settle. Low-level `CanvasRenderer`
+without `pathRule` retains adaptation after either kind of gesture.
+
 `edgeBudget` of `<ProcessMap/>`, `<CanvasMap/>` and `<ViewSwitcher/>` also
 takes `"adaptive"`, the default; a number or `"all"` is a fixed budget, as
 above, and turns adaptation off entirely: no frame is timed and no clock is

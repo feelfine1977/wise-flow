@@ -37,3 +37,6 @@ The note counts selected paths, including loops; constraints and indirect
 connectors remain drawn without contributing to its counts. `ShownEdges.shown`
 optionally carries the shown path count when its edge ids include those
 uncounted connectors, keeping the screen and shown export notes equal.
+
+Adaptive live-map budgets stay fixed through pure pans and move only with
+the zoom direction, so their settled counts remain monotone when zooming.

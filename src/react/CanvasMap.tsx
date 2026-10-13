@@ -11,11 +11,11 @@ export interface CanvasMapProps {
   scene: PreparedScene | undefined;
   state: DrawState;
   locale?: Locale;
-  /** Changes when a new layout arrived; the map opens again (`opening`). */
+  /** Changes when a new layout arrived; opens again unless the person moved the view. */
   fitKey?: string;
   fitView?: boolean;
   /**
-   * The view the map opens at, and opens at again when `fitKey` changes:
+   * The view the map opens at, and opens at again for a new layout until the person moves it:
    * `"readable"` (default) fits it where the whole map fits at a zoom of 0.75
    * or more, and otherwise opens at 0.75 on the start of the process with an
    * overview of the whole map in a free corner; `"fit"` always fits it.

@@ -195,8 +195,9 @@ export interface ProcessMapProps {
    * view. While edges are withheld the map says how many it lets through;
    * the table view lists every edge. A number or `"all"` is fixed. `"adaptive"` (the default)
    * starts at 2,000 and, on the Canvas map, moves through the steps 500,
-   * 1,000, 2,000, 4,000, … after several consecutive frames of a pan or zoom
-   * gesture above 16.7 ms or below half of it, and only once the view is at
+   * 1,000, 2,000, 4,000, … after several consecutive frames of a zoom
+   * gesture above 16.7 ms or below half of it, decreasing only when zooming
+   * out and increasing only when zooming in, once the view is at
    * rest; the React Flow map keeps the first step.
    */
   edgeBudget?: EdgeBudget | "adaptive";

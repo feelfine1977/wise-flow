@@ -214,6 +214,52 @@ describe("the paths drawn of the whole log at a small zoom", () => {
     expect(before).toBe(121);
     r.dispose();
   }, 60_000);
+
+  it("keeps adaptive counts through pans and never moves the budget against the zoom direction", async () => {
+    const { prepared: base } = await whole;
+    // Four disjoint copies of the committed log: 2,624 lines and 84 loops. The first budget lets 2,000 lines through.
+    const copies = [0, 1, 2, 3];
+    const graph: FlowGraph = {
+      nodes: copies.flatMap((k) => base.graph.nodes.map((n) => ({ ...n, id: `${k}:${n.id}`, group: undefined }))),
+      edges: copies.flatMap((k) => base.graph.edges.map((e) => ({ ...e, id: `${k}:${e.id}`, source: `${k}:${e.source}`, target: `${k}:${e.target}` }))),
+    };
+    const nodes = Object.fromEntries(copies.flatMap((k) => Object.entries(base.positions.nodes).map(([id, b]) => [`${k}:${id}`, { ...b, y: b.y + k * 5000 }])));
+    const prepared = prepareScene(graph, createPositions({ nodes, groups: {}, edges: {} }, "given", "RIGHT"));
+    const ink = inkContext();
+    let now = 0, ms = 25;
+    const r = new CanvasRenderer({ getContext: () => ink.ctx, style: {} } as unknown as HTMLCanvasElement, { clock: () => (now += ms), draw: { cull: false, edgeBudget: "adaptive", pathRule: { minPx: 0.5 } } });
+    r.resize(1400, 900);
+    r.setScene(prepared);
+    r.setViewport({ x: 0, y: 0, zoom: 0.75 });
+    r.draw();
+    const count = () => r.lastDraw!.withheld!.shown;
+    expect(count()).toBe(2084);
+    const gesture = (zoom: number, duration: number) => {
+      ms = duration;
+      const before = count();
+      r.beginGesture();
+      r.setViewport({ ...r.getViewport(), zoom });
+      for (let k = 0; k < 6; k++) {
+        r.panBy(10, 0);
+        r.draw();
+        expect(count()).toBe(before);
+      }
+      r.endGesture();
+      r.draw();
+      const ids = new Set([...r.lastDraw!.withheld!.drawn].map((i) => prepared.edgeMarks[i].id));
+      expect(offWay(graph, graph.edges.filter((e) => ids.has(e.id)))).toEqual([]);
+      return count();
+    };
+    // Pure pans of slow and fast frames cannot change N. Slow zooming in cannot shrink the budget.
+    expect(gesture(0.75, 25)).toBe(2084);
+    expect(gesture(0.75, 2)).toBe(2084);
+    expect(gesture(0.9, 25)).toBe(2084);
+    // Zooming out can shrink it; fast zooming out cannot grow it. Fast zooming in can grow it again.
+    expect(gesture(0.6, 25)).toBe(1084);
+    expect(gesture(0.55, 2)).toBe(1084);
+    expect(gesture(0.8, 2)).toBe(2084);
+    r.dispose();
+  }, 60_000);
 });
 
 /** The paths that loop on one activity of a scene: drawn as loops, never withheld. */

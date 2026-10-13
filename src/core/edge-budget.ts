@@ -222,6 +222,8 @@ export interface FrameCounts {
  * as the last gesture ends, moves one step: down after RUN frames in a row
  * above the target that drew more than the step below would, up after RUN
  * below half of it (a step doubles the edges) that withheld edges.
+ * With a zoom direction passed to `end`, only a step in that direction is
+ * applied; a pure pan keeps the budget. Without one, either step applies.
  */
 export function edgeBudgetAdapter(clock: () => number) {
   let budget = FIRST_STEP;
@@ -236,8 +238,10 @@ export function edgeBudgetAdapter(clock: () => number) {
     start() {
       if (!gestures++) slow = fast = due = 0;
     },
-    end() {
+    end(direction?: number) {
       if (!gestures || --gestures) return false;
+      // A live map's counts may only grow zooming in, shrink zooming out, and stay while panning.
+      if (direction !== undefined && due !== Math.sign(direction)) return false;
       budget *= 2 ** due;
       return !!due;
     },
