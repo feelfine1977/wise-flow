@@ -167,7 +167,10 @@ backend's, with strings; `junkCoordinate` for coordinates) and strings.
 plain errors are counted, and a search fails on one its list of documented or
 known errors does not name. `core/malformed-*.test.ts` and
 `react/Malformed*.test.tsx` call every function and component of the four
-entry points once per case, `caseCount(300)` cases; what each does with
+entry points once per case, `caseCount(300)` cases; the React searches run
+their cases through `eachCase`, which stops at the next case once the test
+timed out, and await `caseSettled()` after each test, so that a test that
+timed out does not go on rendering into the next one; what each does with
 invalid input, documented and observed, is the table in
 [invalid-input.md](invalid-input.md), which a tooling test keeps complete.
 `react/MarkupSafety.test.tsx` checks that markup in the data stays text in

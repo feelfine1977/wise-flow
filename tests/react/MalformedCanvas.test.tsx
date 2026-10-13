@@ -21,11 +21,12 @@ import { BpmnView } from "../../src/bpmn/index";
 import { createBpmnView } from "../../src/react/BpmnView";
 import { CanvasMap } from "../../src/react/index";
 import { mutate } from "../support/bpmn-files";
-import { Calls, type MalformedCase, failure, junkCoordinate, junkNumber, junkString, malformedCase, nonFinite } from "../support/malformed";
+import { Calls, caseSettled, eachCase, type MalformedCase, failure, junkCoordinate, junkNumber, junkString, malformedCase, nonFinite } from "../support/malformed";
 import { caseCount, seeds } from "../support/random";
 import { memoryViewers } from "./memory-viewer";
 
-afterEach(() => {
+afterEach(async () => {
+  await caseSettled();
   cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -69,12 +70,12 @@ const viewers = memoryViewers();
 const DiagramView = createBpmnView(viewers.connect);
 
 describe("malformed input at the Canvas map and renderer and the BPMN view", () => {
-  it("draws every case on the Canvas map and drives the renderer through every method", async () => {
+  it("draws every case on the Canvas map and drives the renderer through every method", async ({ signal }) => {
     const calls = new Calls(fail, 20_000);
     // The checks of what was drawn hold only if something was: frames come at once instead of every 16 ms.
     let drawn = 0;
     vi.stubGlobal("requestAnimationFrame", (frame: FrameRequestCallback) => setTimeout(() => frame(performance.now()), 0));
-    for (const c of CASES) {
+    await eachCase(CASES, signal, async (c) => {
       const canvas = recordingCanvas();
       const errors = logged(c);
       const locale: Locale = c.rng.chance() ? "en" : "de";
@@ -133,15 +134,15 @@ describe("malformed input at the Canvas map and renderer and the BPMN view", () 
       vi.restoreAllMocks();
       must(errors().length === 0, c, () => `logged: ${errors()[0]}`);
       vi.restoreAllMocks();
-    }
+    });
     expect(drawn).toBeGreaterThan(CASES.length);
     expect(calls.ranAtLeast(["CanvasMap", "CanvasRenderer", "readTokens"], CASES.length)).toEqual([]);
     expect(calls.unknown({}), "plain errors").toEqual([]);
   });
 
-  it("shows every case's graph, its export or a broken file in the BPMN view, as a diagram and as the table", async () => {
+  it("shows every case's graph, its export or a broken file in the BPMN view, as a diagram and as the table", async ({ signal }) => {
     const calls = new Calls(fail, 20_000);
-    for (const c of CASES) {
+    await eachCase(CASES, signal, async (c) => {
       const errors = logged(c, true);
       const exported = await exportBpmn(c.graph, { positions: c.positions, layout: { engine: "dagre" } }).catch(() => undefined);
       const xml = exported && c.rng.chance() ? exported.xml : mutate(exported?.xml ?? fixture, c.rng).xml;
@@ -174,7 +175,7 @@ describe("malformed input at the Canvas map and renderer and the BPMN view", () 
       // An unmounted view leaves no viewer alive; the list is emptied so that a deep run does not keep every viewer.
       must(viewers.instances.every((v) => v.destroyed), c, () => "a viewer outlived its view");
       viewers.instances.length = 0;
-    }
+    });
     expect(calls.ranAtLeast(["BpmnView"], CASES.length)).toEqual([]);
     expect(calls.unknown({}), "plain errors").toEqual([]);
   });

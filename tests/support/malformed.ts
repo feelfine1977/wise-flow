@@ -317,6 +317,30 @@ export class Calls {
   }
 }
 
+let inFlight: Promise<unknown> = Promise.resolve();
+
+/**
+ * Runs `body` for each case in turn, and stops at the next case once `signal`
+ * is aborted, as Vitest aborts a test's signal when the test times out. No one
+ * awaits a test that timed out: without the stop its loop would go on
+ * rendering, calling `act()` and restoring mocks while the next test runs, and
+ * that test would fail on the overlapping `act()` calls or miss what is logged.
+ * Await `caseSettled()` after each test, before cleaning up.
+ */
+export async function eachCase<C>(cases: readonly C[], signal: AbortSignal, body: (c: C) => Promise<void>): Promise<void> {
+  for (const c of cases) {
+    signal.throwIfAborted();
+    const step = body(c);
+    inFlight = step.catch(() => undefined);
+    await step;
+  }
+}
+
+/** Resolves when the case `eachCase` ran last has ended. */
+export function caseSettled(): Promise<unknown> {
+  return inFlight;
+}
+
 /** Paths to the numbers in a value that are not finite (`NaN`, an infinity), at most `limit` of them. */
 export function nonFinite(value: unknown, limit = 5): string[] {
   const out: string[] = [];
