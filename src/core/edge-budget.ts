@@ -184,6 +184,19 @@ export function pathsAtZoom(scene: Pick<FlowScene, "edgeMarks" | "marks" | "styl
   return withheld ? { through, withheld } : undefined;
 }
 
+/**
+ * What a map draws when the rule of `pathsAtZoom` withholds paths: the edges
+ * it lets through, less those of `candidates` (the edges let through in view)
+ * that the budget's selection `cut` withholds. The numbers count over the
+ * whole map: every edge and every path that loops on one activity.
+ */
+export function zoomedSelection(scene: Pick<FlowScene, "edgeMarks" | "graph" | "positions">, zoomed: ZoomedPaths, cut: EdgeSelection | undefined, candidates: readonly number[] = zoomed.through): EdgeSelection {
+  const drawn = new Set(zoomed.through);
+  if (cut) for (const i of candidates) if (!cut.drawn.has(i)) drawn.delete(i);
+  const loops = [...selfLoopsOf(scene).values()].flat();
+  return { drawn, shown: drawn.size + loops.length, total: scene.edgeMarks.length + loops.length, kept: cut?.kept ?? drawn.size, loops, highlightedNotShown: cut?.highlightedNotShown ?? 0, pathsNotShown: zoomed.withheld + (cut?.pathsNotShown ?? 0) };
+}
+
 /** The adaptive budget's first step; the steps are 500, 1,000, 2,000, … */
 export const FIRST_STEP = 2000;
 const TARGET_MS = 16.7;

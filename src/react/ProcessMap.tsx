@@ -12,7 +12,7 @@ import {
   type OnNodesChange,
 } from "@xyflow/react";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { type AbstractOptions, type ElementRef, type FlowGraph, type Insets, type Positions, type Readable, type XY, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, detailNotes, detailStatement, dimensionTokens, fitViewport, formatCount, lodAt, measureStyle, readableAt, spaceTokens, strokeTokens, t, themeColors } from "../core/index.js";
+import { type AbstractOptions, type ElementRef, type FlowGraph, type Insets, type Positions, type Readable, type XY, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, detailNotes, detailStatement, dimensionTokens, fitViewport, formatCount, lodAt, measureStyle, readableAt, spaceTokens, strokeTokens, t, themeColors, viewTokens } from "../core/index.js";
 import { isPath } from "../core/detail.js";
 import { type MapContext, mapEmphasis, menuHeading } from "../core/map-controller.js";
 import { markedThemeKey, themeStyle } from "../core/theme.js";
@@ -46,6 +46,8 @@ const TABLE_PAGE_SIZE = 100;
 /** The React Flow map's zoom range, and the room its fitted view leaves around the nodes on each side, relative to their size. */
 const FLOW_ZOOM = { minZoom: 0.05, maxZoom: 3 };
 const FLOW_FIT_PADDING = 0.04;
+/** Milliseconds the React Flow map's zoom stays the same before its view counts as at rest, as a wheel gesture of the Canvas map ends. */
+const REST_MS = 200;
 
 const NO_MOVES: Readonly<Record<string, XY>> = {};
 
@@ -99,6 +101,7 @@ function ProcessMapInner(props: ProcessMapProps) {
     containerStyle,
     fitView = true,
     fitInsets,
+    minPathPx = viewTokens.pathPx,
     lanes = "none",
     pathList = true,
     contextMenu = true,
@@ -228,6 +231,14 @@ function ProcessMapInner(props: ProcessMapProps) {
   const { zoom: rfZoom, x: rfX, y: rfY } = useViewport();
   const [canvasViewport, setCanvasViewport] = useState({ x: 0, y: 0, zoom: 1 });
   const zoom = useCanvas ? canvasViewport.zoom : rfZoom;
+  // The zoom the React Flow map's view last rested at: the paths drawn at a small zoom change only then (the Canvas map's renderer keeps its own).
+  const [restZoom, setRestZoom] = useState(rfZoom);
+  useEffect(() => {
+    if (rfZoom === restZoom) return;
+    const timer = setTimeout(() => setRestZoom(rfZoom), REST_MS);
+    return () => clearTimeout(timer);
+  }, [rfZoom, restZoom]);
+  const pathRule = useMemo(() => (minPathPx > 0 ? { minPx: minPathPx, zoom: restZoom } : undefined), [minPathPx, restZoom]);
   const lod = lodAt(zoom, scene.lod);
   // What the texts show at the zoom, within the hysteresis of what they showed: the map writes it on its root as classes.
   const readableBefore = useRef<Readable | undefined>(undefined);
@@ -265,7 +276,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   );
 
   // React Flow nodes and edges, or the Canvas scene, its state and the elements listed for assistive technology.
-  const flow = useFlowElements({ enabled: !useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, nodesDraggable, edgeBudget, highlighted });
+  const flow = useFlowElements({ enabled: !useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, nodesDraggable, edgeBudget, highlighted, pathRule });
   // The Canvas map reports the edges it draws itself, and tells the detail panel how many paths it withholds.
   const mapShown = view !== "table";
   const tellShown = useEdgesShownAcross(props.onEdgesShown, useCanvas, mapShown);
@@ -538,6 +549,7 @@ function ProcessMapInner(props: ProcessMapProps) {
                   fitKey={fitKey}
                   fitView={fitView}
                   fitInsets={fitInsets}
+                  minPathPx={minPathPx}
                   describe={canvas.describe}
                   {...canvasHandlers}
                   onViewportChange={setCanvasViewport}

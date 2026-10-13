@@ -50,7 +50,7 @@ function quietCanvas() {
 const note = () => screen.queryByTestId("wf-edge-note")?.textContent;
 const SLOW = 25;
 
-/** The Canvas map of 2,500 edges, all in view, with a clock that makes every timed frame last `ms`. */
+/** The Canvas map of 2,500 edges, all in view, drawing every path at every zoom, with a clock that makes every timed frame last `ms`. */
 async function mountMap(edgeBudget: number | "all" | "adaptive" | undefined, ms = SLOW) {
   quietCanvas();
   let now = 0;
@@ -60,7 +60,7 @@ async function mountMap(edgeBudget: number | "all" | "adaptive" | undefined, ms 
   const reported: (ShownEdges | undefined)[] = [];
   const tree = (budget: typeof edgeBudget) => (
     <div style={{ width: 1200, height: 800 }}>
-      <CanvasMap ref={ref} scene={scene} state={state} fitKey="fit" edgeBudget={budget} clock={clock} onEdgesShown={(s) => reported.push(s)} />
+      <CanvasMap ref={ref} scene={scene} state={state} fitKey="fit" minPathPx={0} edgeBudget={budget} clock={clock} onEdgesShown={(s) => reported.push(s)} />
     </div>
   );
   const view = render(tree(edgeBudget));
@@ -204,7 +204,7 @@ describe("adaptive edge budget as the default of the maps", () => {
     quietCanvas();
     render(
       <div style={{ width: 1200, height: 800 }}>
-        <ProcessMap graph={large.graph} positions={large.positions} renderer="canvas" controls={false} legend={false} selfLoops={false} contextMenu={false} pathList={false} />
+        <ProcessMap graph={large.graph} positions={large.positions} renderer="canvas" minPathPx={0} controls={false} legend={false} selfLoops={false} contextMenu={false} pathList={false} />
       </div>,
     );
     await waitFor(() => expect(note()).toBe("Showing 2,000 of 2,500 flows"));

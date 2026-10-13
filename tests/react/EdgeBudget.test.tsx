@@ -135,10 +135,10 @@ describe("edge budget on the Canvas map", () => {
 
   it("counts the edges in view with separators in both languages", async () => {
     textCanvas();
-    // 2,500 edges, fitted into the view: all of them are in view.
+    // 2,500 edges, fitted into the view: all of them are in view; every path drawn at every zoom, so only the budget withholds.
     const large = hub(Array.from({ length: 2500 }, (_, k) => 1 + (k % 97)));
     for (const [locale, text] of [["en", "Showing 2,000 of 2,500 flows"], ["de", "2.000 von 2.500 Flüssen gezeigt"]] as [Locale, string][]) {
-      const { unmount } = mount({ renderer: "canvas", edgeBudget: 2000, fitView: true, locale }, large);
+      const { unmount } = mount({ renderer: "canvas", edgeBudget: 2000, fitView: true, minPathPx: 0, locale }, large);
       await waitFor(() => expect(note()?.textContent).toBe(text));
       unmount();
     }

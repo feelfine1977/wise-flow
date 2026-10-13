@@ -169,8 +169,9 @@ function readCanvasMap(container: Element, locale: Locale): { fitted: Reading; f
   // The note and the legend are the map's panels.
   const panels = { note: container.querySelector(".wf-edge-note")?.textContent ?? undefined, ...readLegend(container, locale) };
   return {
-    fitted: { ...readCanvas(scene, view, { lodZoom: options.lodZoom, edgeBudget: budget }), ...panels },
-    full: { ...readCanvas(scene, whole, { lodZoom: 100, edgeBudget: budget }), ...panels },
+    // The paths the frame drew at its zoom, also where everything any zoom draws is read: the note counts them.
+    fitted: { ...readCanvas(scene, view, { lodZoom: options.lodZoom, edgeBudget: budget, pathRule: options.pathRule }), ...panels },
+    full: { ...readCanvas(scene, whole, { lodZoom: 100, edgeBudget: budget, pathRule: options.pathRule }), ...panels },
   };
 }
 

@@ -44,6 +44,30 @@ and has the DOM map and the Canvas map choose the same level at three zooms.
 draws in Chromium, at its fitted zoom and six steps out with its zoom
 control: its computed size times the scale of what is around it.
 
+## Paths at a small zoom
+
+`core/paths-at-zoom.test.ts` holds `pathsAtZoom` against a small graph with
+hand-derived widths (a line of 1.79 drawn from 0.28, protected by a mark, a
+selection, the keyboard and a highlighted route) and against the whole BPIC
+log with every activity and path selected, laid out by ELK: at the zoom
+fitted into 1,400 × 900 it lets through exactly what the rule written out in
+`core/zoom-cases.ts` gives (a line at least half a pixel wide, or each
+activity's strongest path from and to a more frequent one, counted there
+without the library: 84 of 656 lines), everything at zoom 1, more as the
+zoom grows, and every activity between the start and the end at each step.
+It drives a culled `CanvasRenderer` on that scene through zoom steps in and
+out, a pan and a gesture: the lines it inks are exactly those let through
+whose extent the hit index finds in view, the note's numbers count over the
+whole map, never fall going in nor rise going out, stay with a pan and
+change only once the gesture ends. `react/PathsAtZoom.test.tsx` holds the
+React map to the same rule over the whole map at the fitted zoom and in
+steps (changing only at rest, not with a pan), its note and the detail
+panel's line, a selected path and one on a highlighted route, the table
+view and the export of what the map shows against what it draws.
+`react/Thresholds.test.tsx` reads the ladder with the rule on at the fitted
+view: the Canvas reading draws with the frame's own `pathRule`, so the note
+and the paths drawn are checked together.
+
 ## Parity of the four renderers
 
 `browser/parity.spec.ts` opens each parity story (`stories/Parity.stories.tsx`),

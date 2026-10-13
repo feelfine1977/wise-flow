@@ -60,12 +60,13 @@ describe("the view a map opens at", () => {
   });
 
   it("starts at the top in a map read downwards, and at the right in one read to the left", () => {
-    // Down: 4,000 high, fitted at 900 / 4320. The overview at the bottom right (the far end), kept clear along (bottom 136).
+    // Down: 4,000 high, fitted at 900 / 4320. The overview in the top right corner, kept clear along (top 136): the
+    // start 8 below it, centred across.
     const down = openingView({ x: 0, y: 0, width: 600, height: 4000 }, AREA, { padding: 0.04, gap: GAP, start: { x: 282, y: 0, width: 36, height: 36 }, direction: "DOWN", overview: OVERVIEW });
-    expect(down).toEqual({ zoom: 0.75, x: 700 - 300 * 0.75, y: 8, fitted: false, overview: { x: 1192, y: 772, width: 200, height: 120 } });
-    // Left: the start's right edge 8 inside the area's right edge; the overview at the top left, kept clear along (top 136).
+    expect(down).toEqual({ zoom: 0.75, x: 700 - 300 * 0.75, y: 136 + 8, fitted: false, overview: { x: 1192, y: 8, width: 200, height: 120 } });
+    // Left: the start's right edge 8 inside the area's right edge, centred in the 764 below the overview.
     const left = openingView({ x: 0, y: 0, width: 4000, height: 400 }, AREA, { padding: 0.04, gap: GAP, start: { x: 3964, y: 182, width: 36, height: 36 }, direction: "LEFT", overview: OVERVIEW });
-    expect(left).toEqual({ zoom: 0.75, x: 1400 - 8 - 4000 * 0.75, y: 136 + 764 / 2 - 200 * 0.75, fitted: false, overview: { x: 8, y: 8, width: 200, height: 120 } });
+    expect(left).toEqual({ zoom: 0.75, x: 1400 - 8 - 4000 * 0.75, y: 136 + 764 / 2 - 200 * 0.75, fitted: false, overview: { x: 1192, y: 8, width: 200, height: 120 } });
   });
 
   it("opens fitted without a start, and with a host's insets fits and places inside them", () => {
@@ -82,7 +83,7 @@ describe("the start of the process", () => {
   const node = (id: string, kind: FlowNode["kind"], tags?: string[]): FlowNode => ({ id, kind, label: id, tags });
   const box = (x: number, y: number): Box => ({ x, y, width: 36, height: 36 });
 
-  it("is the first start event in the reading direction, else the first node", () => {
+  it("is the first start event in the reading direction, else the first node, ties across it by the smaller coordinate", () => {
     const nodes = [node("a", "activity"), node("s2", "event", ["start"]), node("s1", "event", ["start"]), node("e", "event", ["end"])];
     const nodesAt = { a: box(0, 0), s1: box(50, 100), s2: box(50, 40), e: box(900, 0) };
     // Both starts at x 50: the upper one.

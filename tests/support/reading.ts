@@ -15,7 +15,7 @@
  * area wider and taller than `TOUCH` (touching edges do not count).
  */
 import type { DrawContext, PreparedScene, View } from "../../src/canvas/index";
-import { drawScene } from "../../src/canvas/index";
+import { type DrawOptions, drawScene } from "../../src/canvas/index";
 import { type Box, type FlowEdge, type FlowGraph, type FlowNode, type FlowScene, type Locale, type NodeKind, type Positions, type Readable } from "../../src/index";
 import { type ListName, watch } from "./ink";
 import type { Rung } from "./ladder";
@@ -205,12 +205,14 @@ export interface CanvasReadOptions {
   edgeBudget?: number | "all";
   /** The readable state of the frame before, whose hysteresis the draw keeps (`DrawOptions.readableFrom`). */
   readableFrom?: Readable;
+  /** The paths drawn at a small zoom, as the map drew them (`DrawOptions.pathRule`). */
+  pathRule?: DrawOptions["pathRule"];
 }
 
 /** What a Canvas draw of the scene at a view put where, element by element. */
 export function readCanvas(scene: PreparedScene, view: View, options: CanvasReadOptions = {}): Reading {
   const rec = recorder(view);
-  const drawn = drawScene(rec.ctx, watch(scene, rec.begin), view, undefined, { cull: false, background: false, createCanvas: () => null, lodZoom: options.lodZoom, edgeBudget: options.edgeBudget ?? "all", readableFrom: options.readableFrom });
+  const drawn = drawScene(rec.ctx, watch(scene, rec.begin), view, undefined, { cull: false, background: false, createCanvas: () => null, lodZoom: options.lodZoom, edgeBudget: options.edgeBudget ?? "all", readableFrom: options.readableFrom, pathRule: options.pathRule });
   const reading: Reading = { renderer: "canvas", zoom: view.zoom, cards: [], texts: [], badges: [], paths: [], loops: [], readable: drawn.readable };
   if (drawn.withheld) reading.note = { shown: drawn.withheld.shown, total: drawn.withheld.total };
   for (const v of rec.visits) {

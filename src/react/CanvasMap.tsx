@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { type Box, type EdgeBudget, type HitItem, type Insets, type Locale, type ShownEdges, type ThemeSetting, type XY, formatCount, t, themeColors } from "../core/index.js";
+import { type Box, type EdgeBudget, type HitItem, type Insets, type Locale, type ShownEdges, type ThemeSetting, type XY, formatCount, t, themeColors, viewTokens } from "../core/index.js";
 import { CanvasRenderer, type DrawState, type PreparedScene } from "../canvas/index.js";
 import { sceneTokens } from "../canvas/tokens.js";
 import { PathsNotShown, useEdgesShown } from "./hooks.js";
@@ -14,6 +14,12 @@ export interface CanvasMapProps {
   /** Changes when a new layout arrived; the view is fitted again. */
   fitKey?: string;
   fitView?: boolean;
+  /**
+   * The narrowest line, in screen pixels, of a path the map draws
+   * (`pathsAtZoom`), decided at the zoom the view last rested at. Default
+   * `viewTokens.pathPx` (0.5); 0 draws every path at every zoom.
+   */
+  minPathPx?: number;
   /** Room kept clear along each side when the view is fitted, in screen pixels; by default clear of the panels over the map. */
   fitInsets?: Partial<Insets>;
   /** Tooltip text for a hit. */
@@ -25,7 +31,7 @@ export interface CanvasMapProps {
   onViewportChange?: (v: { x: number; y: number; zoom: number }) => void;
   /** Elements listed for assistive technology (`aria-activedescendant` targets). */
   descendants?: { id: string; kind: "node" | "edge" | "group"; description: string }[];
-  /** How many of the edges in view are drawn (`budgetEdges`), or `"adaptive"` (default): a step fitted to the frame time of gestures. A note says when edges are withheld. */
+  /** How many of the edges in view are drawn (`budgetEdges`), or `"adaptive"` (default): a step fitted to the frame time of gestures. A note says when edges are withheld, by the budget or at a small zoom. */
   edgeBudget?: EdgeBudget | "adaptive";
   /** The clock (ms) the adaptive edge budget times frames with, read from mount. Default `performance.now`. */
   clock?: () => number;
@@ -87,7 +93,7 @@ export function EdgeNote({ withheld, locale, onAnnounce }: { withheld?: { shown:
  * focus, dimming) comes from the parent; keyboard handling stays there.
  */
 export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function CanvasMap(
-  { scene, state, locale = "en", fitKey, fitView = true, fitInsets, describe, onHover, onClick, onContextMenu, onViewportChange, descendants, edgeBudget = "adaptive", clock, onAnnounce, onEdgesShown, theme, className, children },
+  { scene, state, locale = "en", fitKey, fitView = true, fitInsets, minPathPx = viewTokens.pathPx, describe, onHover, onClick, onContextMenu, onViewportChange, descendants, edgeBudget = "adaptive", clock, onAnnounce, onEdgesShown, theme, className, children },
   ref,
 ) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -178,9 +184,9 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
   useEffect(() => {
     const r = rendererRef.current;
     if (!r) return;
-    r.drawOptions = { ...r.drawOptions, edgeBudget };
+    r.drawOptions = { ...r.drawOptions, edgeBudget, pathRule: minPathPx > 0 ? { minPx: minPathPx } : undefined };
     r.requestDraw();
-  }, [edgeBudget]);
+  }, [edgeBudget, minPathPx]);
 
   // A host that starts listening is told what the next draw withholds.
   const listening = !!onEdgesShown;

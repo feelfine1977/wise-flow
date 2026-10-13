@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import elkWorkerUrl from "elkjs/lib/elk-worker.min.js?url";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { constraintItems, globalScene, vendorScene } from "../fixtures/bpic2019";
-import { type AbstractOptions, diff, diffStyle, overlaysFor } from "../src/index";
-import { type Selection } from "../src/react/index";
+import { type AbstractOptions, diff, diffStyle, overlaysFor, viewTokens } from "../src/index";
+import { type Selection, useReactFlow, useStore } from "../src/react/index";
 import { ProcessMap, WHOLE_LOG_DETAIL } from "./maps";
 
 const meta: Meta<typeof ProcessMap> = {
@@ -140,4 +140,38 @@ export const German: Story = {
       </Frame>
     );
   },
+};
+
+/**
+ * Sets the view of the map it is drawn in once React Flow can move it, and
+ * again when its nodes are replaced (the layout arriving): the story's fixed
+ * zoom, its top left corner at (20, 20). A zoom by the person stays.
+ */
+function FixedView({ zoom }: { zoom: number }) {
+  const rf = useReactFlow();
+  const nodes = useStore((s) => s.nodes);
+  const movable = useStore((s) => s.panZoom !== null);
+  useEffect(() => {
+    if (movable && nodes.length) void rf.setViewport({ x: 20, y: 20, zoom });
+  }, [nodes, movable, rf, zoom]);
+  return null;
+}
+
+/**
+ * Every activity and every path of the P2P log (677 paths) at the fixed zoom
+ * 0.1, with the default rule: a path is drawn while its line is at least half
+ * a pixel wide on the screen, and the paths that keep each activity between
+ * the start and the end are always drawn, 86 lines and the 21 loops. The note
+ * and the detail panel say how many of how many; zooming in brings paths
+ * back in steps, all of them from 0.5.
+ */
+export const PathsAtASmallZoom: Story = {
+  name: "Paths at a small zoom",
+  render: (args) => (
+    <Frame>
+      <ProcessMap {...args} graph={globalScene} defaultAbstraction={{ activityDetail: 1, pathDetail: 1 }} layout={layout} fitView={false} minPathPx={viewTokens.pathPx}>
+        <FixedView zoom={0.1} />
+      </ProcessMap>
+    </Frame>
+  ),
 };

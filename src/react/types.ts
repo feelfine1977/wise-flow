@@ -201,8 +201,8 @@ export interface ProcessMapProps {
    */
   edgeBudget?: EdgeBudget | "adaptive";
   /**
-   * Called when the edges the map draws change: while the edge budget
-   * withholds some, with the ids drawn and the total the note states;
+   * Called when the edges the map draws change: while the edge budget or a
+   * small zoom withholds some, with the ids drawn and the total the note states;
    * undefined once every edge is drawn again. Pass the last value as
    * `edgeBudget` to `toSVG` or `toPNG` to export what the map shows.
    */
@@ -225,6 +225,15 @@ export interface ProcessMapProps {
   containerStyle?: React.CSSProperties;
   /** Fit the view after layout. Default true. */
   fitView?: boolean;
+  /**
+   * The narrowest line, in screen pixels, of a path the map draws: below it a
+   * path is not drawn, unless it is marked, selected, focused, highlighted or
+   * keeps an activity on a way from a start to an end (`pathsAtZoom`),
+   * decided when the view is at rest. Default `viewTokens.pathPx` (0.5); 0
+   * draws every path at every zoom. The selection, the table view and the
+   * exports of the whole figure are not affected.
+   */
+  minPathPx?: number;
   /**
    * Room kept clear along each side of the map when its view is fitted, in
    * screen pixels. By default the fitted map keeps clear of the panels over it

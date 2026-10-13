@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { globalScene } from "../../fixtures/bpic2019";
 import { type FlowEdge, type FlowGraph, type FlowNode, type FlowScene, type Overlay, abstract, buildScene, createPositions, fitViewport, layout, pathsAtZoom, viewTokens } from "../../src/index";
+import { CanvasRenderer, prepareScene } from "../../src/canvas/index";
+import { inkContext, watch } from "../support/ink";
+import { offWay, ruleAt } from "./zoom-cases";
 
 const follows = (id: string, source: string, target: string, cases?: number): FlowEdge => ({ id, kind: "follows", source, target, metrics: cases === undefined ? {} : { cases } });
 
@@ -62,51 +65,18 @@ describe("the paths drawn of the whole log at a small zoom", () => {
   /** Every activity and every path of the whole log, as the map shows them at the detail shares 1 and 1, laid out by ELK. */
   const whole = (async () => {
     const shown = abstract(globalScene, { activityDetail: 1, pathDetail: 1 });
-    return buildScene(shown, await layout(shown), {});
+    const positions = await layout(shown);
+    return { scene: buildScene(shown, positions, {}), prepared: prepareScene(shown, positions) };
   })();
-  /** The scale's upper end: the strongest path of the log, 194,821 cases (counted from the fixture). */
-  const UPPER = 194_821;
-  const widthOf = (cases: number) => Math.max(1, Math.round(Math.sqrt(cases / UPPER) * 8 * 100) / 100);
-
-  /**
-   * Every activity's strongest path (by its count) from a start or an activity ranked before it (by cases, then events,
-   * then id) that a start reaches, and to an end or such an activity that reaches an end, ties by id: on the whole log
-   * each activity has such a direct path.
-   */
-  function connecting(graph: FlowGraph): Set<string> {
-    const paths = graph.edges.filter((e) => e.kind === "follows" && e.source !== e.target);
-    const measured = (id: string, name: string) => graph.nodes.find((n) => n.id === id)?.metrics?.[name] ?? 0;
-    const terminal = (tag: string) => new Set(graph.nodes.filter((n) => n.kind === "event" && n.tags?.includes(tag)).map((n) => n.id));
-    const reached = (from: Set<string>, back: boolean) => {
-      const out = new Set(from);
-      for (const id of out) for (const e of paths) if ((back ? e.target : e.source) === id) out.add(back ? e.source : e.target);
-      return out;
-    };
-    const [starts, ends] = [terminal("start"), terminal("end")];
-    const [fromStart, toEnd] = [reached(starts, false), reached(ends, true)];
-    const rank = graph.nodes.filter((n) => n.kind === "activity").sort((a, b) => measured(b.id, "cases") - measured(a.id, "cases") || measured(b.id, "events") - measured(a.id, "events") || (a.id < b.id ? -1 : 1)).map((n) => n.id);
-    const out = new Set<string>();
-    for (const v of rank) {
-      for (const back of [true, false]) {
-        const anchoring = (id: string) => (back ? starts : ends).has(id) || ((back ? fromStart : toEnd).has(id) && (!rank.includes(id) || rank.indexOf(id) < rank.indexOf(v)));
-        const strongest = paths
-          .filter((e) => (back ? e.target : e.source) === v && anchoring(back ? e.source : e.target))
-          .sort((a, b) => (b.metrics!.count ?? 0) - (a.metrics!.count ?? 0) || (a.id < b.id ? -1 : 1))[0];
-        expect(strongest, `${v} ${back ? "in" : "out"}`).toBeDefined();
-        out.add(strongest!.id);
-      }
-    }
-    return out;
-  }
+  /** The view of 1400 × 900 fitted with the React map's 4 % around the map: its zoom. */
+  const fitted = (scene: FlowScene) => fitViewport(scene.positions.bounds, { width: 1400, height: 900 }, { padding: 0.04 }).zoom;
 
   it("lets through the paths the rule gives at the fitted zoom, and every path at zoom 1", async () => {
-    const scene = await whole;
-    // The view of 1400 × 900 fitted with the React map's 4 % around the map.
-    const zoom = fitViewport(scene.positions.bounds, { width: 1400, height: 900 }, { padding: 0.04 }).zoom;
+    const { scene } = await whole;
+    const zoom = fitted(scene);
     expect(zoom).toBeLessThan(0.1);
-    const keep = connecting(scene.graph);
     // The hand rule: wide enough on the screen, or connecting an activity; no path of the log carries a mark.
-    const expected = scene.edgeMarks.filter((m) => widthOf(m.edge.metrics!.cases!) * zoom >= 0.5 || keep.has(m.id)).map((m) => m.id).sort();
+    const expected = ruleAt(scene, zoom);
     const got = pathsAtZoom(scene, zoom, 0.5)!;
     expect(got.through.map((i) => scene.edgeMarks[i].id).sort()).toEqual(expected);
     expect(got.withheld).toBe(scene.edgeMarks.length - expected.length);
@@ -116,24 +86,86 @@ describe("the paths drawn of the whole log at a small zoom", () => {
   }, 60_000);
 
   it("lets through more paths as the zoom grows, and keeps every activity between the start and the end", async () => {
-    const scene = await whole;
+    const { scene } = await whole;
     const ids = (zoom: number) => new Set((pathsAtZoom(scene, zoom, 0.5)?.through ?? scene.edgeMarks.map((_, i) => i)).map((i) => scene.edgeMarks[i].id));
-    const nodes = scene.graph.nodes;
-    const reach = (edges: FlowEdge[], from: string[], back: boolean) => {
-      const out = new Set(from);
-      for (const id of out) for (const e of edges) if ((back ? e.target : e.source) === id) out.add(back ? e.source : e.target);
-      return out;
-    };
-    const tagged = (tag: string) => nodes.filter((n) => n.tags?.includes(tag)).map((n) => n.id);
     let before = new Set<string>();
     for (let zoom = 0.02; zoom <= 1.0001; zoom *= 1.2) {
       const now = ids(zoom);
       expect([...before].filter((id) => !now.has(id)), `zoom ${zoom}`).toEqual([]);
       before = now;
-      const drawn = scene.graph.edges.filter((e) => now.has(e.id));
-      const [fromStart, toEnd] = [reach(drawn, tagged("start"), false), reach(drawn, tagged("end"), true)];
-      expect(nodes.filter((n) => n.kind === "activity" && !(fromStart.has(n.id) && toEnd.has(n.id))).map((n) => n.id), `zoom ${zoom}`).toEqual([]);
+      expect(offWay(scene.graph, scene.graph.edges.filter((e) => now.has(e.id))), `zoom ${zoom}`).toEqual([]);
     }
     expect(before.size).toBe(656);
   }, 60_000);
+
+  it("draws on the Canvas map the paths let through that are in view, counts them over the whole map, and changes them only at rest", async () => {
+    const { prepared } = await whole;
+    const ink = inkContext();
+    const canvas = { getContext: () => ink.ctx, width: 0, height: 0, style: {} } as unknown as HTMLCanvasElement;
+    // Culled as a large map is, so that only what is in view is drawn.
+    const r = new CanvasRenderer(canvas, { devicePixelRatio: 1, draw: { cull: true, edgeBudget: "all", pathRule: { minPx: 0.5 } } });
+    r.resize(1400, 900);
+    r.setScene(watch(prepared, ink.begin));
+    const loops = scene21(prepared);
+    /** One frame: the paths it drew (lines with ink), the paths it lets through over the whole map, and its note's numbers. */
+    const frame = () => {
+      ink.visits.length = 0;
+      r.draw();
+      const drawn = [...new Set(ink.visits.filter((v) => v.list === "edges" && v.ink).map((v) => v.id))].sort();
+      const w = r.lastDraw!.withheld;
+      const through = w ? [...w.drawn].map((i) => prepared.edgeMarks[i].id).sort() : prepared.edgeMarks.map((m) => m.id).sort();
+      return { drawn, through, note: w && { shown: w.shown, total: w.total } };
+    };
+    /** The paths whose drawn extent (the hit index's) reaches into the view. */
+    const inView = () => {
+      const v = r.getViewport();
+      const box = { x: -v.x / v.zoom, y: -v.y / v.zoom, width: 1400 / v.zoom, height: 900 / v.zoom };
+      return new Set(prepared.hit.within(box).filter((it) => it.kind === "edge").map((it) => it.id));
+    };
+    const check = (label: string) => {
+      const f = frame();
+      expect(f.drawn, label).toEqual(f.through.filter((id) => inView().has(id)));
+      // At rest the rule is decided at the view's zoom.
+      expect(f.through, label).toEqual(ruleAt(prepared, r.getViewport().zoom));
+      expect(offWay(prepared.graph, prepared.graph.edges.filter((e) => f.through.includes(e.id))), label).toEqual([]);
+      return f;
+    };
+    // Fitted, the whole map is in view: 84 lines and the 21 loops of 656 and 21.
+    r.setViewport(fitViewport(prepared.positions.bounds, { width: 1400, height: 900 }, { padding: 0.04 }));
+    const first = check("fitted");
+    expect(first.note).toEqual({ shown: 84 + loops, total: 656 + loops });
+    expect(first.drawn).toHaveLength(84);
+    // Zoomed in step by step around a point and out again, each step at rest: the number never falls going in, never
+    // rises going out; the lines drawn are those let through in view.
+    const centre = { x: 700, y: 450 };
+    let shown = first.note!.shown;
+    for (const step of [...Array(12).fill(1.25), ...Array(12).fill(0.8)]) {
+      r.zoomBy(step, centre);
+      const f = check(`zoom ${r.getViewport().zoom}`);
+      const now = f.note?.shown ?? 656 + loops;
+      if (step > 1) expect(now, `in to ${r.getViewport().zoom}`).toBeGreaterThanOrEqual(shown);
+      else expect(now, `out to ${r.getViewport().zoom}`).toBeLessThanOrEqual(shown);
+      shown = now;
+    }
+    // At 0.2 part of the map is in view: a pan changes the lines drawn, not the numbers.
+    r.setViewport({ x: 0, y: 0, zoom: 0.2 });
+    const here = check("0.2");
+    expect(here.drawn.length).toBeLessThan(here.through.length);
+    r.panBy(-900, -300);
+    const there = check("0.2, panned");
+    expect(there.note).toEqual(here.note);
+    expect(there.drawn).not.toEqual(here.drawn);
+    // During a gesture the paths stay those of the view at rest; they change once it ends.
+    r.beginGesture();
+    r.zoomBy(3, centre);
+    expect(frame().note).toEqual(here.note);
+    r.endGesture();
+    expect(frame().note).not.toEqual(here.note);
+    // At zoom 1 every path is drawn and nothing is noted.
+    r.setViewport({ x: 0, y: 0, zoom: 1 });
+    expect(frame().note).toBeUndefined();
+  }, 60_000);
 });
+
+/** The paths that loop on one activity of a scene: drawn as loops, never withheld. */
+const scene21 = (scene: FlowScene) => scene.graph.edges.filter((e) => e.source === e.target).length;

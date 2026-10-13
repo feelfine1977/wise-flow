@@ -1690,6 +1690,7 @@ export function ProcessMap(props: {
   describedLimit?: number;   // default 500 activities plus groups; below 1 read as 1
   edgeBudget?: EdgeBudget | "adaptive";   // default "adaptive"; see "Edge budget"
   onEdgesShown?: (shown: ShownEdges | undefined) => void;   // the edges drawn while some are withheld, for toSVG and toPNG
+  minPathPx?: number;   // the narrowest line on the screen a path is drawn at; default 0.5, 0 draws every path; see "Paths at a small zoom"
 }): JSX.Element;
 export interface Selection { nodes: string[]; edges: string[]; groups: string[] }
 
@@ -2123,7 +2124,7 @@ export interface BpmnViewHandle { viewer(): unknown; saveXML(): Promise<string |
   fit(insets?: Partial<Insets>): void }   // the diagram inside the view less the insets; default clear of the view's panels (see "Controls and panels")
 export function ViewSwitcher(props: { views: ViewSet; mode?: "single" | "grid"; onModeChange?; activeView?; onActiveViewChange?;
   columns?; locale?; selection?; onSelect?; onHover?; legend?; lod?; minimap?; className?; containerStyle?;
-  edgeBudget?: EdgeBudget | "adaptive"; theme?: ThemeSetting }): JSX.Element;   // from wise-flow/react; edgeBudget and theme are passed to every view's map
+  edgeBudget?: EdgeBudget | "adaptive"; minPathPx?: number; theme?: ThemeSetting }): JSX.Element;   // from wise-flow/react; edgeBudget, minPathPx and theme are passed to every view's map
 ```
 
 Layout of a BPMN model where no `Worker` exists (Node): `layoutBpmn`, and
@@ -2562,7 +2563,8 @@ export function CanvasMap(props: { scene: PreparedScene | undefined; state: Draw
   clock?: () => number;   // ms, read by the adaptive edge budget; default performance.now; read when the map mounts
   onAnnounce?: (text: string) => void; onEdgesShown?: (shown: ShownEdges | undefined) => void;
   theme?: ThemeSetting;   // its colours and font, over its --wf-* variables; see "Theme of a map in a page"
-  fitInsets?: Partial<Insets> }   // kept clear when the view is fitted; default: clear of the panels over the map (see "Controls and panels")
+  fitInsets?: Partial<Insets>;   // kept clear when the view is fitted; default: clear of the panels over the map (see "Controls and panels")
+  minPathPx?: number }   // the narrowest line on the screen a path is drawn at; default 0.5, 0 draws every path; see "Paths at a small zoom"
   & { ref?: Ref<CanvasMapHandle> }): JSX.Element;
 export interface CanvasMapHandle { centerOn(id, zoom?); fit(insets?: Partial<Insets>); zoomBy(factor); screenBox(id): Box | undefined; renderer(): CanvasRenderer | null;
   moved(): boolean }   // true when the view changed since the map was last fitted
@@ -2612,10 +2614,11 @@ export interface DrawOptions { tokens?: CanvasTokens; cull?: boolean; background
   edgeBudget?: EdgeBudget | ShownEdges;   // default "all"
   readable?: Readable;                    // what the texts show; default readableAt at lodZoom with the theme's minScreenPx
   readableFrom?: Readable;                // the state of the frame before, whose hysteresis the decision keeps
-  numbers?: readonly MarkText[] }         // texts written over the map last (an exported figure's numbers of the cards)
+  numbers?: readonly MarkText[];          // texts written over the map last (an exported figure's numbers of the cards)
+  pathRule?: { minPx: number; zoom?: number } }   // the paths drawn at a small zoom (pathsAtZoom) at zoom, the view's by default; default none
 export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, state?: DrawState, o?: DrawOptions): { nodes; edges; shapes; culled;
   kept?: number;   // with an edge budget other than "all": the protected edges drawn, which every budget draws
-  withheld?: EdgeSelection;   // present when the edge budget left edges in view out
+  withheld?: EdgeSelection;   // present when the edge budget left edges in view out, or the path rule paths of the map
   readable: Readable };   // the state the texts were drawn in
 export function drawLegend(ctx: DrawContext, scene: PreparedScene, x, y, width, tokens?, o?: { createCanvas? }): number;   // the scene's legend rows; returns their height
 export function canvasTextMeasure(family?: string, context?: { font; measureText } | null): TextMeasure;   // Canvas measureText in the font; the estimate without a canvas
@@ -2626,8 +2629,8 @@ export function groupLabelOf(scene: PreparedScene, id: string | undefined): stri
 export interface CanvasRendererOptions { tokens?; devicePixelRatio?; minZoom?; maxZoom?;
   draw?: RendererDrawOptions; clock?: () => number }   // clock: ms, read by the adaptive edge budget only; default performance.now
 export class CanvasRenderer { constructor(canvas: HTMLCanvasElement, o?: CanvasRendererOptions);
-  drawOptions: RendererDrawOptions;   // DrawOptions without tokens; edgeBudget may also be "adaptive"
-  beginGesture(); endGesture();   // a pan or zoom gesture; see "Edge budget"
+  drawOptions: RendererDrawOptions;   // DrawOptions without tokens; edgeBudget may also be "adaptive"; pathRule decided at the zoom the view last rested at
+  beginGesture(); endGesture();   // a pan or zoom gesture; see "Edge budget" and "Paths at a small zoom"
   resize(w, h); setScene(s); getScene(); setState(patch: Partial<DrawState>); getState(); setTokens(t);
   getViewport(); setViewport(v, notify?); fit(padding?, insets?: Partial<Insets>); panBy(dx, dy); zoomBy(factor, centre?); centerOn(point, zoom?);
   toFlow(x, y); toScreen(x, y); screenBox(id); hitAt(x, y, tolerancePx?): HitItem | undefined; requestDraw(); draw(); dispose();
@@ -3278,8 +3281,40 @@ through.
 
 The rule chooses what is drawn on the screen only: the selection of the
 detail panel, the graph, the table view and an export of the whole figure
-are unchanged. How the maps apply it is under "Opening view and paths at a
-small zoom" in [Controls and panels](#controls-and-panels).
+are unchanged.
+
+**On the maps.** `<ProcessMap minPathPx/>` and `<CanvasMap minPathPx/>`
+(default `viewTokens.pathPx`, 0.5; 0 turns the rule off) apply it in both
+renderers, decided when the view is at rest, as the adaptive budget moves:
+the React Flow map once its zoom has stayed the same for 200 ms, the Canvas
+map at the zoom of its last frame drawn outside a gesture (a drag, or a run
+of wheel or pinch events; the zoom buttons are no gesture), so a pan or a
+zoom in progress draws the paths of the view before it. The edge budget then
+chooses among the paths let through: on the React Flow map among all of
+them, on the Canvas map among those in view (the budget limits the frame).
+`drawScene` takes it as `DrawOptions.pathRule` (`{ minPx, zoom? }`, the
+view's zoom when `zoom` is omitted; default none, so the exports and the
+pinned recordings draw as before), and `CanvasRenderer` passes the zoom its
+view last rested at unless `drawOptions.pathRule.zoom` names one. Stories
+and tests use a fixed zoom and the default rule, so what they draw does not
+depend on the machine.
+
+While the rule withholds a path, the map shows the note on withheld paths
+and the detail panel its line ("677 selected · 105 drawn at this zoom"),
+both counting over the whole map, not over the part in view: the note's
+total is every edge the map's scene draws and every loop (as with the
+budget, "Showing 105 of 677 flows" on the whole BPIC log fitted), and its
+first number those let through, also where they lie outside the view, so a
+pan never changes it. Where the budget withholds paths in view as well, they
+are subtracted (on the Canvas map these depend on the view). Zooming in
+brings paths back in steps, one width at a time, and the note follows;
+zooming out never brings one back. `onEdgesShown` reports the edges let
+through over the whole map and the note's total, so `toSVG`/`toPNG` given
+that report draw exactly the paths the map draws, with the same note; an
+export without it draws every path. `budgetEdges` and its numbers are
+unchanged where the rule withholds nothing. Internal: `zoomedSelection`
+(not exported) turns what the rule and the budget let through into the
+`EdgeSelection` both maps draw.
 
 ### Adaptive budget
 
