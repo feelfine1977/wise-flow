@@ -133,11 +133,16 @@ approving an intended change is a deliberate local step, described in
 ## 4. Fixture
 
 ```sh
-npm run fixture     # python3 fixtures/build_bpic2019_fixture.py [path/to/BPI_Challenge_2019.csv]
+npm run fixture -- path/to/BPI_Challenge_2019.csv
+# Or use the environment:
+BPIC2019_CSV=path/to/BPI_Challenge_2019.csv npm run fixture
 ```
 
 Rebuilds `fixtures/bpic2019_p2p.json` from the CSV (about a minute with
-pandas). The output is deterministic for the same input.
+pandas and numpy). Download the [public log](https://doi.org/10.4121/uuid:d06aff4b-79f0-45e6-8ec8-e19730c248f1)
+and export it as CSV first. The argument takes precedence over the environment
+variable; without either, the script stops with download instructions. The
+output is deterministic for the same input and build date.
 
 ## 5. Results at hand-over of 0.1 (CP-E1)
 
