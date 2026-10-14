@@ -2,6 +2,9 @@
  * Typed access to `bpic2019_p2p.json` (built by `build_bpic2019_fixture.py`):
  * two FlowGraph scenes (whole log, one vendor) and constraint descriptions with
  * per-scene statistics.
+ * Rebuild with `npm run fixture -- path/to/BPI_Challenge_2019.csv`, or set
+ * `BPIC2019_CSV` and run `npm run fixture`. See `fixtures/README.md` for the
+ * public log download and CSV-export instructions.
  */
 import type { ConstraintDescription, ConstraintStats, FlowGraph } from "../src/core/index";
 import raw from "./bpic2019_p2p.json";

@@ -19,8 +19,18 @@ something realistic to colour. `bpic2019.ts` gives typed access for
 stories and tests.
 
 `build_bpic2019_fixture.py` rebuilds the JSON from the CSV export of the
-log (`npm run fixture`, pandas required); the CSV itself is not part of the
-repository.
+log (pandas and numpy required); the CSV itself is not part of the repository.
+Download the [public log](https://doi.org/10.4121/uuid:d06aff4b-79f0-45e6-8ec8-e19730c248f1)
+and export it as CSV, then run:
+
+```sh
+npm run fixture -- path/to/BPI_Challenge_2019.csv
+# Or use the environment:
+BPIC2019_CSV=path/to/BPI_Challenge_2019.csv npm run fixture
+```
+
+The argument takes precedence over the environment variable. Without either,
+the script stops with download instructions.
 
 `p2p_stages.ts` — a purchase-to-pay stage model with known activities and
 no log (five stages, optional steps, a goods-or-service choice, a loop),
