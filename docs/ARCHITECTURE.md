@@ -251,8 +251,9 @@ unchanged at every threshold.
 `layout(graph, options)` runs ELK layered: in a Web Worker when the
 application passes `elkWorkerUrl` (the URL of `elkjs/lib/elk-worker.min.js`),
 in-process otherwise (Node, tests). Stage groups become compound nodes with
-their order along the flow direction enforced through ELK partitions; lanes
-are compound nodes as well. Dagre is the fallback on failure or timeout: in a
+their order along the flow direction enforced through ELK partitions. Start/end
+events occupy border layers outside groups; lanes are compound nodes as well.
+Dagre is the fallback on failure or timeout: in a
 Web Worker with `dagreWorkerUrl` (the package's `dagre-worker.min.js`, which
 runs the compiled `dagreJob` of the layout module, so both places give the same
 positions), otherwise on the calling thread only up to `fallbackLimit` nodes
@@ -274,8 +275,8 @@ filters (`filterPositions`), so compared maps do not jump. **Cache**: the
 layout module owns it. A caller key (`cacheKey`) keeps positions in a shared
 cache until its owner forgets the key. Without one, a layout scope
 (`createLayoutScope`) keys each layout by its inputs (nodes with resolved
-sizes, edges, groups, options), keeps a bounded number and releases them on
-`dispose`, so a changed graph is always laid out anew. The module starts
+sizes and event border tags, edges, groups, options), keeps a bounded number
+and releases them on `dispose`, so a changed graph is always laid out anew. The module starts
 workers on demand and terminates each once no scope and no running layout
 uses it; a scope keeps one idle worker per URL. The map lays out the *abstracted* graph (not the full
 directly-follows graph), because hundreds of weak edges degrade layered

@@ -2,7 +2,7 @@
 import type { ELK, ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api.js";
 import * as dagreModule from "@dagrejs/dagre";
 import { type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, byId, indexGraph } from "./model.js";
-import { layoutInputKey, resolvedSizes } from "./layout-key.js";
+import { borderLayer, layoutInputKey, resolvedSizes } from "./layout-key.js";
 import { nodeSizeTokens } from "./tokens.js";
 
 export interface XY {
@@ -367,7 +367,13 @@ function elkGraph(p: Prepared, o: LayoutOptions, partition: boolean): ElkNode {
 
   const nodeElk = (n: FlowNode): ElkNode => {
     const s = sizeOf(n, o);
-    return { id: n.id, width: s.width, height: s.height, labels: [{ text: n.label }] };
+    const border = borderLayer(n);
+    const layoutOptions: Record<string, string> = {};
+    if (border) {
+      layoutOptions["elk.layered.layering.layerConstraint"] = border;
+      if (partition) layoutOptions["elk.partitioning.partition"] = String(border === "FIRST_SEPARATE" ? -1 : stageOrder.size);
+    }
+    return { id: n.id, width: s.width, height: s.height, labels: [{ text: n.label }], ...(border ? { layoutOptions } : {}) };
   };
   const childrenOf = (groupId: string | undefined): ElkNode[] => {
     const out: ElkNode[] = [];
@@ -384,7 +390,7 @@ function elkGraph(p: Prepared, o: LayoutOptions, partition: boolean): ElkNode {
       out.push({ id: g.id, labels: [{ text: g.label }], layoutOptions, children: sub });
     }
     for (const n of p.nodes) {
-      const inGroup = p.useGroups && n.group && idx.groups.has(n.group);
+      const inGroup = !borderLayer(n) && p.useGroups && n.group && idx.groups.has(n.group);
       if ((inGroup ? n.group : undefined) === groupId) out.push(nodeElk(n));
     }
     return out;
@@ -406,6 +412,8 @@ function elkGraph(p: Prepared, o: LayoutOptions, partition: boolean): ElkNode {
     ...(partition ? { "elk.partitioning.activate": "true" } : {}),
     ...(o.elkOptions ?? {}),
   };
+  // Border layers span the whole map, including disconnected components.
+  if (p.nodes.some(borderLayer)) rootOptions["elk.separateConnectedComponents"] = "false";
   const edges: ElkExtendedEdge[] = p.edges
     .filter((e) => e.source !== e.target)
     .map((e) => ({ id: e.id, sources: [e.source], targets: [e.target] }));

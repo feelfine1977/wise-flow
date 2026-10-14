@@ -498,6 +498,15 @@ measured is never removed.
 
 ## Layout
 
+ELK puts all events tagged `start` in the first layer and all tagged `end`
+in the last layer, in every reading direction. This includes disconnected
+events. They sit outside stage groups, before the first stage and after
+the last, with `orderStages` on or off. Without border events, layout is unchanged.
+Dagre keeps its source/sink placement; it pins neither border layers nor stage
+order. Start can still sit in the middle when its target has other incoming
+paths. Provisional layouts are also unpinned. Host `positions` win;
+`layoutUnion` still shares one union layout across scenes.
+
 ```ts
 export interface Box { x: number; y: number; width: number; height: number }
 export interface EdgeRoute { points: { x: number; y: number }[]; labelX?: number; labelY?: number }
@@ -581,7 +590,7 @@ Caching. With `cacheKey` the same key returns the cached positions, whatever
 the graph and the other options; the caller owns the key and forgets it with
 `clearLayoutCache(key)`. Without a key `layout` keeps nothing. A layout scope
 from `createLayoutScope` keys each layout by its inputs: node ids, labels,
-groups and resolved sizes (a size callback counts by what it returns), edge
+border event tags, groups and resolved sizes (by value), edge
 ids and endpoints, the groups' ids, kinds, labels and parents, and every other
 option (an `elk` instance by identity). A changed graph or changed options are
 laid out anew; the last `maxEntries` layouts are kept. `maxEntries` bounds
