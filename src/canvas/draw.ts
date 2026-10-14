@@ -3,6 +3,7 @@ import { keptLoop, mapEdges, selfLoopsOf } from "../core/edge-budget.js";
 import { headTriangle } from "../core/element-marks.js";
 import { type Arrowhead, type Box, type BoxSide, type XY, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type PatternLook, type Readable, type Selection, type ShownEdges, type StateStyle, type TextMeasure, type Theme, arrowheadExtent, dimensionTokens, fixedColors, hatchTokens, legendLayout, legendMetrics, budgetEdges, defaultTheme, estimateTextWidth, lineEnd, lodAt, markArrowhead, markInState, patternTwin, readableAt, ruleTextRole, stateStyle } from "../core/index.js";
 import { isPill, nodeTexts, readableMark, titleTexts } from "../core/readable.js";
+import { numbered } from "../core/figure.js";
 import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene.js";
 import { type CanvasTokens, sceneTokens } from "./tokens.js";
 
@@ -642,6 +643,13 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
     for (const tx of e.mark.texts) if (!tx.lod || lod[tx.lod]) drawText(ctx, scene, tx, paintOf(e.mark, s?.texts?.label ?? tx.paint, tokens), tokens);
     if (alpha !== undefined) ctx.globalAlpha = 1;
   });
+  if (!options.numbers && options.pathRule && readable.level === "box") {
+    const numbers = new Map(numbered({ ...scene, activityLabels: undefined }, readable.floor, dimensionTokens.panelMaxWidth, scene.textMeasure).texts.map((n) => [n.id, n.text]));
+    each(scene.nodes, "node", nodeId, (n) => {
+      const text = numbers.get(n.node.id);
+      if (text) drawText(ctx, scene, text, tokens.ink, tokens);
+    });
+  }
   for (const tx of options.numbers ?? []) drawText(ctx, scene, tx, tokens.ink, tokens);
   ctx.restore();
   return { nodes, edges, shapes, culled: cull, ...(kept !== undefined && { kept }), ...(withheld && { withheld }), readable };

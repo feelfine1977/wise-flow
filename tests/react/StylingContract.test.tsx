@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useReactFlow } from "@xyflow/react";
 import { readFileSync, writeFileSync } from "node:fs";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { readContract, partsIn, stylingContractErrors } from "../../scripts/check-styling-contract.mjs";
@@ -51,6 +52,12 @@ const traces: Trace[] = [
 
 const map = (container: HTMLElement) => container.querySelector<HTMLElement>(".wf-process-map")!;
 const element = (container: HTMLElement, id: string) => container.querySelector<HTMLElement>(`.react-flow__node[data-id="${id}"]`)!;
+let numberView: () => void;
+function NumberView() {
+  const rf = useReactFlow();
+  numberView = () => void rf.setViewport({ x: 0, y: 0, zoom: 0.05 });
+  return null;
+}
 
 afterEach(cleanup);
 afterAll(() => {
@@ -144,6 +151,14 @@ describe("the styling contract", () => {
     } finally {
       restore();
     }
+  });
+
+  it("draws the numbered activities and their key", async () => {
+    const { container } = render(<ProcessMap graph={grouped} positions={groupedPositions} {...plain}><NumberView /></ProcessMap>);
+    await waitFor(() => expect(container.querySelectorAll(".react-flow__node").length).toBeGreaterThan(0));
+    act(() => numberView());
+    expect(screen.getByRole("region", { name: "Activities by number" }).getAttribute("data-wf-part")).toBe("activity-key");
+    keep(container);
   });
 
   it("lists exactly what the fixtures draw", () => {

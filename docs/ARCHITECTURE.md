@@ -12,7 +12,7 @@
 │          panel primitives · fit · ActivityTooltip            │
 │          useMapController · map-pointer · map-actions ·      │
 │          map-elements · nodes · edges · marks · describe ·   │
-│          types · parts · theme                               │
+│          MapNumbers · types · parts · theme                  │
 │          hooks: useFlowGraph, useStableLayout, useOverlays   │
 ├──────────────────────────┬───────────────────────────────────┤
 │ canvas/  scene · draw ·  │ bpmn/ lite · layout · export ·    │
@@ -430,7 +430,8 @@ activity's or a stage's card (a neutral outline, the stage once as the band,
 the name on up to two lines, the cases and their share of the log's cases,
 and the frequency cue as a stripe and a foot as long as the share, placed as
 the theme's `frequencyCue` says; the layout reserves the card's size once), an
-edge's route (straight between the boxes where none is given; a path against
+edge's route (a model flow self-loop on its supplied course or the
+sequence-flow router's, straight between the boxes where none is given; a path against
 the reading direction as its own line below the flow it returns over, two
 opposite paths side by side: `pathCourses`), colour, dash, an arrowhead that
 grows with its width, and count label at one label point. Groups have marks as well: a box group's
@@ -470,7 +471,13 @@ The scene carries the rules (`FlowScene.readable`: each level's smallest text
 and the largest floor it fits at, measured over every card) and each card's
 lines per level, fitted once by the text measure for the largest boost the
 level is drawn at (`NodeMark.levels`); boxes and positions never change with
-the zoom. The DOM map writes the state on its root as classes in one string,
+the zoom. At the box level live maps reuse the figure's numbered cards,
+with full names
+in a scrollable, keyboard-focusable key. `MapNumbers` adapts the shared
+numbering to React Flow; Canvas draws it in the node pass. A shown figure
+can replay `readable` or decide at its supplied `lodZoom`. Ordinary exports
+keep the figure floor. The DOM map writes the state on its root as classes
+in one string,
 the Canvas map decides it per frame within the frame before's hysteresis,
 and an exported figure at the map's scale with the theme's figure floor.
 

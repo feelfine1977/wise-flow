@@ -241,7 +241,7 @@ describe("the map's own fit", () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
       const rect = (width: number, height: number) => ({ left: 0, top: 0, x: 0, y: 0, width, height, right: width, bottom: height, toJSON: () => ({}) }) as DOMRect;
       if (this.classList.contains("wf-process-map__main")) return rect(100, 100);
-      if (!this.classList.contains("react-flow__panel")) return original.call(this);
+      if (!this.classList.contains("react-flow__panel") && !this.classList.contains("wf-overlay-panel")) return original.call(this);
       return measured && this.querySelector('[data-wf-part="controls"]') ? rect(30, 100) : rect(0, 0);
     });
     const positions = await layout(graph, { engine: "dagre" });

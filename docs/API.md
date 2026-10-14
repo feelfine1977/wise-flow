@@ -1229,6 +1229,10 @@ above a zoom of about 0.86.
   A card without text keeps its name as its hover title and its accessible
   name (`aria-label` in the DOM map; the tooltip and the element list of the
   Canvas map). Its box and position never change with the zoom.
+  On the live maps, `box` also draws numbered markers at the screen text
+  floor and a scrollable, keyboard-focusable "Activities by number" key of
+  full names. This applies below the ladder too; zooming back to names removes
+  the numbers and key. Standalone `CanvasMap` uses the same numbering. The key sits midway up the right edge, clear of the collapsed legend and zoom controls.
 - **Group titles** go with the cards' names (none at `box`) and are scaled up
   to the floor from their start.
 - **Labels** that are not scaled up go once they would fall below the floor:
@@ -1390,7 +1394,8 @@ export interface HitItem { minX; minY; maxX; maxY; id: string; kind: "node" | "e
   stroke?: { line: [XY, XY]; reach: number; head?: { points: XY[]; reach: number } } }   // a path's line along the segment, half its width, its head
 export interface Scene { graph; positions; overlays?; measure?: Measure; style?; title?; subtitle?; locale?; lanes?: LaneMode;
   activityLabels?: ActivityLabelOptions; selfLoops?: boolean }
-export interface ExportOptions { preset?: "single-column" | "double-column" | "slide" | "none"; width?; legend?;
+export interface ExportOptions { readable?: Readable;   // replay a live map's text state and full-name key
+  preset?: "single-column" | "double-column" | "slide" | "none"; width?; legend?;
   widthMm?: number;   // the width the figure is declared to be printed at; the SVG states its size in mm
   background?; fontFamily?; padding?; lodZoom?; context?;   // lodZoom: default the map's scale in a figure with a floor, else 1
   edgeBudget?: EdgeBudget | ShownEdges;   // default every edge; see "Edge budget"
@@ -1425,7 +1430,7 @@ export function legendLayout(legend: SceneLegend, o?: { measure?: TextMeasure; w
 export const figureMetrics: { padding: 24; legendColumn: 220; legendInset: 16; titleHeight: 40; titleBaseline: 26;
   contextHeight: 18; contextBaseline: 44; keyLine: 16; noteRow: 16; noteBaseline: 12; noteSize: 11 };
 export interface FigureFrameOptions { title?: boolean; context?: boolean; legend?: boolean; padding?: number; preset?: FigurePreset; width?: number;
-  withheld?: { shown: number; total: number }; caption?: boolean;
+  withheld?: { shown: number; total: number }; caption?: boolean; readable?: Readable;
   floor?: number }   // the smallest text in figure units; with an output width, the figure is fitted (below)
 export interface FigureFrame { padding; header; map: { width; height; offset: XY; scale: number };   // scale: the map's in a fitted figure, else 1
   legend?: { layout: LegendLayout; x; y; width; rule?: { x; top; bottom } }; caption?: { lines: string[]; x; y };   // no rule below the map
@@ -2643,7 +2648,8 @@ export interface CanvasTokens { font; paper; surface; ink; inkMuted; line; lineS
 // and toPNG take the scene's, in its scheme, where tokens a host builds leave them out
 export const defaultTokens: CanvasTokens;   // from the token table (`colorTokens`, `fontTokens`); without `tokens` a draw takes the scene's colours and font
 export function readTokens(element: Element | null | undefined, overrides?: Partial<CanvasTokens>): CanvasTokens;   // from the CSS variables (`cssVariable(key)`), as they are; <CanvasMap/> reads them with useFlowTheme instead
-export interface PngOptions { preset?: FigurePreset; width?; scale?; background?; legend?; padding?; lodZoom?; tokens?; createCanvas?; context?;
+export interface PngOptions { readable?: Readable;   // as in ExportOptions
+  preset?: FigurePreset; width?; scale?; background?; legend?; padding?; lodZoom?; tokens?; createCanvas?; context?;
   widthMm?: number;   // the width the figure is declared at, as in ExportOptions; drawn `width` CSS pixels wide (default as laid out)
   edgeBudget?: EdgeBudget | ShownEdges;   // default every edge; see "Edge budget"
   theme?: ThemeSetting; scheme?: ColorScheme;   // what the figure is drawn in (default the print preset, light); `tokens` override the scene's colours and font
@@ -3383,6 +3389,12 @@ Given a `ShownEdges` instead of a number, `budgetEdges` draws exactly the
 edges it names (of those in view) and states its `total` and optional `shown`; it withholds
 nothing when it names every edge in view.
 
+Model `flow` self-loops are ordinary paths, with their normal width, colour,
+arrowhead and label. Supplied courses are kept; missing ones use the
+sequence-flow router and extend scene bounds and hit targets. Live maps
+preserve them under the zoom rule and budget. Observed `follows` repeats
+retain their own overlay representation and description.
+
 ### Exporting what the map shows
 
 `<ProcessMap onEdgesShown/>` (and `<CanvasMap onEdgesShown/>`) is called
@@ -3400,6 +3412,14 @@ a change of the budget or the graph meanwhile tells the host nothing more, and
 once the map is shown again it is called with what the map then withholds.
 Up to this change React Flow went on reporting its budgeted set in the table
 view, and the Canvas map, unmounted there, left the host with its last report.
+
+To replay the screen's texts too, pass its theme and `lodZoom`. With a
+reported `ShownEdges` and a supplied `lodZoom`, both exports use the screen
+text floor at that zoom, including numbered markers and their full-name key.
+`readable` on `ExportOptions`, `PngOptions` and `FigureFrameOptions` overrides
+that decision with an exact `Readable` state, including hysteresis. It also
+works when every path is shown and the report is undefined. Default figures
+retain their own text floor and every selected path.
 
 `toSVG`, `toPNG`, `toPNGCanvas` and `toPNGDataUrl` take `edgeBudget`:
 
@@ -3895,6 +3915,7 @@ CSS written against these selectors changes only the interactive DOM map and the
 | `button` | a button of the panels: the zoom control's, the legend's toggle, the detail panel's toggles and its kept paths' part, the table's pager, the filters' "clear" | | |
 | `zoom-level` | the current zoom in the zoom control | | |
 | `overview` | the overview of a map that opens on its start, in a corner | | |
+| `activity-key` | the scrollable key of full activity names at the numbered screen level | | |
 | `abstraction-panel` | the detail panel: the sliders, their statements and the toggles of `<AbstractionControls/>` | | |
 | `legend` | `<Legend/>` | | |
 | `status` | the status panel (arranging, layout error) and the note on withheld paths | | |

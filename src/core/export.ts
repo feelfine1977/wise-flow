@@ -12,7 +12,7 @@ import { type FlowGraph, type Overlay, assertExportable } from "./model.js";
 import type { OverlayGeometryOptions } from "./overlays.js";
 import { type MarkSvgOptions, arrowMarker, markSvg, svgMarkup } from "./mark-svg.js";
 import { type MarkPaint, type MarkText, type OverlayMark, markArrowhead, overlayArrow } from "./overlay-marks.js";
-import { type Readable, isPill, nodeTexts, readableMark, titleTexts } from "./readable.js";
+import { type Readable, isPill, nodeTexts, readableMark, shownReadable, titleTexts } from "./readable.js";
 import { type FlowScene, sceneOf } from "./scene.js";
 import { type Measure, type StyleSpec, lodAt, patternDefs } from "./style.js";
 import { t } from "./strings.js";
@@ -38,6 +38,8 @@ export interface Scene {
 }
 
 export interface ExportOptions {
+  /** Replay a live map's text state and numbered full-name key. Pair with its theme, `lodZoom` and reported `edgeBudget`. Default the figure's text state. */
+  readable?: Readable;
   /** Figure preset setting the output width in pixels (the drawing scales to fit). */
   preset?: FigurePreset;
   /** Explicit output width in pixels; overrides the preset. */
@@ -312,7 +314,7 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
   const font = options.fontFamily ?? theme.font.family;
   const withheld = budgetEdges(scene, options.edgeBudget);
   const floor = figureFloor(theme);
-  const frame = figureFrame(scene, { title: !!given.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: options.widthMm !== undefined ? millimetres(options.widthMm) : options.width, withheld, caption: options.caption, floor });
+  const frame = figureFrame(scene, { title: !!given.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: options.widthMm !== undefined ? millimetres(options.widthMm) : options.width, withheld, caption: options.caption, floor, readable: shownReadable(scene, options) });
   const { padding: pad, width: totalW, height: totalH, outWidth: outW, outHeight: outH } = frame;
   const lodZoom = options.lodZoom ?? (floor > 0 ? frame.map.scale : 1);
   const ctx: Ctx = { scene, colors, locale, lod: lodAt(lodZoom, scene.lod), lodZoom, readable: frame.readable, withheld, keptLoops: options.edgeBudget && typeof options.edgeBudget === "object" ? new Set(options.edgeBudget.edges) : undefined };

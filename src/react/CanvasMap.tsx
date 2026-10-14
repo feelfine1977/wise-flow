@@ -1,11 +1,12 @@
 import { forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { type Box, type EdgeBudget, type HitItem, type Insets, type Locale, type ShownEdges, type ThemeSetting, type XY, formatCount, t, themeColors, viewTokens } from "../core/index.js";
+import { type Box, type EdgeBudget, type HitItem, type Insets, type Locale, type Readable, type ShownEdges, type ThemeSetting, type XY, formatCount, t, themeColors, viewTokens } from "../core/index.js";
 import { CanvasRenderer, type DrawState, type PreparedScene, type Viewport } from "../canvas/index.js";
 import { sceneTokens } from "../canvas/tokens.js";
 import { PathsNotShown, useEdgesShown } from "./hooks.js";
 import { part } from "./parts.js";
 import { MapOverview, ZoomControl, clearOfPanels, openingIn } from "./primitives.js";
 import { useFlowTheme } from "./theme.js";
+import { ActivityKey, useMapNumbers } from "./MapNumbers.js";
 
 export interface CanvasMapProps {
   scene: PreparedScene | undefined;
@@ -126,6 +127,8 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
   // The overview while the map opened on its start, and the view it marks.
   const [overview, setOverview] = useState<Box>();
   const [view, setView] = useState<Viewport>();
+  const [readable, setReadable] = useState<Readable>();
+  const numbers = useMapNumbers(scene, readable);
   // Once the person pressed the fit button, the map is fitted rather than opened, until its graph is replaced (`openKey`).
   const fittedByPerson = useRef(false);
   const fitNow = (insets?: Partial<Insets>, overviewToo = true) => {
@@ -167,7 +170,8 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
       setView(v);
       onViewportChange?.(v);
     };
-    renderer.onDraw = ({ withheld: w }) => {
+    renderer.onDraw = ({ withheld: w, readable: texts }) => {
+      setReadable((was) => was?.level === texts.level && was.floor === texts.floor ? was : texts);
       reportShown(w, renderer.getScene()?.edgeMarks ?? []);
       tellPaths.current?.(w?.pathsNotShown);
       const key = w ? `${w.shown}/${w.total}/${w.highlightedNotShown}` : "";
@@ -407,6 +411,7 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
         <MapOverview bounds={scene.bounds} nodes={scene.positions.nodes} view={view} area={rendererRef.current.size} at={overview} locale={locale} onMove={(p) => rendererRef.current?.centerOn(p)} />
       ) : null}
       {children}
+      <ActivityKey numbers={numbers} locale={locale} />
     </div>
   );
 });

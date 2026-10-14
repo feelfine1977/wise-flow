@@ -336,6 +336,8 @@ export const figureMetrics = {
 } as const;
 
 export interface FigureFrameOptions {
+  /** Replay a live map's text state, including its hysteresis and numbered full-name key. Default the figure's own decision. */
+  readable?: Readable;
   /** The figure has a title (and, unless `context` is false, a context line). */
   title?: boolean;
   context?: boolean;
@@ -449,7 +451,7 @@ export function figureHeading(scene: FramedScene, frame: FigureFrame, title: str
  * across it, then by id), each number written in the middle of its card at
  * the floor, and the key of their names.
  */
-function numbered(scene: FramedScene, floor: number, width: number, measure: TextMeasure): { texts: { id: string; text: MarkText }[]; lines: string[] } {
+export function numbered(scene: FramedScene, floor: number, width: number, measure: TextMeasure): { texts: { id: string; text: MarkText }[]; lines: string[] } {
   const across = scene.positions?.direction === "DOWN" || scene.positions?.direction === "UP";
   const at = (m: NodeMark) => (across ? [m.box.y, m.box.x] : [m.box.x, m.box.y]);
   const cards = (scene.nodeMarks ?? []).filter((m) => m.kind === "activity" || m.kind === "stage").sort((a, b) => at(a)[0] - at(b)[0] || at(a)[1] - at(b)[1] || (a.id < b.id ? -1 : 1));
@@ -489,12 +491,12 @@ export function figureFrame(scene: FramedScene, options: FigureFrameOptions = {}
   const fitted = floor > 0 && given !== undefined && content.width > 0;
   const beside = !!layout && (!fitted || given - 2 * pad - f.legendColumn >= given / 2);
   const scale = fitted ? (given - 2 * pad - (beside ? f.legendColumn : 0)) / content.width : 1;
-  const readable = floor > 0 && scene.readable ? readableAt(scene.readable, scale, floor) : FULL_DETAIL;
+  const readable = options.readable ?? (floor > 0 && scene.readable ? readableAt(scene.readable, scale, floor) : FULL_DETAIL);
   const mapW = content.width * scale + 2 * pad;
   const mapH = content.height * scale + 2 * pad;
   // Widened to fit the note.
   const width = fitted ? given : Math.max(mapW + (layout ? f.legendColumn : 0), text ? measure(text, { size: f.noteSize }) + 2 * pad : 0);
-  const names = readable.level === "box" ? numbered(scene, readable.floor, beside ? legendMetrics.width : width - 2 * pad, measure) : undefined;
+  const names = readable.level === "box" ? numbered(options.readable ? { ...scene, activityLabels: undefined } : scene, readable.floor, beside ? legendMetrics.width : width - 2 * pad, measure) : undefined;
   // The column beside the map, or below it: the legend's rows, then the key of names.
   const column = { x: beside ? mapW + f.legendInset : pad, y: header + (beside ? pad : mapH) };
   const keyTop = column.y + (layout && names ? layout.height + f.noteRow : (layout?.height ?? 0));

@@ -25,7 +25,7 @@ export const MIN_TEXT_PX = 9;
 /** Overlap below this many map units in either direction is touching, not covering. */
 export const TOUCH = 0.5;
 
-export type TextRole = "node" | "path" | "arc" | "loop" | "badge" | "chip" | "group";
+export type TextRole = "node" | "number" | "path" | "arc" | "loop" | "badge" | "chip" | "group";
 
 export interface Card {
   id: string;
@@ -223,7 +223,7 @@ export function readCanvas(scene: PreparedScene, view: View, options: CanvasRead
       // The outline is the first fill; a diamond's box is the node's.
       const outline = v.ops.find((o) => o.kind === "fill");
       if (outline) reading.cards.push({ id: v.id, kind: n.node.kind, box: outline.box });
-      texts("node");
+      texts(outline ? "node" : "number");
     } else if (v.list === "edges") {
       const line = v.ops.find((o) => o.kind === "stroke");
       if (line && !reading.paths.some((p) => p.id === v.id)) reading.paths.push({ id: v.id, width: line.lineWidth, color: line.style });

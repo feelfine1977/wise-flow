@@ -77,12 +77,12 @@ type BudgetScene = Pick<FlowScene, "edgeMarks" | "marks" | "style" | "graph" | "
 
 const loopsByNode = new WeakMap<readonly EdgeMark[], Map<string, string[]>>();
 
-/** The paths that loop on one activity, by activity: edges from a placed node to itself. */
+/** Observed paths drawn as loop overlays, by activity; model flows already have edge marks. */
 export function selfLoopsOf(scene: Pick<BudgetScene, "edgeMarks" | "graph" | "positions">): Map<string, string[]> {
   let loops = loopsByNode.get(scene.edgeMarks);
   if (!loops) {
     loopsByNode.set(scene.edgeMarks, (loops = new Map()));
-    for (const e of scene.graph.edges) if (e.source === e.target && scene.positions.nodes[e.source]) loops.set(e.source, [...(loops.get(e.source) ?? []), e.id]);
+    for (const e of scene.graph.edges) if (e.kind === "follows" && e.source === e.target && scene.positions.nodes[e.source]) loops.set(e.source, [...(loops.get(e.source) ?? []), e.id]);
   }
   return loops;
 }
@@ -201,7 +201,7 @@ export function mapEdges(scene: BudgetScene, budget: EdgeBudget | ShownEdges | u
   const zoomed = pathsAtZoom(scene, zoom, minPx, protection);
   if (!zoomed && (budget === undefined || budget === "all")) return undefined;
   const selected = new Set([...anchorsOf(scene), ...(protection.selection?.edges ?? []), ...(protection.highlighted ?? [])]);
-  for (const m of scene.edgeMarks) if (!isPath(m.edge)) selected.add(m.id);
+  for (const m of scene.edgeMarks) if (!isPath(m.edge) || m.edge.source === m.edge.target) selected.add(m.id);
   const cut = budgetEdges(scene, budget, { ...protection, selection: { edges: [...selected] } }, zoomed?.through);
   if (!zoomed && !cut) return undefined;
   const drawn = cut?.drawn ?? new Set(zoomed!.through);

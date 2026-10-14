@@ -44,6 +44,20 @@ and has the DOM map and the Canvas map choose the same level at three zooms.
 draws in Chromium, at its fitted zoom and six steps out with its zoom
 control: its computed size times the scale of what is around it.
 
+`react/ScreenNumbers.test.tsx` checks the numbered fallback below the ladder,
+full-name keys in English and German (including host reference labels), and
+the whole-log cards at all 24 control settings over nine fixed zoom steps on
+both drawing adapters. The readings distinguish reference numbers from case
+counts. `core/shown-numbers.test.ts` compares live numbers with SVG/PNG numbers,
+keys and notes at fixed zooms, with explicit text-state replay and the default
+decision at a supplied screen zoom. `browser/screen-numbers.spec.ts` measures
+the whole-log markers at fixed zoom 0.05 on both maps and compares their
+positions, sizes, weights and paints with SVG and PNG; it checks key scrolling,
+keyboard focus and Axe. `core/flow-loops.test.ts` checks ordinary model-loop
+ink, protection, bounds, hit targets and culling; the browser parity lane adds
+the model-loop fixture at zoom 1 and the small-zoom story checks its live ink.
+No strict image baseline is changed.
+
 ## Opening the map
 
 `core/opening-view.test.ts` checks the fitted/readable boundary, reading

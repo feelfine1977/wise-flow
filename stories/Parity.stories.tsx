@@ -7,6 +7,7 @@ import { textMeasures } from "../fixtures/text-measures";
 import { type ActivityLabelOptions, type FlowGraph, type LaneMode, type Locale, type Measure, type Overlay, type Positions, type Theme, abstract, activityNodeSize, constraintOverlays, defaultTheme, layout, overlaysFor } from "../src/index";
 import { useFlowTheme } from "../src/react/index";
 import { ProcessMap } from "./maps";
+import { flowLoop } from "../tests/support/flow-loop";
 import { catalogueGraph, examples, rawKinds } from "./Overlays.stories";
 
 /**
@@ -115,6 +116,7 @@ const scenes: Record<string, () => Omit<ParityScene, "positions"> & { variables?
   // The model's activities carry the log's metrics, so its cards show their share of the log's cases.
   roleLanes: () => ({ graph: { ...liteFromStages(withSceneMetrics(p2pStages, globalScene), { lanes: "role" }), meta: globalScene.meta }, overlays: [], lanes: "roles" }),
   kinds: () => ({ graph: kinds, overlays: [] }),
+  modelLoop: () => ({ graph: flowLoop, overlays: [] }),
   secondTheme: () => ({ ...scenes.small(), theme: secondTheme }),
   rules: () => ({ graph: ruled, overlays: [{ kind: "badge", target: "check", payload: { glyph: "≥1", value: 0.23 } }], theme: rulesTheme }),
   hostVariables: () => ({ ...scenes.small(), variables: hostVariables }),
@@ -224,3 +226,5 @@ export const Frequency: StoryObj = { name: "small P2P in the frequency measure",
 export const Shortfall: StoryObj = { name: "small P2P in the shortfall measure", render: () => <Parity name="shortfall" /> };
 export const Performance: StoryObj = { name: "BPIC global in the performance measure", render: () => <Parity name="performance" /> };
 export const NamesGerman: StoryObj = { name: "BPIC global with activity names in German, measured wide", render: () => <Parity name="namesGerman" /> };
+
+export const ModelLoop: StoryObj = { name: "model flow with a self-loop", render: () => <Parity name="modelLoop" /> };

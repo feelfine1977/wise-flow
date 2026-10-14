@@ -27,6 +27,7 @@ const FIXTURES: { name: string; story: string; scheme?: ColorScheme }[] = [
   { name: "stages", story: "parity--stages" },
   { name: "roleLanes", story: "parity--role-lanes" },
   { name: "kinds", story: "parity--element-kinds" },
+  { name: "modelLoop", story: "parity--model-loop" },
   { name: "secondTheme", story: "parity--second-theme" },
   { name: "hostVariables", story: "parity--host-variables" },
   { name: "rules", story: "parity--rules" },

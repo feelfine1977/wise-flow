@@ -4,6 +4,7 @@ import {
   Panel,
   ReactFlow,
   ReactFlowProvider,
+  ViewportPortal,
   useNodesInitialized,
   useReactFlow,
   useStore,
@@ -17,6 +18,7 @@ import { isPath } from "../core/detail.js";
 import { type MapContext, mapEmphasis, menuHeading } from "../core/map-controller.js";
 import { markedThemeKey, themeStyle } from "../core/theme.js";
 import { ActivityTooltip } from "./ActivityTooltip.js";
+import { ActivityKey, MapNumbers, useMapNumbers } from "./MapNumbers.js";
 import { AbstractionControls } from "./AbstractionControls.js";
 import { CanvasMap, type CanvasMapHandle, EdgeNote } from "./CanvasMap.js";
 import { MenuView } from "./ContextMenu.js";
@@ -245,6 +247,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   // What the texts show at the zoom, within the hysteresis of what they showed: the map writes it on its root as classes.
   const readableBefore = useRef<Readable | undefined>(undefined);
   const readable = readableAt(scene.readable, zoom, scene.theme.text.minScreenPx, readableBefore.current);
+  const numbers = useMapNumbers(scene, readable);
   useEffect(() => void (readableBefore.current = readable));
   const textSizes = useMemo(() => readableSizes(scene.readable), [scene.readable]);
   const grown = useMemo(() => grownTextSize(scene), [scene]);
@@ -665,7 +668,9 @@ function ProcessMapInner(props: ProcessMapProps) {
                   </Panel>
                 ) : null}
                 {children}
+                <ViewportPortal><MapNumbers numbers={numbers} /></ViewportPortal>
               </ReactFlow>
+              <ActivityKey numbers={numbers} locale={locale} />
               {flowOverview && positions ? (
                 <MapOverview
                   bounds={scene.bounds}

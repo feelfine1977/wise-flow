@@ -8,6 +8,7 @@
 import { edgePoints } from "./element-marks.js";
 import { type Box, type Positions, type XY, createPositions } from "./layout.js";
 import type { FlowEdge, FlowGraph } from "./model.js";
+import { routeSequenceFlows } from "./routing.js";
 
 /** Where a path's label goes: beside `at` on its course, on the side `side` points to (a unit vector). */
 export interface CourseLabel {
@@ -108,6 +109,9 @@ function simplified(points: XY[]): XY[] {
  * returned as given.
  */
 export function pathCourses(graph: FlowGraph, positions: Positions, options: { width: (edge: FlowEdge) => number; bands?: ReadonlySet<string> }): PathCourses {
+  // A supplied model loop keeps its course; missing courses use the sequence-flow router, including its obstacle clearance.
+  const loops = graph.edges.filter((e) => e.kind === "flow" && e.source === e.target && !(positions.edges[e.id]?.points.length >= 2));
+  if (loops.length) positions = createPositions({ ...positions, edges: { ...positions.edges, ...routeSequenceFlows({ ...graph, edges: loops }, positions.nodes, { allowOverlap: true }) } }, positions.engine, positions.direction);
   const unchanged: PathCourses = { positions, backward: new Set(), labels: new Map() };
   const nodes = positions.nodes;
   const paths = graph.edges.filter((e) => e.kind === "follows" && e.source !== e.target && nodes[e.source] && nodes[e.target]);
