@@ -3,7 +3,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-const localPath = /\/(?:Users|home)\/[^\s/"'<>]+|[A-Za-z]:[\\/]Users[\\/]/i;
+const localPath = /\/(?:Users|home)\/[^\s/"'<>]+|[A-Za-z]:[\\/]+Users[\\/]+/i;
 
 test('tracked files contain no personal absolute paths', () => {
   const files = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
@@ -16,6 +16,11 @@ test('personal path detection covers Unix and Windows forms', () => {
     assert.ok(localPath.test(path));
   }
   assert.equal(localPath.test('path/to/data.csv'), false);
+});
+
+test('personal path detection covers escaped Windows literals in source files', () => {
+  const slash = '\\'.repeat(2);
+  assert.ok(localPath.test(`const csv = "C:${slash}Users${slash}alice${slash}data.csv";`));
 });
 
 test('fixture input is required, with download instructions before optional imports', () => {
