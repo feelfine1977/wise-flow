@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { type FlowGraph, buildScene, estimateTextWidth, formatHours, metricName, nodeMark, toSVG } from "../../src/index.js";
 
-import { describeEdge } from "../../src/core/describe";
+import { describeEdge, describeTimes } from "../../src/core/describe";
 import { prepareScene, toPNGCanvas } from "../../src/canvas/index";
 import { timedGraph, timedPositions, timedStyle } from "../support/activity-times";
 import { readCanvasMap, readPng } from "../browser/parity/canvas";
@@ -14,6 +14,42 @@ it("names activity times and mean lag in both languages", () => {
     for (const key of ["medianPrevHours", "meanPrevHours", "meanNextHours", "meanLagHours", "prevPassages", "nextPassages", "lagPassages"]) {
       expect(metricName(key, locale)).not.toBe(key);
     }
+  }
+});
+
+it("associates each statistic with its value and directional passages", () => {
+  // 81.6 / 24 = 3.4 days; 96 / 24 = 4 days; 2/60 and 3/60 hours are 2 and 3 minutes.
+  expect(describeTimes(timedGraph.nodes[0], "en")).toEqual([
+    "median time from previous event 3.4 d (8 passages)",
+    "mean time from previous event 4.0 d (8 passages)",
+    "median time to next event 2 min (7 passages)",
+    "mean time to next event 3 min (7 passages)",
+  ]);
+  expect(describeTimes(timedGraph.nodes[0], "de")).toEqual([
+    "Median seit dem vorherigen Ereignis 3,4 d (8 Übergänge)",
+    "Mittlere Zeit seit dem vorherigen Ereignis 4,0 d (8 Übergänge)",
+    "Median bis zum nächsten Ereignis 2 min (7 Übergänge)",
+    "Mittlere Zeit bis zum nächsten Ereignis 3 min (7 Übergänge)",
+  ]);
+  // 1/600 hour is 0.1 minute and rounds to zero, whereas the mean is exactly zero.
+  expect(describeTimes(timedGraph.edges[0], "en")).toEqual([
+    "median lag < 1 min (6 passages)", "mean lag 0 min (6 passages)",
+  ]);
+  expect(describeTimes(timedGraph.edges[0], "de")).toEqual([
+    "Median-Wartezeit < 1 min (6 Übergänge)", "Mittlere Wartezeit 0 min (6 Übergänge)",
+  ]);
+});
+
+it("names the chosen statistic in the performance sentence and path colour title", () => {
+  for (const locale of ["en", "de"] as const) for (const metric of ["medianLagHours", "meanLagHours"]) {
+    const scene = buildScene(timedGraph, timedPositions("RIGHT"), { locale, measure: "performance", style: { edgeColor: { metric } } });
+    const mean = metric === "meanLagHours";
+    expect(scene.legend.rows.find(r => r.kind === "measure")).toEqual({ kind: "measure", text: locale === "en"
+      ? `Performance: ${mean ? "mean" : "median"} wait between activities (h, d). Colour = ${mean ? "mean" : "median"} lag. Width = cases.`
+      : `Durchlaufzeit: ${mean ? "mittlere" : "mediane"} Wartezeit zwischen Aktivitäten (h, d). Farbe = ${mean ? "mittlere Wartezeit" : "Median-Wartezeit"}. Breite = Fälle.` });
+    expect(scene.legend.rows.find(r => r.kind === "ramp")?.title).toBe(locale === "en"
+      ? `Path colour: ${mean ? "mean" : "median"} lag (min, h, d)`
+      : `Pfadfarbe: ${mean ? "Mittlere Wartezeit" : "Median-Wartezeit"} (min, h, d)`);
   }
 });
 

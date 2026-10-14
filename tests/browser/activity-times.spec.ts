@@ -19,7 +19,9 @@ test("time cards keep their size with long names in both directions and both int
       const box = await node.boundingBox();
       expect([box?.width, box?.height]).toEqual([180, 64]);
       await expect(node).toHaveAttribute("aria-label", /median time from previous event.*8 passages.*mean time to next event.*7 passages/);
+      await expect(node.locator(".wf-node--card")).toHaveAttribute("title", /median time from previous event 3\.4 d \(8 passages\).*mean time from previous event 4\.0 d \(8 passages\).*median time to next event 2 min \(7 passages\).*mean time to next event 3 min \(7 passages\)/);
       await expect(page.locator('.react-flow__node[data-id="s"]')).toContainText("–");
+      await expect(page.locator('.react-flow__node[data-id="s"] .wf-node--card')).toHaveAttribute("title", /No stage duration can be determined from activity statistics/);
     } else {
       await expect.poll(() => page.evaluate(() => (window as unknown as { timedTexts: string[] }).timedTexts)).toContain(expected);
       const texts = await page.evaluate(() => (window as unknown as { timedTexts: string[] }).timedTexts);
