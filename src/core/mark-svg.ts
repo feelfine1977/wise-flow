@@ -37,7 +37,9 @@ function textElement(mark: OverlayMark, m: MarkText, o: MarkSvgOptions): SvgElem
   const { lead = "", text } = m;
   // Without a middle baseline in every SVG consumer, about 0.3 em below the middle.
   const y = m.baseline === "middle" ? m.y + 0.3 * m.size : m.y;
-  const attrs: [string, string][] = [["x", num(m.x)], ["y", num(y)], ["font-size", String(m.size)]];
+  // Preserve subpixel sizing while discarding platform-dependent power rounding.
+  const size = Number(m.size.toFixed(12));
+  const attrs: [string, string][] = [["x", num(m.x)], ["y", num(y)], ["font-size", String(size)]];
   if (m.weight) attrs.push(["font-weight", String(m.weight)]);
   if (m.anchor !== "start") attrs.push(["text-anchor", m.anchor]);
   attrs.push(["fill", o.paint(mark, m.paint)]);

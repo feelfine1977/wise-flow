@@ -12,6 +12,21 @@ const positions = createPositions({ nodes: { a: { x: 0, y: 0, width: 180, height
 const measure = (text: string, font: string) => text.length * 0.55 * Number(/([\d.]+)px/.exec(font)?.[1] ?? 10);
 
 describe("numbered shown figures", () => {
+  it("serializes reference sizes identically when a power differs in its last binary digit", () => {
+    const scene = prepareScene(graph, positions);
+    const state = readableAt(scene.readable, 0.18, 9);
+    // Rung 46 is 2^(46/8). Node 22 x64 and Node 24 differ by one ULP.
+    const given = { graph, positions, overlays: [{ kind: "badge" as const, target: "a", payload: { glyph: "!", value: 0.5 } }] };
+    const sizes = [53.81737057623773, 53.817370576237735];
+    const svgs = sizes.map((floor) => toSVG(given, { theme: "default", readable: { ...state, level: "box", floor }, legend: false, caption: false }));
+    expect(svgs[0]).toBe(svgs[1]);
+    for (const svg of svgs) {
+      const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
+      expect(doc.querySelector(".wf-badge text")?.getAttribute("font-size")).toBe("53.817370576238");
+      expect([...doc.querySelectorAll(".wf-numbers text")].map((n) => n.getAttribute("font-size"))).toEqual(["53.817370576238", "53.817370576238"]);
+    }
+  });
+
   it("replays cleared reference boxes and card links in both shown formats, including their figure bounds", () => {
     const close = createPositions({ nodes: { a: { x: 0, y: 0, width: 180, height: 64 }, b: { x: 0, y: 84, width: 180, height: 64 } }, groups: {}, edges: {} }, "given", "RIGHT");
     const given = { graph: { ...graph, edges: [] }, positions: close };
@@ -72,7 +87,7 @@ describe("numbered shown figures", () => {
         expect(liveNumbers.map((o) => [o.text, o.x, o.y, o.size])).toEqual([["1", 90, 32, readable.floor], ["2", 690, 32, readable.floor]]);
         const pngNumbers = pngTexts.filter((o) => o.scales === 2 && /^\d+$/.test(o.text));
         expect(pngNumbers.map((o) => [o.text, o.x, o.y, o.size])).toEqual(liveNumbers.map((o) => [o.text, o.x, o.y, o.size]));
-        expect(svgNumbers.map((n) => Number(n.getAttribute("font-size")))).toEqual([readable.floor, readable.floor]);
+        expect(svgNumbers.map((n) => Number(n.getAttribute("font-size")))).toEqual([Number(readable.floor.toFixed(12)), Number(readable.floor.toFixed(12))]);
         for (const name of ["1 Record Goods Receipt", "2 Record Service Entry Sheet"]) {
           expect(svg.querySelector(".wf-number-key")?.textContent).toContain(name);
           expect(pngTexts.some((o) => o.text === name)).toBe(true);

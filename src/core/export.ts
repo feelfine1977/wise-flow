@@ -227,10 +227,11 @@ function paintOf(ctx: Ctx, color: string, onColor: string, paint: MarkPaint): st
   return paint === "value" ? color : paint === "onValue" ? onColor : paint[0] === "#" ? paint : ctx.colors[paint as ColorToken];
 }
 
+// Keep subpixel font sizes without exposing platform-dependent power rounding.
 function markText(ctx: Ctx, color: string, onColor: string, m: MarkText): string {
   const y = m.baseline === "middle" ? m.y + 0.3 * m.size : m.y;
   const halo = m.halo ? ` paint-order="stroke" stroke="${ctx.colors.paper}" stroke-width="${ctx.scene.theme.stroke.halo}"` : "";
-  return text(m.x, y, m.text, `font-size="${m.size}"${m.weight ? ` font-weight="${m.weight}"` : ""}${m.anchor === "start" ? "" : ` text-anchor="${m.anchor}"`} fill="${paintOf(ctx, color, onColor, m.paint)}"${halo}`);
+  return text(m.x, y, m.text, `font-size="${Number(m.size.toFixed(12))}"${m.weight ? ` font-weight="${m.weight}"` : ""}${m.anchor === "start" ? "" : ` text-anchor="${m.anchor}"`} fill="${paintOf(ctx, color, onColor, m.paint)}"${halo}`);
 }
 
 function drawMarks(ctx: Ctx, layer: OverlayMark["layer"]): string {

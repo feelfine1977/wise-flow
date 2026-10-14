@@ -187,11 +187,13 @@ const beforeObserved = "7c1510a3b92b08b95b3445b795c3c727f4333458a62533d7fd105085
  * where no card shows its name, so the cards are numbered and keyed under the
  * legend, the paths' labels are shed and the pills scaled up to the floor.
  */
+// Fractional font sizes are serialized to twelve decimal places. Only the references
+// and boosted deviation texts in the two narrow figures differ; all other SVG bytes are unchanged.
 const printed: Record<string, string> = {
   overlays: "808aaaf06d29e33ad91c1ba37593a8903cb7abd3c76849db86eb3dda30bb3e7b",
-  stagesGerman: "dd08cfe63cc1d0885a4238122a5cf04b097ab3ecacc364a67acd6c086cb348db",
+  stagesGerman: "254171209f8d386f5fc4469de3fe5776ec29cb577297acbc8161814c33694bf2",
   vendor: "8dffbac929fa670aa32c9da111cbaf91eb560caf3a378cedcba296488e45b382",
-  unfiltered: "4a4ef7dd957a80303aa2ef4d6492a36ef06dd4aa2c634363f0d47b03947c0575",
+  unfiltered: "f9c6675937c37d3b9a0b42d9b9de9125be3b4bf83007b2e18e0bef43c4706888",
   plain: "70911ef8686f2aa17d961af06effe4ca9c0547380e492f171c7f89acbe3373c0",
 };
 

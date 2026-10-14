@@ -51,10 +51,15 @@ describe("activity reference clearance", () => {
     expect(numbered(scene, state.floor, 260, estimateTextWidth, false).texts.map((n) => [n.text.x, n.text.y, n.text.from, n.text.box])).toEqual([[90, 32, undefined, undefined], [90, 116, undefined, undefined]]);
   });
 
-  it("separates whole-log glyphs on settled ELK layouts across every control setting and fixed zoom", async () => {
-    for (const rung of RUNGS) {
+  for (const rung of RUNGS) {
+    // The two dense 0 % layouts take up to 63 s with coverage and four forks sharing two cores.
+    // 150 s gives each twice that work time; the smaller settings use the ordinary 30 s limit.
+    const timeout = rung.step === 0 && !rung.collapse ? 150_000 : 30_000;
+    it(`separates whole-log glyphs on a settled ELK layout at ${rung.name} and every fixed zoom`, async () => {
       const graph = shownGraph(globalScene, optionsOf(rung));
-      const positions = await layout(graph, { engine: "elk" });
+      // Dense whole-log layouts need time to settle under coverage on two cores, as in path-courses.test.ts.
+      const positions = await layout(graph, { engine: "elk", timeoutMs: 240_000 });
+      expect(positions.engine).toBe("elk");
       const scene = buildScene(graph, positions);
       for (const zoom of [0.05, 0.1, 0.2]) {
         const state = readableAt(scene.readable, zoom, 9);
@@ -73,6 +78,6 @@ describe("activity reference clearance", () => {
           if (b.from) expect(b.from).toEqual({ x: positions.nodes[texts[j].id].x + positions.nodes[texts[j].id].width / 2, y: positions.nodes[texts[j].id].y + positions.nodes[texts[j].id].height / 2 });
         }
       }
-    }
-  }, 90000);
+    }, timeout);
+  }
 });
