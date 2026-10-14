@@ -14,27 +14,40 @@ writes ``fixtures/bpic2019_p2p.json`` with
 
 The CSV is never stored in the repository. Run:
 
-    python3 fixtures/build_bpic2019_fixture.py [path/to/BPI_Challenge_2019.csv]
+    python3 fixtures/build_bpic2019_fixture.py path/to/BPI_Challenge_2019.csv
 
-Requires pandas. The script is deterministic for a given input file.
+Or set BPIC2019_CSV to the CSV path and run ``npm run fixture``.
+Download the public log at
+https://doi.org/10.4121/uuid:d06aff4b-79f0-45e6-8ec8-e19730c248f1
+and export it as CSV. Requires pandas and numpy. Output is deterministic
+for a given input file and build date.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
+import os
 import re
-import sys
 from datetime import date
 from pathlib import Path
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("csv", nargs="?", help="BPIC 2019 CSV path (or set BPIC2019_CSV)")
+args = parser.parse_args()
+csv_path = args.csv or os.environ.get("BPIC2019_CSV")
+if not csv_path:
+    parser.error(
+        "Provide the BPIC 2019 CSV path as an argument or set BPIC2019_CSV. "
+        "Download the public log at "
+        "https://doi.org/10.4121/uuid:d06aff4b-79f0-45e6-8ec8-e19730c248f1 "
+        "and export it as CSV."
+    )
+CSV = Path(csv_path)
 
 import numpy as np
 import pandas as pd
 
-CSV = Path(
-    sys.argv[1]
-    if len(sys.argv) > 1
-    else "/Users/ula/code/PhD/WISE/WISE/Untitled/data/BPI_Challenge_2019.csv"
-)
 OUT = Path(__file__).resolve().parent / "bpic2019_p2p.json"
 
 CASE = "case concept:name"
