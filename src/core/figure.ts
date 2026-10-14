@@ -106,7 +106,7 @@ interface LegendContext {
 
 /** "Shortfall · cases · share of 251,734 cases": the measure the paths' colour shows, the unit and what the shares are of. */
 function measureText(items: LegendItem[], context: LegendContext, locale: Locale): string {
-  if (context.measure) return t(locale, `measure.sentence.${context.measure}`);
+  if (context.measure) return t(locale, context.measure === "performance" && items.some(i => "metric" in i && i.title === "legend.edgeColor" && i.metric === "meanLagHours") ? "measure.sentence.performanceMean" : `measure.sentence.${context.measure}`);
   const colour = items.find((i) => i.title === "legend.edgeColor" && i.kind !== "categorical");
   const metric = colour && "metric" in colour ? colour.metric : undefined;
   // A metric outside the registry names the measure itself.

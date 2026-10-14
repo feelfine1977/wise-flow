@@ -163,8 +163,8 @@ describe("element descriptions of the fixtures", () => {
     expect(de(edge)).toBe("Pfad Change Quantity → Record Goods Receipt. 1 Übergänge. Median-Wartezeit 1,3 h. 100 % Erwartungslücke.");
     // One case of the vendor's 327 items is a share of 0.0031; events equal cases and are not repeated.
     const node = { kind: "node", id: "change_quantity" } as const;
-    expect(en(node)).toBe("Change Quantity, activity (Purchase order). 1 cases (0.3 %). 100 % expectation shortfall.");
-    expect(de(node)).toBe("Change Quantity, Aktivität (Purchase order). 1 Fälle (0,3 %). 100 % Erwartungslücke.");
+    expect(en(node)).toBe("Change Quantity, activity (Purchase order). 1 cases (0.3 %). 100 % expectation shortfall. median time to next event 1.3 h.");
+    expect(de(node)).toBe("Change Quantity, Aktivität (Purchase order). 1 Fälle (0,3 %). 100 % Erwartungslücke. Median bis zum nächsten Ereignis 1,3 h.");
   });
 
   // The same texts as the public describers give for each element on its own, without an index.

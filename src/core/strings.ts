@@ -2,6 +2,20 @@
 import type { Locale } from "./format.js";
 
 const en = {
+  "metric.medianPrevHours": "median time from previous event",
+  "metric.meanPrevHours": "mean time from previous event",
+  "metric.meanNextHours": "mean time to next event",
+  "metric.meanLagHours": "mean lag",
+  "metric.mean.medianPrevHours": "time from previous event, mean of medians",
+  "metric.prevPassages": "passages from previous",
+  "metric.nextPassages": "passages to next",
+  "metric.lagPassages": "timed passages",
+  "time.passages": "{value} passages",
+  "time.stage": "No stage duration can be determined from activity statistics",
+  "measure.fromPrev": "{value} from previous",
+  "measure.both": "prev {previous} · next {next}",
+  "measure.sentence.performanceMean": "Performance: mean wait between activities (h, d). Colour = mean lag. Width = cases.",
+
   "kind.activity": "activity",
   "kind.stage": "stage",
   "kind.gateway": "gateway",
@@ -351,6 +365,20 @@ const en = {
 export type StringKey = keyof typeof en;
 
 const de: Record<StringKey, string> = {
+  "metric.medianPrevHours": "Median seit dem vorherigen Ereignis",
+  "metric.meanPrevHours": "Mittlere Zeit seit dem vorherigen Ereignis",
+  "metric.meanNextHours": "Mittlere Zeit bis zum nächsten Ereignis",
+  "metric.meanLagHours": "Mittlere Wartezeit",
+  "metric.mean.medianPrevHours": "Zeit seit dem vorherigen Ereignis, Mittel der Mediane",
+  "metric.prevPassages": "Übergänge vom vorherigen Ereignis",
+  "metric.nextPassages": "Übergänge zum nächsten Ereignis",
+  "metric.lagPassages": "Übergänge mit Zeitmessung",
+  "time.passages": "{value} Übergänge",
+  "time.stage": "Aktivitätsstatistiken bestimmen keine Phasendauer",
+  "measure.fromPrev": "{value} seit vorheriger",
+  "measure.both": "vor {previous} · nach {next}",
+  "measure.sentence.performanceMean": "Durchlaufzeit: mittlere Wartezeit zwischen Aktivitäten (h, d). Farbe = mittlere Wartezeit. Breite = Fälle.",
+
   "kind.activity": "Aktivität",
   "kind.stage": "Phase",
   "kind.gateway": "Gateway",

@@ -285,10 +285,12 @@ export type Measure = "frequency" | "shortfall" | "performance";
  */
 export interface LineSpec {
   metric: string;
-  /** How the value reads: alone ("12 d", the default), as the share short ("35 % short") or as the time to the next activity ("4.7 d to next"). */
-  format?: "value" | "short" | "toNext";
-  /** What follows an activity's value after "·": its cases (default) or their share of all cases. A path's count follows its value. */
-  then?: "cases" | "share";
+  /** How the value reads: alone ("12 d", the default), as the share short ("35 % short") or as a time from previous or to next, or both ("prev 3.4 d · next 2 min"). */
+  format?: "value" | "short" | "toNext" | "fromPrev" | "both";
+  /** Second time for `both`; default the matching median or mean time to next. */
+  nextMetric?: string;
+  /** What follows an activity's value after "·": its cases (default), their share of all cases, or nothing. `both` omits it. A path's count follows its value. */
+  then?: "cases" | "share" | "none";
   /** An activity without a value: "–" in its place (default), or the number line as without the setting (`frequency`). A path without one reads "–". */
   missing?: "dash" | "frequency";
 }

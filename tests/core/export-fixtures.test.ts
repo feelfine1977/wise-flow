@@ -162,14 +162,17 @@ const observed: Variant = {
  * The vendor's and `plain` are the same.
  */
 
+// Supplied activity times now appear in node titles. Compared with the preceding
+// output: scene marks are identical except titles, SVG is byte-identical after
+// removing titles, and all recorded Canvas operations are identical.
 const before: Record<string, string> = {
-  overlays: "d8f670a79e25346deb62347b3cc85902aa17f409bef49a66fc6bbb86ef9e794a",
-  stagesGerman: "f44bfea02ff01b29224272724ea040efe5728964e7e0f98612617e88ce25787e",
-  vendor: "42b0e99980ad3b8d13fc4f3b2b42c3ed4c137022b63a166aa0330fddb789e5d5",
-  unfiltered: "a433540e00b212b2c50f387e5622a412dbb70a63d79f9d2e226357b1d611423a",
-  plain: "2920ba1ebe834de63f37f3d67f44ed24f738cf49c50b8724b4552c8dd07a89ad",
+  overlays: "15e36458034f2e8229722dc314ede9dd629dd384babbb11f9e8b38a132fa4fea",
+  stagesGerman: "918f1827751a9c485057468d7136da820b57c4721c2912392febedcad51ef6b9",
+  vendor: "e2431f93ed0d40538d9e9f4b93d1497b1d43f8fcc6324dd00e3a7d732893df01",
+  unfiltered: "8503153cad5b7d9a0382b8c42f882251c5699dc80071f375573d726d80986f18",
+  plain: "10d9f9a55c69bf13e9e8392f41f6e616dd76a6ce8c53bb0a421324561877bb88",
 };
-const beforeObserved = "8537f2790539ca29f5b8c3e497f3a61f1c85f5eb049c9ad9c7b9de682acc0188";
+const beforeObserved = "7c1510a3b92b08b95b3445b795c3c727f4333458a62533d7fd10508507fd1cb4";
 
 /**
  * SHA-256 of `toSVG` for each variant without a theme, which draws the print
@@ -185,11 +188,11 @@ const beforeObserved = "8537f2790539ca29f5b8c3e497f3a61f1c85f5eb049c9ad9c7b9de68
  * legend, the paths' labels are shed and the pills scaled up to the floor.
  */
 const printed: Record<string, string> = {
-  overlays: "9d67bbb37f1c540bc19b694f5b2aec1ed64a1c0fb27544f6730a8a757b7d5499",
-  stagesGerman: "e411be0c0554d48d1ec893d73984fa5dda6b3e5f424bcba9e283c1bee4261fca",
-  vendor: "ba67db3200e9c9ade97348a6f46d9ea67e1894cddd0ab195b124209ab9950882",
-  unfiltered: "e2e505c25be2cbd52f2b65cf8ec30f8d13cc40b439fcd3a0911288bbfa4f903d",
-  plain: "f20594e42669699f87ed0040ff696e188e083a9d5f01749aed6d4186d7acfa50",
+  overlays: "808aaaf06d29e33ad91c1ba37593a8903cb7abd3c76849db86eb3dda30bb3e7b",
+  stagesGerman: "dd08cfe63cc1d0885a4238122a5cf04b097ab3ecacc364a67acd6c086cb348db",
+  vendor: "8dffbac929fa670aa32c9da111cbaf91eb560caf3a378cedcba296488e45b382",
+  unfiltered: "4a4ef7dd957a80303aa2ef4d6492a36ef06dd4aa2c634363f0d47b03947c0575",
+  plain: "70911ef8686f2aa17d961af06effe4ca9c0547380e492f171c7f89acbe3373c0",
 };
 
 describe("toSVG on the committed fixtures", () => {

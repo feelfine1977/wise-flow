@@ -34,8 +34,8 @@ describe("describeMap", () => {
 describe("describeNode", () => {
   it("says how many activities a stage node holds, which its card does not show", () => {
     const stage = { id: "pay", kind: "stage" as const, label: "Payment", metrics: { members: 4, cases: 1500 } };
-    expect(describeNode(stage, [], "en")).toBe("Payment, stage. 1,500 cases. 4 activities.");
-    expect(describeNode(stage, [], "de")).toBe("Payment, Phase. 1.500 Fälle. 4 Aktivitäten.");
+    expect(describeNode(stage, [], "en")).toBe("Payment, stage. 1,500 cases. 4 activities. No stage duration can be determined from activity statistics.");
+    expect(describeNode(stage, [], "de")).toBe("Payment, Phase. 1.500 Fälle. 4 Aktivitäten. Aktivitätsstatistiken bestimmen keine Phasendauer.");
     expect(describeNode({ id: "a", kind: "activity", label: "A", metrics: { members: 4, cases: 3 } }, [], "en")).toBe("A, activity. 3 cases.");
   });
 });

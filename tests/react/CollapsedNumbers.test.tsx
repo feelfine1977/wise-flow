@@ -32,7 +32,7 @@ describe("a collapsed stage in the map and the table", () => {
     // Stage Invoice of the whole log: its most frequent activity has 211,379 of the 251,734 cases.
     const invoice = collapseGroups(globalScene, "all").nodes.find((n) => n.id === "invoice")!;
     expect(describeNode(invoice, [], "en")).toContain("at least 211,379 cases (at least 84 %)");
-    expect(describeNode({ id: "order", kind: "stage", label: "Order", metrics: { cases: 900, share: 0.9 } }, [], "en")).toBe("Order, stage. 900 cases (90 %).");
+    expect(describeNode({ id: "order", kind: "stage", label: "Order", metrics: { cases: 900, share: 0.9 } }, [], "en")).toBe("Order, stage. 900 cases (90 %). No stage duration can be determined from activity statistics.");
   });
 
   it("is described with at least, and its merged path with a mean of medians", async () => {
