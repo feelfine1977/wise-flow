@@ -118,6 +118,19 @@ describe("frequency with optional lag colour", () => {
     const ramp = scene({ measure: "frequency", locale, style: { frequencyColorLegend: true, edgeColor: { metric: "medianLagHours", palette: "performance" } } });
     expect(ramp.legend.rows[0]).toEqual({ kind: "measure", text: text.replace(locale === "en" ? " classes" : "Klassen für ", "") });
   });
+
+  it.each([
+    ["en", "Frequency: width = share per path. Colour = median lag classes. Bar = share of all cases."],
+    ["de", "Häufigkeit: Breite = Anteil je Pfad. Farbe = Klassen für Median-Wartezeit. Balken = Anteil aller Fälle."],
+  ] as const)("names a share width independently of the case count labels in %s", (locale, text) => {
+    const withShares = { ...graph, edges: graph.edges.map((e) => ({ ...e, metrics: { ...e.metrics, share: 0.25 } })) };
+    const s = buildScene(withShares, positions, { measure: "frequency", locale, style: { frequencyColorLegend: true, edgeWidth: { metric: "share", scale: "linear", domain: [0, 1], range: [1, 6] }, edgeColor: lag } });
+    expect(s.scales.pathMetric).toBe("cases");
+    expect(s.edgeMarks.find((m) => m.id === "zero")?.texts[0]?.text).toBe("80");
+    expect(s.edgeMarks.find((m) => m.id === "zero")?.width).toBe(2.25);
+    expect(s.legend.items.find((i) => i.kind === "width")?.metric).toBe("share");
+    expect(s.legend.rows[0]).toEqual({ kind: "measure", text });
+  });
 });
 
 /** Record actual Canvas strokes and text, including the drawing used by PNG. */

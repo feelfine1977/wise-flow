@@ -114,7 +114,8 @@ function measureText(items: LegendItem[], context: LegendContext, locale: Locale
   const metric = colour && "metric" in colour ? colour.metric : undefined;
   const width = items.find((i) => i.kind === "width");
   const widthMetric = context.pathMetric ?? (width && "metric" in width ? width.metric : "cases");
-  if (context.frequencyColorLegend && context.measure === "frequency" && metric && metric !== widthMetric) return t(locale, colour?.kind === "classes" ? "measure.sentence.frequencyClasses" : "measure.sentence.frequencyColor", { width: metricName(widthMetric, locale), color: metricName(metric, locale) });
+  const actualWidthMetric = width?.metric ?? widthMetric;
+  if (context.frequencyColorLegend && context.measure === "frequency" && metric && metric !== actualWidthMetric) return t(locale, colour?.kind === "classes" ? "measure.sentence.frequencyClasses" : "measure.sentence.frequencyColor", { width: metricName(actualWidthMetric, locale), color: metricName(metric, locale) });
   if (context.measure) return t(locale, context.measure === "performance" && items.some(i => "metric" in i && i.title === "legend.edgeColor" && i.metric === "meanLagHours") ? "measure.sentence.performanceMean" : `measure.sentence.${context.measure}`);
   // A metric outside the registry names the measure itself.
   const measure = !metric ? t(locale, "measure.frequency") : metric.startsWith("delta_") ? t(locale, "measure.difference") : (() => { const key = metricEntry(metric)?.measure; return key ? t(locale, key) : metricName(metric, locale); })();

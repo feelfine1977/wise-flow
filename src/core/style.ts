@@ -322,13 +322,7 @@ export interface StyleSpec {
   stages?: readonly string[];
   /** The measure the style shows (`measureStyles`): the legend states its sentence. */
   measure?: Measure;
-  /**
-   * Opt in to dotted, neutral flows added by the host: only edges tagged
-   * `added-by-map`. Their width still follows `edgeWidth`; no measure colour
-   * or required colour metric applies. `true` uses the English/German legend
-   * default; a string supplies the host's legend words. Omit for the usual
-   * recorded-path style, including flows touching start and end events.
-   */
+  /** Opt in for `added-by-map` edges: neutral round dots, count labels and unchanged width. `true` uses EN/DE legend words; a string supplies the host's. */
   addedFlowLabel?: true | string;
   /** Opt in to a frequency legend sentence naming the actual width and alternate colour metric, including classes. */
   frequencyColorLegend?: true;

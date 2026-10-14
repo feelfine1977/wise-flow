@@ -836,43 +836,32 @@ Aktivitäten (h, d). Farbe = Median-Wartezeit. Breite = Fälle."); the map's
 one-line strip shows its first sentence. In the frequency measure the marks
 are those of the default style.
 
-Hosts may colour frequency paths by an optional lag while retaining case
-counts and widths. Opt in to the corresponding legend with
-`frequencyColorLegend: true`; its English or German sentence names the
-resolved width metric and the actual colour metric, and says "classes" when
-`bins` are supplied. Scale rows continue to give the units and class bounds.
-Without this option the existing sentence is unchanged. For example:
+For frequency colour by lag, opt in to an English/German legend naming
+actual width and colour metrics (and classes, if binned):
 
 ```ts
 const style: StyleSpec = {
-  addedFlowLabel: "Added by the map: start and end of the recorded history",
+  addedFlowLabel: true,
   frequencyColorLegend: true,
   edgeColor: { metric: "medianLagHours", palette: "performance", bins: [24, 168] },
 };
-// Pass measure: "frequency" and this style to the map or export.
-// Mark only synthetic boundary edges with tags: ["added-by-map"].
 ```
 
-With an optional colour metric (`required` omitted or false), a path without
-lag retains its known count and width and uses the neutral colour, the first
-class's colour. It is not keyed as "not evaluated". Zero is a measured value;
-values exactly 24 h and 168 h belong to the lower class. The performance
-measure's required metric and missing-value treatment are unchanged.
+With optional lag (`required` omitted or false), missing values retain their
+count and width in the neutral class, without a "not evaluated" key. Zero is
+measured; exact 24/168 h ties take the lower class. Performance remains
+required. Omitting `frequencyColorLegend` preserves existing legend wording.
 
-`addedFlowLabel` opts in only edges explicitly tagged `added-by-map`, in all
-measures. They are neutral round dots (`dashTokens.addedFlow`: `[0, 3]` in
-stroke-width units), distinct from the fixed `[6, 5]` re-added-path dash.
-Their count labels and width scale remain; measure values, including
-accidentally supplied lag, do not colour or lead their labels. Added flows
-are also excluded from colour-domain calibration; the count
-width calibration still includes them. `true` uses
-"Added by the map: start and end of the recorded history", or German
-"Von der Karte ergänzt: Anfang und Ende der aufgezeichneten Historie".
-A string supplies the host's words for that scene's locale. The key appears
-only when an added flow is drawn. Tagging a start/end node alone does not opt
-in its flows, and omitting the option keeps existing pictures and exports.
-SVG, Canvas and PNG draw the same resolved marks; interactive focus and
-selection still have their usual state treatment.
+`addedFlowLabel` applies only to edges tagged `added-by-map`, across all
+measures: neutral round dots, count labels and unchanged width calibration.
+`dashTokens.addedFlow` is `[0, 3]` in stroke-width units, distinct from the
+fixed `[6, 5]` re-added dash. Added flows never use measure colour or lead
+labels, and do not calibrate colour domains, even with accidental metrics.
+`true` supplies English/German history-boundary words; a string supplies
+host words for the scene's locale. The key appears only when drawn.
+Start/end node tags alone do not activate it. React, Canvas, SVG and PNG
+share this look; interactive state styling still applies. Without opt-in,
+existing pictures and exports remain unchanged.
 
 **Classes** (`ColorSpec.bins`): a value on a bound is in the class below it,
 so 10 % is "up to 10 %" and 30 % "10 % to 30 %". The first class is drawn in the
