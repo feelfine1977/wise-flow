@@ -5,7 +5,16 @@
   "playwright": "1.61.1",
   "darwin": {
     "os": "macOS 26.6.2, arm64",
-    "command": "npm run test:visual:approve"
+    "command": "npm run test:visual:approve",
+    "approved": "2026-10-14",
+    "approvedBy": "repository owner, after comparing the approved and the new images of the four changed scenes",
+    "sourceCommit": "e1f8f99",
+    "changed": [
+      "views-grid",
+      "stage-lanes",
+      "p2p-map",
+      "stable-layout"
+    ]
   },
   "linux": {
     "image": "mcr.microsoft.com/playwright@sha256:cf0daee9b994042e011bc29f20cdff1a9f682a039b43fcd738f7d8a9d3bcd9d6",
@@ -24,7 +33,7 @@
     },
     {
       "path": "tests/visual/__screenshots__/bpmn.spec.ts/views-grid-darwin.png",
-      "sha256": "65bcb14407b2950f16d45fa9e30cfe6adeb492c80144355a2521e261eadbd307"
+      "sha256": "6b646c818ee2abfb6bc536246661239e136bf77b67c58c2dc8eaab772cf01b16"
     },
     {
       "path": "tests/visual/__screenshots__/bpmn.spec.ts/views-grid-linux.png",
@@ -40,7 +49,7 @@
     },
     {
       "path": "tests/visual/__screenshots__/interaction.spec.ts/stage-lanes-darwin.png",
-      "sha256": "505c97a3c98b798b2d8f76c18a9d04eb2e34aaa7d36d725d562524ee8bfacfed"
+      "sha256": "3850eac7aebcafc9e9d58ebc6ff9c2b08efc4946af63187c9767dba852728fdd"
     },
     {
       "path": "tests/visual/__screenshots__/interaction.spec.ts/stage-lanes-linux.png",
@@ -48,7 +57,7 @@
     },
     {
       "path": "tests/visual/__screenshots__/p2p.spec.ts/p2p-map-darwin.png",
-      "sha256": "ff96abf4256cb7072ec2a838a2ee75d72b5b4b25530ab152cc233a75aecf2c0d"
+      "sha256": "f748033c30a5614d301fb531300b92c60178deacc69f66f46b72f1e1df84dcbb"
     },
     {
       "path": "tests/visual/__screenshots__/p2p.spec.ts/p2p-map-linux.png",
@@ -56,7 +65,7 @@
     },
     {
       "path": "tests/visual/__screenshots__/p2p.spec.ts/stable-layout-darwin.png",
-      "sha256": "92e245b858c309540cb044f4faaffc8e83ce50fbdad8c58a44f4083c54ed00ad"
+      "sha256": "d35e03a6035833eac034b23c80c7c976a21f25b4961b54153768445c06e45f90"
     },
     {
       "path": "tests/visual/__screenshots__/p2p.spec.ts/stable-layout-linux.png",
