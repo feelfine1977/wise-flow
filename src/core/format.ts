@@ -59,6 +59,7 @@ export function formatHours(hours: number, locale: Locale = "en"): string {
   if (!Number.isFinite(hours)) return "–";
   const abs = Math.abs(hours);
   const sign = hours < 0 ? "−" : "";
+  if (hours > 0 && Math.round(hours * 60) === 0) return "< 1 min";
   // Minutes while they round under an hour, hours while they round under 48.
   if (Math.round(abs * 60) < 60) return `${sign}${formatNumber(abs * 60, 0, locale)} min`;
   if (abs < 47.5) return `${sign}${formatNumber(abs, abs < 9.95 ? 1 : 0, locale)} h`;

@@ -144,14 +144,16 @@ describe("the name on a card", () => {
       const whole = wrapText(m.node.label, room, name, measure);
       if (whole.length <= 2) {
         expect(lines(m)).toEqual(whole);
-        expect(m.title).toBeUndefined();
+        if (Number.isFinite(m.node.metrics?.medianNextHours)) expect(m.title?.startsWith(m.node.label)).toBe(true);
+        else expect(m.title).toBeUndefined();
       } else {
         cut++;
         expect(lines(m)).toHaveLength(2);
         expect(lines(m)[0]).toBe(whole[0]);
         expect(lines(m)[1].endsWith("…")).toBe(true);
         expect(measure(lines(m)[1], name)).toBeLessThanOrEqual(room + 1e-6);
-        expect(m.title).toBe(m.node.label);
+        if (Number.isFinite(m.node.metrics?.medianNextHours)) expect(m.title).toContain(m.node.label);
+        else expect(m.title).toBe(m.node.label);
       }
     }
     return cut;

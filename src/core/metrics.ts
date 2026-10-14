@@ -48,6 +48,13 @@ export const metricRegistry: Readonly<Record<string, MetricEntry>> = {
   share: { label: "metric.share", unit: "unit.shareOfCases", kind: "share", mean: "metric.mean.weighted", measure: "measure.frequency" },
   violationShare: { label: "metric.violationShare", unit: "unit.shareOfCases", kind: "share", mean: "metric.mean.weighted", measure: "measure.shortfall" },
   medianLagHours: { label: "metric.medianLagHours", unit: "unit.duration", kind: "hours", mean: "metric.mean.medians", meanLabel: "metric.mean.medianLagHours", measure: "measure.performance" },
+  medianPrevHours: { label: "metric.medianPrevHours", unit: "unit.duration", kind: "hours", mean: "metric.mean.medians", meanLabel: "metric.mean.medianPrevHours", measure: "measure.performance" },
+  meanPrevHours: { label: "metric.meanPrevHours", unit: "unit.duration", kind: "hours", mean: "metric.mean.weighted", measure: "measure.performance" },
+  meanNextHours: { label: "metric.meanNextHours", unit: "unit.duration", kind: "hours", mean: "metric.mean.weighted", measure: "measure.performance" },
+  meanLagHours: { label: "metric.meanLagHours", unit: "unit.duration", kind: "hours", mean: "metric.mean.weighted", measure: "measure.performance" },
+  prevPassages: count("metric.prevPassages"),
+  nextPassages: count("metric.nextPassages"),
+  lagPassages: count("metric.lagPassages"),
   p90LagHours: { label: "metric.p90LagHours", unit: "unit.duration", kind: "hours", mean: "metric.mean.percentiles", meanLabel: "metric.mean.p90LagHours", measure: "measure.performance" },
   medianNextHours: { label: "metric.medianNextHours", unit: "unit.duration", kind: "hours", mean: "metric.mean.medians", meanLabel: "metric.mean.medianNextHours", measure: "measure.performance" },
 };

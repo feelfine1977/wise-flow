@@ -7,6 +7,7 @@ import type { LaneBand } from "./lanes.js";
 import { type EdgeKind, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type GroupKind, type NodeKind, hasTag, metric } from "./model.js";
 import { RECONNECTED_TAG } from "./aggregate.js";
 import { indirectWay } from "./detail.js";
+import { describeTimes } from "./describe.js";
 import { t } from "./strings.js";
 import { type RuleSet, type RuleState, type RuleTextRole, ruleDash, rulePaint, ruleRadius, ruleSet, ruleText, ruleTextRole, ruleWidth } from "./rules.js";
 import type { CourseLabel, PathCourses } from "./courses.js";
@@ -168,10 +169,16 @@ interface NodeMarkOptions {
  * none where the line then reads as without it.
  */
 function leadOf(element: FlowNode | FlowEdge, line: LineSpec, locale: Locale): string | undefined {
+  if ("kind" in element && element.kind === "stage" && /Hours$/.test(line.metric)) return "–";
   const v = metric(element, line.metric, NaN);
-  if (!Number.isFinite(v)) return line.missing === "frequency" ? undefined : "–";
+  if (!Number.isFinite(v) && line.format === "short") return line.missing === "frequency" ? undefined : "–";
+  if (!Number.isFinite(v) && line.missing === "frequency" && line.format !== "both") return undefined;
   const value = formatMetricValue(line.metric, v, locale, { basis: metricBasis(element, line.metric) });
-  return line.format === "short" || line.format === "toNext" ? t(locale, line.format === "short" ? "measure.short" : "measure.toNext", { value }) : value;
+  if (line.format === "both") return t(locale, "measure.both", {
+    previous: value,
+    next: elementMetric(element, line.nextMetric ?? (line.metric.startsWith("mean") ? "meanNextHours" : "medianNextHours"), locale),
+  });
+  return line.format && line.format !== "value" ? t(locale, `measure.${line.format}`, { value }) : value;
 }
 
 /** Glyph of a gateway: + for AND, ○ for OR, × otherwise. */
@@ -328,11 +335,12 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
         const y = baseline(top + lines.length * nameText.lineHeight, numberText.lineHeight, numberText.size);
         texts.push(write(ink(count, x, y, numberText.size, { role: "countLine", baseline: "alphabetic", weight: numberText.weight, lod })));
         const shown = lead !== undefined && options.line!.then !== "share" ? cases : share === undefined ? "–" : formatMetricValue("share", share, locale, { basis: metricBasis(node, "cases") });
-        texts.push(write(ink(`· ${shown}`, x + measure(count, numberText) + 2 * space.unit, y, shareText.size, { role: "share", baseline: "alphabetic", weight: shareText.weight, paint: "inkMuted", lod })));
+        if (options.line?.then !== "none" && options.line?.format !== "both") texts.push(write(ink(`· ${shown}`, x + measure(count, numberText) + 2 * space.unit, y, shareText.size, { role: "share", baseline: "alphabetic", weight: shareText.weight, paint: "inkMuted", lod })));
       }
       // A name shortened to two lines is given whole to hover and assistive technology.
       const cut = lines.join("").replace(/\s/gu, "") !== name.replace(/\s/gu, "");
-      const title = labels ? activityDescription(node, labels, locale) : cut ? name : undefined;
+      const details = node.kind === "stage" && !options.line && !Object.keys(node.metrics ?? {}).some(name => name.endsWith("Hours")) ? [] : describeTimes(node, locale);
+      const title = details.length ? `${labels ? activityDescription(node, labels, locale) : name + "."} ${details.join(". ")}.` : labels ? activityDescription(node, labels, locale) : cut ? name : undefined;
       const accent = options.accent;
       const short = accent && share! * metric(node, accent.metric, NaN);
       return mark("box", radiusTokens.node, stroke, texts, "paper", dimensionTokens.band, title, cue(box, width, share, set?.cue ?? theme.frequencyCue, short! > 0 ? [short!, accent!.stripe, accent!.foot] : undefined));

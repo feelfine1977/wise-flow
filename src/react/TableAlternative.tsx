@@ -69,8 +69,8 @@ function usePage<T>(rows: T[], text: (row: T) => string, query: string, pageSize
   return { rows: shown, table: { "aria-rowcount": matching.length + 1 }, head: { "aria-rowindex": 1 }, row: (i: number) => ({ "aria-rowindex": from + i + 2 }), pager };
 }
 
-const NODE_METRICS = ["cases", "share", "events", "violationShare", "medianNextHours", "starts", "ends", "members", "internalCount"];
-const EDGE_METRICS = ["count", "cases", "share", "violationShare", "medianLagHours", "p90LagHours"];
+const NODE_METRICS = ["cases", "share", "events", "violationShare", "medianPrevHours", "meanPrevHours", "medianNextHours", "meanNextHours", "prevPassages", "nextPassages", "starts", "ends", "members", "internalCount"];
+const EDGE_METRICS = ["count", "cases", "share", "violationShare", "medianLagHours", "meanLagHours", "p90LagHours", "lagPassages"];
 
 /**
  * The same graph and overlays as accessible tables: activities, paths and

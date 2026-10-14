@@ -4,9 +4,10 @@ import { constraintItems, globalScene } from "../fixtures/bpic2019";
 import { p2pStages, withSceneMetrics } from "../fixtures/p2p_stages";
 import { liteFromStages } from "../src/bpmn/index";
 import { textMeasures } from "../fixtures/text-measures";
-import { type ActivityLabelOptions, type FlowGraph, type LaneMode, type Locale, type Measure, type Overlay, type Positions, type Theme, abstract, activityNodeSize, constraintOverlays, defaultTheme, layout, overlaysFor } from "../src/index";
+import { type ActivityLabelOptions, type FlowGraph, type LaneMode, type Locale, type Measure, type Overlay, type Positions, type Theme, type StyleSpec, abstract, activityNodeSize, constraintOverlays, defaultTheme, layout, overlaysFor } from "../src/index";
 import { useFlowTheme } from "../src/react/index";
 import { ProcessMap } from "./maps";
+import { timedGraph, timedPositions, timedStyle } from "../tests/support/activity-times";
 import { flowLoop } from "../tests/support/flow-loop";
 import { catalogueGraph, examples, rawKinds } from "./Overlays.stories";
 
@@ -38,6 +39,7 @@ export interface ParityScene {
   locale?: Locale;
   measure?: string;
   mapMeasure?: Measure;
+  style?: StyleSpec;
   positions: Positions;
 }
 
@@ -161,6 +163,7 @@ function Parity({ name }: { name: string }) {
           activityLabels={scene.activityLabels}
           locale={scene.locale}
           measure={scene.mapMeasure}
+          style={scene.style}
           textMeasure={textMeasures[scene.measure ?? "estimate"]}
           renderer="svg"
           fitView={false}
@@ -228,3 +231,27 @@ export const Performance: StoryObj = { name: "BPIC global in the performance mea
 export const NamesGerman: StoryObj = { name: "BPIC global with activity names in German, measured wide", render: () => <Parity name="namesGerman" /> };
 
 export const ModelLoop: StoryObj = { name: "model flow with a self-loop", render: () => <Parity name="modelLoop" /> };
+
+
+function TimedParity({ format, direction, renderer = "svg" }: { renderer?: "svg" | "canvas"; format: "fromPrev" | "toNext" | "both"; direction: "RIGHT" | "DOWN" }) {
+  const positions = timedPositions(direction);
+  const style = timedStyle(format);
+  const scene: ParityScene = { graph: timedGraph, positions, overlays: [], style, mapMeasure: "performance" };
+  return <div style={{ height: "100vh" }}>
+    <script type="application/json" data-testid="wf-parity-scene">{JSON.stringify(scene)}</script>
+    <ProcessMap graph={timedGraph} positions={positions} renderer={renderer} style={style} textMeasure={textMeasures.estimate} measure="performance" fitView={false} controls={false} legend={false} pathList={false} />
+  </div>;
+}
+export const PreviousRight: StoryObj = { render: () => <TimedParity format="fromPrev" direction="RIGHT" /> };
+export const NextRight: StoryObj = { render: () => <TimedParity format="toNext" direction="RIGHT" /> };
+export const BothRight: StoryObj = { render: () => <TimedParity format="both" direction="RIGHT" /> };
+export const PreviousDown: StoryObj = { render: () => <TimedParity format="fromPrev" direction="DOWN" /> };
+export const NextDown: StoryObj = { render: () => <TimedParity format="toNext" direction="DOWN" /> };
+export const BothDown: StoryObj = { render: () => <TimedParity format="both" direction="DOWN" /> };
+
+export const PreviousRightCanvas: StoryObj = { render: () => <TimedParity format="fromPrev" direction="RIGHT" renderer="canvas" /> };
+export const PreviousDownCanvas: StoryObj = { render: () => <TimedParity format="fromPrev" direction="DOWN" renderer="canvas" /> };
+export const NextRightCanvas: StoryObj = { render: () => <TimedParity format="toNext" direction="RIGHT" renderer="canvas" /> };
+export const NextDownCanvas: StoryObj = { render: () => <TimedParity format="toNext" direction="DOWN" renderer="canvas" /> };
+export const BothRightCanvas: StoryObj = { render: () => <TimedParity format="both" direction="RIGHT" renderer="canvas" /> };
+export const BothDownCanvas: StoryObj = { render: () => <TimedParity format="both" direction="DOWN" renderer="canvas" /> };

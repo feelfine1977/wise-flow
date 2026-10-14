@@ -689,8 +689,9 @@ export interface ColorSpec { metric?: string; palette?: PaletteName; scale?: "li
   required?: boolean }          // a path without a value of the metric is not evaluated
 export type Measure = "frequency" | "shortfall" | "performance";
 export interface LineSpec { metric: string;
-  format?: "value" | "short" | "toNext";   // "12 d", "35 % short", "4.7 d to next"
-  then?: "cases" | "share";                 // what follows an activity's value after "·"; default its cases
+  format?: "value" | "short" | "toNext" | "fromPrev" | "both";
+  nextMetric?: string;                     // for both: matching medianNextHours or meanNextHours by default
+  then?: "cases" | "share" | "none";        // what follows an activity's value after "·"; default its cases
   missing?: "dash" | "frequency" }          // without a value: "–" in its place (default), or the line as without the setting
 export const measureStyles: Readonly<Record<Measure, StyleSpec>>;   // the named styles of the three measures (see "Measures")
 export function measureStyle(measure?: Measure, style?: StyleSpec): StyleSpec;   // the measure's style with `style` over it, entry by entry; `style` alone, else defaultStyle, without a measure
@@ -4103,3 +4104,32 @@ them. Each row names what to use instead.
 | Name | Replacement |
 | --- | --- |
 | `manhattanRoute` | `routeSequenceFlows` from `wise-flow` |
+
+
+### Supplied activity times and path lag
+
+Activity metrics `medianPrevHours` and `meanPrevHours` measure hours from the
+previous labelled record; `medianNextHours` and `meanNextHours` measure hours to
+the next one. Paths accept `medianLagHours` and `meanLagHours`. The host supplies
+the statistics and the measured passage counts: `prevPassages`, `nextPassages`
+and `lagPassages`. These counts are never inferred from cases or events. Both
+statistics for a direction use its supplied passage count; without one the
+description omits the count. All these names have English and German labels in
+the metric registry, including table headings and export legends.
+
+Use `nodeLine: { metric: "medianPrevHours", format: "fromPrev", then: "none" }`
+for "3.4 d from previous", or `medianNextHours` with `toNext` for "2 min to
+next". `format: "both"` leads with the previous metric and writes
+"prev 3.4 d · next 2 min"; `nextMetric` can override the matching next statistic.
+The paired form omits the cases/share suffix to keep the existing card size.
+The existing formats and explicit `missing: "frequency"` fallback still work;
+otherwise a missing time retains its direction ("– to next").
+
+Hover and assistive descriptions list every supplied median and mean, with
+passages when supplied. A collapsed stage has no own duration derivable from
+activity statistics: a time number line reads "–" and the hover explains why.
+Its table retains supplied aggregated statistics and their aggregation basis.
+Set `edgeColor.metric: "meanLagHours"` in the performance style to name the
+mean in both the performance sentence and the path colour title; the default
+remains median. Positive times that round below one minute read "< 1 min";
+exact zero reads "0 min", through the shared formatter in every renderer.

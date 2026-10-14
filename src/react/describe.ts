@@ -1,5 +1,5 @@
 /** Text descriptions of map elements for ARIA labels and the table alternative. */
-import { describeEdge } from "../core/describe.js";
+import { describeEdge, describeTimes } from "../core/describe.js";
 import {
   type ActivityLabelOptions,
   activityCounts,
@@ -46,6 +46,7 @@ export function describeNode(node: FlowNode, overlays: Overlay[], locale: Locale
   if (node.kind === "stage" && Number.isFinite(members)) parts.push(`${formatCount(members, locale)} ${t(locale, "metric.members")}`);
   const violation = metric(node, "violationShare", NaN);
   if (Number.isFinite(violation)) parts.push(`${formatShare(violation, locale)} ${metricLabelOf("violationShare", locale, metricBasis(node, "violationShare"))}`);
+  parts.push(...describeTimes(node, locale));
   if (hasTag(node, RECONNECTED_TAG)) parts.push(t(locale, "map.reconnected"));
   for (const o of overlays) parts.push(describeOverlay(o, locale));
   return parts.join(". ") + ".";
