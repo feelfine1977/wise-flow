@@ -65,6 +65,11 @@ it("distinguishes a positive duration that rounds to zero from zero", () => {
   expect(formatHours(0)).toBe("0 min");
 });
 
+it("preserves the existing signed rounding for tiny negative durations", () => {
+  expect(formatHours(-1 / 600)).toBe("−0 min");
+  expect(formatHours(-1 / 600, "de")).toBe("−0 min");
+});
+
 it("explains why a stage without supplied times has no duration", () => {
   const mark = nodeMark({ id: "s", label: "Stage", kind: "stage" }, { x: 0, y: 0, width: 180, height: 64 }, { color: "#000", pattern: "solid", line: { metric: "medianNextHours", format: "toNext" } });
   expect(mark.title).toContain("No stage duration");
