@@ -29,6 +29,8 @@ export interface ViewSwitcherProps {
   minimap?: boolean;
   /** The edge budget of every view's map (`ProcessMap` `edgeBudget`). Default `"adaptive"`. */
   edgeBudget?: EdgeBudget | "adaptive";
+  /** The narrowest line on the screen of a path every view's map draws (`ProcessMap` `minPathPx`). Default 0.5. */
+  minPathPx?: number;
   /** The theme of every view's map (`ProcessMap` `theme`). */
   theme?: ThemeSetting;
   className?: string;
@@ -42,7 +44,7 @@ export interface ViewSwitcherProps {
  * means the same number in every view. `grid` shows all views as small
  * multiples with one legend per distinct style.
  */
-export function ViewSwitcher({ views, mode: modeProp, onModeChange, activeView, onActiveViewChange, columns = 2, locale = "en", selection: selectionProp, onSelect, onHover, legend = true, lod, minimap, edgeBudget, theme, className, containerStyle }: ViewSwitcherProps) {
+export function ViewSwitcher({ views, mode: modeProp, onModeChange, activeView, onActiveViewChange, columns = 2, locale = "en", selection: selectionProp, onSelect, onHover, legend = true, lod, minimap, edgeBudget, minPathPx, theme, className, containerStyle }: ViewSwitcherProps) {
   const [innerMode, setInnerMode] = useState<"single" | "grid">("single");
   const mode = modeProp ?? innerMode;
   const setMode = (m: "single" | "grid") => {
@@ -124,6 +126,7 @@ export function ViewSwitcher({ views, mode: modeProp, onModeChange, activeView, 
             lod={lod}
             minimap={minimap}
             edgeBudget={edgeBudget}
+            minPathPx={minPathPx}
             theme={theme}
           />
         </div>
@@ -136,7 +139,7 @@ export function ViewSwitcher({ views, mode: modeProp, onModeChange, activeView, 
                 {v.description ? <span> — {v.description}</span> : null}
               </figcaption>
               <div className="wf-views__map">
-                <ProcessMap graph={v.graph} positions={views.positions} overlays={v.overlays} style={v.style} controls={false} legend={false} selection={selection} onSelect={select} onHover={onHover} locale={locale} lod={lod} edgeBudget={edgeBudget} theme={theme} />
+                <ProcessMap graph={v.graph} positions={views.positions} overlays={v.overlays} style={v.style} controls={false} legend={false} selection={selection} onSelect={select} onHover={onHover} locale={locale} lod={lod} edgeBudget={edgeBudget} minPathPx={minPathPx} theme={theme} />
               </div>
             </figure>
           ))}

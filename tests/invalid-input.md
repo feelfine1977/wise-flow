@@ -81,6 +81,8 @@ Test: `tests/core/malformed-input.test.ts` › "positions, routing and lanes".
 | `laneBands` | `.` | Not documented. | Returns; numbers that are not finite pass through to the result. Junk padding or gaps give bands that are not finite. |
 | `fitViewport` | `.` | Not documented. | Returns. |
 | `panelInsets` | `.` | Not documented. | Returns. |
+| `openingView` | `.` | Not documented. | Returns. |
+| `processStart` | `.` | Undefined without a node with a box. | Returns. |
 | `pathCourses` | `.` | Not documented. | Returns; on finite positions and a width from 0 to 100, every course through finite points. |
 
 ## Style, tokens, label sizing, formatting and strings
@@ -172,6 +174,7 @@ Test: `tests/core/malformed-input.test.ts` › "scene, marks, legend, figure and
 | --- | --- | --- | --- |
 | `buildScene` | `.` | Overlays on unknown targets are dropped; boxes and routes that are not finite are left out as if missing (after 0.3.5). | Returns; every drawn element has a finite box, every text is readable. |
 | `budgetEdges` | `.` | `NaN`, `"all"`, undefined or null withhold nothing. | Returns. |
+| `pathsAtZoom` | `.` | A rule that is not a positive number, or a zoom that is not, withholds nothing. | Returns. |
 | `nodeMarks` | `.` | One mark per node with a box. | Returns. |
 | `edgeMarks` | `.` | One mark per edge between two placed nodes. | Returns. |
 | `nodeMark` | `.` | Not documented. | Returns; numbers that are not finite pass through to the result. |

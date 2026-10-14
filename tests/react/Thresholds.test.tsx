@@ -116,7 +116,7 @@ const EVERYTHING: Partial<LodRules> = { labels: 0, edgeLabels: 0, badges: 0, arc
 function element(renderer: Renderer, graph: FlowGraph, overlays: Overlay[], options: AbstractOptions, positions: Positions, locale: Locale, lod?: Partial<LodRules>) {
   return (
     <div style={{ width: PANE.width, height: PANE.height }}>
-      <ProcessMap graph={graph} overlays={overlays} positions={positions} abstraction={options} renderer={renderer === "react" ? "svg" : "canvas"} edgeBudget={BUDGET} locale={locale} lod={lod} contextMenu={false} pathList={false} />
+      <ProcessMap graph={graph} overlays={overlays} positions={positions} abstraction={options} renderer={renderer === "react" ? "svg" : "canvas"} edgeBudget={BUDGET} opening="fit" locale={locale} lod={lod} contextMenu={false} pathList={false} />
     </div>
   );
 }
@@ -152,7 +152,7 @@ async function show(mounted: Mounted | undefined, renderer: Renderer, scene: Lad
   const everything = again && mounted.everything ? (mounted.everything.rerender(el(EVERYTHING)), mounted.everything) : render(el(EVERYTHING));
   await act(async () => {});
   const readings = { fitted: readReactMap(result.container, locale).fitted, full: readReactMap(everything.container, locale).full };
-  // Read at the view a person first sees, or not at all.
+  // Read at the fitted view, the smallest a person sees with the fit button (the map opens there for the reading), or not at all.
   expect(readings.fitted.zoom, `the React map is fitted (${scene.name} · ${rung.name})`).toBeCloseTo(fittedZoom(result.container, PANE), 9);
   return { mounted: { result, renderer, everything }, shown, positions, readings };
 }
@@ -169,8 +169,9 @@ function readCanvasMap(container: Element, locale: Locale): { fitted: Reading; f
   // The note and the legend are the map's panels.
   const panels = { note: container.querySelector(".wf-edge-note")?.textContent ?? undefined, ...readLegend(container, locale) };
   return {
-    fitted: { ...readCanvas(scene, view, { lodZoom: options.lodZoom, edgeBudget: budget }), ...panels },
-    full: { ...readCanvas(scene, whole, { lodZoom: 100, edgeBudget: budget }), ...panels },
+    // The paths the frame drew at its zoom, also where everything any zoom draws is read: the note counts them.
+    fitted: { ...readCanvas(scene, view, { lodZoom: options.lodZoom, edgeBudget: budget, pathRule: options.pathRule }), ...panels },
+    full: { ...readCanvas(scene, whole, { lodZoom: 100, edgeBudget: budget, pathRule: options.pathRule }), ...panels },
   };
 }
 
@@ -195,21 +196,33 @@ async function check(annotate: TestContext["annotate"], mounted: Mounted, readin
     const path = savePicture(name, pictureOf(svg, failures, name));
     await annotate(`${name}: ${failures.length} failing, picture ${path}`, { path, contentType: "image/svg+xml" });
   }
-  return { name, unexpected, findings, fitted };
+  const countOverlaps = failures.filter((f) => findingOf(f, shown, base, places) === "path counts").map((f) => f.detail).sort();
+  return { name, unexpected, findings, fitted, countOverlaps };
 }
 
 const summary = (failures: readonly Failure[]) => failures.slice(0, 6).map((f) => `${f.property}: ${f.detail}`).join("\n  ");
 
+/** Exact count-label overlaps newly exposed by connecting paths kept beyond the budget; another overlap at these rungs fails. */
+const CONNECTING_COUNT_OVERLAPS: Record<string, string[]> = {
+  "0 %": [
+    'path label "3" of change_final_invoice_indicator->clear_invoice covers path label "6,734" of create_purchase_order_item->delete_purchase_order_item',
+    'path label "3" of change_payment_term->record_goods_receipt covers path label "77,406" of create_purchase_order_item->record_goods_receipt',
+    'path label "405" of create_purchase_order_item->srm_change_was_transmitted covers path label "167" of block_purchase_order_item->__end',
+  ].sort(),
+  default: ['path label "1,033" of record_goods_receipt->change_delivery_indicator covers record_service_entry_sheet'],
+};
+
 /** The open findings at each rung of the committed scenes on the two maps (Dagre layouts), as written up. */
+// Connecting paths survive the budget, exposing existing count-label overlaps when the full reading shows every LOD.
 const WRITTEN_UP: Record<Renderer, Record<string, string>> = {
   react: {
-    "global · 0 % · connected · stages shown": "",
-    "global · default · connected · stages shown": "",
+    "global · 0 % · connected · stages shown": "path counts",
+    "global · default · connected · stages shown": "path counts",
     "global · 5 % · connected · stages shown": "",
     "global · 10 % · connected · stages shown": "",
     "global · 25 % · connected · stages shown": "",
     "global · 50 % · connected · stages shown": "",
-    "global · 0 % · not connected · stages shown": "",
+    "global · 0 % · not connected · stages shown": "path counts",
     "global · default · not connected · stages shown": "",
     "global · 5 % · not connected · stages shown": "",
     "global · 10 % · not connected · stages shown": "path counts",
@@ -253,13 +266,13 @@ const WRITTEN_UP: Record<Renderer, Record<string, string>> = {
     "vendor · 50 % · not connected · stages collapsed": "",
   },
   canvas: {
-    "global · 0 % · connected · stages shown": "",
-    "global · default · connected · stages shown": "",
+    "global · 0 % · connected · stages shown": "path counts",
+    "global · default · connected · stages shown": "path counts",
     "global · 5 % · connected · stages shown": "",
     "global · 10 % · connected · stages shown": "",
     "global · 25 % · connected · stages shown": "",
     "global · 50 % · connected · stages shown": "",
-    "global · 0 % · not connected · stages shown": "",
+    "global · 0 % · not connected · stages shown": "path counts",
     "global · default · not connected · stages shown": "",
     "global · 5 % · not connected · stages shown": "",
     "global · 10 % · not connected · stages shown": "path counts",
@@ -315,8 +328,12 @@ describe("how the map reads across thresholds and sizes, on the React map and th
         for (const rung of RUNGS) {
           const step = await show(mounted, renderer, scene, rung, "en");
           mounted = step.mounted;
-          const { name, unexpected, findings } = await check(annotate, mounted, step.readings, scene, rung, step.shown, step.positions, "en");
+          const { name, unexpected, findings, countOverlaps } = await check(annotate, mounted, step.readings, scene, rung, step.shown, step.positions, "en");
           expect(unexpected, `${name}:\n  ${summary(unexpected)}`).toEqual([]);
+          if (scene.name === "global" && !rung.collapse && (rung.step === 0 || (rung.step === 1 && rung.keepConnected))) {
+            expect(countOverlaps, name).toEqual(CONNECTING_COUNT_OVERLAPS[rung.name.startsWith("0 %") ? "0 %" : "default"]);
+            expect(step.readings.fitted.texts.filter((t) => t.role === "path"), `${name}: count labels shed at fit`).toEqual([]);
+          }
           found[`${scene.name} · ${rung.name}`] = findings.join(", ");
         }
         cleanup();

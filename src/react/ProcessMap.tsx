@@ -4,6 +4,7 @@ import {
   Panel,
   ReactFlow,
   ReactFlowProvider,
+  ViewportPortal,
   useNodesInitialized,
   useReactFlow,
   useStore,
@@ -12,11 +13,12 @@ import {
   type OnNodesChange,
 } from "@xyflow/react";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { type AbstractOptions, type ElementRef, type FlowGraph, type Insets, type Positions, type Readable, type XY, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, detailNotes, detailStatement, dimensionTokens, fitViewport, formatCount, lodAt, measureStyle, readableAt, spaceTokens, strokeTokens, t, themeColors } from "../core/index.js";
+import { type AbstractOptions, type Box, type ElementRef, type FlowGraph, type Insets, type Positions, type Readable, type XY, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, detailNotes, detailStatement, dimensionTokens, fitViewport, formatCount, lodAt, measureStyle, readableAt, spaceTokens, strokeTokens, t, themeColors, viewTokens } from "../core/index.js";
 import { isPath } from "../core/detail.js";
 import { type MapContext, mapEmphasis, menuHeading } from "../core/map-controller.js";
 import { markedThemeKey, themeStyle } from "../core/theme.js";
 import { ActivityTooltip } from "./ActivityTooltip.js";
+import { ActivityKey, MapNumbers, useMapNumbers } from "./MapNumbers.js";
 import { AbstractionControls } from "./AbstractionControls.js";
 import { CanvasMap, type CanvasMapHandle, EdgeNote } from "./CanvasMap.js";
 import { MenuView } from "./ContextMenu.js";
@@ -35,7 +37,7 @@ import { nodeTypes } from "./nodes.js";
 import { OverlayLayer } from "./OverlayLayer.js";
 import { part } from "./parts.js";
 import { PathList } from "./PathList.js";
-import { ZoomControl, clearOfPanels } from "./primitives.js";
+import { MapOverview, ZoomControl, clearOfPanels, openingIn } from "./primitives.js";
 import { TableAlternative } from "./TableAlternative.js";
 import { type Written, useTheme } from "./theme.js";
 import { type ProcessMapProps, type Selection, type WfEdge, type WfGroupNode, type WfNode } from "./types.js";
@@ -46,6 +48,8 @@ const TABLE_PAGE_SIZE = 100;
 /** The React Flow map's zoom range, and the room its fitted view leaves around the nodes on each side, relative to their size. */
 const FLOW_ZOOM = { minZoom: 0.05, maxZoom: 3 };
 const FLOW_FIT_PADDING = 0.04;
+/** Milliseconds the React Flow map's zoom stays the same before its view counts as at rest, as a wheel gesture of the Canvas map ends. */
+const REST_MS = 200;
 
 const NO_MOVES: Readonly<Record<string, XY>> = {};
 
@@ -99,6 +103,8 @@ function ProcessMapInner(props: ProcessMapProps) {
     containerStyle,
     fitView = true,
     fitInsets,
+    opening = "readable",
+    minPathPx = viewTokens.pathPx,
     lanes = "none",
     pathList = true,
     contextMenu = true,
@@ -228,10 +234,20 @@ function ProcessMapInner(props: ProcessMapProps) {
   const { zoom: rfZoom, x: rfX, y: rfY } = useViewport();
   const [canvasViewport, setCanvasViewport] = useState({ x: 0, y: 0, zoom: 1 });
   const zoom = useCanvas ? canvasViewport.zoom : rfZoom;
+  // The zoom the React Flow map's view last rested at: the paths drawn at a small zoom change only then (the Canvas map's renderer keeps its own).
+  const [restZoom, setRestZoom] = useState(rfZoom);
+  const [movingView, setMovingView] = useState(false);
+  useEffect(() => {
+    if (movingView || rfZoom === restZoom) return;
+    const timer = setTimeout(() => setRestZoom(rfZoom), REST_MS);
+    return () => clearTimeout(timer);
+  }, [rfZoom, rfX, rfY, restZoom, movingView]);
+  const pathRule = useMemo(() => ({ minPx: minPathPx, zoom: restZoom }), [minPathPx, restZoom]);
   const lod = lodAt(zoom, scene.lod);
   // What the texts show at the zoom, within the hysteresis of what they showed: the map writes it on its root as classes.
   const readableBefore = useRef<Readable | undefined>(undefined);
   const readable = readableAt(scene.readable, zoom, scene.theme.text.minScreenPx, readableBefore.current);
+  const numbers = useMapNumbers(scene, readable);
   useEffect(() => void (readableBefore.current = readable));
   const textSizes = useMemo(() => readableSizes(scene.readable), [scene.readable]);
   const grown = useMemo(() => grownTextSize(scene), [scene]);
@@ -265,7 +281,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   );
 
   // React Flow nodes and edges, or the Canvas scene, its state and the elements listed for assistive technology.
-  const flow = useFlowElements({ enabled: !useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, nodesDraggable, edgeBudget, highlighted });
+  const flow = useFlowElements({ enabled: !useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, nodesDraggable, edgeBudget, highlighted, pathRule });
   // The Canvas map reports the edges it draws itself, and tells the detail panel how many paths it withholds.
   const mapShown = view !== "table";
   const tellShown = useEdgesShownAcross(props.onEdgesShown, useCanvas, mapShown);
@@ -315,11 +331,17 @@ function ProcessMapInner(props: ProcessMapProps) {
   const nodesInitialized = useNodesInitialized();
   const showPaths = pathList && !!focus && focusShown && view === "map";
   const laidKey = laidPositions ? `${laidPositions.engine}:${Object.keys(laidPositions.nodes).length}:${Math.round(laidPositions.bounds.width)}:${Math.round(laidPositions.bounds.height)}:${lanes}:${showPaths ? "side" : "full"}` : "";
-  // The user moved the React Flow view since it was last fitted (the Canvas map knows this itself).
+  // The person moved the React Flow view since it last opened (the Canvas map knows this itself).
   const moved = useRef(false);
   const drawn = useRef(positions);
   useLayoutEffect(() => void (drawn.current = positions), [positions]);
-  const [fit, setFit] = useState<{ key: string; laid: string; count: number; anchor?: Anchor; hold?: boolean }>({ key: laidKey, laid: laidKey, count: 0 });
+  // Each new graph is a generation: the map opens again for it, whatever the person did to the view before.
+  const generation = useRef({ graph, n: 0 });
+  if (generation.current.graph !== graph) generation.current = { graph, n: generation.current.n + 1 };
+  const gen = generation.current.n;
+  const [fit, setFit] = useState<{ key: string; laid: string; count: number; gen: number; anchor?: Anchor; hold?: boolean }>({ key: laidKey, laid: laidKey, count: 0, gen });
+  // Once the person pressed the React Flow map's fit button, the map is fitted rather than opened, until its graph is replaced.
+  const fittedByPerson = useRef(false);
   if (fit.count !== arrival.count) {
     const r = canvasRef.current?.renderer();
     const { transform: [x, y, zoom], width, height } = flowStore.getState();
@@ -328,8 +350,14 @@ function ProcessMapInner(props: ProcessMapProps) {
     const keep = !fitView || (useCanvas ? canvasRef.current?.moved() : moved.current);
     const anchor = current && keep ? anchorAt(drawn.current, current) : undefined;
     setFit({ ...fit, count: arrival.count, anchor: anchor && { ...anchor, to: target }, hold: !!anchor });
-  } else if (!arrival.moving && fit.laid !== laidKey) {
-    setFit({ key: fit.hold ? fit.key : laidKey, laid: laidKey, count: fit.count, anchor: fit.hold ? fit.anchor : undefined });
+  } else if (!arrival.moving && (fit.laid !== laidKey || fit.gen !== gen)) {
+    // A change of the controls keeps a view the person moved; a new graph opens the map again.
+    const kept = fit.gen === gen && (fit.hold || (useCanvas ? !!canvasRef.current?.moved() : moved.current));
+    if (fit.gen !== gen) {
+      fittedByPerson.current = false;
+      moved.current = false;
+    }
+    setFit({ key: kept ? fit.key : `${laidKey}#${gen}`, laid: laidKey, count: fit.count, gen, anchor: kept && fit.hold ? fit.anchor : undefined });
   }
   const fitKey = fit.key;
   // A fit React Flow still holds queued would replace the view the user chose at its next node update.
@@ -338,16 +366,23 @@ function ProcessMapInner(props: ProcessMapProps) {
     flowStore.setState({ fitViewQueued: false });
   };
   const { anchor } = fit;
-  // The React Flow map fitted inside its area less the insets that keep it clear of the panels over it.
-  const fitFlow = useCallback((insets?: Partial<Insets>) => {
+  // The overview of the React Flow map while it opened on its start: where it is; its bounds follow the current scene.
+  const [flowOverview, setFlowOverview] = useState<Box>();
+  // The React Flow map fitted inside its area less the insets that keep it clear of the panels over it; opened, fitted
+  // where that is readable and otherwise on its start with the overview (`opening`).
+  const fitFlow = useCallback((insets?: Partial<Insets>, open = false) => {
     const main = mainRef.current;
     const bounds = rf.getNodesBounds(rf.getNodes());
     if (!main || !(bounds.width > 0) || !(bounds.height > 0)) return;
     const { width, height } = flowStore.getState();
-    const clear = insets ?? fitInsets ?? clearOfPanels(main, bounds, FLOW_FIT_PADDING, FLOW_ZOOM);
+    const duration = reducedMotion ? 0 : 200;
     moved.current = false;
-    void rf.setViewport(fitViewport(bounds, { width, height }, { padding: FLOW_FIT_PADDING, insets: clear, ...FLOW_ZOOM }), { duration: reducedMotion ? 0 : 200 });
-  }, [rf, flowStore, reducedMotion, fitInsets]);
+    const opened = open && opening !== "fit" && !fittedByPerson.current && drawn.current ? openingIn(main, bounds, shown.nodes, drawn.current, { padding: FLOW_FIT_PADDING, ...FLOW_ZOOM, insets: fitInsets }) : undefined;
+    if (open) setFlowOverview(opened?.overview);
+    if (opened && !opened.fitted) return void rf.setViewport(opened, { duration });
+    const clear = insets ?? fitInsets ?? clearOfPanels(main, bounds, FLOW_FIT_PADDING, FLOW_ZOOM, main, !open);
+    void rf.setViewport(fitViewport(bounds, { width, height }, { padding: FLOW_FIT_PADDING, insets: clear, ...FLOW_ZOOM }), { duration });
+  }, [rf, flowStore, reducedMotion, fitInsets, opening, shown]);
   useLayoutEffect(() => {
     const box = anchor && positions?.nodes[anchor.id];
     if (!anchor || !box || (!arrival.moving && arrival.positions !== anchor.to)) return;
@@ -363,7 +398,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   }, [anchor, arrival.positions]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!fitView || !positions || useCanvas || anchor) return;
-    const handles = [50, 400].map((ms) => window.setTimeout(() => fitFlow(), ms));
+    const handles = [50, 400].map((ms) => window.setTimeout(() => { if (!moved.current) fitFlow(undefined, true); }, ms));
     return () => handles.forEach((h) => window.clearTimeout(h));
   }, [fitKey, fitView, nodesInitialized, useCanvas]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -538,6 +573,9 @@ function ProcessMapInner(props: ProcessMapProps) {
                   fitKey={fitKey}
                   fitView={fitView}
                   fitInsets={fitInsets}
+                  opening={opening}
+                  openKey={gen}
+                  minPathPx={minPathPx}
                   describe={canvas.describe}
                   {...canvasHandlers}
                   onViewportChange={setCanvasViewport}
@@ -571,7 +609,13 @@ function ProcessMapInner(props: ProcessMapProps) {
                 elementsSelectable
                 selectNodesOnDrag={false}
                 {...flowHandlers}
-                onMoveStart={(event) => event && userMove()}
+                onMoveStart={(event) => {
+                  if (event) {
+                    setMovingView(true);
+                    userMove();
+                  }
+                }}
+                onMoveEnd={(event) => { if (event) setMovingView(false); }}
                 minZoom={FLOW_ZOOM.minZoom}
                 maxZoom={FLOW_ZOOM.maxZoom}
                 panOnScroll
@@ -598,7 +642,10 @@ function ProcessMapInner(props: ProcessMapProps) {
                       userMove();
                       void rf.zoomOut();
                     }}
-                    onFit={() => fitFlow()}
+                    onFit={() => {
+                      fittedByPerson.current = true;
+                      fitFlow();
+                    }}
                   />
                 </Panel>
                 {minimap ? <MiniMap pannable zoomable nodeStrokeWidth={strokeTokens.minimapNode} /> : null}
@@ -621,7 +668,23 @@ function ProcessMapInner(props: ProcessMapProps) {
                   </Panel>
                 ) : null}
                 {children}
+                <ViewportPortal><MapNumbers numbers={numbers} /></ViewportPortal>
               </ReactFlow>
+              <ActivityKey numbers={numbers} locale={locale} />
+              {flowOverview && positions ? (
+                <MapOverview
+                  bounds={scene.bounds}
+                  nodes={positions.nodes}
+                  view={{ x: rfX, y: rfY, zoom: rfZoom }}
+                  area={flowStore.getState()}
+                  at={flowOverview}
+                  locale={locale}
+                  onMove={(p) => {
+                    userMove();
+                    void rf.setCenter(p.x, p.y, { zoom: rf.getViewport().zoom });
+                  }}
+                />
+              ) : null}
             </div>
             {sidePanel}
             {menuElement}

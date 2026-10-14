@@ -15,7 +15,7 @@
  * area wider and taller than `TOUCH` (touching edges do not count).
  */
 import type { DrawContext, PreparedScene, View } from "../../src/canvas/index";
-import { drawScene } from "../../src/canvas/index";
+import { type DrawOptions, drawScene } from "../../src/canvas/index";
 import { type Box, type FlowEdge, type FlowGraph, type FlowNode, type FlowScene, type Locale, type NodeKind, type Positions, type Readable } from "../../src/index";
 import { type ListName, watch } from "./ink";
 import type { Rung } from "./ladder";
@@ -25,7 +25,7 @@ export const MIN_TEXT_PX = 9;
 /** Overlap below this many map units in either direction is touching, not covering. */
 export const TOUCH = 0.5;
 
-export type TextRole = "node" | "path" | "arc" | "loop" | "badge" | "chip" | "group";
+export type TextRole = "node" | "number" | "path" | "arc" | "loop" | "badge" | "chip" | "group";
 
 export interface Card {
   id: string;
@@ -205,12 +205,14 @@ export interface CanvasReadOptions {
   edgeBudget?: number | "all";
   /** The readable state of the frame before, whose hysteresis the draw keeps (`DrawOptions.readableFrom`). */
   readableFrom?: Readable;
+  /** The paths drawn at a small zoom, as the map drew them (`DrawOptions.pathRule`). */
+  pathRule?: DrawOptions["pathRule"];
 }
 
 /** What a Canvas draw of the scene at a view put where, element by element. */
 export function readCanvas(scene: PreparedScene, view: View, options: CanvasReadOptions = {}): Reading {
   const rec = recorder(view);
-  const drawn = drawScene(rec.ctx, watch(scene, rec.begin), view, undefined, { cull: false, background: false, createCanvas: () => null, lodZoom: options.lodZoom, edgeBudget: options.edgeBudget ?? "all", readableFrom: options.readableFrom });
+  const drawn = drawScene(rec.ctx, watch(scene, rec.begin), view, undefined, { cull: false, background: false, createCanvas: () => null, lodZoom: options.lodZoom, edgeBudget: options.edgeBudget ?? "all", readableFrom: options.readableFrom, pathRule: options.pathRule });
   const reading: Reading = { renderer: "canvas", zoom: view.zoom, cards: [], texts: [], badges: [], paths: [], loops: [], readable: drawn.readable };
   if (drawn.withheld) reading.note = { shown: drawn.withheld.shown, total: drawn.withheld.total };
   for (const v of rec.visits) {
@@ -221,7 +223,7 @@ export function readCanvas(scene: PreparedScene, view: View, options: CanvasRead
       // The outline is the first fill; a diamond's box is the node's.
       const outline = v.ops.find((o) => o.kind === "fill");
       if (outline) reading.cards.push({ id: v.id, kind: n.node.kind, box: outline.box });
-      texts("node");
+      texts(outline ? "node" : "number");
     } else if (v.list === "edges") {
       const line = v.ops.find((o) => o.kind === "stroke");
       if (line && !reading.paths.some((p) => p.id === v.id)) reading.paths.push({ id: v.id, width: line.lineWidth, color: line.style });

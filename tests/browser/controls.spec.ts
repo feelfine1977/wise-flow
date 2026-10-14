@@ -65,6 +65,9 @@ for (const { id, act } of FITTED) {
   test(`${id}: at the fitted zoom no panel covers an activity`, async ({ page }) => {
     await open(page, id);
     await act?.(page);
+    // This check measures the fit control; readable opening is checked in opening.spec.ts.
+    for (const fit of await page.getByRole("button", { name: "Fit the map", exact: true }).all()) await fit.click();
+    await page.waitForTimeout(400);
     // The legend is the one-line strip and the abstraction panel is open where the story has one.
     for (const legend of await page.locator('[data-wf-part="legend"]').all()) await expect(legend.getByRole("button", { name: "Show the whole legend" })).toBeVisible();
     const { panels, activities } = await boxes(page);

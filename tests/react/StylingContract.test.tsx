@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useReactFlow } from "@xyflow/react";
 import { readFileSync, writeFileSync } from "node:fs";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { readContract, partsIn, stylingContractErrors } from "../../scripts/check-styling-contract.mjs";
@@ -6,6 +7,7 @@ import { type FlowGraph, type Positions, activityReferences } from "../../src/in
 import { FilterChips, ProcessMap, TraceTimeline, type Trace } from "../../src/react/index";
 import * as kinds from "../core/element-kinds";
 import * as overlayKinds from "../core/overlay-kinds";
+import { browserBoxes } from "./panels";
 
 /**
  * The fixtures of the node, edge and overlay kinds drawn by the interactive map
@@ -50,6 +52,12 @@ const traces: Trace[] = [
 
 const map = (container: HTMLElement) => container.querySelector<HTMLElement>(".wf-process-map")!;
 const element = (container: HTMLElement, id: string) => container.querySelector<HTMLElement>(`.react-flow__node[data-id="${id}"]`)!;
+let numberView: () => void;
+function NumberView() {
+  const rf = useReactFlow();
+  numberView = () => void rf.setViewport({ x: 0, y: 0, zoom: 0.05 });
+  return null;
+}
 
 afterEach(cleanup);
 afterAll(() => {
@@ -102,7 +110,9 @@ describe("the styling contract", () => {
   });
 
   it("draws the note on withheld paths", async () => {
-    const { container } = render(<div style={{ width: 1200, height: 600 }}><ProcessMap graph={grouped} positions={groupedPositions} edgeBudget={1} {...plain} /></div>);
+    // Measured paths without terminals: neither is required to connect an activity from a start to an end.
+    const graph = { ...grouped, edges: grouped.edges.map((e, i) => ({ ...e, metrics: { count: 2 - i } })) };
+    const { container } = render(<div style={{ width: 1200, height: 600 }}><ProcessMap graph={graph} positions={groupedPositions} edgeBudget={1} {...plain} /></div>);
     await waitFor(() => expect(container.querySelector('[data-wf-part="status"]')).not.toBeNull());
     keep(container);
   });
@@ -125,6 +135,29 @@ describe("the styling contract", () => {
     );
     fireEvent.mouseEnter(container.querySelector(".wf-event")!);
     await waitFor(() => expect(container.querySelector(".wf-trace-timeline .wf-tooltip")).not.toBeNull());
+    keep(container);
+  });
+
+  it("draws the overview of a map that opens on its start", async () => {
+    // Twelve activities in a row, 300 apart: fitted into 1,200 × 600 they would be at 0.31, so the map opens on its start.
+    const ids = Array.from({ length: 12 }, (_, i) => `a${i}`);
+    const row: FlowGraph = { nodes: ids.map((id) => ({ id, kind: "activity", label: id.toUpperCase() })), edges: ids.slice(1).map((id, i) => ({ id: `${ids[i]}->${id}`, kind: "follows", source: ids[i], target: id })) };
+    const nodes = Object.fromEntries(ids.map((id, i) => [id, box(300 * i, 0)]));
+    const restore = browserBoxes({ width: 1200, height: 600 }, { "bottom-left": { width: 150, height: 44 } });
+    try {
+      const { container } = render(<div style={{ width: 1200, height: 600 }}><ProcessMap graph={row} positions={{ nodes, groups: {}, edges: {}, bounds: box(0, 0, 3420, 40), engine: "given", direction: "RIGHT" }} renderer="svg" controls={false} legend={false} /></div>);
+      await waitFor(() => expect(container.querySelector('[data-wf-part="overview"]')).not.toBeNull());
+      keep(container);
+    } finally {
+      restore();
+    }
+  });
+
+  it("draws the numbered activities and their key", async () => {
+    const { container } = render(<ProcessMap graph={grouped} positions={groupedPositions} {...plain}><NumberView /></ProcessMap>);
+    await waitFor(() => expect(container.querySelectorAll(".react-flow__node").length).toBeGreaterThan(0));
+    act(() => numberView());
+    expect(screen.getByRole("region", { name: "Activities by number" }).getAttribute("data-wf-part")).toBe("activity-key");
     keep(container);
   });
 

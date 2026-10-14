@@ -162,16 +162,21 @@ describe("the DOM map of the BPIC fixture", () => {
     }
   });
 
-  it("gives a card without text its name as its hover title and its accessible name", async () => {
+  it("gives a numbered card its full name in the key, hover title and accessible name", async () => {
     const { container, root, zoomTo } = await domMap();
     zoomTo(0.2);
     expect(rootLevel(root).level).toBe("box");
     const wrapper = container.querySelector<HTMLElement>('.react-flow__node[data-id="record_goods_receipt"]')!;
     const card = wrapper.querySelector(".wf-node")!;
-    // The stylesheet shows no block of texts at the box level; the card keeps its title and the node its label.
+    // The card sheds its name block, while its reference number has a full-name key and its accessible name stays.
     expect(card.getAttribute("title")).toContain("Record Goods Receipt");
     expect(wrapper.getAttribute("aria-label")).toContain("Record Goods Receipt");
-    expect(readReactMap(container).fitted.texts.filter((t) => t.owner === "record_goods_receipt")).toEqual([]);
+    const texts = readReactMap(container).fitted.texts.filter((t) => t.owner === "record_goods_receipt");
+    expect(texts.filter((t) => t.role === "node")).toEqual([]);
+    expect(texts.filter((t) => t.role === "number")).toHaveLength(1);
+    expect(texts[0].text).toMatch(/^\d+$/);
+    expect(texts[0].size * 0.2).toBeGreaterThanOrEqual(9);
+    expect(container.querySelector('[data-wf-part="activity-key"]')?.textContent).toContain("Record Goods Receipt");
   });
 });
 

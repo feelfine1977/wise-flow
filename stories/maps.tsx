@@ -4,9 +4,12 @@
  * deterministic. Stories take `ProcessMap` and `ViewSwitcher` from here, and
  * the architecture check refuses a story that takes a map from the library or
  * asks for an adaptive budget. A story may still pass a number of its own.
+ * They draw every path at every zoom, since the zoom a story fits to differs
+ * a little between machines, unless a story names the narrowest line itself
+ * and fixes its zoom.
  */
-import type { ComponentProps } from "react";
-import { ProcessMap as LibraryMap, ViewSwitcher as LibraryViews } from "../src/react/index";
+import { forwardRef, type ComponentProps } from "react";
+import { CanvasMap as LibraryCanvas, type CanvasMapHandle, ProcessMap as LibraryMap, ViewSwitcher as LibraryViews } from "../src/react/index";
 
 /**
  * Where the detail sliders of the stories on the whole log open: the 16 of 42
@@ -18,9 +21,13 @@ import { ProcessMap as LibraryMap, ViewSwitcher as LibraryViews } from "../src/r
 export const WHOLE_LOG_DETAIL = { activityDetail: 16 / 42, pathDetail: 31 / 677 };
 
 export function ProcessMap(props: ComponentProps<typeof LibraryMap>) {
-  return <LibraryMap {...props} edgeBudget={props.edgeBudget ?? "all"} />;
+  return <LibraryMap {...props} edgeBudget={props.edgeBudget ?? "all"} minPathPx={props.minPathPx ?? 0} />;
 }
 
 export function ViewSwitcher(props: ComponentProps<typeof LibraryViews>) {
-  return <LibraryViews {...props} edgeBudget={props.edgeBudget ?? "all"} />;
+  return <LibraryViews {...props} edgeBudget={props.edgeBudget ?? "all"} minPathPx={props.minPathPx ?? 0} />;
 }
+
+export const CanvasMap = forwardRef<CanvasMapHandle, ComponentProps<typeof LibraryCanvas>>(function CanvasMap(props, ref) {
+  return <LibraryCanvas {...props} ref={ref} edgeBudget={props.edgeBudget ?? "all"} minPathPx={props.minPathPx ?? 0} />;
+});

@@ -1222,6 +1222,22 @@
   position: absolute;
   z-index: var(--wf-z-overlay-panel);
 }
+.wf-map-numbers {
+  position: absolute;
+  overflow: visible;
+  pointer-events: none;
+  font-family: var(--wf-font);
+  fill: var(--wf-ink);
+  stroke: var(--wf-paper);
+  stroke-width: var(--wf-stroke-halo);
+  paint-order: stroke fill;
+}
+.wf-overlay-panel.wf-activity-key-panel { bottom: 50%; }
+.wf-activity-key {
+  max-width: var(--wf-size-panel-max-width);
+  max-height: calc(var(--wf-size-map-min-height) / 2);
+  overflow: auto;
+}
 .wf-overlay-panel--top-left {
   top: var(--wf-space-5);
   left: var(--wf-space-5);
@@ -1245,6 +1261,33 @@
 }
 .wf-edge-note {
   white-space: nowrap;
+}
+/* The overview of a map that opens on its start: the map's boxes and the part in view, in a corner. */
+.wf-overview {
+  box-sizing: border-box;
+  padding: 0;
+  max-width: none;
+  overflow: hidden;
+  cursor: pointer;
+  touch-action: none;
+}
+.wf-overview:focus-visible {
+  outline: var(--wf-stroke-focus) solid var(--wf-focus);
+  outline-offset: var(--wf-space-1);
+}
+.wf-overview svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.wf-overview__nodes {
+  fill: var(--wf-line-strong);
+}
+.wf-overview__view {
+  fill: none;
+  stroke: var(--wf-focus);
+  stroke-width: var(--wf-stroke-focus);
+  vector-effect: non-scaling-stroke;
 }
 /* The zoom control of every view: zoom in, zoom out, the current zoom and fit in one row. */
 .wf-zoom {

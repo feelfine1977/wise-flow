@@ -2,10 +2,11 @@
  * PNG export: the scene drawn with the canvas routines into an offscreen
  * canvas, in the same figure frame and with the same legend as `toSVG`.
  */
-import { type ColorScheme, type EdgeBudget, type FigurePreset, type Scene, type ShownEdges, type TextMeasure, type ThemeSetting, budgetEdges, figureFrame, figureMetrics } from "../core/index.js";
+import { type ColorScheme, type EdgeBudget, type FigurePreset, type Readable, type Scene, type ShownEdges, type TextMeasure, type ThemeSetting, budgetEdges, figureFrame, figureMetrics } from "../core/index.js";
 import { figureFloor, figureHeading, millimetres } from "../core/figure.js";
 import { type DrawContext, drawLegend, drawScene, fontOf } from "./draw.js";
 import { assertExportable } from "../core/model.js";
+import { shownReadable } from "../core/readable.js";
 import { prepareScene } from "./scene.js";
 import { type CanvasTokens, sceneTokens } from "./tokens.js";
 
@@ -20,6 +21,8 @@ export interface CanvasLike {
 }
 
 export interface PngOptions {
+  /** Replay a live map's text state and numbered full-name key, as in `ExportOptions.readable`. Default the figure's text state. */
+  readable?: Readable;
   /** Figure preset setting the output width in CSS pixels. */
   preset?: FigurePreset;
   /** Explicit output width in CSS pixels; overrides the preset. */
@@ -87,7 +90,7 @@ export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
   const { edgeBudget } = options;
   const floor = figureFloor(prepared.theme);
   const declared = options.widthMm !== undefined ? millimetres(options.widthMm) : undefined;
-  const frame = figureFrame(prepared, { title: !!scene.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: declared ?? options.width, withheld: budgetEdges(prepared, edgeBudget), caption: options.caption, floor });
+  const frame = figureFrame(prepared, { title: !!scene.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: declared ?? options.width, withheld: budgetEdges(prepared, edgeBudget), caption: options.caption, floor, readable: shownReadable(prepared, options) });
   const { padding: pad, width: totalW } = frame;
   // A figure declared in millimetres is drawn at the given width in CSS pixels, or as wide as it is laid out.
   const cssWidth = declared !== undefined ? (options.width ?? frame.outWidth) : frame.outWidth;

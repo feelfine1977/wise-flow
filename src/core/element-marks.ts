@@ -481,13 +481,14 @@ export function nodeMarks(graph: FlowGraph, positions: Positions, scales: Scales
 
 /**
  * One mark per edge between two placed nodes, in the graph's order; edges
- * from a node to itself are self-loop overlays. `courses` gives the labels of
+ * observed from a node to itself are self-loop overlays; model flows keep
+ * their own courses. `courses` gives the labels of
  * paths with a course of their own and the paths drawn backward (`pathCourses`).
  */
 export function edgeMarks(graph: FlowGraph, positions: Positions, scales: Scales, locale: Locale = "en", theme: Theme = defaultTheme, courses?: Pick<PathCourses, "labels" | "backward">): EdgeMark[] {
   return shareCounts(
     graph.edges.flatMap((e) => {
-      if (e.source === e.target) return [];
+      if (e.source === e.target && e.kind !== "flow") return [];
       const points = edgePoints(positions, e);
       return points ? [edgeMark(e, points, { color: edgeColor(e, scales, theme), width: scales.edgeWidth(e), locale, theme, metric: scales.pathMetric, notEvaluated: scales.notEvaluated(e), label: courses?.labels.get(e.id), backward: courses?.backward.has(e.id), lead: scales.spec.pathLabel })] : [];
     }),

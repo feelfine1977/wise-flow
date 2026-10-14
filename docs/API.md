@@ -1194,7 +1194,7 @@ export interface ReadableRules {    // FlowScene.readable
 }
 export interface CardLevels { origin: XY; full: ElementText[]; name: ElementText[]; line: ElementText[] }   // NodeMark.levels
 export function readableAt(rules: ReadableRules, zoom: number, minScreenPx: number, previous?: Readable): Readable;
-export const readableTokens: { steps: 8; first: 16; last: 56; hysteresis: 0.1; nameChars: 8 };
+export const readableTokens: { steps: 8; first: 16; last: 56; hysteresis: 0.1; nameChars: 8; number: { padding: 0.5; height: 1.5; link: number } };
 // Theme.text.minScreenPx: 9 (CSS variable --wf-text-min-screen); Theme.text.minFigurePt: 0, print 7 (see "Hit index and export")
 ```
 
@@ -1229,6 +1229,14 @@ above a zoom of about 0.86.
   A card without text keeps its name as its hover title and its accessible
   name (`aria-label` in the DOM map; the tooltip and the element list of the
   Canvas map). Its box and position never change with the zoom.
+  On the live maps, `box` also draws numbered markers at the screen text
+  floor and a scrollable, keyboard-focusable "Activities by number" key of
+  full names. Padded marker boxes stay clear of one another and other cards;
+  a displaced number has a line back to its card centre. Placement depends on
+  the scene and text floor, so panning keeps it. Shown SVG/PNG figures replay
+  the positions and links and extend their bounds to include them.
+  This applies below the ladder too; zooming back to names removes
+  the numbers and key. Standalone `CanvasMap` uses the same numbering. The key sits midway up the right edge, clear of the collapsed legend and zoom controls.
 - **Group titles** go with the cards' names (none at `box`) and are scaled up
   to the floor from their start.
 - **Labels** that are not scaled up go once they would fall below the floor:
@@ -1390,7 +1398,8 @@ export interface HitItem { minX; minY; maxX; maxY; id: string; kind: "node" | "e
   stroke?: { line: [XY, XY]; reach: number; head?: { points: XY[]; reach: number } } }   // a path's line along the segment, half its width, its head
 export interface Scene { graph; positions; overlays?; measure?: Measure; style?; title?; subtitle?; locale?; lanes?: LaneMode;
   activityLabels?: ActivityLabelOptions; selfLoops?: boolean }
-export interface ExportOptions { preset?: "single-column" | "double-column" | "slide" | "none"; width?; legend?;
+export interface ExportOptions { readable?: Readable;   // replay a live map's text state and full-name key
+  preset?: "single-column" | "double-column" | "slide" | "none"; width?; legend?;
   widthMm?: number;   // the width the figure is declared to be printed at; the SVG states its size in mm
   background?; fontFamily?; padding?; lodZoom?; context?;   // lodZoom: default the map's scale in a figure with a floor, else 1
   edgeBudget?: EdgeBudget | ShownEdges;   // default every edge; see "Edge budget"
@@ -1425,12 +1434,12 @@ export function legendLayout(legend: SceneLegend, o?: { measure?: TextMeasure; w
 export const figureMetrics: { padding: 24; legendColumn: 220; legendInset: 16; titleHeight: 40; titleBaseline: 26;
   contextHeight: 18; contextBaseline: 44; keyLine: 16; noteRow: 16; noteBaseline: 12; noteSize: 11 };
 export interface FigureFrameOptions { title?: boolean; context?: boolean; legend?: boolean; padding?: number; preset?: FigurePreset; width?: number;
-  withheld?: { shown: number; total: number }; caption?: boolean;
+  withheld?: { shown: number; total: number }; caption?: boolean; readable?: Readable;
   floor?: number }   // the smallest text in figure units; with an output width, the figure is fitted (below)
 export interface FigureFrame { padding; header; map: { width; height; offset: XY; scale: number };   // scale: the map's in a fitted figure, else 1
   legend?: { layout: LegendLayout; x; y; width; rule?: { x; top; bottom } }; caption?: { lines: string[]; x; y };   // no rule below the map
   readable: Readable;   // what the map's texts show at its scale with the floor (every text without one)
-  numbers?: { texts: { id: string; text: MarkText }[]; lines: string[]; x; y };   // the cards' numbers and the key of their names
+  numbers?: { texts: { id: string; text: MarkText & { from?: XY; box?: Box } }[]; lines: string[]; x; y };   // the cards' numbers and the key of their names
   note?: { text: string; x; y }; key: { lines: string[]; y }; width; height; outWidth; outHeight }
 export function figureFrame(scene: FramedScene, o?: FigureFrameOptions): FigureFrame;   // FramedScene: graph, activityLabels?, locale, bounds, legend, textMeasure?, theme?, readable?, nodeMarks?, positions?
 export function figureCaption(g: FlowGraph, locale?: Locale, labelOf?: (id: string) => string): string | undefined;
@@ -1690,6 +1699,8 @@ export function ProcessMap(props: {
   describedLimit?: number;   // default 500 activities plus groups; below 1 read as 1
   edgeBudget?: EdgeBudget | "adaptive";   // default "adaptive"; see "Edge budget"
   onEdgesShown?: (shown: ShownEdges | undefined) => void;   // the edges drawn while some are withheld, for toSVG and toPNG
+  minPathPx?: number;   // the narrowest line on the screen a path is drawn at; default 0.5, 0 draws every path; see "Paths at a small zoom"
+  opening?: "readable" | "fit";   // default "readable": fitted where that gives 0.75 or more, else 0.75 on the start with an overview; see "Controls and panels"
 }): JSX.Element;
 export interface Selection { nodes: string[]; edges: string[]; groups: string[] }
 
@@ -2123,7 +2134,7 @@ export interface BpmnViewHandle { viewer(): unknown; saveXML(): Promise<string |
   fit(insets?: Partial<Insets>): void }   // the diagram inside the view less the insets; default clear of the view's panels (see "Controls and panels")
 export function ViewSwitcher(props: { views: ViewSet; mode?: "single" | "grid"; onModeChange?; activeView?; onActiveViewChange?;
   columns?; locale?; selection?; onSelect?; onHover?; legend?; lod?; minimap?; className?; containerStyle?;
-  edgeBudget?: EdgeBudget | "adaptive"; theme?: ThemeSetting }): JSX.Element;   // from wise-flow/react; edgeBudget and theme are passed to every view's map
+  edgeBudget?: EdgeBudget | "adaptive"; minPathPx?: number; theme?: ThemeSetting }): JSX.Element;   // from wise-flow/react; edgeBudget, minPathPx and theme are passed to every view's map
 ```
 
 Layout of a BPMN model where no `Worker` exists (Node): `layoutBpmn`, and
@@ -2562,10 +2573,12 @@ export function CanvasMap(props: { scene: PreparedScene | undefined; state: Draw
   clock?: () => number;   // ms, read by the adaptive edge budget; default performance.now; read when the map mounts
   onAnnounce?: (text: string) => void; onEdgesShown?: (shown: ShownEdges | undefined) => void;
   theme?: ThemeSetting;   // its colours and font, over its --wf-* variables; see "Theme of a map in a page"
-  fitInsets?: Partial<Insets> }   // kept clear when the view is fitted; default: clear of the panels over the map (see "Controls and panels")
+  fitInsets?: Partial<Insets>;   // kept clear when the view is fitted; default: clear of the panels over the map (see "Controls and panels")
+  minPathPx?: number;   // the narrowest line on the screen a path is drawn at; default 0.5, 0 draws every path; see "Paths at a small zoom"
+  opening?: "readable" | "fit"; openKey?: string | number }   // default readable; openKey: a replacement graph, default scene.graph
   & { ref?: Ref<CanvasMapHandle> }): JSX.Element;
 export interface CanvasMapHandle { centerOn(id, zoom?); fit(insets?: Partial<Insets>); zoomBy(factor); screenBox(id): Box | undefined; renderer(): CanvasRenderer | null;
-  moved(): boolean }   // true when the view changed since the map was last fitted
+  moved(): boolean }   // true when the view changed since the map last opened or was fitted
 ```
 
 `<CanvasMap/>` (and `<ProcessMap renderer="canvas"/>`) follows the theme: it
@@ -2612,10 +2625,11 @@ export interface DrawOptions { tokens?: CanvasTokens; cull?: boolean; background
   edgeBudget?: EdgeBudget | ShownEdges;   // default "all"
   readable?: Readable;                    // what the texts show; default readableAt at lodZoom with the theme's minScreenPx
   readableFrom?: Readable;                // the state of the frame before, whose hysteresis the decision keeps
-  numbers?: readonly MarkText[] }         // texts written over the map last (an exported figure's numbers of the cards)
+  numbers?: readonly (MarkText & { from?: XY; box?: Box })[];   // numbers, optional card links and paper backing boxes
+  pathRule?: { minPx: number; zoom?: number } }   // the paths drawn at a small zoom (pathsAtZoom) at zoom, the view's by default; default none
 export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, state?: DrawState, o?: DrawOptions): { nodes; edges; shapes; culled;
   kept?: number;   // with an edge budget other than "all": the protected edges drawn, which every budget draws
-  withheld?: EdgeSelection;   // present when the edge budget left edges in view out
+  withheld?: EdgeSelection;   // present when the edge budget left edges in view out, or the path rule paths of the map
   readable: Readable };   // the state the texts were drawn in
 export function drawLegend(ctx: DrawContext, scene: PreparedScene, x, y, width, tokens?, o?: { createCanvas? }): number;   // the scene's legend rows; returns their height
 export function canvasTextMeasure(family?: string, context?: { font; measureText } | null): TextMeasure;   // Canvas measureText in the font; the estimate without a canvas
@@ -2626,8 +2640,8 @@ export function groupLabelOf(scene: PreparedScene, id: string | undefined): stri
 export interface CanvasRendererOptions { tokens?; devicePixelRatio?; minZoom?; maxZoom?;
   draw?: RendererDrawOptions; clock?: () => number }   // clock: ms, read by the adaptive edge budget only; default performance.now
 export class CanvasRenderer { constructor(canvas: HTMLCanvasElement, o?: CanvasRendererOptions);
-  drawOptions: RendererDrawOptions;   // DrawOptions without tokens; edgeBudget may also be "adaptive"
-  beginGesture(); endGesture();   // a pan or zoom gesture; see "Edge budget"
+  drawOptions: RendererDrawOptions;   // DrawOptions without tokens; edgeBudget may also be "adaptive"; pathRule decided at the zoom the view last rested at
+  beginGesture(); endGesture();   // a pan or zoom gesture; see "Edge budget" and "Paths at a small zoom"
   resize(w, h); setScene(s); getScene(); setState(patch: Partial<DrawState>); getState(); setTokens(t);
   getViewport(); setViewport(v, notify?); fit(padding?, insets?: Partial<Insets>); panBy(dx, dy); zoomBy(factor, centre?); centerOn(point, zoom?);
   toFlow(x, y); toScreen(x, y); screenBox(id); hitAt(x, y, tolerancePx?): HitItem | undefined; requestDraw(); draw(); dispose();
@@ -2638,7 +2652,8 @@ export interface CanvasTokens { font; paper; surface; ink; inkMuted; line; lineS
 // and toPNG take the scene's, in its scheme, where tokens a host builds leave them out
 export const defaultTokens: CanvasTokens;   // from the token table (`colorTokens`, `fontTokens`); without `tokens` a draw takes the scene's colours and font
 export function readTokens(element: Element | null | undefined, overrides?: Partial<CanvasTokens>): CanvasTokens;   // from the CSS variables (`cssVariable(key)`), as they are; <CanvasMap/> reads them with useFlowTheme instead
-export interface PngOptions { preset?: FigurePreset; width?; scale?; background?; legend?; padding?; lodZoom?; tokens?; createCanvas?; context?;
+export interface PngOptions { readable?: Readable;   // as in ExportOptions
+  preset?: FigurePreset; width?; scale?; background?; legend?; padding?; lodZoom?; tokens?; createCanvas?; context?;
   widthMm?: number;   // the width the figure is declared at, as in ExportOptions; drawn `width` CSS pixels wide (default as laid out)
   edgeBudget?: EdgeBudget | ShownEdges;   // default every edge; see "Edge budget"
   theme?: ThemeSetting; scheme?: ColorScheme;   // what the figure is drawn in (default the print preset, light); `tokens` override the scene's colours and font
@@ -3140,7 +3155,7 @@ export interface EdgeSelection { drawn: Set<number>; shown: number; total: numbe
   loops: readonly string[];      // the paths in view that loop on one activity, counted in shown and total
   highlightedNotShown: number;   // the highlighted edges in view the budget withholds
   pathsNotShown: number }        // the paths in view it withholds (follows and flow edges, not indirect, and loops)
-export interface ShownEdges { edges: readonly string[]; total: number }   // what a map draws, as onEdgesShown reports it
+export interface ShownEdges { edges: readonly string[]; total: number; shown?: number }   // reported ids and note counts; shown defaults to drawn edges plus loops
 export function budgetEdges(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style" | "graph" | "positions">, budget: EdgeBudget | ShownEdges | undefined,
   protection?: EdgeProtection, inView?: readonly number[], loops?: readonly string[]): EdgeSelection | undefined;
 ```
@@ -3228,13 +3243,14 @@ only the edges in view. Measured in Node 24 on a shared sandbox with 5,000
 edges in view, median of 5: 23 ms for a scene of 50,000 edges, 87 ms for
 200,000 and 471 ms for 1,001,000; every later call took 1.4 ms or less.
 
-`<ProcessMap edgeBudget/>` applies it in both renderers (default
-`"adaptive"`, below). The React Flow map has every edge of the
-scene in view and passes only the drawn ones to React Flow. The Canvas map
-(`drawScene` with `DrawOptions.edgeBudget`, `CanvasRenderer` through its
-`draw` options, `<CanvasMap edgeBudget/>`) counts as in view what it would
-draw: in a culled view the edges the hit index finds there and the loops of
-the activities it finds there, otherwise every edge; withheld edges are drawn neither as lines nor with their labels, and
+`<ProcessMap edgeBudget/>` and `<CanvasMap edgeBudget/>` (default
+`"adaptive"`, below) apply the budget after the zoom rule over the whole
+scene, keeping connecting and highlighted paths even beyond the budget
+(see "Paths at a small zoom"). React Flow receives the let-through edges.
+Canvas draws those its hit index finds in view; culling changes neither
+the note nor the reported selection. Without a `pathRule`, low-level
+`drawScene` budgets the edges in view and loops on visible activities,
+or every edge in an unculled draw. Withheld edges have neither lines nor labels, and
 `CanvasRenderer.hitAt` does not return an edge its last draw withheld. While
 edges are withheld the map shows a note with both numbers, "Showing 2,000 of
 49,999 flows" (`map.edges.withheld`, English and German), with how many
@@ -3244,7 +3260,79 @@ bottom centre of the map (`role="note"`), and the polite live region
 announces it once its numbers have stayed the same for 400 ms, so a view
 in motion does not flood it. The table view always lists every edge.
 
+### Paths at a small zoom
+
+```ts
+export interface ZoomedPaths { through: number[]; withheld: number }   // positions in scene.edgeMarks let through, in its order; the paths withheld
+export function pathsAtZoom(scene: Pick<FlowScene, "edgeMarks" | "marks" | "style" | "graph">, zoom: number, minPx: number,
+  protection?: EdgeProtection): ZoomedPaths | undefined;
+export const viewTokens: { openingZoom: 0.75; pathPx: 0.5; overview: { width: 200; height: 120 } };   // also designTokens.view
+```
+
+**The rule: a path is drawn while its line is at least half a pixel wide
+on the screen** (`viewTokens.pathPx`, 0.5: its width on the width scale,
+`EdgeMark.width`, times the zoom). At zoom 0.75, where a map that does not
+fit opens, every path is drawn (the thinnest line is 1 wide); below 0.5 the
+thinnest lines go, and the wider ones at smaller zooms, each at its own
+zoom. Always drawn, whatever the zoom: every edge that is not a path (a
+constraint edge, an indirect path), a path that loops on one activity, a
+path with an overlay mark on it, a selected or focused one, one on a
+highlighted path (also beyond the edge budget), and the paths that keep every
+activity on a way from a start to an end: each activity's strongest path
+from and to a more frequent activity, a start or an end, as the detail
+shares keep them. Every activity a start reaches and that
+reaches an end does so through the paths drawn, at every zoom. What it lets
+through only grows as the zoom grows. `pathsAtZoom` returns undefined when
+every path is let through, with `minPx` 0 and at a zoom that is not
+positive; otherwise the positions in `scene.edgeMarks` of the edges let
+through and how many paths it withholds. On the whole BPIC log with every
+activity and path selected, fitted into 1,400 × 900 (zoom 0.078), it lets
+84 of the 656 lines through (the 21 loops are drawn as loops), 84 of them
+the paths that keep the activities connected; at zoom 1 it lets every path
+through.
+
+Counted path loops stay visible below the overlays' level of detail. Shown
+exports keep their named loops too; default exports retain their usual LOD.
+
+**On the maps.** `<ProcessMap minPathPx/>` and `<CanvasMap minPathPx/>`
+(default `viewTokens.pathPx`, 0.5; 0 turns the rule off) apply it in both
+renderers, decided when the view is at rest, as the adaptive budget moves:
+the React Flow map once its view has stayed the same for 200 ms and no
+pan gesture is active, the Canvas map at the zoom of its last frame drawn outside a gesture (a drag, or a run
+of wheel or pinch events; the zoom buttons are no gesture), so a pan or a
+zoom in progress draws the paths of the view before it. The edge budget then
+chooses among the paths let through over the whole map, preserving the
+connecting and protected paths even beyond the budget. Canvas culling then
+draws only those chosen paths that intersect the view.
+`drawScene` takes it as `DrawOptions.pathRule` (`{ minPx, zoom? }`, the
+view's zoom when `zoom` is omitted; default none, so the exports and the
+pinned recordings draw as before), and `CanvasRenderer` passes the zoom its
+view last rested at unless `drawOptions.pathRule.zoom` names one. Stories
+and tests use a fixed zoom and the default rule, so what they draw does not
+depend on the machine.
+
+While the rule or the path budget withholds a path, the map shows the note
+on withheld paths and the detail panel its line ("677 selected · 105 drawn at this zoom"),
+both counting selected paths over the whole map, including loops and
+excluding constraints and indirect connectors. The first number counts
+those let through, also outside the viewport ("Showing 105 of 677 flows"
+on the fitted whole BPIC log). Where the budget withholds paths as well, they
+are subtracted over the whole map; panning changes neither number. Zooming in
+brings paths back in steps, one width at a time, and the note follows;
+zooming out never brings one back. `onEdgesShown` reports all let-through
+edge ids, the note's total and, when the ids include uncounted connectors,
+its `shown` count, so `toSVG`/`toPNG` given
+that report draw exactly the paths the map draws, with the same note; an
+export without it draws every path. With `minPathPx={0}`, the width rule
+withholds no paths; the maps still apply the budget over the whole map and preserve connecting and protected
+paths. The graph, table and whole-figure exports retain every selected path.
+
 ### Adaptive budget
+
+On live maps, pure pans keep the budget; zooming in permits only increases
+and zooming out only decreases. This keeps N stable under pans and monotone
+under zooms, including after gestures settle. Low-level `CanvasRenderer`
+without `pathRule` retains adaptation after either kind of gesture.
 
 `edgeBudget` of `<ProcessMap/>`, `<CanvasMap/>` and `<ViewSwitcher/>` also
 takes `"adaptive"`, the default; a number or `"all"` is a fixed budget, as
@@ -3302,19 +3390,24 @@ take their maps from `stories/maps.tsx`, which passes `"all"`, and
 asks for `"adaptive"`.
 
 Given a `ShownEdges` instead of a number, `budgetEdges` draws exactly the
-edges it names (of those in view) and states its `total`; it withholds
+edges it names (of those in view) and states its `total` and optional `shown`; it withholds
 nothing when it names every edge in view.
+
+Model `flow` self-loops are ordinary paths, with their normal width, colour,
+arrowhead and label. Supplied courses are kept; missing ones use the
+sequence-flow router and extend scene bounds and hit targets. Live maps
+preserve them under the zoom rule and budget. Observed `follows` repeats
+retain their own overlay representation and description.
 
 ### Exporting what the map shows
 
 `<ProcessMap onEdgesShown/>` (and `<CanvasMap onEdgesShown/>`) is called
-whenever the edges the map draws change: while the budget withholds edges,
-with their ids (`edges`: the edges drawn in the scene's order, then the paths
-that loop on one activity in view) and the number the map's note counts
-(`total`); with undefined once every edge is drawn again. It is not
-called while nothing was ever withheld; a host that starts listening while
-edges are withheld is told them at once. A culled Canvas map counts the edges
-in its view, so a pan can change the value. When `<ProcessMap/>` switches
+when its whole-map selection changes under the zoom rule or budget.
+`edges` lists let-through ids in scene order, then loops. `total` counts
+selected paths; optional `shown` counts let-through paths when the ids
+include constraints or indirect connectors. Panning does not change the
+report. Undefined restores every edge; listeners joining while paths are
+withheld receive the current report. When `<ProcessMap/>` switches
 renderer (`renderer="auto"` crossing its threshold), it is called with
 undefined and then with what the new renderer withholds, if anything. While
 the table view is shown, which lists every path, it is called with undefined
@@ -3323,6 +3416,14 @@ a change of the budget or the graph meanwhile tells the host nothing more, and
 once the map is shown again it is called with what the map then withholds.
 Up to this change React Flow went on reporting its budgeted set in the table
 view, and the Canvas map, unmounted there, left the host with its last report.
+
+To replay the screen's texts too, pass its theme and `lodZoom`. With a
+reported `ShownEdges` and a supplied `lodZoom`, both exports use the screen
+text floor at that zoom, including numbered markers and their full-name key.
+`readable` on `ExportOptions`, `PngOptions` and `FigureFrameOptions` overrides
+that decision with an exact `Readable` state, including hysteresis. It also
+works when every path is shown and the report is undefined. Default figures
+retain their own text floor and every selected path.
 
 `toSVG`, `toPNG`, `toPNGCanvas` and `toPNGDataUrl` take `edgeBudget`:
 
@@ -3471,6 +3572,13 @@ export interface FitView { x: number; y: number; zoom: number }
 export interface FitOptions { insets?: Partial<Insets>; padding?: number; minZoom?: number; maxZoom?: number }   // padding default 0.08
 export function fitViewport(bounds: Box, area: { width; height }, options?: FitOptions): FitView;
 export function panelInsets(panels: readonly Box[], area: { width; height }, bounds: Box, options?: Omit<FitOptions, "insets"> & { gap?: number }): Insets;
+// wise-flow: the view a map opens at
+export interface OpeningView extends FitView { fitted: boolean; overview?: Box }
+export interface OpeningOptions extends Omit<FitOptions, "insets"> { panels?: readonly Box[]; insets?: Partial<Insets>; gap?: number;
+  readable?: number;          // default viewTokens.openingZoom, 0.75
+  start?: Box; direction?: LayoutDirection; boxes?: readonly Box[]; overview?: { width: number; height: number } }
+export function openingView(bounds: Box, area: { width; height }, options?: OpeningOptions): OpeningView;
+export function processStart(nodes: readonly FlowNode[], positions: Pick<Positions, "nodes" | "direction">): Box | undefined;
 ```
 
 **Zoom.** `<ZoomControl/>` is a group (`role="group"`, named "Zoom", in the
@@ -3506,6 +3614,25 @@ default padding of 0.1). The BPMN view fits the diagram's shapes and labels
 with 2 % of their size on each side, up to the zoom 1 as bpmn-js's
 `fit-viewport` does; where no panel is in the way it still uses
 `fit-viewport`.
+
+**Opening.** `<ProcessMap/>` and `<CanvasMap/>` default to
+`opening="readable"`: fit and centre the whole map inside the open panels'
+insets when that gives a zoom of at least 0.75; otherwise open at 0.75,
+with the start at the reading-direction edge of the free area, centred
+across it. Activities stay clear of panels. An overview of the whole map
+(`data-wf-part="overview"`, accessible name "Overview of the map") sits in
+the first free corner, marks the exact viewport, and centres the view on a
+click or drag. Focus it and use arrow keys to move by a tenth of the view.
+The fit button still shows the whole map. `opening="fit"` gives a host the
+plain fit on opening; `fitView={false}` leaves the view to the host.
+After a person moves the view, control changes keep it. Replacing the
+`ProcessMap` graph object applies the opening rule again. After pressing
+fit, control changes fit again until the graph is replaced. On a standalone
+`CanvasMap`, `fitKey` identifies a new layout and `openKey` identifies a
+replacement graph (default: the scene's graph object); a new `openKey`
+applies the opening rule again even if `fitKey` stays the same. Refreshing a
+scene under the same keys preserves the view. Exported figures always show
+the whole map; the opening view does not change exports.
 
 **Legend.** `<Legend/>` opens as a one-line strip: the measure and its unit
 ("Frequency · cases · share of 251,734 cases"), the path width's three
@@ -3791,6 +3918,8 @@ CSS written against these selectors changes only the interactive DOM map and the
 | `controls` | the zoom control (`<ZoomControl/>`) of the DOM map, the Canvas map and the BPMN view | | |
 | `button` | a button of the panels: the zoom control's, the legend's toggle, the detail panel's toggles and its kept paths' part, the table's pager, the filters' "clear" | | |
 | `zoom-level` | the current zoom in the zoom control | | |
+| `overview` | the overview of a map that opens on its start, in a corner | | |
+| `activity-key` | the scrollable key of full activity names at the numbered screen level | | |
 | `abstraction-panel` | the detail panel: the sliders, their statements and the toggles of `<AbstractionControls/>` | | |
 | `legend` | `<Legend/>` | | |
 | `status` | the status panel (arranging, layout error) and the note on withheld paths | | |

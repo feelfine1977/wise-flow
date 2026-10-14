@@ -50,6 +50,7 @@ import {
   arrowheadTokens,
   asFilter,
   budgetEdges,
+  pathsAtZoom,
   buildScales,
   measureStyle,
   buildScene,
@@ -101,6 +102,8 @@ import {
   fitLead,
   fitText,
   fitViewport,
+  openingView,
+  processStart,
   focusHighlight,
   focusMembers,
   followsSelfLoops,
@@ -331,7 +334,7 @@ describe("malformed input at the core entry point", () => {
 
   it(
     "positions, routing and lanes",
-    search(["defaultNodeSize", "unionBoxes", "positionsBounds", "createPositions", "clearLayoutCache", "filterPositions", "coversGraph", "straightRoute", "repositionNodes", "routeSequenceFlows", "laneGroups", "laneAssignment", "laneModel", "stackLanes", "spanLanes", "laneRoutes", "laneBands", "fitViewport", "panelInsets", "pathCourses"], (calls, c) => {
+    search(["defaultNodeSize", "unionBoxes", "positionsBounds", "createPositions", "clearLayoutCache", "filterPositions", "coversGraph", "straightRoute", "repositionNodes", "routeSequenceFlows", "laneGroups", "laneAssignment", "laneModel", "stackLanes", "spanLanes", "laneRoutes", "laneBands", "fitViewport", "panelInsets", "openingView", "processStart", "pathCourses"], (calls, c) => {
       const g = c.graph;
       const p = c.positions;
       const sound = finitePositions(p);
@@ -372,6 +375,19 @@ describe("malformed input at the core entry point", () => {
       const fitOptions = { insets: c.rng.chance() ? { top: junkNumber(c.rng), right: junkNumber(c.rng), bottom: junkNumber(c.rng), left: junkNumber(c.rng) } : undefined, padding: c.rng.chance() ? junkNumber(c.rng) : undefined, minZoom: c.rng.chance() ? junkNumber(c.rng) : undefined, maxZoom: c.rng.chance() ? junkNumber(c.rng) : undefined };
       calls.call("fitViewport", c, () => fitViewport(c.rng.chance() ? p.bounds : box(), area, fitOptions));
       calls.call("panelInsets", c, () => panelInsets([box(), box()], area, c.rng.chance() ? p.bounds : box(), { gap: c.rng.chance() ? junkNumber(c.rng) : undefined }));
+      const start = calls.call("processStart", c, () => processStart(g.nodes, p));
+      calls.call("openingView", c, () =>
+        openingView(c.rng.chance() ? p.bounds : box(), area, {
+          ...fitOptions,
+          panels: [box(), box()],
+          gap: c.rng.chance() ? junkNumber(c.rng) : undefined,
+          readable: c.rng.chance() ? junkNumber(c.rng) : undefined,
+          start: c.rng.chance() ? start : box(),
+          direction: c.rng.pick(["RIGHT", "DOWN", "LEFT", "UP"] as const),
+          boxes: [...Object.values(p.nodes).slice(0, 20), box()],
+          overview: c.rng.chance() ? { width: junkCoordinate(c.rng, 200), height: junkCoordinate(c.rng, 120) } : undefined,
+        }),
+      );
       calls.call("pathCourses", c, () => {
         const width = someNumber(c.rng, 2);
         const courses = pathCourses(g, p, { width: () => width, bands: c.rng.chance() ? new Set(ids(c)) : undefined });
@@ -545,7 +561,7 @@ describe("malformed input at the core entry point", () => {
 
   it(
     "scene, marks, legend, figure and SVG export",
-    search(["buildScene", "budgetEdges", "nodeMarks", "edgeMarks", "nodeMark", "edgeMark", "edgeColor", "edgePoints", "routeMidpoint", "edgeLabelPoint", "gatewayGlyph", "nodeCount", "truncateText", "fitText", "estimateTextWidth", "sceneLegend", "legendItemHeight", "legendLayout", "figureFrame", "toSVG", "resolveViews", "viewsSharePositions", "stateStyle", "markInState", "ruleTextRole", "pathArrowhead", "lineEnd", "groupMark", "groupMarks", "legendOfScene", "figureCaption"], (calls, c) => {
+    search(["buildScene", "budgetEdges", "pathsAtZoom", "nodeMarks", "edgeMarks", "nodeMark", "edgeMark", "edgeColor", "edgePoints", "routeMidpoint", "edgeLabelPoint", "gatewayGlyph", "nodeCount", "truncateText", "fitText", "estimateTextWidth", "sceneLegend", "legendItemHeight", "legendLayout", "figureFrame", "toSVG", "resolveViews", "viewsSharePositions", "stateStyle", "markInState", "ruleTextRole", "pathArrowhead", "lineEnd", "groupMark", "groupMarks", "legendOfScene", "figureCaption"], (calls, c) => {
       const g = c.graph;
       const L = locale(c);
       const activityLabels = c.rng.chance() ? labels(c) : undefined;
@@ -576,6 +592,7 @@ describe("malformed input at the core entry point", () => {
       const s = scene ?? buildScene({ nodes: [], edges: [] }, c.positions);
       const budget = junkNumber(c.rng);
       calls.call("budgetEdges", c, () => budgetEdges(s, c.rng.chance(0.2) ? { edges: ids(c), total: s.edgeMarks.length } : budget, { selection: { edges: ids(c).slice(0, 2) }, focused: junkString(c.rng), highlighted: new Set(ids(c).slice(-2)) }, c.rng.chance() ? c.rng.sample(s.edgeMarks.map((_, i) => i), c.rng.int(0, s.edgeMarks.length)) : undefined));
+      calls.call("pathsAtZoom", c, () => pathsAtZoom(s, junkNumber(c.rng), c.rng.chance() ? junkNumber(c.rng) : 0.5, { selection: { edges: ids(c).slice(0, 2) }, focused: junkString(c.rng), highlighted: new Set(ids(c).slice(-2)) }));
       calls.call("nodeMarks", c, () => nodeMarks(g, c.positions, s.scales, { locale: L, activityLabels }));
       calls.call("edgeMarks", c, () => edgeMarks(g, c.positions, s.scales, L));
       const node = g.nodes[0] ?? { id: "x", kind: "activity", label: junkString(c.rng) };

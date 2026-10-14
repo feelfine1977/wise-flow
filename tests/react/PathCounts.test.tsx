@@ -78,16 +78,32 @@ describe("one count of paths everywhere", () => {
   for (const [name, load] of fixtures) {
     it(`gives the note, the description, the bounded list and the table one total of paths for ${name}`, async () => {
       const { graph, positions } = await load();
-      const loopsIn = graph.edges.filter((e) => e.source === e.target).length;
+      const loopIds = new Set(graph.edges.filter((e) => e.source === e.target).map((e) => e.id));
+      const loopsIn = loopIds.size;
       expect(loopsIn, "a fixture with paths that loop on one activity").toBeGreaterThan(0);
       const total = graph.edges.length;
+      let firstShown: number | undefined;
       for (const renderer of ["svg", "canvas"] as const) {
-        const { container, unmount } = mount(graph, positions, renderer);
+        const reports: (ShownEdges | undefined)[] = [];
+        const { container, unmount } = mount(graph, positions, renderer, { onEdgesShown: (shown) => reports.push(shown) });
         await waitFor(() => expect(note(), renderer).toBeTruthy());
         const [shown, of] = numbers(note());
         expect(of, `${renderer}: the note's total`).toBe(total);
         expect(shown, `${renderer}: the note's shown paths`).toBeLessThanOrEqual(of);
-        expect(shown, `${renderer}: three lines and every loop`).toBe(3 + loopsIn);
+        // Connecting paths survive even this budget of three. Independently count the ids reported for export,
+        // including every loop, and check that both renderers agree with the note.
+        await waitFor(() => expect(reports.at(-1), renderer).toBeDefined());
+        const report = reports.at(-1)!;
+        expect(report.total, `${renderer}: the export's total`).toBe(total);
+        expect(new Set(report.edges).size, `${renderer}: the export's shown paths`).toBe(shown);
+        expect(report.edges.filter((id) => loopIds.has(id))).toHaveLength(loopsIn);
+        if (renderer === "svg") {
+          const lines = [...container.querySelectorAll(".react-flow__edge")].map((e) => e.getAttribute("data-id")!);
+          expect(lines.length + loopsIn, "the DOM lines and all loops").toBe(shown);
+          expect(lines.sort()).toEqual(report.edges.filter((id) => !loopIds.has(id)).sort());
+        }
+        if (firstShown === undefined) firstShown = shown;
+        else expect(shown, "both renderers' whole-map counts").toBe(firstShown);
         // "Process map with {nodes} nodes and {edges} connections in {groups} groups."
         expect(numbers(container.querySelector(".wf-process-map")!.getAttribute("aria-label"))[1], `${renderer}: the description`).toBe(total);
         const described = container.querySelector(".wf-process-map > p.wf-sr-only")!.textContent!;

@@ -1,11 +1,12 @@
 /** The legend's rows and the exported figure's frame, described once. */
+import RBush from "rbush";
 import { type ActivityLabelOptions, activityKeyLines, activityLabel } from "./activity-labels.js";
 import { shownActivityIds } from "./collapsed-members.js";
 import { detailStatement } from "./detail-statement.js";
 import { asFilter, describeClause } from "./filters.js";
 import { type Locale, formatCount } from "./format.js";
 import type { NodeMark } from "./element-marks.js";
-import type { Box, Positions } from "./layout.js";
+import type { Box, Positions, XY } from "./layout.js";
 import { channelTitle, formatMetricValue, metricEntry, metricName } from "./metrics.js";
 import { type FlowGraph, type FlowNode, type Overlay, MAP_TARGET } from "./model.js";
 import type { MarkText, OverlayMark } from "./overlay-marks.js";
@@ -14,7 +15,7 @@ import type { LegendItem, Measure, PatternId } from "./style.js";
 import { type StringKey, t } from "./strings.js";
 import { type TextMeasure, estimateTextWidth, truncateText, wrapText } from "./text.js";
 import type { Theme } from "./theme.js";
-import { textTokens } from "./tokens.js";
+import { readableTokens, textTokens } from "./tokens.js";
 
 export type FigurePreset = "single-column" | "double-column" | "slide" | "none";
 
@@ -336,6 +337,8 @@ export const figureMetrics = {
 } as const;
 
 export interface FigureFrameOptions {
+  /** Replay a live map's text state, including its hysteresis and numbered full-name key. Default the figure's own decision. */
+  readable?: Readable;
   /** The figure has a title (and, unless `context` is false, a context line). */
   title?: boolean;
   context?: boolean;
@@ -383,10 +386,10 @@ export interface FigureFrame {
   readable: Readable;
   /**
    * Where the cards cannot show their names at the floor: each card's number,
-   * written on it in map units, and the key of names with the baseline of
+   * written near it in map units (with a link if displaced), and the key of names with the baseline of
    * its first line, its lines `figureMetrics.keyLine` apart.
    */
-  numbers?: { texts: { id: string; text: MarkText }[]; lines: string[]; x: number; y: number };
+  numbers?: { texts: { id: string; text: NumberText }[]; lines: string[]; x: number; y: number };
   /** The caption's lines (wrapped to the figure's width) and the baseline of the first, under the map and the legend; lines are `figureMetrics.keyLine` apart. */
   caption?: { lines: string[]; x: number; y: number };
   /** The note on withheld edges and its baseline's start, under the caption. */
@@ -444,21 +447,47 @@ export function figureHeading(scene: FramedScene, frame: FigureFrame, title: str
   return { title: fit(title, text.figureTitle), context: fit(context, text.figureText) };
 }
 
+export interface NumberText extends MarkText {
+  /** Original card centre for a displaced screen reference. */
+  from?: XY;
+  /** Padded glyph extent; its paper backing keeps paths clear of the digits. */
+  box?: Box;
+}
+
 /**
  * The cards numbered in reading order (along the layout's direction, then
- * across it, then by id), each number written in the middle of its card at
- * the floor, and the key of their names.
+ * across it, then by id), and the key of their names. Screen markers move
+ * right until their padded glyph boxes are clear, with a link to the card.
+ * Ordinary figures retain centred numbers.
  */
-function numbered(scene: FramedScene, floor: number, width: number, measure: TextMeasure): { texts: { id: string; text: MarkText }[]; lines: string[] } {
+export function numbered(scene: FramedScene, floor: number, width: number, measure: TextMeasure, separate = true) {
   const across = scene.positions?.direction === "DOWN" || scene.positions?.direction === "UP";
   const at = (m: NodeMark) => (across ? [m.box.y, m.box.x] : [m.box.x, m.box.y]);
   const cards = (scene.nodeMarks ?? []).filter((m) => m.kind === "activity" || m.kind === "stage").sort((a, b) => at(a)[0] - at(b)[0] || at(a)[1] - at(b)[1] || (a.id < b.id ? -1 : 1));
   const font = textTokens.figureText;
   const lines = [t(scene.locale, "export.numbers")];
+  const occupied = new RBush<{ id?: string; minX: number; minY: number; maxX: number; maxY: number }>();
+  for (const m of cards) occupied.insert({ id: m.id, minX: m.box.x, minY: m.box.y, maxX: m.box.x + m.box.width, maxY: m.box.y + m.box.height });
   const texts = cards.map((m, i) => {
     const name = scene.activityLabels && m.kind === "activity" ? activityLabel(m.node, scene.activityLabels) : m.node.label;
     lines.push(...wrapText(`${i + 1} ${name}`, width, font, measure));
-    const text: MarkText = { text: String(i + 1), x: m.box.x + m.box.width / 2, y: m.box.y + m.box.height / 2, size: floor, weight: textTokens.activityNumber.weight, anchor: "middle", baseline: "middle", paint: "ink", halo: true };
+    const text: NumberText = { text: String(i + 1), x: m.box.x + m.box.width / 2, y: m.box.y + m.box.height / 2, size: floor, weight: textTokens.activityNumber.weight, anchor: "middle", baseline: "middle", paint: "ink", halo: true };
+    if (separate) {
+      const w = Math.max(floor, measure(text.text, { size: floor, weight: text.weight })) + floor * readableTokens.number.padding;
+      const h = floor * readableTokens.number.height;
+      const box = { x: text.x - w / 2, y: text.y - h / 2, width: w, height: h };
+      const origin = { x: text.x, y: text.y };
+      // Move only past actual conflicts; the result depends on the scene, never the camera.
+      for (;;) {
+        const conflicts = occupied.search({ minX: box.x, minY: box.y, maxX: box.x + w, maxY: box.y + h }).filter((b) => b.id !== m.id && box.x < b.maxX && box.x + w > b.minX && box.y < b.maxY && box.y + h > b.minY);
+        if (!conflicts.length) break;
+        for (const b of conflicts) box.x = Math.max(box.x, b.maxX);
+      }
+      occupied.insert({ minX: box.x, minY: box.y, maxX: box.x + w, maxY: box.y + h });
+      text.x = box.x + w / 2;
+      if (text.x !== origin.x) text.from = origin;
+      text.box = box;
+    }
     return { id: m.id, text };
   });
   return { texts, lines };
@@ -480,7 +509,12 @@ export function figureFrame(scene: FramedScene, options: FigureFrameOptions = {}
   const measure = scene.textMeasure ?? estimateTextWidth;
   const layout = options.legend === false ? undefined : legendLayout(scene.legend, { measure, text: scene.theme?.text });
   const header = options.title ? f.titleHeight + (options.context !== false ? f.contextHeight : 0) : 0;
-  const content = scene.bounds;
+  const screenNumbers = options.readable?.level === "box" ? numbered({ ...scene, activityLabels: undefined }, options.readable.floor, legendMetrics.width, measure) : undefined;
+  let content = scene.bounds;
+  for (const { text: { box: b } } of screenNumbers?.texts ?? []) if (b) {
+    const x = Math.min(content.x, b.x), y = Math.min(content.y, b.y);
+    content = { x, y, width: Math.max(content.x + content.width, b.x + b.width) - x, height: Math.max(content.y + content.height, b.y + b.height) - y };
+  }
   const { withheld } = options;
   const { locale } = scene;
   const text = withheld && t(locale, "map.edges.withheld", { shown: formatCount(withheld.shown, locale), total: formatCount(withheld.total, locale) });
@@ -489,12 +523,12 @@ export function figureFrame(scene: FramedScene, options: FigureFrameOptions = {}
   const fitted = floor > 0 && given !== undefined && content.width > 0;
   const beside = !!layout && (!fitted || given - 2 * pad - f.legendColumn >= given / 2);
   const scale = fitted ? (given - 2 * pad - (beside ? f.legendColumn : 0)) / content.width : 1;
-  const readable = floor > 0 && scene.readable ? readableAt(scene.readable, scale, floor) : FULL_DETAIL;
+  const readable = options.readable ?? (floor > 0 && scene.readable ? readableAt(scene.readable, scale, floor) : FULL_DETAIL);
   const mapW = content.width * scale + 2 * pad;
   const mapH = content.height * scale + 2 * pad;
   // Widened to fit the note.
   const width = fitted ? given : Math.max(mapW + (layout ? f.legendColumn : 0), text ? measure(text, { size: f.noteSize }) + 2 * pad : 0);
-  const names = readable.level === "box" ? numbered(scene, readable.floor, beside ? legendMetrics.width : width - 2 * pad, measure) : undefined;
+  const names = screenNumbers ?? (readable.level === "box" ? numbered(scene, readable.floor, beside ? legendMetrics.width : width - 2 * pad, measure, false) : undefined);
   // The column beside the map, or below it: the legend's rows, then the key of names.
   const column = { x: beside ? mapW + f.legendInset : pad, y: header + (beside ? pad : mapH) };
   const keyTop = column.y + (layout && names ? layout.height + f.noteRow : (layout?.height ?? 0));

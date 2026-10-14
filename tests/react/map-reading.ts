@@ -145,6 +145,9 @@ export function readReactMap(container: Element, locale: Locale = "en"): DomRead
         }
       }
     }
+    if (look !== none) for (const marker of container.querySelectorAll(".wf-map-numbers text")) {
+      texts.push(svgText(marker, marker.getAttribute("data-id")!, "number"));
+    }
     const paths: Reading["paths"] = [];
     for (const g of container.querySelectorAll("g.wf-edge")) {
       const id = g.getAttribute("data-id")!;

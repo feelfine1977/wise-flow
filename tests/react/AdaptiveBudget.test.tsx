@@ -7,6 +7,7 @@ import { CanvasMap, type CanvasMapHandle, ProcessMap, ViewSwitcher } from "../..
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -50,7 +51,7 @@ function quietCanvas() {
 const note = () => screen.queryByTestId("wf-edge-note")?.textContent;
 const SLOW = 25;
 
-/** The Canvas map of 2,500 edges, all in view, with a clock that makes every timed frame last `ms`. */
+/** The Canvas map of 2,500 edges, all in view, drawing every path at every zoom, with a clock that makes every timed frame last `ms`. */
 async function mountMap(edgeBudget: number | "all" | "adaptive" | undefined, ms = SLOW) {
   quietCanvas();
   let now = 0;
@@ -60,7 +61,7 @@ async function mountMap(edgeBudget: number | "all" | "adaptive" | undefined, ms 
   const reported: (ShownEdges | undefined)[] = [];
   const tree = (budget: typeof edgeBudget) => (
     <div style={{ width: 1200, height: 800 }}>
-      <CanvasMap ref={ref} scene={scene} state={state} fitKey="fit" edgeBudget={budget} clock={clock} onEdgesShown={(s) => reported.push(s)} />
+      <CanvasMap ref={ref} scene={scene} state={state} fitKey="fit" minPathPx={0} edgeBudget={budget} clock={clock} onEdgesShown={(s) => reported.push(s)} />
     </div>
   );
   const view = render(tree(edgeBudget));
@@ -91,10 +92,10 @@ async function mountMap(edgeBudget: number | "all" | "adaptive" | undefined, ms 
     return during;
   }
   /** Six turns of the wheel with Ctrl, zooming out around the centre, with the note after each frame. */
-  async function zoom() {
+  async function zoom(deltaY = 10) {
     const during: (string | undefined)[] = [];
     for (let k = 0; k < 6; k++) {
-      fireEvent.wheel(host, { clientX: 600, clientY: 400, deltaY: 10, ctrlKey: true });
+      fireEvent.wheel(host, { clientX: 600, clientY: 400, deltaY, ctrlKey: true });
       frame();
       during.push(note());
     }
@@ -108,7 +109,9 @@ describe("adaptive edge budget on the Canvas map", () => {
     const map = await mountMap(undefined);
     await waitFor(() => expect(note()).toBe("Showing 2,000 of 2,500 flows"));
     expect(await map.pan()).toEqual(Array(6).fill("Showing 2,000 of 2,500 flows"));
-    // The drag ended: the next frame draws with one step less.
+    // A pure pan keeps the whole-map count, including after release; slow zooming out can lower it at rest.
+    expect(note()).toBe("Showing 2,000 of 2,500 flows");
+    expect(await map.zoom()).toEqual(Array(6).fill("Showing 2,000 of 2,500 flows"));
     await waitFor(() => expect(note()).toBe("Showing 1,000 of 2,500 flows"));
     expect(await map.zoom()).toEqual(Array(6).fill("Showing 1,000 of 2,500 flows"));
     // The wheel gesture ends 200 ms after its last turn.
@@ -123,6 +126,8 @@ describe("adaptive edge budget on the Canvas map", () => {
     await act(() => new Promise((done) => setTimeout(done, 50)));
     expect(note()).toBe("Showing 2,000 of 2,500 flows");
     fireEvent.pointerDown(map.host, { clientX: 600, clientY: 400, button: 0, pointerId: 2 });
+    expect(note()).toBe("Showing 2,000 of 2,500 flows");
+    await map.zoom();
     await waitFor(() => expect(note()).toBe("Showing 1,000 of 2,500 flows"));
   });
 
@@ -131,7 +136,7 @@ describe("adaptive edge budget on the Canvas map", () => {
     const host = map.host;
     expect(note()).toBeUndefined();
     // A wheel run starts on a fixed budget, and the host turns the budget adaptive while it runs.
-    fireEvent.wheel(host, { clientX: 600, clientY: 400, deltaY: 10 });
+    fireEvent.wheel(host, { clientX: 600, clientY: 400, deltaY: 10, ctrlKey: true });
     map.rerender("adaptive");
     await waitFor(() => expect(note()).toBe("Showing 2,000 of 2,500 flows"));
     // A drag of slow frames starts; the wheel run ends 200 ms after its turn, while the drag goes on.
@@ -149,11 +154,11 @@ describe("adaptive edge budget on the Canvas map", () => {
   });
 
   it("reports the edges of the new step to the host, which an export then draws with the note", async () => {
-    const { pan, reported } = await mountMap("adaptive");
+    const { zoom, reported } = await mountMap("adaptive");
     await waitFor(() => expect(note()).toBe("Showing 2,000 of 2,500 flows"));
     expect(reported).toEqual([expect.objectContaining({ total: 2500 })]);
     expect(reported[0]!.edges).toHaveLength(2000);
-    await pan();
+    await zoom();
     await waitFor(() => expect(note()).toBe("Showing 1,000 of 2,500 flows"));
     await act(async () => new Promise((resolve) => setTimeout(resolve, 20)));
     // Told once per step; the 1,000 heaviest are h->t1 … h->t1000 (counts 2,500 … 1,501).
@@ -168,7 +173,7 @@ describe("adaptive edge budget on the Canvas map", () => {
 
   it("steps up after a gesture of fast frames", async () => {
     const map = await mountMap("adaptive", 2);
-    await map.pan();
+    await map.zoom(-10);
     // 4,000 covers the 2,500 edges in view: the note goes.
     await waitFor(() => expect(note()).toBeUndefined());
   });
@@ -190,9 +195,15 @@ describe("adaptive edge budget on the Canvas map", () => {
       (query: string) => ({ matches: query.includes("reduce"), media: query, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }) as unknown as MediaQueryList,
     );
     const map = await mountMap(undefined);
-    await map.pan();
+    await waitFor(() => expect(note()).toBe("Showing 2,000 of 2,500 flows"));
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await map.zoom();
     const ended = map.shown.length;
-    await waitFor(() => expect(note()).toBe("Showing 1,000 of 2,500 flows"));
+    act(() => {
+      vi.advanceTimersByTime(200);
+      map.renderer.draw();
+    });
+    expect(note()).toBe("Showing 1,000 of 2,500 flows");
     // The first frame after the gesture draws the new budget in full; there is no frame in between.
     expect(map.shown.slice(ended)[0]).toBe(1000);
     expect(new Set(map.shown.slice(ended))).toEqual(new Set([1000]));
@@ -204,7 +215,7 @@ describe("adaptive edge budget as the default of the maps", () => {
     quietCanvas();
     render(
       <div style={{ width: 1200, height: 800 }}>
-        <ProcessMap graph={large.graph} positions={large.positions} renderer="canvas" controls={false} legend={false} selfLoops={false} contextMenu={false} pathList={false} />
+        <ProcessMap graph={large.graph} positions={large.positions} renderer="canvas" minPathPx={0} controls={false} legend={false} selfLoops={false} contextMenu={false} pathList={false} />
       </div>,
     );
     await waitFor(() => expect(note()).toBe("Showing 2,000 of 2,500 flows"));

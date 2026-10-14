@@ -5,7 +5,7 @@ import { type DrawState, type PreparedScene, canvasTextMeasure } from "../canvas
 import { retainScene } from "../canvas/scene.js";
 import { LABELS } from "../core/readable.js";
 import { describeIndexedEdge } from "../core/describe.js";
-import { FIRST_STEP } from "../core/edge-budget.js";
+import { FIRST_STEP, keptLoop, mapEdges } from "../core/edge-budget.js";
 import { describeGroup, describeNode } from "./describe.js";
 import { coverBackground } from "./marks.js";
 import { GROUP_PREFIX } from "./map-pointer.js";
@@ -124,6 +124,8 @@ interface FlowInput {
   edgeBudget?: EdgeBudget | "adaptive";
   /** Edges on a highlighted path, drawn first within the budget. */
   highlighted?: ReadonlySet<string>;
+  /** The paths drawn at a small zoom (`pathsAtZoom`): the narrowest line on the screen and the zoom the view rested at. */
+  pathRule?: { minPx: number; zoom: number };
 }
 
 /** The id of the marker of an edge's arrowhead in the map (`MarkDefs`), by its size. */
@@ -131,7 +133,7 @@ export const edgeArrowId = (a: Arrowhead) => `wf-edge-arrow-${a.size}`;
 
 /** React Flow nodes (groups first, as parents) and edges, and the overlay marks drawn between elements. */
 export function useFlowElements(input: FlowInput) {
-  const { enabled, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, nodesDraggable, edgeBudget, highlighted } = input;
+  const { enabled, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, nodesDraggable, edgeBudget, highlighted, pathRule } = input;
   const { overlaysByTarget, groupIndex, memberCount, describeElement } = descriptions;
   const { scales } = scene;
   const groupMarks = useMemo(() => new Map(scene.groupMarks.map((m) => [m.id, m])), [scene.groupMarks]);
@@ -245,8 +247,14 @@ export function useFlowElements(input: FlowInput) {
     return out;
   }, [positions, enabled, shown, scene, overlaysByTarget, covers, carried, inHover, scales, selection, hovered, focused, locale, bright, groupMarks, groupIndex, memberCount, activityLabels, describeElement, nodesDraggable]);
 
-  // Every edge of the scene is in view of React Flow; with no frame to time, adaptive keeps its first step.
-  const withheld = useMemo(() => (enabled ? budgetEdges(scene, edgeBudget === "adaptive" ? FIRST_STEP : edgeBudget, { selection, focused, highlighted }) : undefined), [enabled, scene, edgeBudget, selection, focused, highlighted]);
+  // Every edge of the scene is in view of React Flow; with no frame to time, adaptive keeps its first step. At a small zoom
+  // the budget chooses among the paths the rule lets through.
+  const withheld = useMemo(() => {
+    if (!enabled) return undefined;
+    const budget = edgeBudget === "adaptive" ? FIRST_STEP : edgeBudget;
+    const protection = { selection, focused, highlighted };
+    return pathRule ? mapEdges(scene, budget, protection, pathRule.zoom, pathRule.minPx) : budgetEdges(scene, budget, protection);
+  }, [enabled, scene, edgeBudget, selection, focused, highlighted, pathRule]);
   const rfEdges = useMemo<WfEdge[]>(() => {
     if (!positions || !enabled) return [];
     return (withheld ? scene.edgeMarks.filter((_, i) => withheld.drawn.has(i)) : scene.edgeMarks).map((mark) => {
@@ -281,7 +289,7 @@ export function useFlowElements(input: FlowInput) {
       };
     });
   }, [positions, enabled, scene, describeElement, selection, hovered, focused, bright, withheld]);
-  const shownBetween = useMemo(() => between.map(inHover), [between, inHover]);
+  const shownBetween = useMemo(() => between.map((m) => inHover(pathRule && keptLoop(m, true) ? { ...m, minZoom: 0 } : m)), [between, inHover, pathRule]);
   // The heads the edges end in, one per size.
   const arrows = useMemo(() => [...new Map(rfEdges.map((e) => [e.data!.mark!.arrow.size, e.data!.mark!.arrow])).values()].sort((a, b) => a.size - b.size), [rfEdges]);
   return { nodes: rfNodes, edges: rfEdges, between: shownBetween, withheld, arrows };

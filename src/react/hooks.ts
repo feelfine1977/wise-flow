@@ -234,7 +234,7 @@ export function useEdgesShown(onEdgesShown: ((shown: ShownEdges | undefined) => 
     const key = withheld ? `${withheld.total}\n${edges.join("\n")}` : "";
     if (key === last.current) return;
     last.current = key;
-    callback.current(withheld && { edges, total: withheld.total });
+    callback.current(withheld && { edges, total: withheld.total, ...(withheld.shown !== edges.length && { shown: withheld.shown }) });
   }, []);
 }
 

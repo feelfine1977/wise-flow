@@ -188,21 +188,22 @@ export interface ProcessMapProps {
    */
   describedLimit?: number;
   /**
-   * How many of the edges in view the map draws (`budgetEdges`): protected
-   * edges (with an overlay mark on them, selected, at the keyboard
-   * position) first, then those on a highlighted path, then the others, each
-   * by weight and id. While edges are withheld the map says how many it shows
-   * (and how many highlighted ones it does not); the table view lists every
-   * edge. A number or `"all"` is fixed. `"adaptive"` (the default)
+   * How many edges of the whole map are let through after the zoom rule:
+   * marked, selected, focused and highlighted paths and the paths connecting
+   * each activity from start to end always stay, even beyond the budget;
+   * the others follow by weight and id. Canvas culling then draws those in
+   * view. While edges are withheld the map says how many it lets through;
+   * the table view lists every edge. A number or `"all"` is fixed. `"adaptive"` (the default)
    * starts at 2,000 and, on the Canvas map, moves through the steps 500,
-   * 1,000, 2,000, 4,000, … after several consecutive frames of a pan or zoom
-   * gesture above 16.7 ms or below half of it, and only once the view is at
+   * 1,000, 2,000, 4,000, … after several consecutive frames of a zoom
+   * gesture above 16.7 ms or below half of it, decreasing only when zooming
+   * out and increasing only when zooming in, once the view is at
    * rest; the React Flow map keeps the first step.
    */
   edgeBudget?: EdgeBudget | "adaptive";
   /**
-   * Called when the edges the map draws change: while the edge budget
-   * withholds some, with the ids drawn and the total the note states;
+   * Called when the edges the map draws change: while the edge budget or a
+   * small zoom withholds some, with the ids drawn and the total the note states;
    * undefined once every edge is drawn again. Pass the last value as
    * `edgeBudget` to `toSVG` or `toPNG` to export what the map shows.
    */
@@ -223,8 +224,27 @@ export interface ProcessMapProps {
   className?: string;
   /** Inline style of the outer element (height is required by React Flow). */
   containerStyle?: React.CSSProperties;
-  /** Fit the view after layout. Default true. */
+  /** Open the view after layout (`opening`). Default true; false leaves the view where it is. */
   fitView?: boolean;
+  /**
+   * The view the map opens at when it is shown first or its graph is
+   * replaced: `"readable"` (default) fits it where the whole map fits at a
+   * zoom of 0.75 or more, and otherwise opens at 0.75 on the start of the
+   * process, at the edge of the room the panels leave, with an overview of
+   * the whole map in a corner no panel occupies; `"fit"` always fits it. Once
+   * the person moved the view, a change of the controls keeps it; once they
+   * pressed "fit", it fits the map again; a new `graph` opens it again.
+   */
+  opening?: "readable" | "fit";
+  /**
+   * The narrowest line, in screen pixels, of a path the map draws: below it a
+   * path is not drawn, unless it is marked, selected, focused, highlighted or
+   * keeps an activity on a way from a start to an end (`pathsAtZoom`),
+   * decided when the view is at rest. Default `viewTokens.pathPx` (0.5); 0
+   * draws every path at every zoom. The selection, the table view and the
+   * exports of the whole figure are not affected.
+   */
+  minPathPx?: number;
   /**
    * Room kept clear along each side of the map when its view is fitted, in
    * screen pixels. By default the fitted map keeps clear of the panels over it

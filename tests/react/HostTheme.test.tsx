@@ -262,13 +262,14 @@ describe("the theme of a map", () => {
   });
 
   it("draws the variables a host sets on a Canvas map of its own", async () => {
+    // Keep the identity view so this colour check reads the full activity name.
     const { label } = recorder();
     const positions = await layout(vendor, { engine: "dagre" });
     document.head.appendChild(rules);
     rules.textContent = ".mine { --wf-ink: #123456; }";
     render(
       <div style={{ width: 1200, height: 800 }}>
-        <CanvasMap className="mine" scene={prepareScene(vendor, positions)} state={{ selection: emptySelection }} edgeBudget="all" />
+        <CanvasMap className="mine" fitView={false} scene={prepareScene(vendor, positions)} state={{ selection: emptySelection }} edgeBudget="all" />
       </div>,
     );
     await waitFor(() => expect(label()).toEqual(["#123456"]));

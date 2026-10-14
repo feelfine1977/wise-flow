@@ -1,19 +1,39 @@
 import { forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { type Box, type EdgeBudget, type HitItem, type Insets, type Locale, type ShownEdges, type ThemeSetting, type XY, formatCount, t, themeColors } from "../core/index.js";
-import { CanvasRenderer, type DrawState, type PreparedScene } from "../canvas/index.js";
+import { type Box, type EdgeBudget, type HitItem, type Insets, type Locale, type Readable, type ShownEdges, type ThemeSetting, type XY, formatCount, t, themeColors, viewTokens } from "../core/index.js";
+import { CanvasRenderer, type DrawState, type PreparedScene, type Viewport } from "../canvas/index.js";
 import { sceneTokens } from "../canvas/tokens.js";
 import { PathsNotShown, useEdgesShown } from "./hooks.js";
 import { part } from "./parts.js";
-import { ZoomControl, clearOfPanels } from "./primitives.js";
+import { MapOverview, ZoomControl, clearOfPanels, openingIn } from "./primitives.js";
 import { useFlowTheme } from "./theme.js";
+import { ActivityKey, useMapNumbers } from "./MapNumbers.js";
 
 export interface CanvasMapProps {
   scene: PreparedScene | undefined;
   state: DrawState;
   locale?: Locale;
-  /** Changes when a new layout arrived; the view is fitted again. */
+  /** Changes when a new layout arrived; opens again unless the person moved the view. */
   fitKey?: string;
   fitView?: boolean;
+  /**
+   * The view the map opens at, and opens at again for a new layout until the person moves it:
+   * `"readable"` (default) fits it where the whole map fits at a zoom of 0.75
+   * or more, and otherwise opens at 0.75 on the start of the process with an
+   * overview of the whole map in a free corner; `"fit"` always fits it.
+   */
+  opening?: "readable" | "fit";
+  /**
+   * Changes when the map's graph is replaced: the map opens again by
+   * `opening`. Until then, once the person pressed the fit button, a change
+   * of `fitKey` fits the map instead of opening it. Default: the scene's graph object.
+   */
+  openKey?: string | number;
+  /**
+   * The narrowest line, in screen pixels, of a path the map draws
+   * (`pathsAtZoom`), decided at the zoom the view last rested at. Default
+   * `viewTokens.pathPx` (0.5); 0 draws every path at every zoom.
+   */
+  minPathPx?: number;
   /** Room kept clear along each side when the view is fitted, in screen pixels; by default clear of the panels over the map. */
   fitInsets?: Partial<Insets>;
   /** Tooltip text for a hit. */
@@ -25,13 +45,13 @@ export interface CanvasMapProps {
   onViewportChange?: (v: { x: number; y: number; zoom: number }) => void;
   /** Elements listed for assistive technology (`aria-activedescendant` targets). */
   descendants?: { id: string; kind: "node" | "edge" | "group"; description: string }[];
-  /** How many of the edges in view are drawn (`budgetEdges`), or `"adaptive"` (default): a step fitted to the frame time of gestures. A note says when edges are withheld. */
+  /** How many edges of the whole map are let through after the zoom rule, with connecting and protected paths always kept, or `"adaptive"` (default): a step fitted to the frame time of gestures. Culling draws those in view; the note counts over the whole map. */
   edgeBudget?: EdgeBudget | "adaptive";
   /** The clock (ms) the adaptive edge budget times frames with, read from mount. Default `performance.now`. */
   clock?: () => number;
   /** Called with the note once its numbers have settled, for a live region. */
   onAnnounce?: (text: string) => void;
-  /** Called when the edges drawn change: while the budget withholds some, with those drawn (for `toSVG` and `toPNG`); undefined once every edge is drawn again. */
+  /** Called when the edges let through over the whole map change: while the budget or zoom rule withholds some, with those let through (for `toSVG` and `toPNG`); undefined once every edge is let through again. */
   onEdgesShown?: (shown: ShownEdges | undefined) => void;
   /**
    * The colours and font the map is drawn in: a preset's name or changes over
@@ -51,7 +71,7 @@ export interface CanvasMapHandle {
    * `.wf-overlay-panel` children), so that none covers an activity.
    */
   fit(insets?: Partial<Insets>): void;
-  /** True when the view changed since the map was last fitted. */
+  /** True when the view changed since the map last opened or was fitted. */
   moved(): boolean;
   zoomBy(factor: number): void;
   /** Box of a node or group relative to the map body. */
@@ -87,7 +107,7 @@ export function EdgeNote({ withheld, locale, onAnnounce }: { withheld?: { shown:
  * focus, dimming) comes from the parent; keyboard handling stays there.
  */
 export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function CanvasMap(
-  { scene, state, locale = "en", fitKey, fitView = true, fitInsets, describe, onHover, onClick, onContextMenu, onViewportChange, descendants, edgeBudget = "adaptive", clock, onAnnounce, onEdgesShown, theme, className, children },
+  { scene, state, locale = "en", fitKey, fitView = true, fitInsets, opening = "readable", openKey, minPathPx = viewTokens.pathPx, describe, onHover, onClick, onContextMenu, onViewportChange, descendants, edgeBudget = "adaptive", clock, onAnnounce, onEdgesShown, theme, className, children },
   ref,
 ) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -98,17 +118,37 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
   const [dragging, setDragging] = useState(false);
   const [overHit, setOverHit] = useState(false);
-  const fitted = useRef<string | undefined>(undefined);
+  const fitted = useRef<{ key?: string; graph: unknown }>(undefined);
   const fittedView = useRef<unknown>(undefined);
-  const [zoom, setZoom] = useState<number>();
   const fitInsetsRef = useRef(fitInsets);
   fitInsetsRef.current = fitInsets;
-  const fitNow = (insets?: Partial<Insets>) => {
+  const openingRef = useRef(opening);
+  openingRef.current = opening;
+  // The overview while the map opened on its start, and the view it marks.
+  const [overview, setOverview] = useState<Box>();
+  const [view, setView] = useState<Viewport>();
+  const [readable, setReadable] = useState<Readable>();
+  const numbers = useMapNumbers(scene, readable);
+  // Once the person pressed the fit button, the map is fitted rather than opened, until its graph is replaced (`openKey`).
+  const fittedByPerson = useRef(false);
+  const fitNow = (insets?: Partial<Insets>, overviewToo = true) => {
     const r = rendererRef.current;
     const host = hostRef.current;
     const bounds = r?.getScene()?.bounds;
     if (!r) return;
-    r.fit(FIT_PADDING, insets ?? fitInsetsRef.current ?? (host && bounds ? clearOfPanels(host, bounds, FIT_PADDING, r) : undefined));
+    r.fit(FIT_PADDING, insets ?? fitInsetsRef.current ?? (host && bounds ? clearOfPanels(host, bounds, FIT_PADDING, r, host, overviewToo) : undefined));
+    fittedView.current = r.getViewport();
+  };
+  /** Opens the map: fitted where that is readable, otherwise on its start with the overview (`opening`). */
+  const openNow = () => {
+    const r = rendererRef.current;
+    const host = hostRef.current;
+    const opened = r?.getScene();
+    if (!r || !host || !opened) return;
+    const open = openingRef.current === "fit" || fittedByPerson.current || !(opened.bounds.width > 0) || !(opened.bounds.height > 0) ? undefined : openingIn(host, opened.bounds, opened.graph.nodes, opened.positions, { padding: FIT_PADDING, minZoom: r.minZoom, maxZoom: r.maxZoom, insets: fitInsetsRef.current });
+    setOverview(open?.overview);
+    if (!open || open.fitted) return fitNow(undefined, false);
+    r.setViewport(open);
     fittedView.current = r.getViewport();
   };
   const [ready, setReady] = useState(false);
@@ -127,10 +167,11 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
     if (!canvas || !host) return;
     const renderer = new CanvasRenderer(canvas, { tokens, clock });
     renderer.onViewportChange = (v) => {
-      setZoom(v.zoom);
+      setView(v);
       onViewportChange?.(v);
     };
-    renderer.onDraw = ({ withheld: w }) => {
+    renderer.onDraw = ({ withheld: w, readable: texts }) => {
+      setReadable((was) => was?.level === texts.level && was.floor === texts.floor ? was : texts);
       reportShown(w, renderer.getScene()?.edgeMarks ?? []);
       tellPaths.current?.(w?.pathsNotShown);
       const key = w ? `${w.shown}/${w.total}/${w.highlightedNotShown}` : "";
@@ -160,11 +201,14 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
     const r = rendererRef.current;
     if (!r) return;
     r.setScene(scene);
-    if (scene && fitView && ready && fitted.current !== fitKey) {
-      fitted.current = fitKey;
-      fitNow();
+    if (scene && fitView && ready && (!fitted.current || fitted.current.key !== fitKey || fitted.current.graph !== (openKey ?? scene.graph))) {
+      const replaced = fitted.current?.graph !== (openKey ?? scene.graph);
+      if (replaced) fittedByPerson.current = false;
+      fitted.current = { key: fitKey, graph: openKey ?? scene.graph };
+      if (replaced || !fittedView.current || r.getViewport() === fittedView.current) openNow();
     }
-  }, [scene, fitKey, fitView, ready]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scene, fitKey, openKey, fitView, ready]);
 
   useEffect(() => {
     rendererRef.current?.setState(state);
@@ -178,9 +222,9 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
   useEffect(() => {
     const r = rendererRef.current;
     if (!r) return;
-    r.drawOptions = { ...r.drawOptions, edgeBudget };
+    r.drawOptions = { ...r.drawOptions, edgeBudget, pathRule: { minPx: minPathPx } };
     r.requestDraw();
-  }, [edgeBudget]);
+  }, [edgeBudget, minPathPx]);
 
   // A host that starts listening is told what the next draw withholds.
   const listening = !!onEdgesShown;
@@ -197,7 +241,7 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
         if (!r || !b) return;
         r.centerOn({ x: b.x + b.width / 2, y: b.y + b.height / 2 }, zoom);
       },
-      fit: fitNow,
+      fit: (insets) => fitNow(insets),
       moved() {
         return !!fittedView.current && rendererRef.current?.getViewport() !== fittedView.current;
       },
@@ -220,7 +264,7 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
   };
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || (e.target as Element).closest(".wf-panel")) return;
     // A drag whose release was lost ends here.
     if (drag.current?.moved) rendererRef.current?.endGesture();
     const p = local(e);
@@ -357,9 +401,17 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
         </div>
       ) : null}
       <div className="wf-overlay-panel wf-overlay-panel--bottom-left">
-        <ZoomControl zoom={zoom} locale={locale} onZoomIn={() => rendererRef.current?.zoomBy(ZOOM_STEP)} onZoomOut={() => rendererRef.current?.zoomBy(1 / ZOOM_STEP)} onFit={() => fitNow()} />
+        <ZoomControl zoom={view?.zoom} locale={locale} onZoomIn={() => rendererRef.current?.zoomBy(ZOOM_STEP)} onZoomOut={() => rendererRef.current?.zoomBy(1 / ZOOM_STEP)} onFit={() => {
+            fittedByPerson.current = true;
+            fitNow();
+          }}
+        />
       </div>
+      {overview && scene && view && rendererRef.current ? (
+        <MapOverview bounds={scene.bounds} nodes={scene.positions.nodes} view={view} area={rendererRef.current.size} at={overview} locale={locale} onMove={(p) => rendererRef.current?.centerOn(p)} />
+      ) : null}
       {children}
+      <ActivityKey numbers={numbers} locale={locale} />
     </div>
   );
 });

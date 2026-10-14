@@ -12,7 +12,7 @@
 │          panel primitives · fit · ActivityTooltip            │
 │          useMapController · map-pointer · map-actions ·      │
 │          map-elements · nodes · edges · marks · describe ·   │
-│          types · parts · theme                               │
+│          MapNumbers · types · parts · theme                  │
 │          hooks: useFlowGraph, useStableLayout, useOverlays   │
 ├──────────────────────────┬───────────────────────────────────┤
 │ canvas/  scene · draw ·  │ bpmn/ lite · layout · export ·    │
@@ -53,10 +53,10 @@ read what it resolves and do not decide it again.
 | Text measure (`core/text.ts`) | `TextMeasure`, `estimateTextWidth`, `truncateText`, `wrapText`; `buildScene(…, { textMeasure })`; `canvasTextMeasure` (Canvas) | how wide a text is, where it is shortened and how it wraps: node labels, chip texts and their boxes, activity names and boxes, the legend's texts, the figure's note and activity key, measured once when the scene is built (§2.5) | the mark builders, the overlay geometry, the legend layout and the figure frame; the renderers write the fitted texts |
 | Theme (`core/theme.ts`, `checkTheme` in `core/style.ts`) | `Theme`, `defaultTheme`, `printTheme`, `resolveTheme`, `themeColors`, `checkTheme`; `buildScene(…, { theme, scheme })` | what the marks are drawn in: colour roles with the dark scheme's changes, the data palettes and the pattern twins' order and look, fonts, text, radius, stroke, opacity and spacing tables, the place of the frequency cue, density, the smallest text and stroke, rules (none in the presets); the presets (`defaultTheme` is the token table, `printTheme` its `printTokens` over it); a setting as changes over a preset over the host's CSS variables; the CSS variable of every part; what of a theme falls short (§2.4) | the scene and its mark builders and scales; through the scene the SVG export, Canvas drawing, PNG export and React components; `useFlowTheme` (React), which reads the variables |
 | Rules (`core/rules.ts`) | `ThemeRule`, `stateStyle`, `markInState`; `checkTheme` | which rules of a theme apply (the others reported), what they set on an element by part, kind, tag and state in their order with a state's rules last, and the paints, widths, dashes, radii and opacities they resolve to; for the interactive states, what the maps draw over a mark (§2.4) | the node, edge, group and overlay mark builders; `drawScene` (Canvas); the React map's elements |
-| Edge budget (`core/edge-budget.ts`) | `budgetEdges(scene, budget, protection, inView)` → `EdgeSelection`; `edgeBudgetAdapter(clock)` (internal) | which edges in view a budget draws: protected edges (an overlay mark on them, selected, at the keyboard position, on a highlighted path), then weight, then id; or exactly the edges a map reported (`ShownEdges`); the adaptive budget's step, moved by the timed frames of gestures and only at rest (§4) | `drawScene` and `CanvasRenderer` (Canvas, `toPNG`), `useFlowElements` (React Flow), `toSVG` |
+| Edge budget (`core/edge-budget.ts`) | `budgetEdges(scene, budget, protection, inView)` → `EdgeSelection`; `pathsAtZoom(scene, zoom, minPx, protection)` → `ZoomedPaths`; `edgeBudgetAdapter(clock)`, `mapEdges` (internal) | which edges in view a budget draws: protected edges (an overlay mark on them, selected, at the keyboard position, on a highlighted path), then weight, then id; or exactly the edges a map reported (`ShownEdges`); the adaptive budget's step, moved by the timed frames of gestures and only at rest (§4); which paths a map lets through at a zoom (a line at least half a screen pixel wide, the protected ones and the paths that keep every activity between a start and an end), counted over the whole map (§4) | `drawScene` and `CanvasRenderer` (Canvas, `toPNG`), `useFlowElements` (React Flow), `toSVG` |
 | Mark SVG (`core/mark-svg.ts`) | `markSvg`, `svgMarkup` | the SVG elements of a mark | SVG export, React map, BPMN view |
 | Legend and figure frame (`core/figure.ts`) | `FlowScene.legend` (`legendOfScene`), `LegendRow`, `legendLayout`, `figureFrame`, `figureCaption` | the legend's typed rows from what the scene draws (the measure and its unit, the scales titled by metric and unit, a key per kind of mark drawn), their heights and texts at the export's width, the exported figure's frame, its caption line and the note on withheld edges in it (§2.6) | `toSVG`, `toPNG`, Canvas `drawLegend`, `<Legend/>` |
-| Fitted view (`core/viewport.ts`) | `fitViewport(bounds, area, { insets, padding })`, `panelInsets(panels, area, bounds)` | the view that shows a map whole inside its area less insets, and the insets that keep it clear of the panels over it (each panel kept clear across or along the area, whichever leaves the larger zoom) | `ProcessMap` (React Flow), `CanvasRenderer.fit` and `CanvasMap`, `BpmnView` |
+| Fitted view (`core/viewport.ts`) | `fitViewport(bounds, area, { insets, padding })`, `panelInsets(panels, area, bounds)`, `openingView(bounds, area, options)`, `processStart(nodes, positions)` | the view that shows a map whole inside its area less insets, and the insets that keep it clear of the panels over it (each panel kept clear across or along the area, whichever leaves the larger zoom); the view a map opens at (fitted where that is readable, else a readable zoom on the start of the process with room for an overview, no activity under a panel) | `ProcessMap` (React Flow), `CanvasRenderer.fit` and `CanvasMap`, `BpmnView` |
 | Selection by detail (`core/detail.ts`, through `abstract` in `core/aggregate.ts`) | `abstract(graph, { activityDetail, pathDetail, marks })` → `FlowGraph` with `meta.shown`; `ANCHOR_TAG`, `INDIRECT_TAG` | which activities and paths two detail shares show: activities by rank, paths by their rank in the whole graph, each shown activity's anchors (its strongest path from and to a more frequent node, or the way through rarer ones whose rarest is the most frequent), indirect paths for stretches through activities not shown, the elements of protected marks, and what is shown and what of the marks is not (§2.2) | `<ProcessMap/>` through `useFlowGraph`, `buildViews`, `liteFromGraph`; hosts |
 | Statements of the detail shares (`core/detail-statement.ts`) | `detailStatement(graph, { locale, marks, labelOf })`, `detailNotes(base, shown, options)` | what a graph abstracted by `abstract` shows, in words: the short and full statements beside the detail sliders (activities and their share of events; paths by frequency, kept, the strongest not shown), the marks not shown, the elements shown for a protected deviation; what the tooltips of the shown elements add (§2.2) | `<AbstractionControls/>` through `<ProcessMap/>`, `figureCaption`; hosts |
 | Metric registry (`core/metrics.ts`) | `metricRegistry`, `formatMetricValue`, `elementMetric`, `metricLabelOf`, `channelTitle` | for each metric its name, unit and number format in English and German, and how a lower bound and a mean of merged values read (§2.2, §2.6) | the legend, the node and edge marks, the descriptions, `<TableAlternative/>`, `<PathList/>` |
@@ -430,7 +430,8 @@ activity's or a stage's card (a neutral outline, the stage once as the band,
 the name on up to two lines, the cases and their share of the log's cases,
 and the frequency cue as a stripe and a foot as long as the share, placed as
 the theme's `frequencyCue` says; the layout reserves the card's size once), an
-edge's route (straight between the boxes where none is given; a path against
+edge's route (a model flow self-loop on its supplied course or the
+sequence-flow router's, straight between the boxes where none is given; a path against
 the reading direction as its own line below the flow it returns over, two
 opposite paths side by side: `pathCourses`), colour, dash, an arrowhead that
 grows with its width, and count label at one label point. Groups have marks as well: a box group's
@@ -470,7 +471,18 @@ The scene carries the rules (`FlowScene.readable`: each level's smallest text
 and the largest floor it fits at, measured over every card) and each card's
 lines per level, fitted once by the text measure for the largest boost the
 level is drawn at (`NodeMark.levels`); boxes and positions never change with
-the zoom. The DOM map writes the state on its root as classes in one string,
+the zoom. At the box level live maps reuse the figure's numbered cards,
+with full names
+in a scrollable, keyboard-focusable key. `MapNumbers` adapts the shared
+numbering to React Flow; Canvas draws it in the node pass. At the screen
+floor padded glyph boxes move right past conflicting markers and other cards,
+with lines back to their original card centres and paper behind the digits.
+Placement depends on the whole scene, never the camera. Canvas checks marker
+and link extents independently of node culling; shown figures extend their
+bounds to include those extents. Ordinary figure numbering stays centred. A shown figure
+can replay `readable` or decide at its supplied `lodZoom`. Ordinary exports
+keep the figure floor. The DOM map writes the state on its root as classes
+in one string,
 the Canvas map decides it per frame within the frame before's hysteresis,
 and an exported figure at the map's scale with the theme's figure floor.
 
@@ -602,7 +614,11 @@ the Canvas map and the BPMN view, React Flow's own controls not rendered.
 Panels, buttons, chips and tooltips are one set of primitives modelled on
 the actions menu, styled through the tokens in both schemes. The fitted view
 keeps clear of the open panels (`panelInsets`), so that none covers an
-activity.
+activity. Both maps open with `openingView`: fitted at 0.75 or above, else
+0.75 on `processStart` with `MapOverview` in a free corner. The overview
+marks the viewport and moves it by pointer or keyboard. A person's move
+survives control changes; replacing the graph opens again. `opening="fit"`
+keeps the plain fit for a host, and the fit button always shows the whole map.
 Keyboard navigation over the elements with a box (arrow keys; Alt with an
 arrow key along the paths; Space selects; Enter opens the actions menu; Shift
 with an arrow key extends the selection; Escape; Home, End) with
@@ -631,14 +647,23 @@ detail and the readable state (§2.5) from the zoom and, above 1,500 elements, d
 finds inside the viewport, reading each element by its position in the
 scene's lists so that a draw costs what the view holds; the R-tree holds
 each element's drawn extent (outline, selection ring, arrowheads, labels),
-so an element is drawn as soon as any of that reaches into the view. With an edge
-budget it draws only the edges in view that the core's `budgetEdges` keeps
-(protected ones, then the heaviest), the same rule the React Flow map
-applies to all its edges, and the map says how many it shows. The default
+so an element is drawn as soon as any of that reaches into the view. With a path rule and edge budget it draws the let-through edges in view
+that the core's `mapEdges` keeps over the whole scene (connecting and
+protected paths, then the heaviest), the same rule the React Flow map
+applies to all its edges. The note counts that whole-map selection. Without
+a path rule, low-level drawing retains `budgetEdges` over the edges in view. The default
 budget is adaptive: `CanvasRenderer` times the frames of the gestures its host
 reports with an injected clock and, once the view is at rest, moves the
-budget one step (500, 1,000, 2,000, …) towards 16.7 ms per frame; a number or
-`"all"` reads no clock. `CanvasRenderer` owns the canvas, the viewport and the
+budget one step (500, 1,000, 2,000, …) towards 16.7 ms per frame, only with
+the zoom direction on live maps; a pure pan keeps the budget. A number or
+`"all"` reads no clock. At a small zoom the map draws only the paths
+`pathsAtZoom` lets through at the zoom its view last rested at (a line at
+least half a screen pixel wide, the protected paths, and each activity's
+strongest path from and to a more frequent one), and the budget chooses
+among those over the whole map, preserving connecting and highlighted
+paths; viewport culling follows and never changes the note. The React Flow map
+applies the same rule to all its edges once its view has rested for 200 ms
+and no gesture is active. `CanvasRenderer` owns the canvas, the viewport and the
 interaction state and redraws on animation frames; `CanvasMap` adds the
 pointer handling (drag to pan, wheel, Ctrl or Cmd with the wheel and pinch
 to zoom, hover through the R-tree with a tooltip, click, right click), a

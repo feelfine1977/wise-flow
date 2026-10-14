@@ -8,6 +8,7 @@
  * (`FlowScene.readable`). Boxes and positions never change with the zoom.
  */
 import { activityLabel, type ActivityLabelOptions } from "./activity-labels.js";
+import type { EdgeBudget, ShownEdges } from "./edge-budget.js";
 import type { ElementText, NodeMark } from "./element-marks.js";
 import type { Box, XY } from "./layout.js";
 import type { MarkText, OverlayMark } from "./overlay-marks.js";
@@ -292,4 +293,9 @@ export function readableRules(marks: readonly NodeMark[], overlays: readonly Ove
   };
   rows.set(rules, corners);
   return rules;
+}
+
+/** A shown figure replays the live text state, or decides at its supplied screen zoom; ordinary figures keep their own floor. */
+export function shownReadable(scene: { readable: ReadableRules; theme: Theme }, options: { readable?: Readable; lodZoom?: number; edgeBudget?: EdgeBudget | ShownEdges }): Readable | undefined {
+  return options.readable ?? (options.edgeBudget && typeof options.edgeBudget === "object" && options.lodZoom !== undefined ? readableAt(scene.readable, options.lodZoom, scene.theme.text.minScreenPx) : undefined);
 }

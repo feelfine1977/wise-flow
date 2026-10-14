@@ -2,7 +2,7 @@
  * Deterministic SVG export of a scene with an embedded legend and figure presets.
  */
 import type { ActivityLabelOptions } from "./activity-labels.js";
-import { type EdgeBudget, type EdgeSelection, type ShownEdges, budgetEdges } from "./edge-budget.js";
+import { type EdgeBudget, type EdgeSelection, type ShownEdges, budgetEdges, keptLoop } from "./edge-budget.js";
 import { type BoxSide, type ElementText, lineEnd } from "./element-marks.js";
 import { type FigurePreset, type LegendLayout, figureFloor, figureFrame, figureHeading, figureMetrics, legendMetrics, millimetres } from "./figure.js";
 import type { Locale } from "./format.js";
@@ -12,13 +12,13 @@ import { type FlowGraph, type Overlay, assertExportable } from "./model.js";
 import type { OverlayGeometryOptions } from "./overlays.js";
 import { type MarkSvgOptions, arrowMarker, markSvg, svgMarkup } from "./mark-svg.js";
 import { type MarkPaint, type MarkText, type OverlayMark, markArrowhead, overlayArrow } from "./overlay-marks.js";
-import { type Readable, isPill, nodeTexts, readableMark, titleTexts } from "./readable.js";
+import { type Readable, isPill, nodeTexts, readableMark, shownReadable, titleTexts } from "./readable.js";
 import { type FlowScene, sceneOf } from "./scene.js";
 import { type Measure, type StyleSpec, lodAt, patternDefs } from "./style.js";
 import { t } from "./strings.js";
 import type { TextMeasure } from "./text.js";
 import { type ColorScheme, type ThemeSetting, resolveTheme } from "./theme.js";
-import { type Arrowhead, type ColorToken, arrowheadTokens, dimensionTokens } from "./tokens.js";
+import { type Arrowhead, type ColorToken, arrowheadTokens, dimensionTokens, readableTokens } from "./tokens.js";
 
 export interface Scene {
   activityLabels?: ActivityLabelOptions;
@@ -38,6 +38,8 @@ export interface Scene {
 }
 
 export interface ExportOptions {
+  /** Replay a live map's text state and numbered full-name key. Pair with its theme, `lodZoom` and reported `edgeBudget`. Default the figure's text state. */
+  readable?: Readable;
   /** Figure preset setting the output width in pixels (the drawing scales to fit). */
   preset?: FigurePreset;
   /** Explicit output width in pixels; overrides the preset. */
@@ -103,6 +105,7 @@ interface Ctx {
   /** What the texts show at the map's scale in the figure. */
   readable: Readable;
   withheld?: EdgeSelection;
+  keptLoops?: ReadonlySet<string>;
 }
 
 function rect(b: Box, attrs: string): string {
@@ -234,7 +237,7 @@ function drawMarks(ctx: Ctx, layer: OverlayMark["layer"]): string {
   const options = markOptions(ctx);
   const { readable, scene } = ctx;
   return scene.marks
-    .filter((m) => m.layer === layer && m.inMap && ctx.lodZoom >= m.minZoom && (readable.pills || !isPill(m)))
+    .filter((m) => m.layer === layer && m.inMap && (ctx.lodZoom >= m.minZoom || keptLoop(m, ctx.keptLoops)) && (readable.pills || !isPill(m)))
     .map((m) => svgMarkup(markSvg(readableMark(m, readable, scene.readable), options)))
     .join("");
 }
@@ -311,10 +314,10 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
   const font = options.fontFamily ?? theme.font.family;
   const withheld = budgetEdges(scene, options.edgeBudget);
   const floor = figureFloor(theme);
-  const frame = figureFrame(scene, { title: !!given.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: options.widthMm !== undefined ? millimetres(options.widthMm) : options.width, withheld, caption: options.caption, floor });
+  const frame = figureFrame(scene, { title: !!given.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: options.widthMm !== undefined ? millimetres(options.widthMm) : options.width, withheld, caption: options.caption, floor, readable: shownReadable(scene, options) });
   const { padding: pad, width: totalW, height: totalH, outWidth: outW, outHeight: outH } = frame;
   const lodZoom = options.lodZoom ?? (floor > 0 ? frame.map.scale : 1);
-  const ctx: Ctx = { scene, colors, locale, lod: lodAt(lodZoom, scene.lod), lodZoom, readable: frame.readable, withheld };
+  const ctx: Ctx = { scene, colors, locale, lod: lodAt(lodZoom, scene.lod), lodZoom, readable: frame.readable, withheld, keptLoops: options.edgeBudget && typeof options.edgeBudget === "object" ? new Set(options.edgeBudget.edges) : undefined };
   // A declared width in millimetres is the figure's size; otherwise its pixels.
   const size = (n: number) => (options.widthMm !== undefined ? `${num((n * options.widthMm) / outW)}mm` : num(n));
 
@@ -345,7 +348,10 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
   parts.push(drawNodes(ctx));
   parts.push(drawMarks(ctx, "above"));
   // Where the cards cannot show their names, their numbers over everything, keyed beside the map.
-  if (frame.numbers) parts.push(`<g class="wf-numbers">${frame.numbers.texts.map((n) => markText(ctx, colors.ink, colors.ink, n.text)).join("")}</g>`);
+  if (frame.numbers) {
+    const links = frame.numbers.texts.map(({ text: n }) => n.from ? `<path d="M${num(n.from.x)} ${num(n.from.y)}L${num(n.x)} ${num(n.y)}" stroke="${colors.ink}" stroke-width="${n.size * readableTokens.number.link}"/>` : "").join("");
+    parts.push(`<g class="wf-numbers">${links}${frame.numbers.texts.map(({ text: n }) => (n.box ? rect(n.box, `fill="${colors.paper}"`) : "") + markText(ctx, colors.ink, colors.ink, n)).join("")}</g>`);
+  }
   parts.push(`</g>`);
   if (frame.legend) {
     const { rule, x, y, width, layout } = frame.legend;

@@ -72,7 +72,7 @@ export const SelectAndMenu: StoryObj = {
           <span style={{ color: "var(--wf-ink-muted)" }}>Right click or Enter opens the menu; Shift-click or Shift and an arrow key extends the selection; two activities offer the pair actions.</span>
         </div>
         <div style={{ minHeight: 0 }}>
-          <ProcessMap graph={globalScene} overlays={overlays} abstraction={abstraction} onAbstractionChange={setAbstraction} selection={selection} onSelect={setSelection} onContextMenu={onContextMenu} onAction={onAction} layout={layout} />
+          <ProcessMap opening="fit" graph={globalScene} overlays={overlays} abstraction={abstraction} onAbstractionChange={setAbstraction} selection={selection} onSelect={setSelection} onContextMenu={onContextMenu} onAction={onAction} layout={layout} />
         </div>
       </div>
     );
@@ -178,7 +178,7 @@ export const Filters: StoryObj = {
           <span data-testid="filter-count">{filter.and.length} clauses: {filter.and.map((c) => describeClause(c, "en", labelOf)).join(" · ")}</span>
         </div>
         <div style={{ minHeight: 0 }}>
-          <ProcessMap graph={globalScene} overlays={overlays} defaultAbstraction={abstractionDefault} filters={filter} filterPreview={preview} onFilterChange={setFilter} layout={layout} />
+          <ProcessMap opening="fit" graph={globalScene} overlays={overlays} defaultAbstraction={abstractionDefault} filters={filter} filterPreview={preview} onFilterChange={setFilter} layout={layout} />
         </div>
       </div>
     );

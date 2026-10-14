@@ -97,7 +97,14 @@ import { fileURLToPath } from "node:url";
  * which the record does not hold; `readable.spec.ts` measures it. A card's
  * blocks of the other levels are left out of the record (`LEVELS`): how many
  * lines they hold depends on the font.
- * Geometry
+ * They were recorded again for readable opening: the map, lanes, paths and
+ * Canvas scenes gain the overview's five elements; the DOM roots carry the
+ * full readable level at 0.75 instead of their fitted levels. The 38 path
+ * labels in each DOM scene regain visibility from the LOD class (the readable
+ * classes still shed their texts below the floor). Matching the existing
+ * elements after removing each overview subtree, every other style is equal.
+ * Selection/menu, focus, hover and filters explicitly open fitted and their
+ * records stay identical. Geometry
  * that depends on the fonts of the machine (widths, heights, positions) is left
  * out, so the record holds on every operating system.
  */
