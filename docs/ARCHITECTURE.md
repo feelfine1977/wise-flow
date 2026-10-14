@@ -474,7 +474,12 @@ level is drawn at (`NodeMark.levels`); boxes and positions never change with
 the zoom. At the box level live maps reuse the figure's numbered cards,
 with full names
 in a scrollable, keyboard-focusable key. `MapNumbers` adapts the shared
-numbering to React Flow; Canvas draws it in the node pass. A shown figure
+numbering to React Flow; Canvas draws it in the node pass. At the screen
+floor padded glyph boxes move right past conflicting markers and other cards,
+with lines back to their original card centres and paper behind the digits.
+Placement depends on the whole scene, never the camera. Canvas checks marker
+and link extents independently of node culling; shown figures extend their
+bounds to include those extents. Ordinary figure numbering stays centred. A shown figure
 can replay `readable` or decide at its supplied `lodZoom`. Ordinary exports
 keep the figure floor. The DOM map writes the state on its root as classes
 in one string,

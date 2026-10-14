@@ -1194,7 +1194,7 @@ export interface ReadableRules {    // FlowScene.readable
 }
 export interface CardLevels { origin: XY; full: ElementText[]; name: ElementText[]; line: ElementText[] }   // NodeMark.levels
 export function readableAt(rules: ReadableRules, zoom: number, minScreenPx: number, previous?: Readable): Readable;
-export const readableTokens: { steps: 8; first: 16; last: 56; hysteresis: 0.1; nameChars: 8 };
+export const readableTokens: { steps: 8; first: 16; last: 56; hysteresis: 0.1; nameChars: 8; number: { padding: 0.5; height: 1.5; link: number } };
 // Theme.text.minScreenPx: 9 (CSS variable --wf-text-min-screen); Theme.text.minFigurePt: 0, print 7 (see "Hit index and export")
 ```
 
@@ -1231,7 +1231,11 @@ above a zoom of about 0.86.
   Canvas map). Its box and position never change with the zoom.
   On the live maps, `box` also draws numbered markers at the screen text
   floor and a scrollable, keyboard-focusable "Activities by number" key of
-  full names. This applies below the ladder too; zooming back to names removes
+  full names. Padded marker boxes stay clear of one another and other cards;
+  a displaced number has a line back to its card centre. Placement depends on
+  the scene and text floor, so panning keeps it. Shown SVG/PNG figures replay
+  the positions and links and extend their bounds to include them.
+  This applies below the ladder too; zooming back to names removes
   the numbers and key. Standalone `CanvasMap` uses the same numbering. The key sits midway up the right edge, clear of the collapsed legend and zoom controls.
 - **Group titles** go with the cards' names (none at `box`) and are scaled up
   to the floor from their start.
@@ -1435,7 +1439,7 @@ export interface FigureFrameOptions { title?: boolean; context?: boolean; legend
 export interface FigureFrame { padding; header; map: { width; height; offset: XY; scale: number };   // scale: the map's in a fitted figure, else 1
   legend?: { layout: LegendLayout; x; y; width; rule?: { x; top; bottom } }; caption?: { lines: string[]; x; y };   // no rule below the map
   readable: Readable;   // what the map's texts show at its scale with the floor (every text without one)
-  numbers?: { texts: { id: string; text: MarkText }[]; lines: string[]; x; y };   // the cards' numbers and the key of their names
+  numbers?: { texts: { id: string; text: MarkText & { from?: XY; box?: Box } }[]; lines: string[]; x; y };   // the cards' numbers and the key of their names
   note?: { text: string; x; y }; key: { lines: string[]; y }; width; height; outWidth; outHeight }
 export function figureFrame(scene: FramedScene, o?: FigureFrameOptions): FigureFrame;   // FramedScene: graph, activityLabels?, locale, bounds, legend, textMeasure?, theme?, readable?, nodeMarks?, positions?
 export function figureCaption(g: FlowGraph, locale?: Locale, labelOf?: (id: string) => string): string | undefined;
@@ -2621,7 +2625,7 @@ export interface DrawOptions { tokens?: CanvasTokens; cull?: boolean; background
   edgeBudget?: EdgeBudget | ShownEdges;   // default "all"
   readable?: Readable;                    // what the texts show; default readableAt at lodZoom with the theme's minScreenPx
   readableFrom?: Readable;                // the state of the frame before, whose hysteresis the decision keeps
-  numbers?: readonly MarkText[];          // texts written over the map last (an exported figure's numbers of the cards)
+  numbers?: readonly (MarkText & { from?: XY; box?: Box })[];   // numbers, optional card links and paper backing boxes
   pathRule?: { minPx: number; zoom?: number } }   // the paths drawn at a small zoom (pathsAtZoom) at zoom, the view's by default; default none
 export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, state?: DrawState, o?: DrawOptions): { nodes; edges; shapes; culled;
   kept?: number;   // with an edge budget other than "all": the protected edges drawn, which every budget draws

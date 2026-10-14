@@ -7,10 +7,10 @@ import { type CanvasMapHandle, useReactFlow, useStore } from "../src/react/index
 import { flowLoop, flowLoopPositions } from "../tests/support/flow-loop";
 import { CanvasMap, ProcessMap } from "./maps";
 
-interface Args { renderer: "svg" | "canvas"; zoom: number; model: boolean }
+interface Args { renderer: "svg" | "canvas"; zoom: number; model: boolean; half: boolean }
 const meta: Meta<Args> = {
   title: "Screen numbers", parameters: { layout: "fullscreen" },
-  args: { renderer: "svg", zoom: 0.05, model: false },
+  args: { renderer: "svg", zoom: 0.05, model: false, half: false },
   argTypes: { renderer: { control: "radio", options: ["svg", "canvas"] }, zoom: { control: "radio", options: [0.05, 0.1, 1] } },
 };
 export default meta;
@@ -23,12 +23,12 @@ function Fixed({ zoom }: { zoom: number }) {
 }
 
 /** Fixed camera and path rule; a whole log's numbered fallback and a model's selected loop. */
-function Numbered({ renderer, zoom, model }: Args) {
-  const graph = useMemo(() => model ? flowLoop : abstract(globalScene, { activityDetail: 1, pathDetail: 1 }), [model]);
+function Numbered({ renderer, zoom, model, half }: Args) {
+  const graph = useMemo(() => model ? flowLoop : abstract(globalScene, half ? { minNodeShare: 0.5, minEdgeShare: 0.5, keepConnected: true } : { activityDetail: 1, pathDetail: 1 }), [model, half]);
   const [positions, setPositions] = useState<Positions>();
   useEffect(() => {
     let live = true;
-    void (model ? Promise.resolve(flowLoopPositions) : layout(graph, { engine: "dagre" })).then((p) => { if (live) setPositions(p); });
+    void (model ? Promise.resolve(flowLoopPositions) : layout(graph, { engine: "elk" })).then((p) => { if (live) setPositions(p); });
     return () => { live = false; };
   }, [graph, model]);
   const scene = useMemo(() => positions ? prepareScene(graph, positions, { textMeasure: estimateTextWidth }) : undefined, [graph, positions]);
@@ -47,3 +47,5 @@ function Numbered({ renderer, zoom, model }: Args) {
 }
 export const WholeLog: StoryObj<Args> = { render: (args) => <Numbered {...args} /> };
 export const ModelLoop: StoryObj<Args> = { args: { model: true }, render: (args) => <Numbered {...args} /> };
+
+export const Half: StoryObj<Args> = { args: { half: true }, render: (args) => <Numbered {...args} /> };

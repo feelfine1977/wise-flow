@@ -12,6 +12,32 @@ const positions = createPositions({ nodes: { a: { x: 0, y: 0, width: 180, height
 const measure = (text: string, font: string) => text.length * 0.55 * Number(/([\d.]+)px/.exec(font)?.[1] ?? 10);
 
 describe("numbered shown figures", () => {
+  it("replays cleared reference boxes and card links in both shown formats, including their figure bounds", () => {
+    const close = createPositions({ nodes: { a: { x: 0, y: 0, width: 180, height: 64 }, b: { x: 0, y: 84, width: 180, height: 64 } }, groups: {}, edges: {} }, "given", "RIGHT");
+    const given = { graph: { ...graph, edges: [] }, positions: close };
+    const scene = prepareScene(given.graph, close);
+    const zoom = 0.05, readable = readableAt(scene.readable, zoom, 9);
+    const options = { readable, lodZoom: zoom, theme: "default" as const, legend: false, caption: false };
+    const svg = new DOMParser().parseFromString(toSVG(given, options), "image/svg+xml");
+    const markers = [...svg.querySelectorAll(".wf-numbers text")];
+    // 1.5-floor padded glyphs: the first clears the neighbouring card's right edge;
+    // the second clears the first. The original centres stay at (90,32), (90,116).
+    const xs = [180 + 0.75 * readable.floor, 180 + 2.25 * readable.floor];
+    expect(markers.map((n) => Number(n.getAttribute("x")))).toEqual(xs.map((x) => Number(x.toFixed(2))));
+    const png = recordingContext(measure);
+    toPNGCanvas(given, { ...options, scale: 1, createCanvas: (width, height) => ({ width, height, getContext: () => png.ctx }) });
+    const numbers = png.ops.filter((o) => o.op === "text").filter((o) => !o.halo && o.scales === 2);
+    expect(numbers.map((n) => [n.text, n.x, n.y])).toEqual([["1", xs[0], 32], ["2", xs[1], 116]]);
+    expect(svg.querySelectorAll(".wf-numbers rect")).toHaveLength(2);
+    expect(svg.querySelectorAll(".wf-numbers path")).toHaveLength(2);
+    for (const [i, y] of [32, 116].entries()) expect(png.ops.filter((o) => o.op === "stroke").map((o) => o.op === "stroke" && o.shape.lines)).toContainEqual([[90, y, xs[i], y]]);
+    const live = recordingContext(measure);
+    drawScene(live.ctx, scene, { x: 20, y: 100, zoom, width: 1400, height: 900 }, undefined, { pathRule: { minPx: 0.5 }, cull: false });
+    expect(live.ops.filter((o) => o.op === "text").filter((o) => !o.halo).map((o) => [o.text, o.x, o.y])).toEqual(numbers.map((o) => [o.text, o.x, o.y]));
+    const backing = [...svg.querySelectorAll(".wf-numbers rect")].map((r) => ({ x: Number(r.getAttribute("x")), y: Number(r.getAttribute("y")), w: Number(r.getAttribute("width")), h: Number(r.getAttribute("height")) }));
+    expect(backing[0].x + backing[0].w).toBeCloseTo(backing[1].x, 1);
+    for (const r of backing) expect(r.x).toBeGreaterThanOrEqual(180);
+  });
   it("uses the supplied screen zoom for a reported selection without changing ordinary figure numbering", () => {
     const given = { graph, positions };
     const options = { theme: "default" as const, lodZoom: 0.05, edgeBudget: { edges: ["ab"], total: 2 } };

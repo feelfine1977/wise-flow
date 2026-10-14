@@ -503,7 +503,7 @@ export const minimumTokens = { text: 8.25, stroke: 0.75 } as const;
  * An activity's name is shown while a line holds its first `nameChars`
  * characters and the ellipsis after them.
  */
-export const readableTokens = { steps: 8, first: 16, last: 56, hysteresis: 0.1, nameChars: 8 } as const;
+export const readableTokens = { steps: 8, first: 16, last: 56, hysteresis: 0.1, nameChars: 8, number: { padding: 0.5, height: 1.5, link: 1 / 12 } } as const;
 
 /**
  * How a map opens and what it draws at a small zoom. A map opens fitted where

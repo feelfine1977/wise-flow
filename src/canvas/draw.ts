@@ -1,9 +1,9 @@
 /** Drawing routines of the canvas renderer: plain 2D context calls for a scene, a viewport and a state, culled on large scenes; `canvasTextMeasure`. */
 import { keptLoop, mapEdges, selfLoopsOf } from "../core/edge-budget.js";
 import { headTriangle } from "../core/element-marks.js";
-import { type Arrowhead, type Box, type BoxSide, type XY, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type PatternLook, type Readable, type Selection, type ShownEdges, type StateStyle, type TextMeasure, type Theme, arrowheadExtent, dimensionTokens, fixedColors, hatchTokens, legendLayout, legendMetrics, budgetEdges, defaultTheme, estimateTextWidth, lineEnd, lodAt, markArrowhead, markInState, patternTwin, readableAt, ruleTextRole, stateStyle } from "../core/index.js";
+import { type Arrowhead, type Box, type BoxSide, type XY, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type PatternLook, type Readable, type Selection, type ShownEdges, type StateStyle, type TextMeasure, type Theme, arrowheadExtent, dimensionTokens, fixedColors, hatchTokens, legendLayout, legendMetrics, budgetEdges, defaultTheme, estimateTextWidth, lineEnd, lodAt, markArrowhead, markInState, patternTwin, readableAt, readableTokens, ruleTextRole, stateStyle } from "../core/index.js";
 import { isPill, nodeTexts, readableMark, titleTexts } from "../core/readable.js";
-import { numbered } from "../core/figure.js";
+import { type NumberText, numbered } from "../core/figure.js";
 import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene.js";
 import { type CanvasTokens, sceneTokens } from "./tokens.js";
 
@@ -78,7 +78,7 @@ export interface DrawOptions {
   /** The state the previous frame drew in, whose levels the decision holds within their hysteresis. */
   readableFrom?: Readable;
   /** Texts written over the map last, in map units: an exported figure's numbers of the cards. */
-  numbers?: readonly MarkText[];
+  numbers?: readonly NumberText[];
   /** Factory for pattern tiles; `document.createElement("canvas")` when available. */
   createCanvas?: (width: number, height: number) => { getContext(kind: "2d"): unknown } | null;
   /** How many of the edges in view are drawn (`budgetEdges`), or which (those a map reported). Default `"all"`. */
@@ -643,14 +643,30 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
     for (const tx of e.mark.texts) if (!tx.lod || lod[tx.lod]) drawText(ctx, scene, tx, paintOf(e.mark, s?.texts?.label ?? tx.paint, tokens), tokens);
     if (alpha !== undefined) ctx.globalAlpha = 1;
   });
-  if (!options.numbers && options.pathRule && readable.level === "box") {
-    const numbers = new Map(numbered({ ...scene, activityLabels: undefined }, readable.floor, dimensionTokens.panelMaxWidth, scene.textMeasure).texts.map((n) => [n.id, n.text]));
-    each(scene.nodes, "node", nodeId, (n) => {
-      const text = numbers.get(n.node.id);
-      if (text) drawText(ctx, scene, text, tokens.ink, tokens);
-    });
+  const numbers = !options.numbers && options.pathRule && readable.level === "box" ? new Map(numbered({ ...scene, activityLabels: undefined }, readable.floor, dimensionTokens.panelMaxWidth, scene.textMeasure).texts.map((n) => [n.id, n.text])) : undefined;
+  const drawNumber = (tx: NumberText, links: boolean) => {
+    const b = tx.box, v = visibleBox(view);
+    if (cull && b && (Math.min(b.x, tx.from?.x ?? b.x) > v.x + v.width || b.x + b.width < v.x || b.y > v.y + v.height || b.y + b.height < v.y)) return;
+    if (links) {
+      if (!tx.from) return;
+      ctx.strokeStyle = tokens.ink;
+      ctx.lineWidth = tx.size * readableTokens.number.link;
+      ctx.beginPath();
+      ctx.moveTo(tx.from.x, tx.from.y);
+      ctx.lineTo(tx.x, tx.y);
+      ctx.stroke();
+    } else {
+      if (b) { ctx.fillStyle = tokens.paper; ctx.fillRect(b.x, b.y, b.width, b.height); }
+      drawText(ctx, scene, tx, tokens.ink, tokens);
+    }
+  };
+  if (numbers || options.numbers) for (const links of [true, false]) {
+    if (options.numbers) options.numbers.forEach((tx) => drawNumber(tx, links));
+    else {
+      // Displaced references can be visible when their cards are outside the hit index's view.
+      scene.nodes.forEach((n) => { const tx = numbers?.get(n.node.id); if (tx) drawNumber(tx, links); });
+    }
   }
-  for (const tx of options.numbers ?? []) drawText(ctx, scene, tx, tokens.ink, tokens);
   ctx.restore();
   return { nodes, edges, shapes, culled: cull, ...(kept !== undefined && { kept }), ...(withheld && { withheld }), readable };
 }

@@ -51,6 +51,10 @@ describe("numbered activities on the screen", () => {
         if (box) {
           const markers = dom.texts.filter((t) => t.role === "number");
           expect(markers.map((t) => [t.owner, t.text])).toEqual(names.map((n, i) => [n.id, String(i + 1)]));
+          for (let i = 0; i < markers.length; i++) for (let j = i + 1; j < markers.length; j++) {
+            const a = markers[i], b = markers[j];
+            expect(Math.abs(a.box.x + a.box.width / 2 - b.box.x - b.box.width / 2) >= (a.box.width + b.box.width) / 2 || Math.abs(a.box.y - b.box.y) >= Math.max(a.size, b.size), `${rung.name} zoom ${zoom}: ${a.owner}/${b.owner}`).toBe(true);
+          }
           expect(canvas.texts.filter((t) => t.role === "number").map((t) => [t.owner, t.text]).sort()).toEqual(markers.map((t) => [t.owner, t.text]).sort());
           const key = screen.getByRole("region", { name: "Activities by number" });
           const lines = [...key.children].map((line) => line.textContent).join(" ");

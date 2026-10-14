@@ -18,7 +18,7 @@ import { type Measure, type StyleSpec, lodAt, patternDefs } from "./style.js";
 import { t } from "./strings.js";
 import type { TextMeasure } from "./text.js";
 import { type ColorScheme, type ThemeSetting, resolveTheme } from "./theme.js";
-import { type Arrowhead, type ColorToken, arrowheadTokens, dimensionTokens } from "./tokens.js";
+import { type Arrowhead, type ColorToken, arrowheadTokens, dimensionTokens, readableTokens } from "./tokens.js";
 
 export interface Scene {
   activityLabels?: ActivityLabelOptions;
@@ -348,7 +348,10 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
   parts.push(drawNodes(ctx));
   parts.push(drawMarks(ctx, "above"));
   // Where the cards cannot show their names, their numbers over everything, keyed beside the map.
-  if (frame.numbers) parts.push(`<g class="wf-numbers">${frame.numbers.texts.map((n) => markText(ctx, colors.ink, colors.ink, n.text)).join("")}</g>`);
+  if (frame.numbers) {
+    const links = frame.numbers.texts.map(({ text: n }) => n.from ? `<path d="M${num(n.from.x)} ${num(n.from.y)}L${num(n.x)} ${num(n.y)}" stroke="${colors.ink}" stroke-width="${n.size * readableTokens.number.link}"/>` : "").join("");
+    parts.push(`<g class="wf-numbers">${links}${frame.numbers.texts.map(({ text: n }) => (n.box ? rect(n.box, `fill="${colors.paper}"`) : "") + markText(ctx, colors.ink, colors.ink, n)).join("")}</g>`);
+  }
   parts.push(`</g>`);
   if (frame.legend) {
     const { rule, x, y, width, layout } = frame.legend;

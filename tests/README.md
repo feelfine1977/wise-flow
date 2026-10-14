@@ -56,6 +56,11 @@ positions, sizes, weights and paints with SVG and PNG; it checks key scrolling,
 keyboard focus and Axe. `core/flow-loops.test.ts` checks ordinary model-loop
 ink, protection, bounds, hit targets and culling; the browser parity lane adds
 the model-loop fixture at zoom 1 and the small-zoom story checks its live ink.
+`core/number-clearance.test.ts` checks two cards only 4.2 screen pixels apart,
+links to their unchanged centres, displaced references visible outside node
+culling, figure bounds and all 24 settled ELK control settings at fixed zooms.
+Screen readings check marker clearance; Chromium checks actual glyph rectangles
+on whole-log and 50% scenes on both maps, alongside SVG/PNG replay.
 No strict image baseline is changed.
 
 ## Opening the map
