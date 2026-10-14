@@ -257,6 +257,8 @@ export const unscaledStrokes = ["pathMin", "pathMax", "arcCoverage", "pathHit"] 
 export const dashTokens = {
   reconnectedNode: [4, 3],
   reconnectedPath: [6, 5],
+  /** Round dots, in stroke-width units, for opted-in flows added by the host. */
+  addedFlow: [0, 3],
   note: [2, 3],
   constraint: [2, 4],
   group: [6, 4],

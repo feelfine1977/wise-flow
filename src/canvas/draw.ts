@@ -388,7 +388,7 @@ function drawEdge(ctx: DrawContext, e: SceneEdge, tokens: CanvasTokens, theme: T
   ctx.strokeStyle = color;
   ctx.lineWidth = highlighted ? Math.max(m.width, theme.stroke.canvasPathHighlight) : m.width;
   ctx.lineJoin = "round";
-  ctx.lineCap = "butt";
+  ctx.lineCap = m.addedFlow ? "round" : "butt";
   ctx.setLineDash(s?.dash ?? m.dash ?? []);
   // The line ends inside its head, whose tip lies on the route's end.
   const end = lineEnd(pts, m.arrow);

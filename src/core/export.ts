@@ -171,7 +171,7 @@ function drawEdges(ctx: Ctx): string {
     // The line ends inside its head, whose tip lies on the route's end.
     const end = lineEnd(m.points, m.arrow);
     const d = [...m.points.slice(0, -1), end].map((p, i) => `${i === 0 ? "M" : "L"}${num(p.x)} ${num(p.y)}`).join("");
-    out.push(`<g class="wf-edge" data-id="${esc(m.id)}"${opacity(m)}><path d="${d}" fill="none" stroke="${m.color}" stroke-width="${num(m.width)}" stroke-linejoin="round"${dash} marker-end="url(#${arrowId(m.arrow)})"/>`);
+    out.push(`<g class="wf-edge" data-id="${esc(m.id)}"${opacity(m)}><path d="${d}" fill="none" stroke="${m.color}" stroke-width="${num(m.width)}" stroke-linejoin="round"${m.addedFlow ? ' stroke-linecap="round"' : ""}${dash} marker-end="url(#${arrowId(m.arrow)})"/>`);
     // Paths' labels are the first texts shed below the floor.
     if (ctx.readable.labels.path) for (const tx of shownTexts(ctx, m.texts)) out.push(markText(ctx, m.color, m.color, tx));
     out.push(`</g>`);

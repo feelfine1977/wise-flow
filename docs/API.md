@@ -678,6 +678,8 @@ follows.
 export interface StyleSpec { edgeWidth?: ChannelSpec; edgeColor?: ColorSpec; nodeColor?: ColorSpec; lod?: Partial<LodRules>;
   stages?: readonly string[];   // the host's full stage list in stage order: categorical colours follow it
   measure?: Measure;            // the measure the style shows: the legend states its sentence
+  addedFlowLabel?: true | string; // opt in for edges tagged added-by-map: default EN/DE legend words, or the host's string
+  frequencyColorLegend?: true;  // opt in to a frequency sentence naming the actual width and alternate colour metric/classes
   nodeLine?: LineSpec;          // what an activity's number line leads with; default its cases, then their share
   pathLabel?: LineSpec;         // what a path's label leads with before its count; default the count alone
   cueAccent?: string }          // the metric whose share of an activity's cases its frequency cue draws in the accent
@@ -833,6 +835,44 @@ Lückenanteil. Breite = Fälle.", "Durchlaufzeit: mediane Wartezeit zwischen
 Aktivitäten (h, d). Farbe = Median-Wartezeit. Breite = Fälle."); the map's
 one-line strip shows its first sentence. In the frequency measure the marks
 are those of the default style.
+
+Hosts may colour frequency paths by an optional lag while retaining case
+counts and widths. Opt in to the corresponding legend with
+`frequencyColorLegend: true`; its English or German sentence names the
+resolved width metric and the actual colour metric, and says "classes" when
+`bins` are supplied. Scale rows continue to give the units and class bounds.
+Without this option the existing sentence is unchanged. For example:
+
+```ts
+const style: StyleSpec = {
+  addedFlowLabel: "Added by the map: start and end of the recorded history",
+  frequencyColorLegend: true,
+  edgeColor: { metric: "medianLagHours", palette: "performance", bins: [24, 168] },
+};
+// Pass measure: "frequency" and this style to the map or export.
+// Mark only synthetic boundary edges with tags: ["added-by-map"].
+```
+
+With an optional colour metric (`required` omitted or false), a path without
+lag retains its known count and width and uses the neutral colour, the first
+class's colour. It is not keyed as "not evaluated". Zero is a measured value;
+values exactly 24 h and 168 h belong to the lower class. The performance
+measure's required metric and missing-value treatment are unchanged.
+
+`addedFlowLabel` opts in only edges explicitly tagged `added-by-map`, in all
+measures. They are neutral round dots (`dashTokens.addedFlow`: `[0, 3]` in
+stroke-width units), distinct from the fixed `[6, 5]` re-added-path dash.
+Their count labels and width scale remain; measure values, including
+accidentally supplied lag, do not colour or lead their labels. Added flows
+are also excluded from colour-domain calibration; the count
+width calibration still includes them. `true` uses
+"Added by the map: start and end of the recorded history", or German
+"Von der Karte ergänzt: Anfang und Ende der aufgezeichneten Historie".
+A string supplies the host's words for that scene's locale. The key appears
+only when an added flow is drawn. Tagging a start/end node alone does not opt
+in its flows, and omitting the option keeps existing pictures and exports.
+SVG, Canvas and PNG draw the same resolved marks; interactive focus and
+selection still have their usual state treatment.
 
 **Classes** (`ColorSpec.bins`): a value on a bound is in the class below it,
 so 10 % is "up to 10 %" and 30 % "10 % to 30 %". The first class is drawn in the
@@ -1420,8 +1460,8 @@ export function toSVG(scene: Scene, o?: ExportOptions): string;   // determinist
 
 export type FigurePreset = "single-column" | "double-column" | "slide" | "none";
 export const FIGURE_WIDTHS: Record<Exclude<FigurePreset, "none">, number>;   // 1000, 2000, 1600
-export type LegendKeyKind = "badge" | "arc" | "reverse" | "selfLoop" | "outOfScope" | "reconnected" | "indirect" | "notEvaluated" | "shortPart" | "start" | "end";   // shortPart: the cue's part in the accent
-export interface LegendKey { kind: LegendKeyKind; glyph: string; title: StringKey }
+export type LegendKeyKind = "badge" | "arc" | "reverse" | "selfLoop" | "outOfScope" | "reconnected" | "indirect" | "notEvaluated" | "addedFlow" | "shortPart" | "start" | "end";   // shortPart: the cue's part in the accent
+export interface LegendKey { kind: LegendKeyKind; glyph: string; title: StringKey; label?: string }   // label: host-supplied added-flow words
 export type LegendRow =
   | { kind: "measure"; text: string }                                                     // "Frequency · cases · share of 251,734 cases"; a named measure's sentence
   | { kind: "width"; title: string; samples: { width: number; text: string }[] }          // path width: three sample strokes
@@ -1430,8 +1470,8 @@ export type LegendRow =
   | { kind: "key"; key: LegendKeyKind; glyph: string; text: string }                      // one kind of mark drawn
   | { kind: "chip"; chip: Overlay; label: string; text: string };                         // a map-level chip
 export interface SceneLegend { title: string; rows: LegendRow[]; items: LegendItem[]; keys: LegendKey[]; chips: Overlay[] }
-export interface LegendSource { scales: { legend: LegendItem[]; pathMetric?: string; spec?: { measure?: Measure } }; marks: readonly OverlayMark[];
-  nodeMarks: readonly { reconnected: boolean; node?: FlowNode; cue?: { accent?: unknown } }[]; edgeMarks: readonly { reconnected: boolean; indirect?: boolean; notEvaluated?: boolean }[];
+export interface LegendSource { scales: { legend: LegendItem[]; pathMetric?: string; spec?: Pick<StyleSpec, "measure" | "addedFlowLabel" | "frequencyColorLegend"> }; marks: readonly OverlayMark[];
+  nodeMarks: readonly { reconnected: boolean; node?: FlowNode; cue?: { accent?: unknown } }[]; edgeMarks: readonly { reconnected: boolean; indirect?: boolean; notEvaluated?: boolean; addedFlow?: boolean }[];
   locale: Locale; graph?: Pick<FlowGraph, "meta"> }   // a FlowScene is one
 export function legendOfScene(scene: LegendSource): SceneLegend;   // what a scene draws: FlowScene.legend
 export function sceneLegend(items: LegendItem[], overlays: readonly Overlay[], locale?: Locale): SceneLegend;   // from scales and overlays alone
@@ -2967,6 +3007,7 @@ export interface EdgeMark { id: string; kind: EdgeKind; edge: FlowEdge; points: 
   arrow: Arrowhead;                // the head at the route's end (`pathArrowhead(width)`); the line ends at `lineEnd(points, arrow)`
   backward?: boolean;              // a path against the reading direction, drawn below the flow it returns over
   texts: ElementText[]; reconnected: boolean; notEvaluated?: boolean; opacity?: number;   // opacity: line, arrowhead and label
+  addedFlow?: boolean;             // opted-in host-added flow: neutral round dots; dash lengths resolved in layout units
   indirect?: boolean }   // stands for a way through activities not shown: dashed, line colour, thinnest, "via 2 activities not shown"
 export interface CourseLabel { at: XY; side: XY }   // a label beside `at` on its course, on the side the unit vector `side` points to
 export interface PathCourses { positions: Positions; backward: ReadonlySet<string>; labels: ReadonlyMap<string, CourseLabel> }
@@ -2982,6 +3023,7 @@ export function nodeMark(n: FlowNode, box: Box, o: { color: string; pattern: Pat
   line?: LineSpec;   // what the number line leads with (StyleSpec.nodeLine)
   accent?: { metric: string; stripe?: MarkPaint; foot: MarkPaint } }): NodeMark;   // total: the log's cases; accent: the cue's part in the accent (StyleSpec.cueAccent)
 export function edgeMark(e: FlowEdge, points: XY[], o: { color: string; width: number; locale?: Locale; theme?: Theme;
+  addedFlow?: boolean;            // low-level renderer option; edgeMarks resolves it from style opt-in plus added-by-map tag
   label?: CourseLabel; backward?: boolean;
   lead?: LineSpec }): EdgeMark;   // label: the count beside the course instead of 4 above its middle; lead: the value before the count (StyleSpec.pathLabel)
 export function groupMark(g: FlowGroup, box: Box, o: { color: string; pattern: PatternId; band?: LaneBand; theme?: Theme }): GroupMark;

@@ -322,6 +322,16 @@ export interface StyleSpec {
   stages?: readonly string[];
   /** The measure the style shows (`measureStyles`): the legend states its sentence. */
   measure?: Measure;
+  /**
+   * Opt in to dotted, neutral flows added by the host: only edges tagged
+   * `added-by-map`. Their width still follows `edgeWidth`; no measure colour
+   * or required colour metric applies. `true` uses the English/German legend
+   * default; a string supplies the host's legend words. Omit for the usual
+   * recorded-path style, including flows touching start and end events.
+   */
+  addedFlowLabel?: true | string;
+  /** Opt in to a frequency legend sentence naming the actual width and alternate colour metric, including classes. */
+  frequencyColorLegend?: true;
   /** What an activity's number line leads with; default its cases, then their share. */
   nodeLine?: LineSpec;
   /** What a path's label leads with before its count; default the count alone. */
@@ -621,7 +631,8 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
   const required = edgeSpec?.required ? edgeSpec.metric : undefined;
   // An indirect path has no count, as it is no path of the graph: it is not a path not evaluated.
   const indirect = (e: FlowEdge) => hasTag(e, INDIRECT_TAG);
-  const notEvaluated = (e: FlowEdge) => e.kind === "follows" && !indirect(e) && !(Number.isFinite(metric(e, pathMetric, NaN)) && (!required || Number.isFinite(metric(e, required, NaN))));
+  const addedFlow = (e: FlowEdge) => spec.addedFlowLabel !== undefined && hasTag(e, "added-by-map");
+  const notEvaluated = (e: FlowEdge) => e.kind === "follows" && !addedFlow(e) && !indirect(e) && !(Number.isFinite(metric(e, pathMetric, NaN)) && (!required || Number.isFinite(metric(e, required, NaN))));
   let widthFn: (e: FlowEdge) => number = () => theme.stroke.path;
   let samples: { value: number; width: number; floor?: boolean }[] | undefined;
   const upper = widthSpec && (widthSpec.max ?? pathScaleMax(graph, widthSpec.metric));
@@ -673,7 +684,7 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
   let classes: string[] | undefined;
   if (edgeSpec?.metric) {
     const palette = edgeSpec.palette ?? "sequential";
-    const values = follows.map((e) => metric(e, edgeSpec.metric!, NaN));
+    const values = follows.filter((e) => !addedFlow(e)).map((e) => metric(e, edgeSpec.metric!, NaN));
     const domain =
       edgeSpec.domain ??
       (edgeSpec.percentile !== undefined
@@ -701,7 +712,7 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
       return classes ? classes[bins!.filter((b) => v > b).length] : root ? interpolatePalette(edgeStops, root(v)) : rampColor(edgeStops, v, domain);
     };
   }
-  const pathColorFn = (e: FlowEdge) => (notEvaluated(e) || indirect(e) ? theme.color.line : edgeColorFn(e));
+  const pathColorFn = (e: FlowEdge) => addedFlow(e) ? neutral : (notEvaluated(e) || indirect(e) ? theme.color.line : edgeColorFn(e));
 
   // Node colour and pattern
   const nodeSpec = spec.nodeColor;

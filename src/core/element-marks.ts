@@ -137,6 +137,8 @@ export interface EdgeMark {
   indirect?: boolean;
   /** A path without a value: drawn in the line colour at the thinnest width (`Scales.notEvaluated`). */
   notEvaluated?: boolean;
+  /** An opted-in, host-added flow: neutral round dots, distinct from re-added recorded paths. */
+  addedFlow?: boolean;
   /** The whole path's opacity (its line, arrowhead and label), where a theme's rule sets one. */
   opacity?: number;
   /** A path against the reading direction, drawn below the flow it returns over (`pathCourses`). */
@@ -417,7 +419,7 @@ const NO_TEXTS: ElementText[] = Object.freeze([]) as unknown as ElementText[];
  * in full up to 99,999, then shortened; "≥" before a lower bound; "–" on a
  * path without a count; after the value `lead` gives ("12 d · 112,924").
  */
-export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string; width: number; locale?: Locale; theme?: Theme; metric?: string; notEvaluated?: boolean; label?: CourseLabel; backward?: boolean; lead?: LineSpec }): EdgeMark {
+export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string; width: number; locale?: Locale; theme?: Theme; metric?: string; notEvaluated?: boolean; addedFlow?: boolean; label?: CourseLabel; backward?: boolean; lead?: LineSpec }): EdgeMark {
   const theme = options.theme ?? defaultTheme;
   const reconnected = hasTag(edge, RECONNECTED_TAG);
   // What the theme's rules set on the path: its colour, dash, opacity and label.
@@ -430,7 +432,7 @@ export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string;
   const via = indirectWay(edge)?.hiddenActivities;
   const indirect = via !== undefined;
   // A path's count, after the measure's value where the style leads with one.
-  const lead = options.lead && edge.kind === "follows" && Number.isFinite(count) ? leadOf(edge, options.lead, locale) : undefined;
+  const lead = !options.addedFlow && options.lead && edge.kind === "follows" && Number.isFinite(count) ? leadOf(edge, options.lead, locale) : undefined;
   const label = indirect
     ? t(locale, via === 1 ? "detail.viaOne" : "detail.via", { count: formatCount(via, locale) })
     : Number.isFinite(count) ? `${lead ? `${lead} · ` : ""}${metricBasis(edge, name) === "atLeast" ? "≥" : ""}${formatPathCount(count, locale)}` : options.notEvaluated ? "–" : undefined;
@@ -449,16 +451,17 @@ export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string;
     kind: edge.kind,
     edge,
     points,
-    color: set?.stroke ? rulePaint(set.stroke, undefined, "value", theme.color, options.color) : options.color,
+    color: options.addedFlow ? theme.color.neutral : set?.stroke ? rulePaint(set.stroke, undefined, "value", theme.color, options.color) : options.color,
     width: options.width,
     arrow: pathArrowhead(options.width),
-    dash: ruleDash(set, reconnected || indirect ? RECONNECTED_EDGE_DASH : undefined, RECONNECTED_EDGE_DASH),
+    dash: options.addedFlow ? dashTokens.addedFlow.map((n) => n * options.width) : ruleDash(set, reconnected || indirect ? RECONNECTED_EDGE_DASH : undefined, RECONNECTED_EDGE_DASH),
     texts: label
       ? [ruleText<ElementText>({ text: label, x: at.x, y: at.y, size, anchor, baseline: "alphabetic", paint: "ink", halo: true, role: "count", lod: "edgeLabels" }, set, "label", theme.color, options.color)]
       : NO_TEXTS,
     reconnected,
     ...(indirect && { indirect: true }),
     ...(options.notEvaluated && { notEvaluated: true }),
+    ...(options.addedFlow && { addedFlow: true }),
     ...(options.backward && { backward: true }),
     ...(set?.opacity !== undefined && { opacity: set.opacity }),
   };
@@ -498,7 +501,7 @@ export function edgeMarks(graph: FlowGraph, positions: Positions, scales: Scales
     graph.edges.flatMap((e) => {
       if (e.source === e.target && e.kind !== "flow") return [];
       const points = edgePoints(positions, e);
-      return points ? [edgeMark(e, points, { color: edgeColor(e, scales, theme), width: scales.edgeWidth(e), locale, theme, metric: scales.pathMetric, notEvaluated: scales.notEvaluated(e), label: courses?.labels.get(e.id), backward: courses?.backward.has(e.id), lead: scales.spec.pathLabel })] : [];
+      return points ? [edgeMark(e, points, { color: edgeColor(e, scales, theme), width: scales.edgeWidth(e), locale, theme, metric: scales.pathMetric, notEvaluated: scales.notEvaluated(e), addedFlow: scales.spec.addedFlowLabel !== undefined && hasTag(e, "added-by-map"), label: courses?.labels.get(e.id), backward: courses?.backward.has(e.id), lead: scales.spec.pathLabel })] : [];
     }),
   );
 }

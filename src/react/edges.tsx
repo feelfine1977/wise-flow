@@ -49,7 +49,7 @@ const Follows = memo(function Follows(props: EdgeProps<WfEdge>) {
     >
       <title>{data.description}</title>
       {/* The line ends inside its head, whose tip lies on the route's end. */}
-      <BaseEdge id={id} path={polyline([...mark.points.slice(0, -1), lineEnd(mark.points, mark.arrow)])} markerEnd={markerEnd} interactionWidth={strokeTokens.pathHit} {...part("edge-path")} />
+      <BaseEdge id={id} path={polyline([...mark.points.slice(0, -1), lineEnd(mark.points, mark.arrow)])} markerEnd={markerEnd} interactionWidth={strokeTokens.pathHit} {...(mark.addedFlow && { style: { strokeLinecap: "round" as const } })} {...part("edge-path")} />
       {label ? (
         <text
           className="wf-edge-label wf-lod-edge-labels"
