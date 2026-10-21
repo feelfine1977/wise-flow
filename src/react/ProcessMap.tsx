@@ -273,19 +273,21 @@ function ProcessMapInner(props: ProcessMapProps) {
     return asked > 0 && Number.isFinite(asked) ? Math.min(asked, maxZoom) : FLOW_ZOOM.minZoom;
   }, [givenMinZoom, maxZoom, scene]);
   const zoomRange = useMemo(() => ({ minZoom: floor, maxZoom }), [floor, maxZoom]);
-  // What the view at rest shows of the map: for the panel, the overview and the host, who is told when it changes.
+  // What the view at rest shows of the map: for the panel, the overview and the host, who is told in the same step as the panel when it changes.
   const [shownPart, setShownPart] = useState<PartInView>();
+  const told = useRef<PartInView | undefined>(undefined);
   const tellInView = useRef(onInView);
   tellInView.current = onInView;
   useEffect(() => {
     const area = useCanvas ? canvasRef.current?.renderer()?.size : flowStore.getState();
     if (!positions || !area || !(area.width > 0) || !(area.height > 0)) return;
     const part = partInView(scene, restView, area);
-    setShownPart((was) => (was && was.nodes === part.nodes && was.ofNodes === part.ofNodes && was.edges === part.edges && was.ofEdges === part.ofEdges ? was : part));
-  }, [positions, scene, restView, useCanvas, flowStore]);
-  useEffect(() => {
-    if (shownPart) tellInView.current?.({ ...shownPart, zoom: restView.zoom, minZoom: floor });
-  }, [shownPart, floor]); // eslint-disable-line react-hooks/exhaustive-deps
+    const was = told.current;
+    if (was && was.nodes === part.nodes && was.ofNodes === part.ofNodes && was.edges === part.edges && was.ofEdges === part.ofEdges) return;
+    told.current = part;
+    setShownPart(part);
+    tellInView.current?.({ ...part, zoom: restView.zoom, minZoom: floor });
+  }, [positions, scene, restView, useCanvas, flowStore, floor]);
 
   // Actions menu
   const allStages = useMemo(() => (graph.groups ?? []).filter((g) => g.kind === "stage" && !g.parent).map((g) => g.id), [graph]);
@@ -572,7 +574,8 @@ function ProcessMapInner(props: ProcessMapProps) {
       positions={shown.meta?.shown?.positions}
       statement={statement}
       drawn={drawnPaths}
-      inView={shownPart}
+      // The table view lists the whole graph: nothing of it is out of view there.
+      inView={view === "table" ? undefined : shownPart}
       onHighlightKept={setKeptOn}
       onAnnounce={announce}
     />
