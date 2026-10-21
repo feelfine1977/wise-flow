@@ -83,6 +83,9 @@ Test: `tests/core/malformed-input.test.ts` › "positions, routing and lanes".
 | `panelInsets` | `.` | Not documented. | Returns. |
 | `openingView` | `.` | Not documented. | Returns. |
 | `processStart` | `.` | Undefined without a node with a box. | Returns. |
+| `partInView` | `.` | A view without a zoom shows nothing; not documented for junk numbers. | Returns counts. |
+| `inViewText` | `.` | Not documented. | Returns a text. |
+| `elementPoint` | `.` | Undefined for an element without a box or a route. | Returns a point or nothing. |
 | `pathCourses` | `.` | Not documented. | Returns; on finite positions and a width from 0 to 100, every course through finite points. |
 
 ## Style, tokens, label sizing, formatting and strings
@@ -123,6 +126,7 @@ Test: `tests/core/malformed-input.test.ts` › "style, tokens, label sizing and 
 | `themeColors` | `.` | Not documented. | Returns, for an unknown scheme too. |
 | `checkTheme` | `.` | Reports what a theme sets out of range as data. | Returns. |
 | `readableAt` | `.` | A floor that is not a positive number keeps every text; not documented for rules of junk numbers. | Returns a state: a boost of at least 1, at a level the rules allow or none. |
+| `readableZoom` | `.` | 0 without a floor or a card, Infinity for a level that fits no rung; not documented for rules of junk numbers. | Returns a number. |
 | `formatPathCount` | `.` | A value that is not a finite number prints as `–`. | Returns a readable text. |
 | `metricEntry` | `.` | None for a metric the registry does not hold. | Returns. |
 | `metricKind` | `.` | From the name for a metric the registry does not hold. | Returns. |
@@ -186,6 +190,8 @@ Test: `tests/core/malformed-input.test.ts` › "scene, marks, legend, figure and
 | `gatewayGlyph` | `.` | × unless tagged `and` or `or`. | Returns. |
 | `nodeCount` | `.` | Not documented. | Returns a readable count or nothing. |
 | `truncateText` | `.` | Not documented. | Returns. |
+| `restOf` | `.` | Not documented. | Returns. |
+| `distinctLines` | `.` | Names that are the same stay the same; not documented for junk rooms, fonts or line counts. | Returns a list of lines per name, within the time bound. |
 | `fitText` | `.` | Not documented. | Returns. |
 | `estimateTextWidth` | `.` | Not documented. | Returns. |
 | `sceneLegend` | `.` | Not documented. | Returns. |

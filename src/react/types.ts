@@ -5,6 +5,7 @@ import type {
   EdgeBudget,
   EdgeMark,
   EdgeRoute,
+  ElementRef,
   StateStyle,
   Filter,
   FilterClause,
@@ -29,6 +30,7 @@ import type {
   NodeMark,
   Overlay,
   OverlayMark,
+  PartInView,
   PatternId,
   Positions,
   XY,
@@ -42,6 +44,18 @@ import { emptySelection } from "../core/index.js";
 
 export type { Selection };
 export { emptySelection };
+
+/** An element a host asks the map to bring into view (`ProcessMapProps.bringIntoView`): each new object, or a new `token`, asks again. */
+export interface BringIntoView {
+  element: ElementRef;
+  token?: string | number;
+}
+
+/** What a view at rest shows (`ProcessMapProps.onInView`): the part of the map (`partInView`), its zoom and the smallest zoom. */
+export interface InView extends PartInView {
+  zoom: number;
+  minZoom: number;
+}
 
 export type ActivityNodeData = {
   activityLabels?: ActivityLabelOptions;
@@ -252,6 +266,34 @@ export interface ProcessMapProps {
    * React Flow panels), so that none covers an activity.
    */
   fitInsets?: Partial<Insets>;
+  /**
+   * The smallest zoom of the map, which no fit, opening, wheel or button goes
+   * below: a number (default 0.05), or `{ readable: level }`, the smallest zoom
+   * at which every card still shows that level of its texts at the theme's
+   * smallest screen text (`readableZoom`): `"line"` its name on one line,
+   * `"name"` its name on two, `"full"` its name and its number line. A fit
+   * that cannot show the whole map at the smallest zoom shows the map from
+   * the start of the process at that zoom, with the overview.
+   */
+  minZoom?: number | { readable: "full" | "name" | "line" };
+  /** The largest zoom. Default 3. */
+  maxZoom?: number;
+  /**
+   * Opens the map again by `opening` when it changes, as a replaced `graph`
+   * object does; given, a replaced graph alone opens it no more, so that a
+   * host that builds a new graph for each detail keeps the view.
+   */
+  openKey?: string | number;
+  /**
+   * An element to bring into view: the view moves, at its zoom but at least
+   * `minZoom`, so that the element is at the centre (`elementPoint`), once
+   * the layout holds the element and the map has opened; a node or an edge
+   * takes the keyboard position. Each new object, or a new `token`, moves
+   * again.
+   */
+  bringIntoView?: BringIntoView;
+  /** Called when the view comes to rest and shows another part of the map (`partInView`), with its zoom and the smallest zoom. */
+  onInView?: (shown: InView) => void;
   /**
    * Activity or stage whose paths are shown (predecessors and successors bright,
    * the rest dimmed, side list), or two activity ids for the path between them.

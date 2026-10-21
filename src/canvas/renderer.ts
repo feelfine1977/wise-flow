@@ -29,6 +29,9 @@ export interface CanvasRendererOptions {
 
 export type RendererDrawOptions = Omit<DrawOptions, "tokens" | "edgeBudget"> & { edgeBudget?: EdgeBudget | "adaptive" };
 
+/** The zoom range a renderer keeps its view in unless its options say otherwise. */
+const zoomRange = { minZoom: 0.05, maxZoom: 3 } as const;
+
 export class CanvasRenderer {
   readonly canvas: HTMLCanvasElement;
   private ctx?: DrawContext | null;
@@ -58,13 +61,16 @@ export class CanvasRenderer {
   /** Called after every draw with its statistics. */
   onDraw?: (stats: NonNullable<CanvasRenderer["lastDraw"]>) => void;
 
+  /** The zoom range a renderer keeps its view in unless its options say otherwise. */
+  static readonly zoomRange = zoomRange;
+
   constructor(canvas: HTMLCanvasElement, options: CanvasRendererOptions = {}) {
     this.canvas = canvas;
     this.ctx = (canvas.getContext("2d") as DrawContext | null) ?? null;
     this.tokens = options.tokens ?? defaultTokens;
     this.dpr = options.devicePixelRatio ?? (typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1);
-    this.minZoom = options.minZoom ?? 0.05;
-    this.maxZoom = options.maxZoom ?? 3;
+    this.minZoom = options.minZoom ?? zoomRange.minZoom;
+    this.maxZoom = options.maxZoom ?? zoomRange.maxZoom;
     this.drawOptions = options.draw ?? {};
     this.clock = options.clock ?? (() => performance.now());
   }

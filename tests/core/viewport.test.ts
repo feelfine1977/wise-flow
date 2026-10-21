@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { constraintItems, vendorScene, vendorSceneKey } from "../../fixtures/bpic2019";
-import { type Box, abstract, fitViewport, layout, overlaysFor, panelInsets } from "../../src/index";
+import { type Box, type FlowEdge, type Positions, abstract, elementPoint, fitViewport, inViewText, layout, overlaysFor, panelInsets, partInView } from "../../src/index";
 import { CanvasRenderer, prepareScene } from "../../src/canvas/index";
 
 /** The box `bounds` takes on screen in a view. */
@@ -98,5 +98,58 @@ describe("the Canvas renderer's fit", () => {
     const drawn = onScreen(scene.bounds, inset);
     expect(drawn.x).toBeGreaterThanOrEqual(200);
     expect(drawn.y + drawn.height).toBeLessThanOrEqual(500);
+  });
+});
+
+describe("the part of a map in view", () => {
+  const card = (kind: "activity" | "stage" | "event", x: number, y: number) => ({ kind, box: { x, y, width: 100, height: 40 } });
+  const path = (id: string, points: { x: number; y: number }[], kind: "follows" | "constraint" = "follows") => ({ edge: { id, kind, source: "a", target: "b" } as FlowEdge, points });
+  // A (0..100), B (300..400) and C (600..700) in a row, an event below A; the paths A → B and B → C, and a constraint along them.
+  const scene = {
+    nodeMarks: [card("activity", 0, 0), card("stage", 300, 0), card("activity", 600, 0), card("event", 0, 200)],
+    edgeMarks: [path("ab", [{ x: 100, y: 20 }, { x: 300, y: 20 }]), path("bc", [{ x: 400, y: 20 }, { x: 600, y: 20 }]), path("k", [{ x: 0, y: 40 }, { x: 600, y: 40 }], "constraint")],
+  };
+  const area = { width: 400, height: 300 };
+
+  it("counts the cards whose box and the paths whose line reach into the view: not events, not constraints", () => {
+    // From the origin at zoom 1 the view ends at 400: A and B (from 300) are in it, with A → B; C and B → C lie beyond.
+    expect(partInView(scene, { x: 0, y: 0, zoom: 1 }, area)).toEqual({ nodes: 2, ofNodes: 3, edges: 1, ofEdges: 2, whole: false });
+    // Zoomed out to 0.5 the view reaches 800: everything.
+    expect(partInView(scene, { x: 0, y: 0, zoom: 0.5 }, area)).toEqual({ nodes: 3, ofNodes: 3, edges: 2, ofEdges: 2, whole: true });
+    // Moved 350 to the right: B and C, and B → C; A → B ends at 300, before the view.
+    expect(partInView(scene, { x: -350, y: 0, zoom: 1 }, area)).toMatchObject({ nodes: 2, edges: 1, whole: false });
+    // 150 kept clear on the right leaves the view at 250: B is out, and A → B still crosses the edge of the view.
+    expect(partInView(scene, { x: 0, y: 0, zoom: 1 }, area, { right: 150 })).toMatchObject({ nodes: 1, edges: 1 });
+    // A view without a zoom shows nothing.
+    expect(partInView(scene, { x: 0, y: 0, zoom: 0 }, area)).toEqual({ nodes: 0, ofNodes: 3, edges: 0, ofEdges: 2, whole: false });
+    expect(partInView({ nodeMarks: [], edgeMarks: [] }, { x: 0, y: 0, zoom: 1 }, area).whole).toBe(true);
+  });
+
+  it("is said in words, in English and in German", () => {
+    const part = { nodes: 17, ofNodes: 42, edges: 23, ofEdges: 1200, whole: false };
+    expect(inViewText(part)).toBe("17 of 42 activities and 23 of 1,200 paths in view");
+    expect(inViewText(part, "de")).toBe("17 von 42 Aktivitäten und 23 von 1.200 Pfaden im Blick");
+  });
+});
+
+describe("the point an element is brought into view at", () => {
+  const positions: Pick<Positions, "nodes" | "groups" | "edges"> = {
+    nodes: { a: { x: 0, y: 0, width: 100, height: 40 }, b: { x: 300, y: 100, width: 100, height: 40 } },
+    groups: { g: { x: -10, y: -10, width: 500, height: 200 } },
+    edges: { ab: { points: [{ x: 100, y: 20 }, { x: 200, y: 20 }, { x: 200, y: 120 }, { x: 300, y: 120 }] } },
+  };
+  const edges: FlowEdge[] = [{ id: "ab", kind: "follows", source: "a", target: "b" }, { id: "ba", kind: "follows", source: "b", target: "a" }];
+
+  it("is the centre of a node's or a group's box, the middle of an edge's route or the midpoint between its ends", () => {
+    expect(elementPoint({ kind: "node", id: "a" }, positions)).toEqual({ x: 50, y: 20 });
+    expect(elementPoint({ kind: "group", id: "g" }, positions)).toEqual({ x: 240, y: 90 });
+    // Four points: halfway between the second and the third.
+    expect(elementPoint({ kind: "edge", id: "ab" }, positions, edges)).toEqual({ x: 200, y: 70 });
+    // Three points: the middle one.
+    expect(elementPoint({ kind: "edge", id: "ab" }, { ...positions, edges: { ab: { points: [{ x: 100, y: 20 }, { x: 150, y: 60 }, { x: 300, y: 120 }] } } }, edges)).toEqual({ x: 150, y: 60 });
+    // Without a route, between the centres of B (350, 120) and A (50, 20).
+    expect(elementPoint({ kind: "edge", id: "ba" }, positions, edges)).toEqual({ x: 200, y: 70 });
+    expect(elementPoint({ kind: "node", id: "x" }, positions)).toBeUndefined();
+    expect(elementPoint({ kind: "edge", id: "x" }, positions, edges)).toBeUndefined();
   });
 });

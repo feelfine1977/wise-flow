@@ -6,7 +6,7 @@
  */
 import { beforeAll, describe, expect, it } from "vitest";
 import { constraintItems, globalScene, vendorScene, vendorSceneKey } from "../../fixtures/bpic2019";
-import { type FlowGraph, type Positions, type Readable, type ReadableRules, abstract, buildScene, createPositions, layout, overlaysFor, readableAt, toSVG } from "../../src/index";
+import { type FlowGraph, type Positions, type Readable, type ReadableRules, abstract, buildScene, createPositions, distinctLines, estimateTextWidth, layout, overlaysFor, readableAt, readableZoom, toSVG } from "../../src/index";
 import { type DrawContext, type PreparedScene, prepareScene, toPNGCanvas } from "../../src/canvas/index";
 import { boostMark, pillBoost } from "../../src/core/readable";
 import { MIN_TEXT_PX, type Reading, readCanvas } from "../support/reading";
@@ -300,5 +300,73 @@ describe("exports", () => {
     const pt = (px: number) => (px * 85 * 72) / 25.4 / 1000;
     expect(fonts.filter((f) => pt(f.px) < 7 - 1e-9).map((f) => `${f.text} ${pt(f.px).toFixed(2)}`)).toEqual([]);
     expect(fonts.map((f) => f.text)).toContain("Activities by number");
+  });
+});
+
+describe("the readable zoom", () => {
+  it("is the smallest zoom at which a level still fits a rung of the ladder; none without a floor or a card", () => {
+    // The line level fits up to a floor of 35: the largest rung at or below it is 41 (34.90); the name's 24 rung 36 (22.63); the full's 14 rung 30 (13.45).
+    expect(readableZoom(rules, 9, "line")).toBeCloseTo(9 / 2 ** (41 / 8), 12);
+    expect(readableZoom(rules, 9, "name")).toBeCloseTo(9 / 2 ** (36 / 8), 12);
+    expect(readableZoom(rules, 9, "full")).toBeCloseTo(9 / 2 ** (30 / 8), 12);
+    expect(readableZoom(rules, 9)).toBe(readableZoom(rules, 9, "line"));
+    // At that zoom the level is drawn; a hair below it the floor rounds up to the next rung, past the level.
+    for (const level of ["full", "name", "line"] as const) {
+      const zoom = readableZoom(rules, 9, level);
+      expect(readableAt(rules, zoom, 9).level, level).toBe(level);
+      expect(readableAt(rules, zoom * 0.999, 9).level, level).not.toBe(level);
+    }
+    // At 11 px the zooms grow with the floor.
+    expect(readableZoom(rules, 11, "name")).toBeCloseTo((11 / 9) * readableZoom(rules, 9, "name"), 12);
+    // Without a floor, or without a card (a level that fits at every floor), no zoom is too small.
+    expect(readableZoom(rules, 0, "line")).toBe(0);
+    expect(readableZoom({ ...rules, levels: { ...rules.levels, line: { size: 13, floor: Infinity } } }, 9, "line")).toBe(0);
+    // A level that fits no rung, not even the first (4), is readable at no zoom; one that fits past the ladder's top ends with the ladder (128).
+    expect(readableZoom({ ...rules, levels: { ...rules.levels, line: { size: 13, floor: 3 } } }, 9, "line")).toBe(Infinity);
+    expect(readableZoom({ ...rules, levels: { ...rules.levels, line: { size: 13, floor: 1000 } } }, 9, "line")).toBeCloseTo(9 / 128, 12);
+  });
+});
+
+describe("names shortened alike", () => {
+  const font = { size: 13 };
+  // A line of 72 holds 10 characters of 13 (0.55 em each by the estimate).
+  const room = 72;
+  const lines = (names: string[], max = 1, width = room) => distinctLines(names.map((name) => ({ name, room: width, font })), max, estimateTextWidth);
+
+  it("are told apart on the last line by their start, an ellipsis and the part from the first character that differs", () => {
+    // Both are cut to "Vendor cr…". The part that differs ("invoice", "debit memo") takes the line first, cut where it does not fit, and the start what is left.
+    expect(lines(["Vendor creates invoice", "Vendor creates debit memo"])).toEqual([["Ve…invoice"], ["…debit me…"]]);
+    // Names that differ late keep most of their start.
+    expect(lines(["Vendor creates invoice A1", "Vendor creates invoice A2"])).toEqual([["Vendor c…1"], ["Vendor c…2"]]);
+    // Names that are not shortened alike are left as they are, and so are names that are the same.
+    expect(lines(["Change Price", "Change Quantity", "Change Quantity", "Pay"])).toEqual([["Change Pr…"], ["Change Qu…"], ["Change Qu…"], ["Pay"]]);
+    expect(lines(["Pay", "Pay"])).toEqual([["Pay"], ["Pay"]]);
+  });
+
+  it("are told apart again among those that still coincide, from the next character that differs", () => {
+    // A line of 8: all three are cut to "P xx 12…". From the first character that differs two still go on alike ("…345678…") and
+    // are told apart from the next one that differs, where they part; the third parts at once.
+    expect(lines(["P xx 1234567890 a", "P xx 1234567890 b", "P xx 12zzzz"], 1, 8 * 0.55 * 13)).toEqual([["P xx 1…a"], ["P xx 1…b"], ["P x…zzzz"]]);
+  });
+
+  it("keep the lines before the last, and the cards' own two lines are told apart like each level's", () => {
+    const a = "Closed after the second-line review confirmed the workaround with the reporter A";
+    const b = "Closed after the second-line review confirmed the workaround with the reporter B";
+    // Two lines of 154 (21 characters): the first line is the same, the second is cut alike and then told apart by its end.
+    const [first, second] = lines([a, b], 2, 154);
+    expect(first[0]).toBe("Closed after the");
+    expect(second[0]).toBe(first[0]);
+    expect(first[1]).toMatch(/^second-line review .*…A$/u);
+    expect(second[1]).toMatch(/^second-line review .*…B$/u);
+    const graph: FlowGraph = { nodes: [{ id: "a", kind: "activity", label: a }, { id: "b", kind: "activity", label: b }], edges: [] };
+    const positions = createPositions({ nodes: { a: { x: 0, y: 0, width: 180, height: 64 }, b: { x: 0, y: 100, width: 180, height: 64 } }, groups: {}, edges: {} }, "given", "RIGHT");
+    const [cardA, cardB] = buildScene(graph, positions).nodeMarks;
+    const names = (texts: { role: string; text: string }[]) => texts.filter((t) => t.role === "nameLine").map((t) => t.text);
+    expect(names(cardA.texts)).toEqual(first);
+    expect(names(cardB.texts)).toEqual(second);
+    // The whole name stays the card's title; each level's lines differ too, and the one-line level by its end as well.
+    expect([cardA.title, cardB.title]).toEqual([a, b]);
+    for (const level of ["full", "name", "line"] as const) expect(names(cardA.levels![level]), level).not.toEqual(names(cardB.levels![level]));
+    expect(names(cardA.levels!.line)[0]).toMatch(/…A$/u);
   });
 });

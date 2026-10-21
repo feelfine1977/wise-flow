@@ -1,5 +1,5 @@
 import { type ButtonHTMLAttributes, type HTMLAttributes, type PointerEvent, type ReactNode, useId, useRef } from "react";
-import { type Box, type FlowNode, type Insets, type Locale, type OpeningView, type Positions, type XY, formatShare, openingView, panelInsets, processStart, spaceTokens, t, viewTokens } from "../core/index.js";
+import { type Box, type FlowNode, type Insets, type Locale, type OpeningView, type PartInView, type Positions, type XY, formatShare, inViewText, openingView, panelInsets, processStart, spaceTokens, t, viewTokens } from "../core/index.js";
 import { part } from "./parts.js";
 
 /**
@@ -144,9 +144,10 @@ export function clearOfPanels(area: Element, bounds: Box, padding: number, zoom:
  * inside the insets of its panels where that is readable, otherwise on the
  * start of the process with room for the overview, which has the map's shape,
  * `viewTokens.overview` wide and at most as high. `insets` are a host's, used
- * instead of the panels.
+ * instead of the panels; `readable` the zoom the map opens at on the start,
+ * where fitted it would be smaller (default `viewTokens.openingZoom`).
  */
-export function openingIn(area: Element, bounds: Box, nodes: readonly FlowNode[], positions: Pick<Positions, "nodes" | "direction">, options: { padding: number; minZoom?: number; maxZoom?: number; insets?: Partial<Insets> }): OpeningView {
+export function openingIn(area: Element, bounds: Box, nodes: readonly FlowNode[], positions: Pick<Positions, "nodes" | "direction">, options: { padding: number; minZoom?: number; maxZoom?: number; insets?: Partial<Insets>; readable?: number }): OpeningView {
   const { width, height } = area.getBoundingClientRect();
   const scale = Math.min(viewTokens.overview.width / Math.max(bounds.width, 1), viewTokens.overview.height / Math.max(bounds.height, 1));
   return openingView(bounds, { width, height }, {
@@ -172,6 +173,8 @@ export interface MapOverviewProps {
   locale?: Locale;
   /** Centres the view on a point of the map, keeping the zoom. */
   onMove: (centre: XY) => void;
+  /** What the view shows of the map, said to assistive technology with the overview. */
+  inView?: PartInView;
 }
 
 /** The arrow keys move the view by a tenth of what is in view. */
@@ -183,8 +186,9 @@ const ARROWS: Record<string, number[]> = { ArrowLeft: [-0.1, 0], ArrowRight: [0.
  * or a drag centres the view on the point under the pointer; the arrow keys
  * move it.
  */
-export function MapOverview({ bounds, nodes, view, area, at, locale = "en", onMove }: MapOverviewProps) {
+export function MapOverview({ bounds, nodes, view, area, at, locale = "en", onMove, inView }: MapOverviewProps) {
   const hint = useId();
+  const shownId = useId();
   const drag = useRef(false);
   const shown = { x: -view.x / view.zoom, y: -view.y / view.zoom, width: area.width / view.zoom, height: area.height / view.zoom };
   // The point of the map under the pointer: the overview's inside (within its outline) is the map's bounds.
@@ -200,7 +204,7 @@ export function MapOverview({ bounds, nodes, view, area, at, locale = "en", onMo
       style={{ left: at.x, top: at.y, width: at.width, height: at.height }}
       role="application"
       aria-label={t(locale, "map.overview")}
-      aria-describedby={hint}
+      aria-describedby={inView ? `${hint} ${shownId}` : hint}
       tabIndex={0}
       onPointerDown={(e) => {
         e.stopPropagation();
@@ -229,6 +233,11 @@ export function MapOverview({ bounds, nodes, view, area, at, locale = "en", onMo
       <span id={hint} className="wf-sr-only">
         {t(locale, "map.overview.hint")}
       </span>
+      {inView ? (
+        <span id={shownId} className="wf-sr-only" data-testid="wf-overview-in-view">
+          {inViewText(inView, locale)}
+        </span>
+      ) : null}
       <svg viewBox={`${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}`} preserveAspectRatio="none" aria-hidden="true" focusable="false">
         <path className="wf-overview__nodes" d={Object.values(nodes).map((b) => `M${b.x} ${b.y}h${b.width}v${b.height}h${-b.width}z`).join("")} />
         <rect className="wf-overview__view" {...shown} data-testid="wf-overview-view" />

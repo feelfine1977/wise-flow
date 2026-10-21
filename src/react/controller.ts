@@ -11,8 +11,8 @@ type ControlledProps = Pick<
 
 /** What the controller's intents need from the screen; the map sets it on every render. */
 export interface MapScreen {
-  /** Bring a node into view. */
-  reveal?: (id: string) => void;
+  /** Bring an element into view. */
+  reveal?: (element: ElementRef) => void;
   /** Where the menu of an element opens, relative to the map body. */
   place?: (element: ElementRef) => { x: number; y: number };
   /** Give the input focus back to the map. */
@@ -110,7 +110,7 @@ export function useMapController(props: ControlledProps): MapController {
       else if (intent.kind === "hover") p.onHover?.(intent.id);
       else if (intent.kind === "abstraction") p.onAbstractionChange?.(intent.abstraction);
       else if (intent.kind === "view") p.onViewChange?.(intent.view);
-      else if (intent.kind === "reveal") screen.current.reveal?.(intent.id);
+      else if (intent.kind === "reveal") screen.current.reveal?.(intent.element);
       else if (intent.kind === "menu") dispatch({ type: "openMenu", element: intent.element, at: screen.current.place?.(intent.element) ?? { x: 0, y: 0 } });
       else if (intent.kind === "returnFocus") screen.current.focus?.();
       else if (intent.kind === "run") {

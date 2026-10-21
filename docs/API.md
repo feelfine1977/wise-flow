@@ -1172,6 +1172,8 @@ one card that the scene resolves (`NodeMark`):
   a longer name ends its second line in an ellipsis, and the mark's `title`
   holds the whole name, which the SVG export writes as `<title>` and the
   interactive map as the card's `title` (its `aria-label` names it too);
+  two names shortened alike are told apart on their last line (see
+  "Readable at every zoom");
 - the number line: the cases in full grouped digits, in the ink and
   semibold (`countLine`, `activityNumber`: "1,000", German "1.000"), then
   their share of all cases of the log, muted (`share`, `activityShare`:
@@ -1233,6 +1235,9 @@ export interface ReadableRules {    // FlowScene.readable
 }
 export interface CardLevels { origin: XY; full: ElementText[]; name: ElementText[]; line: ElementText[] }   // NodeMark.levels
 export function readableAt(rules: ReadableRules, zoom: number, minScreenPx: number, previous?: Readable): Readable;
+export function readableZoom(rules: ReadableRules, minScreenPx: number, level?: "full" | "name" | "line"): number;   // the smallest zoom the level is drawn at; default "line"
+export interface NameRoom { name: string; room: number; font: { size: number; weight?: number } }
+export function distinctLines(items: readonly NameRoom[], max: number, measure: TextMeasure, given?: readonly (readonly string[])[]): string[][];   // wrapLines, told apart
 export const readableTokens: { steps: 8; first: 16; last: 56; hysteresis: 0.1; nameChars: 8; number: { padding: 0.5; height: 1.5; link: number } };
 // Theme.text.minScreenPx: 9 (CSS variable --wf-text-min-screen); Theme.text.minFigurePt: 0, print 7 (see "Hit index and export")
 ```
@@ -1295,6 +1300,24 @@ above a zoom of about 0.86.
   where it went (`hysteresis`), so a zoom that wavers at a boundary does not
   make text flicker. Shedding happens exactly where a text stops fitting.
 - A `minScreenPx` of 0 keeps every text at its size.
+- **The readable zoom.** `readableZoom(rules, minScreenPx, level)` is the
+  smallest zoom at which every card still shows at least `level`:
+  `minScreenPx` over the largest rung of the ladder at or below the level's
+  floor, so that `readableAt` at that zoom gives the level and a hair below
+  it does not. It is 0 without a floor or without a card (no zoom is too
+  small), Infinity for a level that fits no rung. `<ProcessMap
+  minZoom={{ readable: "name" }}/>` takes it as the map's smallest zoom (see
+  "Controls and panels").
+- **Names shortened alike.** Where two activities' names differ but their
+  lines are cut to the same text, on the cards and at every level, each is
+  told apart on its last line (`distinctLines`): its start, an ellipsis and
+  the part from the first character that differs among them, as much of each
+  as the room holds, the telling part first ("Ve…invoice", "…debit me…"
+  for "Vendor creates invoice" and "Vendor creates debit memo" on a line of
+  ten characters); names that still coincide are told apart again from the
+  next character that differs, until each differs or nothing is left to tell
+  it by. Names that are the same stay the same, and the whole name stays
+  the card's title and its accessible name.
 
 On the BPIC global map (cards 180 × 64), path labels go at a zoom of about
 0.85, the number line at 0.65, the second line of the name at 0.35 and the
@@ -1740,8 +1763,15 @@ export function ProcessMap(props: {
   onEdgesShown?: (shown: ShownEdges | undefined) => void;   // the edges drawn while some are withheld, for toSVG and toPNG
   minPathPx?: number;   // the narrowest line on the screen a path is drawn at; default 0.5, 0 draws every path; see "Paths at a small zoom"
   opening?: "readable" | "fit";   // default "readable": fitted where that gives 0.75 or more, else 0.75 on the start with an overview; see "Controls and panels"
+  minZoom?: number | { readable: "full" | "name" | "line" };   // default 0.05; a level: the zoom from which every card still shows it (readableZoom); see "Controls and panels"
+  maxZoom?: number;   // default 3
+  openKey?: string | number;   // opens the map again when it changes; given, a replaced graph object alone does not
+  bringIntoView?: BringIntoView;   // the element brought to the centre of the view, at its zoom but at least minZoom; see "Controls and panels"
+  onInView?: (shown: InView) => void;   // when the view rests on another part of the map: partInView with the zoom and the smallest zoom
 }): JSX.Element;
 export interface Selection { nodes: string[]; edges: string[]; groups: string[] }
+export interface BringIntoView { element: ElementRef; token?: string | number }   // each new object, or token, asks again
+export interface InView extends PartInView { zoom: number; minZoom: number }
 
 export function TableAlternative(props: { graph; overlays?; scales?; locale?; selection?; onSelect?; tables?; pageSize?: number }): JSX.Element;
 // A click or Enter on an activity or path row selects as a click on the map does: the row alone, nothing when it was
@@ -2614,9 +2644,12 @@ export function CanvasMap(props: { scene: PreparedScene | undefined; state: Draw
   theme?: ThemeSetting;   // its colours and font, over its --wf-* variables; see "Theme of a map in a page"
   fitInsets?: Partial<Insets>;   // kept clear when the view is fitted; default: clear of the panels over the map (see "Controls and panels")
   minPathPx?: number;   // the narrowest line on the screen a path is drawn at; default 0.5, 0 draws every path; see "Paths at a small zoom"
-  opening?: "readable" | "fit"; openKey?: string | number }   // default readable; openKey: a replacement graph, default scene.graph
+  opening?: "readable" | "fit"; openKey?: string | number;   // default readable; openKey: a replacement graph, default scene.graph
+  minZoom?: number; maxZoom?: number;   // default 0.05 and 3; given, a fit that cannot show the whole map at minZoom shows it from the start, with the overview
+  inView?: PartInView }   // what the view shows, said to assistive technology with the overview
   & { ref?: Ref<CanvasMapHandle> }): JSX.Element;
-export interface CanvasMapHandle { centerOn(id, zoom?); fit(insets?: Partial<Insets>); zoomBy(factor); screenBox(id): Box | undefined; renderer(): CanvasRenderer | null;
+export interface CanvasMapHandle { centerOn(id, zoom?);   // a node, a group or an edge (elementPoint)
+  fit(insets?: Partial<Insets>); zoomBy(factor); screenBox(id): Box | undefined; renderer(): CanvasRenderer | null;
   moved(): boolean }   // true when the view changed since the map last opened or was fitted
 ```
 
@@ -2892,6 +2925,7 @@ export type TextMeasure = (text: string, font: { size: number; weight?: number }
 export const estimateTextWidth: TextMeasure;   // 0.55 em per character, a full em for CJK, kana, Hangul, full-width forms and emoji
 export function truncateText(text: string, maxWidth: number, font: { size: number; weight?: number }, measure?: TextMeasure): string;
 export function wrapText(text: string, width: number, font: { size: number; weight?: number }, measure?: TextMeasure): string[];
+export function restOf(text: string, kept: readonly string[]): string;   // the rest of a text after the lines kept before the last
 export function fitText(t: MarkText, measure?: TextMeasure): string;
 export function fitLead(t: MarkText, fit: (text: string) => string): { lead: string; text: string };
 // wise-flow/canvas
@@ -3620,6 +3654,11 @@ export interface OpeningOptions extends Omit<FitOptions, "insets"> { panels?: re
   start?: Box; direction?: LayoutDirection; boxes?: readonly Box[]; overview?: { width: number; height: number } }
 export function openingView(bounds: Box, area: { width; height }, options?: OpeningOptions): OpeningView;
 export function processStart(nodes: readonly FlowNode[], positions: Pick<Positions, "nodes" | "direction">): Box | undefined;
+// wise-flow: what a view shows, and where it centres to bring an element into it
+export interface PartInView { nodes: number; ofNodes: number; edges: number; ofEdges: number; whole: boolean }   // the cards and the paths in view, of all
+export function partInView(scene: { nodeMarks; edgeMarks }, view: FitView, area: { width; height }, insets?: Partial<Insets>): PartInView;
+export function inViewText(shown: PartInView, locale?: Locale): string;   // "17 of 42 activities and 23 of 60 paths in view"
+export function elementPoint(element: ElementRef, positions: Pick<Positions, "nodes" | "groups" | "edges">, edges?: readonly FlowEdge[]): XY | undefined;
 ```
 
 **Zoom.** `<ZoomControl/>` is a group (`role="group"`, named "Zoom", in the
@@ -3674,6 +3713,47 @@ replacement graph (default: the scene's graph object); a new `openKey`
 applies the opening rule again even if `fitKey` stays the same. Refreshing a
 scene under the same keys preserves the view. Exported figures always show
 the whole map; the opening view does not change exports.
+
+**The smallest zoom.** `minZoom` on `<ProcessMap/>` and `<CanvasMap/>` is
+the zoom no fit, opening, wheel or button goes below (default 0.05). On
+`<ProcessMap/>` a level asks for it as a readable zoom, `{ readable: "name" }`
+say: the smallest zoom at which every card still shows that level of its
+texts at the theme's `text.minScreenPx` (`readableZoom` over the scene's
+readable rules; see "Readable at every zoom"), derived again whenever the
+scene changes and passed to the Canvas map as a number. The map opens at
+0.75 or at the smallest zoom, whichever is larger. A fit that cannot show
+the whole map at the smallest zoom (the fit button, a fit after a control
+change, `CanvasMapHandle.fit()`) shows the map from the start of the process
+at that zoom, as the opening does, with the overview; `openingView` judges
+whether the whole map fits by the zoom it would fit at before the smallest
+zoom clamps it. A host that keeps the whole map reachable at any size leaves
+`minZoom` alone.
+
+**The part in view.** `partInView(scene, view, area, insets)` counts the
+cards (activities and stage nodes) whose box reaches into the view and the
+paths whose routed line does (`isPath`: not constraints, not the dashed
+stand-ins), of all of each, and whether the whole map is in view; a line or
+a box that only touches the view's edge is out. `<ProcessMap/>` computes it
+when the view comes to rest (200 ms after its last change, once a gesture
+ended) and, while it shows another part than before, calls `onInView` with
+the counts, the zoom and the smallest zoom; the detail panel says it in a
+note (`data-testid="wf-in-view"`, `inViewText`: "17 of 42 activities and 23
+of 60 paths in view") while part of the map is out of view, and the overview
+describes itself with it for assistive technology.
+
+**Bringing an element into view.** `bringIntoView={{ element, token? }}` on
+`<ProcessMap/>` moves the view so that the element is at its centre
+(`elementPoint`: a node's or a group's box centre, the middle of an edge's
+route or the midpoint between its ends), at the current zoom but at least
+the smallest, with the map's short movement (none under reduced motion),
+once the layout holds the element and the opening fits are done; a node or
+an edge takes the keyboard position (`aria-activedescendant`), a group does
+not. Each new object, or a new `token`, asks again; the same object asks
+once. It is the map controller's `reveal` event, which the arrow keys, Home
+and End use too. `openKey` opens the map again by `opening` when it changes,
+as a replaced `graph` object does; given, a replaced graph alone opens it no
+more, so that a host that builds a new graph for each detail keeps the view,
+and "back to the opening" is a new key.
 
 **Legend.** `<Legend/>` opens as a one-line strip: the measure and its unit
 ("Frequency · cases · share of 251,734 cases"), the path width's three

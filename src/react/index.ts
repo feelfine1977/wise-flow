@@ -18,7 +18,7 @@ export { edgeTypes, midpoint } from "./edges.js";
 export { PatternSwatch } from "./patterns.js";
 export { useFlowGraph, useStableLayout, useOverlays, usePrefersReducedMotion, type StableLayout, type LayoutStatus } from "./hooks.js";
 export { describeNode, describeEdge, describeGroup, describeMap } from "./describe.js";
-export type { ProcessMapProps, Selection, ActivityNodeData, GroupNodeData, FollowsEdgeData, WfNode, WfGroupNode, WfEdge } from "./types.js";
+export type { ProcessMapProps, Selection, ActivityNodeData, GroupNodeData, FollowsEdgeData, WfNode, WfGroupNode, WfEdge, BringIntoView, InView } from "./types.js";
 export { emptySelection } from "./types.js";
 export { BpmnView, emptyBpmnSelection, type BpmnViewProps, type BpmnSelection, type BpmnViewHandle } from "./BpmnView.js";
 export { ViewSwitcher, type ViewSwitcherProps } from "./ViewSwitcher.js";

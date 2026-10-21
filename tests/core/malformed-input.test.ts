@@ -104,6 +104,9 @@ import {
   fitViewport,
   openingView,
   processStart,
+  partInView,
+  inViewText,
+  elementPoint,
   focusHighlight,
   focusMembers,
   followsSelfLoops,
@@ -184,6 +187,7 @@ import {
   repositionNodes,
   resolveTheme,
   readableAt,
+  readableZoom,
   resolveViews,
   routeMidpoint,
   routeSequenceFlows,
@@ -218,6 +222,8 @@ import {
   withObservedSelfLoops,
   wrapActivityText,
   wrapText,
+  restOf,
+  distinctLines,
 } from "../../src/index";
 import { Calls, type MalformedCase, argumentsRecorder, failure, junkCoordinate, junkNumber, junkString, junkValue, malformedCase, nonFinite, someNumber } from "../support/malformed";
 import { caseCount, seeds } from "../support/random";
@@ -334,7 +340,7 @@ describe("malformed input at the core entry point", () => {
 
   it(
     "positions, routing and lanes",
-    search(["defaultNodeSize", "unionBoxes", "positionsBounds", "createPositions", "clearLayoutCache", "filterPositions", "coversGraph", "straightRoute", "repositionNodes", "routeSequenceFlows", "laneGroups", "laneAssignment", "laneModel", "stackLanes", "spanLanes", "laneRoutes", "laneBands", "fitViewport", "panelInsets", "openingView", "processStart", "pathCourses"], (calls, c) => {
+    search(["defaultNodeSize", "unionBoxes", "positionsBounds", "createPositions", "clearLayoutCache", "filterPositions", "coversGraph", "straightRoute", "repositionNodes", "routeSequenceFlows", "laneGroups", "laneAssignment", "laneModel", "stackLanes", "spanLanes", "laneRoutes", "laneBands", "fitViewport", "panelInsets", "openingView", "processStart", "partInView", "inViewText", "elementPoint", "pathCourses"], (calls, c) => {
       const g = c.graph;
       const p = c.positions;
       const sound = finitePositions(p);
@@ -388,6 +394,14 @@ describe("malformed input at the core entry point", () => {
           overview: c.rng.chance() ? { width: junkCoordinate(c.rng, 200), height: junkCoordinate(c.rng, 120) } : undefined,
         }),
       );
+      calls.call("partInView", c, () => {
+        const point = () => ({ x: junkCoordinate(c.rng, 0), y: junkCoordinate(c.rng, 0) });
+        const drawn = { nodeMarks: g.nodes.map((n) => ({ kind: n.kind, box: p.nodes[n.id] ?? box() })), edgeMarks: g.edges.map((e) => ({ edge: e, points: p.edges[e.id]?.points ?? [point(), point()] })) };
+        const part = partInView(drawn, { x: junkNumber(c.rng), y: junkNumber(c.rng), zoom: junkNumber(c.rng) }, area, fitOptions.insets);
+        must(part.nodes <= part.ofNodes && part.edges <= part.ofEdges, c, () => `more in view than there is: ${JSON.stringify(part)}`);
+      });
+      calls.call("inViewText", c, () => inViewText({ nodes: junkNumber(c.rng), ofNodes: junkNumber(c.rng), edges: junkNumber(c.rng), ofEdges: junkNumber(c.rng), whole: c.rng.chance() }, c.rng.pick(["en", "de"] as const)));
+      calls.call("elementPoint", c, () => elementPoint({ kind: c.rng.pick(["node", "edge", "group"] as const), id: c.rng.chance() ? (ids(c)[0] ?? junkString(c.rng)) : junkString(c.rng) }, p, g.edges));
       calls.call("pathCourses", c, () => {
         const width = someNumber(c.rng, 2);
         const courses = pathCourses(g, p, { width: () => width, bands: c.rng.chance() ? new Set(ids(c)) : undefined });
@@ -403,7 +417,7 @@ describe("malformed input at the core entry point", () => {
 
   it(
     "style, tokens, label sizing and formatting",
-    search(["hexToRgb", "interpolatePalette", "contrastRatio", "contrastText", "hashKey", "lodAt", "lodForSize", "buildScales", "patternDefs", "arrowheadExtent", "patternTwin", "cssVariable", "labelUnitsAt", "smallLabelUnitsAt", "mapScaleAt", "labelScreenPx", "formatCount", "formatNumber", "formatShare", "formatDelta", "formatHours", "formatDays", "formatCompact", "t", "metricLabel", "orderedCategorical", "themePalette", "resolveTheme", "themeColors", "checkTheme", "formatPathCount", "metricEntry", "metricKind", "metricName", "metricUnit", "metricBasis", "formatMetricValue", "elementMetric", "metricLabelOf", "metricMeanNote", "channelTitle", "wrapText", "measureStyle", "readableAt"], (calls, c) => {
+    search(["hexToRgb", "interpolatePalette", "contrastRatio", "contrastText", "hashKey", "lodAt", "lodForSize", "buildScales", "patternDefs", "arrowheadExtent", "patternTwin", "cssVariable", "labelUnitsAt", "smallLabelUnitsAt", "mapScaleAt", "labelScreenPx", "formatCount", "formatNumber", "formatShare", "formatDelta", "formatHours", "formatDays", "formatCompact", "t", "metricLabel", "orderedCategorical", "themePalette", "resolveTheme", "themeColors", "checkTheme", "formatPathCount", "metricEntry", "metricKind", "metricName", "metricUnit", "metricBasis", "formatMetricValue", "elementMetric", "metricLabelOf", "metricMeanNote", "channelTitle", "wrapText", "measureStyle", "readableAt", "readableZoom"], (calls, c) => {
       const colour = () => c.rng.pick([junkString(c.rng), "#fff", "#1f77b4", "#ABCDEF", "#abc", "fff"]);
       calls.call("hexToRgb", c, () => hexToRgb(colour()));
       calls.call("interpolatePalette", c, () => interpolatePalette(c.rng.pick([palettes.sequential, palettes.diverging, [colour()], [colour(), colour()]]), junkNumber(c.rng)));
@@ -485,6 +499,7 @@ describe("malformed input at the core entry point", () => {
       // What the texts show at a zoom a host computes, from rules of any numbers and the state before it.
       const level = () => ({ size: junkNumber(c.rng), floor: junkNumber(c.rng) });
       const readableRules = { levels: { full: level(), name: level(), line: level() }, labels: { path: junkNumber(c.rng), loop: junkNumber(c.rng), event: junkNumber(c.rng), glyph: junkNumber(c.rng), note: junkNumber(c.rng) }, pills: junkNumber(c.rng) };
+      calls.call("readableZoom", c, () => readableZoom(readableRules, junkNumber(c.rng), c.rng.pick(["full", "name", "line"] as const)));
       const before = calls.call("readableAt", c, () => readableAt(readableRules, junkNumber(c.rng), junkNumber(c.rng)));
       calls.call("readableAt", c, () => {
         const r = readableAt(readableRules, junkNumber(c.rng), junkNumber(c.rng), before);
@@ -561,7 +576,7 @@ describe("malformed input at the core entry point", () => {
 
   it(
     "scene, marks, legend, figure and SVG export",
-    search(["buildScene", "budgetEdges", "pathsAtZoom", "nodeMarks", "edgeMarks", "nodeMark", "edgeMark", "edgeColor", "edgePoints", "routeMidpoint", "edgeLabelPoint", "gatewayGlyph", "nodeCount", "truncateText", "fitText", "estimateTextWidth", "sceneLegend", "legendItemHeight", "legendLayout", "figureFrame", "toSVG", "resolveViews", "viewsSharePositions", "stateStyle", "markInState", "ruleTextRole", "pathArrowhead", "lineEnd", "groupMark", "groupMarks", "legendOfScene", "figureCaption"], (calls, c) => {
+    search(["buildScene", "budgetEdges", "pathsAtZoom", "nodeMarks", "edgeMarks", "nodeMark", "edgeMark", "edgeColor", "edgePoints", "routeMidpoint", "edgeLabelPoint", "gatewayGlyph", "nodeCount", "truncateText", "restOf", "distinctLines", "fitText", "estimateTextWidth", "sceneLegend", "legendItemHeight", "legendLayout", "figureFrame", "toSVG", "resolveViews", "viewsSharePositions", "stateStyle", "markInState", "ruleTextRole", "pathArrowhead", "lineEnd", "groupMark", "groupMarks", "legendOfScene", "figureCaption"], (calls, c) => {
       const g = c.graph;
       const L = locale(c);
       const activityLabels = c.rng.chance() ? labels(c) : undefined;
@@ -632,6 +647,13 @@ describe("malformed input at the core entry point", () => {
       calls.call("nodeCount", c, () => must(nodeCount(node, L) === undefined || readable(nodeCount(node, L)), c, () => `nodeCount ${nodeCount(node, L)}`));
       const font = { size: junkNumber(c.rng), weight: c.rng.chance() ? junkNumber(c.rng) : undefined };
       calls.call("truncateText", c, () => truncateText(junkString(c.rng), junkNumber(c.rng), font));
+      calls.call("restOf", c, () => restOf(junkString(c.rng), c.rng.chance() ? [junkString(c.rng)] : []));
+      calls.call("distinctLines", c, () => {
+        const names = [junkString(c.rng), junkString(c.rng), junkString(c.rng)];
+        const alike = c.rng.chance() ? names.map(() => names[0] + junkString(c.rng)) : names;
+        const lines = distinctLines(alike.map((name) => ({ name, room: junkNumber(c.rng), font })), c.rng.pick([1, 2, junkNumber(c.rng)]), estimateTextWidth);
+        must(lines.length === alike.length, c, () => "a name without its lines");
+      });
       calls.call("fitText", c, () => fitText({ text: junkString(c.rng), x: 0, y: 0, size: junkNumber(c.rng), anchor: "middle", baseline: "alphabetic", paint: "ink", halo: true, maxWidth: junkNumber(c.rng) }));
       calls.call("estimateTextWidth", c, () => estimateTextWidth(junkString(c.rng), font));
       const legend = calls.call("sceneLegend", c, () => sceneLegend(s.scales.legend, g.overlays ?? []));

@@ -5,10 +5,17 @@
  * Every renderer fits with these two functions: the React Flow map, the Canvas
  * map and the BPMN view. The view a map opens at (`openingView`) is the fitted
  * one where that is readable, and otherwise a readable zoom on the start of
- * the process with an overview in a free corner.
+ * the process with an overview in a free corner. `partInView` says how much of
+ * a map a view shows, and `elementPoint` where a view centres to bring an
+ * element into it.
  */
-import type { Box, LayoutDirection, Positions } from "./layout.js";
-import { type FlowNode, hasTag } from "./model.js";
+import { isPath } from "./detail.js";
+import type { EdgeMark, NodeMark } from "./element-marks.js";
+import { type Locale, formatCount } from "./format.js";
+import type { Box, LayoutDirection, Positions, XY } from "./layout.js";
+import { type FlowEdge, type FlowNode, hasTag } from "./model.js";
+import type { ElementRef } from "./selection.js";
+import { t } from "./strings.js";
 import { viewTokens } from "./tokens.js";
 
 /** Room kept clear along each side of the area, in screen pixels. */
@@ -167,8 +174,11 @@ const overlaps = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.width 
 export function openingView(bounds: Box, area: { width: number; height: number }, options: OpeningOptions = {}): OpeningView {
   const { panels = [], gap = 0, readable = viewTokens.openingZoom, start, direction = "RIGHT", boxes = [], overview, insets: given, ...fit } = options;
   const shown = panels.filter((p) => p.width > 0 && p.height > 0);
-  const fitted = fitViewport(bounds, area, { ...fit, insets: given ?? panelInsets(shown, area, bounds, { ...fit, gap }) });
-  if (fitted.zoom >= readable || !start) return { ...fitted, fitted: true };
+  // Whether the whole map is readable is judged by the zoom it fits at, before the smallest zoom (which may be the readable one) clamps it.
+  const free = { ...fit, minZoom: 0 };
+  const insets = given ?? panelInsets(shown, area, bounds, { ...free, gap });
+  const fitted = fitViewport(bounds, area, { ...fit, insets });
+  if (fitViewport(bounds, area, { ...free, insets }).zoom >= readable || !start) return { ...fitted, fitted: true };
   const zoom = Math.min(fit.maxZoom ?? Infinity, Math.max(fit.minZoom ?? 0, readable));
   const corner = overview && [0, 1, 2, 3]
     .map((k) => ({ x: k < 2 ? area.width - gap - overview.width : gap, y: k % 2 ? area.height - gap - overview.height : gap, ...overview }))
@@ -189,6 +199,82 @@ export function openingView(bounds: Box, area: { width: number; height: number }
     if (covered < best.covered || (covered === best.covered && width * height > best.room)) best = { view, covered, room: width * height };
   });
   return { ...best.view, fitted: false, ...(corner && { overview: corner }) };
+}
+
+/** How much of a map a view shows (`partInView`). */
+export interface PartInView {
+  /** The cards (activities and stage nodes) whose box reaches into the view, and all of them. */
+  nodes: number;
+  ofNodes: number;
+  /** The paths (`isPath`: not constraints, not the dashed stand-ins for ways through activities not shown) whose line reaches into the view, and all of them. */
+  edges: number;
+  ofEdges: number;
+  /** Every card and every path is in view. */
+  whole: boolean;
+}
+
+/** Whether the segment from `a` to `b` reaches into the box (Liang–Barsky). */
+function reaches(a: XY, b: XY, box: Box): boolean {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  let enter = 0;
+  let leave = 1;
+  for (const [p, q] of [[-dx, a.x - box.x], [dx, box.x + box.width - a.x], [-dy, a.y - box.y], [dy, box.y + box.height - a.y]]) {
+    if (p === 0) {
+      if (q < 0) return false;
+      continue;
+    }
+    const at = q / p;
+    if (p < 0) {
+      if (at > leave) return false;
+      if (at > enter) enter = at;
+    } else {
+      if (at < enter) return false;
+      if (at < leave) leave = at;
+    }
+  }
+  // A segment that only touches the box's edge does not reach into it.
+  return enter < leave;
+}
+
+/**
+ * How much of a map a view shows: the cards whose box reaches into the area
+ * less `insets` at the view, the paths whose routed line does, and all of
+ * each. A view without a zoom shows nothing.
+ */
+export function partInView(scene: { nodeMarks: readonly Pick<NodeMark, "kind" | "box">[]; edgeMarks: readonly Pick<EdgeMark, "edge" | "points">[] }, view: FitView, area: { width: number; height: number }, insets: Partial<Insets> = {}): PartInView {
+  const inset = { ...NO_INSETS, ...insets };
+  const cards = scene.nodeMarks.filter((m) => m.kind === "activity" || m.kind === "stage");
+  const paths = scene.edgeMarks.filter((m) => isPath(m.edge));
+  const zoomed = view.zoom > 0 && Number.isFinite(view.x) && Number.isFinite(view.y);
+  const seen: Box = { x: (inset.left - view.x) / view.zoom, y: (inset.top - view.y) / view.zoom, width: (area.width - inset.left - inset.right) / view.zoom, height: (area.height - inset.top - inset.bottom) / view.zoom };
+  const nodes = zoomed ? cards.filter((m) => overlaps(m.box, seen)).length : 0;
+  const edges = zoomed ? paths.filter((m) => m.points.some((p, i) => (i > 0 ? reaches(m.points[i - 1], p, seen) : m.points.length === 1 && overlaps({ ...p, width: 0, height: 0 }, seen)))).length : 0;
+  return { nodes, ofNodes: cards.length, edges, ofEdges: paths.length, whole: nodes === cards.length && edges === paths.length };
+}
+
+/** What a view shows of the map, in words: the cards and the paths in view, of all ("17 of 42 activities and 23 of 60 paths in view"). */
+export function inViewText(shown: PartInView, locale: Locale = "en"): string {
+  return t(locale, "detail.inView", { nodes: formatCount(shown.nodes, locale), ofNodes: formatCount(shown.ofNodes, locale), edges: formatCount(shown.edges, locale), ofEdges: formatCount(shown.ofEdges, locale) });
+}
+
+/**
+ * The point a view centres on to bring an element into it: the centre of a
+ * node's or a group's box, the middle of an edge's route or, without one,
+ * the midpoint between its ends' boxes; none for an element without a box.
+ */
+export function elementPoint(element: ElementRef, positions: Pick<Positions, "nodes" | "groups" | "edges">, edges: readonly FlowEdge[] = []): XY | undefined {
+  const centre = (b: Box): XY => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
+  if (element.kind === "node") return positions.nodes[element.id] && centre(positions.nodes[element.id]);
+  if (element.kind === "group") return positions.groups[element.id] && centre(positions.groups[element.id]);
+  const route = positions.edges[element.id]?.points;
+  if (route?.length) {
+    const i = route.length / 2;
+    return route.length % 2 ? route[Math.floor(i)] : { x: (route[i - 1].x + route[i].x) / 2, y: (route[i - 1].y + route[i].y) / 2 };
+  }
+  const edge = edges.find((e) => e.id === element.id);
+  const ends = edge && [positions.nodes[edge.source], positions.nodes[edge.target]];
+  return ends && ends[0] && ends[1] ? { x: (centre(ends[0]).x + centre(ends[1]).x) / 2, y: (centre(ends[0]).y + centre(ends[1]).y) / 2 } : undefined;
 }
 
 /**

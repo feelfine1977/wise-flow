@@ -172,8 +172,8 @@ export type {
   FrequencyCue,
 } from "./theme.js";
 export { checkTheme, type ThemeDeviation } from "./style.js";
-export { readableAt } from "./readable.js";
-export type { Readable, ReadableLevel, ReadableLabel, ReadableRules, CardLevels } from "./readable.js";
+export { readableAt, readableZoom, distinctLines } from "./readable.js";
+export type { Readable, ReadableLevel, ReadableLabel, ReadableRules, CardLevels, NameRoom } from "./readable.js";
 export { stateStyle, markInState, ruleTextRole } from "./rules.js";
 export type { ThemeRule, RuleMatch, RuleSet, RuleText, RuleTextRole, RuleState, RulePart, InteractiveState, StateStyle } from "./rules.js";
 
@@ -446,12 +446,16 @@ export type {
   FitOptions,
   OpeningView,
   OpeningOptions,
+  PartInView,
 } from "./viewport.js";
 export {
   fitViewport,
   panelInsets,
   openingView,
   processStart,
+  partInView,
+  inViewText,
+  elementPoint,
 } from "./viewport.js";
 
 export type {
@@ -461,6 +465,7 @@ export {
   estimateTextWidth,
   truncateText,
   wrapText,
+  restOf,
   fitText,
   fitLead,
 } from "./text.js";

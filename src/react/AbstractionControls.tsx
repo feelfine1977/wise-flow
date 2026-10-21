@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { type AbstractOptions, type DetailPositions, type DetailStatement, type Locale, formatCount, formatShare, t } from "../core/index.js";
+import { type AbstractOptions, type DetailPositions, type DetailStatement, type Locale, type PartInView, formatCount, formatShare, inViewText, t } from "../core/index.js";
 import { part } from "./parts.js";
 import { Button } from "./primitives.js";
 
@@ -30,6 +30,8 @@ export interface AbstractionControlsProps {
   statement?: DetailStatement;
   /** Where the map draws fewer paths than are selected (at a small zoom, by the path budget): both numbers. */
   drawn?: { selected: number; drawn: number };
+  /** What the view at rest shows of the map (`partInView`): while part of it is out of view, the panel says how much is in it. */
+  inView?: PartInView;
   /** Pointing at or focusing the kept paths' part of the statement marks them on the map: `true`, and `false` when it ends. */
   onHighlightKept?: (on: boolean) => void;
   /** Says a statement politely; without it the panel has a live region of its own. */
@@ -56,7 +58,7 @@ function stepTo(key: string, stops: number[], at: number): number | undefined {
  * protected deviation and the paths withheld at the zoom where there are any;
  * the stage toggle (semantic zoom) and the table toggle.
  */
-export function AbstractionControls({ value, onChange, locale = "en", hasStages = false, view, onViewChange, counts, positions, statement, drawn, onHighlightKept, onAnnounce }: AbstractionControlsProps) {
+export function AbstractionControls({ value, onChange, locale = "en", hasStages = false, view, onViewChange, counts, positions, statement, drawn, inView, onHighlightKept, onAnnounce }: AbstractionControlsProps) {
   const id = useId();
   const collapsed = value.collapse === "all" || (Array.isArray(value.collapse) && value.collapse.length > 0);
   // Each slider's stops and where it stands: positions by rank, otherwise the shares in per cent.
@@ -192,6 +194,11 @@ export function AbstractionControls({ value, onChange, locale = "en", hasStages 
       {drawn ? (
         <p className="wf-controls__note wf-controls__note--drawn">
           {t(locale, "detail.drawn", { selected: formatCount(drawn.selected, locale), drawn: formatCount(drawn.drawn, locale) })}
+        </p>
+      ) : null}
+      {inView && !inView.whole ? (
+        <p className="wf-controls__note wf-controls__note--in-view" data-testid="wf-in-view">
+          {inViewText(inView, locale)}
         </p>
       ) : null}
       {statement?.marks ? (

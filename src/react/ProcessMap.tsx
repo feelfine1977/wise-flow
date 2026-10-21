@@ -13,7 +13,7 @@ import {
   type OnNodesChange,
 } from "@xyflow/react";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { type AbstractOptions, type Box, type ElementRef, type FlowGraph, type Insets, type Positions, type Readable, type XY, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, detailNotes, detailStatement, dimensionTokens, fitViewport, formatCount, lodAt, measureStyle, readableAt, spaceTokens, strokeTokens, t, themeColors, viewTokens } from "../core/index.js";
+import { type AbstractOptions, type Box, type ElementRef, type FlowGraph, type Insets, type PartInView, type Positions, type Readable, type XY, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, detailNotes, detailStatement, dimensionTokens, elementPoint, fitViewport, formatCount, lodAt, measureStyle, partInView, readableAt, readableZoom, spaceTokens, strokeTokens, t, themeColors, viewTokens } from "../core/index.js";
 import { isPath } from "../core/detail.js";
 import { type MapContext, mapEmphasis, menuHeading } from "../core/map-controller.js";
 import { markedThemeKey, themeStyle } from "../core/theme.js";
@@ -40,7 +40,7 @@ import { PathList } from "./PathList.js";
 import { MapOverview, ZoomControl, clearOfPanels, openingIn } from "./primitives.js";
 import { TableAlternative } from "./TableAlternative.js";
 import { type Written, useTheme } from "./theme.js";
-import { type ProcessMapProps, type Selection, type WfEdge, type WfGroupNode, type WfNode } from "./types.js";
+import { type BringIntoView, type ProcessMapProps, type Selection, type WfEdge, type WfGroupNode, type WfNode } from "./types.js";
 
 const DEFAULT_CANVAS_THRESHOLD = 2000;
 const DEFAULT_DESCRIBED_LIMIT = 500;
@@ -103,6 +103,11 @@ function ProcessMapInner(props: ProcessMapProps) {
     containerStyle,
     fitView = true,
     fitInsets,
+    minZoom: givenMinZoom,
+    maxZoom = FLOW_ZOOM.maxZoom,
+    openKey,
+    bringIntoView,
+    onInView,
     opening = "readable",
     minPathPx = viewTokens.pathPx,
     lanes = "none",
@@ -243,6 +248,14 @@ function ProcessMapInner(props: ProcessMapProps) {
     return () => clearTimeout(timer);
   }, [rfZoom, rfX, rfY, restZoom, movingView]);
   const pathRule = useMemo(() => ({ minPx: minPathPx, zoom: restZoom }), [minPathPx, restZoom]);
+  // The view at rest, for what is in it: 200 ms after its last change, once a gesture ended.
+  const liveView = useCanvas ? canvasViewport : { x: rfX, y: rfY, zoom: rfZoom };
+  const [restView, setRestView] = useState<View>(liveView);
+  useEffect(() => {
+    if (movingView) return;
+    const timer = setTimeout(() => setRestView((was) => (was.x === liveView.x && was.y === liveView.y && was.zoom === liveView.zoom ? was : liveView)), REST_MS);
+    return () => clearTimeout(timer);
+  }, [liveView.x, liveView.y, liveView.zoom, movingView]); // eslint-disable-line react-hooks/exhaustive-deps
   const lod = lodAt(zoom, scene.lod);
   // What the texts show at the zoom, within the hysteresis of what they showed: the map writes it on its root as classes.
   const readableBefore = useRef<Readable | undefined>(undefined);
@@ -254,6 +267,25 @@ function ProcessMapInner(props: ProcessMapProps) {
   const bodyRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<CanvasMapHandle>(null);
+  // The smallest zoom: the number given, or the zoom from which every card still shows the level asked for (`readableZoom`); the map's own where none applies.
+  const floor = useMemo(() => {
+    const asked = typeof givenMinZoom === "number" ? givenMinZoom : givenMinZoom ? readableZoom(scene.readable, scene.theme.text.minScreenPx, givenMinZoom.readable) : FLOW_ZOOM.minZoom;
+    return asked > 0 && Number.isFinite(asked) ? Math.min(asked, maxZoom) : FLOW_ZOOM.minZoom;
+  }, [givenMinZoom, maxZoom, scene]);
+  const zoomRange = useMemo(() => ({ minZoom: floor, maxZoom }), [floor, maxZoom]);
+  // What the view at rest shows of the map: for the panel, the overview and the host, who is told when it changes.
+  const [shownPart, setShownPart] = useState<PartInView>();
+  const tellInView = useRef(onInView);
+  tellInView.current = onInView;
+  useEffect(() => {
+    const area = useCanvas ? canvasRef.current?.renderer()?.size : flowStore.getState();
+    if (!positions || !area || !(area.width > 0) || !(area.height > 0)) return;
+    const part = partInView(scene, restView, area);
+    setShownPart((was) => (was && was.nodes === part.nodes && was.ofNodes === part.ofNodes && was.edges === part.edges && was.ofEdges === part.ofEdges ? was : part));
+  }, [positions, scene, restView, useCanvas, flowStore]);
+  useEffect(() => {
+    if (shownPart) tellInView.current?.({ ...shownPart, zoom: restView.zoom, minZoom: floor });
+  }, [shownPart, floor]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Actions menu
   const allStages = useMemo(() => (graph.groups ?? []).filter((g) => g.kind === "stage" && !g.parent).map((g) => g.id), [graph]);
@@ -335,9 +367,10 @@ function ProcessMapInner(props: ProcessMapProps) {
   const moved = useRef(false);
   const drawn = useRef(positions);
   useLayoutEffect(() => void (drawn.current = positions), [positions]);
-  // Each new graph is a generation: the map opens again for it, whatever the person did to the view before.
-  const generation = useRef({ graph, n: 0 });
-  if (generation.current.graph !== graph) generation.current = { graph, n: generation.current.n + 1 };
+  // Each new graph, or each new `openKey` where one is given, is a generation: the map opens again for it, whatever the person did to the view before.
+  const openId: unknown = openKey ?? graph;
+  const generation = useRef({ key: openId, n: 0 });
+  if (generation.current.key !== openId) generation.current = { key: openId, n: generation.current.n + 1 };
   const gen = generation.current.n;
   const [fit, setFit] = useState<{ key: string; laid: string; count: number; gen: number; anchor?: Anchor; hold?: boolean }>({ key: laidKey, laid: laidKey, count: 0, gen });
   // Once the person pressed the React Flow map's fit button, the map is fitted rather than opened, until its graph is replaced.
@@ -369,7 +402,8 @@ function ProcessMapInner(props: ProcessMapProps) {
   // The overview of the React Flow map while it opened on its start: where it is; its bounds follow the current scene.
   const [flowOverview, setFlowOverview] = useState<Box>();
   // The React Flow map fitted inside its area less the insets that keep it clear of the panels over it; opened, fitted
-  // where that is readable and otherwise on its start with the overview (`opening`).
+  // where that is readable and otherwise on its start with the overview (`opening`); fitted, the same from the
+  // smallest zoom where the whole map does not fit at it.
   const fitFlow = useCallback((insets?: Partial<Insets>, open = false) => {
     const main = mainRef.current;
     const bounds = rf.getNodesBounds(rf.getNodes());
@@ -377,12 +411,17 @@ function ProcessMapInner(props: ProcessMapProps) {
     const { width, height } = flowStore.getState();
     const duration = reducedMotion ? 0 : 200;
     moved.current = false;
-    const opened = open && opening !== "fit" && !fittedByPerson.current && drawn.current ? openingIn(main, bounds, shown.nodes, drawn.current, { padding: FLOW_FIT_PADDING, ...FLOW_ZOOM, insets: fitInsets }) : undefined;
-    if (open) setFlowOverview(opened?.overview);
-    if (opened && !opened.fitted) return void rf.setViewport(opened, { duration });
-    const clear = insets ?? fitInsets ?? clearOfPanels(main, bounds, FLOW_FIT_PADDING, FLOW_ZOOM, main, !open);
-    void rf.setViewport(fitViewport(bounds, { width, height }, { padding: FLOW_FIT_PADDING, insets: clear, ...FLOW_ZOOM }), { duration });
-  }, [rf, flowStore, reducedMotion, fitInsets, opening, shown]);
+    const opens = open && opening !== "fit" && !fittedByPerson.current;
+    const readable = opens ? Math.max(viewTokens.openingZoom, floor) : floor;
+    const opened = drawn.current ? openingIn(main, bounds, shown.nodes, drawn.current, { padding: FLOW_FIT_PADDING, ...zoomRange, insets: insets ?? fitInsets, readable }) : undefined;
+    if (opened && !opened.fitted) {
+      setFlowOverview(opened.overview);
+      return void rf.setViewport(opened, { duration });
+    }
+    if (open) setFlowOverview(undefined);
+    const clear = insets ?? fitInsets ?? clearOfPanels(main, bounds, FLOW_FIT_PADDING, zoomRange, main, !open);
+    void rf.setViewport(fitViewport(bounds, { width, height }, { padding: FLOW_FIT_PADDING, insets: clear, ...zoomRange }), { duration });
+  }, [rf, flowStore, reducedMotion, fitInsets, opening, shown, floor, zoomRange]);
   useLayoutEffect(() => {
     const box = anchor && positions?.nodes[anchor.id];
     if (!anchor || !box || (!arrival.moving && arrival.positions !== anchor.to)) return;
@@ -396,11 +435,35 @@ function ProcessMapInner(props: ProcessMapProps) {
     flowStore.setState({ fitViewQueued: false });
     void rf.setViewport(next);
   }, [anchor, arrival.positions]); // eslint-disable-line react-hooks/exhaustive-deps
+  // An element the host asks to bring into view waits until the layout holds it and no opening fit is still to come.
+  const fitting = useRef(false);
+  const pending = useRef<BringIntoView | undefined>(undefined);
+  const revealPending = useCallback(() => {
+    const ask = pending.current;
+    if (!ask || fitting.current || !positions || !elementPoint(ask.element, positions, shown.edges)) return;
+    pending.current = undefined;
+    dispatch({ type: "reveal", element: ask.element });
+  }, [positions, shown, dispatch]);
   useEffect(() => {
     if (!fitView || !positions || useCanvas || anchor) return;
-    const handles = [50, 400].map((ms) => window.setTimeout(() => { if (!moved.current) fitFlow(undefined, true); }, ms));
-    return () => handles.forEach((h) => window.clearTimeout(h));
+    fitting.current = true;
+    const handles = [50, 400].map((ms, i) => window.setTimeout(() => {
+      if (!moved.current) fitFlow(undefined, true);
+      if (i === 1) {
+        fitting.current = false;
+        revealPending();
+      }
+    }, ms));
+    return () => {
+      handles.forEach((h) => window.clearTimeout(h));
+      fitting.current = false;
+    };
   }, [fitKey, fitView, nodesInitialized, useCanvas]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    pending.current = bringIntoView;
+    revealPending();
+  }, [bringIntoView]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => revealPending(), [revealPending]);
 
   // Pointer interaction (React Flow); positions relative to the map body.
   const flowHandlers = useMemo(() => flowPointer(dispatch, (event) => {
@@ -409,20 +472,19 @@ function ProcessMapInner(props: ProcessMapProps) {
   }), [dispatch]);
   const overlayHandlers = useMemo(() => overlayPointer(dispatch), [dispatch]);
 
-  // Bring a node the keyboard moved to into view.
+  // Bring an element into view, the keyboard's or a host's: the view moves so that it is at the centre, at its zoom but at least the smallest.
   const reveal = useCallback(
-    (id: string) => {
-      const box = positions?.nodes[id];
-      if (!box) return;
+    (element: ElementRef) => {
+      const point = positions && elementPoint(element, positions, shown.edges);
+      if (!point) return;
       if (useCanvas) {
-        canvasRef.current?.centerOn(id);
+        canvasRef.current?.centerOn(element.id, Math.max(canvasRef.current.renderer()?.getViewport().zoom ?? floor, floor));
         return;
       }
-      const current = rf.getViewport().zoom;
       moved.current = true;
-      rf.setCenter(box.x + box.width / 2, box.y + box.height / 2, { zoom: current, duration: reducedMotion ? 0 : 150 });
+      void rf.setCenter(point.x, point.y, { zoom: Math.max(rf.getViewport().zoom, floor), duration: reducedMotion ? 0 : 150 });
     },
-    [positions, rf, reducedMotion, useCanvas],
+    [positions, shown, rf, reducedMotion, useCanvas, floor],
   );
   controller.screen.current = { reveal, place: elementScreenPoint, focus: () => containerRef.current?.focus() } satisfies MapScreen;
   // Keys on the map and in its menu; Escape that closes the menu goes no further. The table view's keys are
@@ -510,6 +572,7 @@ function ProcessMapInner(props: ProcessMapProps) {
       positions={shown.meta?.shown?.positions}
       statement={statement}
       drawn={drawnPaths}
+      inView={shownPart}
       onHighlightKept={setKeptOn}
       onAnnounce={announce}
     />
@@ -573,6 +636,9 @@ function ProcessMapInner(props: ProcessMapProps) {
                   fitKey={fitKey}
                   fitView={fitView}
                   fitInsets={fitInsets}
+                  minZoom={givenMinZoom === undefined ? undefined : floor}
+                  maxZoom={maxZoom}
+                  inView={shownPart}
                   opening={opening}
                   openKey={gen}
                   minPathPx={minPathPx}
@@ -616,8 +682,8 @@ function ProcessMapInner(props: ProcessMapProps) {
                   }
                 }}
                 onMoveEnd={(event) => { if (event) setMovingView(false); }}
-                minZoom={FLOW_ZOOM.minZoom}
-                maxZoom={FLOW_ZOOM.maxZoom}
+                minZoom={floor}
+                maxZoom={maxZoom}
                 panOnScroll
                 zoomOnScroll={false}
                 zoomOnPinch
@@ -679,6 +745,7 @@ function ProcessMapInner(props: ProcessMapProps) {
                   area={flowStore.getState()}
                   at={flowOverview}
                   locale={locale}
+                  inView={shownPart}
                   onMove={(p) => {
                     userMove();
                     void rf.setCenter(p.x, p.y, { zoom: rf.getViewport().zoom });

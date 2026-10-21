@@ -12,7 +12,7 @@ import type { EdgeBudget, ShownEdges } from "./edge-budget.js";
 import type { ElementText, NodeMark } from "./element-marks.js";
 import type { Box, XY } from "./layout.js";
 import type { MarkText, OverlayMark } from "./overlay-marks.js";
-import { type TextMeasure, estimateTextWidth, wrapLines } from "./text.js";
+import { type TextMeasure, estimateTextWidth, restOf, truncateText, wrapLines } from "./text.js";
 import type { Theme } from "./theme.js";
 import { dimensionTokens, readableTokens } from "./tokens.js";
 
@@ -108,6 +108,20 @@ export function readableAt(rules: ReadableRules, zoom: number, minScreenPx: numb
 /** The boost that takes a text of `size` to the floor: at least 1. */
 export function textBoost(floor: number, size: number): number {
   return size > 0 && floor > size ? floor / size : 1;
+}
+
+/**
+ * The smallest zoom at which every card still shows at least `level` of its
+ * texts (`readableAt`): `minScreenPx` over the largest rung of the ladder
+ * the level fits at. 0 without a floor or without a card, so that no zoom
+ * is too small; Infinity where the level fits no rung, not even the first.
+ */
+export function readableZoom(rules: ReadableRules, minScreenPx: number, level: Exclude<ReadableLevel, "box"> = "line"): number {
+  const limit = rules.levels[level].floor;
+  if (!(minScreenPx > 0) || !Number.isFinite(limit)) return 0;
+  const { steps, first, last } = readableTokens;
+  const rung = Math.min(last, Math.floor(steps * Math.log2(limit) + 1e-9));
+  return rung < first ? Infinity : minScreenPx / 2 ** (rung / steps);
 }
 
 /** A text scaled by `boost` about `origin`: its size and its distance from the origin. */
@@ -231,12 +245,81 @@ function largest(card: Card, level: Exclude<ReadableLevel, "box">, theme: Theme,
   return most * (1 - 1e-9);
 }
 
-/** A card's texts at a level, fitted for `boost` and laid out at a boost of 1 as its mark lays out its own. */
-function levelTexts(card: Card, level: Exclude<ReadableLevel, "box">, boost: number, theme: Theme, measure: TextMeasure): ElementText[] {
+/** A name, the room of its lines and the font they are written in. */
+export interface NameRoom {
+  name: string;
+  room: number;
+  font: { size: number; weight?: number };
+}
+
+/** The characters every text starts with alike. */
+function sharedStart(texts: readonly string[]): number {
+  const chars = texts.map((text) => Array.from(text));
+  let n = 0;
+  while (chars.every((c) => n < c.length && c[n] === chars[0][n])) n++;
+  return n;
+}
+
+/** The lines of each item by their text, in groups: the items whose lines coincide. */
+function alike(items: readonly number[], lines: readonly string[][]): number[][] {
+  const groups = new Map<string, number[]>();
+  for (const i of items) {
+    const key = lines[i].join("\n");
+    groups.set(key, [...(groups.get(key) ?? []), i]);
+  }
+  return [...groups.values()].filter((group) => group.length > 1);
+}
+
+/**
+ * The last line of a name whose shortened lines coincide with others': its
+ * start, an ellipsis and the part from the first character that tells it
+ * from the others (`from`), as much of each as the room holds, the telling
+ * part before the start. `rest` is the name after the lines kept before the
+ * last.
+ */
+function tellingLine(rest: string, from: number, room: number, font: { size: number; weight?: number }, measure: TextMeasure): string {
+  const chars = Array.from(rest);
+  const limit = Math.max(font.size, room);
+  const shown = truncateText(chars.slice(from).join(""), Math.max(font.size, limit - measure("…", font)), font, measure);
+  let lo = 0;
+  let hi = from;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (measure(`${chars.slice(0, mid).join("")}…${shown}`, font) <= limit + 1e-6) lo = mid;
+    else hi = mid - 1;
+  }
+  return `${chars.slice(0, lo).join("")}…${shown}`;
+}
+
+/**
+ * The lines of each name wrapped in its room (`wrapLines`, or `given`), and
+ * where the lines of names that differ coincide, their last line told apart
+ * (`tellingLine`): names shortened to the same text are shortened again
+ * from the first character that differs among them, and again among those
+ * that still coincide, until each differs or nothing of the name is left to
+ * tell it by. Names that are the same stay the same.
+ */
+export function distinctLines(items: readonly NameRoom[], max: number, measure: TextMeasure, given?: readonly (readonly string[])[]): string[][] {
+  const lines = given ? given.map((l) => [...l]) : items.map((i) => wrapLines(i.name, i.room, i.font, max, measure));
+  const tellApart = (group: readonly number[], after: number) => {
+    const rests = group.map((i) => restOf(items[i].name, lines[i].slice(0, -1)));
+    const from = sharedStart(rests);
+    if (from <= after || rests.every((rest) => Array.from(rest).length <= from)) return;
+    group.forEach((i, k) => {
+      lines[i][lines[i].length - 1] = tellingLine(rests[k], from, items[i].room, items[i].font, measure);
+    });
+    for (const still of alike(group, lines)) tellApart(still, from);
+  };
+  for (const group of alike(items.map((_, i) => i), lines)) tellApart(group, 0);
+  return lines;
+}
+
+/** A card's texts at a level: its name's lines (`distinctLines`, fitted for the level's boost) and, at the full level, its numbers, laid out at a boost of 1 as its mark lays out its own. */
+function levelTexts(card: Card, level: Exclude<ReadableLevel, "box">, lines: readonly string[], theme: Theme): ElementText[] {
   const [style] = card.names;
   const { lineHeight: nameHeight } = theme.text.activityName;
   const numbers = level === "full" ? card.numbers : [];
-  const names = style ? wrapLines(card.name, card.room, { size: style.size * boost, weight: style.weight }, level === "line" ? 1 : 2, measure) : [];
+  const names = style ? lines : [];
   const numberHeight = numbers.length ? theme.text.activityNumber.lineHeight : 0;
   const top = card.middle - (names.length * nameHeight + numberHeight) / 2;
   const out = names.map((text, i) => ({ ...style, text, y: baseline(top + i * nameHeight, nameHeight, style.size) }));
@@ -277,15 +360,24 @@ export function readableRules(marks: readonly NodeMark[], overlays: readonly Ove
     levels[l] = { size, floor: cards.length ? size * (l === "full" ? Math.max(1, most) : most) : Infinity };
     boosts[l] = Number.isFinite(most) ? Math.max(1, most) : 1;
   }
-  for (const c of cards) {
-    const full = levelTexts(c, "full", boosts.full, theme, measure);
+  // The cards' own lines, and each level's wrapped at its boost, told apart where names that differ were shortened alike.
+  const rooms = (boost: number): NameRoom[] => cards.map((c) => ({ name: c.names.length ? c.name : "", room: c.room, font: { size: (c.names[0]?.size ?? 0) * boost, weight: c.names[0]?.weight } }));
+  const own = distinctLines(rooms(1), 2, measure, cards.map((c) => c.names.map((n) => n.text)));
+  const lines = { full: distinctLines(rooms(boosts.full), 2, measure), name: distinctLines(rooms(boosts.name), 2, measure), line: distinctLines(rooms(boosts.line), 1, measure) };
+  cards.forEach((c, i) => {
+    if (own[i].some((text, k) => text !== c.names[k].text)) {
+      let k = 0;
+      c.mark.texts = c.mark.texts.map((tx) => (tx.role === "nameLine" ? { ...tx, text: own[i][k++] } : tx));
+      c.names = c.mark.texts.filter((tx) => tx.role === "nameLine");
+    }
+    const full = levelTexts(c, "full", lines.full[i], theme);
     c.mark.levels = {
       origin: { x: (c.names[0] ?? c.numbers[0]).x, y: c.middle },
       full: sameTexts(full, c.mark.texts) ? c.mark.texts : full,
-      name: levelTexts(c, "name", boosts.name, theme, measure),
-      line: levelTexts(c, "line", boosts.line, theme, measure),
+      name: levelTexts(c, "name", lines.name[i], theme),
+      line: levelTexts(c, "line", lines.line[i], theme),
     };
-  }
+  });
   const rules = {
     levels,
     labels: { path: t.pathLabel.size, loop: t.selfLoopLabel.size, event: t.eventLabel.size, glyph: t.gatewayGlyph.size, note: t.noteLabel.size },

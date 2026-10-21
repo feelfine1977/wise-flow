@@ -42,7 +42,7 @@ const at = { x: 10, y: 20 };
 describe("map controller: keyboard routes", () => {
   it("starts at the first activity, left to right, and moves with the arrow keys to the nearest activity that way", () => {
     const first = step(state(), key("ArrowRight"));
-    expect(first).toMatchObject({ handled: true, intents: [{ kind: "reveal", id: "a" }] });
+    expect(first).toMatchObject({ handled: true, intents: [{ kind: "reveal", element: { kind: "node", id: "a" } }] });
     expect(first.state.active).toBe("a");
     expect(first.announcement).toBeUndefined();
     const moves: [string, string, string][] = [
@@ -55,7 +55,7 @@ describe("map controller: keyboard routes", () => {
     for (const [from, k, to] of moves) {
       const r = step(state({ active: from }), key(k));
       expect(r.state.active, `${from} ${k}`).toBe(to);
-      expect(r.intents).toEqual([{ kind: "reveal", id: to }]);
+      expect(r.intents).toEqual([{ kind: "reveal", element: { kind: "node", id: to } }]);
       expect(r.state.selection).toEqual(sel());
     }
   });
@@ -77,8 +77,8 @@ describe("map controller: keyboard routes", () => {
   });
 
   it("goes to the first and the last activity with Home and End", () => {
-    expect(step(state({ active: "c" }), key("Home"))).toMatchObject({ state: { active: "a" }, intents: [{ kind: "reveal", id: "a" }] });
-    expect(step(state({ active: "a" }), key("End"))).toMatchObject({ state: { active: "d" }, intents: [{ kind: "reveal", id: "d" }] });
+    expect(step(state({ active: "c" }), key("Home"))).toMatchObject({ state: { active: "a" }, intents: [{ kind: "reveal", element: { kind: "node", id: "a" } }] });
+    expect(step(state({ active: "a" }), key("End"))).toMatchObject({ state: { active: "d" }, intents: [{ kind: "reveal", element: { kind: "node", id: "d" } }] });
   });
 
   it("walks the outgoing paths in turn with Alt and an arrow key, skipping self-loops and constraints, and announces each", () => {
@@ -102,8 +102,8 @@ describe("map controller: keyboard routes", () => {
   });
 
   it("goes from a path to its end or its start with Alt and an arrow key", () => {
-    expect(step(state({ active: "ac" }), key("ArrowRight", { altKey: true }))).toMatchObject({ state: { active: "c" }, intents: [{ kind: "reveal", id: "c" }] });
-    expect(step(state({ active: "ac" }), key("ArrowLeft", { altKey: true }))).toMatchObject({ state: { active: "a" }, intents: [{ kind: "reveal", id: "a" }] });
+    expect(step(state({ active: "ac" }), key("ArrowRight", { altKey: true }))).toMatchObject({ state: { active: "c" }, intents: [{ kind: "reveal", element: { kind: "node", id: "c" } }] });
+    expect(step(state({ active: "ac" }), key("ArrowLeft", { altKey: true }))).toMatchObject({ state: { active: "a" }, intents: [{ kind: "reveal", element: { kind: "node", id: "a" } }] });
   });
 
   it("starts Alt routes at the first activity and keeps the key where no path leads", () => {
@@ -116,7 +116,7 @@ describe("map controller: keyboard routes", () => {
   it("extends the selection with Shift and an arrow key", () => {
     const r = step(state({ active: "a", selection: sel(["a"]) }), key("ArrowRight", { shiftKey: true }));
     expect(r.state).toMatchObject({ active: "b", selection: sel(["a", "b"]) });
-    expect(r.intents).toEqual([{ kind: "select", selection: sel(["a", "b"]) }, { kind: "reveal", id: "b" }]);
+    expect(r.intents).toEqual([{ kind: "select", selection: sel(["a", "b"]) }, { kind: "reveal", element: { kind: "node", id: "b" } }]);
     expect(r.announcement).toBe("Selected: A and B.");
     // An activity that is selected already stays selected.
     const again = step(state({ active: "a", selection: sel(["a", "b"]) }), key("ArrowRight", { shiftKey: true }));
@@ -441,5 +441,18 @@ describe("map controller: what the map emphasises", () => {
     }
     expect(mapEmphasis(state({ selection: sel(["b"]), focus: "gone" }), graph).focus).toBe("gone");
     expect(mapEmphasis(state(), graph)).toEqual({ focus: undefined, focusShown: false, bright: undefined });
+  });
+});
+
+describe("map controller: bringing an element into view", () => {
+  it("asks the screen for a node, an edge or a group, and moves the keyboard position to a node or an edge", () => {
+    const node = step(state(), { type: "reveal", element: { kind: "node", id: "c" } });
+    expect(node).toMatchObject({ handled: true, state: { active: "c" }, intents: [{ kind: "reveal", element: { kind: "node", id: "c" } }] });
+    expect(node.announcement).toBeUndefined();
+    expect(step(state({ active: "a" }), { type: "reveal", element: { kind: "edge", id: "cd" } }).state.active).toBe("cd");
+    const group = step(state({ active: "a" }), { type: "reveal", element: { kind: "group", id: "s1" } });
+    expect(group.state.active).toBe("a");
+    expect(group.intents).toEqual([{ kind: "reveal", element: { kind: "group", id: "s1" } }]);
+    expect(group.state.selection).toEqual(sel());
   });
 });

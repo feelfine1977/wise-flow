@@ -67,7 +67,9 @@ export type MapEvent =
   | { type: "setAbstraction"; abstraction: AbstractOptions }
   /** Collapse or expand a stage. */
   | { type: "collapse"; group: string; collapsed: boolean }
-  | { type: "setView"; view: MapView };
+  | { type: "setView"; view: MapView }
+  /** Bring an element into view, at a host's request: a node or an edge takes the keyboard position too. */
+  | { type: "reveal"; element: ElementRef };
 
 type MapIntent =
   | { kind: "select"; selection: Selection }
@@ -75,8 +77,8 @@ type MapIntent =
   | { kind: "hover"; id: string | null }
   | { kind: "abstraction"; abstraction: AbstractOptions }
   | { kind: "view"; view: MapView }
-  /** Bring the node into view. */
-  | { kind: "reveal"; id: string }
+  /** Bring the element into view. */
+  | { kind: "reveal"; element: ElementRef }
   /** Open the actions menu on the element; the host finds it on screen and answers with `openMenu`. */
   | { kind: "menu"; element: ElementRef }
   /** Run the chosen action of the open menu; the host answers with `actionDone`. */
@@ -252,6 +254,8 @@ export function mapStep(state: MapState, event: MapEvent, context: MapContext): 
     }
     case "setView":
       return step({ view: event.view }, [{ kind: "view", view: event.view }]);
+    case "reveal":
+      return step(event.element.kind === "group" ? {} : { active: event.element.id }, [{ kind: "reveal", element: event.element }]);
   }
 }
 
@@ -382,7 +386,7 @@ function keyStep(
   const edge = state.active !== null ? graph.edges.find((e) => e.id === state.active) : undefined;
   const onMap = (id: string | null | undefined) => (id != null && positions.nodes[id] && graph.nodes.some((n) => n.id === id) ? id : null);
   const current = edge ? null : (onMap(state.active) ?? onMap(state.selection.nodes[0]));
-  const reveal = (id: string) => step({ active: id }, [{ kind: "reveal", id }]);
+  const reveal = (id: string) => step({ active: id }, [{ kind: "reveal", element: { kind: "node", id } }]);
   const dir = DIRECTIONS[event.key];
   if (dir && event.altKey) {
     const forward = dir[0] > 0 || dir[1] > 0;
@@ -418,7 +422,7 @@ function keyStep(
       }
     }
     if (!best) return step({});
-    if (event.shiftKey) return select(selectElement(state.selection, { kind: "node", id: best }, "add"), { active: best }, [{ kind: "reveal", id: best }]);
+    if (event.shiftKey) return select(selectElement(state.selection, { kind: "node", id: best }, "add"), { active: best }, [{ kind: "reveal", element: { kind: "node", id: best } }]);
     return reveal(best);
   }
   const ref: ElementRef | undefined = edge ? { kind: "edge", id: edge.id } : current ? { kind: "node", id: current } : undefined;

@@ -29,7 +29,7 @@ Framework-free TypeScript; runs in Node and in the browser. No DOM, no React.
 | `provisional.ts` | Internal: `provisionalLayout` and `reusePositions`, what a map shows until its layout arrives |
 | `views.ts` | `buildViews`, `resolveViews`: named views of one map with shared scale domains |
 | `selection.ts` | `Selection` transitions (`selectElement`, `selectMany`), `selectionShape`, `relatedToSelection`, `describeSelection` |
-| `map-controller.ts` | Internal: the map controller. `mapStep` applies a click, key, hover, focus or menu event to the interaction state (selection, focus of paths, abstraction, view, keyboard position, hover, actions menu) and returns the next state, the live region's sentence and the intents for the host; `announceChange`; the actions menu's keyboard (`menuKey`, `firstEntry`) and header (`menuHeading`); `clickSelection`; `mapEmphasis` (focus in effect, what stays bright) |
+| `map-controller.ts` | Internal: the map controller. `mapStep` applies a click, key, hover, focus, menu or reveal event to the interaction state (selection, focus of paths, abstraction, view, keyboard position, hover, actions menu) and returns the next state, the live region's sentence and the intents for the host; `announceChange`; the actions menu's keyboard (`menuKey`, `firstEntry`) and header (`menuHeading`); `clickSelection`; `mapEmphasis` (focus in effect, what stays bright) |
 | `describe.ts` | Internal: `describeEdge`, the sentence for a path that the map announces and labels with; `describeIndexedEdge` reads the end labels from a `GraphIndex` built once per graph |
 | `actions.ts` | `menuTargetFor`, `defaultActions` (filter, explore, compare, author; accelerators; filter clauses), `menuTitle` |
 | `paths.ts` | `pathsFor` (from the response's `paths` block or the map), `neighbourhood`, `pathBetween`, `pathRows`, `focusHighlight` |
@@ -39,8 +39,8 @@ Framework-free TypeScript; runs in Node and in the browser. No DOM, no React.
 | `courses.ts` | `pathCourses`: a path against the reading direction as its own line below the flow it returns over, two opposite paths side by side, and where their labels go |
 | `hit.ts` | `HitIndex` (rbush) over nodes, groups, edge segments and overlay shapes |
 | `figure.ts` | `legendOfScene`, `sceneLegend`, `legendLayout`, `figureFrame`, `figureCaption`: the legend's typed rows (`LegendRow`: the measure, the scales by metric and unit, a key per kind of mark drawn, the chips) from what a scene draws, their heights and texts at the export's width, and the figure frame of the exports (header, map, legend column, caption line, activity key, output size for a preset) |
-| `viewport.ts` | `fitViewport`, `panelInsets`: the fitted view of a map inside its area less insets, and the insets that keep it clear of the panels over it |
-| `text.ts` | `TextMeasure`, `estimateTextWidth`, `truncateText`, `wrapText`, `fitText`, `fitLead`: the one measure of text widths a scene is built with, and the rules that shorten and wrap text by it |
+| `viewport.ts` | `fitViewport`, `panelInsets`, `openingView`, `processStart`: the fitted view of a map inside its area less insets, the insets that keep it clear of the panels over it, and the view a map opens at; `partInView`, `inViewText`: how much of a map a view shows; `elementPoint`: where a view centres to bring an element into it |
+| `text.ts` | `TextMeasure`, `estimateTextWidth`, `truncateText`, `wrapText`, `restOf`, `fitText`, `fitLead`: the one measure of text widths a scene is built with, and the rules that shorten and wrap text by it |
 | `export.ts` | `toSVG`: draws a `buildScene` scene, its marks and its legend in the figure frame |
 | `format.ts` | deterministic number and duration formatting (`formatPathCount` for paths), `Locale` |
 | `metrics.ts` | the metric registry: each metric's name, unit and format in English and German, `MetricBasis` (lower bounds and means of merged values) and how they read |

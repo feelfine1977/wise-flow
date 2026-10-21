@@ -106,12 +106,15 @@ export function wrapText(text: string, width: number, font: { size: number; weig
 export function wrapLines(text: string, width: number, font: { size: number; weight?: number }, max: number, measure: TextMeasure = estimateTextWidth): string[] {
   const lines = wrapText(text, width, font, measure);
   if (lines.length <= max) return lines;
-  // The lines before the last are a start of the text with its spaces made single.
-  const words = text.trim().split(/\s+/u).join(" ");
   const kept = lines.slice(0, max - 1);
-  const rest = words.slice(kept.reduce((at, line) => words.indexOf(line, at) + line.length, 0)).trimStart();
   // An ellipsis follows the last character it shortens to, not a space.
-  return [...kept, truncateText(rest, Math.max(font.size, width), font, measure).replace(/\s+…$/u, "…")];
+  return [...kept, truncateText(restOf(text, kept), Math.max(font.size, width), font, measure).replace(/\s+…$/u, "…")];
+}
+
+/** The rest of `text`, its spaces made single, after the `kept` lines that start it (the lines before the last of `wrapLines`). */
+export function restOf(text: string, kept: readonly string[]): string {
+  const words = text.trim().split(/\s+/u).join(" ");
+  return words.slice(kept.reduce((at, line) => words.indexOf(line, at) + line.length, 0)).trimStart();
 }
 
 /** The text a mark text draws: shortened to its `maxWidth` when it has one. */

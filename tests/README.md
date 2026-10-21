@@ -40,6 +40,13 @@ checks against the core's decision), counts what a zoom change writes (the
 root's classes, once, and nothing of a card), finds a card without text named
 by its title and its accessible name and, on the Canvas map, by its tooltip,
 and has the DOM map and the Canvas map choose the same level at three zooms.
+`core/readable.test.ts` also holds `readableZoom` (the smallest zoom of each
+level against the ladder, drawn at it and not a hair below, 0 without a
+floor or a card, Infinity for a level that fits no rung) and names
+shortened alike (`distinctLines`: told apart by their start, an ellipsis and
+the part from the first character that differs, again among those that
+still coincide, the lines before the last kept, the cards' own lines and
+every level's in a built scene, the whole name as the title).
 `browser/readable.spec.ts` measures every text the DOM map of the P2P story
 draws in Chromium, at its fitted zoom and six steps out with its zoom
 control: its computed size times the scale of what is around it.
@@ -80,6 +87,20 @@ frame's viewport independently of its overview, tests pointer and keyboard
 navigation and accessibility, pans and zooms before control changes, and
 replaces the graph. Stories in `stories/Opening.stories.tsx` fix their
 settings and path rule; the small-zoom story fixes its zoom too.
+`react/ReadableFloor.test.tsx` holds both maps to a smallest zoom asked for
+as a readable level: the floor derived from the cards (`readableZoom`) and
+held by React Flow, the zoom-out button stopping at it, the fit button
+showing the whole map where it fits above the floor and otherwise the map
+from its start at the floor with the overview, an element brought into
+view at a host's request (a node, an edge by the middle of its route, with
+the keyboard position following, the same object asking once and a token
+asking again), the part in view told to the host when the view rests on
+another part and said by the panel and the overview, and `openKey` (a
+replaced graph under the same key keeps the view, a new key opens again).
+`core/viewport.test.ts` holds `partInView` against hand-placed cards and
+paths (events and constraints not counted, a line that only touches the
+view's edge out, insets, a view without a zoom) and `elementPoint`;
+`core/map-controller.test.ts` the `reveal` event.
 
 ## Paths at a small zoom
 
