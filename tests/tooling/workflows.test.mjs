@@ -24,7 +24,7 @@ const visualJob = (lines) => 'permissions: {contents: read}\nconcurrency: ci\njo
 test('a job container is accepted only when its image is pinned by digest', () => {
   assert.deepEqual(workflowViolations(header.replace('    steps:\n', `    container:\n      image: ${digest}\n    steps:\n`) + '      - run: npm test'), []);
   assert.deepEqual(workflowViolations(header.replace('    steps:\n', `    container: ${digest}\n    steps:\n`) + '      - run: npm test'), []);
-  for (const image of ['mcr.microsoft.com/playwright:v1.61.1-noble', 'mcr.microsoft.com/playwright', 'mcr.microsoft.com/playwright@sha256:abc']) {
+  for (const image of ['mcr.microsoft.com/playwright:v1.64.1-noble', 'mcr.microsoft.com/playwright', 'mcr.microsoft.com/playwright@sha256:abc']) {
     assert.match(workflowViolations(header.replace('    steps:\n', `    container:\n      image: ${image}\n    steps:\n`) + '      - run: npm test')[0], /pinned by digest/);
   }
 });

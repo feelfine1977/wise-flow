@@ -2,7 +2,7 @@
   "approved": "2026-10-12",
   "approvedBy": "repository owner, locally, after comparing the approved and the new images",
   "sourceCommit": "72c275f043eac34c909672c7829f307bdd67cf08",
-  "playwright": "1.61.1",
+  "playwright": "1.64.1",
   "darwin": {
     "os": "macOS 26.6.2, arm64",
     "command": "npm run test:visual:approve",
@@ -17,7 +17,7 @@
     ]
   },
   "linux": {
-    "image": "mcr.microsoft.com/playwright@sha256:cf0daee9b994042e011bc29f20cdff1a9f682a039b43fcd738f7d8a9d3bcd9d6",
+    "image": "mcr.microsoft.com/playwright@sha256:d65108d1a8095d8b0c4a5e32bf1807a40a5ce90ff0c78473e1116b1c243235e8",
     "platform": "linux/amd64, Ubuntu 24.04",
     "command": "npm ci && npm run test:visual:approve",
     "approved": "2026-10-24",

@@ -420,7 +420,7 @@ two directories on the same idle host and the same mode.
 ## Strict visual CI and deliberate approval
 
 Strict visual tests use `updateSnapshots: "none"`; missing or changed baselines
-fail without recording. CI pins Playwright 1.61.1 and runs the lane in the
+fail without recording. CI pins Playwright 1.64.1 and runs the lane in the
 Playwright image the provenance record names by digest, the image the Linux
 images are captured in. For an intended visual change, outside CI on the
 corresponding OS (for Linux, in that image):
