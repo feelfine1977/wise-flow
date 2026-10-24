@@ -84,7 +84,7 @@ describe("what the elements of a scene share", () => {
     expect(retained("a1").meta).toBe("7");
     expect(retained("a1").mark.texts.map((t) => t.text)).toEqual(["A1", "7", "· –"]);
     expect(retained("s2").meta).toBe("9");
-    expect(retained("s2").mark.texts.map((t) => t.role)).toEqual(["label"]);
+    expect(retained("s2").mark.texts.map((t) => t.role)).toEqual(["glyph", "label"]);
     expect(retained("r1").meta).toBeUndefined();
   });
 

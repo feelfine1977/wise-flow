@@ -340,6 +340,13 @@ export interface StyleSpec {
   /** What a path's label leads with before its count; default the count alone. */
   pathLabel?: LineSpec;
   /**
+   * Start and end events: `statement` writes under an event's label how many
+   * cases start (or end) there and how many of them at an activity the map
+   * shows, from the event's metrics `cases` and `atShown`
+   * (`terminal.statement`: "1,000 cases · 940 (94 %) at a shown activity").
+   */
+  terminals?: { statement?: boolean };
+  /**
    * The metric whose share of an activity's cases its frequency cue draws in
    * the accent, from the cue's start (`violationShare`: the cases short); the
    * cue stays as long as the share of all cases.
@@ -502,6 +509,14 @@ export interface Scales {
   pathMetric: string;
   /** A follows edge without a value of `pathMetric`: drawn in the line colour at the thinnest width, labelled "–". */
   notEvaluated(edge: FlowEdge): boolean;
+  /**
+   * A terminal path: a follows edge from a start event (`start`) or to an end
+   * event (`end`), not added by the host (`added-by-map`). It is recorded
+   * history (the cases that start or end at an activity), drawn solid in the
+   * theme's `terminal` paint whatever the measure, on the width scale of
+   * every path, and is not part of the measure's colour domain.
+   */
+  terminal(edge: FlowEdge): "start" | "end" | undefined;
   /** Colour for a metric value on a named palette and domain. */
   color(value: number, palette: PaletteName, domain: number[]): string;
   legend: LegendItem[];
@@ -642,7 +657,12 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
   // An indirect path has no count, as it is no path of the graph: it is not a path not evaluated.
   const indirect = (e: FlowEdge) => hasTag(e, INDIRECT_TAG);
   const addedFlow = (e: FlowEdge) => spec.addedFlowLabel !== undefined && hasTag(e, "added-by-map");
-  const notEvaluated = (e: FlowEdge) => e.kind === "follows" && !addedFlow(e) && !indirect(e) && !(Number.isFinite(metric(e, pathMetric, NaN)) && (!required || Number.isFinite(metric(e, required, NaN))));
+  // Paths from a start and to an end event are recorded history drawn apart from the measure.
+  const startEvents = new Set(graph.nodes.filter((n) => n.kind === "event" && hasTag(n, "start")).map((n) => n.id));
+  const endEvents = new Set(graph.nodes.filter((n) => n.kind === "event" && hasTag(n, "end")).map((n) => n.id));
+  const terminal = (e: FlowEdge): "start" | "end" | undefined => (e.kind !== "follows" || hasTag(e, "added-by-map") ? undefined : startEvents.has(e.source) ? "start" : endEvents.has(e.target) ? "end" : undefined);
+  // A terminal path is evaluated by its count alone: no measure colours it.
+  const notEvaluated = (e: FlowEdge) => e.kind === "follows" && !addedFlow(e) && !indirect(e) && !(Number.isFinite(metric(e, pathMetric, NaN)) && (!required || terminal(e) !== undefined || Number.isFinite(metric(e, required, NaN))));
   let widthFn: (e: FlowEdge) => number = () => theme.stroke.path;
   let samples: { value: number; width: number; floor?: boolean }[] | undefined;
   const upper = widthSpec && (widthSpec.max ?? pathScaleMax(graph, widthSpec.metric));
@@ -694,7 +714,7 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
   let classes: string[] | undefined;
   if (edgeSpec?.metric) {
     const palette = edgeSpec.palette ?? "sequential";
-    const values = follows.filter((e) => !addedFlow(e)).map((e) => metric(e, edgeSpec.metric!, NaN));
+    const values = follows.filter((e) => !addedFlow(e) && terminal(e) === undefined).map((e) => metric(e, edgeSpec.metric!, NaN));
     const domain =
       edgeSpec.domain ??
       (edgeSpec.percentile !== undefined
@@ -722,7 +742,7 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
       return classes ? classes[bins!.filter((b) => v > b).length] : root ? interpolatePalette(edgeStops, root(v)) : rampColor(edgeStops, v, domain);
     };
   }
-  const pathColorFn = (e: FlowEdge) => addedFlow(e) ? neutral : (notEvaluated(e) || indirect(e) ? theme.color.line : edgeColorFn(e));
+  const pathColorFn = (e: FlowEdge) => addedFlow(e) ? neutral : notEvaluated(e) || indirect(e) ? theme.color.line : terminal(e) !== undefined ? theme.color.terminal : edgeColorFn(e);
 
   // Node colour and pattern
   const nodeSpec = spec.nodeColor;
@@ -789,6 +809,7 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
     categorical,
     pathMetric,
     notEvaluated,
+    terminal,
     color,
     legend,
     domains,

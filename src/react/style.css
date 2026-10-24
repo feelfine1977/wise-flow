@@ -114,6 +114,7 @@
 .wf-process-map.wf-text-hide-loop .wf-selfloop > text,
 .wf-process-map.wf-text-hide-event .wf-node--event > .wf-node__label,
 .wf-process-map.wf-text-hide-glyph .wf-node--gateway > .wf-node__label,
+.wf-process-map.wf-text-hide-glyph .wf-node--event > .wf-node__glyph,
 .wf-process-map.wf-text-hide-note .wf-node--note > .wf-node__label,
 .wf-process-map.wf-text-hide-pills :is(.wf-pill-row, .wf-marks .wf-chip, .wf-arc-pill) {
   display: none;
@@ -245,15 +246,26 @@
   padding: 0;
   justify-content: center;
 }
-/* An event's label sits below its circle, shortened by the scene to its width. */
+/*
+ * An event's label sits below its circle, shortened by the scene to its width; a start or an end event's statement
+ * on the lines after it, each a label's size and its gap further down.
+ */
 .wf-node--event > .wf-node__label {
   font-size: var(--wf-text-size, var(--wf-text-event-label));
+  top: calc(100% + var(--wf-space-2) + var(--wf-event-line, 0) * (var(--wf-text-size, var(--wf-text-event-label)) + var(--wf-space-2)));
   position: absolute;
-  top: calc(100% + var(--wf-space-2));
   left: 50%;
   transform: translateX(-50%);
   flex: none;
   overflow: visible;
+}
+/* A start event's ▶ and an end event's ■ in the middle of the circle. */
+.wf-node__glyph {
+  position: relative;
+  font-size: var(--wf-text-size);
+  font-weight: var(--wf-text-weight, var(--wf-weight-panel-plain));
+  color: var(--wf-text-paint);
+  line-height: 1;
 }
 .wf-node--gateway {
   width: var(--wf-gateway-width);

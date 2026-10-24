@@ -57,8 +57,8 @@ describe("the parity readers", () => {
     expect(drawn.get("node:a")!.texts.map((t) => [t.text, t.size, t.weight, t.paint])).toEqual([["Approve", 13, 500, "#1f1f1f"], ["10", 11, 600, "#1f1f1f"], ["· 50 %", 11, 400, "#5b6270"]]);
     // A quarter: 42.75.
     expect(drawn.get("node:b")!.props).toMatchObject({ cue: "#e6e8ec 43", cueFoot: "#5f6672 43" });
-    // Start and end events: a circle of the box's half width, outlined 1 and 2 in the ink; no cue.
-    expect(drawn.get("node:start")).toMatchObject({ box: { x: 0, y: 6, width: 36, height: 36 }, props: { outline: "#1f1f1f", outlineWidth: "1", radius: "18", cue: "none", cueFoot: "none" } });
+    // Start and end events: a circle of the box's half width, outlined 1 and 2 in lineStrong; no cue.
+    expect(drawn.get("node:start")).toMatchObject({ box: { x: 0, y: 6, width: 36, height: 36 }, props: { outline: "#8c94a1", outlineWidth: "1", radius: "18", cue: "none", cueFoot: "none" } });
     expect(drawn.get("node:end")!.props.outlineWidth).toBe("2");
     expect(drawn.get("group:g")).toMatchObject({ box: { x: 80, y: -40, width: 520, height: 120 }, props: { fill: "none", outline: "#cfd4dc", dash: "none", outlineWidth: "1", radius: "8" } });
     // An edge's box is its line's: from the right of `a` towards the left of `b` at their middle. The path is √(5 / 10) × 8 =

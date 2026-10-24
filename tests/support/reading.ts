@@ -472,10 +472,16 @@ export function checkReading({ fitted, full, budgeted, expect }: CheckOptions): 
   }
   if (byCount.length && Math.max(...byCount.map((p) => p.width)) > byCount[0].width + 1e-9) fail("width order", `the widest path is not the most frequent, ${byCount[0].id}`);
 
-  // Path colours follow the legend's scale.
+  // Path colours follow the legend's scale; the paths from a start and to an end event are keyed apart, in one paint of
+  // their own whatever the measure (WF-02).
+  const event = (id: string, tag: string) => { const n = nodes.get(id); return n?.kind === "event" && !!n.tags?.includes(tag); };
+  const terminal = (e: FlowEdge) => !e.tags?.includes("added-by-map") && (event(e.source, "start") || event(e.target, "end"));
+  const terminalPaints = new Set(drawnFlows.filter((p) => terminal(p.edge)).map((p) => p.color.toLowerCase()));
+  if (terminalPaints.size > 1) fail("colour scale", `the paths from Start and to End are drawn in ${[...terminalPaints].join(", ")}, not one paint`);
   const scale = reading.colorScale;
   if (scale) {
     for (const p of drawnFlows) {
+      if (terminal(p.edge)) continue;
       const v = p.edge.metrics?.[scale.metric];
       if (typeof v !== "number" || !Number.isFinite(v)) continue;
       const want = legendColor(v, scale.domain, scale.stops, scale.sqrt);

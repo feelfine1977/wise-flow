@@ -137,6 +137,8 @@ export function boostText<T extends MarkText>(t: T, boost: number, origin: XY): 
 export function nodeTexts(mark: NodeMark, r: Readable): ElementText[] {
   const label = NODE_LABELS[mark.kind];
   const { levels } = mark;
+  // A start or an end event's glyph is shed with the gateways' glyphs, its label and statement with the events' labels.
+  if (mark.kind === "event" && mark.texts.some((t) => t.role === "glyph")) return r.labels.glyph && r.labels.event ? mark.texts : mark.texts.filter((t) => r.labels[t.role === "glyph" ? "glyph" : "event"]);
   if (label || !levels) return !label || r.labels[label] ? mark.texts : [];
   const texts = r.level === "box" ? [] : r.level === "full" && r.boost === 1 ? mark.texts : levels[r.level];
   return r.boost === 1 ? texts : texts.map((t) => boostText(t, r.boost, levels.origin));

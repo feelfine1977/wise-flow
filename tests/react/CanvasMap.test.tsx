@@ -50,7 +50,8 @@ describe("ProcessMap with the Canvas renderer", () => {
     );
     // The semibold centred text is what the drawing routines write into a badge (a chip's semibold label starts left), at
     // 11 px scaled up to the readable floor at the zoom the map is fitted at.
-    const badges = () => recorder.frame().filter((t) => /^600 [\d.]+px/.test(t.font) && t.align === "center").map((t) => t.text).sort();
+    // A start or an end event's ▶ and ■ are semibold and centred too.
+    const badges = () => recorder.frame().filter((t) => /^600 [\d.]+px/.test(t.font) && t.align === "center" && !/^[▶■]$/.test(t.text)).map((t) => t.text).sort();
     await waitFor(() => expect(badges().length).toBeGreaterThan(0));
     expect(badges()).toEqual(expected);
   });

@@ -254,6 +254,7 @@
     "emptyFilter",
     "emptySelection",
     "estimateTextWidth",
+    "eventGlyph",
     "figureCaption",
     "figureFrame",
     "figureMetrics",

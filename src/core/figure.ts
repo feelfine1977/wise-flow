@@ -32,7 +32,7 @@ export const FIGURE_WIDTHS: Record<Exclude<FigurePreset, "none">, number> = {
  * the accent of an activity's frequency cue, and the start and end of the
  * process.
  */
-export type LegendKeyKind = "badge" | "arc" | "reverse" | "selfLoop" | "outOfScope" | "reconnected" | "indirect" | "notEvaluated" | "addedFlow" | "shortPart" | "start" | "end";
+export type LegendKeyKind = "badge" | "arc" | "reverse" | "selfLoop" | "outOfScope" | "reconnected" | "indirect" | "notEvaluated" | "addedFlow" | "shortPart" | "terminal" | "start" | "end";
 
 export interface LegendKey {
   kind: LegendKeyKind;
@@ -81,8 +81,9 @@ const KEYS: readonly LegendKey[] = [
   { kind: "notEvaluated", glyph: "─", title: "legend.notEvaluated" },
   { kind: "addedFlow", glyph: "···", title: "legend.addedFlow" },
   { kind: "shortPart", glyph: "▬", title: "legend.shortPart" },
-  { kind: "start", glyph: "○", title: "legend.start" },
-  { kind: "end", glyph: "◉", title: "legend.end" },
+  { kind: "terminal", glyph: "─", title: "legend.terminal" },
+  { kind: "start", glyph: "▶", title: "legend.start" },
+  { kind: "end", glyph: "■", title: "legend.end" },
 ];
 
 const BADGES: Partial<Record<string, StringKey>> = { presence: "legend.badge.presence", singularity: "legend.badge.singularity", exclusion: "legend.badge.exclusion" };
@@ -175,7 +176,7 @@ export interface LegendSource {
   scales: { legend: LegendItem[]; /** The metric paths are labelled with; default the width's. */ pathMetric?: string; /** The style, whose measure and added-flow words the legend names. */ spec?: Pick<StyleSpec, "measure" | "addedFlowLabel" | "frequencyColorLegend"> };
   marks: readonly OverlayMark[];
   nodeMarks: readonly { reconnected: boolean; node?: FlowNode; cue?: { accent?: unknown } }[];
-  edgeMarks: readonly { reconnected: boolean; indirect?: boolean; notEvaluated?: boolean; addedFlow?: boolean }[];
+  edgeMarks: readonly { reconnected: boolean; indirect?: boolean; notEvaluated?: boolean; addedFlow?: boolean; terminal?: string }[];
   locale: Locale;
   /** Its graph, whose `meta.cases` the measure's shares are of. */
   graph?: Pick<FlowGraph, "meta">;
@@ -196,6 +197,7 @@ export function legendOfScene(scene: LegendSource): SceneLegend {
     : k === "indirect" ? edgeMarks.some((m) => m.indirect)
     : k === "notEvaluated" ? edgeMarks.some((m) => m.notEvaluated)
     : k === "addedFlow" ? edgeMarks.some((m) => m.addedFlow)
+    : k === "terminal" ? edgeMarks.some((m) => m.terminal)
     : k === "shortPart" ? nodeMarks.some((m) => m.cue?.accent)
     : k === "start" || k === "end" ? event(k)
     : marks.some((m) => m.inMap && m.kind === overlayKind(k) && (k !== "reverse" || !!m.overlay.payload?.reverse));

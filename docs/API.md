@@ -679,6 +679,7 @@ export interface StyleSpec { edgeWidth?: ChannelSpec; edgeColor?: ColorSpec; nod
   stages?: readonly string[];   // the host's full stage list in stage order: categorical colours follow it
   measure?: Measure;            // the measure the style shows: the legend states its sentence
   addedFlowLabel?: true | string; // opt in for edges tagged added-by-map: default EN/DE legend words, or the host's string
+  terminals?: { statement?: boolean };   // a start or an end event writes its cases and those at a shown activity under its label (0.4)
   frequencyColorLegend?: true;  // opt in to a frequency sentence naming the actual width and alternate colour metric/classes
   nodeLine?: LineSpec;          // what an activity's number line leads with; default its cases, then their share
   pathLabel?: LineSpec;         // what a path's label leads with before its count; default the count alone
@@ -709,7 +710,8 @@ export interface Scales { edgeWidth(e): number; edgeColor(e): string; nodeColor(
   nodeColored(n): boolean;         // the colour says something (a category or a value), not the neutral fallback: the card has a band (0.4)
   categorical(key): CategoricalEntry; color(value, palette, domain): string; legend: LegendItem[]; domains;
   pathMetric: string;              // the count paths are labelled with and their width reads: cases, or count
-  notEvaluated(e): boolean }       // a follows edge without a value of pathMetric
+  notEvaluated(e): boolean;        // a follows edge without a value of pathMetric
+  terminal(e): "start" | "end" | undefined }   // a path from a start or to an end event, not added-by-map (0.4)
 export interface CategoricalEntry { key: string; color: string; pattern: PatternId; index: number; label?: string }   // label: the group's
 export function orderedCategorical(keys: Iterable<string>, theme?: Theme): Map<string, CategoricalEntry>;
 export type LegendItem =   // `title` is a string key for `t` (it was typed `string`)
@@ -1226,6 +1228,40 @@ and 2 wide); their label sits 4 below the circle, shortened to 96
 (`dimensionTokens.eventLabel`) with the whole label as `title`. The
 interactive map draws no grid of dots behind the map unless
 `backgroundGrid` is set.
+
+### Start, End and the terminal paths (0.4)
+
+An event tagged `start` or `end` is the process's Start or End. Every
+renderer draws it as its circle outlined in `lineStrong` (`stroke.eventStart`,
+`stroke.eventEnd`: 1 and 2, 1 and 1 in `instrument`), with ▶ (`start`) or ■
+(`end`) in the ink in its middle (`ElementText` role `glyph`, text role
+`eventGlyph`, 15 px, 600; `eventGlyph(node)`) and its label below it: the
+node's own `label`, or "Start" / "End" (`terminal.start`, `terminal.end`;
+German "Beginn" / "Ende") where it has none. With
+`style.terminals.statement` the event writes, on up to two muted lines under
+its label (160 wide, `dimensionTokens.eventStatement`), how many cases start
+or end there and how many of them at an activity the map shows, from its
+metrics `cases` and `atShown` (`terminal.statement`: "1,000 cases · 940
+(94 %) at a shown activity"). The glyph is shed with the gateways' glyphs, the
+label and the statement with the events' labels (see "Readable at every
+zoom").
+
+A terminal path is a follows edge from a start event or to an end event that
+the host did not add (`added-by-map`): `Scales.terminal(edge)` names it
+`"start"` or `"end"` and its mark carries `EdgeMark.terminal`. It is recorded
+history, the cases that start or end at an activity (an adapter weights it
+by them), so it is drawn solid, in the theme's `terminal` paint (light
+`#c9ced6`, dark `#4b515b`; `instrument` dark `#3a4049`) in every measure, on
+the width scale every path shares, and labelled with its count alone (no
+measure's value leads it). It is not part of the measure's colour domain, is
+never "not evaluated" for lacking a measure's value, and dims with the rest.
+The legend keys it ("─ Paths from Start and to End: cases by their first and
+last activity", `legend.terminal`) beside the events' keys (▶, ■). The
+interactive map's path carries the state `start` or `end` (see "Styling
+contract"). The opted-in host flows (`StyleSpec.addedFlowLabel` and the tag
+`added-by-map`) stay neutral round dots: they are flows the map adds, not
+recorded history. `checkTheme` gates `terminal` as a hairline: 1.3 : 1 on
+the paper and apart from `line`.
 
 ## Readable at every zoom
 
@@ -4044,7 +4080,10 @@ The interactive DOM map (`<ProcessMap/>` with the React Flow renderer) and the
 panels around it carry data attributes a host stylesheet can select: every part
 has `data-wf-part`, and where the table lists them `data-wf-kind` and
 `data-wf-state`. The state is a space-separated list of `selected`, `focused`,
-`hovered`, `dimmed`, `outOfScope` and `reconnected`; select one with `~=`. The
+`hovered`, `dimmed`, `outOfScope` and `reconnected`, and on a terminal path
+`start` or `end` (0.4: the path from a start event or to an end event,
+`EdgeMark.terminal`; the same words as the events' tags, and like
+`reconnected` not an interactive state); select one with `~=`. The
 classes the elements had before stay; they are not part of the contract.
 
 CSS written against these selectors changes only the interactive DOM map and the panels around it. It does not change the Canvas map (used automatically above 2,000 elements), SVG or PNG exports, or the BPMN diagram. Anything that must look the same everywhere belongs in the theme or a rule.
@@ -4060,7 +4099,7 @@ CSS written against these selectors changes only the interactive DOM map and the
 | `node-count` | the number line of a node: its cases, then their share | | |
 | `group` | a group box or lane band | `stage`, `lane`, `pool` | `selected` |
 | `group-label` | the label of a group | | |
-| `edge` | a path between two nodes (SVG group) | `follows`, `constraint`, `flow` | `selected`, `focused`, `hovered`, `dimmed`, `reconnected` |
+| `edge` | a path between two nodes (SVG group) | `follows`, `constraint`, `flow` | `selected`, `focused`, `hovered`, `dimmed`, `reconnected`, `start`, `end` |
 | `edge-path` | the drawn line of a path | | |
 | `edge-label` | the count label of a path | | |
 | `mark` | a deviation mark of the map or of a legend (SVG group); a `tint` is the background of its node, and the BPMN diagram's marks carry no attributes | `badge`, `chip`, `arc`, `selfLoop`, `hatch` | `hovered` |

@@ -185,7 +185,9 @@ describe("the theme of a map", () => {
     await waitFor(() => expect(outlined(3)).toBeGreaterThan(0));
     expect(vi.mocked(buildScene).mock.calls.length).toBe(built + 1);
     expect(layouts.mock.calls.length).toBe(laid);
-    expect([outlined(1), label()]).toEqual([0, ["#123456"]]);
+    // The events' circles keep their own outline (`stroke.eventStart`, `eventEnd`) in the same colour.
+    expect(outlined(1)).toBeLessThanOrEqual(vendor.nodes.filter((n) => n.kind === "event").length);
+    expect(label()).toEqual(["#123456"]);
   });
 
   it("measures the texts in the font of the host's variables, and measures them again when it changes, without a layout", async () => {

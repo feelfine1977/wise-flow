@@ -490,6 +490,7 @@ export {
   edgeLabelPoint,
   edgePoints,
   gatewayGlyph,
+  eventGlyph,
   nodeCount,
   nodeMark,
   edgeMark,

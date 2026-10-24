@@ -118,8 +118,8 @@ describe("the look of nodes and groups, from their marks", () => {
     // A stage's card outlined 1 wide; its name semibold.
     expect(look("s")[2]).toBe("1px");
     expect(style(node("s").querySelector(".wf-activity-name")!)).toEqual(["13px", "600", "var(--wf-ink)"]);
-    // Events: circles of radius 18 in the ink, the start outlined 1 wide and the end 2.
-    expect(look("start")).toEqual(["var(--wf-paper)", "var(--wf-ink)", "1px", "18px"]);
+    // Events: circles of radius 18 outlined in lineStrong, the start 1 wide and the end 2.
+    expect(look("start")).toEqual(["var(--wf-paper)", "var(--wf-line-strong)", "1px", "18px"]);
     expect(look("end")[2]).toBe("2px");
     expect(node("a").querySelector(".wf-node__outline")).toBeNull();
     // A gateway's diamond: no border, the shape in its 44 box, outlined 1 in the ink; the glyph at 15, semibold.

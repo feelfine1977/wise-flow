@@ -37,7 +37,7 @@ const Follows = memo(function Follows(props: EdgeProps<WfEdge>) {
       id={`wf-edge-${id}`}
       className={`wf-edge wf-edge--${mark.kind}${data.hovered ? " wf-edge--hovered" : ""}${data.dimmed && state?.opacity === undefined ? " wf-edge--dimmed" : ""}${data.focused ? " wf-edge--focused" : ""}`}
       data-id={id}
-      {...part("edge", mark.kind, [selected && "selected", data.focused && "focused", data.hovered && "hovered", data.dimmed && "dimmed", mark.reconnected && "reconnected"])}
+      {...part("edge", mark.kind, [selected && "selected", data.focused && "focused", data.hovered && "hovered", data.dimmed && "dimmed", mark.reconnected && "reconnected", mark.terminal])}
       // The scene's paints as variables (a focused path at least 3 wide): the stylesheet draws the path with them, a host rule on the path overrides them.
       style={{
         ["--wf-edge-color" as string]: color,

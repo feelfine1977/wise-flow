@@ -54,9 +54,10 @@ describe("the three measures of one map", () => {
       expect(s.positions).toEqual(frequency.positions);
     }
     expect(pathLabels(frequency)).toEqual({ "s-a": "1,000", "a-b": "820", "a-c": "100", "b-c": "400", "b-d": "500", "c-d": "400" });
-    // The share short leads ("35 % · 820"), then the median lag ("12 d · 820"); a path without one reads "–" first.
-    expect(pathLabels(shortfall)).toEqual({ "s-a": "– · 1,000", "a-b": "35 % · 820", "a-c": "10 % · 100", "b-c": "30 % · 400", "b-d": "31 % · 500", "c-d": "5 % · 400" });
-    expect(pathLabels(performance)).toEqual({ "s-a": "– · 1,000", "a-b": "12 d · 820", "a-c": "2.0 h · 100", "b-c": "30 h · 400", "b-d": "6.0 d · 500", "c-d": "– · 400" });
+    // The share short leads ("35 % · 820"), then the median lag ("12 d · 820"); a path without one reads "–" first. The
+    // path from the start event is a terminal path: its count alone in every measure (WF-02).
+    expect(pathLabels(shortfall)).toEqual({ "s-a": "1,000", "a-b": "35 % · 820", "a-c": "10 % · 100", "b-c": "30 % · 400", "b-d": "31 % · 500", "c-d": "5 % · 400" });
+    expect(pathLabels(performance)).toEqual({ "s-a": "1,000", "a-b": "12 d · 820", "a-c": "2.0 h · 100", "b-c": "30 h · 400", "b-d": "6.0 d · 500", "c-d": "– · 400" });
     // "35 % short · 900" in the shortfall, "4.7 d to next · 93 %" where the host gave the time to the next activity.
     expect(numberLines(shortfall)).toEqual({ a: "35 % short · 1,000", b: "10 % short · 900", c: "30 % short · 500", d: "– · 400" });
     expect(numberLines(performance)).toEqual({ a: "4.7 d to next · 100 %", b: "900 · 90 %", c: "500 · 50 %", d: "400 · 40 %" });
@@ -79,11 +80,17 @@ describe("the shortfall measure", () => {
   it("colours paths in three classes by their share short, a value on a bound in the class below it, a path without one not evaluated", () => {
     // Up to 10 % the neutral colour, then the shortfall palette's stops that stand out more from the paper than it (3.36 : 1):
     // #d94801 (4.31 : 1) and #7f2704 (9.57 : 1) in the light scheme; #fd8d3c (7.65) to #fff5eb (16.5) above 5.28 in the dark.
-    expect(pathColors(scene({ measure: "shortfall" }))).toEqual({ "s-a": "#cfd4dc", "a-b": "#7f2704", "a-c": "#8c8c8c", "b-c": "#d94801", "b-d": "#7f2704", "c-d": "#8c8c8c" });
-    expect(pathColors(scene({ measure: "shortfall", scheme: "dark" }))).toEqual({ "s-a": "#3a3f49", "a-b": "#fff5eb", "a-c": "#8c8c8c", "b-c": "#fd8d3c", "b-d": "#fff5eb", "c-d": "#8c8c8c" });
+    // The path from the start event is in the terminal paint.
+    expect(pathColors(scene({ measure: "shortfall" }))).toEqual({ "s-a": "#c9ced6", "a-b": "#7f2704", "a-c": "#8c8c8c", "b-c": "#d94801", "b-d": "#7f2704", "c-d": "#8c8c8c" });
+    expect(pathColors(scene({ measure: "shortfall", scheme: "dark" }))).toEqual({ "s-a": "#4b515b", "a-b": "#fff5eb", "a-c": "#8c8c8c", "b-c": "#fd8d3c", "b-d": "#fff5eb", "c-d": "#8c8c8c" });
     const s = scene({ measure: "shortfall" });
-    expect(s.edgeMarks.find((m) => m.id === "s-a")?.notEvaluated).toBe(true);
-    expect(s.legend.rows.filter((r) => r.kind === "key").map((r) => r.kind === "key" && r.text)).toContain("not evaluated");
+    // The path from the start event has no share short and is not "not evaluated": no measure colours a terminal path.
+    expect([s.edgeMarks.find((m) => m.id === "s-a")?.notEvaluated, s.edgeMarks.find((m) => m.id === "s-a")?.terminal]).toEqual([undefined, "start"]);
+    expect(s.legend.rows.filter((r) => r.kind === "key").map((r) => r.kind === "key" && r.text)).not.toContain("not evaluated");
+    // A recorded path without the measure's value is: c → d has no median lag.
+    const p = scene({ measure: "performance" });
+    expect(p.edgeMarks.find((m) => m.id === "c-d")?.notEvaluated).toBe(true);
+    expect(p.legend.rows.filter((r) => r.kind === "key").map((r) => r.kind === "key" && r.text)).toContain("not evaluated");
     expect(s.legend.rows.find((r) => r.kind === "swatches")).toEqual({
       kind: "swatches",
       title: "Path colour: expectation shortfall (% of cases)",
@@ -108,14 +115,14 @@ describe("the shortfall measure", () => {
 
   it("follows thresholds the host gives, in the classes and in the legend's words", () => {
     const s = scene({ measure: "shortfall", style: { edgeColor: { bins: [0.05, 0.2] } } });
-    expect(pathColors(s)).toEqual({ "s-a": "#cfd4dc", "a-b": "#7f2704", "a-c": "#d94801", "b-c": "#7f2704", "b-d": "#7f2704", "c-d": "#8c8c8c" });
+    expect(pathColors(s)).toEqual({ "s-a": "#c9ced6", "a-b": "#7f2704", "a-c": "#d94801", "b-c": "#7f2704", "b-d": "#7f2704", "c-d": "#8c8c8c" });
     const row = s.legend.rows.find((r) => r.kind === "swatches");
     expect(row?.kind === "swatches" && row.entries.map((e) => e.text)).toEqual(["up to 5 %", "5 % to 20 %", "over 20 %"]);
     const de = scene({ measure: "shortfall", locale: "de", style: { edgeColor: { bins: [0.05, 0.2] } } }).legend.rows.find((r) => r.kind === "swatches");
     expect(de?.kind === "swatches" && de.entries.map((e) => e.text)).toEqual(["bis 5 %", "5 % bis 20 %", "über 20 %"]);
     // Four classes with three bounds: the neutral colour, then the two stops and the colour half-way between them.
     const four = scene({ measure: "shortfall", style: { edgeColor: { bins: [0.05, 0.2, 0.32] } } });
-    expect(pathColors(four)).toEqual({ "s-a": "#cfd4dc", "a-b": "#7f2704", "a-c": "#d94801", "b-c": "#ac3803", "b-d": "#ac3803", "c-d": "#8c8c8c" });
+    expect(pathColors(four)).toEqual({ "s-a": "#c9ced6", "a-b": "#7f2704", "a-c": "#d94801", "b-c": "#ac3803", "b-d": "#ac3803", "c-d": "#8c8c8c" });
   });
 
   it("draws the share short of an activity's cases in the accent of its frequency cue, which stays as long as its share of all cases", () => {

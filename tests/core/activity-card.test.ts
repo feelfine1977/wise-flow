@@ -188,10 +188,11 @@ describe("the label of an event", () => {
       edges: [],
     };
     const [start, end] = buildScene(graph, row(graph)).nodeMarks;
-    // 4 below the 36 high circle, the baseline 11 lower; centred on it.
-    expect([start.shape, start.texts[0].text, start.texts[0].x, start.texts[0].y, start.texts[0].anchor, start.title]).toEqual(["circle", "Start", 18, 36 + 4 + 11, "middle", undefined]);
+    // The glyph in the circle, then the label: 4 below the 36 high circle, the baseline 11 lower; centred on it.
+    const [startLabel, endLabel] = [start, end].map((m) => m.texts.find((t) => t.role === "label")!);
+    expect([start.shape, startLabel.text, startLabel.x, startLabel.y, startLabel.anchor, start.title]).toEqual(["circle", "Start", 18, 36 + 4 + 11, "middle", undefined]);
     // 96 at 11 px by the estimate (6.05 each) holds 14 characters and the ellipsis.
-    expect([end.texts[0].text, end.texts[0].maxWidth, end.title]).toEqual(["Purchase order…", 96, graph.nodes[1].label]);
+    expect([endLabel.text, endLabel.maxWidth, end.title]).toEqual(["Purchase order…", 96, graph.nodes[1].label]);
   });
 });
 

@@ -226,13 +226,25 @@ const Gateway = memo(function Gateway({ id, data, selected }: NodeProps<WfNode>)
   );
 });
 
+/**
+ * An event as its circle: a start event's ▶ or an end event's ■ in its
+ * middle, its label below it and, where the style asks, the statement of
+ * the cases that start or end there on the lines after the label.
+ */
 const EventNode = memo(function EventNode({ id, data, selected }: NodeProps<WfNode>) {
   const mark = markOf(data);
+  let line = 0;
   return (
     <div id={`wf-node-${id}`} {...attrs(mark, data, selected)} style={covered(mark, data)} title={data.description} data-kind="event">
       {handles(data.direction)}
       <NodeOutline mark={mark} />
-      <Text mark={mark} role="label" className="wf-node__label" />
+      {mark.texts.map((t, i) =>
+        t.role === "glyph" ? (
+          <span key={i} className="wf-node__glyph" style={textLook(t, mark)} aria-hidden="true">{t.text}</span>
+        ) : (
+          <span key={i} className={`wf-node__label${line ? " wf-node__statement" : ""}${lodClass(t)}`} style={{ ...textLook(t, mark), ["--wf-event-line" as string]: String(line++) }} {...part("node-label")}>{t.text}</span>
+        ),
+      )}
       {carried(data)}
     </div>
   );

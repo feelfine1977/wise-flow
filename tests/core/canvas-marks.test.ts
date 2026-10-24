@@ -236,10 +236,10 @@ describe("Canvas node and edge marks", () => {
 
   it("draws every node kind's outline, band and border from its mark", () => {
     const ops = drawElements();
-    // The start event: a circle of radius 18 on paper in ink, 1 wide; the end event's border is 2 wide.
+    // The start event: a circle of radius 18 on paper outlined in lineStrong, 1 wide; the end event's border is 2 wide.
     expect(ops.filter((o) => o.path === "A18,20,18")).toEqual([
       { op: "fill", path: "A18,20,18", color: "#ffffff", alpha: 1 },
-      { op: "stroke", path: "A18,20,18", color: "#1f1f1f", alpha: 1, width: 1, dash: [] },
+      { op: "stroke", path: "A18,20,18", color: "#8c94a1", alpha: 1, width: 1, dash: [] },
     ]);
     expect(ops.find((o) => o.op === "stroke" && o.path === "A858,20,18")).toMatchObject({ width: 2 });
     // The gateway: a diamond in its box.
@@ -298,7 +298,8 @@ describe("Canvas node and edge marks", () => {
     const name = (t: string, at: [number, number], weight = "500") => text(t, at, `${weight} 13px`, "left", "alphabetic");
     const number = (count: string, share: string, x: number, y: number, after: number) => [text(count, [x, y], "600 11px", "left", "alphabetic"), text(share, [after, y], "11px", "left", "alphabetic", "#5b6270")];
     expect(written(drawElements())).toEqual([
-      // The event's label below its circle.
+      // The start event's ▶ in its circle, its label below it.
+      text("▶", [18, 21], "600 15px", "center"),
       text("Start", [18, 53], "11px", "center", "alphabetic"),
       name("Check invoice", [116, 16.05]),
       ...number("1,234", "· –", 116, 30.35, 150.25),
@@ -308,6 +309,7 @@ describe("Canvas node and edge marks", () => {
       ...number("1,500", "· –", 416, 38.35, 450.25),
       // The note's label at 11 px, as on the map.
       text("Ask the vendor twice", [656, 30], "11px"),
+      text("■", [858, 21], "600 15px", "center"),
       text("End", [858, 53], "11px", "center", "alphabetic"),
       name("Re-added", [416, 116.05]),
       ...number("–", "· –", 416, 130.35, 426.05),
@@ -328,7 +330,8 @@ describe("Canvas node and edge marks", () => {
     const scene = prepareScene(elements.graph, elements.positions, { style: elements.style, selfLoops: false, lodBySize: false, theme: { ...defaultTheme, text: { ...defaultTheme.text, minScreenPx: 0 } } });
     const { ctx, ops } = drawingContext();
     drawScene(ctx, scene, { x: 0, y: 0, zoom: 0.1, width: 1000, height: 600 }, undefined, { cull: false });
-    expect(written(ops).map((t) => t.text)).toEqual(["+", "Ask the vendor twice"]);
+    // The events' glyphs stay with the gateway's; their labels go with the level of detail at this zoom.
+    expect(written(ops).map((t) => t.text)).toEqual(["▶", "+", "Ask the vendor twice", "■"]);
   });
 
   it("writes names as the scene's measure wrapped and cut them, whatever the context measures", () => {
@@ -395,9 +398,10 @@ describe("Canvas arrowheads and pattern twins from the token table", () => {
     // start → a ends at (100, 20) heading right; s → r ends at (500, 100) heading down.
     const right = "M100,20 L97,22.4 L97,17.6 Z";
     const down = "M500,100 L497.6,97 L502.4,97 Z";
+    // start → a is a terminal path: its head in the terminal paint, as its line.
     expect(ops.filter((o) => o.path === right)).toEqual([
-      { op: "fill", path: right, color: "#8c8c8c", alpha: 1 },
-      { op: "stroke", path: right, color: "#8c8c8c", alpha: 1, width: 0.6, dash: [] },
+      { op: "fill", path: right, color: "#c9ced6", alpha: 1 },
+      { op: "stroke", path: right, color: "#c9ced6", alpha: 1, width: 0.6, dash: [] },
     ]);
     expect(ops.filter((o) => o.path === down).map((o) => o.op)).toEqual(["fill", "stroke"]);
   });
