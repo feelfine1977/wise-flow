@@ -1,5 +1,5 @@
 /** bpmn-moddle with the `wise` extension, which carries FlowGraph ids, kinds, tags and metrics through the XML. */
-import BpmnModdle from "bpmn-moddle";
+import { BpmnModdle } from "bpmn-moddle";
 
 /** Namespace of the `wise` extension attributes and elements. */
 export const WISE_NS = "http://wise-workbench.org/schema/flow";
@@ -37,7 +37,7 @@ export const wiseModdleDescriptor = {
   ],
 } as const;
 
-/** Structural view of a moddle element (bpmn-moddle ships no types). */
+/** Structural view of a moddle element (bpmn-moddle types its BPMN elements only, not the class). */
 export interface ModdleElement {
   $type: string;
   $parent?: ModdleElement;

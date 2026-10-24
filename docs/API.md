@@ -2385,6 +2385,22 @@ map and `mapping`. Stylesheets: `wise-flow/bpmn.css` (bpmn-js's
 `diagram-js.css`, `bpmn-js.css` and `bpmn-font/css/bpmn.css`, shipped with the
 package) in addition to the package's.
 
+The view draws on bpmn-js 18 and reads and writes BPMN with bpmn-moddle 10;
+up to 0.3.5 it was bpmn-js 17 and bpmn-moddle 8. For hosts this changes
+three things. The diagram's canvas is a stop in the tab order: focused, it
+shows a focus ring and takes the keyboard (Ctrl or Cmd with an arrow key
+moves the diagram), since bpmn-js binds the keyboard to the canvas itself;
+`keyboard.bindTo` in `viewerOptions` does nothing but log an error to the
+console, and `keyboard: { bind: false }` leaves the keys alone. bpmn-js 18
+draws the selection outline only in its modeler, so the view adds bpmn-js's
+outline module ahead of the `additionalModules` a host passes, and a
+selected task is outlined in the viewer as before; modules written for
+bpmn-js 17 may need their bpmn-js 18 versions. An external label (of an
+event, a gateway or a flow) is laid out in the bounds its `BPMNLabel` gives,
+where bpmn-js 17 laid it out in a box 90 units wide: a label whose bounds
+another modeler measured narrower than its text now breaks into lines.
+`exportBpmn` writes no label bounds, so its labels are fitted to their text.
+
 When the view reports: `data-bpmn-status` on its root becomes `ready` once
 the viewer has imported the XML and fitted the viewport (with `fitView`), and
 `onImport` is called with the headless import (graph, mapping table,

@@ -104,6 +104,8 @@ try {
   const assertSelection = async (events) => {
     await expect(page.locator('[data-bpmn-status="ready"]')).toBeVisible();
     await expect(selectedTask).toHaveClass(/\bselected\b/);
+    // bpmn-js 18 left the outline to the modeler; the viewer adds it, so the selected task shows as selected in both.
+    await expect(selectedTask.locator('.djs-outline')).toBeVisible();
     await expect(page.getByTestId('bpmn-selection')).toHaveText('receive');
     await expect(page.getByTestId('bpmn-selection-events')).toHaveText(String(events));
   };

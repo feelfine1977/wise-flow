@@ -80,7 +80,7 @@ export interface BpmnViewProps {
   /** Modeler: called with the XML after every change (debounced). */
   onChange?: (xml: string) => void;
   onError?: (error: Error) => void;
-  /** Extra bpmn-js options (`additionalModules`, `keyboard`, …). */
+  /** Extra bpmn-js 18 options (`additionalModules`, …); the keyboard is bound to the canvas, and `keyboard.bindTo` only logs an error. */
   viewerOptions?: Record<string, unknown>;
   ariaLabel?: string;
   className?: string;
