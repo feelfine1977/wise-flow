@@ -109,7 +109,9 @@ import { fileURLToPath } from "node:url";
  * the map, lanes, paths and Canvas scenes gain the controls' note of what is
  * in view (`p.wf-controls__note--in-view`) and the overview's spoken name of
  * the part in view (a `span.wf-sr-only`). Matching the existing elements in
- * every scene, no style of another element changed. Geometry
+ * every scene, no style of another element changed. The keyboard scene gained
+ * the same note once the record waited for its view to rest after the key
+ * moved it, and every map scene waits for its paths to be drawn. Geometry
  * that depends on the fonts of the machine (widths, heights, positions) is left
  * out, so the record holds on every operating system.
  */
@@ -165,6 +167,8 @@ const SCENES: Scene[] = [
       await page.keyboard.press("ArrowRight");
       await expect(page.locator(".wf-process-map")).toHaveAttribute("aria-activedescendant", /^wf-node-/);
       await expect(page.locator(".wf-node--focused")).toHaveCount(1);
+      // The key brings the focused activity into view; once the view rests, the panel says the part in view.
+      await expect(page.locator(".wf-controls__note--in-view")).toBeVisible();
     },
   },
   {
@@ -260,6 +264,21 @@ async function settle(page: Page, scene: Scene) {
   await page.waitForTimeout(800);
 }
 
+/**
+ * Waits until a React Flow map draws its paths: some are drawn and their number holds over three readings. A map
+ * draws its paths after its nodes are measured and again after the story reflows, which on a busy machine can come
+ * later than the pause of `settle`; a record taken before would miss every path.
+ */
+async function pathsDrawn(page: Page) {
+  if (!(await page.locator(".react-flow__renderer").count())) return;
+  const counts: number[] = [];
+  await expect.poll(async () => {
+    counts.push(await page.locator(".react-flow__edge").count());
+    const last = counts.slice(-3);
+    return last.length === 3 && last[0] > 0 && last.every((n) => n === last[0]);
+  }, { message: "the map's paths are drawn", timeout: 30_000, intervals: [100] }).toBe(true);
+}
+
 /** The elements of a scene whose computed style differs from the record, each with the properties that differ. */
 function changes(expected: Record, scene: string, after: [string, string][]): string[] {
   const before = expected.scenes[scene].map((line) => {
@@ -283,6 +302,7 @@ test("the map and its panels draw the computed styles they drew before", async (
   for (const scene of SCENES) {
     await open(page, scene);
     await scene.act?.(page);
+    await pathsDrawn(page);
     actual[scene.name] = await computedStyles(page, PROPERTIES);
   }
   if (record) {
@@ -322,6 +342,7 @@ test("what a story draws outside the library's roots is not compared: in another
     // The story reflows in the other font, and the map draws its paths again.
     await settle(page, scene);
     await scene.act?.(page);
+    await pathsDrawn(page);
     const changed = changes(expected, scene.name, await computedStyles(page, PROPERTIES));
     expect(changed.slice(0, 8), `${scene.name}: elements whose computed style changed (first eight of ${changed.length})`).toEqual([]);
   }
