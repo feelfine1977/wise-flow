@@ -265,7 +265,9 @@ function alike(items: readonly number[], lines: readonly string[][]): number[][]
   const groups = new Map<string, number[]>();
   for (const i of items) {
     const key = lines[i].join("\n");
-    groups.set(key, [...(groups.get(key) ?? []), i]);
+    const group = groups.get(key);
+    if (group) group.push(i);
+    else groups.set(key, [i]);
   }
   return [...groups.values()].filter((group) => group.length > 1);
 }
