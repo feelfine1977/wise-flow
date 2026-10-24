@@ -8,7 +8,7 @@ import { type EdgeKind, type FlowEdge, type FlowGraph, type FlowGroup, type Flow
 import { RECONNECTED_TAG } from "./aggregate.js";
 import { indirectWay } from "./detail.js";
 import { describeTimes, nodeName } from "./describe.js";
-import { t } from "./strings.js";
+import { type Strings, t } from "./strings.js";
 import { type RuleSet, type RuleState, type RuleTextRole, ruleDash, rulePaint, ruleRadius, ruleSet, ruleText, ruleTextRole, ruleWidth } from "./rules.js";
 import type { CourseLabel, PathCourses } from "./courses.js";
 import type { CardLevels } from "./readable.js";
@@ -178,6 +178,8 @@ interface NodeMarkOptions {
   banded?: boolean;
   /** What a start or an end event writes under its label (`StyleSpec.terminals`). */
   terminals?: StyleSpec["terminals"];
+  /** The host's wording over the table's (`Strings`). */
+  strings?: Strings;
 }
 
 /**
@@ -324,12 +326,12 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
       const size = styled(label, set, "label").size;
       const end = hasTag(node, "end");
       const glyph = eventGlyph(node);
-      const name = nodeName(node, locale);
+      const name = nodeName(node, locale, options.strings);
       const y = box.y + box.height + space.unit * 2 + size;
       const text = fitted(write(ink(name, cx, y, label.size, { role: "label", anchor: "middle", baseline: "alphabetic", maxWidth: dimensionTokens.eventLabel, lod: "labels" })), measure);
       const texts = glyph ? [write(ink(glyph, cx, cy + 1, textTokens.eventGlyph.size, { role: "glyph", weight: textTokens.eventGlyph.weight, anchor: "middle" })), text] : [text];
       // The host's statement: how many cases start or end here, and how many of them at an activity the map shows.
-      const statement = glyph && options.terminals?.statement ? terminalStatement(node, locale) : undefined;
+      const statement = glyph && options.terminals?.statement ? terminalStatement(node, locale, options.strings) : undefined;
       // On up to three lines of its width under the label, muted.
       if (statement) wrapLines(statement, dimensionTokens.eventStatement, label, 3, measure).forEach((l, i) => texts.push(write(ink(l, cx, y + (i + 1) * (size + space.unit * 2), label.size, { role: "label", anchor: "middle", baseline: "alphabetic", paint: "inkMuted", lod: "labels" }))));
       return mark("circle", Math.min(box.width, box.height) / 2, line("lineStrong", end ? strokeTokens.eventEnd : strokeTokens.eventStart), texts, "paper", undefined, text.text === name && !statement ? undefined : [name, statement].filter(Boolean).join(". "));
@@ -382,11 +384,11 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
 }
 
 /** "1,000 cases · 940 (94 %) at a shown activity": an event's `cases` and `atShown`; none without both. */
-function terminalStatement(node: FlowNode, locale: Locale): string | undefined {
+function terminalStatement(node: FlowNode, locale: Locale, strings?: Strings): string | undefined {
   const cases = metric(node, "cases", NaN);
   const atShown = metric(node, "atShown", NaN);
   if (!Number.isFinite(cases) || !Number.isFinite(atShown)) return undefined;
-  return t(locale, "terminal.statement", { cases: formatCount(cases, locale), atShown: formatCount(atShown, locale), share: cases > 0 ? formatMetricValue("share", atShown / cases, locale) : "–" });
+  return t(locale, "terminal.statement", { cases: formatCount(cases, locale), atShown: formatCount(atShown, locale), share: cases > 0 ? formatMetricValue("share", atShown / cases, locale) : "–" }, strings);
 }
 
 /** The stripe and foot of a card's share inside its outline and after its band (or its outline, without one), where `place` puts them, and their part in the accent. */
@@ -530,7 +532,7 @@ function shareCounts<M extends { texts: ElementText[] }>(marks: M[]): M[] {
 }
 
 /** One mark per node with a box, in the graph's order; `outOfScope` holds the nodes outside the scope the host evaluates. */
-export function nodeMarks(graph: FlowGraph, positions: Positions, scales: Scales, options: { locale?: Locale; activityLabels?: ActivityLabelOptions; theme?: Theme; measure?: TextMeasure; outOfScope?: ReadonlySet<string> } = {}): NodeMark[] {
+export function nodeMarks(graph: FlowGraph, positions: Positions, scales: Scales, options: { locale?: Locale; activityLabels?: ActivityLabelOptions; theme?: Theme; measure?: TextMeasure; outOfScope?: ReadonlySet<string>; strings?: Strings } = {}): NodeMark[] {
   const cases = graph.meta?.cases;
   const total = typeof cases === "number" ? cases : undefined;
   const { nodeLine: line, cueAccent, terminals } = scales.spec;
@@ -540,7 +542,7 @@ export function nodeMarks(graph: FlowGraph, positions: Positions, scales: Scales
   return shareCounts(
     graph.nodes.flatMap((n) => {
       const box = positions.nodes[n.id];
-      return box ? [nodeMark(n, box, { color: scales.nodeColor(n), pattern: scales.nodePattern(n), banded: scales.nodeColored(n), locale: options.locale, activityLabels: options.activityLabels, theme: options.theme, measure: options.measure, total, outOfScope: options.outOfScope?.has(n.id), line, accent, terminals })] : [];
+      return box ? [nodeMark(n, box, { color: scales.nodeColor(n), pattern: scales.nodePattern(n), banded: scales.nodeColored(n), locale: options.locale, activityLabels: options.activityLabels, theme: options.theme, measure: options.measure, total, outOfScope: options.outOfScope?.has(n.id), line, accent, terminals, strings: options.strings })] : [];
     }),
   );
 }

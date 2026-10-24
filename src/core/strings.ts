@@ -143,6 +143,7 @@ const en = {
   "terminal.end": "End",
   "terminal.statement": "{cases} cases · {atShown} ({share}) at a shown activity",
   "terminal.describeStart": "{count} cases begin with this activity",
+  "export.terminals": "Start and End paths count cases by their first and last activity (Σ = {cases})",
   "terminal.describeEnd": "{count} cases finish with this activity",
   "legend.badge": "Constraint badge with shortfall share",
   "legend.badge.presence": "Required: share of cases missing it",
@@ -516,6 +517,7 @@ const de: Record<StringKey, string> = {
   "terminal.end": "Ende",
   "terminal.statement": "{cases} Fälle · {atShown} ({share}) an einer gezeigten Aktivität",
   "terminal.describeStart": "{count} Fälle beginnen mit dieser Aktivität",
+  "export.terminals": "Pfade ab Beginn und zum Ende zählen Fälle nach ihrer ersten und letzten Aktivität (Σ = {cases})",
   "terminal.describeEnd": "{count} Fälle enden mit dieser Aktivität",
   "legend.badge": "Erwartungsmarke mit Lückenanteil",
   "legend.badge.presence": "Erforderlich: Anteil der Fälle, denen es fehlt",
@@ -747,10 +749,30 @@ const de: Record<StringKey, string> = {
 
 export const strings: Record<Locale, Record<StringKey, string>> = { en, de };
 
-/** Translate a key with `{placeholder}` substitution. Unknown keys return the key. */
-export function t(locale: Locale, key: StringKey, vars: Record<string, string | number> = {}): string {
-  const template = strings[locale]?.[key] ?? strings.en[key] ?? key;
+/**
+ * A host's own wording of some strings, by key, in the host's language: it
+ * replaces the table's EN or DE text and takes the same `{placeholder}`s
+ * ("Frequency · {unit}"). A key the table does not know, and a value that is
+ * not a string, is left out.
+ */
+export type Strings = Partial<Record<StringKey, string>>;
+
+/** The translation of a key in a locale, with a host's wording over the table's. */
+export type Translate = (key: StringKey, vars?: Record<string, string | number>) => string;
+
+/**
+ * Translate a key with `{placeholder}` substitution, the host's `overrides`
+ * (`Strings`) over the table. Unknown keys return the key.
+ */
+export function t(locale: Locale, key: StringKey, vars: Record<string, string | number> = {}, overrides?: Strings): string {
+  const own = overrides && Object.hasOwn(strings.en, key) ? overrides[key] : undefined;
+  const template = typeof own === "string" ? own : (strings[locale]?.[key] ?? strings.en[key] ?? key);
   return template.replace(/\{(\w+)\}/g, (_, name: string) => (vars[name] !== undefined ? String(vars[name]) : `{${name}}`));
+}
+
+/** The translation of every key in a locale with the host's wording over it (`t`), as one function. */
+export function createStrings(locale: Locale, overrides?: Strings): Translate {
+  return (key, vars) => t(locale, key, vars, overrides);
 }
 
 /** Human label of a metric name; unknown metrics are returned verbatim. */

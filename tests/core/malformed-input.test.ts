@@ -119,7 +119,7 @@ import {
   formatNumber,
   formatPathCount,
   formatShare,
-  gatewayGlyph,
+  gatewayGlyph, eventGlyph, terminalOf, paintOrder, createStrings,
   groupMark,
   groupMarks,
   hasTag,
@@ -576,7 +576,7 @@ describe("malformed input at the core entry point", () => {
 
   it(
     "scene, marks, legend, figure and SVG export",
-    search(["buildScene", "budgetEdges", "pathsAtZoom", "nodeMarks", "edgeMarks", "nodeMark", "edgeMark", "edgeColor", "edgePoints", "routeMidpoint", "edgeLabelPoint", "gatewayGlyph", "nodeCount", "truncateText", "restOf", "distinctLines", "fitText", "estimateTextWidth", "sceneLegend", "legendItemHeight", "legendLayout", "figureFrame", "toSVG", "resolveViews", "viewsSharePositions", "stateStyle", "markInState", "ruleTextRole", "pathArrowhead", "lineEnd", "groupMark", "groupMarks", "legendOfScene", "figureCaption"], (calls, c) => {
+    search(["buildScene", "budgetEdges", "pathsAtZoom", "nodeMarks", "edgeMarks", "nodeMark", "edgeMark", "edgeColor", "edgePoints", "routeMidpoint", "edgeLabelPoint", "gatewayGlyph", "nodeCount", "truncateText", "restOf", "distinctLines", "fitText", "estimateTextWidth", "sceneLegend", "legendItemHeight", "legendLayout", "figureFrame", "toSVG", "resolveViews", "viewsSharePositions", "stateStyle", "markInState", "ruleTextRole", "pathArrowhead", "lineEnd", "groupMark", "groupMarks", "legendOfScene", "figureCaption", "eventGlyph", "terminalOf", "paintOrder", "createStrings"], (calls, c) => {
       const g = c.graph;
       const L = locale(c);
       const activityLabels = c.rng.chance() ? labels(c) : undefined;
@@ -645,6 +645,16 @@ describe("malformed input at the core entry point", () => {
       calls.call("routeMidpoint", c, () => routeMidpoint(points));
       calls.call("edgeLabelPoint", c, () => edgeLabelPoint(points));
       calls.call("gatewayGlyph", c, () => gatewayGlyph(node));
+      calls.call("eventGlyph", c, () => must([undefined, "▶", "■"].includes(eventGlyph(node)), c, () => `eventGlyph ${eventGlyph(node)}`));
+      calls.call("terminalOf", c, () => must([undefined, "start", "end"].includes(terminalOf(edge, (id) => g.nodes.find((n) => n.id === id))), c, () => "terminalOf"));
+      calls.call("paintOrder", c, () => {
+        const order = paintOrder(s.edgeMarks);
+        must(order.length === s.edgeMarks.length && new Set(order).size === order.length, c, () => `paintOrder ${order}`);
+      });
+      calls.call("createStrings", c, () => {
+        const say = createStrings(L, { "legend.title": junkString(c.rng), [junkString(c.rng)]: junkString(c.rng) } as never);
+        must(typeof say("legend.title") === "string" && typeof say("legend.measure", { measure: junkString(c.rng) }) === "string", c, () => "createStrings");
+      });
       calls.call("nodeCount", c, () => must(nodeCount(node, L) === undefined || readable(nodeCount(node, L)), c, () => `nodeCount ${nodeCount(node, L)}`));
       const font = { size: junkNumber(c.rng), weight: c.rng.chance() ? junkNumber(c.rng) : undefined };
       calls.call("truncateText", c, () => truncateText(junkString(c.rng), junkNumber(c.rng), font));

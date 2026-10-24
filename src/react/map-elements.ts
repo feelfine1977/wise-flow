@@ -1,6 +1,6 @@
 /** What the two map renderers draw: React Flow elements or the Canvas map's retained scene, and their descriptions; the browser's text measure. */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { type ActivityLabelOptions, type Arrowhead, type EdgeBudget, type ElementRef, type FlowGraph, type FlowScene, type GraphIndex, type HitItem, type Locale, type Overlay, type OverlayMark, type Positions, type Readable, type ReadableRules, type Selection, type TextMeasure, budgetEdges, paintOrder, describeOverlay, indexGraph, markInState, readableTokens, stateStyle, zTokens } from "../core/index.js";
+import { type ActivityLabelOptions, type Strings, type Arrowhead, type EdgeBudget, type ElementRef, type FlowGraph, type FlowScene, type GraphIndex, type HitItem, type Locale, type Overlay, type OverlayMark, type Positions, type Readable, type ReadableRules, type Selection, type TextMeasure, budgetEdges, paintOrder, describeOverlay, indexGraph, markInState, readableTokens, stateStyle, zTokens } from "../core/index.js";
 import { type DrawState, type PreparedScene, canvasTextMeasure } from "../canvas/index.js";
 import { retainScene } from "../canvas/scene.js";
 import { LABELS } from "../core/readable.js";
@@ -59,7 +59,7 @@ export function useTextMeasure(given: TextMeasure | undefined, family: string): 
 }
 
 /** ARIA descriptions of the shown elements, read through one index of the shown graph; `notes` adds to an element's, by id (`detailNotes`). */
-export function useElementDescriptions(shown: FlowGraph, overlays: Overlay[], locale: Locale, activityLabels: ActivityLabelOptions | undefined, notes?: ReadonlyMap<string, string>) {
+export function useElementDescriptions(shown: FlowGraph, overlays: Overlay[], locale: Locale, activityLabels: ActivityLabelOptions | undefined, notes?: ReadonlyMap<string, string>, strings?: Strings) {
   // Descriptions
   const overlaysByTarget = useMemo(() => {
     const m = new Map<string, Overlay[]>();
@@ -88,12 +88,12 @@ export function useElementDescriptions(shown: FlowGraph, overlays: Overlay[], lo
       }
       if (ref.kind === "edge") {
         const e = index.edges.get(ref.id);
-        return e ? describeIndexedEdge(e, index, locale) : ref.id;
+        return e ? describeIndexedEdge(e, index, locale, strings) : ref.id;
       }
       const g = groupIndex.get(ref.id);
       return g ? describeGroup(g, memberCount.get(g.id) ?? 0, overlaysByTarget.get(g.id) ?? [], locale) : ref.id;
     },
-    [index, overlaysByTarget, groupIndex, memberCount, locale, activityLabels],
+    [index, overlaysByTarget, groupIndex, memberCount, locale, activityLabels, strings],
   );
   const describeElement = useCallback(
     (ref: ElementRef): string => {

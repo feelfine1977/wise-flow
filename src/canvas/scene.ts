@@ -1,6 +1,7 @@
 /** Retained geometry of a scene for the canvas renderer, with the R-tree for hits and culling. Pure; runs in Node. */
 import {
   type ActivityLabelOptions,
+  type Strings,
   type ColorScheme,
   type GroupMark,
   type TextMeasure,
@@ -141,6 +142,8 @@ export interface PrepareOptions {
   scheme?: ColorScheme;
   /** What the texts are measured by (`FlowSceneOptions.textMeasure`): the Canvas draws the lines the scene fitted. Default `estimateTextWidth`. */
   textMeasure?: TextMeasure;
+  /** The host's wording of some strings over the table's (`Strings`): the legend's sentence, the caption, Start and End. */
+  strings?: Strings;
 }
 
 /** The overlay shapes of the elements without any. */
@@ -214,6 +217,7 @@ export function prepareScene(graph: FlowGraph, givenPositions: Positions, option
     theme: resolveTheme(options.theme),
     scheme: options.scheme,
     textMeasure: options.textMeasure,
+    strings: options.strings,
   }, true);
   return retainScene(options.bands ? { ...scene, bands: options.bands, groupMarks: groupMarks(graph, scene.positions, options.bands, scene.scales, scene.theme) } : scene);
 }

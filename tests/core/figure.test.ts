@@ -346,7 +346,8 @@ describe("the caption of an export", () => {
     const activities = (g: FlowGraph) => g.nodes.filter((n) => n.kind === "activity").length;
     const paths = (g: FlowGraph) => g.edges.filter((e) => e.kind === "follows" && e.source !== e.target).length;
     expect([activities(globalScene), activities(shown), paths(shown)]).toEqual([42, 16, 35]);
-    const caption = `All purchase order items · 251,734 cases · 1948-01-26 – 2020-04-09 · 16 of 42 activities, 35 of ${paths(globalScene)} paths shown`;
+    // The map draws the paths from Start and to End: the caption says what they count (WF-12).
+    const caption = `All purchase order items · 251,734 cases · 1948-01-26 – 2020-04-09 · 16 of 42 activities, 35 of ${paths(globalScene)} paths shown · Start and End paths count cases by their first and last activity (Σ = 251,734)`;
     const svg = toSVG({ graph: shown, positions });
     const written = [.../<g class="wf-caption">(.*?)<\/g>/.exec(svg)![1].matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map((m) => m[1]);
     expect(written.join(" ")).toBe(caption);

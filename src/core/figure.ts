@@ -12,7 +12,7 @@ import { type FlowGraph, type FlowNode, type Overlay, MAP_TARGET } from "./model
 import type { MarkText, OverlayMark } from "./overlay-marks.js";
 import { FULL_DETAIL, type Readable, type ReadableRules, readableAt } from "./readable.js";
 import type { LegendItem, Measure, PatternId, StyleSpec } from "./style.js";
-import { type StringKey, t } from "./strings.js";
+import { type StringKey, type Strings, createStrings, t } from "./strings.js";
 import { type TextMeasure, estimateTextWidth, truncateText, wrapText } from "./text.js";
 import type { Theme } from "./theme.js";
 import { readableTokens, textTokens } from "./tokens.js";
@@ -107,54 +107,58 @@ interface LegendContext {
   /** The measure the style names: the measure's row states its sentence. */
   measure?: Measure;
   frequencyColorLegend?: true;
+  /** The host's wording over the table's (`Strings`). */
+  strings?: Strings;
 }
 
 /** "Shortfall · cases · share of 251,734 cases": the measure the paths' colour shows, the unit and what the shares are of. */
 function measureText(items: LegendItem[], context: LegendContext, locale: Locale): string {
+  const say = createStrings(locale, context.strings);
   const colour = items.find((i) => i.title === "legend.edgeColor" && i.kind !== "categorical");
   const metric = colour && "metric" in colour ? colour.metric : undefined;
   const width = items.find((i) => i.kind === "width");
   const widthMetric = context.pathMetric ?? (width && "metric" in width ? width.metric : "cases");
   const actualWidthMetric = width?.metric ?? widthMetric;
-  if (context.frequencyColorLegend && context.measure === "frequency" && metric && metric !== actualWidthMetric) return t(locale, colour?.kind === "classes" ? "measure.sentence.frequencyClasses" : "measure.sentence.frequencyColor", { width: metricName(actualWidthMetric, locale), color: metricName(metric, locale) });
-  if (context.measure) return t(locale, context.measure === "performance" && items.some(i => "metric" in i && i.title === "legend.edgeColor" && i.metric === "meanLagHours") ? "measure.sentence.performanceMean" : `measure.sentence.${context.measure}`);
+  if (context.frequencyColorLegend && context.measure === "frequency" && metric && metric !== actualWidthMetric) return say(colour?.kind === "classes" ? "measure.sentence.frequencyClasses" : "measure.sentence.frequencyColor", { width: metricName(actualWidthMetric, locale), color: metricName(metric, locale) });
+  if (context.measure) return say(context.measure === "performance" && items.some(i => "metric" in i && i.title === "legend.edgeColor" && i.metric === "meanLagHours") ? "measure.sentence.performanceMean" : `measure.sentence.${context.measure}`);
   // A metric outside the registry names the measure itself.
-  const measure = !metric ? t(locale, "measure.frequency") : metric.startsWith("delta_") ? t(locale, "measure.difference") : (() => { const key = metricEntry(metric)?.measure; return key ? t(locale, key) : metricName(metric, locale); })();
+  const measure = !metric ? say("measure.frequency") : metric.startsWith("delta_") ? say("measure.difference") : (() => { const key = metricEntry(metric)?.measure; return key ? say(key) : metricName(metric, locale); })();
   const unit = metricName(widthMetric, locale);
-  const text = t(locale, "legend.measure", { measure, unit });
-  return context.cases !== undefined && Number.isFinite(context.cases) ? `${text} · ${t(locale, "legend.shareOf", { total: formatCount(context.cases, locale) })}` : text;
+  const text = say("legend.measure", { measure, unit });
+  return context.cases !== undefined && Number.isFinite(context.cases) ? `${text} · ${say("legend.shareOf", { total: formatCount(context.cases, locale) })}` : text;
 }
 
 /** The rows of the measure, the scale items, the keys and the chips, in that order, in a locale. */
 function legendOf(items: LegendItem[], keys: LegendKey[], chips: Overlay[], locale: Locale, context: LegendContext = {}): SceneLegend {
+  const say = createStrings(locale, context.strings);
   const rows: LegendRow[] = items.length ? [{ kind: "measure", text: measureText(items, context, locale) }] : [];
   for (const item of items) {
     if (item.kind === "width") {
       const samples: { value: number; width: number; floor?: boolean }[] = item.samples ?? [0, 1].map((i) => ({ value: item.domain[i], width: item.range[i] }));
       // "Path width: cases (count) · whole graph", the thinnest line "≤ 3,044".
-      const title = [channelTitle(item.title, item.metric, locale), ...(item.scale ? [t(locale, item.scale === "shared" ? "legend.widthShared" : "legend.widthScale")] : []), ...(item.transitionsOnly ? [t(locale, "legend.transitionsOnly")] : [])].join(" · ");
+      const title = [channelTitle(item.title, item.metric, locale), ...(item.scale ? [say(item.scale === "shared" ? "legend.widthShared" : "legend.widthScale")] : []), ...(item.transitionsOnly ? [say("legend.transitionsOnly")] : [])].join(" · ");
       const value = (v: number) => formatMetricValue(item.metric, v, locale, { path: true });
-      rows.push({ kind: "width", title, samples: samples.map((s) => ({ width: s.width, text: s.floor ? t(locale, "legend.widthFloor", { value: value(s.value) }) : value(s.value) })) });
+      rows.push({ kind: "width", title, samples: samples.map((s) => ({ width: s.width, text: s.floor ? say("legend.widthFloor", { value: value(s.value) }) : value(s.value) })) });
     } else if (item.kind === "classes") {
       // "up to 10 %", "10 to 30 %", "over 30 %": each class with its bounds.
       const { bounds, metric } = item;
       const value = (i: number) => formatMetricValue(metric, bounds[i], locale);
-      const text = (i: number) => (i === 0 ? t(locale, "legend.classFirst", { high: value(0) }) : i === bounds.length ? t(locale, "legend.classLast", { low: value(i - 1) }) : t(locale, "legend.classBetween", { low: value(i - 1), high: value(i) }));
+      const text = (i: number) => (i === 0 ? say("legend.classFirst", { high: value(0) }) : i === bounds.length ? say("legend.classLast", { low: value(i - 1) }) : say("legend.classBetween", { low: value(i - 1), high: value(i) }));
       rows.push({ kind: "swatches", title: channelTitle(item.title, metric, locale), entries: item.colors.map((color, i) => ({ text: text(i), color, pattern: "solid" })) });
     } else if (item.kind === "categorical") {
-      const channel = t(locale, item.title);
-      rows.push({ kind: "swatches", title: item.entries.some((e) => e.label !== undefined) ? t(locale, "legend.channelBare", { channel, metric: t(locale, "legend.stage") }) : channel, entries: item.entries.map((e) => ({ text: e.label ?? e.key, color: e.color, pattern: e.pattern })) });
+      const channel = say(item.title);
+      rows.push({ kind: "swatches", title: item.entries.some((e) => e.label !== undefined) ? say("legend.channelBare", { channel, metric: say("legend.stage") }) : channel, entries: item.entries.map((e) => ({ text: e.label ?? e.key, color: e.color, pattern: e.pattern })) });
     } else {
       const { domain } = item;
       rows.push({ kind: "ramp", title: channelTitle(item.title, item.metric, locale), id: `${item.title.replace(/\W/g, "")}-${item.metric.replace(/\W/g, "")}`, stops: item.stops, values: (domain.length === 3 ? domain : [domain[0], domain[domain.length - 1]]).map((v) => formatMetricValue(item.metric, v, locale)) });
     }
   }
-  for (const k of keys) rows.push({ kind: "key", key: k.kind, glyph: k.glyph, text: k.label ?? t(locale, k.title) });
+  for (const k of keys) rows.push({ kind: "key", key: k.kind, glyph: k.glyph, text: k.label ?? say(k.title) });
   for (const chip of chips) {
     const p = chip.payload ?? {};
     rows.push({ kind: "chip", chip, label: `${p.glyph ?? ""} ${p.label ?? ""}`.trim(), text: String(p.text ?? "") });
   }
-  return { title: t(locale, "legend.title"), rows, items, keys, chips };
+  return { title: say("legend.title"), rows, items, keys, chips };
 }
 
 /** The overlay kind a key explains (reverse-order arcs are arcs). */
@@ -165,10 +169,10 @@ const overlayKind = (k: LegendKeyKind) => (k === "outOfScope" ? "hatch" : k === 
  * kinds given, then re-added paths, which every map can show. A scene's
  * legend (`legendOfScene`) lists the marks it draws instead.
  */
-export function sceneLegend(items: LegendItem[], overlays: readonly Overlay[], locale: Locale = "en"): SceneLegend {
+export function sceneLegend(items: LegendItem[], overlays: readonly Overlay[], locale: Locale = "en", strings?: Strings): SceneLegend {
   const present = (k: LegendKeyKind) => k === "reconnected" || overlays.some((o) => o.kind === overlayKind(k) && (k !== "reverse" || !!o.payload?.reverse));
   const keys = [...badgeKeys(overlays.filter((o) => o.kind === "badge")), ...KEYS.filter((k) => present(k.kind))];
-  return legendOf(items, keys, overlays.filter((o) => o.kind === "chip" && o.target === MAP_TARGET), locale);
+  return legendOf(items, keys, overlays.filter((o) => o.kind === "chip" && o.target === MAP_TARGET), locale, { strings });
 }
 
 /** The parts of a scene its legend is built from. */
@@ -180,6 +184,8 @@ export interface LegendSource {
   locale: Locale;
   /** Its graph, whose `meta.cases` the measure's shares are of. */
   graph?: Pick<FlowGraph, "meta">;
+  /** The host's wording over the table's (`Strings`). */
+  strings?: Strings;
 }
 
 /**
@@ -205,7 +211,7 @@ export function legendOfScene(scene: LegendSource): SceneLegend {
   const addedFlowLabel = scene.scales.spec?.addedFlowLabel;
   const keys = [...badgeKeys(marks.filter((m) => m.inMap && m.kind === "badge").map((m) => m.overlay)), ...KEYS.filter((k) => present(k.kind)).map((k) => k.kind === "addedFlow" && typeof addedFlowLabel === "string" ? { ...k, label: addedFlowLabel } : k)];
   const cases = scene.graph?.meta?.cases;
-  return legendOf(items, keys, marks.filter((m) => m.kind === "chip" && !m.inMap).map((m) => m.overlay), scene.locale, { pathMetric: scene.scales.pathMetric, cases: typeof cases === "number" ? cases : undefined, measure: scene.scales.spec?.measure, frequencyColorLegend: scene.scales.spec?.frequencyColorLegend });
+  return legendOf(items, keys, marks.filter((m) => m.kind === "chip" && !m.inMap).map((m) => m.overlay), scene.locale, { pathMetric: scene.scales.pathMetric, cases: typeof cases === "number" ? cases : undefined, measure: scene.scales.spec?.measure, frequencyColorLegend: scene.scales.spec?.frequencyColorLegend, strings: scene.strings });
 }
 
 /** Row heights of the legend in a figure; text offsets within a row stay with the renderers. */
@@ -297,18 +303,19 @@ const counted = (v: unknown) => typeof v === "number" && Number.isFinite(v);
  * the detail panel, `detailStatement`). A part whose data is missing is left
  * out; without any, there is no caption.
  */
-export function figureCaption(graph: FlowGraph, locale: Locale = "en", labelOf?: (id: string) => string): string | undefined {
+export function figureCaption(graph: FlowGraph, locale: Locale = "en", labelOf?: (id: string) => string, strings?: Strings): string | undefined {
+  const say = createStrings(locale, strings);
   const meta = graph.meta ?? {};
   const parts: string[] = [];
   const label = meta.label ?? meta.scene;
   if (typeof label === "string" && label) parts.push(label);
-  if (counted(meta.cases)) parts.push(t(locale, "caption.cases", { cases: formatCount(meta.cases as number, locale) }));
+  if (counted(meta.cases)) parts.push(say("caption.cases", { cases: formatCount(meta.cases as number, locale) }));
   const period = meta.period as unknown;
   const [from, to] = Array.isArray(period) ? period : period && typeof period === "object" ? [(period as { from?: unknown }).from, (period as { to?: unknown }).to] : [];
-  if (typeof from === "string" && typeof to === "string") parts.push(t(locale, "caption.period", { from, to }));
+  if (typeof from === "string" && typeof to === "string") parts.push(say("caption.period", { from, to }));
   if (meta.filters !== undefined && meta.filters !== null && typeof meta.filters === "object") {
     const clauses = asFilter(meta.filters as Parameters<typeof asFilter>[0]).and;
-    parts.push(clauses.length ? t(locale, "caption.filters", { filters: clauses.map((c) => describeClause(c, locale, labelOf)).join("; ") }) : t(locale, "caption.noFilters"));
+    parts.push(clauses.length ? say("caption.filters", { filters: clauses.map((c) => describeClause(c, locale, labelOf)).join("; ") }) : say("caption.noFilters"));
   }
   // A graph abstracted by detail says what it shows as the detail panel does.
   const statement = meta.shown?.byFrequency !== undefined ? detailStatement(graph, { locale, labelOf }) : undefined;
@@ -320,11 +327,27 @@ export function figureCaption(graph: FlowGraph, locale: Locale = "en", labelOf?:
   // A collapsed stage shows its activities; its merged paths are not the model's, so their share is not known.
   const { ids: activities, collapsed } = shownActivityIds(graph);
   const shown = [
-    counted(model.activities) && t(locale, "caption.activities", { shown: formatCount(activities.size, locale), total: formatCount(model.activities!, locale) }),
-    counted(model.paths) && !collapsed && t(locale, "caption.paths", { shown: formatCount(graph.edges.filter((e) => e.kind === "follows" && e.source !== e.target).length, locale), total: formatCount(model.paths!, locale) }),
+    counted(model.activities) && say("caption.activities", { shown: formatCount(activities.size, locale), total: formatCount(model.activities!, locale) }),
+    counted(model.paths) && !collapsed && say("caption.paths", { shown: formatCount(graph.edges.filter((e) => e.kind === "follows" && e.source !== e.target).length, locale), total: formatCount(model.paths!, locale) }),
   ].filter((p): p is string => !!p);
-  if (shown.length) parts.push(t(locale, "caption.shown", { parts: shown.join(", ") }));
+  if (shown.length) parts.push(say("caption.shown", { parts: shown.join(", ") }));
   return parts.length ? parts.join(" · ") : undefined;
+}
+
+/**
+ * A caption with the sentence on terminal paths where the figure draws them:
+ * they count cases by their first and last activity, each direction summing
+ * to the cases (`export.terminals`), so that Σ starts = Σ ends = cases reads
+ * under the figure.
+ */
+function withTerminals(caption: string | undefined, scene: FramedScene): string | undefined {
+  const terminals = scene.edgeMarks?.filter((m) => m.terminal) ?? [];
+  if (!terminals.length) return caption;
+  const cases = scene.graph.meta?.cases;
+  const sum = (end: string) => terminals.filter((m) => m.terminal === end).reduce((s, m) => s + (m.edge.metrics?.cases ?? m.edge.metrics?.count ?? 0), 0);
+  const total = typeof cases === "number" && Number.isFinite(cases) ? cases : Math.max(sum("start"), sum("end"));
+  const sentence = t(scene.locale, "export.terminals", { cases: formatCount(total, scene.locale) }, scene.strings);
+  return caption ? `${caption} · ${sentence}` : sentence;
 }
 
 /** Space between the legend's rule and its rows, and after the rows. */
@@ -428,7 +451,11 @@ export interface FramedScene {
   /** What decides its levels of detail, and its cards: the numbers of a fitted figure. */
   readable?: ReadableRules;
   nodeMarks?: readonly NodeMark[];
+  /** Its paths: where terminal paths are drawn, the caption says what they count. */
+  edgeMarks?: readonly { terminal?: string; edge: { metrics?: Record<string, number> } }[];
   positions?: Pick<Positions, "direction">;
+  /** The host's wording over the table's (`Strings`). */
+  strings?: Strings;
 }
 
 /** CSS pixels per millimetre, and points per CSS pixel: one figure unit at the width a figure is declared at. */
@@ -545,7 +572,7 @@ export function figureFrame(scene: FramedScene, options: FigureFrameOptions = {}
   const keyTop = column.y + (layout && names ? layout.height + f.noteRow : (layout?.height ?? 0));
   const columnHeight = keyTop - column.y + (names ? names.lines.length * f.keyLine : 0);
   const below = header + (beside ? Math.max(mapH, columnHeight + 2 * pad) : mapH + (columnHeight && columnHeight + pad));
-  const captionText = options.caption === false ? undefined : figureCaption(scene.graph, locale);
+  const captionText = options.caption === false ? undefined : withTerminals(figureCaption(scene.graph, locale, undefined, scene.strings), scene);
   const captionLines = captionText ? wrapText(captionText, width - 2 * pad, { size: f.noteSize }, measure) : [];
   const noteTop = below + captionLines.length * f.keyLine;
   const keyY = noteTop + (text ? f.noteRow : 0);

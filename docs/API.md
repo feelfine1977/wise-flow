@@ -1744,10 +1744,33 @@ export type Locale = "en" | "de";
 export function formatCount(v, locale?), formatNumber(v, decimals?, locale?), formatShare(v, locale?),
   formatDelta(v, locale?), formatHours(v, locale?), formatDays(v, locale?), formatCompact(v, locale?),
   formatPathCount(v, locale?);
-export function t(locale: Locale, key: StringKey, vars?): string;
+export function t(locale: Locale, key: StringKey, vars?, overrides?: Strings): string;   // overrides: the host's wording over the table (0.4)
+export type Strings = Partial<Record<StringKey, string>>;   // a host's wording by key, with the table's {placeholders} (0.4)
+export type Translate = (key: StringKey, vars?) => string;
+export function createStrings(locale: Locale, overrides?: Strings): Translate;   // `t` in a locale with the host's wording, as one function (0.4)
 export const strings: Record<Locale, Record<StringKey, string>>;   // the table `t` reads: every key in English and German
 export function metricLabel(locale: Locale, metric: string): string;
 ```
+
+**The host's wording (0.4).** A host words the map's sentences itself
+without forking the table: `strings` replaces a key's EN or DE text with its
+own, which takes the same `{placeholders}`; a key the table does not know and
+a value that is not a string are left out. `FlowSceneOptions.strings` (and so
+`FlowScene.strings`), `ExportOptions.strings` (`toSVG`), `PngOptions.strings`
+(`toPNG`), `PrepareOptions.strings` (`prepareScene`), `LegendProps.strings`,
+`AbstractionControlsProps.strings` and `ProcessMapProps.strings` take it; the
+scene builds its legend rows, the caption, Start and End and the marks' texts
+with it, so the strip, the expanded key, the Canvas legend and both exports
+print the same: `strings={{ "legend.measure": "Frequency · {unit}",
+"legend.shareOf": "share of {total} cases" }}` prints "Frequency · cases ·
+share of 251,734 cases". The detail panel (`controls.*`, the statements'
+`detail.*`), the descriptions of terminal paths (`terminal.describeStart`,
+`terminal.describeEnd`) and the caption's terminal sentence
+(`export.terminals`) read it too. The interactive map compares it by value, so
+an object written in place does not build the scene again. Keys whose text
+`metrics.ts` composes (a channel's title, a metric's name) are not reached.
+`ProcessMapProps.hideAttribution` (0.4, default false) hides React Flow's
+credit for a host that credits it elsewhere.
 
 The numbers follow one set of rules, in English and German:
 

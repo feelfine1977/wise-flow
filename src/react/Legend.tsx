@@ -1,4 +1,4 @@
-import { type Locale, type Measure, type Overlay, type Scales, type SceneLegend, sceneLegend, t } from "../core/index.js";
+import { type Locale, type Measure, type Overlay, type Scales, type SceneLegend, sceneLegend, type StringKey, type Strings, t as translate } from "../core/index.js";
 import { useContext, useId, useState } from "react";
 import { PatternSwatch, PatternTheme } from "./patterns.js";
 import { Button, Panel } from "./primitives.js";
@@ -23,6 +23,8 @@ export interface LegendProps {
   /** The measure shown; given with `onMeasureChange`, the whole key offers the three measures to switch between. */
   measure?: Measure;
   onMeasureChange?: (measure: Measure) => void;
+  /** The host's wording over the library's (`Strings`), for the rows built here and the controls. */
+  strings?: Strings;
 }
 
 const MEASURES: readonly Measure[] = ["frequency", "shortfall", "performance"];
@@ -35,8 +37,10 @@ const MEASURES: readonly Measure[] = ["frequency", "shortfall", "performance"];
  * A measure's sentence shows its first sentence, the measure and its unit, in
  * the strip. Exports always draw the whole key.
  */
-export function Legend({ scales, overlays = [], locale = "en", chips, legend, expanded: expandedProp, defaultExpanded = false, onExpandedChange, onAnnounce, measure: shown, onMeasureChange }: LegendProps) {
-  const { title, rows } = legend ?? sceneLegend(scales?.legend ?? [], overlays, locale);
+export function Legend({ scales, overlays = [], locale = "en", chips, legend, expanded: expandedProp, defaultExpanded = false, onExpandedChange, onAnnounce, measure: shown, onMeasureChange, strings }: LegendProps) {
+  // The host's wording over the table's.
+  const t = (l: Locale, key: StringKey, vars: Record<string, string | number> = {}) => translate(l, key, vars, strings);
+  const { title, rows } = legend ?? sceneLegend(scales?.legend ?? [], overlays, locale, strings);
   const { ink, look } = useContext(PatternTheme);
   const [own, setOwn] = useState(defaultExpanded);
   const [said, setSaid] = useState("");

@@ -120,8 +120,12 @@ function ProcessMapInner(props: ProcessMapProps) {
     canvasThreshold = DEFAULT_CANVAS_THRESHOLD,
     describedLimit = DEFAULT_DESCRIBED_LIMIT,
     edgeBudget = "adaptive",
+    hideAttribution = false,
     children,
   } = props;
+  // The host's wording, kept by value so that an object written in place does not build the scene again.
+  const stringsKey = JSON.stringify(props.strings ?? null);
+  const strings = useMemo(() => props.strings, [stringsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const activityLabels = useMemo(() => props.activityLabels ? {
     ...props.activityLabels, references: activityReferences(graph, props.activityLabels.references),
@@ -191,7 +195,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   const [manual, setManual] = useState<{ key: ProcessMapProps["layoutResetKey"]; points: Record<string, XY> }>({ key: layoutResetKey, points: {} });
   // The shown graph's marks, the given ones among them; the scene keeps those it can place and adds the follows self-loops.
   const { scene, positions, laidPositions } = useMapScene(shown, arrival.positions, manual.key === layoutResetKey ? manual.points : NO_MOVES, {
-    style, locale, lanes, activityLabels, selfLoops, lod: props.lod, theme: markedTheme, scheme: look.scheme, textMeasure,
+    style, locale, lanes, activityLabels, selfLoops, lod: props.lod, theme: markedTheme, scheme: look.scheme, textMeasure, strings,
   });
   const { scales, overlays, geometry } = scene;
   // What the detail sliders show, in words, and what the tooltips add: the labels of elements not shown are the graph's before the sliders.
@@ -199,10 +203,10 @@ function ProcessMapInner(props: ProcessMapProps) {
     const labels = new Map(baseGraph.nodes.map((n) => [n.id, n.label]));
     return (id: string) => labels.get(id) ?? id;
   }, [baseGraph]);
-  const statement = useMemo(() => detailStatement(shown, { locale, marks: baseGraph.overlays, labelOf: baseLabel }), [shown, baseGraph, locale, baseLabel]);
-  const notes = useMemo(() => detailNotes(baseGraph, shown, { locale, labelOf: baseLabel }), [baseGraph, shown, locale, baseLabel]);
+  const statement = useMemo(() => detailStatement(shown, { locale, marks: baseGraph.overlays, labelOf: baseLabel, strings }), [shown, baseGraph, locale, baseLabel, strings]);
+  const notes = useMemo(() => detailNotes(baseGraph, shown, { locale, labelOf: baseLabel, strings }), [baseGraph, shown, locale, baseLabel, strings]);
   // One index of the shown graph: every description, label and lookup by id reads it.
-  const descriptions = useElementDescriptions(shown, overlays, locale, activityLabels, notes);
+  const descriptions = useElementDescriptions(shown, overlays, locale, activityLabels, notes, strings);
   const { describeElement, index } = descriptions;
   const labelOf = index.label;
   // The keyboard position while on the map.
@@ -557,7 +561,7 @@ function ProcessMapInner(props: ProcessMapProps) {
     />
   ) : null;
   const legendElement = legend ? (
-    <Legend scales={scales} legend={scene.legend} locale={locale} onAnnounce={controller.announce} measure={onMeasureChange ? (measure ?? "frequency") : undefined} onMeasureChange={chooseMeasure} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} locale={locale} />) : undefined} />
+    <Legend scales={scales} legend={scene.legend} locale={locale} strings={strings} onAnnounce={controller.announce} measure={onMeasureChange ? (measure ?? "frequency") : undefined} onMeasureChange={chooseMeasure} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} locale={locale} />) : undefined} />
   ) : null;
   // Where the map draws fewer paths than are selected (at a small zoom, by the path budget), the panel says both numbers; both count paths only.
   const withheldPaths = view === "table" ? 0 : useCanvas ? (canvasWithheld ?? 0) : (flow.withheld?.pathsNotShown ?? 0);
@@ -568,6 +572,7 @@ function ProcessMapInner(props: ProcessMapProps) {
       value={abstraction}
       onChange={setAbstraction}
       locale={locale}
+      strings={strings}
       hasStages={hasStages}
       view={view}
       onViewChange={setView}
@@ -691,7 +696,7 @@ function ProcessMapInner(props: ProcessMapProps) {
                 zoomOnScroll={false}
                 zoomOnPinch
                 fitView={false}
-                proOptions={{ hideAttribution: false }}
+                proOptions={{ hideAttribution }}
                 nodesFocusable
                 edgesFocusable
                 disableKeyboardA11y

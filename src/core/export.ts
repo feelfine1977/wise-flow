@@ -15,7 +15,7 @@ import { type MarkPaint, type MarkText, type OverlayMark, markArrowhead, overlay
 import { type Readable, isPill, nodeTexts, readableMark, shownReadable, titleTexts } from "./readable.js";
 import { type FlowScene, sceneOf } from "./scene.js";
 import { type Measure, type StyleSpec, lodAt, patternDefs } from "./style.js";
-import { t } from "./strings.js";
+import { type Strings, t } from "./strings.js";
 import type { TextMeasure } from "./text.js";
 import { type ColorScheme, type ThemeSetting, resolveTheme } from "./theme.js";
 import { type Arrowhead, type ColorToken, arrowheadTokens, dimensionTokens, readableTokens } from "./tokens.js";
@@ -82,6 +82,8 @@ export interface ExportOptions {
   scheme?: ColorScheme;
   /** What the figure's texts are measured by (see `FlowSceneOptions.textMeasure`). Default `estimateTextWidth`. */
   textMeasure?: TextMeasure;
+  /** The host's wording of some strings over the table's (`Strings`): the legend's sentence, the caption, Start and End. */
+  strings?: Strings;
   /**
    * The caption line under the map and the legend: label, cases, period,
    * filters and how much of the model is shown, from the graph's `meta`
@@ -311,6 +313,7 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
     theme: resolveTheme(options.theme ?? "print"),
     scheme: options.scheme,
     textMeasure: options.textMeasure,
+    strings: options.strings,
   }, true);
   const { locale, colors, theme } = scene;
   const font = options.fontFamily ?? theme.font.family;

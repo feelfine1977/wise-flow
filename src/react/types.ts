@@ -1,5 +1,6 @@
 import type { Node, Edge } from "@xyflow/react";
 import type {
+  Strings,
   AbstractOptions,
   ActivityLabelOptions,
   EdgeBudget,
@@ -227,6 +228,21 @@ export interface ProcessMapProps {
   onHover?: (id: string | null) => void;
   lod?: Partial<LodRules>;
   locale?: Locale;
+  /**
+   * The host's wording of some strings over the library's EN and DE table
+   * (`Strings`): the legend's sentence ("Frequency · {unit}",
+   * `legend.measure`; `legend.shareOf`; `measure.sentence.*`), the detail
+   * panel (`controls.*`, `detail.*`), Start and End (`terminal.*`) and the
+   * descriptions of terminal paths. Compared by value: an object written in
+   * place does not rebuild the scene.
+   */
+  strings?: Strings;
+  /**
+   * Hide React Flow's attribution in the corner of the interactive map.
+   * Default false: the credit is visible; a host that credits React Flow
+   * elsewhere (an About view) may hide it here.
+   */
+  hideAttribution?: boolean;
   layout?: LayoutOptions;
   /** Draw self-loop follows edges as self-loop overlays. Default true. */
   selfLoops?: boolean;

@@ -188,6 +188,10 @@ Test: `tests/core/malformed-input.test.ts` › "scene, marks, legend, figure and
 | `routeMidpoint` | `.` | Not documented. | Returns. |
 | `edgeLabelPoint` | `.` | Not documented. | Returns. |
 | `gatewayGlyph` | `.` | × unless tagged `and` or `or`. | Returns. |
+| `eventGlyph` | `.` | ▶ for an event tagged `start`, ■ for `end`, none otherwise (0.4). | Returns one of the three. |
+| `terminalOf` | `.` | `start`, `end` or none; an end the lookup does not find is no event (0.4). | Returns one of the three. |
+| `paintOrder` | `.` | Every index once, widest first; widths that are not numbers sort as they compare (0.4). | Returns a permutation of the indices. |
+| `createStrings` | `.` | A host value that is not a string, and a key the table does not know, are left out (0.4). | Returns a function that returns a string for every key. |
 | `nodeCount` | `.` | Not documented. | Returns a readable count or nothing. |
 | `truncateText` | `.` | Not documented. | Returns. |
 | `restOf` | `.` | Not documented. | Returns. |

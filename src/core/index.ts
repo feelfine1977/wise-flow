@@ -228,6 +228,7 @@ export type {
 
 export {
   t,
+  createStrings,
   metricLabel,
   strings,
 } from "./strings.js";
@@ -253,6 +254,8 @@ export type {
 } from "./metrics.js";
 export type {
   StringKey,
+  Strings,
+  Translate,
 } from "./strings.js";
 
 export {
