@@ -32,7 +32,7 @@ export const FIGURE_WIDTHS: Record<Exclude<FigurePreset, "none">, number> = {
  * the accent of an activity's frequency cue, and the start and end of the
  * process.
  */
-export type LegendKeyKind = "badge" | "arc" | "reverse" | "selfLoop" | "outOfScope" | "reconnected" | "indirect" | "notEvaluated" | "addedFlow" | "shortPart" | "terminal" | "start" | "end";
+export type LegendKeyKind = "badge" | "arc" | "reverse" | "selfLoop" | "outOfScope" | "reconnected" | "indirect" | "notEvaluated" | "addedFlow" | "shortPart" | "atLeast" | "terminal" | "start" | "end";
 
 export interface LegendKey {
   kind: LegendKeyKind;
@@ -81,6 +81,7 @@ const KEYS: readonly LegendKey[] = [
   { kind: "notEvaluated", glyph: "─", title: "legend.notEvaluated" },
   { kind: "addedFlow", glyph: "···", title: "legend.addedFlow" },
   { kind: "shortPart", glyph: "▬", title: "legend.shortPart" },
+  { kind: "atLeast", glyph: "≥", title: "legend.atLeast" },
   { kind: "terminal", glyph: "─", title: "legend.terminal" },
   { kind: "start", glyph: "▶", title: "legend.start" },
   { kind: "end", glyph: "■", title: "legend.end" },
@@ -205,6 +206,7 @@ export function legendOfScene(scene: LegendSource): SceneLegend {
     : k === "addedFlow" ? edgeMarks.some((m) => m.addedFlow)
     : k === "terminal" ? edgeMarks.some((m) => m.terminal)
     : k === "shortPart" ? nodeMarks.some((m) => m.cue?.accent)
+    : k === "atLeast" ? nodeMarks.some((m) => m.node?.metricBasis?.cases === "atLeast")
     : k === "start" || k === "end" ? event(k)
     : marks.some((m) => m.inMap && m.kind === overlayKind(k) && (k !== "reverse" || !!m.overlay.payload?.reverse));
   const items = scene.scales.legend.filter((item) => (item.title === "legend.nodeColor" ? nodeMarks : edgeMarks).length > 0);

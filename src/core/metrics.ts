@@ -104,6 +104,8 @@ export interface MetricFormatOptions {
   basis?: MetricBasis;
   /** Written on a path: counts in full up to 99,999, then "113k", "1.2M". Default false: counts in full. */
   path?: boolean;
+  /** A lower bound reads "≥ 211,379", as on a card's number line, where it is otherwise "at least 211,379". */
+  compactBasis?: boolean;
 }
 
 /**
@@ -121,7 +123,7 @@ export function formatMetricValue(name: string, value: number | undefined, local
     : kind === "hours" ? formatHours(value, locale)
     : kind === "count" || Number.isInteger(value) ? (options.path ? formatPathCount(value, locale) : formatCount(value, locale))
     : formatNumber(value, 1, locale);
-  return options.basis === "atLeast" ? t(locale, "metric.atLeast", { value: text }) : text;
+  return options.basis === "atLeast" ? (options.compactBasis ? `≥ ${text}` : t(locale, "metric.atLeast", { value: text })) : text;
 }
 
 /** An element's metric as text: its value read with its basis (`formatMetricValue`). */

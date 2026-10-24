@@ -49,7 +49,8 @@ describe("a collapsed stage in the map and the table", () => {
     const label = stage.getAttribute("aria-label") ?? stage.closest("[aria-label]")?.getAttribute("aria-label") ?? "";
     expect(label).toContain("at least 1 cases (at least 50 %)");
     expect(label).not.toContain("1 cases (50 %)");
-    expect(stage.textContent).toContain("at least 1");
+    // The card prints the bound compactly; its description says "at least".
+    expect(stage.textContent).toContain("≥ 1");
     const title = container.querySelector(`g.wf-edge[data-id="${merged.id}"] title`)?.textContent ?? "";
     expect(title).toContain("lag, mean of medians 15 h");
     expect(title).not.toContain("median lag");

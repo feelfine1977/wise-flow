@@ -364,11 +364,12 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
       if (counted) {
         // The measure's value leads where the style gives one, then the cases or their share.
         const lead = options.line && leadOf(node, options.line, locale);
-        const cases = elementMetric(node, "cases", locale);
+        // A lower bound (a collapsed stage's largest member) reads "≥ 211,379" on the card; descriptions say "at least".
+        const cases = formatMetricValue("cases", metric(node, "cases", NaN), locale, { basis: metricBasis(node, "cases"), compactBasis: true });
         const count = lead ?? cases;
         const y = baseline(top + lines.length * nameText.lineHeight, numberText.lineHeight, numberText.size);
         texts.push(write(ink(count, x, y, numberText.size, { role: "countLine", baseline: "alphabetic", weight: numberText.weight, lod })));
-        const shown = lead !== undefined && options.line!.then !== "share" ? cases : share === undefined ? "–" : formatMetricValue("share", share, locale, { basis: metricBasis(node, "cases") });
+        const shown = lead !== undefined && options.line!.then !== "share" ? cases : share === undefined ? "–" : formatMetricValue("share", share, locale, { basis: metricBasis(node, "cases"), compactBasis: true });
         if (options.line?.then !== "none" && options.line?.format !== "both") texts.push(write(ink(`· ${shown}`, x + measure(count, numberText) + 2 * space.unit, y, shareText.size, { role: "share", baseline: "alphabetic", weight: shareText.weight, paint: "inkMuted", lod })));
       }
       // A name shortened to two lines is given whole to hover and assistive technology.

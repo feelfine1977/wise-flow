@@ -233,13 +233,20 @@ export function collapseGroups(graph: FlowGraph, groups: string[] | "all"): Flow
     const group = idx.groups.get(root)!;
     const members = membersOf.get(root)!;
     collapsedMembers.set(root, [...new Set(members.flatMap((member) => collapsedActivityIds(graph, member.id) ?? (member.kind === "activity" ? [member.id] : [])))]);
-    const { metrics, basis } = sumMetrics(members, ["cases", "events"]);
+    const summed = sumMetrics(members, ["cases", "events"]);
+    // The host's exact numbers of the stage replace the members' maximum (a lower bound) and sum.
+    const exact = Object.fromEntries(["cases", "events", "share"].flatMap((k) => (Number.isFinite(group.metrics?.[k]) ? [[k, group.metrics![k]]] : [])));
+    if (exact.cases !== undefined && exact.share === undefined && typeof allCases === "number" && allCases > 0) exact.share = exact.cases / allCases;
+    const metrics = { ...summed.metrics, ...exact };
+    const kept = summed.basis && Object.entries(summed.basis).filter(([k]) => !(k in exact));
+    const basis = kept?.length ? Object.fromEntries(kept) : undefined;
     // An upper bound of the cases that touch the stage: its members' cases (an inner stage's bound) summed, at most all cases.
     const cases = members.flatMap((m) => {
       const v = casesAtMost.get(m.id) ?? m.metrics?.cases;
       return Number.isFinite(v) ? [Math.max(0, v!)] : [];
     });
-    if (cases.length) casesAtMost.set(root, Math.max(metrics.cases ?? 0, Math.min(total(cases), Number.isFinite(allCases) ? (allCases as number) : Infinity)));
+    if (exact.cases !== undefined) casesAtMost.set(root, exact.cases);
+    else if (cases.length) casesAtMost.set(root, Math.max(metrics.cases ?? 0, Math.min(total(cases), Number.isFinite(allCases) ? (allCases as number) : Infinity)));
     nodes.push({
       id: root,
       kind: "stage",

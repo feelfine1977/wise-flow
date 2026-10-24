@@ -1226,7 +1226,15 @@ is the box every renderer draws.
 
 A stage node's card shows its cases and their share; how many activities it
 holds ("4 activities") is in its description (`describeNode`), which is its
-accessible name and its hover title.
+accessible name and its hover title. Where the cases are a lower bound (a
+collapsed stage's largest member, `metricBasis` `atLeast`), the card prints
+them compactly, "≥ 211,379 · ≥ 84 %" (0.4; `MetricFormatOptions.compactBasis`),
+while descriptions, tooltips and tables keep "at least 211,379"; the legend
+explains the mark ("≥ a lower bound: …", key `atLeast`) only where a card
+carries it. A host that knows a stage's exact numbers gives them on the group
+(`FlowGroup.metrics`: `cases`, the union of the cases touching it, `events`,
+`share`); `collapseGroups` takes them instead of the bound, and the card prints
+plain numbers (the share is `cases` over `meta.cases` where none is given).
 
 Stage groups are outlined by a solid hairline (`line`, 1 wide) without a
 tint (`opacity.groupFill` 0; a theme that sets it tints them again), their
