@@ -1470,6 +1470,17 @@ self-loop it carries. The labels' boxes are measured in the language they
 are written in, `OverlayGeometryOptions.locale` (default `en`; `buildScene`
 passes the scene's locale).
 
+A self-loop is an arc at the card's top-right corner with its label beside
+it by default. With `OverlayGeometryOptions.selfLoop: "pill"` (0.4) it is one
+pill instead, `badgeSize` tall, outlined by a hairline in `lineStrong` on the
+paper with "↻ 17 %" in the ink at the badge's 11/600, its right end at the
+card's and its middle on the card's top border (`badgeAnchor: "border"`, the
+default) or 2 inside it (`"inside"`): it costs the name no room, the badges
+run left of it, it scales with the readable floor like the other pills
+(`OverlayShape.pill`), and every renderer draws it from its mark.
+`ProcessMapProps.overlayGeometry` passes the options to the map (compared by
+value); `buildScene`, `prepareScene` and `toSVG` take them as before.
+
 A chip of a group (a measure that belongs to a stage) is placed after the
 badges and the self-loops: in the group's title row, ending at its chip
 anchor, where it covers nothing there; otherwise above the group or below

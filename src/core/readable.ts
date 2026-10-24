@@ -160,7 +160,7 @@ export function boostMark(m: OverlayMark, boost: number, origin: XY): OverlayMar
 }
 
 /** Whether a mark is a deviation pill: a badge, a chip, or an arc with its label. */
-export const isPill = (m: OverlayMark): boolean => m.kind === "badge" || m.kind === "chip" || (m.kind === "arc" && !!m.pill);
+export const isPill = (m: OverlayMark): boolean => m.kind === "badge" || m.kind === "chip" || (m.kind === "arc" && !!m.pill) || (m.kind === "selfLoop" && m.path === undefined);
 
 const rows = new WeakMap<ReadableRules, ReadonlyMap<string, XY>>();
 

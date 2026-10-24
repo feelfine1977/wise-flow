@@ -1,5 +1,6 @@
 import type { Node, Edge } from "@xyflow/react";
 import type {
+  OverlayGeometryOptions,
   Strings,
   AbstractOptions,
   ActivityLabelOptions,
@@ -243,6 +244,12 @@ export interface ProcessMapProps {
    * elsewhere (an About view) may hide it here.
    */
   hideAttribution?: boolean;
+  /**
+   * Where the overlay marks are placed (`OverlayGeometryOptions`): with
+   * `{ selfLoop: "pill", badgeAnchor: "border" }` a self-loop is one pill on
+   * the card's top-right border (0.4). Compared by value.
+   */
+  overlayGeometry?: OverlayGeometryOptions;
   layout?: LayoutOptions;
   /** Draw self-loop follows edges as self-loop overlays. Default true. */
   selfLoops?: boolean;

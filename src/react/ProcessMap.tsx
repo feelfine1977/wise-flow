@@ -126,6 +126,8 @@ function ProcessMapInner(props: ProcessMapProps) {
   // The host's wording, kept by value so that an object written in place does not build the scene again.
   const stringsKey = JSON.stringify(props.strings ?? null);
   const strings = useMemo(() => props.strings, [stringsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const geometryKey = JSON.stringify(props.overlayGeometry ?? null);
+  const overlayGeometry = useMemo(() => props.overlayGeometry, [geometryKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const activityLabels = useMemo(() => props.activityLabels ? {
     ...props.activityLabels, references: activityReferences(graph, props.activityLabels.references),
@@ -195,7 +197,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   const [manual, setManual] = useState<{ key: ProcessMapProps["layoutResetKey"]; points: Record<string, XY> }>({ key: layoutResetKey, points: {} });
   // The shown graph's marks, the given ones among them; the scene keeps those it can place and adds the follows self-loops.
   const { scene, positions, laidPositions } = useMapScene(shown, arrival.positions, manual.key === layoutResetKey ? manual.points : NO_MOVES, {
-    style, locale, lanes, activityLabels, selfLoops, lod: props.lod, theme: markedTheme, scheme: look.scheme, textMeasure, strings,
+    style, locale, lanes, activityLabels, selfLoops, lod: props.lod, theme: markedTheme, scheme: look.scheme, textMeasure, strings, overlayGeometry,
   });
   const { scales, overlays, geometry } = scene;
   // What the detail sliders show, in words, and what the tooltips add: the labels of elements not shown are the graph's before the sliders.
