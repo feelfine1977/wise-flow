@@ -6,14 +6,16 @@
   "darwin": {
     "os": "macOS 26.6.2, arm64",
     "command": "npm run test:visual:approve",
-    "approved": "2026-10-14",
-    "approvedBy": "repository owner, after comparing the approved and the new images of the four changed scenes",
-    "sourceCommit": "e1f8f99",
+    "approved": "2026-10-24",
+    "approvedBy": "repository owner, after comparing the approved and the new images of the six changed scenes",
+    "sourceCommit": "5729358",
     "changed": [
       "views-grid",
       "stage-lanes",
       "p2p-map",
-      "stable-layout"
+      "stable-layout",
+      "paths-for-activity",
+      "bpmn-from-stages"
     ]
   },
   "linux": {
@@ -22,7 +24,7 @@
     "command": "npm ci && npm run test:visual:approve",
     "approved": "2026-10-24",
     "approvedBy": "repository owner, after comparing the approved and the new images of the six changed scenes",
-    "sourceCommit": "12cecc0",
+    "sourceCommit": "5729358",
     "changed": [
       "views-grid",
       "stage-lanes",
@@ -36,51 +38,51 @@
   "screenshots": [
     {
       "path": "tests/visual/__screenshots__/bpmn.spec.ts/bpmn-from-stages-darwin.png",
-      "sha256": "784847b566cdd5be0daf5cb9823ef554e352fe3cdec22c54891545c0f97b8933"
+      "sha256": "f4d7c7faa1da045ca753d5930c2dae80d026dbbfa7759132f5aca4a71f18e6bc"
     },
     {
       "path": "tests/visual/__screenshots__/bpmn.spec.ts/bpmn-from-stages-linux.png",
-      "sha256": "e62ad7b6a4a36bc733c838023debc0ac02288c683f3895ebad422bab5565d382"
+      "sha256": "92743b5966feb8d79867ed2ff8776cca436bd47f4c4aa1c4a1319eddb6bd390b"
     },
     {
       "path": "tests/visual/__screenshots__/bpmn.spec.ts/views-grid-darwin.png",
-      "sha256": "6b646c818ee2abfb6bc536246661239e136bf77b67c58c2dc8eaab772cf01b16"
+      "sha256": "508cc6bbb6656f9f83c497e94914f09a9214051f52e2f1cc9261cb25990d0ff9"
     },
     {
       "path": "tests/visual/__screenshots__/bpmn.spec.ts/views-grid-linux.png",
-      "sha256": "e9d2981704d3b159784753d0189832c72f8eb91e4f2951a3349b98322e100be5"
+      "sha256": "3d415c4b143b0be33d10278fcf7461561c1b8f46cb9c8ed6630b41394708fefc"
     },
     {
       "path": "tests/visual/__screenshots__/interaction.spec.ts/paths-for-activity-darwin.png",
-      "sha256": "f2f19e771abf909e33024e506557d5886dda221c7949318534535fc5de6f10d5"
+      "sha256": "4da645340b1365f01cffdd39009596ed48cb48137defc2f5bf0438cfe6f7b7f6"
     },
     {
       "path": "tests/visual/__screenshots__/interaction.spec.ts/paths-for-activity-linux.png",
-      "sha256": "25cb25c93ff8698a27e4084259324e11359c71bcb6321fc9b00f9061f6bfb292"
+      "sha256": "44c2f0263bda01713eee616f97528d066e0da630bbd0e7088e2b5714f4dd0434"
     },
     {
       "path": "tests/visual/__screenshots__/interaction.spec.ts/stage-lanes-darwin.png",
-      "sha256": "3850eac7aebcafc9e9d58ebc6ff9c2b08efc4946af63187c9767dba852728fdd"
+      "sha256": "cc3879dd264c8265e51e66d70b58473ebdc6f96d7f53616efcd0745484e90eac"
     },
     {
       "path": "tests/visual/__screenshots__/interaction.spec.ts/stage-lanes-linux.png",
-      "sha256": "ad59d4ca8c819e84b52bf7db4bb4f5634baf0d2c493623c777e8ca0463f04303"
+      "sha256": "3e2dc5c8e1bffee95f866f119cb0ec6c73c01fcb5b6b4738f9579ea6ad4480fe"
     },
     {
       "path": "tests/visual/__screenshots__/p2p.spec.ts/p2p-map-darwin.png",
-      "sha256": "f748033c30a5614d301fb531300b92c60178deacc69f66f46b72f1e1df84dcbb"
+      "sha256": "1fe12e4c0fb6ebb2bdfc124ec4ce88d03d6da3739c157283d735beec4e94b146"
     },
     {
       "path": "tests/visual/__screenshots__/p2p.spec.ts/p2p-map-linux.png",
-      "sha256": "c9a6e4cbda1ec537a5760bcb3cb398cb9dd1cb85783032dc3b086cf1f561a750"
+      "sha256": "01c7d8c493649e720026fe282ef61831819bd88229356aa5142a8fab367824aa"
     },
     {
       "path": "tests/visual/__screenshots__/p2p.spec.ts/stable-layout-darwin.png",
-      "sha256": "d35e03a6035833eac034b23c80c7c976a21f25b4961b54153768445c06e45f90"
+      "sha256": "4537fffbeac68731afcb2f32db138964353a0c01695a802ce10fabfd22f10d70"
     },
     {
       "path": "tests/visual/__screenshots__/p2p.spec.ts/stable-layout-linux.png",
-      "sha256": "6f7560a9de58293f5dbee36a04b246841d2ac0b07c6b3a564d3e6bf1534a2989"
+      "sha256": "5da4ef3ccb7abc2817f9cdef6a509729ed8a3a2374e9b00f58406ae6d60698bb"
     }
   ]
 }
