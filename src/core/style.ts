@@ -1,63 +1,53 @@
 /**
  * Metric-to-style scales, colour-blind-safe palettes with pattern twins,
- * contrast helpers and level-of-detail rules.
+ * contrast helpers, the check of a theme's contrasts and sizes, and
+ * level-of-detail rules.
  */
 import { scaleLinear, scaleLog, scaleSqrt } from "d3-scale";
-import { type FlowEdge, type FlowGraph, type FlowNode, metric } from "./model.js";
+import { hatchSvg, patternTwinSvg, svgMarkup } from "./mark-svg.js";
+import { metricKind } from "./metrics.js";
+import { INDIRECT_TAG } from "./detail.js";
+import { type FlowEdge, type FlowGraph, type FlowNode, hasTag, metric } from "./model.js";
+import type { StringKey } from "./strings.js";
+import { ruleDeviations } from "./rules.js";
+import { type ColorScheme, type Theme, type ThemePalettes, colorChannels, defaultTheme, themeColors, themePalettes } from "./theme.js";
+import { type ColorToken, type PatternId, type PatternLook, PATTERNS, colorTokens, paletteTokens, strokeTokens } from "./tokens.js";
 
-export type PatternId =
-  | "solid"
-  | "diagonal"
-  | "dots"
-  | "crosshatch"
-  | "horizontal"
-  | "vertical"
-  | "diagonal-reverse"
-  | "grid";
+export { type PatternId, type PatternLook, PATTERNS } from "./tokens.js";
 
-export const PATTERNS: PatternId[] = [
-  "solid",
-  "diagonal",
-  "dots",
-  "crosshatch",
-  "horizontal",
-  "vertical",
-  "diagonal-reverse",
-  "grid",
-];
+/** The palettes of the token table (`paletteTokens`). */
+export const palettes = paletteTokens;
 
-/**
- * Palettes. Sequential scales are single-hue and lightness-driven (safe for every
- * common colour-vision deficiency); the diverging scale is purple–orange; the
- * categorical palette is Okabe–Ito.
- */
-export const palettes = {
-  /** Light to dark orange; used for expectation shortfall shares. */
-  sequential: ["#fff5eb", "#fdd0a2", "#fd8d3c", "#d94801", "#7f2704"],
-  /** Light to dark blue; used for performance metrics. */
-  sequentialBlue: ["#f7fbff", "#c6dbef", "#6baed6", "#2171b5", "#08306b"],
-  /** Purple (negative) over neutral to orange (positive); used for deltas. */
-  diverging: ["#542788", "#998ec3", "#d8daeb", "#f7f7f7", "#fee0b6", "#f1a340", "#b35806"],
-  /** Okabe–Ito, stable by hashed key, with pattern twins. */
-  categorical: ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00", "#F0E442", "#999999"],
-} as const;
+/** A palette of the theme by name; `sequential` and `sequentialBlue` are the theme's `shortfall` and `performance`. */
+type PaletteName = keyof typeof palettes | keyof ThemePalettes;
 
-export type PaletteName = keyof typeof palettes;
+const ALIASES: Partial<Record<PaletteName, keyof ThemePalettes>> = { sequential: "shortfall", sequentialBlue: "performance" };
 
-/** Fixed colours for hotspot types and gate states (workbench tokens). */
+/** The stops of a named palette in a theme. */
+export function themePalette(theme: Theme, name: PaletteName): readonly string[] {
+  return theme.palette[ALIASES[name] ?? (name as keyof ThemePalettes)];
+}
+
+/** Fixed colours for hotspot types, gate states and the light scheme, from the token table (`colorTokens`). */
 export const fixedColors = {
-  severity: "#D55E00",
-  mechanism: "#0072B2",
-  reservoir: "#009E73",
-  pass: "#009E73",
-  warn: "#E69F00",
-  fail: "#D55E00",
-  neutral: "#8c8c8c",
-  outOfScope: "#b0b0b0",
-  ink: "#1f1f1f",
+  severity: colorTokens.severity,
+  mechanism: colorTokens.mechanism,
+  reservoir: colorTokens.reservoir,
+  pass: colorTokens.pass,
+  warn: colorTokens.warn,
+  fail: colorTokens.fail,
+  neutral: colorTokens.neutral,
+  outOfScope: colorTokens.outOfScope,
+  ink: colorTokens.ink,
+  /** Secondary text such as counts. */
+  inkMuted: colorTokens.inkMuted,
   /** Ink for text on coloured fills; pure black reaches 4.5 : 1 on every mid-tone of the palettes. */
-  inkStrong: "#000000",
-  paper: "#ffffff",
+  inkStrong: colorTokens.inkStrong,
+  paper: colorTokens.paper,
+  /** Hairlines and tracks (`--wf-line`). */
+  line: colorTokens.line,
+  /** Background of notes and hovered elements. */
+  surface: colorTokens.surface,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -70,9 +60,17 @@ export function hexToRgb(hex: string): [number, number, number] {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-export function rgbToHex([r, g, b]: [number, number, number]): string {
+function rgbToHex([r, g, b]: [number, number, number]): string {
   const c = (v: number) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0");
   return `#${c(r)}${c(g)}${c(b)}`;
+}
+
+/** A literal colour drawn at `alpha` over a ground (white where it is no colour), as `#rrggbb`. */
+export function tinted(color: string, ground: string, alpha: number): `#${string}` {
+  const c = colorChannels(color) ?? [0, 0, 0, 1];
+  const g = colorChannels(ground) ?? [255, 255, 255, 1];
+  const a = alpha * c[3];
+  return rgbToHex([0, 1, 2].map((i) => c[i] * a + g[i] * (1 - a)) as [number, number, number]) as `#${string}`;
 }
 
 /** Piecewise-linear interpolation through the palette stops; `t` is clamped to [0, 1]. */
@@ -88,15 +86,16 @@ export function interpolatePalette(stops: readonly string[], t: number): string 
   return rgbToHex([a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f]);
 }
 
-export function relativeLuminance(hex: string): number {
-  const [r, g, b] = hexToRgb(hex).map((v) => {
+/** WCAG relative luminance of a literal colour (`colorChannels`) or of hex digits without `#`; NaN for anything else. */
+function relativeLuminance(color: string): number {
+  const [r, g, b] = (colorChannels(color) ?? colorChannels(`#${color}`) ?? [NaN, NaN, NaN]).slice(0, 3).map((v) => {
     const s = v / 255;
     return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
   });
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-/** WCAG contrast ratio between two colours. */
+/** WCAG contrast ratio between two literal colours; NaN when one is not a colour. */
 export function contrastRatio(a: string, b: string): number {
   const la = relativeLuminance(a);
   const lb = relativeLuminance(b);
@@ -109,6 +108,114 @@ export function contrastText(background: string): string {
   return contrastRatio(background, fixedColors.inkStrong) >= contrastRatio(background, fixedColors.paper)
     ? fixedColors.inkStrong
     : fixedColors.paper;
+}
+
+/** Something of a theme that falls short of what `checkTheme` asks. */
+export interface ThemeDeviation {
+  /**
+   * `text`: text against its ground under 4.5 : 1 (ink on the frequency cue's
+   * stripe under 7 : 1). `line`: a line against the paper under 3 : 1 (the
+   * cue's foot under 4.5 : 1). `rampOrder`: the path ramp of a scheme not rising in
+   * contrast against the paper from stop to stop.
+   * `rampStart`: its low end against the paper under 3 : 1. `textSize`,
+   * `strokeWidth`: a table entry under the theme's minimum. `color`: a colour
+   * that is not a literal. `rule`: an entry of a rule that is unknown or out
+   * of range (`ruleDeviations`); the rule changes nothing, but an opacity
+   * outside 0.2 to 1 is clamped to it. `measure`: a palette of a measure
+   * with fewer than two stops that stand out from the paper as it needs
+   * (`performance` 3 : 1, `shortfall` more than the neutral colour); `value`
+   * is how many do.
+   */
+  kind: "text" | "line" | "rampOrder" | "rampStart" | "textSize" | "strokeWidth" | "color" | "rule" | "measure";
+  /** The scheme of a contrast or of the ramp. */
+  scheme?: ColorScheme;
+  /** What was measured: `ink on paper`, `lineStrong on paper`, `palette.neutral`, `text.nodeCount`, `stroke.legendGradient`, `dark.paper`, `rules[0].set.strokeWeight`. */
+  subject: string;
+  /** The contrast ratio (two decimals), the size or width in pt, or the colour. */
+  value: number | string;
+  /** What it must reach. */
+  minimum?: number;
+}
+
+/** Text and the grounds it is drawn on; deviations write their labels in the accent on the paper. */
+const TEXT: [ColorToken, ColorToken][] = [["ink", "paper"], ["inkMuted", "paper"], ["ink", "surface"], ["inkMuted", "surface"], ["onFocus", "focus"], ["onPressed", "pressed"], ["accent", "paper"]];
+/**
+ * Lines that carry meaning: outlines that stand out, paths without a measure,
+ * focus and selection, and deviations. `line` is left out: it draws hairlines
+ * and tracks whose meaning a label or a neighbour carries too.
+ */
+const LINES: ColorToken[] = ["lineStrong", "neutral", "focus", "accent"];
+/**
+ * The frequency cue: text on its stripe keeps 7 : 1 (the muted ink 4.5 : 1),
+ * and its foot stands out from the card's paper at 4.5 : 1.
+ */
+const CUE: ["text" | "line", ColorToken, ColorToken, number][] = [["text", "ink", "cueStripe", 7], ["text", "inkMuted", "cueStripe", 4.5], ["line", "cueFoot", "paper", 4.5]];
+const TEXT_CONTRAST = 4.5;
+const LINE_CONTRAST = 3;
+/** Points per layout unit (a CSS pixel). */
+const PT = 0.75;
+
+const twoDecimals = (n: number) => Math.round(n * 100) / 100;
+
+/** A colour as it is drawn over a ground (itself over white): a translucent colour mixed with the ground by its alpha. */
+function over(color: string, ground?: string): string {
+  const c = colorChannels(color);
+  if (!c || c[3] >= 1) return color;
+  const g = colorChannels(ground ? over(ground) : "#ffffff") ?? [255, 255, 255];
+  return `rgb(${c.slice(0, 3).map((v, i) => Math.round(v * c[3] + g[i] * (1 - c[3]))).join(" ")})`;
+}
+
+/**
+ * What of a theme falls short, in both schemes: text against its ground at
+ * least 4.5 : 1 (ink on the frequency cue's stripe 7 : 1), lines against the
+ * paper at least 3 : 1 (the cue's foot 4.5 : 1), the path ramp of the
+ * scheme (`palette.neutral`, in the dark scheme with `darkPalette` over it)
+ * monotonic in luminance, each stop with more contrast against the paper than
+ * the one before, and its low end at least 3 : 1 against it, no text size or stroke width of the tables under the
+ * theme's `minimum`, every colour a literal, every rule known and in
+ * range (`ruleDeviations`), and the palettes of the measures able to draw them:
+ * two stops of `performance` at 3 : 1 against the paper and two of
+ * `shortfall` that stand out more than the neutral colour, with text on the
+ * accent's tint (the cases short of the frequency cue) at 7 : 1 (the muted
+ * ink 4.5 : 1). A translucent colour is measured as drawn over
+ * its ground. Empty when nothing does.
+ */
+export function checkTheme(theme: Theme): ThemeDeviation[] {
+  const out: ThemeDeviation[] = [];
+  for (const table of ["color", "dark"] as const) {
+    for (const [role, value] of Object.entries(theme[table])) if (value !== undefined && !colorChannels(value)) out.push({ kind: "color", subject: `${table}.${role}`, value });
+  }
+  for (const scheme of ["light", "dark"] as const) {
+    const c = themeColors(theme, scheme);
+    // Each stop of the path ramp stands out more from the paper than the one before (against a paper that is a colour).
+    const ramp = themePalettes(theme, scheme).neutral;
+    if (colorChannels(c.paper) && ramp.slice(1).some((v, i) => !(contrastRatio(v, c.paper) > contrastRatio(ramp[i], c.paper)))) out.push({ kind: "rampOrder", scheme, subject: "palette.neutral", value: ramp.join(" ") });
+    const check = (kind: "text" | "line" | "rampStart", subject: string, a: string, b: string, minimum: number) => {
+      const r = contrastRatio(over(a, b), over(b));
+      if (r < minimum) out.push({ kind, scheme, subject, value: twoDecimals(r), minimum });
+    };
+    for (const [text, ground] of TEXT) check("text", `${text} on ${ground}`, c[text], c[ground], TEXT_CONTRAST);
+    for (const line of LINES) check("line", `${line} on paper`, c[line], c.paper, LINE_CONTRAST);
+    for (const [kind, a, b, minimum] of CUE) check(kind, `${a} on ${b}`, c[a], c[b], minimum);
+    if (ramp.length) check("rampStart", "palette.neutral", ramp[0], c.paper, LINE_CONTRAST);
+    // The measures' ramps: performance from 3 : 1, the shortfall classes above the neutral colour; text keeps 7 : 1 on the cue's accent.
+    const palettes = themePalettes(theme, scheme);
+    for (const [name, minimum] of [["performance", LINE_CONTRAST], ["shortfall", contrastRatio(c.neutral, c.paper)]] as const) {
+      const n = colorChannels(c.paper) ? standingOut(palettes[name], c.paper, minimum).length : 2;
+      if (n < 2) out.push({ kind: "measure", scheme, subject: `palette.${name}`, value: n, minimum: 2 });
+    }
+    if (theme.opacity.tint > 0) for (const [kind, text, , minimum] of CUE.slice(0, 2)) check(kind, `${text} on accent tint`, c[text], tinted(c.accent, c.paper, theme.opacity.tint), minimum);
+    // The pattern twins are drawn in the pattern ink over every stage colour.
+    for (const stage of themePalettes(theme, scheme).categorical) if (colorChannels(stage)) check("line", `patternInk on ${stage}`, c.patternInk, stage, LINE_CONTRAST);
+  }
+  for (const [role, style] of Object.entries(theme.text)) {
+    const size = (style as { size?: number | string }).size;
+    if (typeof size === "number" && size * PT < theme.minimum.text) out.push({ kind: "textSize", subject: `text.${role}`, value: size * PT, minimum: theme.minimum.text });
+  }
+  for (const [role, width] of Object.entries(theme.stroke)) {
+    if (width * PT < theme.minimum.stroke) out.push({ kind: "strokeWidth", subject: `stroke.${role}`, value: width * PT, minimum: theme.minimum.stroke });
+  }
+  return [...out, ...ruleDeviations(theme)];
 }
 
 /** Stable 32-bit FNV-1a hash of a string. */
@@ -127,7 +234,17 @@ export function hashKey(key: string): number {
 export interface ChannelSpec {
   metric: string;
   scale?: "linear" | "sqrt" | "log";
+  /** Values the range is stretched over instead of the scale from 0 to `max`: the lower end at the range's start, the upper at its end. */
   domain?: [number, number];
+  /**
+   * The upper end of a path width's scale, which runs from 0 to it, so that
+   * the width depends on a path's value alone. Give several maps the same one
+   * to compare them (`resolveViews` gives its views theirs). Default the
+   * strongest path of the graph before any abstraction (`meta.model.pathMax`,
+   * which `abstract` records), else of the graph.
+   */
+  max?: number;
+  /** The thinnest line, which every path whose width rounds under it is drawn at, and the width of the upper end. */
   range?: [number, number];
 }
 
@@ -135,12 +252,47 @@ export interface ColorSpec {
   /** Metric for sequential and diverging palettes. */
   metric?: string;
   palette?: PaletteName;
+  /** How a sequential palette runs over its domain: evenly (`linear`, the default) or by the square root, as path width does (`sqrt`). */
+  scale?: "linear" | "sqrt";
   /** Domain: two numbers for sequential, three for diverging (negative, centre, positive). */
   domain?: number[];
   /** Categorical colour by group, kind or a tag prefix (`tag:layer:`). */
   by?: "group" | "kind" | "tag" | "layer";
   /** Prefix of the tag to read when `by` is `tag`. */
   tagPrefix?: string;
+  /**
+   * Classes instead of a ramp: the bounds between them, ascending; a value on
+   * a bound is in the class below it ("up to 10 %"). The first class is drawn
+   * in the neutral colour, the others along the palette's stops that stand out
+   * more from the paper than it, from the least to the most.
+   */
+  bins?: readonly number[];
+  /** The domain from 0 to this percentile of the paths' values (nearest rank: 95 is the 95th percentile), where no `domain` is given. */
+  percentile?: number;
+  /** The ramp runs over the palette's stops with 3 : 1 or more against the paper, least first, so that its low end stands out in either scheme. */
+  readable?: boolean;
+  /** A path without a value of the metric is not evaluated: drawn in the line colour, its value written "–" and keyed in the legend. Default: drawn in the neutral colour. */
+  required?: boolean;
+}
+
+/** What the map shows: `frequency` (cases), `shortfall` (the share of cases missing an expectation) or `performance` (the median lag). */
+export type Measure = "frequency" | "shortfall" | "performance";
+
+/**
+ * A value written first on an activity's number line or a path's label, in
+ * place of an activity's cases ("35 % short · 900", "4.7 d to next · 93 %")
+ * and before a path's count ("12 d · 112,924").
+ */
+export interface LineSpec {
+  metric: string;
+  /** How the value reads: alone ("12 d", the default), as the share short ("35 % short") or as a time from previous or to next, or both ("prev 3.4 d · next 2 min"). */
+  format?: "value" | "short" | "toNext" | "fromPrev" | "both";
+  /** Second time for `both`; default the matching median or mean time to next. */
+  nextMetric?: string;
+  /** What follows an activity's value after "·": its cases (default), their share of all cases, or nothing. `both` omits it. A path's count follows its value. */
+  then?: "cases" | "share" | "none";
+  /** An activity without a value: "–" in its place (default), or the number line as without the setting (`frequency`). A path without one reads "–". */
+  missing?: "dash" | "frequency";
 }
 
 export interface LodRules {
@@ -159,27 +311,95 @@ export interface StyleSpec {
   edgeColor?: ColorSpec;
   nodeColor?: ColorSpec;
   lod?: Partial<LodRules>;
+  /**
+   * The host's full list of stage (group) ids in stage order. Categorical
+   * colours and their pattern twins are assigned in this order, then to the
+   * graph's other groups and keys in the order they first appear, so that a
+   * filtered graph keeps every stage's colour. Without it the order of the
+   * unfiltered graph that `abstract` records (`meta.model.groups`) is used,
+   * then the graph's own.
+   */
+  stages?: readonly string[];
+  /** The measure the style shows (`measureStyles`): the legend states its sentence. */
+  measure?: Measure;
+  /** Opt in for `added-by-map` edges: neutral round dots, count labels and unchanged width. `true` uses EN/DE legend words; a string supplies the host's. */
+  addedFlowLabel?: true | string;
+  /** Opt in to a frequency legend sentence naming the actual width and alternate colour metric, including classes. */
+  frequencyColorLegend?: true;
+  /** What an activity's number line leads with; default its cases, then their share. */
+  nodeLine?: LineSpec;
+  /** What a path's label leads with before its count; default the count alone. */
+  pathLabel?: LineSpec;
+  /**
+   * The metric whose share of an activity's cases its frequency cue draws in
+   * the accent, from the cue's start (`violationShare`: the cases short); the
+   * cue stays as long as the share of all cases.
+   */
+  cueAccent?: string;
 }
 
+/**
+ * Zooms from which each kind of element is drawn. Deviation pills (badges,
+ * arcs with their labels, chips) go with the cards' names, not before them:
+ * they are the last texts the map sheds.
+ */
 export const defaultLod: LodRules = {
   labels: 0.2,
   edgeLabels: 0.6,
-  badges: 0.22,
-  arcs: 0.22,
-  chips: 0.22,
+  badges: 0.2,
+  arcs: 0.2,
+  chips: 0.2,
   hatch: 0.15,
   selfLoops: 0.25,
 };
 
+/** Paths by cases: width and colour on the same square-root scale of the count, on the neutral ramp; activities by stage. */
 export const defaultStyle: StyleSpec = {
-  edgeWidth: { metric: "count", scale: "sqrt", range: [1, 8] },
-  edgeColor: { metric: "violationShare", palette: "sequential", domain: [0, 1] },
+  edgeWidth: { metric: "cases", scale: "sqrt", range: [strokeTokens.pathMin, strokeTokens.pathMax] },
+  edgeColor: { metric: "cases", palette: "neutral", scale: "sqrt" },
   nodeColor: { by: "group", palette: "categorical" },
 };
 
-/** Style for diff maps: width from the slice, colour from the delta of the shortfall share. */
+/** Paths coloured by their expectation shortfall share on the shortfall palette (the default style up to 0.3), width by cases. */
+export const shortfallStyle: StyleSpec = {
+  edgeWidth: defaultStyle.edgeWidth,
+  edgeColor: { metric: "violationShare", palette: "sequential", domain: [0, 1] },
+  nodeColor: defaultStyle.nodeColor,
+};
+
+/**
+ * The named styles of the three measures. `frequency` is the default style.
+ * `shortfall` colours paths by their share short in three classes (up to
+ * 10 % in the neutral colour, 10 to 30 %, over 30 %), leads their labels and
+ * the activities' number lines with it and draws the cases short in the
+ * accent of the frequency cue. `performance` colours paths by their median lag
+ * from 0 to the 95th percentile of the paths, leads their labels with it, and
+ * leads an activity's number line with the time to the next activity where the
+ * host gives it (`medianNextHours`). Width is cases in all three.
+ */
+export const measureStyles: Readonly<Record<Measure, StyleSpec>> = {
+  frequency: { ...defaultStyle, measure: "frequency" },
+  shortfall: { ...defaultStyle, measure: "shortfall", edgeColor: { metric: "violationShare", palette: "shortfall", bins: [0.1, 0.3], required: true }, nodeLine: { metric: "violationShare", format: "short" }, pathLabel: { metric: "violationShare" }, cueAccent: "violationShare" },
+  performance: { ...defaultStyle, measure: "performance", edgeColor: { metric: "medianLagHours", palette: "performance", percentile: 95, readable: true, required: true }, nodeLine: { metric: "medianNextHours", format: "toNext", then: "share", missing: "frequency" }, pathLabel: { metric: "medianLagHours" } },
+};
+
+/**
+ * The style a map draws: a measure's named style with the given style over
+ * it, entry by entry (a channel's entries too, so `{ edgeColor: { bins } }`
+ * changes the classes); the given style alone, or the default, where no
+ * measure is named.
+ */
+export function measureStyle(measure?: Measure, style?: StyleSpec): StyleSpec {
+  const named = measure && measureStyles[measure];
+  if (!named || !style) return named ?? style ?? defaultStyle;
+  const out: Record<string, unknown> = { ...named };
+  for (const [key, value] of Object.entries(style)) if (value !== undefined) out[key] = value && typeof value === "object" && !Array.isArray(value) ? { ...(named[key as keyof StyleSpec] as object), ...value } : value;
+  return out as StyleSpec;
+}
+
+/** Style for diff maps: width from the slice's cases, colour from the delta of the shortfall share. */
 export const diffStyle: StyleSpec = {
-  edgeWidth: { metric: "count", scale: "sqrt", range: [1, 8] },
+  edgeWidth: { metric: "cases", scale: "sqrt", range: [strokeTokens.pathMin, strokeTokens.pathMax] },
   edgeColor: { metric: "delta_violationShare", palette: "diverging", domain: [-0.5, 0, 0.5] },
   nodeColor: { metric: "delta_violationShare", palette: "diverging", domain: [-0.5, 0, 0.5] },
 };
@@ -215,12 +435,33 @@ export interface CategoricalEntry {
   color: string;
   pattern: PatternId;
   index: number;
+  /** The group's label where the key is a group's id. */
+  label?: string;
 }
 
 export type LegendItem =
-  | { kind: "width"; title: string; metric: string; domain: [number, number]; range: [number, number] }
-  | { kind: "sequential" | "diverging"; title: string; metric: string; domain: number[]; stops: readonly string[] }
-  | { kind: "categorical"; title: string; entries: CategoricalEntry[] };
+  | {
+      kind: "width";
+      title: StringKey;
+      metric: string;
+      domain: [number, number];
+      range: [number, number];
+      /**
+       * Three values with the widths the scale draws them at: the thinnest
+       * line with the largest value drawn at it (`floor`), a value near the
+       * middle width and the upper end; with a `domain`, its ends and the middle.
+       * Where every path has one value, that value alone.
+       */
+      samples?: { value: number; width: number; floor?: boolean }[];
+      /** The scale runs from 0 to the strongest path of the graph (`graph`) or to the upper end the style gives (`shared`); none with a `domain`. */
+      scale?: "graph" | "shared";
+      /** The paths count transitions: the graph gives no cases for them. */
+      transitionsOnly?: boolean;
+    }
+  | { kind: "sequential" | "diverging"; title: StringKey; metric: string; domain: number[]; stops: readonly string[] }
+  /** Classes of a metric (`ColorSpec.bins`): the bounds between them and the colour of each class, one more than the bounds. */
+  | { kind: "classes"; title: StringKey; metric: string; bounds: readonly number[]; colors: string[] }
+  | { kind: "categorical"; title: StringKey; entries: CategoricalEntry[] };
 
 export interface Scales {
   spec: StyleSpec;
@@ -228,15 +469,31 @@ export interface Scales {
   edgeColor(edge: FlowEdge): string;
   nodeColor(node: FlowNode): string;
   nodePattern(node: FlowNode): PatternId;
-  /** Colour and pattern twin for a categorical key; stable by hashed key. */
+  /**
+   * Colour and pattern twin for a categorical key: assigned in stage order
+   * (`StyleSpec.stages`, `meta.model.groups`, then the graph's groups and
+   * keys), each key from its hashed colour to the next one free, so that no
+   * two keys share a colour until the palette is used up; then the colours
+   * are used again with the next pattern. A key outside that order takes its
+   * hashed colour.
+   */
   categorical(key: string): CategoricalEntry;
+  /**
+   * The count metric paths are labelled with and their width reads: the width
+   * metric, `cases` by default, or `count` where the graph gives paths only
+   * transition counts.
+   */
+  pathMetric: string;
+  /** A follows edge without a value of `pathMetric`: drawn in the line colour at the thinnest width, labelled "–". */
+  notEvaluated(edge: FlowEdge): boolean;
   /** Colour for a metric value on a named palette and domain. */
   color(value: number, palette: PaletteName, domain: number[]): string;
   legend: LegendItem[];
   domains: { edgeWidth?: [number, number]; edgeColor?: number[]; nodeColor?: number[] };
 }
 
-function extentOf(values: number[]): [number, number] | undefined {
+/** The smallest and largest finite value, or `undefined` when there is none. */
+export function extentOf(values: number[]): [number, number] | undefined {
   let lo = Infinity;
   let hi = -Infinity;
   for (const v of values) {
@@ -247,13 +504,16 @@ function extentOf(values: number[]): [number, number] | undefined {
   return lo === Infinity ? undefined : [lo, hi];
 }
 
-function isShareMetric(name: string): boolean {
+export function isShareMetric(name: string): boolean {
   return /share/i.test(name);
 }
 
-export function colorOn(value: number, palette: PaletteName, domain: number[]): string {
-  const stops = palettes[palette];
-  if (!Number.isFinite(value)) return fixedColors.neutral;
+export function colorOn(value: number, palette: PaletteName, domain: number[], theme: Theme = defaultTheme): string {
+  return Number.isFinite(value) ? rampColor(themePalette(theme, palette), value, domain) : theme.color.neutral;
+}
+
+/** The colour of a value on stops over a domain: two numbers, or three for a diverging ramp. */
+function rampColor(stops: readonly string[], value: number, domain: number[]): string {
   if (domain.length >= 3) {
     const [lo, mid, hi] = domain;
     const tt = value < mid ? (mid - lo === 0 ? 0 : 0.5 * (value - lo) / (mid - lo)) : hi - mid === 0 ? 1 : 0.5 + 0.5 * ((value - mid) / (hi - mid));
@@ -264,62 +524,260 @@ export function colorOn(value: number, palette: PaletteName, domain: number[]): 
   return interpolatePalette(stops, tt);
 }
 
-function categoricalEntry(key: string): CategoricalEntry {
-  const index = hashKey(key) % palettes.categorical.length;
-  return { key, color: palettes.categorical[index], pattern: PATTERNS[index], index };
+/** The colour and pattern twin of a categorical key in a theme's categorical palette, by its hash; `round` shifts the pattern. */
+function categoricalEntry(key: string, theme: Theme, index = hashKey(key) % theme.palette.categorical.length, round = 0): CategoricalEntry {
+  return { key, color: theme.palette.categorical[index], pattern: theme.patterns[(index + round) % theme.patterns.length], index };
 }
 
-/** Build the scales of a graph for a style specification; deterministic for the same input. */
-export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle): Scales {
+/**
+ * The entries of keys in their order: each takes its hashed colour or the
+ * next one not yet taken; once every colour is taken they are free again
+ * and the next round shifts the pattern twins by one. A key that is not a
+ * string has no entry.
+ */
+export function orderedCategorical(keys: Iterable<string>, theme: Theme = defaultTheme): Map<string, CategoricalEntry> {
+  const size = theme.palette.categorical.length;
+  const out = new Map<string, CategoricalEntry>();
+  const taken = new Set<number>();
+  let round = 0;
+  for (const key of keys) {
+    if (typeof key !== "string" || out.has(key) || !size) continue;
+    if (taken.size === size) {
+      taken.clear();
+      round++;
+    }
+    let index = hashKey(key) % size;
+    while (taken.has(index)) index = (index + 1) % size;
+    taken.add(index);
+    out.set(key, categoricalEntry(key, theme, index, round));
+  }
+  return out;
+}
+
+/**
+ * The stops of a palette that stand out from a ground by at least `minimum`
+ * (a contrast ratio), from the least to the most, so that a ramp over them
+ * starts readable and rises in contrast in either scheme.
+ */
+function standingOut(stops: readonly string[], ground: string, minimum: number): string[] {
+  return stops.map((c) => [c, contrastRatio(c, ground)] as const).filter(([, r]) => r >= minimum).sort((a, b) => a[1] - b[1]).map(([c]) => c);
+}
+
+/** The value at a percentile of the finite values by nearest rank: the smallest that at least `p` % of them do not exceed; none without values. */
+function percentileOf(values: number[], p: number): number | undefined {
+  const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
+  return sorted.length ? sorted[Math.min(sorted.length, Math.max(1, Math.ceil((p / 100) * sorted.length))) - 1] : undefined;
+}
+
+/** The value of a count with two significant digits: 357 → 360. */
+function roundish(v: number): number {
+  if (!(Math.abs(v) >= 100)) return Math.round(v);
+  const step = 10 ** (Math.floor(Math.log10(Math.abs(v))) - 1);
+  return Math.round(v / step) * step;
+}
+
+/**
+ * The upper end of a graph's path width scale for a metric: the largest value
+ * over the paths of the graph before any abstraction (`meta.model.pathMax`),
+ * else over its own paths (follows and sequence flow edges); none without one.
+ */
+export function pathScaleMax(graph: FlowGraph, name: string): number | undefined {
+  const recorded = graph.meta?.model?.pathMax?.[name];
+  if (Number.isFinite(recorded)) return recorded;
+  return extentOf(graph.edges.filter((e) => e.kind !== "constraint").map((e) => metric(e, name, NaN)))?.[1];
+}
+
+/**
+ * The metric paths are measured by for one asked for: their transitions
+ * (`count`) for `cases` where no path of `edges` (follows and flow edges,
+ * loops too) gives cases and one gives a count, else the one asked for.
+ * Decided once for the edges given, for the width, the colour and the edge
+ * budget's order alike.
+ */
+export function pathMetricOf(edges: readonly FlowEdge[]): (name: string) => string {
+  const paths = edges.filter((e) => e.kind !== "constraint");
+  const has = (name: string) => paths.some((e) => Number.isFinite(metric(e, name, NaN)));
+  const counts = !has("cases") && has("count");
+  return (name) => (name === "cases" && counts ? "count" : name);
+}
+
+/** Build the scales of a graph for a style specification in a theme's palettes; deterministic for the same input. */
+export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, theme: Theme = defaultTheme): Scales {
   const domains: Scales["domains"] = {};
+  const neutral = theme.color.neutral;
+  const color = (value: number, palette: PaletteName, domain: number[]) => colorOn(value, palette, domain, theme);
   // Paths carry the metrics; sequence flows of a BPMN-lite graph carry the same metrics.
   const follows = graph.edges.filter((e) => e.kind === "follows" || e.kind === "flow");
+  // Paths count cases like activities; where the graph gives them only transitions, they count those.
+  const resolved = pathMetricOf(follows);
+  const transitionsOnly = resolved("cases") === "count";
 
-  // Edge width
-  const widthSpec = spec.edgeWidth;
-  let widthFn: (e: FlowEdge) => number = () => 1.5;
+  // Categorical colours in stage order, then in the order groups and keys first appear.
+  const keyOf = categoricalKey(spec.nodeColor);
+  const order = orderedCategorical([...(spec.stages ?? []), ...(graph.meta?.model?.groups ?? []), ...(graph.groups ?? []).map((g) => g.id), ...graph.nodes.flatMap((n) => keyOf(n) ?? [])], theme);
+  const categorical = (key: string) => order.get(key) ?? categoricalEntry(key, theme);
+
+  // Edge width: one scale per graph, from 0 to its strongest path before abstraction, or over a given domain.
+  const widthSpec = spec.edgeWidth && { ...spec.edgeWidth, metric: resolved(spec.edgeWidth.metric) };
+  const pathMetric = widthSpec && metricKind(widthSpec.metric) === "count" ? widthSpec.metric : resolved("cases");
+  const edgeSpec = spec.edgeColor && { ...spec.edgeColor, metric: spec.edgeColor.metric && resolved(spec.edgeColor.metric) };
+  // A path is evaluated with a count, and with a value of the colour's metric where the colour requires one.
+  const required = edgeSpec?.required ? edgeSpec.metric : undefined;
+  // An indirect path has no count, as it is no path of the graph: it is not a path not evaluated.
+  const indirect = (e: FlowEdge) => hasTag(e, INDIRECT_TAG);
+  const addedFlow = (e: FlowEdge) => spec.addedFlowLabel !== undefined && hasTag(e, "added-by-map");
+  const notEvaluated = (e: FlowEdge) => e.kind === "follows" && !addedFlow(e) && !indirect(e) && !(Number.isFinite(metric(e, pathMetric, NaN)) && (!required || Number.isFinite(metric(e, required, NaN))));
+  let widthFn: (e: FlowEdge) => number = () => theme.stroke.path;
+  let samples: { value: number; width: number; floor?: boolean }[] | undefined;
+  const upper = widthSpec && (widthSpec.max ?? pathScaleMax(graph, widthSpec.metric));
+  const kind = widthSpec?.scale ?? "sqrt";
+  const measured = widthSpec && (widthSpec.domain ?? (upper === undefined ? undefined : ([kind === "log" ? 1 : 0, upper] as [number, number])));
   if (widthSpec) {
-    const domain =
-      widthSpec.domain ?? extentOf(follows.map((e) => metric(e, widthSpec.metric, NaN))) ?? [0, 1];
+    const domain = measured ?? [0, 1];
     const safeDomain: [number, number] = domain[0] === domain[1] ? [0, domain[1] || 1] : domain;
-    const range = widthSpec.range ?? [1, 8];
-    const kind = widthSpec.scale ?? "sqrt";
+    const range = widthSpec.range ?? [theme.stroke.pathMin, theme.stroke.pathMax];
+    // From 0 the scale runs onto 0 and every width that rounds under the thinnest line is drawn at it; a domain is stretched onto the range.
+    const floor = widthSpec.domain || kind === "log" ? -Infinity : range[0];
+    const onto: [number, number] = floor === -Infinity ? range : [0, range[1]];
     const s =
       kind === "log"
-        ? scaleLog().domain([Math.max(1e-9, safeDomain[0]), Math.max(1e-9, safeDomain[1])]).range(range).clamp(true)
+        ? scaleLog().domain([Math.max(1e-9, safeDomain[0]), Math.max(1e-9, safeDomain[1])]).range(onto).clamp(true)
         : kind === "linear"
-          ? scaleLinear().domain(safeDomain).range(range).clamp(true)
-          : scaleSqrt().domain(safeDomain).range(range).clamp(true);
+          ? scaleLinear().domain(safeDomain).range(onto).clamp(true)
+          : scaleSqrt().domain(safeDomain).range(onto).clamp(true);
     domains.edgeWidth = safeDomain;
+    const at = (v: number) => {
+      const w = s(kind === "log" ? Math.max(1e-9, v) : v);
+      // A domain or value that is not a number gives no width: the thinnest line.
+      return Math.max(floor, typeof w === "number" && Number.isFinite(w) ? Number(w.toFixed(2)) : range[0]);
+    };
     widthFn = (e) => {
       const v = e.metrics?.[widthSpec.metric];
       if (typeof v !== "number" || !Number.isFinite(v)) return range[0];
-      return Number(s(kind === "log" ? Math.max(1e-9, v) : v).toFixed(2));
+      return at(v);
     };
+    const count = metricKind(widthSpec.metric) === "count";
+    const middle = Number(s.invert((range[0] + range[1]) / 2));
+    // A count near the middle width, with two significant digits; another metric as it is.
+    const near = count ? roundish(middle) : middle;
+    const one = extentOf(follows.map((e) => metric(e, widthSpec.metric, NaN)));
+    // Every path of one value: that one sample, at the width every path is drawn at.
+    if (one && one[0] === one[1]) samples = [{ value: one[0], width: at(one[0]) }];
+    else if (floor === -Infinity) {
+      samples = [safeDomain[0], near, safeDomain[1]].map((value) => ({ value, width: at(value) }));
+    } else {
+      // The largest value the thinnest line stands for, where a value is drawn at it.
+      const lowest = count ? Math.floor(Number(s.invert(floor))) : Number(s.invert(floor));
+      samples = [...(lowest > 0 ? [{ value: lowest, width: at(lowest), floor: true }] : []), { value: near, width: at(near) }, { value: safeDomain[1], width: at(safeDomain[1]) }];
+    }
   }
 
   // Edge colour
-  const edgeSpec = spec.edgeColor;
-  let edgeColorFn: (e: FlowEdge) => string = () => fixedColors.neutral;
+  let edgeColorFn: (e: FlowEdge) => string = () => neutral;
+  let edgeStops: readonly string[] = [];
+  let classes: string[] | undefined;
   if (edgeSpec?.metric) {
     const palette = edgeSpec.palette ?? "sequential";
+    const values = follows.filter((e) => !addedFlow(e)).map((e) => metric(e, edgeSpec.metric!, NaN));
     const domain =
       edgeSpec.domain ??
-      (palette === "diverging"
-        ? symmetricDomain(follows.map((e) => metric(e, edgeSpec.metric!, NaN)))
-        : isShareMetric(edgeSpec.metric)
-          ? [0, 1]
-          : (extentOf(follows.map((e) => metric(e, edgeSpec.metric!, NaN))) ?? [0, 1]));
+      (edgeSpec.percentile !== undefined
+        ? [0, percentileOf(values, edgeSpec.percentile) ?? 0]
+        : palette === "diverging"
+          ? symmetricDomain(values)
+          : isShareMetric(edgeSpec.metric)
+            ? [0, 1]
+            : (extentOf(values) ?? [0, 1]));
     domains.edgeColor = domain;
+    const stops = themePalette(theme, palette);
+    const paper = theme.color.paper;
+    edgeStops = edgeSpec.readable ? standingOut(stops, paper, LINE_CONTRAST) : stops;
+    // Classes: the first in the neutral colour, the others along the stops that stand out more than it.
+    const bins = edgeSpec.bins;
+    if (bins) {
+      const ramp = standingOut(stops, paper, contrastRatio(neutral, paper));
+      classes = [neutral, ...bins.map((_, i) => interpolatePalette(ramp, bins.length > 1 ? i / (bins.length - 1) : 1))];
+    }
+    // By the square root, a value is placed on the ramp where its square root lies between those of the domain's ends.
+    const root = edgeSpec.scale === "sqrt" && domain.length === 2 ? scaleSqrt().domain(domain[0] === domain[1] ? [0, domain[1] || 1] : domain) : undefined;
     edgeColorFn = (e) => {
       const v = e.metrics?.[edgeSpec.metric!];
-      return typeof v === "number" && Number.isFinite(v) ? colorOn(v, palette, domain) : fixedColors.neutral;
+      if (typeof v !== "number" || !Number.isFinite(v)) return neutral;
+      return classes ? classes[bins!.filter((b) => v > b).length] : root ? interpolatePalette(edgeStops, root(v)) : rampColor(edgeStops, v, domain);
     };
   }
+  const pathColorFn = (e: FlowEdge) => addedFlow(e) ? neutral : (notEvaluated(e) || indirect(e) ? theme.color.line : edgeColorFn(e));
 
   // Node colour and pattern
   const nodeSpec = spec.nodeColor;
-  const keyOf = (n: FlowNode): string | undefined => {
+  let nodeColorFn: (n: FlowNode) => string = () => neutral;
+  let nodePatternFn: (n: FlowNode) => PatternId = () => "solid";
+  const categoricalKeys = new Set<string>();
+  if (nodeSpec?.by) {
+    for (const n of graph.nodes) {
+      const k = keyOf(n);
+      if (k !== undefined) categoricalKeys.add(k);
+    }
+    nodeColorFn = (n) => {
+      const k = keyOf(n);
+      return k === undefined ? neutral : categorical(k).color;
+    };
+    nodePatternFn = (n) => {
+      const k = keyOf(n);
+      return k === undefined ? "solid" : categorical(k).pattern;
+    };
+  } else if (nodeSpec?.metric) {
+    const palette = nodeSpec.palette ?? "sequential";
+    const values = graph.nodes.map((n) => metric(n, nodeSpec.metric!, NaN));
+    const domain =
+      nodeSpec.domain ??
+      (palette === "diverging" ? symmetricDomain(values) : isShareMetric(nodeSpec.metric) ? [0, 1] : (extentOf(values) ?? [0, 1]));
+    domains.nodeColor = domain;
+    nodeColorFn = (n) => {
+      const v = n.metrics?.[nodeSpec.metric!];
+      return typeof v === "number" && Number.isFinite(v) ? color(v, palette, domain) : neutral;
+    };
+  }
+
+  const legend: LegendItem[] = [];
+  // A width with nothing measured has no samples to show.
+  if (widthSpec && domains.edgeWidth && measured) {
+    const scale = widthSpec.domain || kind === "log" ? undefined : widthSpec.max === undefined ? "graph" : "shared";
+    legend.push({ kind: "width", title: "legend.edgeWidth", metric: widthSpec.metric, domain: domains.edgeWidth, range: widthSpec.range ?? [theme.stroke.pathMin, theme.stroke.pathMax], samples, ...(scale && { scale }), ...(widthSpec.metric === "count" && transitionsOnly && { transitionsOnly }) });
+  }
+  if (edgeSpec?.metric && classes) {
+    legend.push({ kind: "classes", title: "legend.edgeColor", metric: edgeSpec.metric, bounds: edgeSpec.bins!, colors: classes });
+  } else if (edgeSpec?.metric && domains.edgeColor) {
+    legend.push({ kind: edgeSpec.palette === "diverging" ? "diverging" : "sequential", title: "legend.edgeColor", metric: edgeSpec.metric, domain: domains.edgeColor, stops: edgeStops });
+  }
+  if (nodeSpec?.by && categoricalKeys.size) {
+    const labels = new Map(nodeSpec.by === "group" ? (graph.groups ?? []).map((g) => [g.id, g.label]) : []);
+    const entry = (k: string) => (labels.has(k) ? { ...categorical(k), label: labels.get(k) } : categorical(k));
+    // The order holds every node's key: the entries in stage order.
+    legend.push({ kind: "categorical", title: "legend.nodeColor", entries: [...order.keys()].filter((k) => categoricalKeys.has(k)).map(entry) });
+  } else if (nodeSpec?.metric && domains.nodeColor) {
+    const palette = nodeSpec.palette ?? "sequential";
+    legend.push({ kind: palette === "diverging" ? "diverging" : "sequential", title: "legend.nodeColor", metric: nodeSpec.metric, domain: domains.nodeColor, stops: themePalette(theme, palette) });
+  }
+
+  return {
+    spec,
+    edgeWidth: widthFn,
+    edgeColor: pathColorFn,
+    nodeColor: nodeColorFn,
+    nodePattern: nodePatternFn,
+    categorical,
+    pathMetric,
+    notEvaluated,
+    color,
+    legend,
+    domains,
+  };
+}
+
+/** The categorical key of a node for a colour specification: its group, kind, layer or tag. */
+function categoricalKey(nodeSpec: ColorSpec | undefined): (n: FlowNode) => string | undefined {
+  return (n) => {
     switch (nodeSpec?.by) {
       case "group":
         return n.group;
@@ -335,107 +793,16 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle): S
         return undefined;
     }
   };
-  let nodeColorFn: (n: FlowNode) => string = () => fixedColors.neutral;
-  let nodePatternFn: (n: FlowNode) => PatternId = () => "solid";
-  const categoricalKeys = new Set<string>();
-  if (nodeSpec?.by) {
-    for (const n of graph.nodes) {
-      const k = keyOf(n);
-      if (k !== undefined) categoricalKeys.add(k);
-    }
-    nodeColorFn = (n) => {
-      const k = keyOf(n);
-      return k === undefined ? fixedColors.neutral : categoricalEntry(k).color;
-    };
-    nodePatternFn = (n) => {
-      const k = keyOf(n);
-      return k === undefined ? "solid" : categoricalEntry(k).pattern;
-    };
-  } else if (nodeSpec?.metric) {
-    const palette = nodeSpec.palette ?? "sequential";
-    const values = graph.nodes.map((n) => metric(n, nodeSpec.metric!, NaN));
-    const domain =
-      nodeSpec.domain ??
-      (palette === "diverging" ? symmetricDomain(values) : isShareMetric(nodeSpec.metric) ? [0, 1] : (extentOf(values) ?? [0, 1]));
-    domains.nodeColor = domain;
-    nodeColorFn = (n) => {
-      const v = n.metrics?.[nodeSpec.metric!];
-      return typeof v === "number" && Number.isFinite(v) ? colorOn(v, palette, domain) : fixedColors.neutral;
-    };
-  }
-
-  const legend: LegendItem[] = [];
-  if (widthSpec && domains.edgeWidth) {
-    legend.push({ kind: "width", title: "legend.edgeWidth", metric: widthSpec.metric, domain: domains.edgeWidth, range: widthSpec.range ?? [1, 8] });
-  }
-  if (edgeSpec?.metric && domains.edgeColor) {
-    const palette = edgeSpec.palette ?? "sequential";
-    legend.push({ kind: palette === "diverging" ? "diverging" : "sequential", title: "legend.edgeColor", metric: edgeSpec.metric, domain: domains.edgeColor, stops: palettes[palette] });
-  }
-  if (nodeSpec?.by && categoricalKeys.size) {
-    legend.push({ kind: "categorical", title: "legend.nodeColor", entries: [...categoricalKeys].sort().map(categoricalEntry) });
-  } else if (nodeSpec?.metric && domains.nodeColor) {
-    const palette = nodeSpec.palette ?? "sequential";
-    legend.push({ kind: palette === "diverging" ? "diverging" : "sequential", title: "legend.nodeColor", metric: nodeSpec.metric, domain: domains.nodeColor, stops: palettes[palette] });
-  }
-
-  return {
-    spec,
-    edgeWidth: widthFn,
-    edgeColor: edgeColorFn,
-    nodeColor: nodeColorFn,
-    nodePattern: nodePatternFn,
-    categorical: categoricalEntry,
-    color: colorOn,
-    legend,
-    domains,
-  };
 }
 
-function symmetricDomain(values: number[]): number[] {
+export function symmetricDomain(values: number[]): number[] {
   const ext = extentOf(values);
   if (!ext) return [-1, 0, 1];
   const m = Math.max(Math.abs(ext[0]), Math.abs(ext[1])) || 1;
   return [-m, 0, m];
 }
 
-/** SVG pattern definitions for the pattern twins, usable in exports and in the DOM. */
-export function patternDefs(prefix = "wf-pattern", ink = fixedColors.ink): string {
-  const size = 8;
-  const defs: string[] = [];
-  const stroke = `stroke="${ink}" stroke-width="1.2" stroke-opacity="0.55"`;
-  for (const p of PATTERNS) {
-    let body = "";
-    switch (p) {
-      case "solid":
-        body = "";
-        break;
-      case "diagonal":
-        body = `<path d="M0 ${size}L${size} 0" ${stroke}/>`;
-        break;
-      case "diagonal-reverse":
-        body = `<path d="M0 0L${size} ${size}" ${stroke}/>`;
-        break;
-      case "dots":
-        body = `<circle cx="${size / 2}" cy="${size / 2}" r="1.3" fill="${ink}" fill-opacity="0.6"/>`;
-        break;
-      case "crosshatch":
-        body = `<path d="M0 ${size}L${size} 0M0 0L${size} ${size}" ${stroke}/>`;
-        break;
-      case "horizontal":
-        body = `<path d="M0 ${size / 2}H${size}" ${stroke}/>`;
-        break;
-      case "vertical":
-        body = `<path d="M${size / 2} 0V${size}" ${stroke}/>`;
-        break;
-      case "grid":
-        body = `<path d="M0 ${size / 2}H${size}M${size / 2} 0V${size}" ${stroke}/>`;
-        break;
-    }
-    defs.push(`<pattern id="${prefix}-${p}" width="${size}" height="${size}" patternUnits="userSpaceOnUse">${body}</pattern>`);
-  }
-  defs.push(
-    `<pattern id="${prefix}-outofscope" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M0 8L8 0" stroke="${fixedColors.outOfScope}" stroke-width="2"/></pattern>`,
-  );
-  return defs.join("");
+/** SVG pattern definitions for the pattern twins (drawn as `look` says) and the out-of-scope hatching, usable in exports and in the DOM. */
+export function patternDefs(prefix = "wf-pattern", ink: string = fixedColors.ink, outOfScope: string = fixedColors.outOfScope, look?: PatternLook): string {
+  return [...PATTERNS.map((p) => patternTwinSvg(`${prefix}-${p}`, p, ink, look)), hatchSvg(`${prefix}-outofscope`, outOfScope)].map(svgMarkup).join("");
 }

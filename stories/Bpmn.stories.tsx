@@ -19,8 +19,8 @@ import {
   liteFromStages,
   validateBpmn,
 } from "../src/bpmn/index";
-import { type FlowGraph, type Overlay, overlaysFor } from "../src/index";
-import { ProcessMap } from "../src/react/index";
+import { type FlowGraph, type Overlay, colorTokens, overlaysFor } from "../src/index";
+import { ProcessMap } from "./maps";
 
 const meta: Meta = {
   title: "BPMN",
@@ -119,8 +119,9 @@ export const FromStages: StoryObj = {
 /**
  * The BPI Challenge 2019 log as a BPMN-lite model: the directly-follows graph
  * is abstracted with the sliders, then every branching node gets an XOR split
- * and every merging node an XOR join (AND where the successors follow each
- * other in both orders). Stage groups become lanes; the constraint overlays of
+ * and every merging node an XOR join (AND split and join as a pair around
+ * successors that follow each other in both orders and lead to one common
+ * task). Stage groups become lanes; the constraint overlays of
  * the fixture sit on the tasks.
  */
 export const FromLog: StoryObj = {
@@ -312,7 +313,7 @@ export const RoundTrip: StoryObj = {
           <Counts graph={lite} />
           <span data-testid="roundtrip" data-pass={pass}>
             {checks.map(([label, ok]) => (
-              <span key={String(label)} style={{ marginRight: 10, color: ok ? "var(--wf-pass)" : "var(--wf-fail)" }}>
+              <span key={String(label)} style={{ marginRight: 10, color: ok ? colorTokens.pass : "var(--wf-fail)" }}>
                 {ok ? "✓" : "✗"} {label}
               </span>
             ))}

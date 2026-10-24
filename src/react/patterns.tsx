@@ -1,42 +1,18 @@
-import type { PatternId } from "../core/index.js";
+import { createContext } from "react";
+import { type PatternId, type PatternLook, colorTokens, patternTokens, patternTwinSvg } from "../core/index.js";
+import { svgReact } from "./marks.js";
 
-/** Small SVG that fills its parent with the pattern twin of a categorical colour. */
-export function PatternSwatch({ pattern, ink = "currentColor" }: { pattern: PatternId; ink?: string }) {
+/** The ink and the look of the pattern twins a map draws: its theme's pattern ink in its scheme and `pattern`. */
+export const PatternTheme = createContext<{ ink: string; look: PatternLook }>({ ink: colorTokens.patternInk, look: patternTokens });
+
+/** Small SVG that fills its parent with the pattern twin of a categorical colour (`patternTwin`), drawn as `look` says. */
+export function PatternSwatch({ pattern, ink = "currentColor", look = patternTokens }: { pattern: PatternId; ink?: string; look?: PatternLook }) {
   if (pattern === "solid") return null;
-  const s = 6;
-  const stroke = { stroke: ink, strokeWidth: 1, strokeOpacity: 0.6 };
-  let body: React.ReactNode = null;
-  switch (pattern) {
-    case "diagonal":
-      body = <path d={`M0 ${s}L${s} 0`} {...stroke} />;
-      break;
-    case "diagonal-reverse":
-      body = <path d={`M0 0L${s} ${s}`} {...stroke} />;
-      break;
-    case "dots":
-      body = <circle cx={s / 2} cy={s / 2} r={1} fill={ink} fillOpacity={0.7} />;
-      break;
-    case "crosshatch":
-      body = <path d={`M0 ${s}L${s} 0M0 0L${s} ${s}`} {...stroke} />;
-      break;
-    case "horizontal":
-      body = <path d={`M0 ${s / 2}H${s}`} {...stroke} />;
-      break;
-    case "vertical":
-      body = <path d={`M${s / 2} 0V${s}`} {...stroke} />;
-      break;
-    case "grid":
-      body = <path d={`M0 ${s / 2}H${s}M${s / 2} 0V${s}`} {...stroke} />;
-      break;
-  }
-  const id = `wf-pat-${pattern}`;
+  // Swatches of another ink or look have their own tiles: a page refers to the first tile of an id.
+  const id = `wf-pat-${pattern}${ink === colorTokens.patternInk && look === patternTokens ? "" : `-${ink}${Object.values(look)}`.replace(/\W/g, "")}`;
   return (
     <svg aria-hidden="true" focusable="false">
-      <defs>
-        <pattern id={id} width={s} height={s} patternUnits="userSpaceOnUse">
-          {body}
-        </pattern>
-      </defs>
+      <defs>{svgReact(patternTwinSvg(id, pattern, ink, look))}</defs>
       <rect width="100%" height="100%" fill={`url(#${id})`} />
     </svg>
   );

@@ -1,9 +1,4 @@
-/**
- * Filter clauses of the workbench contract (`{"and": [clause, …]}`) as typed
- * data, their canonical form, plain-word descriptions for chips, and the
- * clauses that map actions produce. The map never filters data itself: it
- * renders the chips and calls back with the changed filter.
- */
+/** Filter clauses of the workbench contract as typed data: canonical form, descriptions, and the clauses map actions make. */
 import { type Locale, formatCount, formatNumber } from "./format.js";
 import { COLLAPSED_TAG } from "./aggregate.js";
 import { collapsedActivityIds } from "./collapsed-members.js";
@@ -11,7 +6,16 @@ import { type FlowGraph } from "./model.js";
 import { focusMembers } from "./paths.js";
 import { type StringKey, t } from "./strings.js";
 
-export type TimeMode = "case_start" | "case_end" | "active" | "events_inside";
+/** Which timestamp of a case a time window applies to. */
+export type TimeMode =
+  | "case_start"
+  | "case_end"
+  | "active"
+  /**
+   * @deprecated The events inside the window: it cuts events out of cases, where a selection is a set of whole cases.
+   * Removed in the next minor version; use `case_start`, `case_end` or `active`, which keep whole cases.
+   */
+  | "events_inside";
 
 export interface TimeClause {
   kind: "time";
@@ -31,7 +35,7 @@ export interface AttributeClause {
   missing?: boolean;
 }
 
-export type ActivityOp = "contains" | "not_contains" | "starts_with" | "ends_with" | "never";
+type ActivityOp = "contains" | "not_contains" | "starts_with" | "ends_with" | "never";
 
 export interface ActivityClause {
   kind: "activity";
@@ -126,7 +130,7 @@ export function normalizeFilterPreview(raw: Record<string, unknown> | FilterPrev
     casesIn,
     casesOut,
     casesTotal: n(r.casesTotal ?? r.cases_total) ?? (casesIn !== undefined && casesOut !== undefined ? casesIn + casesOut : undefined),
-    perClause: per?.map((p) => ({ clause: p.clause, removedMarginally: n(p.removedMarginally ?? p.removed_marginally) ?? 0 })),
+    perClause: Array.isArray(per) ? per.filter((p) => typeof p?.clause === "number").map((p) => ({ clause: p.clause, removedMarginally: n(p.removedMarginally ?? p.removed_marginally) ?? 0 })) : undefined,
     inScopeByConstraint: (r.inScopeByConstraint ?? r.in_scope_by_constraint) as Record<string, number> | undefined,
   };
 }
@@ -169,8 +173,10 @@ export function canonicalClause(c: FilterClause): FilterClause {
     case "slice":
       return { kind: "slice", slicing: c.slicing, key: c.key };
     case "any":
-      return { kind: "any", clauses: c.clauses.map(canonicalClause).sort((a, b) => (clauseKey(a) < clauseKey(b) ? -1 : 1)) };
+      return { kind: "any", clauses: (c.clauses ?? []).map(canonicalClause).sort((a, b) => (clauseKey(a) < clauseKey(b) ? -1 : 1)) };
   }
+  // A kind this version does not know stays as it is.
+  return c;
 }
 
 /** Stable key of a clause: the same clause in any spelling yields the same key. */
@@ -211,7 +217,7 @@ export function removeClause(f: Filter | FilterClause[] | undefined, index: numb
 /** True for clauses that change the content of cases rather than their selection. */
 export function changesCases(c: FilterClause): boolean {
   if (c.kind === "time") return (c.field ?? c.mode) === "events_inside";
-  if (c.kind === "any") return c.clauses.some(changesCases);
+  if (c.kind === "any") return (c.clauses ?? []).some(changesCases);
   return false;
 }
 
@@ -267,7 +273,7 @@ export function describeClause(c: FilterClause, locale: Locale = "en", labelOf: 
     case "slice":
       return t(locale, "clause.slice", { slicing: c.slicing, key: Array.isArray(c.key) ? c.key.map(String).join(" · ") : String(c.key) });
     case "any":
-      return t(locale, "clause.any", { clauses: c.clauses.map((x) => describeClause(x, locale, labelOf)).join(" | ") });
+      return t(locale, "clause.any", { clauses: (c.clauses ?? []).map((x) => describeClause(x, locale, labelOf)).join(" | ") });
     default:
       return t(locale, "clause.unknown", { kind: String((c as { kind: string }).kind) });
   }

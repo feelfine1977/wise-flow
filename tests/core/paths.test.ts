@@ -26,6 +26,20 @@ const g: FlowGraph = {
   ],
 };
 
+describe("focus on a node without an id", () => {
+  it("highlights its neighbourhood as of any node", () => {
+    // A null column of a backend: typed around the model, so the id reads undefined; the edges name it the same way.
+    const none = undefined as unknown as string;
+    const graph: FlowGraph = {
+      nodes: [{ id: "a", kind: "activity", label: "A" }, { id: none, kind: "activity", label: "Unnamed" }, { id: "b", kind: "activity", label: "B" }],
+      edges: [{ id: "in", kind: "follows", source: "a", target: none }, { id: "out", kind: "follows", source: none, target: "b" }],
+    };
+    const { nodes, edges } = focusHighlight(graph, none);
+    expect([...nodes].map(String).sort()).toEqual(["a", "b", "undefined"]);
+    expect([...edges].sort()).toEqual(["in", "out"]);
+  });
+});
+
 describe("pathsFor", () => {
   it("retains response ownership through abstraction, collapse and repeated transforms", () => {
     const response: FlowGraph = { ...g, focus: "c", paths: { incoming: [{ from: "a", count: 77 }], outgoing: [] } };

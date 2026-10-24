@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { globalScene } from "../../fixtures/bpic2019";
 import { p2pStages, withSceneMetrics } from "../../fixtures/p2p_stages";
-import { POOL_ID, exportBpmn, importBpmn, layoutBpmn, liteFromGraph, liteFromStages, validateBpmn } from "../../src/bpmn/index";
-import { abstract } from "../../src/index";
+import { POOL_ID, exportBpmn, gatewayLabel, importBpmn, layoutBpmn, liteFromGraph, liteFromStages, validateBpmn } from "../../src/bpmn/headless";
+import { type FlowGraph, abstract, validateGateways } from "../../src/index";
 
 const lite = liteFromStages(withSceneMetrics(p2pStages, globalScene));
 
@@ -89,6 +89,61 @@ describe("export → import round trip", () => {
     expect(again.xml).toBe(out.xml);
   });
 
+  it("gives a node, an edge and a lane that share an id one BPMN id each and reads them back", async () => {
+    // FlowGraph keeps nodes, edges and groups apart, so all three may be called "a" (a collapsed stage shares its group's id).
+    const graph: FlowGraph = {
+      nodes: [
+        { id: "a", kind: "activity", label: "A", group: "a" },
+        { id: "b", kind: "activity", label: "B", group: "a" },
+      ],
+      edges: [{ id: "a", kind: "flow", source: "a", target: "b" }],
+      groups: [{ id: "a", kind: "lane", label: "Lane A" }],
+    };
+    const { xml, ids } = await exportBpmn(graph);
+    const written = [...xml.matchAll(/ id="([^"]+)"/g)].map((m) => m[1]);
+    expect(new Set(written).size).toBe(written.length);
+    // The node keeps the plain id; the flow and the lane take their prefixes, as when nothing is shared.
+    expect(written).toEqual(expect.arrayContaining(["a", "b", "Flow_a", "Lane_a"]));
+    expect(ids.toBpmn.a).toBe("a");
+    expect(ids.toFlow).toMatchObject({ a: "a", Flow_a: "a", Lane_a: "a" });
+    expect((await validateBpmn(xml)).ok).toBe(true);
+    const back = await importBpmn(xml);
+    expect(back.warnings).toEqual([]);
+    expect(back.graph.nodes.map((n) => [n.id, n.group])).toEqual([["a", "a"], ["b", "a"]]);
+    expect(back.graph.edges.map((e) => [e.id, e.source, e.target])).toEqual([["a", "a", "b"]]);
+    expect(back.graph.groups?.filter((g) => g.kind === "lane").map((g) => g.id)).toEqual(["a"]);
+  });
+
+  it("exports nodes and edges without an id", async () => {
+    // A null column of a backend: typed around the model, so the ids read undefined.
+    const none = undefined as unknown as string;
+    const graph: FlowGraph = {
+      nodes: [
+        { id: "a", kind: "activity", label: "A" },
+        { id: none, kind: "activity", label: "Unnamed" },
+        { id: none, kind: "activity", label: "Unnamed too" },
+      ],
+      edges: [{ id: none, kind: "flow", source: "a", target: "b" }],
+    };
+    const { xml } = await exportBpmn(graph);
+    const written = [...xml.matchAll(/ id="([^"]+)"/g)].map((m) => m[1]);
+    expect(new Set(written).size).toBe(written.length);
+    expect((await validateBpmn(xml)).ok).toBe(true);
+  });
+
+  it("validates a file whose sub-processes and lanes nest deeper than the call stack reaches", async () => {
+    // 20,000 sub-processes in one another around one task, and as many lanes; the importer reads such files too.
+    const depth = 20_000;
+    const open = Array.from({ length: depth }, (_, i) => `<bpmn:subProcess id="s${i}">`).join("");
+    const lanes = Array.from({ length: depth }, (_, i) => `<bpmn:lane id="l${i}"><bpmn:childLaneSet id="c${i}">`).join("");
+    const xml = `<?xml version="1.0"?><bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="d"><bpmn:process id="p"><bpmn:laneSet id="ls">${lanes}${"</bpmn:childLaneSet></bpmn:lane>".repeat(depth)}</bpmn:laneSet>${open}<bpmn:task id="t"/>${"</bpmn:subProcess>".repeat(depth)}</bpmn:process></bpmn:definitions>`;
+    const result = await validateBpmn(xml);
+    // A sub-process counts as a task; none of them has a shape, in the order they nest.
+    expect(result.counts).toMatchObject({ processes: 1, tasks: depth + 1, lanes: depth });
+    expect(result.missingDi).toHaveLength(depth + 1);
+    expect([result.missingDi[0], result.missingDi[1], result.missingDi.at(-1)]).toEqual(["s0", "s1", "t"]);
+  });
+
   it("makes ids XML-safe and keeps the original in wise:flowId", async () => {
     const out = await exportBpmn(lite, { layout: { engine: "dagre" } });
     expect(out.ids.toBpmn["__start->gw_skip_requisition"]).toMatch(/^Flow_/);
@@ -109,5 +164,130 @@ describe("export → import round trip", () => {
     const flow = graphLite.edges.find((e) => e.metrics?.count !== undefined)!;
     expect(back.graph.edges.find((e) => e.id === flow.id)?.metrics?.count).toBe(flow.metrics!.count);
     expect(back.graph.nodes.filter((n) => n.kind === "gateway").every((n) => n.tags?.includes("xor"))).toBe(true);
+  });
+});
+
+describe("parallel gateways in a model from the log", () => {
+  it("keep their kind through export and import", async () => {
+    const kinds = (g: FlowGraph) => g.nodes.filter((n) => n.kind === "gateway").map((n) => `${n.id} ${n.tags?.find((t) => t === "and" || t === "xor")}`).sort();
+    // The story's abstraction (exclusive gateways only) and one with a parallel block.
+    const story = liteFromGraph(globalScene, { abstraction: { minNodeShare: 0.05, minEdgeShare: 0.12, keepConnected: true }, andGateways: true });
+    const block = liteFromGraph(globalScene, { abstraction: { minNodeShare: 0.15, minEdgeShare: 0.12, keepConnected: true }, andGateways: true });
+    expect(kinds(block)).toEqual(expect.arrayContaining(["gw_split_create_purchase_order_item and", "gw_join_record_invoice_receipt and"]));
+    for (const graphLite of [story, block]) {
+      const back = await importBpmn((await exportBpmn(graphLite, { layout: { engine: "dagre" } })).xml);
+      expect(kinds(back.graph)).toEqual(kinds(graphLite));
+      expect(validateGateways(back.graph)).toEqual([]);
+    }
+  });
+});
+
+describe("empty labels", () => {
+  it("come back empty instead of as the element's id", async () => {
+    const graph: FlowGraph = {
+      nodes: [
+        { id: "s", kind: "event", label: "", tags: ["start"] },
+        { id: "a", kind: "activity", label: "", tags: ["task"] },
+        { id: "g", kind: "gateway", label: "", tags: ["xor"] },
+        { id: "e", kind: "event", label: "", tags: ["end"] },
+      ],
+      edges: [
+        { id: "f1", kind: "flow", source: "s", target: "a" },
+        { id: "f2", kind: "flow", source: "a", target: "g" },
+        { id: "f3", kind: "flow", source: "g", target: "e" },
+      ],
+    };
+    const back = await importBpmn((await exportBpmn(graph, { layout: { engine: "dagre" } })).xml);
+    expect(back.graph.nodes.map((n) => [n.id, n.label])).toEqual([
+      ["s", ""],
+      ["a", ""],
+      ["g", ""],
+      ["e", ""],
+    ]);
+  });
+});
+
+describe("sequence flows without a route", () => {
+  it("are written straight between their shapes, as every renderer draws them", async () => {
+    const positions = await layoutBpmn(lite, { engine: "dagre" });
+    const flow = lite.edges[0];
+    const out = await exportBpmn(lite, { positions: { ...positions, edges: { ...positions.edges, [flow.id]: { points: [{ x: 0, y: 0 }] } } } });
+    expect(out.warnings).toEqual([]);
+    expect((await validateBpmn(out.xml)).counts.edges).toBe(lite.edges.length);
+  });
+});
+
+describe("BPMN vocabulary", () => {
+  // One node or flow per entry of the vocabulary: event roles and definitions, gateway types,
+  // the loop marker, the default flow and a generated gateway without a name.
+  const graph: FlowGraph = {
+    nodes: [
+      { id: "s", kind: "event", label: "Start", tags: ["start", "timer"] },
+      { id: "g", kind: "gateway", label: "Choice", tags: ["xor", "split", "generated"] },
+      { id: "a", kind: "activity", label: "Check", tags: ["task", "userTask", "loop"] },
+      { id: "p", kind: "gateway", label: "Fork", tags: ["and"] },
+      { id: "o", kind: "gateway", label: "Some", tags: ["or"] },
+      { id: "eb", kind: "gateway", label: "Wait", tags: ["eventBased"] },
+      { id: "cx", kind: "gateway", label: "Rule", tags: ["complex"] },
+      { id: "c", kind: "event", label: "Catch", tags: ["intermediate", "catch", "message", "signal"] },
+      { id: "t", kind: "event", label: "Throw", tags: ["intermediate", "escalation"] },
+      { id: "b", kind: "event", label: "Fail", tags: ["boundary", "error"] },
+      { id: "e", kind: "event", label: "End", tags: ["end", "terminate", "conditional"] },
+    ],
+    edges: [
+      { id: "f1", kind: "flow", source: "s", target: "g" },
+      { id: "f2", kind: "flow", source: "g", target: "a", tags: ["default"] },
+      { id: "f3", kind: "flow", source: "g", target: "p", payload: { condition: "late" } },
+      { id: "f4", kind: "flow", source: "a", target: "o" },
+      { id: "f5", kind: "flow", source: "p", target: "eb" },
+      { id: "f6", kind: "flow", source: "eb", target: "c" },
+      { id: "f7", kind: "flow", source: "c", target: "cx" },
+      { id: "f8", kind: "flow", source: "o", target: "t" },
+      { id: "f9", kind: "flow", source: "cx", target: "e" },
+    ],
+  };
+
+  it("writes every entry as its BPMN type or marker and reads it back to the same tags", async () => {
+    const out = await exportBpmn(graph, { layout: { engine: "dagre" }, extension: false });
+    const element = (id: string) => out.xml.match(new RegExp(`<bpmn:(\\w+) id="${id}"[^>]*>`))?.[0] ?? "";
+    expect(element("s")).toMatch(/^<bpmn:startEvent /);
+    expect(element("g")).toMatch(/^<bpmn:exclusiveGateway id="g" default="Flow_f2">$/);
+    expect(element("a")).toMatch(/^<bpmn:userTask id="a" name="Check">$/);
+    expect(element("p")).toMatch(/^<bpmn:parallelGateway /);
+    expect(element("o")).toMatch(/^<bpmn:inclusiveGateway /);
+    expect(element("eb")).toMatch(/^<bpmn:eventBasedGateway /);
+    expect(element("cx")).toMatch(/^<bpmn:complexGateway /);
+    expect(element("c")).toMatch(/^<bpmn:intermediateCatchEvent /);
+    expect(element("t")).toMatch(/^<bpmn:intermediateThrowEvent /);
+    expect(element("b")).toMatch(/^<bpmn:boundaryEvent /);
+    expect(element("e")).toMatch(/^<bpmn:endEvent /);
+    expect(out.xml).toContain("<bpmn:standardLoopCharacteristics />");
+    for (const d of ["timer", "message", "signal", "escalation", "error", "terminate", "conditional"]) expect(out.xml).toContain(`<bpmn:${d}EventDefinition />`);
+
+    // Without the wise extension, every tag comes back from the BPMN vocabulary alone.
+    const back = await importBpmn(out.xml);
+    const tags = (id: string) => back.graph.nodes.find((n) => n.id === id)?.tags;
+    expect(tags("s")).toEqual(["start", "timer"]);
+    expect(tags("g")).toEqual(["xor"]);
+    expect(tags("a")).toEqual(["task", "userTask", "loop"]);
+    expect(tags("p")).toEqual(["and"]);
+    expect(tags("o")).toEqual(["or"]);
+    expect(tags("eb")).toEqual(["eventBased"]);
+    expect(tags("cx")).toEqual(["complex"]);
+    expect(tags("c")).toEqual(["intermediate", "catch", "message", "signal"]);
+    expect(tags("t")).toEqual(["intermediate", "escalation"]);
+    expect(tags("b")).toEqual(["boundary", "error"]);
+    expect(tags("e")).toEqual(["end", "terminate", "conditional"]);
+    expect(back.graph.edges.find((e) => e.id === "Flow_f2")?.tags).toEqual(["default"]);
+    expect(back.graph.edges.find((e) => e.id === "Flow_f3")?.tags).toEqual(["conditional"]);
+  });
+
+  it("writes a generated gateway without a name and reads its label from its tags", async () => {
+    const out = await exportBpmn(graph, { layout: { engine: "dagre" } });
+    expect(out.xml).toMatch(/<bpmn:exclusiveGateway id="g" wise:tags="xor split generated" default="Flow_f2">/);
+    expect(out.xml).toMatch(/<bpmn:parallelGateway id="p" wise:tags="and" name="Fork">/);
+    const back = await importBpmn(out.xml);
+    expect(back.graph.nodes.find((n) => n.id === "g")?.label).toBe(gatewayLabel(["xor", "split", "generated"]));
+    expect(back.graph.nodes.find((n) => n.id === "p")?.label).toBe("Fork");
   });
 });

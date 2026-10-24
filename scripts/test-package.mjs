@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { gzipSync } from 'node:zlib';
 import { tmpdir } from 'node:os';
@@ -22,9 +22,9 @@ const sha256 = (data) => createHash('sha256').update(data).digest('hex');
 mkdirSync(artifactDir, { recursive: true });
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 run('npm', ['pack', '--pack-destination', artifactDir]);
-const tarball = join(artifactDir, `wise-flow-${pkg.version}.tgz`);
+const tarball = join(artifactDir, `${pkg.name}-${pkg.version}.tgz`);
 const sha = sha256(readFileSync(tarball));
-writeFileSync(tarball + '.sha256', `${sha}  wise-flow-${pkg.version}.tgz\n`);
+writeFileSync(tarball + '.sha256', `${sha}  ${pkg.name}-${pkg.version}.tgz\n`);
 // Record the actual dirty source identity, including new files, without changing the index.
 const baseCommit = output('git', ['rev-parse', 'HEAD']).trim();
 const files = output('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z']).split('\0').filter(Boolean).sort();
@@ -34,10 +34,10 @@ for (const path of output('git', ['ls-files', '--others', '--exclude-standard', 
   try { execFileSync('git', ['diff', '--no-index', '--binary', '--', '/dev/null', path], { cwd: root }); }
   catch (error) { if (error.status !== 1) throw error; patch = Buffer.concat([patch, error.stdout]); }
 }
-const patchName = `wise-flow-${pkg.version}.patch`;
+const patchName = `${pkg.name}-${pkg.version}.patch`;
 writeFileSync(join(artifactDir, patchName), patch);
-const metadata = { name: pkg.name, version: pkg.version, sourceRepository: 'https://github.com/feelfine1977/wise-flow', baseCommit, dirty: patch.length > 0, patchFile: patchName, patchSha256: sha256(patch), sourceTreeSha256: sha256(JSON.stringify(sourceFiles)), sourceFiles, tarball: `wise-flow-${pkg.version}.tgz`, sha256: sha, published: false, node: process.version, platform: process.platform, consumer, checks: 'pending' };
-const metadataPath = join(artifactDir, `wise-flow-${pkg.version}.provenance.json`);
+const metadata = { name: pkg.name, version: pkg.version, sourceRepository: 'https://github.com/feelfine1977/wise-flow', baseCommit, dirty: patch.length > 0, patchFile: patchName, patchSha256: sha256(patch), sourceTreeSha256: sha256(JSON.stringify(sourceFiles)), sourceFiles, tarball: `${pkg.name}-${pkg.version}.tgz`, sha256: sha, published: false, node: process.version, platform: process.platform, consumer, checks: 'pending' };
+const metadataPath = join(artifactDir, `${pkg.name}-${pkg.version}.provenance.json`);
 writeFileSync(metadataPath, JSON.stringify(metadata, null, 2) + '\n');
 cpSync(join(root, 'tests/package'), consumer, { recursive: true });
 const require = createRequire(import.meta.url);
@@ -47,20 +47,21 @@ const reactTypes = process.env.FLOW_REACT_TYPES || version('@types/react');
 const reactDomTypes = process.env.FLOW_REACT_TYPES || version('@types/react-dom');
 Object.assign(metadata, { browser: browserName, react: reactVersion, reactTypes });
 writeFileSync(metadataPath, JSON.stringify(metadata, null, 2) + '\n');
-writeFileSync(join(consumer, 'package.json'), JSON.stringify({ private: true, type: 'module', dependencies: { '@wise/flow': `file:${tarball}`, react: reactVersion, 'react-dom': reactVersion }, devDependencies: { typescript: version('typescript'), vite: version('vite'), '@types/react': reactTypes, '@types/react-dom': reactDomTypes } }, null, 2));
+writeFileSync(join(consumer, 'package.json'), JSON.stringify({ private: true, type: 'module', dependencies: { [pkg.name]: `file:${tarball}`, react: reactVersion, 'react-dom': reactVersion }, devDependencies: { typescript: version('typescript'), vite: version('vite'), '@types/react': reactTypes, '@types/react-dom': reactDomTypes } }, null, 2));
 run('npm', ['install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund'], consumer);
 run('npm', ['ci', '--ignore-scripts', '--no-audit', '--no-fund'], consumer);
-cpSync(join(consumer, 'package-lock.json'), join(artifactDir, 'consumer-package-lock.json'));
-assert.equal(lstatSync(join(consumer, 'node_modules/@wise/flow')).isSymbolicLink(), false);
+// copyFileSync, not cpSync: on some mounted file systems cpSync leaves a copy that cannot be read or replaced.
+copyFileSync(join(consumer, 'package-lock.json'), join(artifactDir, 'consumer-package-lock.json'));
+assert.equal(lstatSync(join(consumer, 'node_modules', pkg.name)).isSymbolicLink(), false);
 run(process.execPath, ['--experimental-loader', './deny-react.mjs', 'core.mjs'], consumer);
 run(process.execPath, ['bpmn.mjs'], consumer);
 writeFileSync(join(consumer, 'tsconfig.json'), JSON.stringify({ compilerOptions: { target: 'ES2022', module: 'NodeNext', moduleResolution: 'NodeNext', strict: true, noEmit: true, skipLibCheck: false, lib: ['ES2022', 'DOM'] }, files: ['types.ts'] }));
 run(process.execPath, ['node_modules/typescript/bin/tsc', '-p', '.'], consumer);
 const installedRequire = createRequire(join(consumer, 'package.json'));
-for (const path of ['tokens.css', 'style.css', 'react-flow.css', 'bpmn.css', 'bpmn/assets/bpmn-font/css/bpmn.css', 'bpmn/assets/bpmn-font/font/bpmn.woff2', 'elk-worker.min.js']) {
-  assert.ok(readFileSync(installedRequire.resolve(`@wise/flow/${path}`)).length > 0);
+for (const path of ['tokens.css', 'style.css', 'style.unlayered.css', 'react-flow.css', 'bpmn.css', 'bpmn/assets/bpmn-font/css/bpmn.css', 'bpmn/assets/bpmn-font/font/bpmn.woff2', 'elk-worker.min.js', 'dagre-worker.min.js']) {
+  assert.ok(readFileSync(installedRequire.resolve(`${pkg.name}/${path}`)).length > 0);
 }
-for (const path of ['LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md', 'dist/licenses/bpmn-js.txt', 'dist/licenses/elkjs.txt', 'dist/licenses/@xyflow-react.txt']) assert.ok(existsSync(join(consumer, 'node_modules/@wise/flow', path)));
+for (const path of ['LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md', 'dist/licenses/bpmn-js.txt', 'dist/licenses/elkjs.txt', 'dist/licenses/@xyflow-react.txt', 'dist/licenses/@dagrejs-dagre.txt', 'dist/licenses/@dagrejs-graphlib.txt']) assert.ok(existsSync(join(consumer, 'node_modules', pkg.name, path)));
 // Load tooling from the consumer too, so its bundling cannot see checkout dependencies.
 const { build, preview } = await import(pathToFileURL(join(consumer, 'node_modules/vite/dist/node/index.js')).href);
 await build({ root: consumer, configFile: false, build: { target: 'es2022', assetsInlineLimit: 0 } });
@@ -85,9 +86,14 @@ try {
   page.setDefaultTimeout(30_000);
   await expect(page.locator('html')).toHaveAttribute('data-worker-layout', 'passed', { timeout: 30_000 });
   await expect(page.locator('.react-flow__node')).toHaveCount(2);
+  // The layered stylesheet alone draws the map: React Flow's base styles, the library's borders, the scene's path colour.
+  assert.deepEqual(await page.locator('[data-wf-part="node"]').first().evaluate(e => [getComputedStyle(e).borderTopWidth, getComputedStyle(e).borderTopStyle]), ['1px', 'solid']);
+  assert.equal(await page.locator('.react-flow__viewport').evaluate(e => getComputedStyle(e).transformOrigin), '0px 0px');
+  assert.notEqual(await page.locator('[data-wf-part="edge-path"]').first().evaluate(e => getComputedStyle(e).stroke), 'rgb(177, 177, 183)');
   await expect(page.locator('[data-bpmn-status="ready"]')).toBeVisible();
   await expect(page.locator('.djs-element[data-element-id="receive"]')).toBeVisible();
   await expect(page.locator('.bjs-powered-by')).toBeVisible();
+  await expect(page.locator('.djs-overlay > .wf-badge')).toHaveCount(1);
   assert.equal(await page.locator('.wf-bpmn').evaluate(root => {
     const watermark = root.querySelector('.bjs-powered-by').getBoundingClientRect();
     const panel = root.querySelector('.wf-bpmn__panel--bottom-right').getBoundingClientRect();
@@ -112,6 +118,7 @@ try {
   await assertSelection(0);
   await page.getByRole('button', { name: 'Open modeler' }).click();
   await expect(page.locator('.djs-palette')).toBeVisible();
+  await expect(page.locator('.djs-overlay > .wf-badge')).toHaveCount(1);
   await expect(page.locator('.bjs-powered-by')).toBeVisible();
   assert.equal(await page.locator('.wf-bpmn').evaluate(root => {
     const watermark = root.querySelector('.bjs-powered-by').getBoundingClientRect();
@@ -128,10 +135,11 @@ try {
   await page.evaluate(() => document.fonts.ready);
   assert.ok(await page.evaluate(() => document.fonts.check('16px bpmn')));
   assert.ok(requests.some(u => /elk-worker.*\.js/.test(u)), 'ELK worker must load as an asset');
+  assert.ok(requests.some(u => /dagre-worker.*\.js/.test(u)), 'Dagre worker must load as an asset');
   assert.ok(requests.some(u => /bpmn.*\.woff2/.test(u)), 'BPMN font must load as an asset');
   assert.deepEqual(errors, []);
   await page.screenshot({ path: join(artifactDir, 'packed-consumer.png'), fullPage: true });
-  metadata.checks = `passed: isolated npm ci, Node ESM/headless, ELK/Dagre, BPMN round trip, NodeNext declarations, Vite production build, ${browserName} map/viewer/modeler/selection lifecycle and user deselection/CSS/fonts/worker`;
+  metadata.checks = `passed: isolated npm ci, Node ESM/headless, ELK/Dagre, BPMN round trip, NodeNext declarations, Vite production build, ${browserName} map/viewer/modeler/selection lifecycle and user deselection/CSS/fonts/ELK and Dagre workers`;
   writeFileSync(metadataPath, JSON.stringify(metadata, null, 2) + '\n');
   console.log(metadata.checks + `\nArtifact: ${tarball}\nSHA256: ${sha}\nConsumer: ${consumer}`);
 } catch (error) {

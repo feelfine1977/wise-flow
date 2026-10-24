@@ -1,6 +1,6 @@
 # Checkpoints
 
-How to try the milestones by hand. Requires Node 18.18 or later and npm 10.
+How to try the milestones by hand. Requires Node 22 or 24 and npm.
 Commands run from this directory. CP-E1 covers milestone 0.1, CP-E2
 milestone 0.2 (section 6), CP-E3 milestone 0.3 (section 7).
 
@@ -8,7 +8,7 @@ milestone 0.2 (section 6), CP-E3 milestone 0.3 (section 7).
 
 ```sh
 npm install
-npm test                # Vitest: 23 files, 126 tests
+npm test                # Vitest
 npm run build           # tsc → dist/ (ESM + types) and the stylesheets
 ```
 
@@ -27,17 +27,22 @@ npm run storybook       # opens http://localhost:6006
 What appears: the BPI Challenge 2019 purchase-to-pay log (251,734 purchase
 order items) as a directly-follows map laid out by ELK, with the stage
 groups Requisition → Purchase order → Goods receipt → Invoice → Payment
-from left to right, start and end events, path width by transition count
-and colour by expectation-shortfall share, a legend at the bottom right and
-the abstraction panel at the top left.
+from left to right, start and end events, path width and grey shade by
+cases (darker with more; the width on one scale for the whole log, from 0 to
+its strongest path), every path ending in a head that grows with its line,
+paths back against the flow as their own lines below it, a legend at the
+bottom right and the detail panel at the top left. It opens at 16 of 42
+activities and the 31 strongest of 677 paths, with the paths that keep each
+shown activity on a way from start to end drawn solid with their counts.
 
-Constraint overlays from the fixture statistics:
+Constraint overlays from the fixture statistics, all in the one orange accent:
 
 - badges on `Clear Invoice` (≥1, 23 % missing), `Record Invoice Receipt`
   (≤1, 4 % repeated) and `Cancel Invoice Receipt` (∅, 3 % occur);
 - arcs above the map from Record Goods Receipt / Record Service Entry Sheet
-  to Record Invoice Receipt / Vendor creates invoice (lag, 19 % late;
-  precedence, 52 % reverse) and dashed reverse arcs below the map;
+  to Record Invoice Receipt / Vendor creates invoice ("late 19 % of 11,129",
+  "order 52 % of 11,129" in pills) and solid reverse arcs below the map
+  ("⇐ 52 % of 11,129");
 - self-loops with the repeat share at the top-right corner of activities;
 - hatched activities outside the consignment scope; a chip with the manual
   touches gauge on the Purchase order group and three map-level chips under
@@ -45,9 +50,17 @@ Constraint overlays from the fixture statistics:
 
 What to do:
 
-- Move the *Activities* and *Paths* sliders: the map thins out and stays
-  connected (re-added paths are dashed); surviving activities do not move
-  while sliding because positions are cached per abstraction level.
+- Move the *Activities* and *Paths* sliders of the panel *Detail*: to the
+  left the map thins out, to the right it shows everything; every activity
+  shown stays on a way from start to end (the paths kept for that are solid,
+  with their counts), and beside each slider a statement says what is shown
+  ("16 of 42 · 98.8 % of events", "41 of 677 · 10 kept · strongest not
+  shown: 5,398"). Moving *Activities* leaves the *Paths* thumb where it is
+  and rewrites its statement. With the keyboard an arrow key moves one rank,
+  Page Up and Page Down ten. Point at "10 kept": exactly those paths stay
+  bright. Surviving activities do not move while sliding because positions
+  are cached per abstraction level, and a path that stays keeps its width;
+  the legend's width row does not change.
 - Press *Show stages*: five stage nodes replace the activities; *Show
   activities* returns.
 - Zoom out with the mouse wheel or the − button: labels, badges, arcs and
@@ -61,8 +74,8 @@ What to do:
   tables with the same numbers; *Map view* returns.
 - Hover a badge, an arc or a chip for the reading (label, share, threshold).
 
-Pass when: the map renders with badges, arcs and hatching; the abstraction
-sliders change the map without breaking it into pieces; overlays follow the
+Pass when: the map renders with badges, arcs and hatching; the detail
+sliders change the map without leaving an activity without its paths; overlays follow the
 zoom level; the table view lists the same numbers.
 
 ### 2.2 Stable layout › Global vs vendor (union layout)
@@ -84,8 +97,8 @@ Pass when: shared activities sit at identical coordinates on both sides
 
 What appears: a small synthetic purchase-to-pay graph on Dagre with one
 example per preset: presence badge (≥1 22 %), singularity badge and
-self-loop (≤1 17 %), exclusion badge (∅ 4 %), lag arc (⏱ 35 %), precedence
-arc (⇒ 14 %) with a dashed reverse arc (⇐ 14 %), balance chip with a gauge
+self-loop (≤1 17 %), exclusion badge (∅ 4 %), lag arc (late 35 % of 850), precedence
+arc (order 14 % of 850) with a solid reverse arc below the flow (⇐ 14 % of 850), balance chip with a gauge
 and a tint on the Purchase order group, hatched Record Service Entry Sheet
 with the scope chip. The remaining stories show one preset each and the
 raw overlay kinds.
@@ -110,22 +123,26 @@ npm run test:visual
 Playwright starts Storybook on port 6007 and compares the P2P map, the
 stable-layout story, the BPMN stage-model diagram, the view grid, the
 paths of a focused activity and the stage lanes with the baselines in
-`tests/visual/__screenshots__/` (recorded on macOS; Linux baselines exist
-for the 0.1 and 0.2 stories), checks that the viewport of the BPMN model
-does not move while overlay datasets switch, operates the actions menu by
-keyboard, adds and removes filter chips and hovers and right-clicks on the
-Canvas renderer. On a platform without a baseline the first run records
-one and reports it as a failure; the second run passes. Refresh baselines
-after an intended change with `npm run test:visual -- --update-snapshots`.
+`tests/visual/__screenshots__/` (macOS and Linux), checks that the viewport
+of the BPMN model does not move while overlay datasets switch, operates the
+actions menu by keyboard, adds and removes filter chips and hovers and
+right-clicks on the Canvas renderer. A missing or changed baseline fails;
+approving an intended change is a deliberate local step, described in
+[tests](tests/README.md#strict-visual-ci-and-deliberate-approval).
 
 ## 4. Fixture
 
 ```sh
-npm run fixture     # python3 fixtures/build_bpic2019_fixture.py [path/to/BPI_Challenge_2019.csv]
+npm run fixture -- path/to/BPI_Challenge_2019.csv
+# Or use the environment:
+BPIC2019_CSV=path/to/BPI_Challenge_2019.csv npm run fixture
 ```
 
 Rebuilds `fixtures/bpic2019_p2p.json` from the CSV (about a minute with
-pandas). The output is deterministic for the same input.
+pandas and numpy). Download the [public log](https://doi.org/10.4121/uuid:d06aff4b-79f0-45e6-8ec8-e19730c248f1)
+and export it as CSV first. The argument takes precedence over the environment
+variable; without either, the script stops with download instructions. The
+output is deterministic for the same input and build date.
 
 ## 5. Results at hand-over of 0.1 (CP-E1)
 
@@ -191,10 +208,17 @@ overlays sit on the tasks. With the defaults the header reads
 
 What to do: move the *Paths* slider down to 5 %: more paths survive, more
 gateways appear, the diagram is laid out again (this is a new model, not a
-new dataset). Untick *AND gateways where concurrent*: the parallel gateways
-(+) become exclusive ones (×). Move *Activities* up to 20 %: only the
-strongest tasks remain and the model stays a connected chain from start to
-end.
+new dataset). With the defaults every gateway is exclusive (×): Record Goods
+Receipt and Vendor creates invoice follow each other in both orders, but
+they do not leave one common task, so their merge is no parallel join. Move
+*Activities* up to 15 %: Create Purchase Order Item now leads to exactly
+these two, which lead only to Record Invoice Receipt, and the model shows
+one parallel split and its parallel join (+) around them ("7 tasks · 6
+gateways · 2 events · 17 flows · 5 lanes"). Untick *AND gateways where
+concurrent*: the pair becomes exclusive gateways and the two tasks get the
+flows between them back ("10 gateways · … · 23 flows"). Move *Activities* up
+to 20 %: only the strongest tasks remain and the model stays a connected
+chain from start to end.
 
 Pass when: the counts in the header change with the sliders, the model
 always has exactly one start and one end event, and no task has more than
@@ -203,12 +227,13 @@ one incoming or outgoing flow without a gateway in between.
 ### 6.3 BPMN › overlays on a model
 
 What appears: the hand-written model `fixtures/p2p_small.bpmn` (pool with
-the lanes Purchasing, Warehouse, Accounts payable; seven tasks; two
-gateways; a rejection loop) with the fixture's constraint overlays for the
-dataset *All items*: 17 overlays, badges on Record Invoice Receipt (≤1 4 %)
-and Clear Invoice (≥1 23 %), lag and precedence arcs between Record Goods
-Receipt / Record Service Entry Sheet and Record Invoice Receipt with dashed
-reverse arcs, hatched tasks outside the 3-way-match scope, map-level chips
+the lanes Purchasing, Warehouse, Accounts payable; seven tasks; three
+exclusive gateways; a rejection loop through the *Approved?* choice) with
+the fixture's constraint overlays for the dataset *All items*: 17
+overlays, badges on Record Invoice Receipt (≤1 4 %) and Clear Invoice
+(≥1 23 %), lag and precedence arcs between Record Goods
+Receipt / Record Service Entry Sheet and Record Invoice Receipt with solid
+reverse arcs below the flow, hatched tasks outside the 3-way-match scope, map-level chips
 under the legend. Below the diagram the mapping table lists every task
 with the activity it was matched to: `record_goods_receipt` by id, five
 tasks by label, and *Approve Invoice* unmapped.
@@ -430,8 +455,8 @@ its legend.
 ## Not done
 
 - Orthogonal edge routing and bundling on the abstracted map and the
-  position cache keyed by norm fingerprint and mapping version: moved to
-  0.4 (see `docs/ROADMAP.md`).
+  position cache keyed by norm fingerprint and mapping version: see
+  `docs/ROADMAP.md`.
 - The Canvas renderer draws the whole scene in one pass per frame (with
   viewport culling above 1,500 elements); there is no dirty-rectangle
   redraw yet. Edge labels on the canvas are drawn at the polyline midpoint
@@ -444,29 +469,25 @@ its legend.
   straight connections); a swimlane routing lives in `layoutBpmn`.
 - BPMN authoring forms: `<BpmnView/>` reports selected tasks, flows and
   lanes; the forms that turn a selection into a constraint belong to the
-  workbench (0.4 in the roadmap).
+  workbench.
 - `liteFromGraph` decides AND gateways with the directly-follows heuristic
-  (successors that follow each other in both orders); it does not mine
-  concurrency from the log, and a model above a low threshold can carry
-  many gateways. BPMN-lite does not produce sub-processes, message flows
-  or boundary events; the importer reads them.
-- `layoutBpmn` places every lane as one band and routes flows with a
-  three-segment Manhattan rule; back edges run below the shapes and may
-  cross tasks in a dense lane. The ELK compound layout is available with
-  `lanes: "compound"` when a swimlane picture is not wanted.
+  (successors that follow each other in both orders) and emits them only as
+  a split and join pair around such branches; it does not mine concurrency
+  from the log, finds no nested parallel blocks, and a model above a low
+  threshold can carry many gateways. BPMN-lite does not produce
+  sub-processes, message flows or boundary events; the importer reads them.
+- `layoutBpmn` places every lane as one band. The ELK compound layout is
+  available with `lanes: "compound"` when a swimlane picture is not wanted.
 - `<BpmnView/>` in modeler mode offers bpmn-js's own editing; overlays are
   re-projected after every change, but arcs are recomputed from the
   element boxes, not from the modeller's connection routes.
 - bpmn-js needs SVG geometry that jsdom does not provide, so the component
-  tests cover the headless import, the table alternative and the controls;
-  rendering is checked in Storybook and Playwright.
-- The keep-connected reconnection is bounded but not a global optimum:
-  between neighbouring thresholds the number of re-added paths may differ
-  by one (documented in `docs/API.md`, tested on the fixture and 40 random
-  graphs).
+  tests drive `<BpmnView/>` on an in-memory viewer; bpmn-js's own rendering
+  is checked in Storybook and Playwright.
+- The keep-connected reconnection is bounded but not a global optimum, so
+  the number of elements is not monotone in the thresholds (see
+  `docs/ARCHITECTURE.md` §2.2).
 - German strings exist for the core, the map and the BPMN view, not yet
   for every story text; the workbench's design-tokens package does not
   exist yet, so `src/tokens.css` carries the variables under the intended
   names.
-- Playwright baselines exist for macOS only; Linux baselines have to be
-  recorded once in CI.

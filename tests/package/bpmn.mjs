@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { liteFromStages, exportBpmn, importBpmn, BpmnView } from '@wise/flow/bpmn';
-import { ProcessMap } from '@wise/flow/react';
+import { liteFromStages, exportBpmn, importBpmn, BpmnView } from 'wise-flow/bpmn';
+import { ProcessMap } from 'wise-flow/react';
 assert.ok(BpmnView);
 assert.ok(ProcessMap);
 const graph = liteFromStages({ stages: [{ id: 'work', activities: ['receive', 'complete'] }] });

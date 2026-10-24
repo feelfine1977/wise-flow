@@ -1,59 +1,65 @@
-import { BaseEdge, getBezierPath, type EdgeProps } from "@xyflow/react";
+import { BaseEdge, type EdgeProps } from "@xyflow/react";
 import { memo } from "react";
-import type { XY } from "../core/index.js";
-import type { WfEdge } from "./types.js";
+import { type EdgeMark, type XY, edgeMark, lineEnd, routeMidpoint, strokeTokens } from "../core/index.js";
+import { paintCss } from "./marks.js";
+import { part } from "./parts.js";
+import type { FollowsEdgeData, WfEdge } from "./types.js";
 
 function polyline(points: XY[]): string {
   return points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x} ${p.y}`).join("");
 }
 
-/** Point at half of the polyline's length. */
+/** Point at half of the polyline's length (`routeMidpoint`). */
 export function midpoint(points: XY[]): XY {
-  if (points.length === 0) return { x: 0, y: 0 };
-  if (points.length === 1) return points[0];
-  let total = 0;
-  const lengths: number[] = [];
-  for (let i = 0; i + 1 < points.length; i++) {
-    const l = Math.hypot(points[i + 1].x - points[i].x, points[i + 1].y - points[i].y);
-    lengths.push(l);
-    total += l;
-  }
-  let remaining = total / 2;
-  for (let i = 0; i < lengths.length; i++) {
-    if (remaining <= lengths[i] || i === lengths.length - 1) {
-      const tt = lengths[i] === 0 ? 0 : remaining / lengths[i];
-      return { x: points[i].x + (points[i + 1].x - points[i].x) * tt, y: points[i].y + (points[i + 1].y - points[i].y) * tt };
-    }
-    remaining -= lengths[i];
-  }
-  return points[points.length - 1];
+  return routeMidpoint(points);
+}
+
+/** The edge's mark; resolved from the edge data and its handles when the map did not pass one. */
+function markOf(data: FollowsEdgeData, source: XY, target: XY): EdgeMark {
+  if (data.mark) return data.mark;
+  const points = data.route && data.route.points.length >= 2 ? data.route.points : [source, target];
+  return edgeMark(data.edge, points, { color: data.color, width: data.width });
 }
 
 const Follows = memo(function Follows(props: EdgeProps<WfEdge>) {
-  const { id, data, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, selected } = props;
+  const { id, data, sourceX, sourceY, targetX, targetY, markerEnd, selected } = props;
   if (!data) return null;
-  const route = data.route && data.route.points.length >= 2 ? data.route.points : undefined;
-  const path = route ? polyline(route) : getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition })[0];
-  const mid = route ? midpoint(route) : { x: (sourceX + targetX) / 2, y: (sourceY + targetY) / 2 };
-  const dash = data.reconnected ? "6 5" : data.edge.kind === "constraint" ? "2 4" : undefined;
+  const mark = markOf(data, { x: sourceX, y: sourceY }, { x: targetX, y: targetY });
+  const label = mark.texts[0];
+  // What the theme's rules for the path's interactive states set replaces how they are drawn by default.
+  const state = data.state;
+  const color = state?.stroke ? paintCss(mark, state.stroke) : mark.color;
+  const dash = state?.dash ? state.dash.join(" ") || "none" : mark.dash?.join(" ");
+  // The dimmed look replaces the opacity a rule set in the scene, as on the Canvas and as for nodes.
+  const opacity = state?.opacity ?? (data.dimmed ? undefined : mark.opacity);
   return (
-    <g id={`wf-edge-${id}`} className={`wf-edge wf-edge--${data.edge.kind}${data.hovered ? " wf-edge--hovered" : ""}${data.dimmed ? " wf-edge--dimmed" : ""}${data.focused ? " wf-edge--focused" : ""}`} data-id={id}>
+    <g
+      id={`wf-edge-${id}`}
+      className={`wf-edge wf-edge--${mark.kind}${data.hovered ? " wf-edge--hovered" : ""}${data.dimmed && state?.opacity === undefined ? " wf-edge--dimmed" : ""}${data.focused ? " wf-edge--focused" : ""}`}
+      data-id={id}
+      {...part("edge", mark.kind, [selected && "selected", data.focused && "focused", data.hovered && "hovered", data.dimmed && "dimmed", mark.reconnected && "reconnected"])}
+      // The scene's paints as variables (a focused path at least 3 wide): the stylesheet draws the path with them, a host rule on the path overrides them.
+      style={{
+        ["--wf-edge-color" as string]: color,
+        ["--wf-edge-width" as string]: data.focused ? Math.max(mark.width, strokeTokens.pathFocus) : mark.width,
+        ["--wf-edge-dash" as string]: dash,
+        ["--wf-edge-opacity" as string]: opacity,
+        ["--wf-state-outline" as string]: state?.stroke && color,
+      }}
+    >
       <title>{data.description}</title>
-      <BaseEdge
-        id={id}
-        path={path}
-        markerEnd={markerEnd}
-        interactionWidth={14}
-        style={{
-          stroke: selected || data.hovered || data.focused ? "var(--wf-focus)" : data.color,
-          strokeWidth: data.focused ? Math.max(data.width, 3) : data.width,
-          strokeDasharray: dash,
-          opacity: data.dimmed ? 0.25 : 1,
-        }}
-      />
-      {data.label ? (
-        <text className="wf-edge-label wf-lod-edge-labels" x={mid.x} y={mid.y - 4} textAnchor="middle">
-          {data.label}
+      {/* The line ends inside its head, whose tip lies on the route's end. */}
+      <BaseEdge id={id} path={polyline([...mark.points.slice(0, -1), lineEnd(mark.points, mark.arrow)])} markerEnd={markerEnd} interactionWidth={strokeTokens.pathHit} {...(mark.addedFlow && { style: { strokeLinecap: "round" as const } })} {...part("edge-path")} />
+      {label ? (
+        <text
+          className="wf-edge-label wf-lod-edge-labels"
+          {...part("edge-label")}
+          x={label.x}
+          y={label.y}
+          textAnchor="middle"
+          style={{ ["--wf-text-size" as string]: `${label.size}px`, ["--wf-text-weight" as string]: label.weight, ["--wf-text-paint" as string]: paintCss(mark, state?.texts?.label ?? label.paint) }}
+        >
+          {label.text}
         </text>
       ) : null}
     </g>

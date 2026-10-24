@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { constraintItems, globalScene } from "../../fixtures/bpic2019";
-import { type ViewSpec, abstract, buildViews, layout, overlaysFor, resolveViews, viewsSharePositions } from "../../src/index";
+import { type FlowGraph, type ViewSpec, abstract, buildViews, createPositions, defaultTheme, layout, overlaysFor, resolveViews, themePalette, viewsSharePositions } from "../../src/index";
 
 const base = abstract(globalScene, { minNodeShare: 0.02, minEdgeShare: 0.05 });
 const items = constraintItems("global");
@@ -9,7 +9,7 @@ const views: ViewSpec[] = [
   {
     id: "logistics",
     label: "Logistics",
-    style: { edgeWidth: { metric: "count", scale: "sqrt", range: [1, 8] }, edgeColor: { metric: "medianLagHours", palette: "sequentialBlue" }, nodeColor: { metric: "medianNextHours", palette: "sequentialBlue" } },
+    style: { edgeWidth: { metric: "cases", scale: "sqrt", range: [1, 8] }, edgeColor: { metric: "medianLagHours", palette: "sequentialBlue" }, nodeColor: { metric: "medianNextHours", palette: "sequentialBlue" } },
     overlays: overlaysFor(items.filter((it) => it.description.type === "lag"), { graph: base }),
   },
   { id: "compliance", label: "Compliance", overlays: overlaysFor(items.filter((it) => it.description.type === "precedence" || it.description.type === "exclusion"), { graph: base }) },
@@ -36,14 +36,19 @@ describe("views", () => {
     expect(withGiven.positions.nodes).toEqual(given.nodes);
   });
 
-  it("shares colour and width domains across views with the same metric", async () => {
+  it("shares colour domains and the width's upper end across views with the same metric", async () => {
     const positions = await layout(base, { engine: "dagre" });
     const set = resolveViews(base, views, positions);
     const [finance, logistics, compliance, automation] = set.views;
-    expect(finance.style.edgeWidth?.domain).toEqual(compliance.style.edgeWidth?.domain);
-    expect(finance.style.edgeWidth?.domain).toEqual(logistics.style.edgeWidth?.domain);
+    // The width runs from 0 to the strongest path of the whole log, 194,821 cases, before the base was abstracted.
+    expect(finance.style.edgeWidth?.max).toBe(194_821);
+    expect(compliance.style.edgeWidth?.max).toBe(194_821);
+    expect(logistics.style.edgeWidth?.max).toBe(194_821);
+    expect(finance.scales.domains.edgeWidth).toEqual([0, 194_821]);
     expect(finance.scales.domains.edgeWidth).toEqual(compliance.scales.domains.edgeWidth);
-    expect(finance.style.edgeColor?.domain).toEqual([0, 1]);
+    // The default style colours paths by the cases too, over their extent in the views.
+    expect(finance.style.edgeColor?.metric).toBe("cases");
+    expect(finance.style.edgeColor?.domain).toEqual(set.domains["edgeColor:cases"]);
     expect(logistics.style.edgeColor?.metric).toBe("medianLagHours");
     expect(logistics.scales.domains.edgeColor).toEqual(set.domains["edgeColor:medianLagHours"]);
     // The automation view doubles `events`; its node domain covers the doubled values.
@@ -57,5 +62,27 @@ describe("views", () => {
     // Without sharing, domains are per view.
     const own = resolveViews(base, views, positions, { shareScales: false });
     expect(own.views[3].style.nodeColor?.domain).toBeUndefined();
+  });
+
+  it("colours paths that give only counts by their counts on the shared domain, as their width reads them", () => {
+    // Two paths of 5 and 500 transitions and no cases: the default style's cases fall back to the counts for the
+    // colour as for the width, once for all views, so the two ends of the neutral ramp tell them apart.
+    const graph: FlowGraph = {
+      nodes: ["a", "b", "c"].map((id) => ({ id, kind: "activity" as const, label: id })),
+      edges: [
+        { id: "few", kind: "follows", source: "a", target: "b", metrics: { count: 5 } },
+        { id: "many", kind: "follows", source: "b", target: "c", metrics: { count: 500 } },
+      ],
+    };
+    const positions = createPositions({ nodes: {}, groups: {}, edges: {} }, "given", "RIGHT");
+    const set = resolveViews(graph, [{ id: "one", label: "One" }, { id: "two", label: "Two" }], positions);
+    const ramp = themePalette(defaultTheme, "neutral");
+    for (const view of set.views) {
+      expect([view.scales.edgeColor(graph.edges[0]), view.scales.edgeColor(graph.edges[1])]).toEqual([ramp[0], ramp[ramp.length - 1]]);
+      expect(view.style.edgeColor?.metric).toBe("count");
+      expect(view.style.edgeWidth?.metric).toBe("count");
+      expect(view.style.edgeColor?.domain).toEqual([5, 500]);
+    }
+    expect(set.domains).toEqual({ "edgeWidth:count": [0, 500], "edgeColor:count": [5, 500] });
   });
 });

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { part } from "./parts.js";
 import {
   type ActivityPaths,
   type FlowGraph,
@@ -10,14 +11,13 @@ import {
   type Selection,
   type StringKey,
   formatCount,
-  formatHours,
-  formatShare,
   indexGraph,
   pathBetween,
   pathRows,
   pathsFor,
   t,
 } from "../core/index.js";
+import { formatMetric } from "./describe.js";
 
 export interface PathListProps {
   graph: FlowGraph;
@@ -47,21 +47,12 @@ const COLUMNS: Column[] = [
   { key: "violationShare", label: "metric.violationShare", numeric: true },
 ];
 
+/** A row's value as the metric registry writes it: a lower bound as "at least …", a mean of merged paths with what it is. */
 function cell(row: PathRow, key: PathSortKey, locale: Locale): string {
-  switch (key) {
-    case "count":
-      return row.count !== undefined ? formatCount(row.count, locale) : "–";
-    case "cases":
-      return row.cases !== undefined ? `${formatCount(row.cases, locale)}${row.share !== undefined ? ` (${formatShare(row.share, locale)})` : ""}` : row.share !== undefined ? formatShare(row.share, locale) : "–";
-    case "medianLagHours":
-      return row.medianLagHours !== undefined ? formatHours(row.medianLagHours, locale) : "–";
-    case "p90LagHours":
-      return row.p90LagHours !== undefined ? formatHours(row.p90LagHours, locale) : "–";
-    case "violationShare":
-      return row.violationShare !== undefined ? formatShare(row.violationShare, locale) : "–";
-    default:
-      return "";
-  }
+  const value = (name: Exclude<PathSortKey, "label">) => formatMetric(name, row[name], locale, row.metricBasis?.[name]);
+  if (key === "label") return "";
+  if (key === "cases") return row.cases !== undefined ? `${value("cases")}${row.share !== undefined ? ` (${value("share")})` : ""}` : row.share !== undefined ? value("share") : "–";
+  return value(key);
 }
 
 function sortRows(rows: PathRow[], key: PathSortKey, ascending: boolean, labelOf: (id: string) => string, other: (r: PathRow) => string): PathRow[] {
@@ -183,13 +174,13 @@ export function PathList({ graph, focus, paths, locale = "en", selection, onSele
     onSortChange?.(key, asc);
   };
   const idx = useMemo(() => indexGraph(graph), [graph]);
-  const labelOf = (id: string) => idx.nodes.get(id)?.label ?? idx.groups.get(id)?.label ?? id;
+  const labelOf = idx.label;
 
-  if (typeof focus === "string") {
+  if (!Array.isArray(focus)) {
     const activity: ActivityPaths = pathsFor(graph, focus, { paths });
     const title = t(locale, "paths.title", { label: labelOf(focus) });
     return (
-      <section className={`wf-paths wf-table${className ? ` ${className}` : ""}`} aria-label={title} data-source={activity.source}>
+      <section className={`wf-paths wf-table${className ? ` ${className}` : ""}`} {...part("path-list")} aria-label={title} data-source={activity.source}>
         <header className="wf-paths__header">
           <h3>{title}</h3>
           {onClose ? (
@@ -212,7 +203,7 @@ export function PathList({ graph, focus, paths, locale = "en", selection, onSele
   const title = t(locale, "paths.titlePair", { a: labelOf(a), b: labelOf(b) });
   const step = (r: PathRow) => `${labelOf(r.from)} → ${labelOf(r.to)}`;
   return (
-    <section className={`wf-paths wf-table${className ? ` ${className}` : ""}`} aria-label={title} data-source="graph" data-found={between.found}>
+    <section className={`wf-paths wf-table${className ? ` ${className}` : ""}`} {...part("path-list")} aria-label={title} data-source="graph" data-found={between.found}>
       <header className="wf-paths__header">
         <h3>{title}</h3>
         {onClose ? (

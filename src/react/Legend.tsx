@@ -1,87 +1,149 @@
-import { type Locale, type Overlay, type Scales, type StringKey, formatCompact, formatNumber, formatShare, t } from "../core/index.js";
-import { PatternSwatch } from "./patterns.js";
+import { type Locale, type Measure, type Overlay, type Scales, type SceneLegend, sceneLegend, t } from "../core/index.js";
+import { useContext, useId, useState } from "react";
+import { PatternSwatch, PatternTheme } from "./patterns.js";
+import { Button, Panel } from "./primitives.js";
 
 export interface LegendProps {
-  scales: Scales;
+  /** The scales the rows follow from without a `legend`. */
+  scales?: Scales;
   overlays?: Overlay[];
   locale?: Locale;
   /** Map-level chips are listed under the scales. */
   chips?: React.ReactNode;
+  /** The scene's legend (`FlowScene.legend`); without it the rows follow from `scales` and `overlays` (`sceneLegend`). */
+  legend?: SceneLegend;
+  /** Show the whole key (controlled); without it the legend keeps its own state, starting from `defaultExpanded`. */
+  expanded?: boolean;
+  /** Open as the whole key rather than the one-line strip. Default false. */
+  defaultExpanded?: boolean;
+  /** Called when the toggle expands or collapses the legend. */
+  onExpandedChange?: (expanded: boolean) => void;
+  /** Says that the legend was expanded or collapsed, for a live region; without it the legend has a live region of its own. */
+  onAnnounce?: (text: string) => void;
+  /** The measure shown; given with `onMeasureChange`, the whole key offers the three measures to switch between. */
+  measure?: Measure;
+  onMeasureChange?: (measure: Measure) => void;
 }
 
-/** Legend for the scales in use and the overlay glyphs; always visible in a map. */
-export function Legend({ scales, overlays = [], locale = "en", chips }: LegendProps) {
-  const kinds = new Set(overlays.map((o) => o.kind));
-  const hasReverse = overlays.some((o) => o.kind === "arc" && o.payload?.reverse);
-  const glyphs: [string, StringKey, boolean][] = [
-    ["●", "legend.badge", kinds.has("badge")],
-    ["⌒", "legend.arc", kinds.has("arc")],
-    ["⌒┄", "legend.reverse", hasReverse],
-    ["↻", "legend.selfLoop", kinds.has("selfLoop")],
-    ["▨", "legend.outOfScope", kinds.has("hatch")],
-    ["┄", "legend.reconnected", true],
-  ];
+const MEASURES: readonly Measure[] = ["frequency", "shortfall", "performance"];
+
+/**
+ * Legend for the scales in use and the overlay glyphs, rendered from the rows
+ * of the legend. It opens as a one-line strip that names the measure and its
+ * unit, with the path width's samples, and a button (`aria-expanded`) that
+ * expands it to the whole key and collapses it again; the change is announced.
+ * A measure's sentence shows its first sentence, the measure and its unit, in
+ * the strip. Exports always draw the whole key.
+ */
+export function Legend({ scales, overlays = [], locale = "en", chips, legend, expanded: expandedProp, defaultExpanded = false, onExpandedChange, onAnnounce, measure: shown, onMeasureChange }: LegendProps) {
+  const { title, rows } = legend ?? sceneLegend(scales?.legend ?? [], overlays, locale);
+  const { ink, look } = useContext(PatternTheme);
+  const [own, setOwn] = useState(defaultExpanded);
+  const [said, setSaid] = useState("");
+  const expanded = expandedProp ?? own;
+  const keyId = useId();
+  const toggle = () => {
+    const next = !expanded;
+    if (expandedProp === undefined) setOwn(next);
+    onExpandedChange?.(next);
+    const text = t(locale, next ? "legend.expanded" : "legend.collapsed");
+    if (onAnnounce) onAnnounce(text);
+    else setSaid(text);
+  };
+  const measure = rows.find((row) => row.kind === "measure");
+  const width = rows.find((row) => row.kind === "width");
   return (
-    <div className="wf-panel wf-legend" role="region" aria-label={t(locale, "legend.title")}>
-      <h3>{t(locale, "legend.title")}</h3>
-      <dl>
-        {scales.legend.map((item, i) => {
-          if (item.kind === "width") {
-            return (
-              <div key={i}>
-                <dt>{t(locale, item.title as StringKey)}</dt>
-                <dd className="wf-legend__width">
-                  <span style={{ height: item.range[0] }} /> {formatCompact(item.domain[0], locale)}
-                  <span style={{ height: item.range[1] }} /> {formatCompact(item.domain[1], locale)}
-                </dd>
-              </div>
-            );
-          }
-          if (item.kind === "categorical") {
-            return (
-              <div key={i}>
-                <dt>{t(locale, item.title as StringKey)}</dt>
-                {item.entries.map((e) => (
-                  <dd key={e.key} className="wf-legend__cat">
-                    <span className="wf-legend__swatch" style={{ background: e.color }}>
-                      <PatternSwatch pattern={e.pattern} ink="#1f1f1f" />
-                    </span>
-                    {e.key}
-                  </dd>
-                ))}
-              </div>
-            );
-          }
-          const share = /share/i.test(item.metric);
-          const f = (v: number) => (share ? formatShare(v, locale) : formatNumber(v, 1, locale));
-          return (
-            <div key={i}>
-              <dt>{t(locale, item.title as StringKey)}</dt>
-              <dd>
-                <div className="wf-legend__gradient" style={{ background: `linear-gradient(to right, ${item.stops.join(", ")})` }} />
-                <div className="wf-legend__range">
-                  <span>{f(item.domain[0])}</span>
-                  {item.domain.length === 3 ? <span>{f(item.domain[1])}</span> : null}
-                  <span>{f(item.domain[item.domain.length - 1])}</span>
-                </div>
-              </dd>
+    <Panel part="legend" className={`wf-legend${expanded ? "" : " wf-legend--strip"}`} role="region" aria-label={title}>
+      <div className="wf-legend__head">
+        {expanded ? <h3>{title}</h3> : <p className="wf-legend__measure">{measure?.kind === "measure" ? measure.text.replace(/\. .*/u, ".") : title}</p>}
+        {!expanded && width?.kind === "width" ? (
+          <span className="wf-legend__width" aria-hidden="true">
+            {width.samples.map((s, j) => <span key={j} className="wf-legend__stroke" style={{ height: s.width }} />)}
+          </span>
+        ) : null}
+        <Button icon={expanded ? "collapse" : "expand"} label={t(locale, expanded ? "legend.collapse" : "legend.expand")} aria-expanded={expanded} aria-controls={expanded ? keyId : undefined} onClick={toggle} />
+      </div>
+      {onAnnounce ? null : (
+        <span className="wf-sr-only" aria-live="polite">
+          {said}
+        </span>
+      )}
+      {expanded ? (
+        <div id={keyId} className="wf-legend__key">
+          {measure?.kind === "measure" ? <p className="wf-legend__measure">{measure.text}</p> : null}
+          {shown && onMeasureChange ? (
+            <div className="wf-legend__measures" role="group" aria-label={t(locale, "measure.choice")}>
+              {MEASURES.map((m) => (
+                <Button key={m} pressed={m === shown} onClick={() => onMeasureChange(m)}>
+                  {t(locale, `measure.${m}`)}
+                </Button>
+              ))}
             </div>
-          );
-        })}
-        <div>
-          {glyphs
-            .filter(([, , show]) => show)
-            .map(([glyph, key]) => (
-              <dd key={key}>
-                <span className="wf-legend__glyph" aria-hidden="true">
-                  {glyph}
-                </span>
-                {t(locale, key)}
-              </dd>
-            ))}
+          ) : null}
+          <dl>
+            {rows.map((row, i) => {
+              if (row.kind === "width") {
+                return (
+                  <div key={i}>
+                    <dt>{row.title}</dt>
+                    <dd className="wf-legend__width">
+                      {row.samples.map((s, j) => (
+                        <span key={j} className="wf-legend__sample">
+                          <span className="wf-legend__stroke" style={{ height: s.width }} /> {s.text}
+                        </span>
+                      ))}
+                    </dd>
+                  </div>
+                );
+              }
+              if (row.kind === "swatches") {
+                return (
+                  <div key={i} className="wf-legend__cats">
+                    <dt>{row.title}</dt>
+                    {row.entries.map((e) => (
+                      <dd key={e.text} className="wf-legend__cat">
+                        <span className="wf-legend__swatch" style={{ background: e.color }}>
+                          <PatternSwatch pattern={e.pattern} ink={ink} look={look} />
+                        </span>
+                        {e.text}
+                      </dd>
+                    ))}
+                  </div>
+                );
+              }
+              if (row.kind === "ramp") {
+                return (
+                  <div key={i}>
+                    <dt>{row.title}</dt>
+                    <dd>
+                      <div className="wf-legend__gradient" style={{ background: `linear-gradient(to right, ${row.stops.join(", ")})` }} />
+                      <div className="wf-legend__range">
+                        {row.values.map((v, j) => (
+                          <span key={j}>{v}</span>
+                        ))}
+                      </div>
+                    </dd>
+                  </div>
+                );
+              }
+              return null;
+            })}
+            <div className="wf-legend__keys">
+              {rows.map((row, i) =>
+                row.kind === "key" ? (
+                  <dd key={i}>
+                    <span className="wf-legend__glyph" aria-hidden="true">
+                      {row.glyph}
+                    </span>
+                    {row.text}
+                  </dd>
+                ) : null,
+              )}
+            </div>
+          </dl>
+          {chips ? <div className="wf-map-chips">{chips}</div> : null}
         </div>
-      </dl>
-      {chips ? <div className="wf-map-chips">{chips}</div> : null}
-    </div>
+      ) : null}
+    </Panel>
   );
 }

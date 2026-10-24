@@ -1,11 +1,12 @@
 /**
- * `@wise/flow/react` — React components on React Flow.
- * Import `@wise/flow/tokens.css`, `@wise/flow/style.css` and `@xyflow/react/dist/style.css`.
+ * `wise-flow/react` — React components on React Flow.
+ * Import `wise-flow/tokens.css`, `wise-flow/style.css` and `@xyflow/react/dist/style.css`.
  */
 export { ProcessMap, groupNodeId } from "./ProcessMap.js";
 export { TableAlternative, type TableAlternativeProps } from "./TableAlternative.js";
 export { TraceTimeline, type TraceTimelineProps, type Trace, type TraceEvent, type Annotation } from "./TraceTimeline.js";
-export { AbstractionControls, type AbstractionControlsProps } from "./AbstractionControls.js";
+export { AbstractionControls, type AbstractionControlsProps, type KeptCount } from "./AbstractionControls.js";
+export { ZoomControl, type ZoomControlProps } from "./primitives.js";
 export { Legend, type LegendProps } from "./Legend.js";
 export { OverlayLayer, type OverlayLayerProps } from "./OverlayLayer.js";
 export { ContextMenu, type ContextMenuProps } from "./ContextMenu.js";
@@ -17,7 +18,13 @@ export { edgeTypes, midpoint } from "./edges.js";
 export { PatternSwatch } from "./patterns.js";
 export { useFlowGraph, useStableLayout, useOverlays, usePrefersReducedMotion, type StableLayout, type LayoutStatus } from "./hooks.js";
 export { describeNode, describeEdge, describeGroup, describeMap } from "./describe.js";
-export type { ProcessMapProps, Selection, ActivityNodeData, GroupNodeData, FollowsEdgeData, WfNode, WfGroupNode, WfEdge } from "./types.js";
+export type { ProcessMapProps, Selection, ActivityNodeData, GroupNodeData, FollowsEdgeData, WfNode, WfGroupNode, WfEdge, BringIntoView, InView } from "./types.js";
 export { emptySelection } from "./types.js";
 export { BpmnView, emptyBpmnSelection, type BpmnViewProps, type BpmnSelection, type BpmnViewHandle } from "./BpmnView.js";
 export { ViewSwitcher, type ViewSwitcherProps } from "./ViewSwitcher.js";
+export { useFlowTheme, type FlowTheme } from "./theme.js";
+export { FlowComparison, type FlowComparisonProps, type FlowComparisonCohort } from "./FlowComparison.js";
+
+// Custom controls must consume the renderer's exact React Flow context instance.
+// Hosts resolving a different conditional entry point otherwise get a second store.
+export { useReactFlow, useNodesInitialized, useStore } from "@xyflow/react";

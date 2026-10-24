@@ -1,6 +1,6 @@
 {
-  "name": "@wise/flow",
-  "version": "0.3.1",
+  "name": "wise-flow",
+  "version": "0.3.5",
   "description": "Process-flow visualisation: headless core (graph model, abstraction, stable layouts, scales, constraint overlays, selection and paths, filter clauses, lanes, hit-testing, SVG export, named views) with a React renderer (context menu, path list, filter chips), a Canvas renderer with PNG export and a BPMN 2.0 bridge (BPMN-lite, export, import, bpmn-js view)",
   "type": "module",
   "exports": {
@@ -22,11 +22,13 @@
     },
     "./tokens.css": "./dist/tokens.css",
     "./style.css": "./dist/style.css",
+    "./style.unlayered.css": "./dist/style.unlayered.css",
     "./package.json": "./package.json",
     "./bpmn.css": "./dist/bpmn.css",
     "./react-flow.css": "./dist/react-flow.css",
     "./bpmn/assets/*": "./dist/bpmn/assets/*",
-    "./elk-worker.min.js": "./dist/elk-worker.min.js"
+    "./elk-worker.min.js": "./dist/elk-worker.min.js",
+    "./dagre-worker.min.js": "./dist/dagre-worker.min.js"
   },
   "types": "./dist/index.d.ts",
   "files": [
@@ -45,9 +47,8 @@
     "node": "^22.0.0 || ^24.0.0"
   },
   "scripts": {
-    "build": "node scripts/clean.mjs && tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
+    "build": "node scripts/clean.mjs && tsc -p tsconfig.build.json && tsc -p tsconfig.types.json && node scripts/copy-assets.mjs",
     "test": "vitest run",
-    "test:watch": "vitest",
     "lint": "eslint src --max-warnings 0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "storybook": "storybook dev -p 6006",
@@ -58,6 +59,7 @@
     "test:package": "node scripts/test-package.mjs",
     "test:visual:approve": "playwright test -c tests/visual/playwright.approve.config.ts",
     "test:coverage": "vitest run --coverage",
+    "test:hosted": "node scripts/test-hosted.mjs",
     "test:core": "vitest run tests/core",
     "test:components": "vitest run tests/react",
     "test:tooling": "node --test tests/tooling/*.test.mjs",
@@ -65,7 +67,9 @@
     "check:workflows": "node scripts/check-workflows.mjs",
     "check": "npm run lint && npm run typecheck && npm run check:architecture && npm run check:workflows && npm run test:tooling && npm run test:coverage",
     "test:browser": "playwright test -c tests/browser/playwright.config.ts",
-    "check:budgets": "node scripts/check-budgets.mjs"
+    "check:budgets": "node scripts/check-budgets.mjs",
+    "tokens": "node scripts/generate-tokens.mjs",
+    "bench": "npm run -s build && node tests/bench/run.mjs"
   },
   "peerDependencies": {
     "react": ">=18",
@@ -85,9 +89,9 @@
     "@changesets/cli": "^2.27.0",
     "@eslint/js": "^9.39.5",
     "@playwright/test": "1.61.1",
-    "@storybook/addon-essentials": "8.6.18",
-    "@storybook/react": "8.6.18",
-    "@storybook/react-vite": "8.6.18",
+    "@storybook/addon-essentials": "8.6.19",
+    "@storybook/react": "8.6.19",
+    "@storybook/react-vite": "8.6.19",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/react": "^16.3.0",
     "@types/d3-scale": "^4.0.9",
@@ -95,17 +99,17 @@
     "@types/rbush": "^4.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@vitest/coverage-v8": "4.1.11",
+    "@vitest/coverage-v8": "4.1.12",
     "eslint": "^9.39.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "jsdom": "^24.1.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "storybook": "8.6.18",
+    "storybook": "8.6.19",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.69.0",
-    "vite": "6.4.3",
-    "vitest": "4.1.11",
+    "vite": "6.4.5",
+    "vitest": "4.1.12",
     "yaml": "2.8.3"
   },
   "license": "PolyForm-Noncommercial-1.0.0"

@@ -1,11 +1,14 @@
 /**
  * PNG export: the scene drawn with the canvas routines into an offscreen
- * canvas, with the same figure presets and embedded legend as `toSVG`.
+ * canvas, in the same figure frame and with the same legend as `toSVG`.
  */
-import { type Box, type FigurePreset, type LodRules, type Scene, FIGURE_WIDTHS, MAP_TARGET, formatCount, t } from "../core/index.js";
-import { type DrawContext, drawLegend, drawScene } from "./draw.js";
+import { type ColorScheme, type EdgeBudget, type FigurePreset, type Readable, type Scene, type ShownEdges, type TextMeasure, type ThemeSetting, budgetEdges, figureFrame, figureMetrics } from "../core/index.js";
+import { figureFloor, figureHeading, millimetres } from "../core/figure.js";
+import { type DrawContext, drawLegend, drawScene, fontOf } from "./draw.js";
+import { assertExportable } from "../core/model.js";
+import { shownReadable } from "../core/readable.js";
 import { prepareScene } from "./scene.js";
-import { type CanvasTokens, defaultTokens } from "./tokens.js";
+import { type CanvasTokens, sceneTokens } from "./tokens.js";
 
 /** What `toPNG` needs from a canvas; `HTMLCanvasElement` and `OffscreenCanvas` both fit. */
 export interface CanvasLike {
@@ -18,22 +21,41 @@ export interface CanvasLike {
 }
 
 export interface PngOptions {
+  /** Replay a live map's text state and numbered full-name key, as in `ExportOptions.readable`. Default the figure's text state. */
+  readable?: Readable;
   /** Figure preset setting the output width in CSS pixels. */
   preset?: FigurePreset;
   /** Explicit output width in CSS pixels; overrides the preset. */
   width?: number;
+  /**
+   * The width the figure is declared to be printed at, in millimetres: the
+   * figure is laid out at it (one figure unit a CSS pixel of it, 0.75 pt) and
+   * drawn `width` CSS pixels wide, or as wide as it is laid out.
+   */
+  widthMm?: number;
   /** Pixel density of the bitmap. Default: the device pixel ratio, at least 2. */
   scale?: number;
   background?: string;
   legend?: boolean;
   padding?: number;
-  /** Zoom level for the level-of-detail decisions. Default 1 (everything visible). */
+  /** Zoom level for the level-of-detail decisions. Default as for `toSVG`: the map's scale in the figure in a theme with a figure floor, otherwise 1. */
   lodZoom?: number;
+  /** Colours and font over the scene's (`sceneTokens`). */
   tokens?: Partial<CanvasTokens>;
+  /** The theme the figure is drawn in, as for `toSVG`: a preset's name or changes over a preset (`resolveTheme`). Default the `print` preset. */
+  theme?: ThemeSetting;
+  /** The colour scheme of the theme. Default `light`; the print theme has no other. */
+  scheme?: ColorScheme;
+  /** What the figure's texts are measured by (`FlowSceneOptions.textMeasure`). Default `estimateTextWidth`. */
+  textMeasure?: TextMeasure;
   /** Canvas factory for environments without a document (Node with a canvas package, tests). */
   createCanvas?: (width: number, height: number) => CanvasLike;
   /** Show the scene context line under the title. Default true. */
   context?: boolean;
+  /** The edges drawn, as in `toSVG`: those a map reported, or a budget. Default every edge. */
+  edgeBudget?: EdgeBudget | ShownEdges;
+  /** The caption line under the map and the legend, as in `toSVG` (`figureCaption`). Default true. */
+  caption?: boolean;
 }
 
 export interface PngCanvas {
@@ -45,19 +67,6 @@ export interface PngCanvas {
   cssWidth: number;
   cssHeight: number;
   scale: number;
-}
-
-/** Level-of-detail thresholds multiplied by a factor, so that `lodZoom` decides what a figure shows. */
-function scaleLod(rules: LodRules, factor: number): LodRules {
-  return {
-    labels: rules.labels * factor,
-    edgeLabels: rules.edgeLabels * factor,
-    badges: rules.badges * factor,
-    arcs: rules.arcs * factor,
-    chips: rules.chips * factor,
-    hatch: rules.hatch * factor,
-    selfLoops: rules.selfLoops * factor,
-  };
 }
 
 function defaultCreateCanvas(width: number, height: number): CanvasLike {
@@ -73,24 +82,21 @@ function defaultCreateCanvas(width: number, height: number): CanvasLike {
 
 /** Draw the scene into a canvas and return it (synchronous). */
 export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
-  const tokens: CanvasTokens = { ...defaultTokens, ...(options.tokens ?? {}) };
+  assertExportable(scene.graph);
   const locale = scene.locale ?? "en";
-  const prepared = prepareScene(scene.graph, scene.positions, { style: scene.style, overlays: scene.overlays ?? scene.graph.overlays, locale, lanes: scene.lanes, selfLoops: false });
-  const pad = options.padding ?? 24;
-  const legend = options.legend ?? true;
-  const legendWidth = legend ? 220 : 0;
-  const content: Box = prepared.bounds.width > 0 && prepared.bounds.height > 0 ? prepared.bounds : { x: 0, y: 0, width: 1, height: 1 };
-  const headerHeight = scene.title ? 40 + (options.context !== false ? 18 : 0) : 0;
-  const mapW = content.width + 2 * pad;
-  const mapH = content.height + 2 * pad;
-  // The legend's height is only known after drawing; reserve a column for it.
-  const mapChips = prepared.overlays.filter((o) => o.kind === "chip" && o.target === MAP_TARGET).length;
-  const legendEstimate = legend ? 40 + prepared.scales.legend.reduce((s, it) => s + (it.kind === "categorical" ? 20 + it.entries.length * 16 : 46), 0) + 6 * 14 + mapChips * 28 : 0;
-  const totalW = mapW + legendWidth;
-  const totalH = Math.max(mapH, legendEstimate + 2 * pad) + headerHeight;
-  const cssWidth = options.width ?? (options.preset && options.preset !== "none" ? FIGURE_WIDTHS[options.preset] : totalW);
-  const k = cssWidth / totalW;
-  const cssHeight = totalH * k;
+  const prepared = prepareScene(scene.graph, scene.positions, { measure: scene.measure, style: scene.style, overlays: scene.overlays, locale, lanes: scene.lanes, selfLoops: scene.selfLoops, activityLabels: scene.activityLabels, lodBySize: false, theme: options.theme ?? "print", scheme: options.scheme, textMeasure: options.textMeasure });
+  const tokens: CanvasTokens = { ...sceneTokens(prepared), ...(options.tokens ?? {}) };
+  const { text: textTokens } = prepared.theme;
+  const { edgeBudget } = options;
+  const floor = figureFloor(prepared.theme);
+  const declared = options.widthMm !== undefined ? millimetres(options.widthMm) : undefined;
+  const frame = figureFrame(prepared, { title: !!scene.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: declared ?? options.width, withheld: budgetEdges(prepared, edgeBudget), caption: options.caption, floor, readable: shownReadable(prepared, options) });
+  const { padding: pad, width: totalW } = frame;
+  // A figure declared in millimetres is drawn at the given width in CSS pixels, or as wide as it is laid out.
+  const cssWidth = declared !== undefined ? (options.width ?? frame.outWidth) : frame.outWidth;
+  const cssHeight = frame.outHeight * (cssWidth / frame.outWidth || 1);
+  const k = totalW > 0 ? cssWidth / totalW : 1;
+  const { offset, scale: mapScale } = frame.map;
   const scale = options.scale ?? Math.max(2, typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1);
   const create = options.createCanvas ?? defaultCreateCanvas;
   const canvas = create(Math.max(1, Math.round(cssWidth * scale)), Math.max(1, Math.round(cssHeight * scale)));
@@ -98,43 +104,56 @@ export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
   if (!ctx) throw new Error("toPNG: the canvas has no 2D context");
   ctx.save();
   ctx.scale(scale, scale);
-  // Level of detail is decided at `lodZoom`, independent of the figure scale.
-  const lodScene = options.lodZoom !== undefined && options.lodZoom !== k ? { ...prepared, lod: scaleLod(prepared.lod, k / options.lodZoom) } : prepared;
-  drawScene(ctx, lodScene, { x: (pad - content.x) * k, y: (headerHeight + pad - content.y) * k, zoom: k, width: cssWidth, height: cssHeight }, undefined, {
+  drawScene(ctx, prepared, { x: offset.x * k, y: offset.y * k, zoom: k * mapScale, width: cssWidth, height: cssHeight }, undefined, {
     tokens,
+    // Level of detail is decided at `lodZoom`, without a figure floor independent of the figure scale; the texts as the frame decided at the map's scale.
+    lodZoom: options.lodZoom ?? (floor > 0 ? mapScale : 1),
+    readable: frame.readable,
+    numbers: frame.numbers?.texts.map((n) => n.text),
     cull: false,
     background: options.background ?? tokens.paper,
     createCanvas: (w, h) => create(w, h),
+    edgeBudget,
   });
   ctx.save();
   ctx.scale(k, k);
   if (scene.title) {
+    const heading = figureHeading(prepared, frame, scene.title, scene.subtitle);
     ctx.fillStyle = tokens.ink;
-    ctx.font = `700 18px ${tokens.font}`;
+    ctx.font = fontOf(textTokens.figureTitle, tokens.font);
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
-    ctx.fillText(scene.title, pad, 26);
+    ctx.fillText(heading.title, pad, figureMetrics.titleBaseline);
     if (options.context !== false) {
-      const meta = scene.graph.meta ?? {};
-      const label = scene.subtitle ?? String(meta.label ?? meta.scene ?? "");
-      const cases = typeof meta.cases === "number" ? formatCount(meta.cases, locale) : "–";
-      const events = typeof meta.events === "number" ? formatCount(meta.events, locale) : "–";
       ctx.fillStyle = tokens.neutral;
-      ctx.font = `11px ${tokens.font}`;
-      ctx.fillText(t(locale, "export.context", { label, cases, events }), pad, 44);
+      ctx.font = fontOf(textTokens.figureText, tokens.font);
+      ctx.fillText(heading.context, pad, figureMetrics.contextBaseline);
     }
   }
-  if (legend) {
-    ctx.strokeStyle = tokens.neutral;
-    ctx.globalAlpha = 0.4;
-    ctx.lineWidth = 1;
-    ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.moveTo(mapW, headerHeight + pad);
-    ctx.lineTo(mapW, totalH - pad);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-    drawLegend(ctx, prepared, mapW + 16, headerHeight + pad, legendWidth - 32, tokens);
+  if (frame.legend) {
+    const { rule, x, y, width } = frame.legend;
+    if (rule) {
+      ctx.strokeStyle = tokens.neutral;
+      ctx.globalAlpha = prepared.theme.opacity.legendRule;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(rule.x, rule.top);
+      ctx.lineTo(rule.x, rule.bottom);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    drawLegend(ctx, prepared, x, y, width, tokens, { createCanvas: (w, h) => create(w, h) });
+  }
+  if (frame.caption || frame.note || frame.key.lines.length || frame.numbers) {
+    ctx.fillStyle = tokens.ink;
+    ctx.font = fontOf(textTokens.figureText, tokens.font);
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    if (frame.caption) frame.caption.lines.forEach((line, i) => ctx.fillText(line, frame.caption!.x, frame.caption!.y + i * figureMetrics.keyLine));
+    if (frame.note) ctx.fillText(frame.note.text, frame.note.x, frame.note.y);
+    frame.key.lines.forEach((line, i) => ctx.fillText(line, pad, frame.key.y + i * figureMetrics.keyLine));
+    frame.numbers?.lines.forEach((line, i) => ctx.fillText(line, frame.numbers!.x, frame.numbers!.y + i * figureMetrics.keyLine));
   }
   ctx.restore();
   ctx.restore();

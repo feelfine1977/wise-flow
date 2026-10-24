@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { constraintItems, vendorScene, vendorSceneKey } from "../../fixtures/bpic2019";
-import { type Positions, abstract, layout, overlaysFor } from "../../src/index";
+import { type FlowGraph, type Positions, activityNodeSize, activityReferences, abstract, layout, overlaysFor } from "../../src/index";
 import { CanvasRenderer, type DrawContext, defaultTokens, drawLegend, drawScene, prepareScene, toPNGCanvas, toPNGDataUrl, tracePath } from "../../src/canvas/index";
 
 /** A 2D context that records the calls the drawing routines make. */
@@ -209,4 +209,61 @@ describe("CanvasRenderer", () => {
     expect(renderer.getViewport().zoom).toBe(renderer.maxZoom);
     renderer.dispose();
   });
+});
+
+
+describe("activity label Canvas and PNG rendering", () => {
+  it("keeps canonical graph data, full-strength text, case-only subtitles, and a visible exact export key", async () => {
+    const g: FlowGraph = {
+      nodes: [
+        { id: "price", kind: "activity", label: "Change Price", metrics: { cases: 41, events: 57 } },
+        { id: "quantity", kind: "activity", label: "Change Quantity", metrics: { cases: 1107, events: 2198 } },
+      ],
+      edges: [{ id: "pq", kind: "follows", source: "price", target: "quantity" }, { id: "qq", kind: "follows", source: "quantity", target: "quantity", metrics: { count: 13 } }],
+    };
+    const options = { mode: "ids" as const, references: activityReferences(g), caseLabel: "items" };
+    const p = await layout(g, { engine: "dagre", nodeSize: (node) => activityNodeSize(node, options) });
+    const scene = prepareScene(g, p, { activityLabels: options });
+    const { ctx, texts } = recordingContext();
+    const opacity: { text: string; alpha: number }[] = [];
+    const fillText = ctx.fillText;
+    ctx.fillText = (text: string) => { opacity.push({ text, alpha: ctx.globalAlpha }); fillText(text); };
+    drawScene(ctx, scene, { x: 0, y: 0, zoom: 1, width: 1000, height: 800 }, { selection: { nodes: ["price"], edges: [], groups: [] }, bright: { nodes: new Set(["price"]), edges: new Set() } }, { cull: false });
+    expect(scene.graph).toBe(g);
+    expect(scene.nodeById.get("quantity")?.node.label).toBe("Change Quantity");
+    expect(texts).toContain("A02");
+    // The card's number line: the cases in full, no events; without the log's cases no share.
+    expect(texts).toEqual(expect.arrayContaining(["1,107", "· –"]));
+    expect(texts.join(" ")).not.toMatch(/2[.,]2k|2,198/);
+    expect(opacity.find((text) => text.text === "A02")?.alpha).toBe(1);
+    expect(texts).toContain("↻ 13 transitions");
+    const pngContext = recordingContext();
+    const png = toPNGCanvas({ graph: g, positions: p, activityLabels: { ...options, showCounts: false }, overlays: [] }, {
+      legend: false, scale: 1,
+      createCanvas: (width, height) => ({ width, height, getContext: () => pngContext.ctx }),
+    });
+    const key = pngContext.texts.slice(pngContext.texts.indexOf("Activity key — exact counts")).join(" ");
+    expect(key).toContain("A01 — Change Price. 41 items · 57 events.");
+    expect(key).toContain("A02 — Change Quantity. 1,107 items · 2,198 events.");
+    expect(pngContext.texts).toContain("↻ 13 transitions");
+    expect(png.height).toBeGreaterThan(p.bounds.height);
+    expect(pngContext.texts).not.toContain("1,107 items");
+    const hidden = recordingContext();
+    toPNGCanvas({ graph: g, positions: p, activityLabels: options, overlays: [], selfLoops: false }, {
+      legend: false, scale: 1,
+      createCanvas: (width, height) => ({ width, height, getContext: () => hidden.ctx }),
+    });
+    expect(hidden.texts).not.toContain("↻ 13 transitions");
+  });
+});
+
+it("draws caller-supplied constraint meaning on arcs in Canvas and SVG", async () => {
+  const p = await pos();
+  const labelled = overlays.map((o) => o.kind === "arc" ? { ...o, payload: { ...o.payload, displayLabel: "63% miss this constraint" } } : o);
+  const scene = prepareScene(graph, p, { overlays: labelled });
+  const { ctx, texts } = recordingContext();
+  drawScene(ctx, scene, { x: 0, y: 0, zoom: 1, width: 10000, height: 10000 }, undefined, { cull: false });
+  expect(texts).toContain("63% miss this constraint");
+  const { toSVG } = await import("../../src/index");
+  expect(toSVG({ graph, positions: p, overlays: labelled }, { legend: false })).toContain("63% miss this constraint");
 });

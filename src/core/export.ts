@@ -1,62 +1,111 @@
 /**
  * Deterministic SVG export of a scene with an embedded legend and figure presets.
  */
-import { type Locale, formatCompact, formatCount, formatNumber, formatShare } from "./format.js";
-import { type Box, type Positions, straightRoute } from "./layout.js";
-import { type LaneBand, type LaneMode, laneBands } from "./lanes.js";
-import { type FlowGraph, type Overlay, MAP_TARGET, hasTag, metric } from "./model.js";
-import { type OverlayGeometryOptions, type OverlayShape, canonicalOverlays, overlayGeometry } from "./overlays.js";
-import { type LegendItem, type Scales, type StyleSpec, buildScales, contrastText, defaultStyle, fixedColors, lodAt, patternDefs } from "./style.js";
-import { RECONNECTED_TAG } from "./aggregate.js";
-import { type StringKey, t } from "./strings.js";
+import type { ActivityLabelOptions } from "./activity-labels.js";
+import { type EdgeBudget, type EdgeSelection, type ShownEdges, budgetEdges, keptLoop } from "./edge-budget.js";
+import { type BoxSide, type ElementText, lineEnd } from "./element-marks.js";
+import { type FigurePreset, type LegendLayout, figureFloor, figureFrame, figureHeading, figureMetrics, legendMetrics, millimetres } from "./figure.js";
+import type { Locale } from "./format.js";
+import { type Box, type Positions } from "./layout.js";
+import { type LaneMode } from "./lanes.js";
+import { type FlowGraph, type Overlay, assertExportable } from "./model.js";
+import type { OverlayGeometryOptions } from "./overlays.js";
+import { type MarkSvgOptions, arrowMarker, markSvg, svgMarkup } from "./mark-svg.js";
+import { type MarkPaint, type MarkText, type OverlayMark, markArrowhead, overlayArrow } from "./overlay-marks.js";
+import { type Readable, isPill, nodeTexts, readableMark, shownReadable, titleTexts } from "./readable.js";
+import { type FlowScene, sceneOf } from "./scene.js";
+import { type Measure, type StyleSpec, lodAt, patternDefs } from "./style.js";
+import { t } from "./strings.js";
+import type { TextMeasure } from "./text.js";
+import { type ColorScheme, type ThemeSetting, resolveTheme } from "./theme.js";
+import { type Arrowhead, type ColorToken, arrowheadTokens, dimensionTokens, readableTokens } from "./tokens.js";
 
 export interface Scene {
+  activityLabels?: ActivityLabelOptions;
   graph: FlowGraph;
   positions: Positions;
   overlays?: Overlay[];
+  /** The measure the figure shows (see `FlowSceneOptions.measure`). */
+  measure?: Measure;
   style?: StyleSpec;
   title?: string;
   subtitle?: string;
   locale?: Locale;
   /** Draw stage or lane groups as bands (see `laneBands`). Default `none`. */
   lanes?: LaneMode;
+  /** Draw follows edges from a node to itself as self-loops. Default true. */
+  selfLoops?: boolean;
 }
 
-export type FigurePreset = "single-column" | "double-column" | "slide" | "none";
-
 export interface ExportOptions {
+  /** Replay a live map's text state and numbered full-name key. Pair with its theme, `lodZoom` and reported `edgeBudget`. Default the figure's text state. */
+  readable?: Readable;
   /** Figure preset setting the output width in pixels (the drawing scales to fit). */
   preset?: FigurePreset;
   /** Explicit output width in pixels; overrides the preset. */
   width?: number;
+  /**
+   * The width the figure is declared to be printed at, in millimetres; it
+   * overrides `width` and the preset, and the SVG states its size in
+   * millimetres. One figure unit is a CSS pixel of it (0.75 pt).
+   */
+  widthMm?: number;
   legend?: boolean;
   background?: string;
   fontFamily?: string;
   padding?: number;
-  /** Zoom level used for level-of-detail decisions. Default 1 (everything visible). */
+  /**
+   * Zoom level used for level-of-detail decisions. Default: in a theme with
+   * a figure floor (`text.minFigurePt`, the print theme's), the scale the map
+   * is drawn at in the figure; otherwise 1 (everything visible).
+   */
   lodZoom?: number;
   overlayGeometry?: OverlayGeometryOptions;
   /** Show the scene context line (label, cases, events) under the title. */
   context?: boolean;
+  /**
+   * The edges drawn: those a map reported through `onEdgesShown`, or a budget
+   * (`budgetEdges`, protecting the edges with an overlay mark on them). While
+   * edges are withheld a note under the map says how many are shown. Default
+   * every edge.
+   */
+  edgeBudget?: EdgeBudget | ShownEdges;
+  /**
+   * The theme the figure is drawn in: a preset's name or changes over a
+   * preset (`resolveTheme`). Default the `print` preset, whose texts keep
+   * 7 pt at the figure's width: where the cards cannot show their names, they
+   * are numbered and the names listed in a key. `default` draws the figure
+   * as one picture scaled to its width, as before.
+   */
+  theme?: ThemeSetting;
+  /** The colour scheme of the theme. Default `light`; the print theme has no other. */
+  scheme?: ColorScheme;
+  /** What the figure's texts are measured by (see `FlowSceneOptions.textMeasure`). Default `estimateTextWidth`. */
+  textMeasure?: TextMeasure;
+  /**
+   * The caption line under the map and the legend: label, cases, period,
+   * filters and how much of the model is shown, from the graph's `meta`
+   * (`figureCaption`); a part without data is left out. Default true.
+   */
+  caption?: boolean;
 }
-
-export const FIGURE_WIDTHS: Record<Exclude<FigurePreset, "none">, number> = {
-  "single-column": 1000,
-  "double-column": 2000,
-  slide: 1600,
-};
 
 const esc = (s: unknown): string =>
   String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const num = (n: number): string => Number(n.toFixed(2)).toString();
 
 interface Ctx {
-  scene: Scene;
-  scales: Scales;
+  scene: FlowScene;
+  /** The scene's colour of every paint role. */
+  colors: Readonly<Record<ColorToken, string>>;
   locale: Locale;
   lod: ReturnType<typeof lodAt>;
-  font: string;
-  bands: Map<string, LaneBand>;
+  /** Zoom at which the level of detail is decided. */
+  lodZoom: number;
+  /** What the texts show at the map's scale in the figure. */
+  readable: Readable;
+  withheld?: EdgeSelection;
+  keptLoops?: ReadonlySet<string>;
 }
 
 function rect(b: Box, attrs: string): string {
@@ -67,254 +116,179 @@ function text(x: number, y: number, s: string, attrs = ""): string {
   return `<text x="${num(x)}" y="${num(y)}" ${attrs}>${esc(s)}</text>`;
 }
 
-function truncate(s: string, max: number): string {
-  return s.length > max ? `${s.slice(0, Math.max(1, max - 1))}…` : s;
+/** The font attributes of a text role. */
+const fontAttrs = (role: { size: number; weight?: number }): string => `font-size="${role.size}"${role.weight ? ` font-weight="${role.weight}"` : ""}`;
+
+/** Path data along sides of a box. */
+function sidesPath(b: Box, sides: readonly BoxSide[]): string {
+  const [x0, y0, x1, y1] = [num(b.x), num(b.y), num(b.x + b.width), num(b.y + b.height)];
+  const d: Record<BoxSide, string> = { top: `M${x0} ${y0}H${x1}`, right: `M${x1} ${y0}V${y1}`, bottom: `M${x0} ${y1}H${x1}`, left: `M${x0} ${y0}V${y1}` };
+  return sides.map((side) => d[side]).join("");
 }
 
 function drawGroups(ctx: Ctx): string {
-  const { graph, positions } = ctx.scene;
   const out: string[] = [];
-  for (const g of [...(graph.groups ?? [])].sort((a, b) => (a.id < b.id ? -1 : 1))) {
-    const b = positions.groups[g.id];
-    if (!b) continue;
-    const c = ctx.scales.categorical(g.id);
-    const band = ctx.bands.get(g.id);
-    out.push(`<g class="wf-group${band ? " wf-group-band" : ""}" data-id="${esc(g.id)}">`);
-    if (band) {
-      out.push(rect(b, `fill="${c.color}" fill-opacity="${band.index % 2 === 0 ? 0.06 : 0.02}" stroke="${fixedColors.neutral}" stroke-opacity="0.5" stroke-width="1"`));
-      const edge = band.axis === "main" ? `M${num(b.x)} ${num(b.y)}H${num(b.x + b.width)}` : `M${num(b.x)} ${num(b.y)}V${num(b.y + b.height)}`;
-      out.push(`<path d="${edge}" stroke="${c.color}" stroke-width="3" fill="none"/>`);
+  for (const m of [...ctx.scene.groupMarks].sort(byId)) {
+    const b = m.box;
+    const paint = (p: MarkPaint) => paintOf(ctx, m.color, m.color, p);
+    const fill = `fill="${paint(m.fill.paint)}" fill-opacity="${m.fill.opacity ?? 1}"`;
+    const { stroke, rule } = m;
+    out.push(`<g class="wf-group${m.band ? " wf-group-band" : ""}" data-id="${esc(m.id)}"${opacity(m)}>`);
+    if (stroke.sides) {
+      out.push(rect(b, fill));
+      out.push(`<path d="${sidesPath(b, stroke.sides)}" stroke="${paint(stroke.paint)}" stroke-width="${num(stroke.width)}" fill="none"/>`);
     } else {
-      out.push(rect(b, `rx="10" fill="${c.color}" fill-opacity="0.06" stroke="${c.color}" stroke-opacity="0.5" stroke-width="1.5" stroke-dasharray="6 4"`));
+      out.push(rect(b, `rx="${num(m.radius)}" ${fill} stroke="${paint(stroke.paint)}" stroke-width="${num(stroke.width)}"${stroke.dash ? ` stroke-dasharray="${stroke.dash.join(" ")}"` : ""}`));
     }
-    out.push(text(b.x + 12, b.y + 22, g.label, `font-size="14" font-weight="600" fill="${fixedColors.ink}"`));
+    if (rule) out.push(`<path d="${sidesPath(b, [rule.side])}" stroke="${paint(rule.paint)}" stroke-width="${num(rule.width)}" fill="none"/>`);
+    // A group's title is shed with the cards' names and scaled up to the floor from its start.
+    for (const tx of titleTexts(m.texts, ctx.readable)) out.push(markText(ctx, m.color, m.color, tx));
     out.push(`</g>`);
   }
   return out.join("");
 }
 
-function routeOf(ctx: Ctx, edgeId: string, source: string, target: string) {
-  const { positions } = ctx.scene;
-  const r = positions.edges[edgeId];
-  if (r && r.points.length >= 2) return r;
-  const a = positions.nodes[source];
-  const b = positions.nodes[target];
-  if (!a || !b) return undefined;
-  return straightRoute(a, b);
+const byId = <T extends { id: string }>(a: T, b: T) => (a.id < b.id ? -1 : 1);
+
+/** The opacity a theme's rule set on an element, as an attribute of its group. */
+const opacity = (m: { opacity?: number }) => (m.opacity === undefined ? "" : ` opacity="${m.opacity}"`);
+
+/** Texts of a node or edge mark that its level of detail shows at the export's zoom. */
+function shownTexts(ctx: Ctx, texts: ElementText[]): ElementText[] {
+  return texts.filter((t) => !t.lod || ctx.lod[t.lod]);
 }
 
+/** The marker of an arrowhead: `wf-arrow` at the rule's size, `wf-arrow-<size>` where it grew with its path. */
+const arrowId = (a: Arrowhead) => (a.size === arrowheadTokens.edge.size ? "wf-arrow" : `wf-arrow-${a.size}`);
+
+/** The edges drawn, in id order. */
+const drawnEdges = (ctx: Ctx) => ctx.scene.edgeMarks.filter((_, i) => !ctx.withheld || ctx.withheld.drawn.has(i)).sort(byId);
+
 function drawEdges(ctx: Ctx): string {
-  const { graph } = ctx.scene;
   const out: string[] = [];
-  const edges = [...graph.edges].sort((a, b) => (a.id < b.id ? -1 : 1));
-  for (const e of edges) {
-    if (e.source === e.target) continue;
-    const route = routeOf(ctx, e.id, e.source, e.target);
-    if (!route) continue;
-    const w = ctx.scales.edgeWidth(e);
-    const color = e.kind === "constraint" ? fixedColors.mechanism : ctx.scales.edgeColor(e);
-    const dash = hasTag(e, RECONNECTED_TAG) ? ` stroke-dasharray="6 5"` : e.kind === "constraint" ? ` stroke-dasharray="2 4"` : "";
-    const d = route.points.map((p, i) => `${i === 0 ? "M" : "L"}${num(p.x)} ${num(p.y)}`).join("");
-    out.push(`<g class="wf-edge" data-id="${esc(e.id)}"><path d="${d}" fill="none" stroke="${color}" stroke-width="${num(w)}" stroke-linejoin="round"${dash} marker-end="url(#wf-arrow)"/>`);
-    if (ctx.lod.edgeLabels && e.kind === "follows") {
-      const count = metric(e, "count", NaN);
-      if (Number.isFinite(count)) {
-        const mid = route.points[Math.floor((route.points.length - 1) / 2)];
-        const next = route.points[Math.min(route.points.length - 1, Math.floor((route.points.length - 1) / 2) + 1)];
-        const lx = route.labelX ?? (mid.x + next.x) / 2;
-        const ly = route.labelY ?? (mid.y + next.y) / 2 - 4;
-        out.push(text(lx, ly, formatCompact(count, ctx.locale), `font-size="10" text-anchor="middle" fill="${fixedColors.ink}" paint-order="stroke" stroke="${fixedColors.paper}" stroke-width="3"`));
-      }
-    }
+  for (const m of drawnEdges(ctx)) {
+    const dash = m.dash ? ` stroke-dasharray="${m.dash.join(" ")}"` : "";
+    // The line ends inside its head, whose tip lies on the route's end.
+    const end = lineEnd(m.points, m.arrow);
+    const d = [...m.points.slice(0, -1), end].map((p, i) => `${i === 0 ? "M" : "L"}${num(p.x)} ${num(p.y)}`).join("");
+    out.push(`<g class="wf-edge" data-id="${esc(m.id)}"${opacity(m)}><path d="${d}" fill="none" stroke="${m.color}" stroke-width="${num(m.width)}" stroke-linejoin="round"${m.addedFlow ? ' stroke-linecap="round"' : ""}${dash} marker-end="url(#${arrowId(m.arrow)})"/>`);
+    // Paths' labels are the first texts shed below the floor.
+    if (ctx.readable.labels.path) for (const tx of shownTexts(ctx, m.texts)) out.push(markText(ctx, m.color, m.color, tx));
     out.push(`</g>`);
   }
   return out.join("");
 }
 
 function drawNodes(ctx: Ctx): string {
-  const { graph, positions } = ctx.scene;
   const out: string[] = [];
-  const nodes = [...graph.nodes].sort((a, b) => (a.id < b.id ? -1 : 1));
-  for (const n of nodes) {
-    const b = positions.nodes[n.id];
-    if (!b) continue;
-    const color = ctx.scales.nodeColor(n);
-    const pattern = ctx.scales.nodePattern(n);
-    const reconnected = hasTag(n, RECONNECTED_TAG);
-    out.push(`<g class="wf-node wf-node-${n.kind}" data-id="${esc(n.id)}">`);
-    if (n.kind === "event") {
-      const r = Math.min(b.width, b.height) / 2;
-      const cx = b.x + b.width / 2;
-      const cy = b.y + b.height / 2;
-      const end = hasTag(n, "end");
-      out.push(`<circle cx="${num(cx)}" cy="${num(cy)}" r="${num(r)}" fill="${fixedColors.paper}" stroke="${fixedColors.ink}" stroke-width="${end ? 3 : 1.5}"/>`);
-      if (ctx.lod.labels) out.push(text(cx, cy + r + 12, n.label, `font-size="10" text-anchor="middle" fill="${fixedColors.ink}"`));
-    } else if (n.kind === "gateway") {
-      const cx = b.x + b.width / 2;
-      const cy = b.y + b.height / 2;
+  for (const m of [...ctx.scene.nodeMarks].sort(byId)) {
+    const b = m.box;
+    const paint = (p: MarkPaint) => paintOf(ctx, m.color, m.color, p);
+    const stroke = `fill="${paint(m.fill)}" stroke="${paint(m.stroke.paint)}" stroke-width="${num(m.stroke.width)}"${m.stroke.dash ? ` stroke-dasharray="${m.stroke.dash.join(" ")}"` : ""}`;
+    out.push(`<g class="wf-node wf-node-${esc(m.kind)}" data-id="${esc(m.id)}"${opacity(m)}>`);
+    const cx = b.x + b.width / 2;
+    const cy = b.y + b.height / 2;
+    if (m.shape === "circle") {
+      out.push(`<circle cx="${num(cx)}" cy="${num(cy)}" r="${num(m.radius)}" ${stroke}/>`);
+    } else if (m.shape === "diamond") {
       const h = b.width / 2;
-      out.push(`<path d="M${num(cx)} ${num(cy - h)}L${num(cx + h)} ${num(cy)}L${num(cx)} ${num(cy + h)}L${num(cx - h)} ${num(cy)}Z" fill="${fixedColors.paper}" stroke="${fixedColors.ink}" stroke-width="1.5"/>`);
-      if (ctx.lod.labels) out.push(text(cx, cy + 4, n.label, `font-size="11" text-anchor="middle" fill="${fixedColors.ink}"`));
+      out.push(`<path d="M${num(cx)} ${num(cy - h)}L${num(cx + h)} ${num(cy)}L${num(cx)} ${num(cy + h)}L${num(cx - h)} ${num(cy)}Z" ${stroke}/>`);
     } else {
-      out.push(rect(b, `rx="6" fill="${fixedColors.paper}" stroke="${color}" stroke-width="${n.kind === "stage" ? 3 : 2}"${reconnected ? ` stroke-dasharray="4 3"` : ""}`));
-      const band: Box = { x: b.x, y: b.y, width: 8, height: b.height };
-      out.push(rect(band, `rx="3" fill="${color}"`));
-      if (pattern !== "solid") out.push(rect(band, `rx="3" fill="url(#wf-pattern-${pattern})"`));
-      if (ctx.lod.labels) {
-        const label = truncate(n.label, Math.max(4, Math.floor((b.width - 20) / 6.4)));
-        out.push(text(b.x + 14, b.y + b.height / 2 + 4, label, `font-size="12" fill="${fixedColors.ink}"`));
-        const cases = metric(n, "cases", NaN);
-        if (Number.isFinite(cases)) {
-          out.push(text(b.x + b.width - 6, b.y + b.height - 5, formatCompact(cases, ctx.locale), `font-size="9" text-anchor="end" fill="${fixedColors.neutral}"`));
-        }
-      }
+      out.push(rect(b, `rx="${num(m.radius)}" ${stroke}`));
     }
+    // The frequency cue lies inside the outline and under the band and the texts.
+    if (m.cue?.stripe) out.push(rect(m.cue.stripe.box, `class="wf-cue" fill="${paint(m.cue.stripe.paint)}"`));
+    if (m.cue?.foot) out.push(rect(m.cue.foot.box, `class="wf-cue-foot" fill="${paint(m.cue.foot.paint)}"`));
+    // Its part in the accent (the cases short) over them, from their start.
+    const accent = m.cue?.accent;
+    if (accent?.stripe) out.push(rect(accent.stripe.box, `class="wf-cue-accent" fill="${paint(accent.stripe.paint)}"`));
+    if (accent?.foot) out.push(rect(accent.foot.box, `class="wf-cue-foot-accent" fill="${paint(accent.foot.paint)}"`));
+    if (m.band) {
+      const band: Box = { x: b.x, y: b.y, width: m.band, height: b.height };
+      const rx = ctx.scene.theme.radius.band;
+      out.push(rect(band, `class="wf-band" rx="${rx}" fill="${m.color}"`));
+      if (m.pattern !== "solid") out.push(rect(band, `rx="${rx}" fill="url(#wf-pattern-${m.pattern})"`));
+    }
+    if (m.title) out.push(`<title>${esc(m.title)}</title>`);
+    for (const tx of shownTexts(ctx, nodeTexts(m, ctx.readable))) out.push(markText(ctx, m.color, m.color, tx));
     out.push(`</g>`);
   }
   return out.join("");
 }
 
-function drawOverlays(ctx: Ctx, shapes: OverlayShape[]): string {
+/** The marks' paints in the scene's colours. */
+const markOptions = (ctx: Ctx): MarkSvgOptions => ({
+  paint: (mark, paint) => paintOf(ctx, mark.color, mark.onColor, paint),
+  arrowId: "wf-overlay-arrow",
+  patternId: "wf-pattern-outofscope",
+});
+
+function paintOf(ctx: Ctx, color: string, onColor: string, paint: MarkPaint): string {
+  return paint === "value" ? color : paint === "onValue" ? onColor : paint[0] === "#" ? paint : ctx.colors[paint as ColorToken];
+}
+
+// Keep subpixel font sizes without exposing platform-dependent power rounding.
+function markText(ctx: Ctx, color: string, onColor: string, m: MarkText): string {
+  const y = m.baseline === "middle" ? m.y + 0.3 * m.size : m.y;
+  const halo = m.halo ? ` paint-order="stroke" stroke="${ctx.colors.paper}" stroke-width="${ctx.scene.theme.stroke.halo}"` : "";
+  return text(m.x, y, m.text, `font-size="${Number(m.size.toFixed(12))}"${m.weight ? ` font-weight="${m.weight}"` : ""}${m.anchor === "start" ? "" : ` text-anchor="${m.anchor}"`} fill="${paintOf(ctx, color, onColor, m.paint)}"${halo}`);
+}
+
+function drawMarks(ctx: Ctx, layer: OverlayMark["layer"]): string {
+  const options = markOptions(ctx);
+  const { readable, scene } = ctx;
+  return scene.marks
+    .filter((m) => m.layer === layer && m.inMap && (ctx.lodZoom >= m.minZoom || keptLoop(m, ctx.keptLoops)) && (readable.pills || !isPill(m)))
+    .map((m) => svgMarkup(markSvg(readableMark(m, readable, scene.readable), options)))
+    .join("");
+}
+
+function drawLegend(ctx: Ctx, width: number, layout: LegendLayout): string {
   const out: string[] = [];
-  const order: Record<string, number> = { tint: 0, hatch: 1, arc: 2, selfLoop: 3, badge: 4, chip: 5 };
-  const sorted = [...shapes].sort((a, b) => order[a.kind] - order[b.kind] || (a.id < b.id ? -1 : 1));
-  for (const s of sorted) {
-    const key = lodKey(s.kind);
-    if (key && !ctx.lod[key]) continue;
-    const p = s.overlay.payload ?? {};
-    const value = typeof p.value === "number" ? p.value : NaN;
-    const color = Number.isFinite(value) ? ctx.scales.color(value, "sequential", [0, 1]) : fixedColors.neutral;
-    const title = `<title>${esc([p.label, p.text].filter(Boolean).join(" — "))}</title>`;
-    switch (s.kind) {
-      case "tint":
-        out.push(`<g class="wf-overlay wf-tint">${title}${rect(s, `rx="10" fill="${color}" fill-opacity="0.18" stroke="none"`)}</g>`);
-        break;
-      case "hatch":
-        out.push(`<g class="wf-overlay wf-hatch">${title}${rect(s, `rx="6" fill="url(#wf-pattern-outofscope)" fill-opacity="0.9" stroke="${fixedColors.outOfScope}" stroke-width="1"`)}</g>`);
-        break;
-      case "arc": {
-        const width = 2 + 8 * Math.max(0, Math.min(1, typeof p.coverage === "number" ? p.coverage : 1));
-        const dash = p.reverse ? ` stroke-dasharray="6 4"` : "";
-        out.push(`<g class="wf-overlay wf-arc">${title}<path d="${s.path}" fill="none" stroke="${color}" stroke-width="${num(width)}" stroke-opacity="0.9"${dash} marker-end="url(#wf-arrow-arc)"/>`);
-        if (s.labelX !== undefined && s.labelY !== undefined) {
-          const label = `${p.glyph ?? ""} ${Number.isFinite(value) ? formatShare(value, ctx.locale) : ""}`.trim();
-          out.push(text(s.labelX, s.labelY, label, `font-size="11" text-anchor="middle" fill="${fixedColors.ink}" paint-order="stroke" stroke="${fixedColors.paper}" stroke-width="3"`));
-        }
-        out.push(`</g>`);
-        break;
-      }
-      case "selfLoop": {
-        out.push(`<g class="wf-overlay wf-selfloop">${title}<path d="${s.path}" fill="none" stroke="${color}" stroke-width="2.5" marker-end="url(#wf-arrow)"/>`);
-        if (s.labelX !== undefined && s.labelY !== undefined && Number.isFinite(value)) {
-          out.push(text(s.labelX, s.labelY, `↻ ${formatShare(value, ctx.locale)}`, `font-size="10" fill="${fixedColors.ink}" paint-order="stroke" stroke="${fixedColors.paper}" stroke-width="3"`));
-        }
-        out.push(`</g>`);
-        break;
-      }
-      case "badge": {
-        const ink = contrastText(color);
-        out.push(`<g class="wf-overlay wf-badge">${title}${rect(s, `rx="${num(s.height / 2)}" fill="${color}" stroke="${fixedColors.paper}" stroke-width="1.5"`)}`);
-        const label = Number.isFinite(value) ? formatShare(value, ctx.locale) : (p.glyph ?? "");
-        out.push(text(s.x + s.width / 2, s.y + s.height / 2 + 3.5, p.glyph && Number.isFinite(value) ? `${p.glyph}` : label, `font-size="10" font-weight="700" text-anchor="middle" fill="${ink}"`));
-        if (Number.isFinite(value)) {
-          out.push(text(s.x + s.width + 4, s.y + s.height / 2 + 3.5, formatShare(value, ctx.locale), `font-size="10" fill="${fixedColors.ink}" paint-order="stroke" stroke="${fixedColors.paper}" stroke-width="3"`));
-        }
-        out.push(`</g>`);
-        break;
-      }
-      case "chip": {
-        if (s.overlay.target === MAP_TARGET) break; // drawn in the legend
-        out.push(`<g class="wf-overlay wf-chip">${title}${rect(s, `rx="12" fill="${fixedColors.paper}" stroke="${color}" stroke-width="2"`)}`);
-        out.push(text(s.x + 8, s.y + s.height / 2 + 4, truncate(`${p.glyph ?? ""} ${p.text ?? p.label ?? ""}`.trim(), Math.floor((s.width - 12) / 6.2)), `font-size="10" fill="${fixedColors.ink}"`));
-        out.push(`</g>`);
-        break;
-      }
+  const { colors } = ctx;
+  const { text: textTokens, radius: radiusTokens, stroke: strokeTokens } = ctx.scene.theme;
+  const { legendTitle, legendItem, legendValue, legendKey, legendChip } = textTokens;
+  const { legendSampleExport: sample, legendGradient: ramp, legendSwatchWidth, legendSwatchHeight } = dimensionTokens;
+  const m = legendMetrics;
+  const ink = (role: { size: number; weight?: number }, more = "") => `${fontAttrs(role)}${more} fill="${colors.ink}"`;
+  const value = ink(legendValue);
+  out.push(text(0, 14, ctx.scene.legend.title, ink(legendTitle)));
+  for (const { row, y, lines, texts } of layout.rows) {
+    const cy = y + lines.length * m.itemTitle;
+    if (row.kind === "key") {
+      out.push(text(0, y + 10, row.glyph, value));
+      texts.forEach((line, i) => out.push(text(22, y + 10 + i * m.key, line, ink(legendKey))));
+      continue;
+    }
+    if (row.kind === "chip") {
+      out.push(text(0, y + 10, texts[0], ink(legendChip)));
+      out.push(text(0, y + m.chipLabel + 10, texts[1], ink(legendKey)));
+      continue;
+    }
+    lines.forEach((line, i) => out.push(text(0, y + 11 + i * m.itemTitle, line, ink(legendItem))));
+    if (row.kind === "width") {
+      row.samples.forEach((s, i) => {
+        const sy = cy + i * m.entry;
+        out.push(`<path d="M0 ${num(sy + 6)}H${num(sample)}" stroke="${colors.neutral}" stroke-width="${num(s.width)}"/>`);
+        out.push(text(46, sy + 10, s.text, value));
+      });
+    } else if (row.kind === "ramp") {
+      const gid = `wf-grad-${row.id}`;
+      const stops = row.stops.map((c, i) => `<stop offset="${num((i / (row.stops.length - 1)) * 100)}%" stop-color="${c}"/>`).join("");
+      out.push(`<defs><linearGradient id="${gid}">${stops}</linearGradient></defs>`);
+      out.push(rect({ x: 0, y: cy, width: width - 10, height: ramp }, `fill="url(#${gid})" stroke="${colors.neutral}" stroke-width="${strokeTokens.legendGradient}"`));
+      const anchors = row.values.length === 3 ? ["start", "middle", "end"] : ["start", "end"];
+      row.values.forEach((v, i) => out.push(text(((width - 10) * (anchors[i] === "start" ? 0 : anchors[i] === "middle" ? 1 : 2)) / 2, cy + 22, v, anchors[i] === "start" ? value : ink(legendValue, ` text-anchor="${anchors[i]}"`))));
+    } else if (row.kind === "swatches") {
+      row.entries.forEach((e, i) => {
+        const sw: Box = { x: 0, y: cy + i * m.entry, width: legendSwatchWidth, height: legendSwatchHeight };
+        out.push(rect(sw, `rx="${radiusTokens.swatch}" fill="${e.color}"`));
+        if (e.pattern !== "solid") out.push(rect(sw, `rx="${radiusTokens.swatch}" fill="url(#wf-pattern-${e.pattern})"`));
+        out.push(text(20, sw.y + 10, texts[i], value));
+      });
     }
   }
   return out.join("");
-}
-
-function lodKey(kind: OverlayShape["kind"]): keyof ReturnType<typeof lodAt> | null {
-  switch (kind) {
-    case "badge":
-      return "badges";
-    case "arc":
-      return "arcs";
-    case "chip":
-      return "chips";
-    case "hatch":
-      return "hatch";
-    case "selfLoop":
-      return "selfLoops";
-    default:
-      return null;
-  }
-}
-
-function drawLegend(ctx: Ctx, x: number, y: number, width: number, mapChips: Overlay[]): { svg: string; height: number } {
-  const out: string[] = [];
-  const L = ctx.locale;
-  let cy = y;
-  out.push(text(x, cy + 14, t(L, "legend.title"), `font-size="13" font-weight="700" fill="${fixedColors.ink}"`));
-  cy += 26;
-  const item = (item: LegendItem) => {
-    out.push(text(x, cy + 11, t(L, item.title as StringKey), `font-size="11" font-weight="600" fill="${fixedColors.ink}"`));
-    cy += 16;
-    if (item.kind === "width") {
-      const [lo, hi] = item.range;
-      out.push(`<path d="M${num(x)} ${num(cy + 6)}H${num(x + 40)}" stroke="${fixedColors.neutral}" stroke-width="${num(lo)}"/>`);
-      out.push(text(x + 46, cy + 10, formatCompact(item.domain[0], L), `font-size="10" fill="${fixedColors.ink}"`));
-      out.push(`<path d="M${num(x + width / 2)} ${num(cy + 6)}H${num(x + width / 2 + 40)}" stroke="${fixedColors.neutral}" stroke-width="${num(hi)}"/>`);
-      out.push(text(x + width / 2 + 46, cy + 10, formatCompact(item.domain[1], L), `font-size="10" fill="${fixedColors.ink}"`));
-      cy += 20;
-    } else if (item.kind === "sequential" || item.kind === "diverging") {
-      const gid = `wf-grad-${item.title.replace(/\W/g, "")}-${item.metric.replace(/\W/g, "")}`;
-      const stops = item.stops.map((c, i) => `<stop offset="${num((i / (item.stops.length - 1)) * 100)}%" stop-color="${c}"/>`).join("");
-      out.push(`<defs><linearGradient id="${gid}">${stops}</linearGradient></defs>`);
-      out.push(rect({ x, y: cy, width: width - 10, height: 10 }, `fill="url(#${gid})" stroke="${fixedColors.neutral}" stroke-width="0.5"`));
-      const share = /share/i.test(item.metric);
-      const f = (v: number) => (share ? formatShare(v, L) : formatNumber(v, 1, L));
-      out.push(text(x, cy + 22, f(item.domain[0]), `font-size="10" fill="${fixedColors.ink}"`));
-      if (item.domain.length === 3) out.push(text(x + (width - 10) / 2, cy + 22, f(item.domain[1]), `font-size="10" text-anchor="middle" fill="${fixedColors.ink}"`));
-      out.push(text(x + width - 10, cy + 22, f(item.domain[item.domain.length - 1]), `font-size="10" text-anchor="end" fill="${fixedColors.ink}"`));
-      cy += 30;
-    } else if (item.kind === "categorical") {
-      for (const e of item.entries) {
-        const sw: Box = { x, y: cy, width: 14, height: 12 };
-        out.push(rect(sw, `rx="2" fill="${e.color}"`));
-        if (e.pattern !== "solid") out.push(rect(sw, `rx="2" fill="url(#wf-pattern-${e.pattern})"`));
-        out.push(text(x + 20, cy + 10, truncate(e.key, Math.floor((width - 24) / 6)), `font-size="10" fill="${fixedColors.ink}"`));
-        cy += 16;
-      }
-      cy += 4;
-    }
-  };
-  for (const it of ctx.scales.legend) item(it);
-  const keys: [string, StringKey][] = [
-    ["●", "legend.badge"],
-    ["⌒", "legend.arc"],
-    ["⌒ ┄", "legend.reverse"],
-    ["↻", "legend.selfLoop"],
-    ["▨", "legend.outOfScope"],
-    ["┄", "legend.reconnected"],
-  ];
-  for (const [glyph, key] of keys) {
-    out.push(text(x, cy + 10, glyph, `font-size="10" fill="${fixedColors.ink}"`));
-    out.push(text(x + 22, cy + 10, truncate(t(L, key), Math.floor((width - 24) / 5.6)), `font-size="9.5" fill="${fixedColors.ink}"`));
-    cy += 14;
-  }
-  if (mapChips.length) {
-    cy += 6;
-    for (const c of mapChips) {
-      const p = c.payload ?? {};
-      const label = truncate(`${p.glyph ?? ""} ${p.label ?? ""}`.trim(), Math.floor((width - 4) / 5.8));
-      out.push(text(x, cy + 10, label, `font-size="10" font-weight="600" fill="${fixedColors.ink}"`));
-      cy += 13;
-      out.push(text(x, cy + 10, truncate(String(p.text ?? ""), Math.floor((width - 4) / 5.4)), `font-size="9.5" fill="${fixedColors.ink}"`));
-      cy += 15;
-    }
-  }
-  return { svg: out.join(""), height: cy - y };
 }
 
 /**
@@ -322,74 +296,89 @@ function drawLegend(ctx: Ctx, x: number, y: number, width: number, mapChips: Ove
  * elements are drawn in id order, numbers are formatted with fixed precision and
  * no time-dependent data is embedded.
  */
-export function toSVG(givenScene: Scene, options: ExportOptions = {}): string {
-  const laid = givenScene.lanes && givenScene.lanes !== "none" ? laneBands(givenScene.graph, givenScene.positions, { lanes: givenScene.lanes }) : undefined;
-  const scene: Scene = laid ? { ...givenScene, positions: laid.positions } : givenScene;
-  const locale = scene.locale ?? "en";
-  const scales = buildScales(scene.graph, scene.style ?? defaultStyle);
-  const lod = lodAt(options.lodZoom ?? 1, scene.style?.lod);
-  const font = options.fontFamily ?? "Inter, 'Segoe UI', Helvetica, Arial, sans-serif";
-  const ctx: Ctx = { scene, scales, locale, lod, font, bands: new Map((laid?.bands ?? []).map((b) => [b.id, b])) };
-  const overlays = canonicalOverlays(scene.overlays ?? scene.graph.overlays ?? []);
-  const geometry = overlayGeometry(overlays, scene.positions, { ...(options.overlayGeometry ?? {}), lod: scene.style?.lod });
-  const pad = options.padding ?? 24;
-  const legend = options.legend ?? true;
-  const legendWidth = legend ? 220 : 0;
+export function toSVG(given: Scene, options: ExportOptions = {}): string {
+  assertExportable(given.graph);
+  const scene = sceneOf(given.graph, given.positions, {
+    overlays: given.overlays,
+    measure: given.measure,
+    style: given.style,
+    locale: given.locale,
+    lanes: given.lanes,
+    activityLabels: given.activityLabels,
+    selfLoops: given.selfLoops,
+    overlayGeometry: options.overlayGeometry,
+    theme: resolveTheme(options.theme ?? "print"),
+    scheme: options.scheme,
+    textMeasure: options.textMeasure,
+  }, true);
+  const { locale, colors, theme } = scene;
+  const font = options.fontFamily ?? theme.font.family;
+  const withheld = budgetEdges(scene, options.edgeBudget);
+  const floor = figureFloor(theme);
+  const frame = figureFrame(scene, { title: !!given.title, context: options.context, legend: options.legend, padding: options.padding, preset: options.preset, width: options.widthMm !== undefined ? millimetres(options.widthMm) : options.width, withheld, caption: options.caption, floor, readable: shownReadable(scene, options) });
+  const { padding: pad, width: totalW, height: totalH, outWidth: outW, outHeight: outH } = frame;
+  const lodZoom = options.lodZoom ?? (floor > 0 ? frame.map.scale : 1);
+  const ctx: Ctx = { scene, colors, locale, lod: lodAt(lodZoom, scene.lod), lodZoom, readable: frame.readable, withheld, keptLoops: options.edgeBudget && typeof options.edgeBudget === "object" ? new Set(options.edgeBudget.edges) : undefined };
+  // A declared width in millimetres is the figure's size; otherwise its pixels.
+  const size = (n: number) => (options.widthMm !== undefined ? `${num((n * options.widthMm) / outW)}mm` : num(n));
 
-  const content = unionBox([scene.positions.bounds, ...(geometry.shapes.length ? [geometry.bounds] : [])]);
-  const headerHeight = scene.title ? 40 + (options.context !== false ? 18 : 0) : 0;
-  const mapChips = overlays.filter((o) => o.kind === "chip" && o.target === MAP_TARGET);
-  const legendDraw = legend ? drawLegend(ctx, 0, 0, legendWidth - 16, mapChips) : { svg: "", height: 0 };
-
-  const mapW = content.width + 2 * pad;
-  const mapH = content.height + 2 * pad;
-  const totalW = mapW + legendWidth;
-  const totalH = Math.max(mapH, legendDraw.height + 2 * pad) + headerHeight;
-  const outW = options.width ?? (options.preset && options.preset !== "none" ? FIGURE_WIDTHS[options.preset] : totalW);
-  const outH = (totalH / totalW) * outW;
-
+  // The note on withheld edges is announced with the figure's name.
+  const label = given.title ?? t(locale, "map.description", { nodes: scene.graph.nodes.length, edges: scene.graph.edges.length, groups: scene.graph.groups?.length ?? 0 });
   const parts: string[] = [];
   parts.push(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${num(outW)}" height="${num(outH)}" viewBox="0 0 ${num(totalW)} ${num(totalH)}" font-family="${esc(font)}" role="img" aria-label="${esc(scene.title ?? t(locale, "map.description", { nodes: scene.graph.nodes.length, edges: scene.graph.edges.length, groups: scene.graph.groups?.length ?? 0 }))}">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size(outW)}" height="${size(outH)}" viewBox="0 0 ${num(totalW)} ${num(totalH)}" font-family="${esc(font)}" role="img" aria-label="${esc(frame.note ? `${label.replace(/\.?$/, ".")} ${frame.note.text}.` : label)}">`,
   );
-  parts.push(`<defs>${patternDefs()}`);
-  parts.push(`<marker id="wf-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="strokeWidth"><path d="M0 0L10 5L0 10z" fill="context-stroke"/></marker>`);
-  parts.push(`<marker id="wf-arrow-arc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse" markerUnits="strokeWidth"><path d="M0 0L10 5L0 10z" fill="context-stroke"/></marker>`);
+  parts.push(`<defs>${patternDefs("wf-pattern", colors.patternInk, colors.outOfScope, theme.pattern)}`);
+  // The rule's head, then each larger head a path drawn ends in, by size.
+  const heads = new Map([arrowheadTokens.edge, ...drawnEdges(ctx).map((m) => m.arrow).sort((a, b) => a.size - b.size)].map((a) => [arrowId(a), a]));
+  for (const [id, a] of heads) parts.push(svgMarkup(arrowMarker(id, a)));
+  parts.push(svgMarkup(arrowMarker("wf-overlay-arrow", markArrowhead(overlayArrow))));
   parts.push(`</defs>`);
-  parts.push(rect({ x: 0, y: 0, width: totalW, height: totalH }, `fill="${options.background ?? fixedColors.paper}"`));
-  if (scene.title) {
-    parts.push(text(pad, 26, scene.title, `font-size="18" font-weight="700" fill="${fixedColors.ink}"`));
-    if (options.context !== false) {
-      const meta = scene.graph.meta ?? {};
-      const label = scene.subtitle ?? String(meta.label ?? meta.scene ?? "");
-      const cases = typeof meta.cases === "number" ? formatCount(meta.cases, locale) : "–";
-      const events = typeof meta.events === "number" ? formatCount(meta.events, locale) : "–";
-      parts.push(text(pad, 44, t(locale, "export.context", { label, cases, events }), `font-size="11" fill="${fixedColors.neutral}"`));
-    }
+  parts.push(rect({ x: 0, y: 0, width: totalW, height: totalH }, `fill="${options.background ?? colors.paper}"`));
+  if (given.title) {
+    const heading = figureHeading(scene, frame, given.title, given.subtitle);
+    parts.push(text(pad, figureMetrics.titleBaseline, heading.title, `${fontAttrs(theme.text.figureTitle)} fill="${colors.ink}"`));
+    if (options.context !== false) parts.push(text(pad, figureMetrics.contextBaseline, heading.context, `${fontAttrs(theme.text.figureText)} fill="${colors.neutral}"`));
   }
-  parts.push(`<g class="wf-map" transform="translate(${num(pad - content.x)} ${num(headerHeight + pad - content.y)})">`);
+  const { offset, scale } = frame.map;
+  parts.push(`<g class="wf-map" transform="translate(${num(offset.x)} ${num(offset.y)})${scale === 1 ? "" : ` scale(${Number(scale.toFixed(6))})`}">`);
   parts.push(drawGroups(ctx));
-  parts.push(drawOverlays(ctx, geometry.shapes.filter((s) => s.kind === "tint")));
+  parts.push(drawMarks(ctx, "below"));
   parts.push(drawEdges(ctx));
+  parts.push(drawMarks(ctx, "between"));
   parts.push(drawNodes(ctx));
-  parts.push(drawOverlays(ctx, geometry.shapes.filter((s) => s.kind !== "tint")));
+  parts.push(drawMarks(ctx, "above"));
+  // Where the cards cannot show their names, their numbers over everything, keyed beside the map.
+  if (frame.numbers) {
+    const links = frame.numbers.texts.map(({ text: n }) => n.from ? `<path d="M${num(n.from.x)} ${num(n.from.y)}L${num(n.x)} ${num(n.y)}" stroke="${colors.ink}" stroke-width="${n.size * readableTokens.number.link}"/>` : "").join("");
+    parts.push(`<g class="wf-numbers">${links}${frame.numbers.texts.map(({ text: n }) => (n.box ? rect(n.box, `fill="${colors.paper}"`) : "") + markText(ctx, colors.ink, colors.ink, n)).join("")}</g>`);
+  }
   parts.push(`</g>`);
-  if (legend) {
-    parts.push(`<g class="wf-legend" transform="translate(${num(mapW)} ${num(headerHeight + pad)})">`);
-    parts.push(`<path d="M0 0V${num(totalH - headerHeight - 2 * pad)}" stroke="${fixedColors.neutral}" stroke-opacity="0.4"/>`);
-    parts.push(`<g transform="translate(16 0)">${legendDraw.svg}</g>`);
+  if (frame.legend) {
+    const { rule, x, y, width, layout } = frame.legend;
+    if (rule) {
+      parts.push(`<g class="wf-legend" transform="translate(${num(rule.x)} ${num(rule.top)})">`);
+      parts.push(`<path d="M0 0V${num(rule.bottom - rule.top)}" stroke="${colors.neutral}" stroke-opacity="${theme.opacity.legendRule}"/>`);
+      parts.push(`<g transform="translate(${num(x - rule.x)} ${num(y - rule.top)})">${drawLegend(ctx, width, layout)}</g>`);
+    } else {
+      parts.push(`<g class="wf-legend" transform="translate(${num(x)} ${num(y)})">${drawLegend(ctx, width, layout)}`);
+    }
+    parts.push(`</g>`);
+  }
+  if (frame.numbers) {
+    const { lines, x, y } = frame.numbers;
+    parts.push(`<g class="wf-number-key">${lines.map((line, i) => text(x, y + i * figureMetrics.keyLine, line, `${fontAttrs(theme.text.figureText)} fill="${colors.ink}"`)).join("")}</g>`);
+  }
+  if (frame.caption) {
+    const { x, y, lines } = frame.caption;
+    parts.push(`<g class="wf-caption">${lines.map((line, i) => text(x, y + i * figureMetrics.keyLine, line, `${fontAttrs(theme.text.figureText)} fill="${colors.ink}"`)).join("")}</g>`);
+  }
+  if (frame.note) parts.push(text(frame.note.x, frame.note.y, frame.note.text, `class="wf-edge-note" ${fontAttrs(theme.text.figureText)} fill="${colors.ink}"`));
+  if (frame.key.lines.length) {
+    parts.push(`<g class="wf-activity-key" aria-label="Activity key">`);
+    frame.key.lines.forEach((line, i) => parts.push(text(pad, frame.key.y + i * figureMetrics.keyLine, line, `${fontAttrs(theme.text.figureText)} fill="${colors.ink}"`)));
     parts.push(`</g>`);
   }
   parts.push(`</svg>`);
   return parts.join("");
-}
-
-function unionBox(boxes: Box[]): Box {
-  const valid = boxes.filter((b) => b.width >= 0 && b.height >= 0);
-  if (!valid.length) return { x: 0, y: 0, width: 0, height: 0 };
-  const x0 = Math.min(...valid.map((b) => b.x));
-  const y0 = Math.min(...valid.map((b) => b.y));
-  const x1 = Math.max(...valid.map((b) => b.x + b.width));
-  const y1 = Math.max(...valid.map((b) => b.y + b.height));
-  return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
 }

@@ -54,6 +54,9 @@ if (typeof window !== "undefined") {
   (globalThis as unknown as { SVGElement: { prototype: { getBBox: () => DOMRect } } }).SVGElement.prototype.getBBox = () =>
     ({ x: 0, y: 0, width: 0, height: 0 }) as DOMRect;
 
+  // No 2D context, as jsdom without the canvas package, but without its "not implemented" report; tests that draw stub it.
+  window.HTMLCanvasElement.prototype.getContext = (() => null) as typeof window.HTMLCanvasElement.prototype.getContext;
+
   if (!window.matchMedia) {
     Object.defineProperty(window, "matchMedia", {
       writable: true,

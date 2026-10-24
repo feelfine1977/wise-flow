@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { constraintItems, globalScene } from "../fixtures/bpic2019";
 import { type Box, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type Overlay, type Positions, abstract, layout as layoutGraph, overlaysFor, positionsBounds } from "../src/index";
 import { toPNG } from "../src/canvas/index";
-import { ProcessMap } from "../src/react/index";
+import { ProcessMap, WHOLE_LOG_DETAIL } from "./maps";
 
 const meta: Meta = {
   title: "Canvas",
@@ -125,7 +125,7 @@ export const P2POnCanvas: StoryObj = {
     const overlays = useMemo(() => overlaysFor(constraintItems("global"), { graph: globalScene }), []);
     return (
       <div style={{ height: "100vh", width: "100vw" }}>
-        <ProcessMap graph={globalScene} overlays={overlays} defaultAbstraction={{ minNodeShare: 0.01, minEdgeShare: 0.03, keepConnected: true }} renderer="canvas" layout={{ elkWorkerUrl }} />
+        <ProcessMap graph={globalScene} overlays={overlays} defaultAbstraction={WHOLE_LOG_DETAIL} renderer="canvas" layout={{ elkWorkerUrl }} />
       </div>
     );
   },
@@ -142,7 +142,7 @@ export const PngExport: StoryObj = {
     const [url, setUrl] = useState<string | undefined>();
     const [size, setSize] = useState<string>("");
     const [busy, setBusy] = useState(false);
-    const shown = useMemo(() => abstract(globalScene, { minNodeShare: 0.01, minEdgeShare: 0.03, keepConnected: true }), []);
+    const shown = useMemo(() => abstract(globalScene, WHOLE_LOG_DETAIL), []);
     const overlays = useMemo(() => overlaysFor(constraintItems("global"), { graph: shown }), [shown]);
     const [positions, setPositions] = useState<Positions | undefined>();
     useEffect(() => {

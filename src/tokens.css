@@ -1,10 +1,14 @@
 /*
- * Design tokens of @wise/flow. The workbench ships its own tokens package;
- * until then this file carries the same variable names so that the renderers
- * pick up the application theme when it is present. Light and dark schemes.
+ * Design tokens of wise-flow as CSS variables, generated from the token
+ * table of the core (`src/core/tokens.ts`, `tokenVariables`) by
+ * `npm run tokens`; do not edit by hand. A tooling test fails when this file
+ * and the table differ. The workbench ships its own tokens package; an
+ * application theme that sets these variables is picked up by the stylesheet
+ * and by the Canvas map. Light and dark schemes.
  */
+
 :root {
-  --wf-font: Inter, "Segoe UI", Helvetica, Arial, sans-serif;
+  --wf-font: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --wf-font-mono: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
   --wf-paper: #ffffff;
   --wf-surface: #f6f7f9;
@@ -12,67 +16,166 @@
   --wf-ink-muted: #5b6270;
   --wf-line: #cfd4dc;
   --wf-line-strong: #8c94a1;
+  --wf-cue-stripe: #e6e8ec;
+  --wf-cue-foot: #5f6672;
   --wf-focus: #0072b2;
+  --wf-pressed: #0072b2;
+  --wf-on-pressed: #ffffff;
+  --wf-pattern-ink: #1f1f1f;
   --wf-selection: rgba(0, 114, 178, 0.14);
   --wf-hover: rgba(0, 0, 0, 0.05);
   --wf-neutral: #8c8c8c;
   --wf-out-of-scope: #b0b0b0;
-
-  /* Fixed colours: hotspot types and gate states (Okabe–Ito). */
-  --wf-severity: #d55e00;
-  --wf-mechanism: #0072b2;
-  --wf-reservoir: #009e73;
-  --wf-pass: #009e73;
   --wf-warn: #e69f00;
   --wf-fail: #d55e00;
-
-  /* Categorical palette (Okabe–Ito), used with pattern twins. */
-  --wf-cat-0: #0072b2;
-  --wf-cat-1: #e69f00;
-  --wf-cat-2: #009e73;
-  --wf-cat-3: #cc79a7;
-  --wf-cat-4: #56b4e9;
-  --wf-cat-5: #d55e00;
-  --wf-cat-6: #f0e442;
-  --wf-cat-7: #999999;
-
-  /* Sequential (single-hue orange) and diverging (purple–orange) stops. */
-  --wf-seq-0: #fff5eb;
-  --wf-seq-1: #fdd0a2;
-  --wf-seq-2: #fd8d3c;
-  --wf-seq-3: #d94801;
-  --wf-seq-4: #7f2704;
-  --wf-div-neg: #542788;
-  --wf-div-mid: #f7f7f7;
-  --wf-div-pos: #b35806;
-
-  --wf-radius: 6px;
-  --wf-radius-lg: 10px;
+  --wf-radius: 4px;
+  --wf-radius-lg: 8px;
   --wf-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  --wf-shadow-menu: 0 6px 24px rgba(0, 0, 0, 0.18);
   --wf-node-width: 180px;
-  --wf-node-height: 48px;
+  --wf-node-height: 64px;
+  --wf-stage-width: 200px;
+  --wf-stage-height: 64px;
+  --wf-gateway-width: 44px;
+  --wf-gateway-height: 44px;
+  --wf-event-width: 36px;
+  --wf-event-height: 36px;
+  --wf-note-width: 160px;
+  --wf-note-height: 60px;
+  --wf-text-path-label: 11px;
+  --wf-text-legend-item: 11px;
+  --wf-text-legend-value: 11px;
+  --wf-text-attribution: 11px;
+  --wf-text-panel: 13px;
+  --wf-text-panel-heading: 13px;
+  --wf-text-panel-title: 13px;
+  --wf-text-panel-note: 11px;
+  --wf-text-panel-label: 11px;
+  --wf-text-panel-key: 11px;
+  --wf-text-panel-symbol: 15px;
+  --wf-text-tooltip: 11px;
+  --wf-text-activity-tooltip: 13px;
+  --wf-text-timeline-axis: 11px;
+  --wf-text-timeline-label: 11px;
+  --wf-text-timeline-note: 11px;
+  --wf-text-comparison-value: 15px;
+  --wf-text-comparison-note: 13px;
+  --wf-text-comparison-denominator: 13px;
+  --wf-weight-legend-item: 600;
+  --wf-weight-panel-heading: 600;
+  --wf-weight-panel-label: 600;
+  --wf-weight-panel-plain: 400;
+  --wf-weight-comparison-tab: 600;
+  --wf-weight-comparison-caption: 600;
+  --wf-weight-comparison-row-header: 500;
+  --wf-weight-comparison-denominator: 400;
+  --wf-leading-activity-name: 16px;
+  --wf-leading-activity-number: 14px;
+  --wf-radius-band: 4px;
+  --wf-radius-swatch: 4px;
+  --wf-radius-control: 4px;
+  --wf-radius-tooltip: 4px;
+  --wf-radius-key: 4px;
+  --wf-radius-pill: 999px;
+  --wf-radius-filter-chip: 999px;
+  --wf-radius-legend-gradient: 4px;
+  --wf-radius-activity-tooltip: 4px;
+  --wf-radius-comparison-bar: 4px;
+  --wf-stroke-focus: 2px;
+  --wf-stroke-selection: 2px;
+  --wf-stroke-halo: 2px;
+  --wf-stroke-filter-chip: 1px;
+  --wf-stroke-tab: 2px;
+  --wf-stroke-icon: 2px;
+  --wf-stroke-timeline-violation: 2px;
+  --wf-dash-timeline-anchor: 4 3;
+  --wf-dash-bpmn-out-of-scope: 4 3;
+  --wf-opacity-dimmed: 0.35;
+  --wf-opacity-dimmed-path: 0.25;
+  --wf-opacity-disabled: 0.45;
+  --wf-z-comparison-row-header: 1;
+  --wf-z-comparison-header: 2;
+  --wf-z-comparison-corner: 3;
+  --wf-z-overlay-panel: 5;
+  --wf-z-bpmn-table: 5;
+  --wf-z-bpmn-panel: 6;
+  --wf-z-side-list: 6;
+  --wf-z-tooltip: 10;
+  --wf-z-canvas-tooltip: 10;
+  --wf-z-bpmn-navigation: 15;
+  --wf-z-menu: 30;
+  --wf-z-activity-tooltip: 1000;
+  --wf-size-map-min-height: 320px;
+  --wf-size-view-map-min-height: 240px;
+  --wf-size-handle: 6px;
+  --wf-size-panel-max-width: 260px;
+  --wf-size-control-label: 70px;
+  --wf-size-control-output: 42px;
+  --wf-size-legend-swatch-width: 14px;
+  --wf-size-legend-swatch-height: 12px;
+  --wf-size-legend-sample: 28px;
+  --wf-size-legend-glyph: 18px;
+  --wf-size-legend-gradient: 10px;
+  --wf-size-search-min-width: 240px;
+  --wf-size-table-swatch: 10px;
+  --wf-size-tooltip-max-width: 280px;
+  --wf-size-canvas-tooltip-max-width: 320px;
+  --wf-size-activity-tooltip-max-width: 320px;
+  --wf-size-bpmn-table-top: 56px;
+  --wf-size-watermark-clearance: 48px;
+  --wf-size-side-list: 380px;
+  --wf-size-menu-min-width: 260px;
+  --wf-size-menu-max-width: 340px;
+  --wf-size-filter-chip-min-height: 24px;
+  --wf-size-zoom-button-width: 28px;
+  --wf-size-zoom-button-height: 26px;
+  --wf-size-cue-foot: 3px;
+  --wf-size-icon: 16px;
+  --wf-size-slider-track: 4px;
+  --wf-size-slider-thumb: 16px;
+  --wf-space-1: 2px;
+  --wf-space-1-5: 3px;
+  --wf-space-2: 4px;
+  --wf-space-3: 6px;
+  --wf-space-4: 8px;
+  --wf-space-5: 10px;
+  --wf-space-6: 12px;
+  --wf-space-8: 16px;
+  --wf-color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
+    --wf-color-scheme: dark;
     --wf-paper: #16181d;
     --wf-surface: #1f2229;
     --wf-ink: #ececec;
     --wf-ink-muted: #a7adb8;
     --wf-line: #3a3f49;
     --wf-line-strong: #6b7280;
+    --wf-cue-stripe: #2c3038;
+    --wf-cue-foot: #8f96a3;
+    --wf-pressed: #0b1f2e;
+    --wf-on-pressed: #ececec;
+    --wf-pattern-ink: #101114;
     --wf-selection: rgba(86, 180, 233, 0.22);
     --wf-hover: rgba(255, 255, 255, 0.07);
   }
 }
 
 :root[data-theme="dark"] {
+  --wf-color-scheme: dark;
   --wf-paper: #16181d;
   --wf-surface: #1f2229;
   --wf-ink: #ececec;
   --wf-ink-muted: #a7adb8;
   --wf-line: #3a3f49;
   --wf-line-strong: #6b7280;
+  --wf-cue-stripe: #2c3038;
+  --wf-cue-foot: #8f96a3;
+  --wf-pressed: #0b1f2e;
+  --wf-on-pressed: #ececec;
+  --wf-pattern-ink: #101114;
   --wf-selection: rgba(86, 180, 233, 0.22);
   --wf-hover: rgba(255, 255, 255, 0.07);
 }
@@ -84,3 +187,46 @@
     animation: none !important;
   }
 }
+
+/* The smallest text on the screen in layout units, by the class the map writes as it zooms. */
+.wf-process-map.wf-text-f16 { --wf-text-floor: 4; }
+.wf-process-map.wf-text-f17 { --wf-text-floor: 4.3621; }
+.wf-process-map.wf-text-f18 { --wf-text-floor: 4.7569; }
+.wf-process-map.wf-text-f19 { --wf-text-floor: 5.1874; }
+.wf-process-map.wf-text-f20 { --wf-text-floor: 5.6569; }
+.wf-process-map.wf-text-f21 { --wf-text-floor: 6.1689; }
+.wf-process-map.wf-text-f22 { --wf-text-floor: 6.7272; }
+.wf-process-map.wf-text-f23 { --wf-text-floor: 7.3361; }
+.wf-process-map.wf-text-f24 { --wf-text-floor: 8; }
+.wf-process-map.wf-text-f25 { --wf-text-floor: 8.7241; }
+.wf-process-map.wf-text-f26 { --wf-text-floor: 9.5137; }
+.wf-process-map.wf-text-f27 { --wf-text-floor: 10.3748; }
+.wf-process-map.wf-text-f28 { --wf-text-floor: 11.3138; }
+.wf-process-map.wf-text-f29 { --wf-text-floor: 12.3377; }
+.wf-process-map.wf-text-f30 { --wf-text-floor: 13.4544; }
+.wf-process-map.wf-text-f31 { --wf-text-floor: 14.6721; }
+.wf-process-map.wf-text-f32 { --wf-text-floor: 16; }
+.wf-process-map.wf-text-f33 { --wf-text-floor: 17.4482; }
+.wf-process-map.wf-text-f34 { --wf-text-floor: 19.0274; }
+.wf-process-map.wf-text-f35 { --wf-text-floor: 20.7495; }
+.wf-process-map.wf-text-f36 { --wf-text-floor: 22.6275; }
+.wf-process-map.wf-text-f37 { --wf-text-floor: 24.6754; }
+.wf-process-map.wf-text-f38 { --wf-text-floor: 26.9087; }
+.wf-process-map.wf-text-f39 { --wf-text-floor: 29.3442; }
+.wf-process-map.wf-text-f40 { --wf-text-floor: 32; }
+.wf-process-map.wf-text-f41 { --wf-text-floor: 34.8963; }
+.wf-process-map.wf-text-f42 { --wf-text-floor: 38.0547; }
+.wf-process-map.wf-text-f43 { --wf-text-floor: 41.4989; }
+.wf-process-map.wf-text-f44 { --wf-text-floor: 45.2549; }
+.wf-process-map.wf-text-f45 { --wf-text-floor: 49.3508; }
+.wf-process-map.wf-text-f46 { --wf-text-floor: 53.8174; }
+.wf-process-map.wf-text-f47 { --wf-text-floor: 58.6883; }
+.wf-process-map.wf-text-f48 { --wf-text-floor: 64; }
+.wf-process-map.wf-text-f49 { --wf-text-floor: 69.7925; }
+.wf-process-map.wf-text-f50 { --wf-text-floor: 76.1093; }
+.wf-process-map.wf-text-f51 { --wf-text-floor: 82.9978; }
+.wf-process-map.wf-text-f52 { --wf-text-floor: 90.5097; }
+.wf-process-map.wf-text-f53 { --wf-text-floor: 98.7015; }
+.wf-process-map.wf-text-f54 { --wf-text-floor: 107.6348; }
+.wf-process-map.wf-text-f55 { --wf-text-floor: 117.3766; }
+.wf-process-map.wf-text-f56 { --wf-text-floor: 128; }

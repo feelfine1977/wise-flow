@@ -1,132 +1,86 @@
 import {
   Background,
-  Controls,
-  MarkerType,
   MiniMap,
   Panel,
   ReactFlow,
   ReactFlowProvider,
+  ViewportPortal,
   useNodesInitialized,
   useReactFlow,
+  useStore,
+  useStoreApi,
   useViewport,
-  type NodeMouseHandler,
-  type EdgeMouseHandler,
+  type OnNodesChange,
 } from "@xyflow/react";
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import {
-  type AbstractOptions,
-  type ElementRef,
-  type FlowGraph,
-  type Focus,
-  type HitItem,
-  type LayoutOptions,
-  type MenuAction,
-  type MenuTarget,
-  type Overlay,
-  type OverlayShape,
-  type Positions,
-  type StringKey,
-  MAP_TARGET,
-  RECONNECTED_TAG,
-  addClause,
-  asFilter,
-  buildScales,
-  canonicalOverlays,
-  clearLayoutCache,
-  coversGraph,
-  defaultActions,
-  defaultNodeSize,
-  defaultStyle,
-  describeClause,
-  describeOverlay,
-  describeSelection,
-  filterPositions,
-  focusHighlight,
-  formatCompact,
-  hasTag,
-  laneBands,
-  lodAt,
-  lodForSize,
-  menuTargetFor,
-  menuTitle,
-  metric,
-  overlayGeometry,
-  relatedToSelection,
-  selectElement,
-  t,
-} from "../core/index.js";
-import { type DrawState, type PreparedScene, prepareScene } from "../canvas/index.js";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type AbstractOptions, type Box, type ElementRef, type FlowGraph, type Insets, type PartInView, type Positions, type Readable, type XY, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, detailNotes, detailStatement, dimensionTokens, elementPoint, fitViewport, formatCount, lodAt, measureStyle, partInView, readableAt, readableZoom, spaceTokens, strokeTokens, t, themeColors, viewTokens } from "../core/index.js";
+import { isPath } from "../core/detail.js";
+import { type MapContext, mapEmphasis, menuHeading } from "../core/map-controller.js";
+import { markedThemeKey, themeStyle } from "../core/theme.js";
+import { ActivityTooltip } from "./ActivityTooltip.js";
+import { ActivityKey, MapNumbers, useMapNumbers } from "./MapNumbers.js";
 import { AbstractionControls } from "./AbstractionControls.js";
-import { CanvasMap, type CanvasMapHandle } from "./CanvasMap.js";
-import { ContextMenu } from "./ContextMenu.js";
-import { describeEdge, describeGroup, describeMap, describeNode } from "./describe.js";
+import { CanvasMap, type CanvasMapHandle, EdgeNote } from "./CanvasMap.js";
+import { MenuView } from "./ContextMenu.js";
+import { type MapScreen, useMapController } from "./controller.js";
+import { describeMap } from "./describe.js";
 import { edgeTypes } from "./edges.js";
 import { FilterChips } from "./FilterChips.js";
-import { useFlowGraph, usePrefersReducedMotion, useStableLayout } from "./hooks.js";
+import { PathsNotShown, useArrival, useEdgesShown, useEdgesShownAcross, useFlowGraph, useMapScene, usePrefersReducedMotion, useStableLayout } from "./hooks.js";
 import { Legend } from "./Legend.js";
-import { Chip, nodeTypes, tintFor } from "./nodes.js";
+import { useMenuActions } from "./map-actions.js";
+import { edgeArrowId, grownTextSize, readableClasses, readableSizes, useCanvasElements, useElementDescriptions, useFlowElements, useTextMeasure } from "./map-elements.js";
+import { GROUP_PREFIX, canvasPointer, flowPointer, overlayPointer } from "./map-pointer.js";
+import { MarkDefs, MarkFigure } from "./marks.js";
+import { PatternTheme } from "./patterns.js";
+import { nodeTypes } from "./nodes.js";
 import { OverlayLayer } from "./OverlayLayer.js";
+import { part } from "./parts.js";
 import { PathList } from "./PathList.js";
+import { MapOverview, ZoomControl, clearOfPanels, openingIn } from "./primitives.js";
 import { TableAlternative } from "./TableAlternative.js";
-import { type ProcessMapProps, type Selection, type WfEdge, type WfGroupNode, type WfNode, emptySelection } from "./types.js";
+import { type Written, useTheme } from "./theme.js";
+import { type BringIntoView, type ProcessMapProps, type Selection, type WfEdge, type WfGroupNode, type WfNode } from "./types.js";
 
-const GROUP_PREFIX = "group:";
 const DEFAULT_CANVAS_THRESHOLD = 2000;
+const DEFAULT_DESCRIBED_LIMIT = 500;
+const TABLE_PAGE_SIZE = 100;
+/** The React Flow map's zoom range, and the room its fitted view leaves around the nodes on each side, relative to their size. */
+const FLOW_ZOOM = { minZoom: 0.05, maxZoom: 3 };
+const FLOW_FIT_PADDING = 0.04;
+/** Milliseconds the React Flow map's zoom stays the same before its view counts as at rest, as a wheel gesture of the Canvas map ends. */
+const REST_MS = 200;
 
-const layoutInstances = new WeakMap<object, number>();
-let nextLayoutInstance = 0;
+const NO_MOVES: Readonly<Record<string, XY>> = {};
 
-function automaticLayoutOptions(graph: FlowGraph, options: LayoutOptions, scope: string): LayoutOptions {
-  const nodeSize = options.nodeSize;
-  const sizes = new Map(graph.nodes.map((node) => [node.id, typeof nodeSize === "function" ? nodeSize(node) : nodeSize ?? defaultNodeSize(node)]));
-  if (options.elk && !layoutInstances.has(options.elk)) layoutInstances.set(options.elk, ++nextLayoutInstance);
-  // Include resolved callback sizes, not the function's identity or source text.
-  const fingerprint = JSON.stringify({
-    nodes: graph.nodes.map((node) => [node.id, node.kind, node.label, node.group, sizes.get(node.id)]),
-    edges: graph.edges.map((edge) => [edge.id, edge.kind, edge.source, edge.target]),
-    groups: graph.groups,
-    options: {
-      ...options,
-      nodeSize: undefined,
-      elk: options.elk ? layoutInstances.get(options.elk) : undefined,
-      elkWorkerUrl: options.elkWorkerUrl ? String(options.elkWorkerUrl) : undefined,
-    },
-  });
-  return { ...options, nodeSize: (node) => sizes.get(node.id) ?? defaultNodeSize(node), cacheKey: `wf:${scope}:${fingerprint}` };
-}
-
-function selfLoopOverlays(graph: FlowGraph): Overlay[] {
-  const out: Overlay[] = [];
-  const maxCount = Math.max(1, ...graph.edges.filter((e) => e.kind === "follows").map((e) => metric(e, "count", 0)));
-  for (const e of graph.edges) {
-    if (e.kind !== "follows" || e.source !== e.target) continue;
-    const count = metric(e, "count", NaN);
-    const cases = metric(e, "cases", NaN);
-    const nodeCases = metric(graph.nodes.find((n) => n.id === e.source), "cases", NaN);
-    const share = Number.isFinite(cases) && Number.isFinite(nodeCases) && nodeCases > 0 ? cases / nodeCases : Number.isFinite(count) ? count / maxCount : undefined;
-    out.push({
-      kind: "selfLoop",
-      target: e.source,
-      payload: { label: e.id, value: share, text: Number.isFinite(count) ? `${formatCompact(count)} ×` : undefined, edgeId: e.id },
-    });
-  }
-  return out;
-}
-
-interface MenuState {
-  target: MenuTarget;
-  actions: MenuAction[];
+interface View {
   x: number;
   y: number;
-  title: string;
-  subtitle?: string;
-  note?: string;
+  zoom: number;
 }
 
-function toggleCollapse(current: AbstractOptions["collapse"], groupId: string, allStages: string[], collapse: boolean): AbstractOptions["collapse"] {
-  const list = current === "all" ? allStages : Array.isArray(current) ? current : [];
-  const next = collapse ? (list.includes(groupId) ? list : [...list, groupId]) : list.filter((id) => id !== groupId);
-  return next.length === 0 ? false : next;
+/** The node drawn nearest the centre of a view, with its centre and the view; `to` is the layout it holds the view for. */
+interface Anchor {
+  id: string;
+  centre: XY;
+  view: View;
+  to?: Positions;
+}
+
+const centreOf = (b: { x: number; y: number; width: number; height: number }): XY => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
+
+function anchorAt(drawn: Positions | undefined, view: View & { width: number; height: number }): Anchor | undefined {
+  const middle = { x: (view.width / 2 - view.x) / view.zoom, y: (view.height / 2 - view.y) / view.zoom };
+  let anchor: Anchor | undefined;
+  let nearest = Infinity;
+  for (const [id, box] of Object.entries(drawn?.nodes ?? {})) {
+    const centre = centreOf(box);
+    const d = (centre.x - middle.x) ** 2 + (centre.y - middle.y) ** 2;
+    if (d >= nearest) continue;
+    nearest = d;
+    anchor = { id, centre, view: { x: view.x, y: view.y, zoom: view.zoom } };
+  }
+  return anchor;
 }
 
 /** Inner component; needs the React Flow provider for viewport hooks. */
@@ -135,12 +89,12 @@ function ProcessMapInner(props: ProcessMapProps) {
     graph,
     positions: givenPositions,
     overlays: extraOverlays,
-    style = defaultStyle,
+    style: givenStyle,
+    onMeasureChange,
     controls = true,
     legend = true,
     minimap = false,
-    onSelect,
-    onHover,
+    backgroundGrid = false,
     locale = "en",
     layout: layoutOptions,
     selfLoops = true,
@@ -148,296 +102,198 @@ function ProcessMapInner(props: ProcessMapProps) {
     className,
     containerStyle,
     fitView = true,
+    fitInsets,
+    minZoom: givenMinZoom,
+    maxZoom = FLOW_ZOOM.maxZoom,
+    openKey,
+    bringIntoView,
+    onInView,
+    opening = "readable",
+    minPathPx = viewTokens.pathPx,
     lanes = "none",
     pathList = true,
     contextMenu = true,
     renderer = "auto",
+    nodesDraggable = false,
+    onNodeMove,
+    layoutResetKey,
     canvasThreshold = DEFAULT_CANVAS_THRESHOLD,
-    onContextMenu: onContextMenuProp,
+    describedLimit = DEFAULT_DESCRIBED_LIMIT,
+    edgeBudget = "adaptive",
     children,
   } = props;
 
-  // Abstraction (controlled or internal)
-  const [innerAbstraction, setInnerAbstraction] = useState<AbstractOptions>(props.defaultAbstraction ?? {});
-  const abstraction = props.abstraction ?? innerAbstraction;
-  const setAbstraction = useCallback(
-    (a: AbstractOptions) => {
-      if (props.abstraction === undefined) setInnerAbstraction(a);
-      props.onAbstractionChange?.(a);
-    },
-    [props.abstraction, props.onAbstractionChange], // eslint-disable-line react-hooks/exhaustive-deps
-  );
-  const [innerView, setInnerView] = useState<"map" | "table">("map");
-  const view = props.view ?? innerView;
-  const setView = (v: "map" | "table") => {
-    if (props.view === undefined) setInnerView(v);
-    props.onViewChange?.(v);
-  };
+  const activityLabels = useMemo(() => props.activityLabels ? {
+    ...props.activityLabels, references: activityReferences(graph, props.activityLabels.references),
+  } : undefined, [graph, props.activityLabels]);
+  // The theme: the setting over the CSS variables of the map's element (its own and those it inherits) over the preset,
+  // in the page's scheme. Given a setting, the map writes the theme's variables on its element, and sets them aside
+  // while it reads the element's. The scene is built again only when the marks change; colours are painted from the theme,
+  // and its font reaches the scene through the text measure.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const written = useRef<Written | undefined>(undefined);
+  const look = useTheme(containerRef, props.theme, written);
+  const markedKey = useMemo(() => markedThemeKey(look.theme, look.scheme), [look]);
+  const markedTheme = useMemo(() => look.theme, [markedKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const themed = useMemo(() => (props.theme !== undefined ? themeStyle(look.theme, look.scheme) : undefined), [props.theme !== undefined, look]); // eslint-disable-line react-hooks/exhaustive-deps
+  written.current = themed && { names: Object.keys(themed), own: containerStyle as Record<string, unknown> | undefined };
+  // The pattern twins of the activities and the legend are drawn in the theme's pattern ink of the scheme, as its \`pattern\` says.
+  const patternTheme = useMemo(() => ({ ink: themeColors(look.theme, look.scheme).patternInk, look: look.theme.pattern }), [look]);
+  const textMeasure = useTextMeasure(props.textMeasure, look.theme.font.family);
+  // The measure (taken from the prop when given, kept by the map otherwise) as its named style, the given style over it.
+  const [ownMeasure, setOwnMeasure] = useState(props.measure);
+  const measure = props.measure ?? ownMeasure;
+  const style = useMemo(() => measureStyle(measure, givenStyle), [measure, givenStyle]);
+  const chooseMeasure = useCallback((m: NonNullable<typeof measure>) => {
+    setOwnMeasure(m);
+    onMeasureChange?.(m);
+  }, [onMeasureChange]);
+  const sizedLayoutOptions = useMemo(() => activityLabels && !layoutOptions?.nodeSize ? {
+    ...layoutOptions, nodeSize: (node: FlowGraph["nodes"][number]) => activityNodeSize(node, activityLabels, textMeasure),
+  } : layoutOptions, [layoutOptions, activityLabels, textMeasure]);
 
-  // Graph pipeline: collapse first (own layout), then thresholds (filter positions).
+  // Selection, focus of paths, abstraction and view (each controlled or internal), keyboard position,
+  // hover, the actions menu and the live region: the core's map controller.
+  const controller = useMapController(props);
+  const { dispatch } = controller;
+  const { abstraction, view, selection, hovered, active, focusWithin: hasFocus, menu, focus: explicitFocus } = controller.state;
+  const setAbstraction = useCallback((a: AbstractOptions) => void dispatch({ type: "setAbstraction", abstraction: a }), [dispatch]);
+  const setView = (v: "map" | "table") => void dispatch({ type: "setView", view: v });
+
+  // Graph pipeline: the given marks join the graph's, so that the abstraction sees them all (a protected one keeps
+  // its element, a collapse moves it to its stage); then collapse first (own layout), then thresholds (filter positions).
+  const marksKey = useMemo(() => JSON.stringify(extraOverlays ?? []), [extraOverlays]);
+  const marked = useMemo(() => (extraOverlays?.length ? { ...graph, overlays: [...(graph.overlays ?? []), ...extraOverlays] } : graph), [graph, marksKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const collapseOnly = useMemo<AbstractOptions | undefined>(
     () => (abstraction.collapse ? { collapse: abstraction.collapse, keepConnected: false } : undefined),
     [abstraction.collapse],
   );
-  const baseGraph = useFlowGraph(graph, collapseOnly);
+  const baseGraph = useFlowGraph(marked, collapseOnly);
   const shown = useFlowGraph(baseGraph, { ...abstraction, collapse: false });
   const useCanvas = renderer === "canvas" || (renderer === "auto" && shown.nodes.length + shown.edges.length > canvasThreshold);
 
   // Positions: given (stable layout across scenes) when they cover the shown graph,
-  // otherwise computed for the shown graph and cached by its layout inputs. Lane
-  // bands replace the group boxes (and move nodes into role lanes) afterwards.
+  // otherwise computed for the shown graph; the layout module keeps them by their
+  // inputs for as long as the map is mounted. Lane bands replace the group boxes
+  // (and move nodes into role lanes) afterwards.
   const needsOwnLayout = !givenPositions || !coversGraph(givenPositions, shown);
-  const layoutCacheScope = useId();
-  const ownLayoutOptions = useMemo(
-    () => !needsOwnLayout || layoutOptions?.cacheKey !== undefined ? layoutOptions ?? {} : automaticLayoutOptions(shown, layoutOptions ?? {}, layoutCacheScope),
-    [needsOwnLayout, layoutOptions, shown, layoutCacheScope],
-  );
-  const own = useStableLayout(needsOwnLayout ? shown : undefined, ownLayoutOptions);
-  const automaticCacheKey = needsOwnLayout && layoutOptions?.cacheKey === undefined ? ownLayoutOptions.cacheKey : undefined;
-  useEffect(() => {
-    // Automatic entries belong to this map; caller-supplied keys remain caller-owned.
-    if (automaticCacheKey !== undefined) return () => clearLayoutCache(automaticCacheKey);
-  }, [automaticCacheKey]);
-  const laid = useMemo(() => {
-    const source = needsOwnLayout ? own.positions : givenPositions;
-    if (!source) return undefined;
-    return laneBands(shown, filterPositions(source, shown), { lanes });
-  }, [needsOwnLayout, own.positions, givenPositions, shown, lanes]);
-  const positions: Positions | undefined = laid?.positions;
-  const bands = useMemo(() => new Map((laid?.bands ?? []).map((b) => [b.id, b])), [laid]);
-
-  const scales = useMemo(() => buildScales(shown, style), [shown, style]);
-  const overlays = useMemo(() => {
-    const known = new Set([...shown.nodes.map((n) => n.id), ...(shown.groups ?? []).map((g) => g.id), MAP_TARGET]);
-    const list = [...(shown.overlays ?? []), ...(extraOverlays ?? [])].filter(
-      (o) => known.has(o.target) || (o.kind === "arc" && known.has(String(o.payload?.source)) && known.has(String(o.payload?.target))),
-    );
-    return canonicalOverlays(selfLoops ? [...list, ...selfLoopOverlays(shown)] : list);
-  }, [shown, extraOverlays, selfLoops]);
-
-  const lodRules = useMemo(() => lodForSize(shown.nodes.length, { ...(style.lod ?? {}), ...(props.lod ?? {}) }), [shown.nodes.length, style.lod, props.lod]);
-  const geometry = useMemo(() => (positions ? overlayGeometry(overlays, positions, { lod: lodRules }) : undefined), [overlays, positions, lodRules]);
-
-  // Selection, hover, keyboard focus, paths focus
-  const [innerSelection, setInnerSelection] = useState<Selection>(emptySelection);
-  const selection = props.selection ?? innerSelection;
-  const select = useCallback(
-    (s: Selection) => {
-      if (props.selection === undefined) setInnerSelection(s);
-      onSelect?.(s);
-    },
-    [props.selection, onSelect],
-  );
-  const [hovered, setHovered] = useState<string | null>(null);
-  const hover = useCallback(
-    (id: string | null) => {
-      setHovered(id);
-      onHover?.(id);
-    },
-    [onHover],
-  );
-  const [focused, setFocused] = useState<string | null>(null);
-  const [innerFocus, setInnerFocus] = useState<Focus | undefined>(props.defaultFocus);
-  const explicitFocus: Focus | undefined = props.focus === undefined ? innerFocus : (props.focus ?? undefined);
-  const setFocus = useCallback(
-    (f: Focus | undefined) => {
-      if (props.focus === undefined) setInnerFocus(f);
-      props.onFocusChange?.(f);
-    },
-    [props.focus, props.onFocusChange], // eslint-disable-line react-hooks/exhaustive-deps
-  );
-  const nodeKinds = useMemo(() => new Map(shown.nodes.map((n) => [n.id, n.kind])), [shown]);
-  const pairFromSelection = useMemo<Focus | undefined>(() => {
-    if (selection.nodes.length !== 2 || selection.edges.length || selection.groups.length) return undefined;
-    const [a, b] = selection.nodes;
-    const ok = (id: string) => nodeKinds.get(id) === "activity" || nodeKinds.get(id) === "stage";
-    return ok(a) && ok(b) ? [a, b] : undefined;
-  }, [selection, nodeKinds]);
-  const focus: Focus | undefined = explicitFocus ?? pairFromSelection;
-  const focusValid = useMemo(() => {
-    if (!focus) return false;
-    const has = (id: string) => shown.nodes.some((n) => n.id === id) || (shown.groups ?? []).some((g) => g.id === id);
-    return typeof focus === "string" ? has(focus) : has(focus[0]) && has(focus[1]);
-  }, [focus, shown]);
-  const bright = useMemo(() => {
-    if (focus && focusValid) return focusHighlight(shown, focus);
-    if (selection.nodes.length || selection.edges.length || selection.groups.length) return relatedToSelection(shown, selection);
-    return undefined;
-  }, [shown, focus, focusValid, selection]);
-
+  const own = useStableLayout(needsOwnLayout ? shown : undefined, sizedLayoutOptions);
+  // A provisional arrangement is drawn until the layout arrives (given positions from
+  // `useStableLayout` say so too); the layout then moves into its place.
+  const provisional = needsOwnLayout ? own.provisional : givenPositions?.engine === "provisional";
   const reducedMotion = usePrefersReducedMotion();
+  const target = needsOwnLayout ? own.positions : givenPositions;
+  const arrival = useArrival(target, provisional, reducedMotion);
+  // Without a refined layout the provisional arrangement stays (also given, when final), and the map says so.
+  const unavailable = needsOwnLayout ? own.error instanceof LayoutUnavailableError : !!givenPositions?.final;
+  const arranging = (provisional && !unavailable) || arrival.moving;
+  const notice = arranging ? t(locale, "map.arranging") : unavailable ? t(locale, "map.layoutUnavailable") : undefined;
+  const [manual, setManual] = useState<{ key: ProcessMapProps["layoutResetKey"]; points: Record<string, XY> }>({ key: layoutResetKey, points: {} });
+  // The shown graph's marks, the given ones among them; the scene keeps those it can place and adds the follows self-loops.
+  const { scene, positions, laidPositions } = useMapScene(shown, arrival.positions, manual.key === layoutResetKey ? manual.points : NO_MOVES, {
+    style, locale, lanes, activityLabels, selfLoops, lod: props.lod, theme: markedTheme, scheme: look.scheme, textMeasure,
+  });
+  const { scales, overlays, geometry } = scene;
+  // What the detail sliders show, in words, and what the tooltips add: the labels of elements not shown are the graph's before the sliders.
+  const baseLabel = useMemo(() => {
+    const labels = new Map(baseGraph.nodes.map((n) => [n.id, n.label]));
+    return (id: string) => labels.get(id) ?? id;
+  }, [baseGraph]);
+  const statement = useMemo(() => detailStatement(shown, { locale, marks: baseGraph.overlays, labelOf: baseLabel }), [shown, baseGraph, locale, baseLabel]);
+  const notes = useMemo(() => detailNotes(baseGraph, shown, { locale, labelOf: baseLabel }), [baseGraph, shown, locale, baseLabel]);
+  // One index of the shown graph: every description, label and lookup by id reads it.
+  const descriptions = useElementDescriptions(shown, overlays, locale, activityLabels, notes);
+  const { describeElement, index } = descriptions;
+  const labelOf = index.label;
+  // The keyboard position while on the map.
+  const focused = active !== null && (index.nodes.has(active) || index.edges.has(active)) ? active : null;
+  const onNodesChange = useCallback<OnNodesChange<WfNode | WfGroupNode>>((changes) => {
+    if (!nodesDraggable || !positions) return;
+    const points: Record<string, XY> = {};
+    for (const change of changes) {
+      if (change.type !== "position" || !change.position) continue;
+      const node = index.nodes.get(change.id);
+      if (node?.kind !== "activity") continue;
+      const parent = node.group ? positions.groups[node.group] : undefined;
+      points[node.id] = { x: change.position.x + (parent?.x ?? 0), y: change.position.y + (parent?.y ?? 0) };
+    }
+    if (!Object.keys(points).length) return;
+    if (onNodeMove) for (const [id, point] of Object.entries(points)) onNodeMove(id, point);
+    else setManual((previous) => ({ key: layoutResetKey, points: { ...(previous.key === layoutResetKey ? previous.points : {}), ...points } }));
+  }, [nodesDraggable, onNodeMove, layoutResetKey, positions, index]);
+  const select = useCallback((s: Selection) => void dispatch({ type: "select", selection: s }), [dispatch]);
+  const hover = useCallback((id: string | null) => void dispatch({ type: "hover", id }), [dispatch]);
+  const tooltipId = useId();
+  // The focus of paths in effect and what stays bright: the controller's.
+  const emphasis = useMemo(() => mapEmphasis({ selection, focus: explicitFocus }, shown), [selection, explicitFocus, shown]);
+  const { focus, focusShown } = emphasis;
+  // Pointing at the kept paths' part of the detail statement marks those paths, and dims the others.
+  const [keptOn, setKeptOn] = useState(false);
+  const kept = statement?.kept;
+  const bright = useMemo(() => (keptOn && kept?.length ? { nodes: new Set(shown.nodes.map((n) => n.id)), edges: new Set(kept) } : emphasis.bright), [keptOn, kept, shown, emphasis]);
+  // The edges of a focus of paths, and the kept paths marked, are drawn first, heaviest first, within the edge budget.
+  const highlighted = (keptOn && kept?.length) || focusShown ? bright?.edges : undefined;
+
   const rf = useReactFlow();
-  const { zoom: rfZoom } = useViewport();
-  const [canvasZoom, setCanvasZoom] = useState(1);
-  const zoom = useCanvas ? canvasZoom : rfZoom;
-  const lod = lodAt(zoom, lodRules);
+  const flowStore = useStoreApi();
+  const { zoom: rfZoom, x: rfX, y: rfY } = useViewport();
+  const [canvasViewport, setCanvasViewport] = useState({ x: 0, y: 0, zoom: 1 });
+  const zoom = useCanvas ? canvasViewport.zoom : rfZoom;
+  // The zoom the React Flow map's view last rested at: the paths drawn at a small zoom change only then (the Canvas map's renderer keeps its own).
+  const [restZoom, setRestZoom] = useState(rfZoom);
+  const [movingView, setMovingView] = useState(false);
+  useEffect(() => {
+    if (movingView || rfZoom === restZoom) return;
+    const timer = setTimeout(() => setRestZoom(rfZoom), REST_MS);
+    return () => clearTimeout(timer);
+  }, [rfZoom, rfX, rfY, restZoom, movingView]);
+  const pathRule = useMemo(() => ({ minPx: minPathPx, zoom: restZoom }), [minPathPx, restZoom]);
+  // The view at rest, for what is in it: 200 ms after its last change, once a gesture ended.
+  const liveView = useCanvas ? canvasViewport : { x: rfX, y: rfY, zoom: rfZoom };
+  const [restView, setRestView] = useState<View>(liveView);
+  useEffect(() => {
+    if (movingView) return;
+    const timer = setTimeout(() => setRestView((was) => (was.x === liveView.x && was.y === liveView.y && was.zoom === liveView.zoom ? was : liveView)), REST_MS);
+    return () => clearTimeout(timer);
+  }, [liveView.x, liveView.y, liveView.zoom, movingView]); // eslint-disable-line react-hooks/exhaustive-deps
+  const lod = lodAt(zoom, scene.lod);
+  // What the texts show at the zoom, within the hysteresis of what they showed: the map writes it on its root as classes.
+  const readableBefore = useRef<Readable | undefined>(undefined);
+  const readable = readableAt(scene.readable, zoom, scene.theme.text.minScreenPx, readableBefore.current);
+  const numbers = useMapNumbers(scene, readable);
+  useEffect(() => void (readableBefore.current = readable));
+  const textSizes = useMemo(() => readableSizes(scene.readable), [scene.readable]);
+  const grown = useMemo(() => grownTextSize(scene), [scene]);
   const bodyRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<CanvasMapHandle>(null);
-
-  // Live region
-  const [live, setLive] = useState("");
-  const announce = useCallback((text: string) => setLive(text), []);
-  const selectionKey = JSON.stringify(selection);
-  const firstSelection = useRef(true);
-  const menuRef = useRef<MenuState | null>(null);
+  // The smallest zoom: the number given, or the zoom from which every card still shows the level asked for (`readableZoom`); the map's own where none applies.
+  const floor = useMemo(() => {
+    const asked = typeof givenMinZoom === "number" ? givenMinZoom : givenMinZoom ? readableZoom(scene.readable, scene.theme.text.minScreenPx, givenMinZoom.readable) : FLOW_ZOOM.minZoom;
+    return asked > 0 && Number.isFinite(asked) ? Math.min(asked, maxZoom) : FLOW_ZOOM.minZoom;
+  }, [givenMinZoom, maxZoom, scene]);
+  const zoomRange = useMemo(() => ({ minZoom: floor, maxZoom }), [floor, maxZoom]);
+  // What the view at rest shows of the map: for the panel, the overview and the host, who is told in the same step as the panel when it changes.
+  const [shownPart, setShownPart] = useState<PartInView>();
+  const told = useRef<PartInView | undefined>(undefined);
+  const tellInView = useRef(onInView);
+  tellInView.current = onInView;
   useEffect(() => {
-    if (firstSelection.current) {
-      firstSelection.current = false;
-      return;
-    }
-    // A menu that opened in the same step has announced the selection already.
-    if (menuRef.current) return;
-    setLive(describeSelection(shown, selection, locale));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectionKey]);
-  useEffect(() => {
-    if (props.announce) setLive(props.announce);
-  }, [props.announce]);
-  const labelOf = useCallback((id: string) => shown.nodes.find((n) => n.id === id)?.label ?? (shown.groups ?? []).find((g) => g.id === id)?.label ?? id, [shown]);
-  const explicitFocusKey = JSON.stringify(explicitFocus ?? null);
-  useEffect(() => {
-    if (!explicitFocus) return;
-    setLive(typeof explicitFocus === "string" ? t(locale, "map.focus", { label: labelOf(explicitFocus) }) : t(locale, "map.focusPair", { a: labelOf(explicitFocus[0]), b: labelOf(explicitFocus[1]) }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [explicitFocusKey]);
-
-  // Descriptions
-  const overlaysByTarget = useMemo(() => {
-    const m = new Map<string, Overlay[]>();
-    for (const o of overlays) {
-      if (!m.has(o.target)) m.set(o.target, []);
-      m.get(o.target)!.push(o);
-    }
-    return m;
-  }, [overlays]);
-  const groupIndex = useMemo(() => new Map((shown.groups ?? []).map((g) => [g.id, g])), [shown]);
-  const memberCount = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const n of shown.nodes) if (n.group) m.set(n.group, (m.get(n.group) ?? 0) + 1);
-    return m;
-  }, [shown]);
-  const describeElement = useCallback(
-    (ref: ElementRef): string => {
-      if (ref.kind === "node") {
-        const n = shown.nodes.find((x) => x.id === ref.id);
-        return n ? describeNode(n, overlaysByTarget.get(n.id) ?? [], locale, n.group ? groupIndex.get(n.group)?.label : undefined) : ref.id;
-      }
-      if (ref.kind === "edge") {
-        const e = shown.edges.find((x) => x.id === ref.id);
-        return e ? describeEdge(e, shown, locale) : ref.id;
-      }
-      const g = groupIndex.get(ref.id);
-      return g ? describeGroup(g, memberCount.get(g.id) ?? 0, overlaysByTarget.get(g.id) ?? [], locale) : ref.id;
-    },
-    [shown, overlaysByTarget, groupIndex, memberCount, locale],
-  );
-  const worstOverlay = useCallback(
-    (ids: string[]): string | undefined => {
-      let best: Overlay | undefined;
-      for (const o of overlays) {
-        const touches = ids.includes(o.target) || (o.kind === "arc" && (ids.includes(String(o.payload?.source)) || ids.includes(String(o.payload?.target))));
-        if (!touches || !o.payload?.constraintId) continue;
-        const v = o.payload?.value;
-        if (typeof v !== "number") continue;
-        if (!best || v > (best.payload?.value as number)) best = o;
-      }
-      return best ? t(locale, "menu.worst", { text: describeOverlay(best, locale) }) : undefined;
-    },
-    [overlays, locale],
-  );
+    const area = useCanvas ? canvasRef.current?.renderer()?.size : flowStore.getState();
+    if (!positions || !area || !(area.width > 0) || !(area.height > 0)) return;
+    const part = partInView(scene, restView, area);
+    const was = told.current;
+    if (was && was.nodes === part.nodes && was.ofNodes === part.ofNodes && was.edges === part.edges && was.ofEdges === part.ofEdges) return;
+    told.current = part;
+    setShownPart(part);
+    tellInView.current?.({ ...part, zoom: restView.zoom, minZoom: floor });
+  }, [positions, scene, restView, useCanvas, flowStore, floor]);
 
   // Actions menu
-  const [menu, setMenu] = useState<MenuState | null>(null);
-  menuRef.current = menu;
   const allStages = useMemo(() => (graph.groups ?? []).filter((g) => g.kind === "stage" && !g.parent).map((g) => g.id), [graph]);
-  const attachRuns = useCallback(
-    (actions: MenuAction[], target: MenuTarget): MenuAction[] =>
-      actions.map((a) => {
-        if (a.run) return a;
-        switch (a.id) {
-          case "filter-to":
-          case "exclude": {
-            if (!props.onFilterChange || !a.clause) return a;
-            const clauses = Array.isArray(a.clause) ? a.clause : [a.clause];
-            return {
-              ...a,
-              run: () => {
-                let f = asFilter(props.filters);
-                for (const c of clauses) f = addClause(f, c);
-                props.onFilterChange!(f);
-                return t(locale, "filters.added", { clause: clauses.map((c) => describeClause(c, locale, labelOf)).join("; ") });
-              },
-            };
-          }
-          case "paths":
-            return {
-              ...a,
-              run: () => {
-                if (target.kind === "pair") setFocus([target.ids[0], target.ids[1]]);
-                else if (target.kind === "edge") {
-                  const e = shown.edges.find((x) => x.id === target.id);
-                  if (e) setFocus([e.source, e.target]);
-                } else setFocus(target.id);
-                return undefined;
-              },
-            };
-          case "collapse":
-            return { ...a, run: () => void setAbstraction({ ...abstraction, collapse: toggleCollapse(abstraction.collapse, target.id, allStages, true) }) };
-          case "expand":
-            return { ...a, run: () => void setAbstraction({ ...abstraction, collapse: toggleCollapse(abstraction.collapse, target.id, allStages, false) }) };
-          case "clear-focus":
-            return { ...a, run: () => void setFocus(undefined) };
-          default:
-            return a;
-        }
-      }),
-    [props.onFilterChange, props.filters, locale, labelOf, setFocus, shown, setAbstraction, abstraction, allStages],
-  );
-  const openMenu = useCallback(
-    (ref: ElementRef, at: { x: number; y: number }) => {
-      if (!contextMenu) return;
-      // The element joins the selection unless it is part of the multi-selection already.
-      const inSelection = ref.kind === "node" ? selection.nodes.includes(ref.id) : ref.kind === "edge" ? selection.edges.includes(ref.id) : selection.groups.includes(ref.id);
-      const effective = inSelection ? selection : selectElement(emptySelection, ref, "add");
-      if (!inSelection) select(effective);
-      const target = menuTargetFor(shown, ref, effective);
-      const collapsed = ref.kind === "group" && (abstraction.collapse === "all" || (Array.isArray(abstraction.collapse) && abstraction.collapse.includes(ref.id)));
-      let actions = attachRuns(defaultActions(shown, target, locale, { collapsed, hasFocus: explicitFocus !== undefined }), target);
-      const custom = onContextMenuProp?.(target, actions);
-      if (custom === false) return;
-      if (Array.isArray(custom)) actions = custom;
-      if (actions.length === 0) return;
-      const kindText =
-        target.kind === "node"
-          ? t(locale, `kind.${target.nodeKind ?? "activity"}` as StringKey)
-          : target.kind === "edge"
-            ? t(locale, `kind.${target.edgeKind ?? "follows"}` as StringKey)
-            : target.kind === "group"
-              ? t(locale, `group.${target.groupKind ?? "stage"}` as StringKey)
-              : t(locale, "kind.activity");
-      const groupId = target.kind === "node" ? shown.nodes.find((n) => n.id === target.id)?.group : undefined;
-      const subtitle = `${kindText}${groupId ? ` (${groupIndex.get(groupId)?.label ?? groupId})` : ""}`;
-      setMenu({ target, actions, x: at.x, y: at.y, title: menuTitle(target, shown, locale), subtitle, note: worstOverlay(target.ids) });
-      const opened = t(locale, "menu.opened", { label: target.label, count: actions.length });
-      setLive(inSelection ? opened : `${describeSelection(shown, effective, locale)} ${opened}`);
-    },
-    [contextMenu, selection, select, shown, abstraction.collapse, attachRuns, locale, explicitFocus, onContextMenuProp, groupIndex, worstOverlay],
-  );
-  const closeMenu = useCallback(() => {
-    setMenu(null);
-    setLive(t(locale, "menu.closed"));
-  }, [locale]);
-  const runAction = useCallback(
-    (action: MenuAction) => {
-      if (!menu) return;
-      const fromRun = action.run?.(menu.target);
-      const fromHost = props.onAction?.(action, menu.target);
-      setMenu(null);
-      setLive(typeof fromHost === "string" ? fromHost : typeof fromRun === "string" ? fromRun : t(locale, "menu.announce", { action: action.label, target: menu.target.label }));
-    },
-    [menu, props.onAction, locale], // eslint-disable-line react-hooks/exhaustive-deps
-  );
+  const menuActions = useMenuActions(props, shown, labelOf, dispatch);
+  controller.context.current = { graph: shown, positions, locale, contextMenu, stages: allStages, actions: menuActions } satisfies MapContext;
+  const menuText = useMemo(() => (menu ? menuHeading(menu.target, shown, overlays, locale) : undefined), [menu, shown, overlays, locale]);
 
   // Screen position of an element relative to the map body (for the keyboard-opened menu).
   const elementScreenPoint = useCallback(
@@ -458,367 +314,213 @@ function ProcessMapInner(props: ProcessMapProps) {
     [useCanvas, positions, rf],
   );
 
-  // React Flow nodes and edges
-  const rfNodes = useMemo<(WfNode | WfGroupNode)[]>(() => {
-    if (!positions || useCanvas) return [];
-    const groups = shown.groups ?? [];
-    const groupBox = (id: string) => positions.groups[id];
-    const absOffset = (groupId: string | undefined): { x: number; y: number } => {
-      const box = groupId ? groupBox(groupId) : undefined;
-      return box ? { x: box.x, y: box.y } : { x: 0, y: 0 };
-    };
-    const out: (WfNode | WfGroupNode)[] = [];
-    // Parents first, in nesting order.
-    const ordered = [...groups].sort((a, b) => (a.parent ? 1 : 0) - (b.parent ? 1 : 0));
-    for (const g of ordered) {
-      const box = groupBox(g.id);
-      if (!box) continue;
-      const parentBox = g.parent ? groupBox(g.parent) : undefined;
-      const gOverlays = overlaysByTarget.get(g.id) ?? [];
-      const tint = gOverlays.find((o) => o.kind === "tint");
-      const description = describeGroup(g, memberCount.get(g.id) ?? 0, gOverlays, locale);
-      out.push({
-        id: GROUP_PREFIX + g.id,
-        type: "wfGroup",
-        position: { x: box.x - (parentBox?.x ?? 0), y: box.y - (parentBox?.y ?? 0) },
-        parentId: g.parent && parentBox ? GROUP_PREFIX + g.parent : undefined,
-        width: box.width,
-        height: box.height,
-        draggable: false,
-        selectable: true,
-        focusable: false,
-        selected: selection.groups.includes(g.id),
-        zIndex: -1,
-        ariaLabel: description,
-        data: {
-          group: g,
-          color: scales.categorical(g.id).color,
-          tint: tintFor(tint?.payload?.value),
-          chips: gOverlays.filter((o) => o.kind === "chip"),
-          description,
-          band: bands.get(g.id),
-        },
-      });
-    }
-    for (const n of shown.nodes) {
-      const box = positions.nodes[n.id];
-      if (!box) continue;
-      const parentGroup = n.group && groupIndex.has(n.group) && groupBox(n.group) ? n.group : undefined;
-      const off = absOffset(parentGroup);
-      const nOverlays = overlaysByTarget.get(n.id) ?? [];
-      const description = describeNode(n, nOverlays, locale, n.group ? groupIndex.get(n.group)?.label : undefined);
-      out.push({
-        id: n.id,
-        type: n.kind,
-        position: { x: box.x - off.x, y: box.y - off.y },
-        parentId: parentGroup ? GROUP_PREFIX + parentGroup : undefined,
-        width: box.width,
-        height: box.height,
-        draggable: false,
-        selected: selection.nodes.includes(n.id),
-        ariaLabel: description,
-        data: {
-          node: n,
-          color: scales.nodeColor(n),
-          pattern: scales.nodePattern(n),
-          badges: nOverlays.filter((o) => o.kind === "badge"),
-          hatched: nOverlays.some((o) => o.kind === "hatch"),
-          direction: positions.direction,
-          focused: focused === n.id,
-          hovered: hovered === n.id,
-          dimmed: !!bright && !bright.nodes.has(n.id),
-          locale,
-          description,
-        },
-      });
-    }
-    return out;
-  }, [positions, useCanvas, shown, overlaysByTarget, scales, selection, hovered, focused, locale, bright, bands, groupIndex, memberCount]);
-
-  const rfEdges = useMemo<WfEdge[]>(() => {
-    if (!positions || useCanvas) return [];
-    return shown.edges
-      .filter((e) => e.source !== e.target && positions.nodes[e.source] && positions.nodes[e.target])
-      .map((e) => {
-        const color = e.kind === "constraint" ? "#0072B2" : scales.edgeColor(e);
-        const count = metric(e, "count", NaN);
-        const description = describeEdge(e, shown, locale);
-        return {
-          id: e.id,
-          type: e.kind,
-          source: e.source,
-          target: e.target,
-          selected: selection.edges.includes(e.id),
-          ariaLabel: description,
-          markerEnd: { type: MarkerType.ArrowClosed, color, width: 12, height: 12, markerUnits: "userSpaceOnUse" },
-          zIndex: hovered === e.id || focused === e.id ? 5 : 0,
-          data: {
-            edge: e,
-            route: positions.edges[e.id],
-            width: scales.edgeWidth(e),
-            color,
-            label: Number.isFinite(count) ? formatCompact(count, locale) : undefined,
-            reconnected: hasTag(e, RECONNECTED_TAG),
-            hovered: hovered === e.id,
-            dimmed: !!bright && !bright.edges.has(e.id),
-            focused: focused === e.id,
-            description,
-          },
-        };
-      });
-  }, [positions, useCanvas, shown, scales, selection, hovered, focused, locale, bright]);
-
-  // Canvas scene and its callbacks
-  const canvasScene = useMemo<PreparedScene | undefined>(() => {
-    if (!useCanvas || !positions) return undefined;
-    return prepareScene(shown, positions, { style, overlays, selfLoops: false, lod: props.lod, locale, bands: laid?.bands ?? [] });
-  }, [useCanvas, positions, shown, style, overlays, props.lod, locale, laid]);
-  const canvasState = useMemo<DrawState>(() => ({ selection, hovered, focused, bright }), [selection, hovered, focused, bright]);
-  const canvasDescendants = useMemo(() => {
-    if (!useCanvas) return undefined;
-    const list: { id: string; kind: ElementRef["kind"]; description: string }[] = shown.nodes.map((n) => ({ id: n.id, kind: "node" as const, description: describeElement({ kind: "node", id: n.id }) }));
-    for (const g of shown.groups ?? []) list.push({ id: g.id, kind: "group" as const, description: describeElement({ kind: "group", id: g.id }) });
-    if (focused && shown.edges.some((e) => e.id === focused)) list.push({ id: focused, kind: "edge" as const, description: describeElement({ kind: "edge", id: focused }) });
-    return list;
-  }, [useCanvas, shown, focused, describeElement]);
-  const hitToRef = useCallback(
-    (hit: HitItem | undefined): ElementRef | undefined => {
-      if (!hit) return undefined;
-      if (hit.kind === "overlay") {
-        const shape = canvasScene?.shapeById.get(hit.shapeId ?? "");
-        const id = shape?.overlay.target ?? hit.id;
-        return shown.nodes.some((n) => n.id === id) ? { kind: "node", id } : groupIndex.has(id) ? { kind: "group", id } : undefined;
-      }
-      return { kind: hit.kind, id: hit.id };
-    },
-    [canvasScene, shown, groupIndex],
-  );
-  const describeHit = useCallback(
-    (hit: HitItem): string | undefined => {
-      if (hit.kind === "overlay") {
-        const shape = canvasScene?.shapeById.get(hit.shapeId ?? "");
-        if (!shape) return undefined;
-        const p = shape.overlay.payload;
-        return [p?.label, p?.text].filter(Boolean).join(" — ") || describeOverlay(shape.overlay, locale);
-      }
-      return describeElement({ kind: hit.kind, id: hit.id });
-    },
-    [canvasScene, describeElement, locale],
-  );
-  const onCanvasHover = useCallback((hit: HitItem | null) => hover(hit ? (hit.kind === "overlay" ? (hit.shapeId ?? hit.id) : hit.id) : null), [hover]);
-  const onCanvasClick = useCallback(
-    (hit: HitItem | undefined, mod: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }) => {
-      if (menu) setMenu(null);
-      const shape = hit?.kind === "overlay" ? canvasScene?.shapeById.get(hit.shapeId ?? "") : undefined;
-      if (shape) {
-        const src = shape.overlay.payload?.source;
-        const tgt = shape.overlay.payload?.target;
-        if (typeof src === "string" && typeof tgt === "string") select({ nodes: [src, tgt], edges: [], groups: [] });
-        else select({ nodes: [shape.overlay.target], edges: [], groups: [] });
-        return;
-      }
-      const ref = hitToRef(hit);
-      if (!ref) {
-        select(emptySelection);
-        return;
-      }
-      const multi = mod.shiftKey || mod.metaKey || mod.ctrlKey;
-      select(selectElement(selection, ref, multi ? "toggle" : "replace"));
-      if (ref.kind === "node") setFocused(ref.id);
-    },
-    [menu, canvasScene, select, hitToRef, selection],
-  );
-  const onCanvasContextMenu = useCallback(
-    (hit: HitItem | undefined, at: { x: number; y: number }) => {
-      const ref = hitToRef(hit);
-      if (!ref) {
-        setMenu(null);
-        return;
-      }
-      openMenu(ref, at);
-    },
-    [hitToRef, openMenu],
-  );
+  // React Flow nodes and edges, or the Canvas scene, its state and the elements listed for assistive technology.
+  const flow = useFlowElements({ enabled: !useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, nodesDraggable, edgeBudget, highlighted, pathRule });
+  // The Canvas map reports the edges it draws itself, and tells the detail panel how many paths it withholds.
+  const mapShown = view !== "table";
+  const tellShown = useEdgesShownAcross(props.onEdgesShown, useCanvas, mapShown);
+  const [canvasWithheld, setCanvasWithheld] = useState<number | undefined>(undefined);
+  // What the Canvas map reported last: a host that starts listening is told it.
+  const canvasLast = useRef<Parameters<NonNullable<typeof tellShown>>[0]>(undefined);
+  const canvasShown = useCallback((s: Parameters<NonNullable<typeof tellShown>>[0]) => {
+    canvasLast.current = s;
+    tellShown?.(s);
+  }, [tellShown]);
+  useEffect(() => {
+    if (tellShown && useCanvas && mapShown && canvasLast.current) tellShown(canvasLast.current);
+  }, [tellShown]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Without a Canvas map shown nothing it reported holds: the next one reports what it withholds, or nothing.
+  const canvasDrawn = useCanvas && mapShown;
+  useEffect(() => {
+    if (canvasDrawn) return;
+    canvasLast.current = undefined;
+    setCanvasWithheld(undefined);
+  }, [canvasDrawn]);
+  const reportShown = useEdgesShown(useCanvas ? undefined : tellShown);
+  // A host that starts listening is told what the map withholds; the table view withholds nothing.
+  const listening = !!tellShown;
+  useEffect(() => reportShown(mapShown ? flow.withheld : undefined, scene.edgeMarks), [flow.withheld, scene, reportShown, listening, mapShown]);
+  // React Flow draws new nodes a commit later; until then the layout is not in place.
+  const laidBy = useRef(new WeakMap<object, Positions | undefined>()).current;
+  laidBy.set(flow.nodes, laidPositions);
+  const flowBehind = useStore((s) => view !== "table" && !useCanvas && laidBy.get(s.nodes) !== laidPositions);
+  // A limit below one is one: the element the keyboard is on is always listed.
+  const limit = Math.max(1, describedLimit);
+  const canvas = useCanvasElements({ enabled: useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, highlighted, limit });
+  const largeTable = shown.nodes.length + (shown.groups?.length ?? 0) > limit;
+  // A bounded element list says so, with the totals the table view lists.
+  const bounded = canvas.bounded ? t(locale, "map.described.bounded", { nodes: formatCount(shown.nodes.length, locale), edges: formatCount(shown.edges.length, locale) }) : undefined;
+  const { announce } = controller;
+  useEffect(() => {
+    if (bounded) announce(bounded);
+  }, [bounded, announce]);
+  const canvasScene = canvas.scene;
+  const canvasHandlers = useMemo(() => canvasPointer(dispatch, canvasScene?.shapeById, shown), [dispatch, canvasScene, shown]);
 
   // Fit the view when a new layout arrives: once right after the nodes render and
   // once more after React Flow has measured them (a fit before measurement is a no-op).
+  // A layout that replaces a provisional arrangement is fitted too, unless the user moved
+  // the view since it was fitted (or `fitView` is off): then the zoom stays and so does the
+  // node at the centre of the view while the layout moves in.
   const nodesInitialized = useNodesInitialized();
-  const showPaths = pathList && !!focus && focusValid && view === "map";
-  const fitKey = positions ? `${positions.engine}:${Object.keys(positions.nodes).length}:${Math.round(positions.bounds.width)}:${Math.round(positions.bounds.height)}:${lanes}:${showPaths ? "side" : "full"}` : "";
+  const showPaths = pathList && !!focus && focusShown && view === "map";
+  const laidKey = laidPositions ? `${laidPositions.engine}:${Object.keys(laidPositions.nodes).length}:${Math.round(laidPositions.bounds.width)}:${Math.round(laidPositions.bounds.height)}:${lanes}:${showPaths ? "side" : "full"}` : "";
+  // The person moved the React Flow view since it last opened (the Canvas map knows this itself).
+  const moved = useRef(false);
+  const drawn = useRef(positions);
+  useLayoutEffect(() => void (drawn.current = positions), [positions]);
+  // Each new graph, or each new `openKey` where one is given, is a generation: the map opens again for it, whatever the person did to the view before.
+  const openId: unknown = openKey ?? graph;
+  const generation = useRef({ key: openId, n: 0 });
+  if (generation.current.key !== openId) generation.current = { key: openId, n: generation.current.n + 1 };
+  const gen = generation.current.n;
+  const [fit, setFit] = useState<{ key: string; laid: string; count: number; gen: number; anchor?: Anchor; hold?: boolean }>({ key: laidKey, laid: laidKey, count: 0, gen });
+  // Once the person pressed the React Flow map's fit button, the map is fitted rather than opened, until its graph is replaced.
+  const fittedByPerson = useRef(false);
+  if (fit.count !== arrival.count) {
+    const r = canvasRef.current?.renderer();
+    const { transform: [x, y, zoom], width, height } = flowStore.getState();
+    const rect = r?.canvas.getBoundingClientRect();
+    const current = useCanvas ? r && { ...r.getViewport(), width: rect!.width, height: rect!.height } : { x, y, zoom, width, height };
+    const keep = !fitView || (useCanvas ? canvasRef.current?.moved() : moved.current);
+    const anchor = current && keep ? anchorAt(drawn.current, current) : undefined;
+    setFit({ ...fit, count: arrival.count, anchor: anchor && { ...anchor, to: target }, hold: !!anchor });
+  } else if (!arrival.moving && (fit.laid !== laidKey || fit.gen !== gen)) {
+    // A change of the controls keeps a view the person moved; a new graph opens the map again.
+    const kept = fit.gen === gen && (fit.hold || (useCanvas ? !!canvasRef.current?.moved() : moved.current));
+    if (fit.gen !== gen) {
+      fittedByPerson.current = false;
+      moved.current = false;
+    }
+    setFit({ key: kept ? fit.key : `${laidKey}#${gen}`, laid: laidKey, count: fit.count, gen, anchor: kept && fit.hold ? fit.anchor : undefined });
+  }
+  const fitKey = fit.key;
+  // A fit React Flow still holds queued would replace the view the user chose at its next node update.
+  const userMove = () => {
+    moved.current = true;
+    flowStore.setState({ fitViewQueued: false });
+  };
+  const { anchor } = fit;
+  // The overview of the React Flow map while it opened on its start: where it is; its bounds follow the current scene.
+  const [flowOverview, setFlowOverview] = useState<Box>();
+  // The React Flow map fitted inside its area less the insets that keep it clear of the panels over it; opened, fitted
+  // where that is readable and otherwise on its start with the overview (`opening`); fitted, the same from the
+  // smallest zoom where the whole map does not fit at it.
+  const fitFlow = useCallback((insets?: Partial<Insets>, open = false) => {
+    const main = mainRef.current;
+    const bounds = rf.getNodesBounds(rf.getNodes());
+    if (!main || !(bounds.width > 0) || !(bounds.height > 0)) return;
+    const { width, height } = flowStore.getState();
+    const duration = reducedMotion ? 0 : 200;
+    moved.current = false;
+    const opens = open && opening !== "fit" && !fittedByPerson.current;
+    const readable = opens ? Math.max(viewTokens.openingZoom, floor) : floor;
+    const opened = drawn.current ? openingIn(main, bounds, shown.nodes, drawn.current, { padding: FLOW_FIT_PADDING, ...zoomRange, insets: insets ?? fitInsets, readable }) : undefined;
+    if (opened && !opened.fitted) {
+      setFlowOverview(opened.overview);
+      return void rf.setViewport(opened, { duration });
+    }
+    if (open) setFlowOverview(undefined);
+    const clear = insets ?? fitInsets ?? clearOfPanels(main, bounds, FLOW_FIT_PADDING, zoomRange, main, !open);
+    void rf.setViewport(fitViewport(bounds, { width, height }, { padding: FLOW_FIT_PADDING, insets: clear, ...zoomRange }), { duration });
+  }, [rf, flowStore, reducedMotion, fitInsets, opening, shown, floor, zoomRange]);
+  useLayoutEffect(() => {
+    const box = anchor && positions?.nodes[anchor.id];
+    if (!anchor || !box || (!arrival.moving && arrival.positions !== anchor.to)) return;
+    const { centre, view: v } = anchor;
+    const next = { x: v.x + (centre.x - centreOf(box).x) * v.zoom, y: v.y + (centre.y - centreOf(box).y) * v.zoom, zoom: v.zoom };
+    if (useCanvas) {
+      canvasRef.current?.renderer()?.setViewport(next);
+      return;
+    }
+    // A fit React Flow still holds queued would run on the moved nodes and replace this view.
+    flowStore.setState({ fitViewQueued: false });
+    void rf.setViewport(next);
+  }, [anchor, arrival.positions]); // eslint-disable-line react-hooks/exhaustive-deps
+  // An element the host asks to bring into view waits until the layout holds it and no opening fit is still to come.
+  const fitting = useRef(false);
+  const pending = useRef<BringIntoView | undefined>(undefined);
+  const revealPending = useCallback(() => {
+    const ask = pending.current;
+    if (!ask || fitting.current || !positions || !elementPoint(ask.element, positions, shown.edges)) return;
+    pending.current = undefined;
+    dispatch({ type: "reveal", element: ask.element });
+  }, [positions, shown, dispatch]);
   useEffect(() => {
-    if (!fitView || !positions || useCanvas) return;
-    const options = { padding: 0.08, duration: reducedMotion ? 0 : 200 };
-    const handles = [50, 400].map((ms) => window.setTimeout(() => void rf.fitView(options), ms));
-    return () => handles.forEach((h) => window.clearTimeout(h));
+    if (!fitView || !positions || useCanvas || anchor) return;
+    fitting.current = true;
+    const handles = [50, 400].map((ms, i) => window.setTimeout(() => {
+      if (!moved.current) fitFlow(undefined, true);
+      if (i === 1) {
+        fitting.current = false;
+        revealPending();
+      }
+    }, ms));
+    return () => {
+      handles.forEach((h) => window.clearTimeout(h));
+      fitting.current = false;
+    };
   }, [fitKey, fitView, nodesInitialized, useCanvas]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    pending.current = bringIntoView;
+    revealPending();
+  }, [bringIntoView]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => revealPending(), [revealPending]);
 
-  // Interaction (React Flow)
-  const bodyPoint = (event: { clientX: number; clientY: number }) => {
+  // Pointer interaction (React Flow); positions relative to the map body.
+  const flowHandlers = useMemo(() => flowPointer(dispatch, (event) => {
     const rect = bodyRef.current?.getBoundingClientRect();
     return { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) };
-  };
-  const onNodeClick = useCallback<NodeMouseHandler<WfNode | WfGroupNode>>(
-    (event, node) => {
-      if (menu) setMenu(null);
-      if (node.id.startsWith(GROUP_PREFIX)) {
-        select(selectElement(selection, { kind: "group", id: node.id.slice(GROUP_PREFIX.length) }, "replace"));
-        return;
-      }
-      const multi = event.shiftKey || event.metaKey || event.ctrlKey;
-      select(selectElement(selection, { kind: "node", id: node.id }, multi ? "toggle" : "replace"));
-      setFocused(node.id);
-    },
-    [select, selection, menu],
-  );
-  const onEdgeClick = useCallback<EdgeMouseHandler<WfEdge>>(
-    (event, edge) => {
-      if (menu) setMenu(null);
-      const multi = event.shiftKey || event.metaKey || event.ctrlKey;
-      select(selectElement(selection, { kind: "edge", id: edge.id }, multi ? "toggle" : "replace"));
-    },
-    [select, selection, menu],
-  );
-  const onPaneClick = useCallback(() => {
-    setMenu(null);
-    select(emptySelection);
-  }, [select]);
-  const onNodeContextMenu = useCallback<NodeMouseHandler<WfNode | WfGroupNode>>(
-    (event, node) => {
-      event.preventDefault();
-      const ref: ElementRef = node.id.startsWith(GROUP_PREFIX) ? { kind: "group", id: node.id.slice(GROUP_PREFIX.length) } : { kind: "node", id: node.id };
-      openMenu(ref, bodyPoint(event));
-    },
-    [openMenu],
-  );
-  const onEdgeContextMenu = useCallback<EdgeMouseHandler<WfEdge>>(
-    (event, edge) => {
-      event.preventDefault();
-      openMenu({ kind: "edge", id: edge.id }, bodyPoint(event));
-    },
-    [openMenu],
-  );
-  const onPaneContextMenu = useCallback((event: React.MouseEvent | MouseEvent) => {
-    event.preventDefault();
-    setMenu(null);
-  }, []);
+  }), [dispatch]);
+  const overlayHandlers = useMemo(() => overlayPointer(dispatch), [dispatch]);
 
-  const orderedNodeIds = useMemo(() => {
-    if (!positions) return [] as string[];
-    return shown.nodes
-      .filter((n) => positions.nodes[n.id])
-      .sort((a, b) => positions.nodes[a.id].x - positions.nodes[b.id].x || positions.nodes[a.id].y - positions.nodes[b.id].y)
-      .map((n) => n.id);
-  }, [positions, shown]);
-  const edgeIndex = useMemo(() => new Map(shown.edges.map((e) => [e.id, e])), [shown]);
-
-  const focusNode = useCallback(
-    (id: string) => {
-      setFocused(id);
-      const box = positions?.nodes[id];
-      if (!box) return;
+  // Bring an element into view, the keyboard's or a host's: the view moves so that it is at the centre, at its zoom but at least the smallest.
+  const reveal = useCallback(
+    (element: ElementRef) => {
+      const point = positions && elementPoint(element, positions, shown.edges);
+      if (!point) return;
       if (useCanvas) {
-        canvasRef.current?.centerOn(id);
+        canvasRef.current?.centerOn(element.id, Math.max(canvasRef.current.renderer()?.getViewport().zoom ?? floor, floor));
         return;
       }
-      const current = rf.getViewport().zoom;
-      rf.setCenter(box.x + box.width / 2, box.y + box.height / 2, { zoom: current, duration: reducedMotion ? 0 : 150 });
+      moved.current = true;
+      void rf.setCenter(point.x, point.y, { zoom: Math.max(rf.getViewport().zoom, floor), duration: reducedMotion ? 0 : 150 });
     },
-    [positions, rf, reducedMotion, useCanvas],
+    [positions, shown, rf, reducedMotion, useCanvas, floor],
   );
-  const edgeCycle = useRef(new Map<string, number>());
-
+  controller.screen.current = { reveal, place: elementScreenPoint, focus: () => containerRef.current?.focus() } satisfies MapScreen;
+  // Keys on the map and in its menu; Escape that closes the menu goes no further. The table view's keys are
+  // the table's (its rows, search field and pages, where no menu is shown); Escape from a row clears, as on the map.
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
-      if (menu) return;
-      if (!positions || orderedNodeIds.length === 0) return;
-      const focusedEdge = focused && edgeIndex.has(focused) ? edgeIndex.get(focused) : undefined;
-      const current = focusedEdge ? null : (focused ?? selection.nodes[0] ?? null);
-      const dir = { ArrowRight: [1, 0], ArrowLeft: [-1, 0], ArrowDown: [0, 1], ArrowUp: [0, -1] }[e.key];
-      if (dir && e.altKey) {
-        // Along the paths: from a node to one of its paths, from a path to its other end.
-        e.preventDefault();
-        const forward = dir[0] > 0 || dir[1] > 0;
-        if (focusedEdge) {
-          focusNode(forward ? focusedEdge.target : focusedEdge.source);
-          return;
-        }
-        if (!current) {
-          focusNode(orderedNodeIds[0]);
-          return;
-        }
-        const list = shown.edges.filter((x) => x.kind !== "constraint" && x.source !== x.target && positions.nodes[x.source] && positions.nodes[x.target] && (forward ? x.source === current : x.target === current));
-        if (!list.length) return;
-        const key = `${current}:${forward ? "out" : "in"}`;
-        const index = ((edgeCycle.current.get(key) ?? -1) + 1) % list.length;
-        edgeCycle.current.set(key, index);
-        setFocused(list[index].id);
-        setLive(t(locale, "map.focused", { label: describeEdge(list[index], shown, locale) }));
-        return;
-      }
-      if (dir) {
-        e.preventDefault();
-        const start = current ?? focusedEdge?.target ?? null;
-        const from = start ? positions.nodes[start] : undefined;
-        if (!start || !from) {
-          focusNode(orderedNodeIds[0]);
-          return;
-        }
-        const cx = from.x + from.width / 2;
-        const cy = from.y + from.height / 2;
-        let best: string | null = null;
-        let bestScore = Infinity;
-        for (const id of orderedNodeIds) {
-          if (id === start) continue;
-          const b = positions.nodes[id];
-          const dx = b.x + b.width / 2 - cx;
-          const dy = b.y + b.height / 2 - cy;
-          const along = dx * dir[0] + dy * dir[1];
-          if (along <= 0) continue;
-          const across = Math.abs(dx * dir[1]) + Math.abs(dy * dir[0]);
-          const score = along + 2 * across;
-          if (score < bestScore) {
-            bestScore = score;
-            best = id;
-          }
-        }
-        if (best) {
-          focusNode(best);
-          if (e.shiftKey) select(selectElement(selection, { kind: "node", id: best }, "add"));
-        }
-        return;
-      }
-      if (e.key === "Home") {
-        e.preventDefault();
-        focusNode(orderedNodeIds[0]);
-      } else if (e.key === "End") {
-        e.preventDefault();
-        focusNode(orderedNodeIds[orderedNodeIds.length - 1]);
-      } else if (e.key === " " && (current || focusedEdge)) {
-        e.preventDefault();
-        const ref: ElementRef = focusedEdge ? { kind: "edge", id: focusedEdge.id } : { kind: "node", id: current! };
-        select(selectElement(selection, ref, "toggle"));
-      } else if (e.key === "Enter" && (current || focusedEdge)) {
-        e.preventDefault();
-        const ref: ElementRef = focusedEdge ? { kind: "edge", id: focusedEdge.id } : { kind: "node", id: current! };
-        if (!contextMenu) {
-          select(selectElement(selection, ref, "toggle"));
-          return;
-        }
-        openMenu(ref, elementScreenPoint(ref));
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        select(emptySelection);
-        setFocused(null);
-        if (explicitFocus !== undefined) setFocus(undefined);
-      }
+      // Keys on a control of a panel (the legend's toggle, a slider, a button) are the control's, not the map's.
+      const target = e.target as Element;
+      if (target !== e.currentTarget && target.closest?.(".wf-panel") && !target.closest('[role="menu"]')) return;
+      if (view === "table" && (e.key !== "Escape" || target.tagName === "INPUT")) return;
+      const step = dispatch({ type: "key", key: e.key, shiftKey: e.shiftKey, altKey: e.altKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey });
+      if (step.handled) e.preventDefault();
+      if (e.key === "Escape" && step.intents.some((i) => i.kind === "returnFocus")) e.stopPropagation();
     },
-    [menu, positions, orderedNodeIds, focused, edgeIndex, selection, focusNode, select, shown, locale, contextMenu, openMenu, elementScreenPoint, explicitFocus, setFocus],
+    [dispatch, view],
   );
+
+  const tooltipTarget = hovered ?? (hasFocus ? focused : null);
+  const tooltipHit = tooltipTarget === null ? undefined : index.nodes.get(tooltipTarget);
+  const tooltipNode = activityLabels && view === "map" && tooltipHit?.kind === "activity" ? tooltipHit : undefined;
+  const tooltipAnchor = useCallback((id: string) => {
+    const viewport = useCanvas ? canvasViewport : { x: rfX, y: rfY, zoom: rfZoom };
+    const box = positions?.nodes[id];
+    // Both viewport transforms are relative to the map main area, whose top-left
+    // coincides with the body. Do not mix page/client coordinates with CSS pixels.
+    const point = box ? { x: viewport.x + (box.x + box.width / 2) * viewport.zoom, y: viewport.y + (box.y + box.height / 2) * viewport.zoom } : elementScreenPoint({ kind: "node", id });
+    const height = (box?.height ?? 0) * viewport.zoom;
+    return { x: point.x + 12, y: point.y + height / 2 + 8, above: point.y - height / 2 - 8 };
+  }, [elementScreenPoint, useCanvas, positions, rfZoom, rfX, rfY, canvasViewport]);
 
   const descId = useId();
   const liveId = useId();
   const description = useMemo(() => describeMap(shown, overlays, locale), [shown, overlays, locale]);
-  const mapChips = overlays.filter((o) => o.kind === "chip" && o.target === MAP_TARGET);
+  const legendMarks = scene.marks.filter((m) => !m.inMap);
   const lodClasses = [
     lod.labels ? "wf-lod--labels" : "",
     lod.edgeLabels ? "wf-lod--edge-labels" : "",
@@ -829,44 +531,81 @@ function ProcessMapInner(props: ProcessMapProps) {
     .filter(Boolean)
     .join(" ");
   const hasStages = (baseGraph.groups ?? []).some((g) => g.kind === "stage") || !!abstraction.collapse;
-  const layoutPending = needsOwnLayout && own.status === "pending";
   const showFilters = props.filters !== undefined || props.onFilterChange !== undefined;
-  const activeDescendant = focused ? (edgeIndex.has(focused) ? `wf-edge-${focused}` : `wf-node-${focused}`) : undefined;
+  // The table view renders neither list nor elements.
+  const activeDescendant = focused && view !== "table" ? (index.edges.has(focused) ? `wf-edge-${focused}` : `wf-node-${focused}`) : undefined;
 
   const sidePanel = showPaths ? (
     <div className="wf-process-map__side">
-      <PathList graph={shown} focus={focus!} paths={props.paths ?? graph.paths} locale={locale} selection={selection} onSelect={select} onHover={hover} onClose={explicitFocus !== undefined ? () => setFocus(undefined) : undefined} />
+      <PathList graph={shown} focus={focus!} paths={props.paths ?? graph.paths} locale={locale} selection={selection} onSelect={select} onHover={hover} onClose={explicitFocus !== undefined ? () => void dispatch({ type: "setFocus", focus: undefined }) : undefined} />
     </div>
   ) : null;
   const menuElement = menu ? (
-    <ContextMenu x={menu.x} y={menu.y} title={menu.title} subtitle={menu.subtitle} note={menu.note} actions={menu.actions} locale={locale} onAction={runAction} onClose={closeMenu} returnFocusTo={containerRef.current} boundsRef={bodyRef} />
+    <MenuView
+      x={menu.at.x}
+      y={menu.at.y}
+      title={menuText?.title ?? ""}
+      subtitle={menuText?.subtitle}
+      note={menuText?.note}
+      actions={menu.actions}
+      active={menu.active}
+      locale={locale}
+      onPoint={(index) => void dispatch({ type: "pointMenu", index })}
+      onChoose={(index) => void dispatch({ type: "chooseMenu", index })}
+      onClose={() => void dispatch({ type: "closeMenu" })}
+      boundsRef={bodyRef}
+    />
   ) : null;
   const legendElement = legend ? (
-    <Legend scales={scales} overlays={overlays} locale={locale} chips={mapChips.length ? mapChips.map((c, i) => <Chip key={`${c.payload?.constraintId ?? "chip"}-${i}`} chip={c} locale={locale} />) : undefined} />
+    <Legend scales={scales} legend={scene.legend} locale={locale} onAnnounce={controller.announce} measure={onMeasureChange ? (measure ?? "frequency") : undefined} onMeasureChange={chooseMeasure} chips={legendMarks.length ? legendMarks.map((m) => <MarkFigure key={m.id} mark={m} locale={locale} />) : undefined} />
   ) : null;
-  const controlsElement = controls ? <AbstractionControls value={abstraction} onChange={setAbstraction} locale={locale} hasStages={hasStages} view={view} onViewChange={setView} /> : null;
-  const statusElement = layoutPending ? (
-    <div className="wf-panel" role="status">
-      …
+  // Where the map draws fewer paths than are selected (at a small zoom, by the path budget), the panel says both numbers; both count paths only.
+  const withheldPaths = view === "table" ? 0 : useCanvas ? (canvasWithheld ?? 0) : (flow.withheld?.pathsNotShown ?? 0);
+  const selectedPaths = shown.meta?.shown?.paths.shown ?? shown.edges.filter(isPath).length;
+  const drawnPaths = withheldPaths > 0 ? { selected: selectedPaths, drawn: Math.max(0, selectedPaths - withheldPaths) } : undefined;
+  const controlsElement = controls ? (
+    <AbstractionControls
+      value={abstraction}
+      onChange={setAbstraction}
+      locale={locale}
+      hasStages={hasStages}
+      view={view}
+      onViewChange={setView}
+      positions={shown.meta?.shown?.positions}
+      statement={statement}
+      drawn={drawnPaths}
+      // The table view lists the whole graph: nothing of it is out of view there.
+      inView={view === "table" ? undefined : shownPart}
+      onHighlightKept={setKeptOn}
+      onAnnounce={announce}
+    />
+  ) : null;
+  const statusElement = notice ? (
+    <div className="wf-panel" {...part("status")} role="status">
+      {notice}
     </div>
   ) : own.status === "error" ? (
-    <div className="wf-panel" role="alert">
+    <div className="wf-panel" {...part("status")} role="alert">
       {own.error?.message}
     </div>
   ) : null;
 
-  return (
+  const map = (
     <div
       ref={containerRef}
-      className={`wf-process-map ${lodClasses}${showPaths ? " wf-process-map--side" : ""}${className ? ` ${className}` : ""}`}
-      style={{ width: "100%", height: "100%", ...containerStyle }}
+      className={`wf-process-map ${lodClasses} ${readableClasses(readable, grown)}${showPaths ? " wf-process-map--side" : ""}${className ? ` ${className}` : ""}`}
+      style={{ width: "100%", height: "100%", ...textSizes, ...containerStyle, ...themed }}
       role="group"
+      {...part("map")}
       aria-label={ariaLabel ?? t(locale, "map.description", { nodes: shown.nodes.length, edges: shown.edges.length, groups: shown.groups?.length ?? 0 })}
       aria-describedby={descId}
       aria-activedescendant={activeDescendant}
       tabIndex={0}
       onKeyDown={onKeyDown}
-      data-layout-status={needsOwnLayout ? own.status : "given"}
+      onFocusCapture={(event) => void dispatch({ type: "focusIn", id: (event.target as HTMLElement).closest?.(".react-flow__node")?.getAttribute("data-id") ?? undefined })}
+      onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) dispatch({ type: "focusOut" }); }}
+      data-activity-labels={activityLabels?.mode}
+      data-layout-status={arranging || (needsOwnLayout && flowBehind) ? "pending" : needsOwnLayout ? own.status : unavailable ? "error" : "given"}
       data-engine={positions?.engine}
       data-renderer={view === "table" ? "table" : useCanvas ? "canvas" : "svg"}
       data-lanes={lanes}
@@ -875,67 +614,79 @@ function ProcessMapInner(props: ProcessMapProps) {
       <p id={descId} className="wf-sr-only">
         {description}
         {useCanvas ? ` ${t(locale, "map.renderer.canvas", { nodes: shown.nodes.length, edges: shown.edges.length })}` : ""}
+        {bounded ? ` ${bounded}` : ""}
+        {notice ? ` ${notice}` : ""}
       </p>
       <p id={liveId} className="wf-sr-only" aria-live="polite" data-testid="wf-live">
-        {live}
+        {controller.live}
       </p>
-      {showFilters ? <FilterChips filter={props.filters} preview={props.filterPreview} locale={locale} labelOf={labelOf} onFilterChange={props.onFilterChange} onAnnounce={announce} /> : null}
+      {showFilters ? <FilterChips filter={props.filters} preview={props.filterPreview} locale={locale} labelOf={labelOf} onFilterChange={props.onFilterChange} onAnnounce={controller.announce} /> : null}
       <div ref={bodyRef} className="wf-process-map__body">
         {view === "table" ? (
-          <div style={{ position: "absolute", inset: 0, overflow: "auto", padding: 12 }}>
+          <div style={{ position: "absolute", inset: 0, overflow: "auto", padding: 6 * spaceTokens.unit }}>
             {controlsElement}
-            <TableAlternative graph={shown} overlays={overlays} scales={scales} locale={locale} selection={selection} onSelect={select} />
+            <TableAlternative graph={shown} overlays={overlays} scales={scales} locale={locale} selection={selection} onSelect={select} pageSize={largeTable ? TABLE_PAGE_SIZE : undefined} />
           </div>
         ) : useCanvas ? (
           <>
             <div className="wf-process-map__main">
-              <CanvasMap
-                ref={canvasRef}
-                scene={canvasScene}
-                state={canvasState}
-                locale={locale}
-                fitKey={fitKey}
-                fitView={fitView}
-                describe={describeHit}
-                onHover={onCanvasHover}
-                onClick={onCanvasClick}
-                onContextMenu={onCanvasContextMenu}
-                onViewportChange={(v) => setCanvasZoom(v.zoom)}
-                descendants={canvasDescendants}
-              >
-                {controlsElement ? <div className="wf-overlay-panel wf-overlay-panel--top-left">{controlsElement}</div> : null}
-                {legendElement ? <div className="wf-overlay-panel wf-overlay-panel--bottom-right">{legendElement}</div> : null}
-                {statusElement ? <div className="wf-overlay-panel wf-overlay-panel--top-right">{statusElement}</div> : null}
-                {children}
-              </CanvasMap>
+              <PathsNotShown.Provider value={setCanvasWithheld}>
+                <CanvasMap
+                  ref={canvasRef}
+                  scene={canvasScene}
+                  state={canvas.state}
+                  locale={locale}
+                  fitKey={fitKey}
+                  fitView={fitView}
+                  fitInsets={fitInsets}
+                  minZoom={givenMinZoom === undefined ? undefined : floor}
+                  maxZoom={maxZoom}
+                  inView={shownPart}
+                  opening={opening}
+                  openKey={gen}
+                  minPathPx={minPathPx}
+                  describe={canvas.describe}
+                  {...canvasHandlers}
+                  onViewportChange={setCanvasViewport}
+                  descendants={canvas.descendants}
+                  edgeBudget={edgeBudget}
+                  onAnnounce={announce}
+                  onEdgesShown={canvasShown}
+                  theme={look.theme}
+                >
+                  {controlsElement ? <div className="wf-overlay-panel wf-overlay-panel--top-left">{controlsElement}</div> : null}
+                  {legendElement ? <div className="wf-overlay-panel wf-overlay-panel--bottom-right">{legendElement}</div> : null}
+                  {statusElement ? <div className="wf-overlay-panel wf-overlay-panel--top-right">{statusElement}</div> : null}
+                  {children}
+                </CanvasMap>
+              </PathsNotShown.Provider>
             </div>
             {sidePanel}
             {menuElement}
           </>
         ) : (
           <>
-            <div className="wf-process-map__main">
+            <div ref={mainRef} className="wf-process-map__main">
               <ReactFlow<WfNode | WfGroupNode, WfEdge>
-                nodes={rfNodes}
-                edges={rfEdges}
+                nodes={flow.nodes}
+                edges={flow.edges}
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}
-                nodesDraggable={false}
+                nodesDraggable={nodesDraggable === true}
+                onNodesChange={onNodesChange}
                 nodesConnectable={false}
                 elementsSelectable
                 selectNodesOnDrag={false}
-                onNodeClick={onNodeClick}
-                onEdgeClick={onEdgeClick}
-                onPaneClick={onPaneClick}
-                onNodeContextMenu={onNodeContextMenu}
-                onEdgeContextMenu={onEdgeContextMenu}
-                onPaneContextMenu={onPaneContextMenu}
-                onNodeMouseEnter={(_, n) => hover(n.id.startsWith(GROUP_PREFIX) ? n.id.slice(GROUP_PREFIX.length) : n.id)}
-                onNodeMouseLeave={() => hover(null)}
-                onEdgeMouseEnter={(_, e) => hover(e.id)}
-                onEdgeMouseLeave={() => hover(null)}
-                minZoom={0.05}
-                maxZoom={3}
+                {...flowHandlers}
+                onMoveStart={(event) => {
+                  if (event) {
+                    setMovingView(true);
+                    userMove();
+                  }
+                }}
+                onMoveEnd={(event) => { if (event) setMovingView(false); }}
+                minZoom={floor}
+                maxZoom={maxZoom}
                 panOnScroll
                 zoomOnScroll={false}
                 zoomOnPinch
@@ -946,38 +697,74 @@ function ProcessMapInner(props: ProcessMapProps) {
                 disableKeyboardA11y
                 defaultEdgeOptions={{ type: "follows" }}
               >
-                <Background gap={24} size={1} />
-                <Controls showInteractive={false} />
-                {minimap ? <MiniMap pannable zoomable nodeStrokeWidth={2} /> : null}
-                {geometry ? (
+                {backgroundGrid ? <Background gap={dimensionTokens.backgroundGap} size={1} /> : null}
+                <MarkDefs arrows={flow.arrows.map((a) => [edgeArrowId(a), a] as const)} />
+                <Panel position="bottom-left">
+                  <ZoomControl
+                    zoom={rfZoom}
+                    locale={locale}
+                    onZoomIn={() => {
+                      userMove();
+                      void rf.zoomIn();
+                    }}
+                    onZoomOut={() => {
+                      userMove();
+                      void rf.zoomOut();
+                    }}
+                    onFit={() => {
+                      fittedByPerson.current = true;
+                      fitFlow();
+                    }}
+                  />
+                </Panel>
+                {minimap ? <MiniMap pannable zoomable nodeStrokeWidth={strokeTokens.minimapNode} /> : null}
+                {positions ? (
                   <OverlayLayer
+                    marks={flow.between}
                     shapes={geometry.shapes}
                     locale={locale}
-                    showArcs={lod.arcs}
-                    showSelfLoops={lod.selfLoops}
+                    zoom={zoom}
                     hoveredId={hovered}
-                    onHover={hover}
-                    onSelect={(s: OverlayShape) => {
-                      const src = s.overlay.payload?.source;
-                      const tgt = s.overlay.payload?.target;
-                      if (typeof src === "string" && typeof tgt === "string") select({ nodes: [src, tgt], edges: [], groups: [] });
-                      else select({ nodes: [s.overlay.target], edges: [], groups: [] });
-                    }}
+                    {...overlayHandlers}
                   />
                 ) : null}
                 {controlsElement ? <Panel position="top-left">{controlsElement}</Panel> : null}
                 {legendElement ? <Panel position="bottom-right">{legendElement}</Panel> : null}
                 {statusElement ? <Panel position="top-right">{statusElement}</Panel> : null}
+                {flow.withheld ? (
+                  <Panel position="bottom-center">
+                    <EdgeNote withheld={flow.withheld} locale={locale} onAnnounce={announce} />
+                  </Panel>
+                ) : null}
                 {children}
+                <ViewportPortal><MapNumbers numbers={numbers} /></ViewportPortal>
               </ReactFlow>
+              <ActivityKey numbers={numbers} locale={locale} />
+              {flowOverview && positions ? (
+                <MapOverview
+                  bounds={scene.bounds}
+                  nodes={positions.nodes}
+                  view={{ x: rfX, y: rfY, zoom: rfZoom }}
+                  area={flowStore.getState()}
+                  at={flowOverview}
+                  locale={locale}
+                  inView={shownPart}
+                  onMove={(p) => {
+                    userMove();
+                    void rf.setCenter(p.x, p.y, { zoom: rf.getViewport().zoom });
+                  }}
+                />
+              ) : null}
             </div>
             {sidePanel}
             {menuElement}
           </>
         )}
+        {activityLabels ? <ActivityTooltip id={tooltipId} node={tooltipNode} description={tooltipNode ? describeElement({ kind: "node", id: tooltipNode.id }) : ""} anchor={tooltipAnchor} /> : null}
       </div>
     </div>
   );
+  return <PatternTheme.Provider value={patternTheme}>{map}</PatternTheme.Provider>;
 }
 
 /**

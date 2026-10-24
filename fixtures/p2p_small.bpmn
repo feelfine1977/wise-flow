@@ -19,6 +19,7 @@
       <bpmn:lane id="Lane_AccountsPayable" name="Accounts payable">
         <bpmn:flowNodeRef>Task_InvoiceReceipt</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_ApproveInvoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Approved</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_ClearInvoice</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>EndEvent_Paid</bpmn:flowNodeRef>
       </bpmn:lane>
@@ -59,9 +60,13 @@
     </bpmn:userTask>
     <bpmn:userTask id="Task_ApproveInvoice" name="Approve Invoice">
       <bpmn:incoming>Flow_Invoice_Approve</bpmn:incoming>
+      <bpmn:outgoing>Flow_Approve_Gateway</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Approved" name="Approved?">
+      <bpmn:incoming>Flow_Approve_Gateway</bpmn:incoming>
       <bpmn:outgoing>Flow_Approve_Clear</bpmn:outgoing>
       <bpmn:outgoing>Flow_Rejected</bpmn:outgoing>
-    </bpmn:userTask>
+    </bpmn:exclusiveGateway>
     <bpmn:serviceTask id="Task_ClearInvoice" name="Clear Invoice">
       <bpmn:incoming>Flow_Approve_Clear</bpmn:incoming>
       <bpmn:outgoing>Flow_Clear_End</bpmn:outgoing>
@@ -78,23 +83,24 @@
     <bpmn:sequenceFlow id="Flow_Service_Received" sourceRef="Task_ServiceEntry" targetRef="Gateway_Received" />
     <bpmn:sequenceFlow id="Flow_Received_Invoice" sourceRef="Gateway_Received" targetRef="Task_InvoiceReceipt" />
     <bpmn:sequenceFlow id="Flow_Invoice_Approve" sourceRef="Task_InvoiceReceipt" targetRef="Task_ApproveInvoice" />
-    <bpmn:sequenceFlow id="Flow_Approve_Clear" sourceRef="Task_ApproveInvoice" targetRef="Task_ClearInvoice" />
-    <bpmn:sequenceFlow id="Flow_Rejected" name="rejected" sourceRef="Task_ApproveInvoice" targetRef="Task_InvoiceReceipt" />
+    <bpmn:sequenceFlow id="Flow_Approve_Gateway" sourceRef="Task_ApproveInvoice" targetRef="Gateway_Approved" />
+    <bpmn:sequenceFlow id="Flow_Approve_Clear" name="approved" sourceRef="Gateway_Approved" targetRef="Task_ClearInvoice" />
+    <bpmn:sequenceFlow id="Flow_Rejected" name="rejected" sourceRef="Gateway_Approved" targetRef="Task_InvoiceReceipt" />
     <bpmn:sequenceFlow id="Flow_Clear_End" sourceRef="Task_ClearInvoice" targetRef="EndEvent_Paid" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="Diagram_p2p_small">
     <bpmndi:BPMNPlane id="Plane_p2p_small" bpmnElement="Collaboration_p2p">
       <bpmndi:BPMNShape id="Participant_p2p_di" bpmnElement="Participant_p2p" isHorizontal="true">
-        <dc:Bounds x="160" y="80" width="1240" height="600" />
+        <dc:Bounds x="160" y="80" width="1340" height="600" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_Purchasing_di" bpmnElement="Lane_Purchasing" isHorizontal="true">
-        <dc:Bounds x="190" y="80" width="1210" height="200" />
+        <dc:Bounds x="190" y="80" width="1310" height="200" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_Warehouse_di" bpmnElement="Lane_Warehouse" isHorizontal="true">
-        <dc:Bounds x="190" y="280" width="1210" height="200" />
+        <dc:Bounds x="190" y="280" width="1310" height="200" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_AccountsPayable_di" bpmnElement="Lane_AccountsPayable" isHorizontal="true">
-        <dc:Bounds x="190" y="480" width="1210" height="200" />
+        <dc:Bounds x="190" y="480" width="1310" height="200" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="StartEvent_Need_di" bpmnElement="StartEvent_Need">
         <dc:Bounds x="220" y="162" width="36" height="36" />
@@ -129,13 +135,19 @@
       <bpmndi:BPMNShape id="Task_ApproveInvoice_di" bpmnElement="Task_ApproveInvoice">
         <dc:Bounds x="1060" y="540" width="100" height="80" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Approved_di" bpmnElement="Gateway_Approved" isMarkerVisible="true">
+        <dc:Bounds x="1195" y="555" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1194" y="530" width="52" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_ClearInvoice_di" bpmnElement="Task_ClearInvoice">
-        <dc:Bounds x="1200" y="540" width="100" height="80" />
+        <dc:Bounds x="1280" y="540" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="EndEvent_Paid_di" bpmnElement="EndEvent_Paid">
-        <dc:Bounds x="1340" y="562" width="36" height="36" />
+        <dc:Bounds x="1420" y="562" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1347" y="605" width="22" height="14" />
+          <dc:Bounds x="1427" y="605" width="22" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_Need_Req_di" bpmnElement="Flow_Need_Req">
@@ -190,22 +202,29 @@
         <di:waypoint x="1020" y="580" />
         <di:waypoint x="1060" y="580" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_Approve_Clear_di" bpmnElement="Flow_Approve_Clear">
+      <bpmndi:BPMNEdge id="Flow_Approve_Gateway_di" bpmnElement="Flow_Approve_Gateway">
         <di:waypoint x="1160" y="580" />
-        <di:waypoint x="1200" y="580" />
+        <di:waypoint x="1195" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Approve_Clear_di" bpmnElement="Flow_Approve_Clear">
+        <di:waypoint x="1245" y="580" />
+        <di:waypoint x="1280" y="580" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1238" y="562" width="46" height="14" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Rejected_di" bpmnElement="Flow_Rejected">
-        <di:waypoint x="1110" y="620" />
-        <di:waypoint x="1110" y="650" />
+        <di:waypoint x="1220" y="605" />
+        <di:waypoint x="1220" y="650" />
         <di:waypoint x="970" y="650" />
         <di:waypoint x="970" y="620" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1018" y="652" width="44" height="14" />
+          <dc:Bounds x="1073" y="652" width="44" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Clear_End_di" bpmnElement="Flow_Clear_End">
-        <di:waypoint x="1300" y="580" />
-        <di:waypoint x="1340" y="580" />
+        <di:waypoint x="1380" y="580" />
+        <di:waypoint x="1420" y="580" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

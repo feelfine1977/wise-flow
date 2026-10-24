@@ -2,6 +2,7 @@
  * Graph model shared by every renderer. Mirrors `#/components/schemas/FlowGraph`
  * of the workbench API: ids are opaque and stable, numbers arrive pre-aggregated.
  */
+import type { MetricBasis } from "./metrics.js";
 
 export type NodeKind = "activity" | "stage" | "gateway" | "event" | "note";
 export type EdgeKind = "follows" | "constraint" | "flow";
@@ -17,6 +18,11 @@ export interface FlowNode {
   /** Group (lane, stage or pool) the node belongs to. */
   group?: string;
   metrics?: Metrics;
+  /**
+   * The metrics whose values are not exact: a lower bound or a mean of merged
+   * elements (`collapseGroups` marks them). A metric without an entry is exact.
+   */
+  metricBasis?: Partial<Record<string, MetricBasis>>;
   tags?: string[];
 }
 
@@ -26,6 +32,8 @@ export interface FlowEdge {
   source: string;
   target: string;
   metrics?: Metrics;
+  /** The metrics whose values are a lower bound or a mean of merged paths (see `FlowNode.metricBasis`). */
+  metricBasis?: Partial<Record<string, MetricBasis>>;
   tags?: string[];
   payload?: unknown;
 }
@@ -52,6 +60,8 @@ export interface OverlayPayload {
   value?: number;
   /** Share of cases where the constraint could be evaluated. */
   coverage?: number;
+  /** Cases the constraint was evaluated on: the base of `value`, which an arc's label writes after it ("late 35 % of 820"). */
+  evaluated?: number;
   /** Glyph shown in badges: "≥1", "≤1", "∅", "⇒". */
   glyph?: string;
   /** Text shown next to the glyph or on hover, already formatted. */
@@ -67,6 +77,15 @@ export interface OverlayPayload {
   reverse?: boolean;
   /** Gauge for balance and metric constraints. */
   gauge?: { value: number; threshold: number; width?: number; direction?: "high" | "low" };
+  /**
+   * Text drawn beside a self-loop or arc instead of the glyph and value; it also
+   * widens the overlay's reserved extent.
+   */
+  displayLabel?: string;
+  /** The overlay shows recorded data (an observed self-loop) and is drawn at every zoom. */
+  observed?: boolean;
+  /** Edge an overlay stands for, e.g. the follows self-edge behind a self-loop. */
+  edgeId?: string;
   [key: string]: unknown;
 }
 
@@ -75,6 +94,12 @@ export interface Overlay {
   /** Node, edge or group id; `MAP_TARGET` for map-level chips. */
   target: string;
   payload?: OverlayPayload;
+  /**
+   * The deviation must stay visible at every level of detail: `abstract`
+   * always shows the activity, the path (with both its ends) or both
+   * activities of an arc it is on. Which deviations are protected is the host's choice.
+   */
+  protected?: boolean;
 }
 
 /**
@@ -104,12 +129,118 @@ export interface FlowPaths {
   outgoing: FlowPath[];
 }
 
+/** Thresholds or detail shares `abstract` applied to a graph, recorded in `meta.abstraction`. */
+export interface AbstractionMeta {
+  minEdgeShare?: number;
+  minNodeShare?: number;
+  keepConnected?: boolean;
+  /** The share of activities shown (see `AbstractOptions.activityDetail`); with it the thresholds are not recorded. */
+  activityDetail?: number;
+  /** The share of paths shown by frequency (see `AbstractOptions.pathDetail`). */
+  pathDetail?: number;
+  collapse?: string[] | "all";
+  /**
+   * Constraint and flow edges `abstract` removed with an activity or stage at one of their ends, by kind in sorted
+   * order; absent when none went. By detail shares a flow edge is a path, counted among the paths not shown instead.
+   */
+  removedEdges?: { constraint?: number; flow?: number };
+}
+
+/**
+ * What `abstract` shows of the graph it abstracted (with stages collapsed
+ * when asked), recorded in `meta.shown`. Counts of paths are of the graph's
+ * own paths (follows and flow edges, self-loops included); indirect paths are
+ * counted apart.
+ */
+export interface ShownMeta {
+  /** Activities and stages shown, of all. */
+  activities: { shown: number; of: number };
+  /** Paths shown, of all. */
+  paths: { shown: number; of: number };
+  /** Detail shares: the shown paths that are anchors only, outside the paths share (tagged `anchor`). */
+  anchorsOnly?: number;
+  /** Detail shares: for every anchor-only path, the activities (stages, gateways) it keeps on a way from start to end. */
+  keeps?: Record<string, string[]>;
+  /** Detail shares: the indirect paths (tagged `indirect`). */
+  indirect?: number;
+  /** Detail shares: the count of the weakest path shown by frequency; absent when none is. */
+  weakestByFrequency?: number;
+  /** Detail shares: the count of the strongest path not shown; absent when every path is shown. */
+  strongestNotShown?: number;
+  /** Detail shares: the shown paths whose rank lies within the paths share (with every path nothing measured). */
+  byFrequency?: number;
+  /** Detail shares: the count of the weakest path shown, kept paths included; absent when none is. */
+  weakestShown?: number;
+  /** Thresholds without `keepConnected`: the shown activities that have no path to or from another node. */
+  withoutPath?: number;
+  /** The events of the shown activities and stages, of all; absent when no activity carries a count of events. */
+  events?: { shown: number; of: number };
+  /** Where the detail sliders stand, for detail shares and thresholds alike. */
+  positions: DetailPositions;
+  /** The marks not shown because their element is not, by id (`kind:target:n`, see `abstract`). */
+  marksNotShown: string[];
+  /** The activities and paths shown only because a protected mark sits on them. */
+  forProtected: string[];
+}
+
+/**
+ * The positions of the two detail sliders on a graph: the activities by rank
+ * and the paths by frequency, each counted from the most frequent.
+ */
+export interface DetailPositions {
+  /**
+   * The numbers of activities the activity share can show, ascending: the
+   * last of every tie (activities with equal counts enter together), the
+   * last being every activity measured. Empty when no activity is measured.
+   */
+  activities: number[];
+  /** The measured paths in their rank: the paths share shows from 0 to this many by frequency. */
+  paths: number;
+  /**
+   * Where the shares stand (or the thresholds, as the activities and paths
+   * they pass): how many activities by rank and how many paths by frequency.
+   * The share `activities / activities.at(-1)` shows the same activities,
+   * `paths / paths` the same paths by frequency.
+   */
+  at: { activities: number; paths: number };
+}
+
+/**
+ * Metadata of a graph. Keys other than the declared ones pass through untouched.
+ * `abstraction` is the server's threshold share (a number, `0` when nothing was
+ * removed) or, after `abstract`, the thresholds the library applied.
+ */
+export interface FlowMeta {
+  abstraction?: number | AbstractionMeta;
+  /** The model before any abstraction; `abstract` records it. */
+  model?: ModelOutline;
+  /** What `abstract` shows of the graph; it records it. */
+  shown?: ShownMeta;
+  [key: string]: unknown;
+}
+
+/** The model a graph was abstracted from: what a figure's caption reports and the order stage colours follow. */
+export interface ModelOutline {
+  /** How many activities it has, a collapsed stage's members included. */
+  activities?: number;
+  /** How many paths (follows edges between two different nodes) it has; unknown for a graph already collapsed. */
+  paths?: number;
+  /** Its groups' ids in their order, which categorical colours are assigned in (see `StyleSpec.stages`). */
+  groups?: string[];
+  /**
+   * The largest value of each metric over its paths (follows and sequence
+   * flow edges): the upper end of the path width's scale, so that a path keeps
+   * its width whatever is abstracted away (see `ChannelSpec.max`).
+   */
+  pathMax?: Record<string, number>;
+}
+
 export interface FlowGraph {
   nodes: FlowNode[];
   edges: FlowEdge[];
   groups?: FlowGroup[];
   overlays?: Overlay[];
-  meta?: Record<string, unknown>;
+  meta?: FlowMeta;
   /** Activity the response was focused on (`focus` query parameter). */
   focus?: string;
   /** Paths of the focused activity from the full directly-follows graph. */
@@ -118,12 +249,6 @@ export interface FlowGraph {
 
 /** Target id of overlays that belong to the whole map rather than an element. */
 export const MAP_TARGET = "__map";
-
-export type FlowElement = FlowNode | FlowEdge;
-
-export function isEdge(el: FlowElement): el is FlowEdge {
-  return (el as FlowEdge).source !== undefined && (el as FlowEdge).target !== undefined;
-}
 
 /** Read a metric with a fallback; `NaN` and missing values yield the fallback. */
 export function metric(el: { metrics?: Metrics } | undefined, name: string, fallback = 0): number {
@@ -135,15 +260,30 @@ export function hasTag(el: { tags?: string[] } | undefined, tag: string): boolea
   return !!el?.tags?.includes(tag);
 }
 
-/** Index over a graph: maps by id and adjacency lists, built once per graph. */
+/**
+ * Index over a graph: maps by id, adjacency lists and the group hierarchy.
+ * Build it once per graph and ask it instead of walking `parent` chains.
+ */
 export interface GraphIndex {
   nodes: Map<string, FlowNode>;
   edges: Map<string, FlowEdge>;
   groups: Map<string, FlowGroup>;
   outgoing: Map<string, FlowEdge[]>;
   incoming: Map<string, FlowEdge[]>;
-  /** Members per group id. */
+  /** Direct members per group id (nodes whose `group` is the id). */
   members: Map<string, FlowNode[]>;
+  /**
+   * Groups enclosing an element, innermost first: for a node its group and that
+   * group's ancestors, for a group its parent and upwards. A node id is read as
+   * a node unless `kind` says otherwise (a collapsed stage node shares its id
+   * with its group). Unknown ids and parents end the chain; a cycle ends it
+   * before a group repeats.
+   */
+  ancestors(id: string, kind?: "node" | "group"): FlowGroup[];
+  /** Nodes of a group and of every group nested in it, in graph order. */
+  allMembers(groupId: string): FlowNode[];
+  /** Label of a node, else of a group, else the id itself. */
+  label(id: string): string;
 }
 
 export function indexGraph(graph: FlowGraph): GraphIndex {
@@ -170,7 +310,33 @@ export function indexGraph(graph: FlowGraph): GraphIndex {
     outgoing.get(e.source)?.push(e);
     incoming.get(e.target)?.push(e);
   }
-  return { nodes, edges, groups, outgoing, incoming, members };
+  const chain = (start: string | undefined, exclude?: string): FlowGroup[] => {
+    const out: FlowGroup[] = [];
+    const seen = new Set<string>(exclude === undefined ? [] : [exclude]);
+    let cur = start === undefined ? undefined : groups.get(start);
+    while (cur && !seen.has(cur.id)) {
+      seen.add(cur.id);
+      out.push(cur);
+      cur = cur.parent === undefined ? undefined : groups.get(cur.parent);
+    }
+    return out;
+  };
+  const ancestors = (id: string, kind?: "node" | "group"): FlowGroup[] => {
+    const asNode = kind === "node" || (kind === undefined && nodes.has(id));
+    if (asNode) return chain(nodes.get(id)?.group);
+    return chain(groups.get(id)?.parent, id);
+  };
+  const nested = new Map<string, FlowNode[]>();
+  const allMembers = (groupId: string): FlowNode[] => {
+    let found = nested.get(groupId);
+    if (!found) {
+      found = groups.has(groupId) ? graph.nodes.filter((n) => chain(n.group).some((g) => g.id === groupId)) : [];
+      nested.set(groupId, found);
+    }
+    return found;
+  };
+  const label = (id: string): string => nodes.get(id)?.label ?? groups.get(id)?.label ?? id;
+  return { nodes, edges, groups, outgoing, incoming, members, ancestors, allMembers, label };
 }
 
 export interface GraphIssue {
@@ -179,12 +345,34 @@ export interface GraphIssue {
   id?: string;
 }
 
+/** The ids of a graph that name a member of `Object.prototype` (`__proto__`, `constructor`, …): records keyed by id cannot hold them as their own. */
+function reservedIds(graph: FlowGraph): GraphIssue[] {
+  return [...graph.nodes, ...graph.edges, ...(graph.groups ?? [])].flatMap(({ id }) => (typeof id === "string" && id in Object.prototype ? [{ level: "error" as const, message: "reserved id", id }] : []));
+}
+
+/** A graph an export refuses: its `issues` say why (an id named like a member of `Object.prototype`). */
+export class InvalidGraphError extends Error {
+  override name = "InvalidGraphError";
+  readonly issues: GraphIssue[];
+  constructor(issues: GraphIssue[]) {
+    super(issues.map((i) => `${i.message}: ${i.id}`).join("; "));
+    this.issues = issues;
+  }
+}
+
+/** Throw `InvalidGraphError` for a graph with a reserved id, which the exports cannot write. */
+export function assertExportable(graph: FlowGraph): void {
+  const issues = reservedIds(graph);
+  if (issues.length) throw new InvalidGraphError(issues);
+}
+
 /**
  * Structural validation of a FlowGraph as received from an API: duplicate ids,
- * dangling edge endpoints, unknown groups, overlays on unknown targets.
+ * reserved ids (named like a member of `Object.prototype`), dangling edge
+ * endpoints, unknown groups, cycles of group parents, overlays on unknown targets.
  */
 export function validateGraph(graph: FlowGraph): GraphIssue[] {
-  const issues: GraphIssue[] = [];
+  const issues: GraphIssue[] = reservedIds(graph);
   const nodeIds = new Set<string>();
   for (const n of graph.nodes) {
     if (nodeIds.has(n.id)) issues.push({ level: "error", message: `duplicate node id`, id: n.id });
@@ -200,6 +388,16 @@ export function validateGraph(graph: FlowGraph): GraphIssue[] {
       issues.push({ level: "error", message: `group parent not found: ${g.parent}`, id: g.id });
     }
   }
+  // A walk up the parents that meets itself closes a cycle.
+  const parentOf = new Map((graph.groups ?? []).map((g) => [g.id, g.parent]));
+  const walk = new Map<string, number>();
+  const cycle = new Set<string>();
+  (graph.groups ?? []).forEach((g, w) => {
+    let id: string | undefined = g.id;
+    for (; id !== undefined && parentOf.has(id) && !walk.has(id); id = parentOf.get(id)) walk.set(id, w);
+    for (let c = id; c !== undefined && walk.get(c) === w && !cycle.has(c); c = parentOf.get(c)) cycle.add(c);
+  });
+  for (const g of graph.groups ?? []) if (cycle.has(g.id)) issues.push({ level: "error", message: "group parent cycle", id: g.id });
   for (const n of graph.nodes) {
     if (n.group && !groupIds.has(n.group)) {
       issues.push({ level: "warning", message: `node group not found: ${n.group}`, id: n.id });
@@ -217,6 +415,51 @@ export function validateGraph(graph: FlowGraph): GraphIssue[] {
       issues.push({ level: "warning", message: `overlay target not found: ${o.target}` });
     }
   }
+  return issues;
+}
+
+/** Warnings for parallel gateways without a partner (docs/API.md); rejects nothing and looks at no other node. */
+export function validateGateways(graph: FlowGraph): GraphIssue[] {
+  const idx = indexGraph({ nodes: graph.nodes, edges: graph.edges.filter((e) => e.kind !== "constraint" && !hasTag(e, "message") && !hasTag(e, "association")) });
+  const outs = (id: string) => idx.outgoing.get(id) ?? [];
+  const ins = (id: string) => idx.incoming.get(id) ?? [];
+  const pairs = (split: string, branches: FlowEdge[], join: string): boolean => {
+    const taken = new Set<string>();
+    const inputs = new Set<FlowEdge>();
+    for (const branch of branches) {
+      const region = new Set<string>();
+      const reached: FlowEdge[] = [];
+      const stack = [branch];
+      while (stack.length) {
+        const f = stack.pop()!;
+        if (f.target === join) reached.push(f);
+        else if (f.target === split || taken.has(f.target) || !outs(f.target).length) return false;
+        else if (!region.has(f.target)) {
+          region.add(f.target);
+          for (const e of outs(f.target)) stack.push(e);
+        }
+      }
+      if (reached.length !== 1 || inputs.has(reached[0])) return false;
+      inputs.add(reached[0]);
+      for (const v of region) {
+        taken.add(v);
+        if (ins(v).some((e) => e !== branch && !region.has(e.source))) return false;
+      }
+    }
+    return true;
+  };
+  const parallel = graph.nodes.filter((n) => n.kind === "gateway" && hasTag(n, "and"));
+  const joins = parallel.filter((n) => ins(n.id).length > 1);
+  const partners = new Set<FlowNode>();
+  const issues: GraphIssue[] = [];
+  for (const split of parallel) {
+    const branches = outs(split.id);
+    if (branches.length < 2) continue;
+    const join = joins.find((j) => j !== split && ins(j.id).length === branches.length && pairs(split.id, branches, j.id));
+    if (join) partners.add(join);
+    else issues.push({ level: "warning", message: "parallel split whose branches do not all reach one parallel join", id: split.id });
+  }
+  for (const join of joins) if (!partners.has(join)) issues.push({ level: "warning", message: "parallel join that is the partner of no parallel split", id: join.id });
   return issues;
 }
 

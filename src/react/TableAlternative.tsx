@@ -1,6 +1,11 @@
-import { type FlowGraph, type Locale, type Overlay, type Scales, type StringKey, buildScales, defaultStyle, describeOverlay, formatShare, t } from "../core/index.js";
+import { useState } from "react";
+import { flushSync } from "react-dom";
+import { type ElementRef, type FlowGraph, type Locale, type Overlay, type Scales, type StringKey, buildScales, defaultStyle, describeOverlay, emptySelection, formatCount, formatShare, metricBasis, t } from "../core/index.js";
+import { clickSelection } from "../core/map-controller.js";
 import { formatMetric, metricColumns, metricLabel } from "./describe.js";
 import type { Selection } from "./types.js";
+import { part } from "./parts.js";
+import { Button } from "./primitives.js";
 
 export interface TableAlternativeProps {
   graph: FlowGraph;
@@ -11,34 +16,96 @@ export interface TableAlternativeProps {
   onSelect?: (selection: Selection) => void;
   /** Which tables to show. Default all three. */
   tables?: ("nodes" | "edges" | "overlays")[];
+  /**
+   * Rows per page. With it every table shows one page at a time with buttons
+   * for the previous and the next rows, a search field filters the rows of all
+   * tables, and the tables carry their row counts (`aria-rowcount`). Default:
+   * all rows, no search.
+   */
+  pageSize?: number;
   className?: string;
 }
 
-const NODE_METRICS = ["cases", "share", "events", "violationShare", "medianNextHours", "starts", "ends", "members", "internalCount"];
-const EDGE_METRICS = ["count", "cases", "share", "violationShare", "medianLagHours", "p90LagHours"];
+type TableName = "nodes" | "edges" | "overlays";
+
+/**
+ * The rows of one table on its page: those whose text contains the query,
+ * from the page's first one; the attributes of the table and of its rows that
+ * tell their position among all of them; and the line under the table that
+ * names the rows shown and moves between pages. Without a page size, every
+ * row and no attributes.
+ */
+function usePage<T>(rows: T[], text: (row: T) => string, query: string, pageSize: number | undefined, locale: Locale) {
+  const [page, setPage] = useState({ query, at: 0 });
+  if (pageSize === undefined) return { rows, table: {}, head: {}, row: () => ({}), pager: null };
+  const q = query.trim().toLocaleLowerCase();
+  const matching = q ? rows.filter((r) => text(r).toLocaleLowerCase().includes(q)) : rows;
+  const last = Math.max(0, Math.ceil(matching.length / pageSize) - 1);
+  // A new query starts on the first page, and so does the next one, even when it is an earlier query again.
+  if (page.query !== query) setPage({ query, at: 0 });
+  const at = page.query === query ? Math.min(page.at, last) : 0;
+  const from = at * pageSize;
+  const shown = matching.slice(from, from + pageSize);
+  const go = (to: number, button: HTMLButtonElement) => {
+    const focused = document.activeElement === button;
+    flushSync(() => setPage({ query, at: to }));
+    // A button disabled at the first or last page hands its focus on.
+    if (focused && button.disabled) button.parentElement?.querySelector<HTMLElement>("button:enabled")?.focus();
+  };
+  const pager = (
+    <div className="wf-table__pager">
+      <Button disabled={at === 0} onClick={(e) => go(at - 1, e.currentTarget)}>
+        {t(locale, "table.previous")}
+      </Button>
+      <span role="status">
+        {matching.length ? t(locale, "table.rows", { from: formatCount(from + 1, locale), to: formatCount(from + shown.length, locale), total: formatCount(matching.length, locale) }) : t(locale, "table.empty")}
+      </span>
+      <Button disabled={at >= last} onClick={(e) => go(at + 1, e.currentTarget)}>
+        {t(locale, "table.next")}
+      </Button>
+    </div>
+  );
+  // The header is the first row.
+  return { rows: shown, table: { "aria-rowcount": matching.length + 1 }, head: { "aria-rowindex": 1 }, row: (i: number) => ({ "aria-rowindex": from + i + 2 }), pager };
+}
+
+const NODE_METRICS = ["cases", "share", "events", "violationShare", "medianPrevHours", "meanPrevHours", "medianNextHours", "meanNextHours", "prevPassages", "nextPassages", "starts", "ends", "members", "internalCount"];
+const EDGE_METRICS = ["count", "cases", "share", "violationShare", "medianLagHours", "meanLagHours", "p90LagHours", "lagPassages"];
 
 /**
  * The same graph and overlays as accessible tables: activities, paths and
- * constraint overlays with the numbers they encode.
+ * constraint overlays with the numbers they encode. A click or Enter on a row
+ * selects as a click on the map does (the map controller's `clickSelection`).
  */
-export function TableAlternative({ graph, overlays, scales, locale = "en", selection, onSelect, tables = ["nodes", "edges", "overlays"], className }: TableAlternativeProps) {
+export function TableAlternative({ graph, overlays, scales, locale = "en", selection, onSelect, tables = ["nodes", "edges", "overlays"], pageSize, className }: TableAlternativeProps) {
   const sc = scales ?? buildScales(graph, defaultStyle);
   const labelOf = new Map(graph.nodes.map((n) => [n.id, n.label]));
   const groupLabel = new Map((graph.groups ?? []).map((g) => [g.id, g.label]));
   const allOverlays = overlays ?? graph.overlays ?? [];
   const nodeCols = metricColumns(graph.nodes, NODE_METRICS);
   const edgeCols = metricColumns(graph.edges, EDGE_METRICS);
-  const selectNode = (id: string) => onSelect?.({ nodes: [id], edges: [], groups: [] });
-  const selectEdge = (id: string) => onSelect?.({ nodes: [], edges: [id], groups: [] });
+  // A row is chosen as the map's click chooses an element: Shift, Ctrl or Cmd add it to the selection or remove it.
+  const choose = (element: ElementRef, e: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) =>
+    onSelect?.(clickSelection(selection ?? emptySelection, element, e.shiftKey || e.ctrlKey || e.metaKey));
   const targetLabel = (id: string) => labelOf.get(id) ?? groupLabel.get(id) ?? id;
+  const kindLabel = (kind: string) => t(locale, `kind.${kind}` as StringKey);
+  const [query, setQuery] = useState("");
+  const nodePage = usePage(graph.nodes, (n) => [n.label, kindLabel(n.kind), n.group ? (groupLabel.get(n.group) ?? n.group) : "", ...(n.tags ?? [])].join("\n"), query, pageSize, locale);
+  const edgePage = usePage(graph.edges, (e) => [labelOf.get(e.source) ?? e.source, labelOf.get(e.target) ?? e.target, kindLabel(e.kind), ...(e.tags ?? [])].join("\n"), query, pageSize, locale);
+  const overlayTarget = (o: Overlay) =>
+    o.kind === "arc" && o.payload?.source && o.payload?.target ? `${targetLabel(String(o.payload.source))} → ${targetLabel(String(o.payload.target))}` : targetLabel(o.target);
+  const overlayRows = allOverlays.map((o, i) => ({ o, i }));
+  const overlayPage = usePage(overlayRows, ({ o }) => [t(locale, `overlay.${o.kind}` as StringKey), overlayTarget(o), o.payload?.label ?? o.payload?.constraintId ?? "", o.payload?.text ?? describeOverlay(o, locale)].join("\n"), query, pageSize, locale);
+  const shows = (name: TableName) => tables.includes(name);
 
   return (
-    <div className={`wf-table${className ? ` ${className}` : ""}`}>
-      {tables.includes("nodes") ? (
-        <table>
+    <div className={`wf-table${className ? ` ${className}` : ""}`} {...part("table")}>
+      {pageSize !== undefined ? <input type="search" className="wf-table__search" aria-label={t(locale, "table.search")} value={query} onChange={(e) => setQuery(e.target.value)} /> : null}
+      {shows("nodes") ? (
+        <table {...nodePage.table}>
           <caption>{t(locale, "table.caption.nodes")}</caption>
           <thead>
-            <tr>
+            <tr {...nodePage.head}>
               <th scope="col">{t(locale, "table.label")}</th>
               <th scope="col">{t(locale, "table.kind")}</th>
               <th scope="col">{t(locale, "table.group")}</th>
@@ -56,17 +123,17 @@ export function TableAlternative({ graph, overlays, scales, locale = "en", selec
                 <td colSpan={4 + nodeCols.length}>{t(locale, "table.empty")}</td>
               </tr>
             ) : null}
-            {graph.nodes.map((n) => (
-              <tr key={n.id} className={selection?.nodes.includes(n.id) ? "wf-row--selected" : undefined} onClick={() => selectNode(n.id)} tabIndex={onSelect ? 0 : undefined} onKeyDown={(e) => e.key === "Enter" && selectNode(n.id)}>
+            {nodePage.rows.map((n, i) => (
+              <tr key={n.id} {...nodePage.row(i)} className={selection?.nodes.includes(n.id) ? "wf-row--selected" : undefined} {...part("table-row", undefined, [selection?.nodes.includes(n.id) && "selected"])} onClick={(e) => choose({ kind: "node", id: n.id }, e)} tabIndex={onSelect ? 0 : undefined} onKeyDown={(e) => e.key === "Enter" && choose({ kind: "node", id: n.id }, e)}>
                 <th scope="row">
                   <span className="wf-swatch" style={{ background: sc.nodeColor(n) }} aria-hidden="true" />
                   {n.label}
                 </th>
-                <td>{t(locale, `kind.${n.kind}` as StringKey)}</td>
+                <td>{kindLabel(n.kind)}</td>
                 <td>{n.group ? (groupLabel.get(n.group) ?? n.group) : ""}</td>
                 {nodeCols.map((c) => (
                   <td key={c} className="wf-num">
-                    {formatMetric(c, n.metrics?.[c], locale)}
+                    {formatMetric(c, n.metrics?.[c], locale, metricBasis(n, c))}
                   </td>
                 ))}
                 <td>{(n.tags ?? []).join(", ")}</td>
@@ -75,11 +142,12 @@ export function TableAlternative({ graph, overlays, scales, locale = "en", selec
           </tbody>
         </table>
       ) : null}
-      {tables.includes("edges") ? (
-        <table>
+      {shows("nodes") ? nodePage.pager : null}
+      {shows("edges") ? (
+        <table {...edgePage.table}>
           <caption>{t(locale, "table.caption.edges")}</caption>
           <thead>
-            <tr>
+            <tr {...edgePage.head}>
               <th scope="col">{t(locale, "table.source")}</th>
               <th scope="col">{t(locale, "table.target")}</th>
               <th scope="col">{t(locale, "table.kind")}</th>
@@ -97,14 +165,14 @@ export function TableAlternative({ graph, overlays, scales, locale = "en", selec
                 <td colSpan={4 + edgeCols.length}>{t(locale, "table.empty")}</td>
               </tr>
             ) : null}
-            {graph.edges.map((e) => (
-              <tr key={e.id} className={selection?.edges.includes(e.id) ? "wf-row--selected" : undefined} onClick={() => selectEdge(e.id)} tabIndex={onSelect ? 0 : undefined} onKeyDown={(ev) => ev.key === "Enter" && selectEdge(e.id)}>
+            {edgePage.rows.map((e, i) => (
+              <tr key={e.id} {...edgePage.row(i)} className={selection?.edges.includes(e.id) ? "wf-row--selected" : undefined} {...part("table-row", undefined, [selection?.edges.includes(e.id) && "selected"])} onClick={(ev) => choose({ kind: "edge", id: e.id }, ev)} tabIndex={onSelect ? 0 : undefined} onKeyDown={(ev) => ev.key === "Enter" && choose({ kind: "edge", id: e.id }, ev)}>
                 <th scope="row">{labelOf.get(e.source) ?? e.source}</th>
                 <td>{labelOf.get(e.target) ?? e.target}</td>
-                <td>{t(locale, `kind.${e.kind}` as StringKey)}</td>
+                <td>{kindLabel(e.kind)}</td>
                 {edgeCols.map((c) => (
                   <td key={c} className="wf-num">
-                    {formatMetric(c, e.metrics?.[c], locale)}
+                    {formatMetric(c, e.metrics?.[c], locale, metricBasis(e, c))}
                   </td>
                 ))}
                 <td>{(e.tags ?? []).join(", ")}</td>
@@ -113,11 +181,12 @@ export function TableAlternative({ graph, overlays, scales, locale = "en", selec
           </tbody>
         </table>
       ) : null}
-      {tables.includes("overlays") ? (
-        <table>
+      {shows("edges") ? edgePage.pager : null}
+      {shows("overlays") ? (
+        <table {...overlayPage.table}>
           <caption>{t(locale, "table.caption.overlays")}</caption>
           <thead>
-            <tr>
+            <tr {...overlayPage.head}>
               <th scope="col">{t(locale, "table.overlay")}</th>
               <th scope="col">{t(locale, "table.target.column")}</th>
               <th scope="col">{t(locale, "table.constraint")}</th>
@@ -133,14 +202,10 @@ export function TableAlternative({ graph, overlays, scales, locale = "en", selec
                 <td colSpan={5}>{t(locale, "table.empty")}</td>
               </tr>
             ) : null}
-            {allOverlays.map((o, i) => (
-              <tr key={`${o.kind}-${o.target}-${i}`}>
+            {overlayPage.rows.map(({ o, i }, at) => (
+              <tr key={`${o.kind}-${o.target}-${i}`} {...overlayPage.row(at)}>
                 <th scope="row">{t(locale, `overlay.${o.kind}` as StringKey)}</th>
-                <td>
-                  {o.kind === "arc" && o.payload?.source && o.payload?.target
-                    ? `${targetLabel(String(o.payload.source))} → ${targetLabel(String(o.payload.target))}`
-                    : targetLabel(o.target)}
-                </td>
+                <td>{overlayTarget(o)}</td>
                 <td>
                   {o.payload?.label ?? o.payload?.constraintId ?? ""}
                   {o.payload?.constraintType ? ` (${t(locale, `constraint.${o.payload.constraintType}` as StringKey)})` : ""}
@@ -152,6 +217,7 @@ export function TableAlternative({ graph, overlays, scales, locale = "en", selec
           </tbody>
         </table>
       ) : null}
+      {shows("overlays") ? overlayPage.pager : null}
     </div>
   );
 }

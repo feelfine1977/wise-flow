@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { globalScene } from "../../fixtures/bpic2019";
 import {
   type FilterClause,
   type FlowGraph,
   addClause,
+  canonicalClause,
   canonicalFilter,
   changesCases,
   clauseForTarget,
@@ -14,6 +16,7 @@ import {
   describeClause,
   describePreview,
   emptyFilter,
+  emptySelection,
   filterEquals,
   normalizeFilterPreview,
   removeClause,
@@ -157,6 +160,31 @@ describe("filters", () => {
     expect(describePreview({ casesIn: 7 })).toBe("7");
   });
 
+  it("reads the marginal removals only from a list, and only its entries that name a clause by number", () => {
+    // A backend may send anything under per_clause; what is not a list of entries with a numeric clause is not read.
+    for (const per of [12, "0", {}, true, null]) {
+      expect(normalizeFilterPreview({ cases_in: 5, per_clause: per })).toEqual({ casesIn: 5, casesOut: undefined, casesTotal: undefined, perClause: undefined, inScopeByConstraint: undefined });
+    }
+    const p = normalizeFilterPreview({ perClause: [null, 3, { clause: "1", removedMarginally: 4 }, { clause: 2, removed_marginally: "7" }, { clause: 0, removedMarginally: 9 }] });
+    expect(p?.perClause).toEqual([{ clause: 2, removedMarginally: 0 }, { clause: 0, removedMarginally: 9 }]);
+  });
+
+  it("keeps a clause of a kind it does not know as it is, and reads a group without clauses as an empty group", () => {
+    const future = { kind: "future", window: 3 } as unknown as FilterClause;
+    const bare = { kind: "any" } as unknown as FilterClause;
+    expect(canonicalClause(future)).toEqual({ kind: "future", window: 3 });
+    expect(canonicalClause(bare)).toEqual({ kind: "any", clauses: [] });
+    // Sorted by key: '{"clauses":[],"kind":"any"}' before '{"kind":"future","window":3}'.
+    expect(canonicalFilter([future, bare, future])).toEqual({ and: [{ kind: "any", clauses: [] }, { kind: "future", window: 3 }] });
+    expect(filterEquals([future, bare], [bare, future])).toBe(true);
+  });
+
+  it("describes a group without clauses as an empty group, which changes no cases", () => {
+    const bare = { kind: "any" } as unknown as FilterClause;
+    for (const locale of ["en", "de"] as const) expect(describeClause(bare, locale)).toBe(describeClause({ kind: "any", clauses: [] }, locale));
+    expect(changesCases(bare)).toBe(false);
+  });
+
   it("produces the clause of a map action for every target", () => {
     expect(clauseForTarget({ kind: "node", ids: ["clear_invoice"] }, "keep", graph)).toEqual({ kind: "activity", op: "contains", activity: "clear_invoice" });
     expect(clauseForTarget({ kind: "node", ids: ["clear_invoice"] }, "exclude", graph)).toEqual({ kind: "activity", op: "never", activity: "clear_invoice" });
@@ -173,5 +201,35 @@ describe("filters", () => {
       { kind: "activity", op: "contains", activity: "record_goods_receipt" },
       { kind: "activity", op: "contains", activity: "clear_invoice" },
     ]);
+  });
+});
+
+describe("the time clause that cuts events out of cases", () => {
+  const inside: FilterClause = { kind: "time", field: "events_inside", from: "2018-01-01", to: "2018-03-31" };
+  const contains: FilterClause = { kind: "activity", op: "contains", activity: "clear_invoice" };
+
+  it("is made by no map action: every action on every element, pair and set adds activity, path or open-case clauses", () => {
+    const kinds = new Set<string>();
+    const flat = (c: FilterClause | FilterClause[] | undefined): FilterClause[] => (c === undefined ? [] : Array.isArray(c) ? c.flatMap(flat) : c.kind === "any" ? [c, ...flat(c.clauses ?? [])] : [c]);
+    for (const shown of [globalScene, collapseGroups(globalScene, "all")]) {
+      const targets = [
+        ...shown.nodes.map((n) => menuTargetFor(shown, { kind: "node", id: n.id }, emptySelection)),
+        ...shown.edges.map((e) => menuTargetFor(shown, { kind: "edge", id: e.id }, emptySelection)),
+        ...(shown.groups ?? []).map((g) => menuTargetFor(shown, { kind: "group", id: g.id }, emptySelection)),
+        menuTargetFor(shown, { kind: "node", id: shown.nodes[2].id }, { nodes: [shown.nodes[1].id, shown.nodes[2].id], edges: [], groups: [] }),
+        menuTargetFor(shown, { kind: "node", id: shown.nodes[1].id }, { nodes: shown.nodes.slice(1, 5).map((n) => n.id), edges: [], groups: [] }),
+      ];
+      for (const target of targets) for (const action of defaultActions(shown, target)) for (const c of flat(action.clause)) kinds.add(c.kind);
+    }
+    expect([...kinds].sort()).toEqual(["activity", "any", "follows", "open"]);
+  });
+
+  it("is passed on as the host gave it, marked as changing cases", () => {
+    const given = { and: [inside, contains] };
+    expect(changesCases(inside)).toBe(true);
+    expect(canonicalClause(inside)).toEqual(inside);
+    expect(removeClause(given, 1)).toEqual({ and: [inside] });
+    expect(addClause(given, { kind: "open", value: false }).and.slice(0, 2)).toEqual([inside, contains]);
+    expect(describeClause(inside)).toBe("events inside 2018-01-01 – 2018-03-31");
   });
 });

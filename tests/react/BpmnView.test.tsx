@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,19 +18,16 @@ const xml = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../..
 // what these tests cover. Rendering is checked in Storybook and Playwright.
 describe("BpmnView", () => {
   it("imports the XML headlessly, describes the diagram and lists it as tables", async () => {
-    const onImport = vi.fn();
+    // onImport waits for the viewer, which cannot show the diagram here; the seam's tests cover it.
     const onError = vi.fn();
     const { container } = render(
       <div style={{ width: 1200, height: 800 }}>
-        <BpmnView xml={xml} view="table" onImport={onImport} onError={onError} mapping={{ create_purchase_order_item: "Task_CreatePO" }} />
+        <BpmnView xml={xml} view="table" onError={onError} mapping={{ create_purchase_order_item: "Task_CreatePO" }} />
       </div>,
     );
-    await waitFor(() => expect(onImport).toHaveBeenCalled());
-    const result = onImport.mock.calls[0][0];
-    expect(result.mapping.length).toBe(7);
     await waitFor(() => expect(screen.getAllByRole("table").length).toBe(3));
     const group = container.querySelector(".wf-bpmn") as HTMLElement;
-    expect(group.getAttribute("aria-label")).toBe("BPMN diagram with 7 tasks, 2 gateways and 12 sequence flows in 3 lanes.");
+    expect(group.getAttribute("aria-label")).toBe("BPMN diagram with 7 tasks, 3 gateways and 13 sequence flows in 3 lanes.");
     // The mapped task appears under its activity id in the table.
     expect(container.textContent).toContain("Create Purchase Order Item");
     const rows = Array.from(container.querySelectorAll("tbody tr"));
@@ -51,6 +48,11 @@ describe("BpmnView", () => {
     expect(onViewChange).toHaveBeenCalledWith("table");
   });
 });
+
+/** The legends of the grid open as strips; their toggles expand them to the whole key. */
+function expandLegends(container: HTMLElement) {
+  for (const legend of container.querySelectorAll<HTMLElement>(".wf-views__legend")) fireEvent.click(within(legend).getByRole("button", { name: "Show the whole legend" }));
+}
 
 describe("ViewSwitcher", () => {
   it("renders tabs for every view and the same positions in the grid", async () => {
@@ -82,5 +84,47 @@ describe("ViewSwitcher", () => {
     const cells = container.querySelectorAll(".wf-views__cell");
     await waitFor(() => expect(nodeBoxes(cells[0]).length).toBeGreaterThan(0));
     expect(nodeBoxes(cells[0])).toEqual(nodeBoxes(cells[1]));
+  });
+
+  it("gives each distinct style of the grid the legend of what its views' maps draw", async () => {
+    const base = abstract(globalScene, { minNodeShare: 0.05, minEdgeShare: 0.1 });
+    const positions = await layout(base, { engine: "dagre" });
+    const set = resolveViews(base, [{ id: "a", label: "Alpha" }, { id: "b", label: "Beta", style: { edgeWidth: { metric: "count" } } }], positions);
+    const { container } = render(
+      <div style={{ width: 1200, height: 800 }}>
+        <ViewSwitcher views={set} mode="grid" />
+      </div>,
+    );
+    // Without overlays the maps draw the follows self-loops, the re-added paths and the start and end events, and nothing
+    // else the legend explains.
+    const loops = base.edges.some((e) => e.kind === "follows" && e.source === e.target);
+    const readded = base.edges.some((e) => e.tags?.includes("reconnected"));
+    expect(loops || readded).toBe(true);
+    expect(base.nodes.filter((n) => n.kind === "event").map((n) => n.tags)).toEqual([["start"], ["end"]]);
+    const keys = [...(loops ? ["↻"] : []), ...(readded ? ["┄"] : []), "○", "◉"];
+    await waitFor(() => expect(container.querySelectorAll(".wf-views__legend").length).toBe(2));
+    expandLegends(container);
+    for (const legend of container.querySelectorAll(".wf-views__legend")) {
+      expect([...legend.querySelectorAll(".wf-legend__glyph")].map((g) => g.textContent)).toEqual(keys);
+    }
+    // The default style colours the paths by their shortfall; the second style only sets their width.
+    expect([...container.querySelectorAll(".wf-views__legend")].map((l) => l.querySelectorAll(".wf-legend__gradient").length)).toEqual([1, 0]);
+  });
+
+  it("keys in a style's one legend what any of its views' maps draws", async () => {
+    const base = abstract(globalScene, { minNodeShare: 0.05, minEdgeShare: 0.1 });
+    const positions = await layout(base, { engine: "dagre" });
+    const target = base.nodes.find((n) => n.kind === "activity")!.id;
+    // Same style; only the second view draws a badge.
+    const set = resolveViews(base, [{ id: "a", label: "Alpha" }, { id: "b", label: "Beta", overlays: [{ kind: "badge", target, payload: { glyph: "●", value: 0.2 } }] }], positions);
+    const { container } = render(
+      <div style={{ width: 1200, height: 800 }}>
+        <ViewSwitcher views={set} mode="grid" />
+      </div>,
+    );
+    await waitFor(() => expect(container.querySelectorAll(".wf-views__legend").length).toBe(1));
+    expandLegends(container);
+    const glyphs = [...container.querySelectorAll(".wf-views__legend .wf-legend__glyph")].map((g) => g.textContent);
+    expect(glyphs.filter((g) => g === "●")).toEqual(["●"]);
   });
 });

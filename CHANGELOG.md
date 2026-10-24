@@ -1,7 +1,29 @@
 # Changelog
 
-## Unreleased
+## 0.3.5
 
+- Support opt-in manual activity positioning with automatic edge rerouting and reset.
+- Submit grouped activities once to ELK; preserve exact observed endpoints and directions.
+- Add actual O2C and grouped pointer-drag geometry regressions.
+
+
+## 0.3.4 — local packaging candidate (unreleased)
+
+- Route BPMN swimlane connections around shapes, retain all sequence flows, and separate routes where space permits. Increase row and lane spacing; use supplied node heights.
+- Offer independent Model zoom, whole-model fit and readable-size controls. Explicit navigation survives container resizing.
+- Support explicit constraint arc labels consistently in React, BPMN, Canvas and SVG exports.
+
+## 0.3.3 — local packaging candidate (unreleased)
+
+- Add opt-in wrapped activity names, compact references, smaller distinct-case counts, and exact accessible details across React and Canvas renderers.
+- Reserve node dimensions before layout; hover, focus and count visibility preserve geometry. Recompute layout only when resolved node sizes change.
+- Preserve canonical identities and observed self-loops in SVG/PNG exports, with visible activity keys and exact counts.
+
+## 0.3.2 — local packaging candidate (unreleased)
+
+- Add an accessible, searchable FlowComparison table for aligned activity and directly-follows case frequencies across cohorts. Preserve reverse connections and repeats, distinguish missing values from observed zero, and expose cohort navigation without changing case membership.
+
+- Describe generic visual annotations without labelling observed loops as constraint evidence, and count map nodes separately from activities.
 - Export pure label-sizing helpers for hosts to reuse zoom counter-scaling without changing renderer defaults or layout behavior.
 
 ## 0.3.1 — local packaging candidate (unreleased)
@@ -76,7 +98,7 @@ the focused element opens the actions menu (Space still selects); with
   the nodes moved into their lane; `<ProcessMap lanes="stages" | "roles" |
   "none">`, `Scene.lanes` for `toSVG` and `toPNG`.
 
-### Canvas (`@wise/flow/canvas`, new entry point)
+### Canvas (`wise-flow/canvas`, new entry point)
 
 - `prepareScene` (retained geometry, colours, overlay shapes, R-tree),
   `drawScene` (viewport culling above 1,500 elements, level of detail by
@@ -113,7 +135,7 @@ the focused element opens the actions menu (Space still selects); with
 Additions only; the 0.1 API is unchanged (see "Changes in 0.2 against 0.1"
 in `docs/API.md`).
 
-### BPMN (`@wise/flow/bpmn`, new entry point)
+### BPMN (`wise-flow/bpmn`, new entry point)
 
 - BPMN-lite in the FlowGraph vocabulary: `liteFromStages` builds a process
   from an ordered stage model with known activities (one start, one end,
@@ -184,7 +206,7 @@ in `docs/API.md`).
 
 First implementation of the public contract in `docs/API.md`.
 
-### Core (`@wise/flow`)
+### Core (`wise-flow`)
 
 - `FlowGraph` model matching the workbench schema (`nodes`, `edges`,
   `groups`, `overlays`, `meta`), `validateGraph`, `indexGraph`.
@@ -209,7 +231,7 @@ First implementation of the public contract in `docs/API.md`.
 - `toSVG` with figure presets, embedded legend and deterministic output.
 - Deterministic number formatting and English / German strings.
 
-### React (`@wise/flow/react`)
+### React (`wise-flow/react`)
 
 - `<ProcessMap/>` on React Flow: activity, stage, gateway, event and note
   nodes, group compounds, follows and constraint edges, overlay layers,

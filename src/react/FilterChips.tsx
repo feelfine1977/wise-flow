@@ -1,4 +1,6 @@
 import { type Filter, type FilterClause, type FilterPreview, type Locale, asFilter, changesCases, describeClause, describePreview, formatCount, normalizeFilterPreview, removeClause, t } from "../core/index.js";
+import { part } from "./parts.js";
+import { Button } from "./primitives.js";
 
 export interface FilterChipsProps {
   /** The filter of the contract (`{ and: [...] }`) or its clauses. */
@@ -42,7 +44,7 @@ export function FilterChips({ filter, preview, locale = "en", labelOf = (id) => 
   };
   const showClear = clearable ?? !!onFilterChange;
   return (
-    <div className={`wf-filters${className ? ` ${className}` : ""}`} role="group" aria-label={t(locale, "filters.title")}>
+    <div className={`wf-filters${className ? ` ${className}` : ""}`} {...part("filters")} role="group" aria-label={t(locale, "filters.title")}>
       <span className="wf-filters__title">{t(locale, "filters.title")}</span>
       {summary ? (
         <span className="wf-filters__count" data-testid="wf-filters-count">
@@ -59,8 +61,9 @@ export function FilterChips({ filter, preview, locale = "en", labelOf = (id) => 
           return (
             <li
               key={`${i}-${text}`}
-              className={`wf-chip wf-filter-chip${changes ? " wf-filter-chip--changes" : ""}`}
+              className={`wf-chip wf-panel-chip wf-filter-chip${changes ? " wf-filter-chip--changes" : ""}`}
               data-kind={c.kind}
+              {...part("filter-chip")}
               data-changes-cases={changes || undefined}
               tabIndex={onFilterChange ? 0 : undefined}
               onKeyDown={(e) => {
@@ -83,9 +86,9 @@ export function FilterChips({ filter, preview, locale = "en", labelOf = (id) => 
         })}
       </ul>
       {showClear && f.and.length > 0 ? (
-        <button type="button" className="wf-button wf-filters__clear" onClick={clear}>
+        <Button className="wf-filters__clear" onClick={clear}>
           {t(locale, "filters.clear")}
-        </button>
+        </Button>
       ) : null}
     </div>
   );

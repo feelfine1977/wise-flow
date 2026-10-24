@@ -1,10 +1,6 @@
-/**
- * Canvas renderer: owns a canvas element, a viewport and the interaction
- * state, draws on animation frames, and answers hit tests through the
- * scene's R-tree. Pointer and keyboard handling belong to the host (the
- * React wrapper), which calls `panBy`, `zoomBy`, `hitAt` and `setState`.
- */
-import { type Box, type HitItem, type XY, emptySelection } from "../core/index.js";
+/** Canvas renderer: a canvas, a viewport and the interaction state, drawn on animation frames; the host handles input. */
+import { type Box, type EdgeBudget, type HitItem, type Insets, type XY, emptySelection, fitViewport } from "../core/index.js";
+import { type EdgeBudgetAdapter, edgeBudgetAdapter } from "../core/edge-budget.js";
 import { type DrawContext, type DrawOptions, type DrawState, type View, drawScene } from "./draw.js";
 import type { PreparedScene } from "./scene.js";
 import { type CanvasTokens, defaultTokens } from "./tokens.js";
@@ -20,13 +16,25 @@ export interface CanvasRendererOptions {
   devicePixelRatio?: number;
   minZoom?: number;
   maxZoom?: number;
-  /** Forwarded to the drawing routines (culling, pattern tiles). */
-  draw?: Omit<DrawOptions, "tokens">;
+  /**
+   * Forwarded to the drawing routines (culling, pattern tiles); the edge
+   * budget may also be `"adaptive"`, and the paths drawn at a small zoom
+   * (`pathRule`) are decided at the zoom the view last rested at unless it
+   * names one.
+   */
+  draw?: RendererDrawOptions;
+  /** The clock (ms) the adaptive edge budget times frames with. Default `performance.now`. */
+  clock?: () => number;
 }
+
+export type RendererDrawOptions = Omit<DrawOptions, "tokens" | "edgeBudget"> & { edgeBudget?: EdgeBudget | "adaptive" };
+
+/** The zoom range a renderer keeps its view in unless its options say otherwise. */
+const zoomRange = { minZoom: 0.05, maxZoom: 3 } as const;
 
 export class CanvasRenderer {
   readonly canvas: HTMLCanvasElement;
-  private ctx: DrawContext | null;
+  private ctx?: DrawContext | null;
   private scene: PreparedScene | undefined;
   private state: DrawState = { selection: emptySelection };
   private viewport: Viewport = { x: 0, y: 0, zoom: 1 };
@@ -35,27 +43,41 @@ export class CanvasRenderer {
   private dpr: number;
   private frame: number | undefined;
   private disposed = false;
+  private clock: () => number;
+  private adapter: EdgeBudgetAdapter | undefined;
+  /** Gestures under way, and the zoom the view last rested at, which the paths drawn at a small zoom are decided at. */
+  private gestures: number | undefined;
+  private restZoom: number | undefined;
+  /** Once the scene changed, the ids of the edges the last draw drew while withholding some. */
+  private drawnIds: Set<string> | undefined;
   tokens: CanvasTokens;
   minZoom: number;
   maxZoom: number;
-  drawOptions: Omit<DrawOptions, "tokens">;
+  drawOptions: RendererDrawOptions;
   /** Called after the viewport changed through `setViewport`, `panBy`, `zoomBy`, `centerOn` or `fit`. */
   onViewportChange?: (v: Viewport) => void;
-  /** Statistics of the last draw. */
-  lastDraw: { nodes: number; edges: number; shapes: number; culled: boolean; ms: number } | undefined;
+  /** Statistics of the last draw; `withheld` when the edge budget left edges in view out. */
+  lastDraw: (ReturnType<typeof drawScene> & { ms: number }) | undefined;
+  /** Called after every draw with its statistics. */
+  onDraw?: (stats: NonNullable<CanvasRenderer["lastDraw"]>) => void;
+
+  /** The zoom range a renderer keeps its view in unless its options say otherwise. */
+  static readonly zoomRange = zoomRange;
 
   constructor(canvas: HTMLCanvasElement, options: CanvasRendererOptions = {}) {
     this.canvas = canvas;
     this.ctx = (canvas.getContext("2d") as DrawContext | null) ?? null;
     this.tokens = options.tokens ?? defaultTokens;
     this.dpr = options.devicePixelRatio ?? (typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1);
-    this.minZoom = options.minZoom ?? 0.05;
-    this.maxZoom = options.maxZoom ?? 3;
+    this.minZoom = options.minZoom ?? zoomRange.minZoom;
+    this.maxZoom = options.maxZoom ?? zoomRange.maxZoom;
     this.drawOptions = options.draw ?? {};
+    this.clock = options.clock ?? (() => performance.now());
   }
 
   /** Size in CSS pixels; the backing store follows the device pixel ratio. */
   resize(width: number, height: number): void {
+    if (this.disposed) return;
     this.width = Math.max(0, Math.floor(width));
     this.height = Math.max(0, Math.floor(height));
     this.canvas.width = Math.max(1, Math.round(this.width * this.dpr));
@@ -70,6 +92,9 @@ export class CanvasRenderer {
   }
 
   setScene(scene: PreparedScene | undefined): void {
+    if (this.disposed || scene === this.scene) return void this.requestDraw();
+    const cut = this.lastDraw?.withheld;
+    if (cut && !this.drawnIds) this.drawnIds = new Set([...cut.drawn].map((i) => this.scene!.edgeMarks[i].id));
     this.scene = scene;
     this.requestDraw();
   }
@@ -79,6 +104,7 @@ export class CanvasRenderer {
   }
 
   setState(patch: Partial<DrawState>): void {
+    if (this.disposed) return;
     this.state = { ...this.state, ...patch };
     this.requestDraw();
   }
@@ -88,6 +114,7 @@ export class CanvasRenderer {
   }
 
   setTokens(tokens: CanvasTokens): void {
+    if (this.disposed) return;
     this.tokens = tokens;
     this.requestDraw();
   }
@@ -97,20 +124,19 @@ export class CanvasRenderer {
   }
 
   setViewport(v: Viewport, notify = true): void {
+    if (this.disposed) return;
     const zoom = Math.min(this.maxZoom, Math.max(this.minZoom, v.zoom));
     this.viewport = { x: v.x, y: v.y, zoom };
     this.requestDraw();
     if (notify) this.onViewportChange?.(this.viewport);
   }
 
-  /** Fit the scene bounds into the canvas with a relative padding. */
-  fit(padding = 0.08): void {
+  /** Fit the scene bounds into the canvas less `insets` (screen pixels kept clear along each side), with a relative padding. */
+  fit(padding = 0.08, insets?: Partial<Insets>): void {
     if (!this.scene || this.width === 0 || this.height === 0) return;
     const b = this.scene.bounds;
     if (b.width <= 0 || b.height <= 0) return;
-    const zoom = Math.min(this.width / (b.width * (1 + 2 * padding)), this.height / (b.height * (1 + 2 * padding)));
-    const z = Math.min(this.maxZoom, Math.max(this.minZoom, zoom));
-    this.setViewport({ zoom: z, x: this.width / 2 - (b.x + b.width / 2) * z, y: this.height / 2 - (b.y + b.height / 2) * z });
+    this.setViewport(fitViewport(b, this.size, { padding, insets, minZoom: this.minZoom, maxZoom: this.maxZoom }));
   }
 
   panBy(dx: number, dy: number): void {
@@ -146,11 +172,13 @@ export class CanvasRenderer {
     return { x: p.x, y: p.y, width: b.width * this.viewport.zoom, height: b.height * this.viewport.zoom };
   }
 
-  /** The best hit under a screen point: overlays first, then nodes, edges, groups. */
+  /** The best hit under a screen point: overlays first, then nodes, edges, groups; not an edge the last draw withheld. */
   hitAt(screenX: number, screenY: number, tolerancePx = 4): HitItem | undefined {
     if (!this.scene) return undefined;
     const p = this.toFlow(screenX, screenY);
-    return this.scene.hit.at(p.x, p.y, tolerancePx / this.viewport.zoom)[0];
+    const cut = this.lastDraw?.withheld;
+    // A scene not drawn yet is answered by the ids the last draw drew.
+    return this.scene.hit.at(p.x, p.y, tolerancePx / this.viewport.zoom).find((it) => !cut || it.kind !== "edge" || (this.drawnIds ? this.drawnIds.has(it.id) : it.index === undefined || cut.drawn.has(it.index)));
   }
 
   requestDraw(): void {
@@ -170,15 +198,44 @@ export class CanvasRenderer {
     ctx.save();
     ctx.scale(this.dpr, this.dpr);
     const view: View = { ...this.viewport, width: this.width, height: this.height };
-    const stats = drawScene(ctx, this.scene, view, this.state, { ...this.drawOptions, tokens: this.tokens });
+    const { edgeBudget, pathRule, ...options } = this.drawOptions;
+    // The paths drawn at a small zoom change only when the view is at rest, as the adaptive budget does.
+    if (!this.gestures) this.restZoom = this.viewport.zoom;
+    const rule = pathRule && { ...pathRule, zoom: pathRule.zoom ?? this.restZoom };
+    let stats!: ReturnType<typeof drawScene>;
+    const run = (budget: EdgeBudget | undefined) => {
+      // The level of detail is picked per frame, within the hysteresis of the frame before.
+      stats = drawScene(ctx, this.scene!, view, this.state, { readableFrom: this.lastDraw?.readable, ...options, edgeBudget: budget, pathRule: rule, tokens: this.tokens });
+      return { shown: stats.edges, total: stats.withheld?.total ?? stats.edges, kept: stats.kept };
+    };
+    if (edgeBudget === "adaptive") (this.adapter ??= edgeBudgetAdapter(this.clock)).frame(run);
+    else run(edgeBudget);
     ctx.restore();
     const ended = typeof performance !== "undefined" ? performance.now() : Date.now();
+    this.drawnIds = undefined;
     this.lastDraw = { ...stats, ms: ended - started };
+    this.onDraw?.(this.lastDraw);
   }
 
+  /** A pan or zoom starts: an adaptive edge budget times its frames, and the paths drawn stay as they are until the view rests. */
+  beginGesture(): void {
+    if (this.disposed) return;
+    this.restZoom ??= this.viewport.zoom;
+    this.gestures = (this.gestures ?? 0) + 1;
+    (this.adapter ??= edgeBudgetAdapter(this.clock)).start();
+  }
+
+  /** It ends: an adaptive edge budget may move a step, only with the zoom direction when a path rule is active; once no gesture is under way the view is at rest and drawn. */
+  endGesture(): void {
+    if (this.gestures) this.gestures--;
+    const stepped = this.adapter?.end(this.drawOptions.pathRule ? this.viewport.zoom - this.restZoom! : undefined);
+    if (stepped || (!this.gestures && this.drawOptions.pathRule && this.restZoom !== this.viewport.zoom)) this.requestDraw();
+  }
+
+  /** Lets go of the scene, the context and the callbacks; every method that changes something then returns early. */
   dispose(): void {
     this.disposed = true;
     if (this.frame !== undefined && typeof cancelAnimationFrame === "function") cancelAnimationFrame(this.frame);
-    this.frame = undefined;
+    this.frame = this.scene = this.drawnIds = this.ctx = this.adapter = this.onDraw = this.onViewportChange = this.gestures = this.restZoom = undefined;
   }
 }

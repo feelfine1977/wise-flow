@@ -1,7 +1,11 @@
-import { type CSSProperties, useId, useState } from "react";
-import { type Locale, type LodRules, type ViewSet, t } from "../core/index.js";
+import { type CSSProperties, useId, useMemo, useRef, useState } from "react";
+import { type EdgeBudget, type FlowScene, type Locale, type LodRules, type ThemeSetting, type ViewSet, buildScene, filterPositions, legendOfScene, t, themeColors } from "../core/index.js";
+import { markedThemeKey } from "../core/theme.js";
 import { Legend } from "./Legend.js";
+import { Button } from "./primitives.js";
+import { PatternTheme } from "./patterns.js";
 import { ProcessMap } from "./ProcessMap.js";
+import { useFlowTheme } from "./theme.js";
 import { type Selection, emptySelection } from "./types.js";
 
 export interface ViewSwitcherProps {
@@ -23,6 +27,12 @@ export interface ViewSwitcherProps {
   legend?: boolean;
   lod?: Partial<LodRules>;
   minimap?: boolean;
+  /** The edge budget of every view's map (`ProcessMap` `edgeBudget`). Default `"adaptive"`. */
+  edgeBudget?: EdgeBudget | "adaptive";
+  /** The narrowest line on the screen of a path every view's map draws (`ProcessMap` `minPathPx`). Default 0.5. */
+  minPathPx?: number;
+  /** The theme of every view's map (`ProcessMap` `theme`). */
+  theme?: ThemeSetting;
   className?: string;
   containerStyle?: CSSProperties;
 }
@@ -34,7 +44,7 @@ export interface ViewSwitcherProps {
  * means the same number in every view. `grid` shows all views as small
  * multiples with one legend per distinct style.
  */
-export function ViewSwitcher({ views, mode: modeProp, onModeChange, activeView, onActiveViewChange, columns = 2, locale = "en", selection: selectionProp, onSelect, onHover, legend = true, lod, minimap, className, containerStyle }: ViewSwitcherProps) {
+export function ViewSwitcher({ views, mode: modeProp, onModeChange, activeView, onActiveViewChange, columns = 2, locale = "en", selection: selectionProp, onSelect, onHover, legend = true, lod, minimap, edgeBudget, minPathPx, theme, className, containerStyle }: ViewSwitcherProps) {
   const [innerMode, setInnerMode] = useState<"single" | "grid">("single");
   const mode = modeProp ?? innerMode;
   const setMode = (m: "single" | "grid") => {
@@ -55,23 +65,31 @@ export function ViewSwitcher({ views, mode: modeProp, onModeChange, activeView, 
   };
   const id = useId();
   const current = views.views.find((v) => v.id === active) ?? views.views[0];
-  const legendStyles = new Map<string, (typeof views.views)[number]>();
-  for (const v of views.views) {
-    const key = JSON.stringify(v.style);
-    if (!legendStyles.has(key)) legendStyles.set(key, v);
-  }
+  // The legends of the grid are drawn in the maps' theme.
+  const root = useRef<HTMLDivElement>(null);
+  const { theme: look, scheme } = useFlowTheme(root, theme);
+  const patternTheme = useMemo(() => ({ ink: themeColors(look, scheme).patternInk, look: look.pattern }), [look, scheme]);
+  // One legend per distinct style, of what the maps of its views draw: the first view's scales and a key for a kind any of them draws.
+  // Built again only when what the marks are built from changes, as the maps' scenes.
+  const markedKey = useMemo(() => markedThemeKey(look, scheme), [look, scheme]);
+  const legends = useMemo(() => {
+    const byStyle = new Map<string, FlowScene[]>();
+    for (const v of views.views) {
+      const key = JSON.stringify(v.style);
+      byStyle.set(key, [...(byStyle.get(key) ?? []), buildScene(v.graph, filterPositions(views.positions, v.graph), { overlays: v.overlays, style: v.style, locale, theme: look, scheme })]);
+    }
+    return [...byStyle.values()].map((scenes) => legendOfScene({ scales: scenes[0].scales, locale, marks: scenes.flatMap((s) => s.marks), nodeMarks: scenes.flatMap((s) => s.nodeMarks), edgeMarks: scenes.flatMap((s) => s.edgeMarks) }));
+  }, [views, locale, markedKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className={`wf-views${className ? ` ${className}` : ""}`} style={containerStyle} data-mode={mode}>
+    <div ref={root} className={`wf-views${className ? ` ${className}` : ""}`} style={containerStyle} data-mode={mode}>
       <div className="wf-views__bar">
         <div role="tablist" aria-label={t(locale, "views.title")} className="wf-views__tabs">
           {views.views.map((v) => (
-            <button
+            <Button
               key={v.id}
-              type="button"
               role="tab"
               id={`${id}-tab-${v.id}`}
-              className="wf-button"
               aria-selected={mode === "single" && v.id === current?.id}
               aria-controls={`${id}-panel-${v.id}`}
               title={v.description}
@@ -81,13 +99,13 @@ export function ViewSwitcher({ views, mode: modeProp, onModeChange, activeView, 
               }}
             >
               {v.label}
-            </button>
+            </Button>
           ))}
         </div>
         <div className="wf-views__mode">
-          <button type="button" className="wf-button" aria-pressed={mode === "grid"} onClick={() => setMode(mode === "grid" ? "single" : "grid")}>
+          <Button pressed={mode === "grid"} onClick={() => setMode(mode === "grid" ? "single" : "grid")}>
             {mode === "grid" ? t(locale, "views.single") : t(locale, "views.grid")}
-          </button>
+          </Button>
           <span className="wf-views__note">{t(locale, "views.shared")}</span>
         </div>
       </div>
@@ -107,6 +125,9 @@ export function ViewSwitcher({ views, mode: modeProp, onModeChange, activeView, 
             locale={locale}
             lod={lod}
             minimap={minimap}
+            edgeBudget={edgeBudget}
+            minPathPx={minPathPx}
+            theme={theme}
           />
         </div>
       ) : (
@@ -118,17 +139,19 @@ export function ViewSwitcher({ views, mode: modeProp, onModeChange, activeView, 
                 {v.description ? <span> — {v.description}</span> : null}
               </figcaption>
               <div className="wf-views__map">
-                <ProcessMap graph={v.graph} positions={views.positions} overlays={v.overlays} style={v.style} controls={false} legend={false} selection={selection} onSelect={select} onHover={onHover} locale={locale} lod={lod} />
+                <ProcessMap graph={v.graph} positions={views.positions} overlays={v.overlays} style={v.style} controls={false} legend={false} selection={selection} onSelect={select} onHover={onHover} locale={locale} lod={lod} edgeBudget={edgeBudget} minPathPx={minPathPx} theme={theme} />
               </div>
             </figure>
           ))}
           {legend ? (
             <div className="wf-views__legends">
-              {[...legendStyles.values()].map((v) => (
-                <div key={v.id} className="wf-views__legend">
-                  <Legend scales={v.scales} overlays={v.overlays} locale={locale} />
-                </div>
-              ))}
+              <PatternTheme.Provider value={patternTheme}>
+                {legends.map((l, i) => (
+                  <div key={i} className="wf-views__legend">
+                    <Legend legend={l} locale={locale} />
+                  </div>
+                ))}
+              </PatternTheme.Provider>
             </div>
           ) : null}
         </div>

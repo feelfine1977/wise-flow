@@ -3,7 +3,8 @@ import elkWorkerUrl from "elkjs/lib/elk-worker.min.js?url";
 import { useEffect, useMemo, useState } from "react";
 import { constraintItems, globalScene } from "../fixtures/bpic2019";
 import { type ViewSet, type ViewSpec, abstract, buildViews, overlaysFor } from "../src/index";
-import { type Selection, ViewSwitcher } from "../src/react/index";
+import { type Selection } from "../src/react/index";
+import { ViewSwitcher } from "./maps";
 
 const meta: Meta = {
   title: "Views",
@@ -33,7 +34,7 @@ export const views: ViewSpec[] = [
     label: "Logistics",
     description: "Median lag on paths and median time to the next event on activities (blue); lag constraints as arcs.",
     style: {
-      edgeWidth: { metric: "count", scale: "sqrt", range: [1, 8] },
+      edgeWidth: { metric: "cases", scale: "sqrt", range: [1, 8] },
       edgeColor: { metric: "medianLagHours", palette: "sequentialBlue" },
       nodeColor: { metric: "medianNextHours", palette: "sequentialBlue" },
     },
@@ -50,7 +51,7 @@ export const views: ViewSpec[] = [
     label: "Automation",
     description: "Events per case on activities (rework and touches, orange); singularity constraints with repeat shares.",
     style: {
-      edgeWidth: { metric: "count", scale: "sqrt", range: [1, 8] },
+      edgeWidth: { metric: "cases", scale: "sqrt", range: [1, 8] },
       edgeColor: { metric: "share" },
       nodeColor: { metric: "eventsPerCase", palette: "sequential" },
     },
@@ -81,7 +82,7 @@ export const FourViews: StoryObj = {
       };
     }, [specs]);
     if (!set) return <p style={{ fontFamily: "var(--wf-font)", padding: 12 }}>…</p>;
-    const sameWidth = set.views.every((v) => v.style.edgeWidth?.domain?.join() === set.views[0].style.edgeWidth?.domain?.join());
+    const sameWidth = set.views.every((v) => v.style.edgeWidth?.max !== undefined && v.style.edgeWidth.max === set.views[0].style.edgeWidth?.max);
     return (
       <div style={{ height: "100vh", width: "100vw" }} data-testid="views" data-shared-width={sameWidth}>
         <ViewSwitcher views={set} mode={mode} onModeChange={setMode} selection={selection} onSelect={setSelection} />
