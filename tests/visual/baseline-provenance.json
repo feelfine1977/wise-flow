@@ -20,6 +20,17 @@
     "image": "mcr.microsoft.com/playwright@sha256:cf0daee9b994042e011bc29f20cdff1a9f682a039b43fcd738f7d8a9d3bcd9d6",
     "platform": "linux/amd64, Ubuntu 24.04",
     "command": "npm ci && npm run test:visual:approve",
+    "approved": "2026-10-24",
+    "approvedBy": "repository owner, after comparing the approved and the new images of the six changed scenes",
+    "sourceCommit": "12cecc0",
+    "changed": [
+      "views-grid",
+      "stage-lanes",
+      "p2p-map",
+      "stable-layout",
+      "paths-for-activity",
+      "bpmn-from-stages"
+    ],
     "note": "Captured in the container image, not on the hosted ubuntu-24.04 runner. The first hosted strict run decides whether these images hold there."
   },
   "screenshots": [
@@ -29,7 +40,7 @@
     },
     {
       "path": "tests/visual/__screenshots__/bpmn.spec.ts/bpmn-from-stages-linux.png",
-      "sha256": "6980d4110eca34e0a7a43383a49b5be43389a9b6f8a3eb1d3fc913f7af8a320a"
+      "sha256": "e62ad7b6a4a36bc733c838023debc0ac02288c683f3895ebad422bab5565d382"
     },
     {
       "path": "tests/visual/__screenshots__/bpmn.spec.ts/views-grid-darwin.png",
@@ -37,7 +48,7 @@
     },
     {
       "path": "tests/visual/__screenshots__/bpmn.spec.ts/views-grid-linux.png",
-      "sha256": "a8047557d03b5c3b46936bed6b5f4f0941148b9f641253a1d521490b07111814"
+      "sha256": "e9d2981704d3b159784753d0189832c72f8eb91e4f2951a3349b98322e100be5"
     },
     {
       "path": "tests/visual/__screenshots__/interaction.spec.ts/paths-for-activity-darwin.png",
@@ -45,7 +56,7 @@
     },
     {
       "path": "tests/visual/__screenshots__/interaction.spec.ts/paths-for-activity-linux.png",
-      "sha256": "f9ca17ad12bd69b0da5d07da2142505a78496d5d62c74333c13357feaa90906a"
+      "sha256": "25cb25c93ff8698a27e4084259324e11359c71bcb6321fc9b00f9061f6bfb292"
     },
     {
       "path": "tests/visual/__screenshots__/interaction.spec.ts/stage-lanes-darwin.png",
@@ -53,7 +64,7 @@
     },
     {
       "path": "tests/visual/__screenshots__/interaction.spec.ts/stage-lanes-linux.png",
-      "sha256": "047fd073e672c401c3c941864499f0bb897291f7cf1be4c2172289b333f9600b"
+      "sha256": "ad59d4ca8c819e84b52bf7db4bb4f5634baf0d2c493623c777e8ca0463f04303"
     },
     {
       "path": "tests/visual/__screenshots__/p2p.spec.ts/p2p-map-darwin.png",
@@ -61,7 +72,7 @@
     },
     {
       "path": "tests/visual/__screenshots__/p2p.spec.ts/p2p-map-linux.png",
-      "sha256": "c59ace55fb7f8a3c162240d185afa51df7a3fa665d237f0503f6a70076e28aa3"
+      "sha256": "c9a6e4cbda1ec537a5760bcb3cb398cb9dd1cb85783032dc3b086cf1f561a750"
     },
     {
       "path": "tests/visual/__screenshots__/p2p.spec.ts/stable-layout-darwin.png",
@@ -69,7 +80,7 @@
     },
     {
       "path": "tests/visual/__screenshots__/p2p.spec.ts/stable-layout-linux.png",
-      "sha256": "e282b1bf83175cf81df00de178c8600bf9309499b147909731e821c1a3beb773"
+      "sha256": "6f7560a9de58293f5dbee36a04b246841d2ac0b07c6b3a564d3e6bf1534a2989"
     }
   ]
 }
