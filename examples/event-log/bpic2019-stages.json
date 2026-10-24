@@ -1,0 +1,7 @@
+[
+ { "id": "requisition", "label": "Requisition", "order": 0, "match": "^SRM:|Purchase Requisition" },
+ { "id": "payment", "label": "Payment", "order": 4, "match": "^Clear Invoice" },
+ { "id": "receipt", "label": "Goods receipt", "order": 2, "match": "Goods Receipt|Service Entry Sheet" },
+ { "id": "invoice", "label": "Invoice", "order": 3, "match": "Invoice|debit memo|credit memo|Payment Block|Subsequent Invoice", "flags": "i" },
+ { "id": "order", "label": "Purchase order", "order": 1, "match": "Purchase Order|^Change |^Block|^Release|^Reactivate|^Delete|Order Confirmation" }
+]
