@@ -4,7 +4,16 @@ updates:
     directory: /
     schedule: {interval: weekly}
     open-pull-requests-limit: 5
+    ignore:
+      # Playwright moves only with the pinned image of the strict visual lane and a new approval of its pictures.
+      - dependency-name: '@playwright/test'
     groups:
+      # Storybook's builder accepts only the Vite majors it names: they move together.
+      storybook-and-vite:
+        patterns: [storybook, '@storybook/*', vite]
+      # The coverage provider requires the same Vitest version.
+      vitest:
+        patterns: [vitest, '@vitest/*']
       test-tooling:
         dependency-type: development
         update-types: [minor, patch]
