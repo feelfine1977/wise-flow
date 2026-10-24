@@ -111,7 +111,7 @@ test('prints the reference and the target beside each measurement, with their so
   const meta = {
     commit: 'abc123', dirty: true, date: '2026-10-11T12:00:00.000Z', mode: 'quick', trials: 2, warmup: 1, framesPerGesture: 6,
     machine: { cpu: 'Test CPU', cores: 4, memoryGB: 8, platform: 'linux', release: '6.0', arch: 'arm64', loadBefore: [3, 2, 1], loadAfter: [4, 3, 2], loaded: 'load average reached 4 on 4 cores' },
-    runtime: { node: 'v24.0.0', v8: '13.0' }, browser: { name: 'Chromium', version: '140.0', playwright: '1.61.1' }, library: { javaScriptGzipBytes: 188989 },
+    runtime: { node: 'v24.0.0', v8: '13.0' }, browser: { name: 'Chromium', version: '140.0', playwright: '1.64.1' }, library: { javaScriptGzipBytes: 188989 },
   };
   const results = [
     { id: 'a', group: 'Group one', label: 'First | case', on: '10 flows', unit: 'ms', median: 12.5, min: 10, max: 20, samples: [10, 12.5, 20] },

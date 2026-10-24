@@ -120,7 +120,7 @@ jobs:
     # The image the Linux baselines were captured in (tests/visual/baseline-provenance.json);
     # it brings the browser and its fonts, so nothing is installed on top of it.
     container:
-      image: mcr.microsoft.com/playwright@sha256:cf0daee9b994042e011bc29f20cdff1a9f682a039b43fcd738f7d8a9d3bcd9d6
+      image: mcr.microsoft.com/playwright@sha256:d65108d1a8095d8b0c4a5e32bf1807a40a5ce90ff0c78473e1116b1c243235e8
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
