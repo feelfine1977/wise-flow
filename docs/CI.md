@@ -106,14 +106,15 @@ merged there.
 
 The npm audit gate uses the current advisory service and therefore needs network
 access. An outage fails the check rather than silently certifying dependencies.
-The initial scan retains three moderate entries for the same Storybook/uuid
-chain; resolving them needs a supported Storybook migration. Do not force an
-incompatible uuid major via an untested override.
+The initial scan retained three moderate entries for the same Storybook/uuid
+chain. Storybook 10 no longer depends on uuid, and the scan finds no advisory.
+Do not force an incompatible major of a dependency via an untested override.
 
 ## Local commands and diagnostics
 
-Use Node 22.18 or later, or 24 (Vitest 5 needs 22.12, the tooling tests 22.18);
-avoid accidentally running a different Node through an older shell PATH. Then:
+Use Node 22.18 or later, or 24 (Vitest 5, Vite 8 and Storybook 10 need 22.12,
+the tooling tests 22.18); avoid accidentally running a different Node through an
+older shell PATH. Then:
 
 ```sh
 npm ci
@@ -194,6 +195,8 @@ manual screen-reader usability and broader host journeys remain explicit work in
    the new bytes are identical. A `v…` tag must match package.json; CI checks it.
 
 References: [Vitest 5 migration](https://vitest.dev/guide/migration.html),
+[Vite 8 migration](https://vite.dev/guide/migration.html),
+[Storybook 10 migration](https://storybook.js.org/docs/releases/migration-guide),
 [Playwright accessibility](https://playwright.dev/docs/accessibility-testing),
 [visual comparison](https://playwright.dev/docs/test-snapshots),
 [GitHub secure workflow use](https://docs.github.com/en/actions/reference/security/secure-use).

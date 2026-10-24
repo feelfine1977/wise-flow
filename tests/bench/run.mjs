@@ -60,7 +60,7 @@ async function bundle() {
     logLevel: 'warn',
     root,
     plugins: [toDist(true)],
-    build: { ssr: join(here, 'node.ts'), outDir: join(build, 'node'), emptyOutDir: true, target: 'node22', rollupOptions: { makeAbsoluteExternalsRelative: false, output: { entryFileNames: 'node.mjs' } } },
+    build: { ssr: join(here, 'node.ts'), outDir: join(build, 'node'), emptyOutDir: true, target: 'node22', rolldownOptions: { makeAbsoluteExternalsRelative: false, output: { entryFileNames: 'node.mjs' } } },
   });
   await viteBuild({
     configFile: false,
@@ -75,7 +75,7 @@ async function bundle() {
       assetsInlineLimit: 0,
       chunkSizeWarningLimit: 1e5,
       // React Flow's "use client" means nothing in a bundle.
-      rollupOptions: { onwarn: (warning, warn) => warning.code === 'MODULE_LEVEL_DIRECTIVE' || warn(warning) },
+      rolldownOptions: { onwarn: (warning, warn) => warning.code === 'MODULE_LEVEL_DIRECTIVE' || warn(warning) },
     },
   });
 }

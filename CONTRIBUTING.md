@@ -3,8 +3,9 @@
 The [architecture](docs/ARCHITECTURE.md), [feature map](docs/FEATURE_MAP.md),
 [roadmap](docs/ROADMAP.md) and [CI contract](docs/CI.md) define ownership and gates.
 
-- Develop on Node 22.12 or later, or 24: Vitest 5 needs it. The tooling tests in
-  `npm run check` need Node 22.18 or later, or 24 (see [tests](tests/README.md)).
+- Develop on Node 22.12 or later, or 24: Vitest 5, Vite 8 and Storybook 10 need
+  it. The tooling tests in `npm run check` need Node 22.18 or later, or 24 (see
+  [tests](tests/README.md)).
 - Keep the core independent of React and the DOM. Its import boundary is checked.
   Exact case membership, conformance and scores belong to wise-pm/the host.
 - Start behavior changes with a failing synthetic regression. Test repeated events,
