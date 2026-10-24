@@ -76,7 +76,7 @@ function quietLog(c: MalformedCase, twice = false, junkProps = false): string[] 
   return new Proxy(logged, {
     get: (target, key) =>
       key === "unexpected"
-        ? target.filter((m) => !(keys && /^Each child in a list should have a unique "key" prop|^Encountered two children with the same key/.test(m)) && !(junkProps && /^Received NaN for the `%s` attribute|is an invalid value for the `%s` css style property/.test(m)))
+        ? target.filter((m) => !(keys && /^(?:Each child in a list should have a unique "key" prop|Encountered two children with the same key)/.test(m)) && !(junkProps && /(?:^Received NaN for the `%s` attribute)|(?:is an invalid value for the `%s` css style property)/.test(m)))
         : Reflect.get(target, key),
   });
 }

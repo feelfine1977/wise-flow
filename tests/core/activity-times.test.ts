@@ -115,7 +115,7 @@ it("names every supplied statistic in legends, hovers and exports in both langua
       expect(title).not.toContain(key);
       expect(exported).not.toContain(key);
     }
-    expect(exported.replace(/<[^>]*>/g, "")).not.toContain("meanLagHours");
+    expect([...exported.matchAll(/>([^<]*)</g)].map((m) => m[1]).join("")).not.toContain("meanLagHours");
     const median = toSVG({ ...given, style: { ...given.style, edgeColor: { metric: "medianLagHours" } } });
     expect(median).toContain(locale === "en" ? "Performance: median" : "Durchlaufzeit: mediane");
   }

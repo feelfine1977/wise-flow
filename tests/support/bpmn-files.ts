@@ -54,7 +54,7 @@ export function startTags(xml: string): Tag[] {
 export function elementEnd(xml: string, tag: Tag): number {
   if (tag.selfClosing) return tag.end;
   let depth = 1;
-  const pattern = new RegExp(`<(/?)${tag.name.replace(/[.]/g, "\\.")}(?=[\\s/>])[^>]*?(/?)>`, "g");
+  const pattern = new RegExp(`<(/?)${tag.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=[\\s/>])[^>]*?(/?)>`, "g");
   pattern.lastIndex = tag.end;
   for (let m = pattern.exec(xml); m; m = pattern.exec(xml)) {
     if (m[1]) depth--;

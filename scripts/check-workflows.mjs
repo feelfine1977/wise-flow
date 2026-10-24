@@ -37,7 +37,18 @@ export function visualLaneViolations(text, provenance) {
   if ((job.steps ?? []).some(step => /\bplaywright\s+install\b|\bapt(?:-get)?\s+install\b/.test(step.run ?? ''))) errors.push('visual: the image brings the browser and its fonts; the job installs nothing over them');
   return errors;
 }
-const xmlComments = /<!--[\s\S]*?-->/g;
+/** `text` without its XML comments; an unterminated comment runs to the end. */
+function withoutXmlComments(text) {
+  let out = '';
+  let at = 0;
+  for (let start = text.indexOf('<!--'); start >= 0; start = text.indexOf('<!--', at)) {
+    out += text.slice(at, start);
+    const end = text.indexOf('-->', start + 4);
+    if (end < 0) return out;
+    at = end + 3;
+  }
+  return out + text.slice(at);
+}
 // The browser must take its fonts from the repository's fontconfig file, whose
 // rules turn system-ui and the generic sans into Liberation Sans before the
 // system configuration adds its own aliases and fallbacks. Chromium asks
@@ -46,7 +57,7 @@ const xmlComments = /<!--[\s\S]*?-->/g;
 export function fontArrangementViolations(fontconfigFile, fontconfigText) {
   const expected = resolve(root, 'tests/visual/fonts.conf');
   if (fontconfigFile !== expected) return [`The browser of the visual lane must get FONTCONFIG_FILE=${expected}, not ${fontconfigFile ?? 'nothing'}`];
-  const text = fontconfigText.replace(xmlComments, '');
+  const text = withoutXmlComments(fontconfigText);
   const include = text.search(/<include\b[^>]*>\s*\/etc\/fonts\/fonts\.conf\s*<\/include>/);
   const errors = include < 0 ? ['The fonts of the visual lane must include the system configuration /etc/fonts/fonts.conf after their own rules'] : [];
   for (const family of ['system-ui', 'sans-serif', 'sans']) {

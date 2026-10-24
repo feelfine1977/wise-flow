@@ -98,7 +98,7 @@ describe("the structural check and the token game", () => {
   it("both catch a planted parallel join that no parallel split pairs", () => {
     // A choice between b and c after a, merged before d. Turning the merge into a
     // parallel join makes the case wait at d for the branch the choice did not take.
-    const follows = (pairs: string) => pairs.split(" ").map((p) => ({ id: p.replace(">", "->"), kind: "follows" as const, source: p.split(">")[0], target: p.split(">")[1], metrics: { count: 1 } }));
+    const follows = (pairs: string) => pairs.split(" ").map((p) => ({ id: p.replaceAll(">", "->"), kind: "follows" as const, source: p.split(">")[0], target: p.split(">")[1], metrics: { count: 1 } }));
     const dfg: FlowGraph = { nodes: ["a", "b", "c", "d"].map((id) => ({ id, kind: "activity", label: id.toUpperCase(), metrics: { cases: 2 } })), edges: follows("a>b a>c b>d c>d") };
     const model = liteFromGraph(dfg, { andGateways: true });
     expect(model.nodes.find((n) => n.id === "gw_join_d")?.tags).toEqual(["xor", "join", "generated"]);

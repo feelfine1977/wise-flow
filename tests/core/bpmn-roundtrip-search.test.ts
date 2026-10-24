@@ -92,6 +92,6 @@ describe("export → import of generated models", () => {
     const named: Record<string, string> = { lt: "<", gt: ">", amp: "&", quot: '"', apos: "'" };
     const decode = (v: string) => v.replace(/&(#x[0-9a-fA-F]+|#\d+|\w+);/g, (_, r: string) => (r.startsWith("#x") ? String.fromCodePoint(parseInt(r.slice(2), 16)) : r.startsWith("#") ? String.fromCodePoint(Number(r.slice(1))) : named[r]));
     for (const label of [...markup, "Start <here>", 'End & "done"', "<Lane> & 'roles'"]) expect(values.map(decode), label).toContain(label);
-    expect(out.xml).not.toMatch(/<script|<b>|<\/text>/);
+    expect(out.xml).not.toMatch(/<script|<b>|<\/text>/i);
   });
 });
