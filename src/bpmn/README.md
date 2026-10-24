@@ -18,7 +18,7 @@ behind the viewer seam of `viewer.ts`.
 | `bpmn-js.ts` | `connectBpmnJs`: the bpmn-js adapter of the seam (NavigatedViewer or Modeler, imported on demand) |
 | `headless.ts` | every name of the entry point except `<BpmnView/>`; Node code and tests import the bridge from here |
 | `moddle.ts` | bpmn-moddle instance with the `wise` extension, `flowIdOf`, `wiseAttr`, `isType`, tag ↔ type helpers |
-| `bpmn-moddle.d.ts` | minimal typing of bpmn-moddle (the package ships none) |
+| `bpmn-moddle.d.ts` | minimal typing of the bpmn-moddle class (the package types its BPMN elements only) |
 | `index.ts` | the entry point: `headless.ts` and `<BpmnView/>` from `../react/BpmnView.tsx`; the only module of the bridge that loads React |
 
 BPMN-lite vocabulary: activity nodes tagged `task` (plus a sub-type tag such

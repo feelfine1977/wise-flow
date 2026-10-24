@@ -366,4 +366,16 @@ describe("the bpmn-js adapter", () => {
     viewer.destroy();
     container.remove();
   });
+  it("gives the viewer the selection outline, which bpmn-js 18 draws only in the modeler, and keeps the host's modules", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const host = { hostValue: ["value", "kept"] };
+    const viewer = await connectBpmnJs({ container, mode: "view", options: { additionalModules: [host] } });
+    const instance = viewer.instance as { get(name: string, strict?: boolean): unknown };
+    expect(instance.get("outline", false)).toBeTruthy();
+    expect(instance.get("outlineProvider", false)).toBeTruthy();
+    expect(instance.get("hostValue")).toBe("kept");
+    viewer.destroy();
+    container.remove();
+  });
 });

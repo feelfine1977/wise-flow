@@ -44,7 +44,7 @@ test('the BPMN bridge may use the core, itself, bpmn-moddle and bpmn-js on deman
   assert.deepEqual(bridgeViolations(bridgeFile, `
     import { buildScene } from '../core/index.js';
     import type { IdResolver } from './ids.js';
-    import BpmnModdle from 'bpmn-moddle';
+    import { BpmnModdle } from 'bpmn-moddle';
     const viewer = await import('bpmn-js/lib/Modeler.js');
   `), []);
 });

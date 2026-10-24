@@ -17,6 +17,7 @@ const config: StorybookConfig = {
         "bpmn-moddle",
         "bpmn-js/lib/NavigatedViewer",
         "bpmn-js/lib/Modeler",
+        "bpmn-js/lib/features/outline",
       ],
     };
     return config;

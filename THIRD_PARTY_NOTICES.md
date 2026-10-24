@@ -3,11 +3,11 @@
 Flow's own licence is PolyForm Noncommercial 1.0.0 (LICENSE). Copied third-party
 assets retain their original licences; they are not relicensed as Flow code.
 
-- **bpmn-js 17.11.1:** CSS and BPMN fonts copied unchanged from `dist/assets`.
+- **bpmn-js 18.31.1:** CSS and BPMN fonts copied unchanged from `dist/assets`.
   Copyright (c) 2014-present Camunda Services GmbH. The original notice and full
   licence are in `dist/licenses/bpmn-js.txt`. The bpmn.io watermark source must
   remain intact, and its linked watermark must stay fully visible and must not
-  be overlapped. Source: https://github.com/bpmn-io/bpmn-js/tree/v17.11.1
+  be overlapped. Source: https://github.com/bpmn-io/bpmn-js/tree/v18.31.1
 - **@xyflow/react 12.11.6:** base stylesheet copied unchanged from `dist/style.css`.
   Original MIT notice and licence: `dist/licenses/@xyflow-react.txt`.
   Source: https://github.com/xyflow/xyflow

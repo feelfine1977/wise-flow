@@ -43,8 +43,10 @@ const EVENTS: { [K in keyof ViewerEvents]: [string, (event: Record<string, unkno
 
 export const connectBpmnJs: ConnectViewer = async ({ container, mode, options }) => {
   const mod = mode === "model" ? await import("bpmn-js/lib/Modeler.js") : await import("bpmn-js/lib/NavigatedViewer.js");
+  // Since bpmn-js 18 only the modeler draws the selection outline; the viewer gets the same module, ahead of the host's.
+  const outline = (await import("bpmn-js/lib/features/outline/index.js")).default;
   const Ctor = mod.default as unknown as new (options: Record<string, unknown>) => Viewer;
-  const viewer = new Ctor({ container, moddleExtensions: { wise: wiseModdleDescriptor }, ...(options ?? {}) });
+  const viewer = new Ctor({ container, moddleExtensions: { wise: wiseModdleDescriptor }, ...options, additionalModules: [outline, ...((options?.additionalModules ?? []) as unknown[])] });
   const get = <K extends keyof Services>(name: K): Services[K] => viewer.get<Services[K]>(name);
   const canvas = () => get("canvas");
   const adapter: BpmnViewer = {

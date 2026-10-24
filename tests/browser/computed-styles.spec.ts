@@ -114,6 +114,17 @@ import { fileURLToPath } from "node:url";
  * moved it, and every map scene waits for its paths to be drawn. Geometry
  * that depends on the fonts of the machine (widths, heights, positions) is left
  * out, so the record holds on every operating system.
+ * They were recorded once more when the BPMN view moved to bpmn-js 18. Matched
+ * element by element, only the BPMN scene changed, and no style of an element
+ * it kept: the 37 selection outlines (`rect` and `circle` classed
+ * `djs-outline`, hidden) are gone, since bpmn-js now draws an element's outline
+ * when it is first hovered or selected; the bpmn.io link and its logo (an `a`,
+ * an `svg` and two `path`s) come after the diagram instead of before it; the
+ * hidden breadcrumbs (`ul`, `display: none`) take bpmn-js's own background,
+ * border, radius and padding; and the labels of the start event, the two
+ * gateways and the end event break into two lines (`tspan`s), since bpmn-js
+ * now lays an external label out in the bounds its diagram interchange gives,
+ * which the fixture's modeler measured a little narrower ("Paid" in 22 units).
  */
 const RECORD = fileURLToPath(new URL("./computed-styles.json", import.meta.url));
 
