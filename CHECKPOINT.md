@@ -1,8 +1,8 @@
 # Checkpoints
 
-How to try the milestones by hand. Requires Node 22 or 24 and npm.
-Commands run from this directory. CP-E1 covers milestone 0.1, CP-E2
-milestone 0.2 (section 6), CP-E3 milestone 0.3 (section 7).
+How to try the milestones by hand. Requires Node 22.12 or later, or
+24, and npm. Commands run from this directory. CP-E1 covers milestone
+0.1, CP-E2 milestone 0.2 (section 6), CP-E3 milestone 0.3 (section 7).
 
 ## 1. Install and verify
 
