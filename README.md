@@ -147,6 +147,15 @@ const { graph, mapping } = await importBpmn(xml);
 See the [API](docs/API.md), [architecture](docs/ARCHITECTURE.md) and Storybook
 stories for overlays, shared layouts, actions, lanes, views and Canvas rendering.
 
+## From an event log
+
+Flow draws what the host counted. [examples/event-log](examples/event-log/README.md)
+turns a CSV event log (a case, an activity and a time per row) into a
+`FlowGraph`, shows it as an interactive map and draws it as a figure, step by
+step with the BPI Challenge 2019 purchase-to-pay log:
+
+![A 1,000-item sample of the BPI Challenge 2019 log as an interactive map](examples/event-log/images/map-frequency.png)
+
 ## Limits
 
 - Flow displays supplied metrics. It does not perform conformance checking,
