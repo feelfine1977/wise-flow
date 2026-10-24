@@ -585,8 +585,8 @@ export const printTokens = {
  * and to an end event, `terminal`), blues for the performance measure, the
  * categorical colours without yellow (each keeping its pattern twin), Inter
  * where the page has it, end events outlined as thin as start events, a lane's
- * rule 3 wide and tints of 3.5 and 1.9 %, heads twice as wide as their path
- * and none on a path under 2, paths against the reading direction a step
+ * rule 3 wide and tints of 3.5 and 1.9 %, heads whose base is twice their path's
+ * width (a head of size s is 0.4 s wide: `perWidth` 5) and none on a path under 2, paths against the reading direction a step
  * thinner at 0.6, and in the dark scheme borders instead of shadows. Values
  * of the prompt that fail `checkTheme` are moved to the nearest that passes:
  * the ramps start at `#8c94a1` and `#6b747f`, the dark `lineStrong` is
@@ -611,7 +611,7 @@ export const instrumentTokens = {
   stroke: { eventEnd: 1, band: 3, backwardStep: 1 },
   opacity: { bandFill: 0.035, bandOddFill: 0.019, backward: 0.6 },
   frequencyCue: "none",
-  arrowhead: { edge: { ...arrowheadTokens.edge, perWidth: 2, minWidth: 2 } },
+  arrowhead: { edge: { ...arrowheadTokens.edge, perWidth: 5, minWidth: 2 } },
 } as const satisfies Record<string, unknown> & { patterns: readonly PatternId[] };
 
 /** The table as one object. */

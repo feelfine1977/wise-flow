@@ -628,7 +628,8 @@ describe("malformed input at the core entry point", () => {
       if (!s.nodeMarks.length) calls.call("markInState", c, () => markInState(nodeMark(node, box, { color: "#000000", pattern: "solid" }), undefined));
       calls.call("ruleTextRole", c, () => ruleTextRole(c.rng.pick([undefined, "nameLine", "countLine", "share", "count", "label", junkString(c.rng)])));
       const head = calls.call("pathArrowhead", c, () => {
-        const a = pathArrowhead(junkNumber(c.rng));
+        // The default rule has no narrowest path: every width ends in a head.
+        const a = pathArrowhead(junkNumber(c.rng))!;
         must(Number.isFinite(a.size), c, () => `an arrowhead of size ${a.size}`);
         return a;
       });

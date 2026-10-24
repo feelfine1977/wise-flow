@@ -41,6 +41,7 @@ import {
   nodeCount,
   tintColor,
   unionBoxes,
+  paintOrder,
 } from "../core/index.js";
 import { LADDER_TOP, boostMark, boostText, isPill, namedUpTo, pillBoost } from "../core/readable.js";
 import { sceneOf } from "../core/scene.js";
@@ -100,6 +101,12 @@ export interface PreparedScene extends FlowScene {
   hit: HitIndex;
   /** Nodes plus edges; decides whether the renderer culls by viewport. */
   size: number;
+  /**
+   * The order the edges are painted in, the widest first (`paintOrder`), and
+   * each edge's place in it; prepared once, so that a culled draw orders the
+   * edges in view without reading the others.
+   */
+  edgePaint?: { order: readonly number[]; rank: ArrayLike<number> };
   nodeById: Map<string, SceneNode>;
   edgeById: Map<string, SceneEdge>;
   groupById: Map<string, SceneGroup>;
@@ -312,7 +319,7 @@ export function retainScene(scene: FlowScene): PreparedScene {
         const e = edges[i];
         const [p, q] = it.segment!;
         // The line (wider where highlighted) and its head, which grows with the line.
-        const box = grow({ x: Math.min(p.x, q.x), y: Math.min(p.y, q.y), width: Math.abs(q.x - p.x), height: Math.abs(q.y - p.y) }, Math.max(e.width / 2, highlight, reach(arrowheadExtent(e.mark.arrow))));
+        const box = grow({ x: Math.min(p.x, q.x), y: Math.min(p.y, q.y), width: Math.abs(q.x - p.x), height: Math.abs(q.y - p.y) }, Math.max(e.width / 2, highlight, e.mark.arrow ? reach(arrowheadExtent(e.mark.arrow)) : 0));
         const text = e.mark.texts[0];
         if (!text) return box;
         if (!labelAt.has(i)) labelAt.set(i, nearestSegment(e.points, text));
@@ -330,12 +337,21 @@ export function retainScene(scene: FlowScene): PreparedScene {
     bounds: sceneBounds(positions.bounds, shown.length ? unionBoxes(shown) : undefined),
     hit,
     size: nodes.length + edges.length,
+    edgePaint: painted(edges),
     nodeById: new Map(nodes.map((n) => [n.node.id, n])),
     edgeById: new Map(edges.map((e) => [e.edge.id, e])),
     groupById: new Map(groups.map((g) => [g.group.id, g])),
     shapeById: new Map(geometry.shapes.map((s) => [s.id, s])),
     labelCache: new Map(),
   };
+}
+
+/** The painting order of prepared edges (`paintOrder`) and each one's place in it. */
+function painted(edges: readonly SceneEdge[]): { order: readonly number[]; rank: Int32Array } {
+  const order = paintOrder(edges.map((e) => e.mark));
+  const rank = new Int32Array(edges.length);
+  order.forEach((index, place) => (rank[index] = place));
+  return { order, rank };
 }
 
 /** Group labels for descriptions; kept here so the React wrapper and the PNG export agree. */

@@ -132,8 +132,8 @@ export interface EdgeMark {
   points: XY[];
   color: string;
   width: number;
-  /** The arrowhead at the end, as wide as the line needs (`pathArrowhead`). */
-  arrow: Arrowhead;
+  /** The arrowhead at the end, as wide as the line needs (`pathArrowhead`); none on a path thinner than the rule's `minWidth`, whose line then ends on its route's end. */
+  arrow?: Arrowhead;
   dash?: number[];
   /** The count label at `edgeLabelPoint`, where the edge has a count; "–" on a path not evaluated; "via 2 activities not shown" on an indirect path. */
   texts: ElementText[];
@@ -330,8 +330,8 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
       const texts = glyph ? [write(ink(glyph, cx, cy + 1, textTokens.eventGlyph.size, { role: "glyph", weight: textTokens.eventGlyph.weight, anchor: "middle" })), text] : [text];
       // The host's statement: how many cases start or end here, and how many of them at an activity the map shows.
       const statement = glyph && options.terminals?.statement ? terminalStatement(node, locale) : undefined;
-      // On up to two lines of its width under the label, muted.
-      if (statement) wrapLines(statement, dimensionTokens.eventStatement, label, 2, measure).forEach((l, i) => texts.push(write(ink(l, cx, y + (i + 1) * (size + space.unit * 2), label.size, { role: "label", anchor: "middle", baseline: "alphabetic", paint: "inkMuted", lod: "labels" }))));
+      // On up to three lines of its width under the label, muted.
+      if (statement) wrapLines(statement, dimensionTokens.eventStatement, label, 3, measure).forEach((l, i) => texts.push(write(ink(l, cx, y + (i + 1) * (size + space.unit * 2), label.size, { role: "label", anchor: "middle", baseline: "alphabetic", paint: "inkMuted", lod: "labels" }))));
       return mark("circle", Math.min(box.width, box.height) / 2, line("lineStrong", end ? strokeTokens.eventEnd : strokeTokens.eventStart), texts, "paper", undefined, text.text === name && !statement ? undefined : [name, statement].filter(Boolean).join(". "));
     }
     case "gateway":
@@ -405,34 +405,38 @@ function cue(box: Box, stroke: number, band: number | undefined, share: number |
 }
 
 const RECONNECTED_EDGE_DASH = Object.freeze(dashTokens.reconnectedPath);
-const heads = new Map<number, Arrowhead>();
+const heads = new WeakMap<Arrowhead, Map<number, Arrowhead>>();
 
 /**
  * The arrowhead of a path `width` wide: the rule's size, or `perWidth` times
  * the width rounded up where that is more (`arrowheadTokens.edge`: 12, so a
  * path 8 wide ends in a head of 32, 14.4 wide with its outline); a width whose
- * head would not be a finite number ends in the rule's head. One frozen head
- * per size.
+ * head would not be a finite number ends in the rule's head. None on a path
+ * thinner than the rule's `minWidth` (`Theme.arrowhead`; 2 in `instrument`).
+ * One frozen head per rule and size.
  */
-export function pathArrowhead(width: number, rule: Arrowhead = arrowheadTokens.edge): Arrowhead {
+export function pathArrowhead(width: number, rule: Arrowhead = arrowheadTokens.edge): Arrowhead | undefined {
+  if (rule.minWidth! > 0 && !(width >= rule.minWidth!)) return undefined;
   const scaled = Math.ceil((rule.perWidth ?? 0) * width);
   const size = Math.max(rule.size, Number.isFinite(scaled) ? scaled : 0);
-  if (rule !== arrowheadTokens.edge) return { ...rule, size };
-  let head = heads.get(size);
-  if (!head) heads.set(size, (head = Object.freeze({ ...rule, size })));
+  let sized = heads.get(rule);
+  if (!sized) heads.set(rule, (sized = new Map()));
+  let head = sized.get(size);
+  if (!head) sized.set(size, (head = Object.freeze({ ...rule, size })));
   return head;
 }
 
 /**
  * Where the line of a route ends under its arrowhead: the route's last point
  * moved back along its last segment by the head's overhang (no further than
- * that segment's start), so that the head's tip lies on the route's end.
+ * that segment's start), so that the head's tip lies on the route's end; the
+ * route's end itself without a head.
  */
-export function lineEnd(points: readonly XY[], arrow: Arrowhead): XY {
+export function lineEnd(points: readonly XY[], arrow: Arrowhead | undefined): XY {
   const end = points[points.length - 1];
   const from = points[points.length - 2];
   const length = from ? Math.hypot(end.x - from.x, end.y - from.y) : 0;
-  if (!length) return end;
+  if (!length || !arrow) return end;
   const back = Math.min(length, arrowheadExtent(arrow).tip) / length;
   return { x: end.x - (end.x - from.x) * back, y: end.y - (end.y - from.y) * back };
 }
@@ -492,7 +496,7 @@ export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string;
     points,
     color: options.addedFlow ? theme.color.neutral : set?.stroke ? rulePaint(set.stroke, undefined, "value", theme.color, options.color) : options.color,
     width: options.width,
-    arrow: pathArrowhead(options.width),
+    arrow: pathArrowhead(options.width, theme.arrowhead.edge),
     dash: options.addedFlow ? dashTokens.addedFlow.map((n) => n * options.width) : ruleDash(set, reconnected || indirect ? RECONNECTED_EDGE_DASH : undefined, RECONNECTED_EDGE_DASH),
     texts: label
       ? [ruleText<ElementText>({ text: label, x: at.x, y: at.y, size, anchor, baseline: "alphabetic", paint: "ink", halo: true, role: "count", lod: "edgeLabels" }, set, "label", theme.color, options.color)]
@@ -505,6 +509,16 @@ export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string;
     ...(options.backward && { backward: true }),
     ...(set?.opacity !== undefined && { opacity: set.opacity }),
   };
+}
+
+/**
+ * The order every renderer paints edge marks in: the widest first and the
+ * thinnest on top, so that a thin path crossing a trunk stays visible; equal
+ * widths by id, so that the order does not depend on the input's. Indices
+ * into `marks`.
+ */
+export function paintOrder(marks: readonly { width: number; id: string }[]): number[] {
+  return marks.map((_, i) => i).sort((a, b) => marks[b].width - marks[a].width || (marks[a].id < marks[b].id ? -1 : marks[a].id > marks[b].id ? 1 : a - b));
 }
 
 /** Equal count texts of the marks share one string. */

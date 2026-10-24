@@ -64,12 +64,12 @@ describe("the arrowhead of a path", () => {
     // At 1 the head keeps its size of 12 in a view box of 20: 4.8 wide and outlined by 0.6, 5.4 in all; at 8 it is 4 × 8 = 32,
     // so 12.8 wide and outlined by 1.6, 14.4 in all, 8 long.
     const width = (m: typeof thin) => {
-      const e = arrowheadExtent(m.arrow);
+      const e = arrowheadExtent(m.arrow!);
       return 2 * e.half + e.outline;
     };
     expect(width(thin)).toBeCloseTo(5.4, 6);
     expect(width(wide)).toBeCloseTo(14.4, 6);
-    expect(arrowheadExtent(wide.arrow).length).toBeCloseTo(8, 6);
+    expect(arrowheadExtent(wide.arrow!).length).toBeCloseTo(8, 6);
     for (const m of scene.edgeMarks) expect(width(m)).toBeGreaterThan(m.width);
   });
 
@@ -86,7 +86,7 @@ describe("the arrowhead of a path", () => {
       const d = edge![1].match(/-?[\d.]+/g)!.map(Number);
       const end = { x: d.at(-2)!, y: d.at(-1)! };
       const route = m.points.at(-1)!;
-      const tip = marker.viewBox[0] + marker.viewBox[2] - arrowheadExtent(m.arrow).outline / 2;
+      const tip = marker.viewBox[0] + marker.viewBox[2] - arrowheadExtent(m.arrow!).outline / 2;
       expect(Math.hypot(route.x - end.x, route.y - end.y)).toBeCloseTo(tip, 1);
     }
   });
@@ -102,7 +102,7 @@ describe("the arrowhead of a path", () => {
       for (const m of [thin, wide]) {
         const end = m.points.at(-1)!;
         // In the PNG export the map is drawn translated: match the head by the line drawn before it.
-        const head = drawn.heads.find((h) => h.line?.width === m.width && Math.abs(Math.hypot(h.tip.x - h.line.points.at(-1)!.x, h.tip.y - h.line.points.at(-1)!.y) - arrowheadExtent(m.arrow).tip) < 0.01 && (drawn === png || (Math.abs(h.tip.x - end.x) < 0.01 && Math.abs(h.tip.y - end.y) < 0.01)));
+        const head = drawn.heads.find((h) => h.line?.width === m.width && Math.abs(Math.hypot(h.tip.x - h.line.points.at(-1)!.x, h.tip.y - h.line.points.at(-1)!.y) - arrowheadExtent(m.arrow!).tip) < 0.01 && (drawn === png || (Math.abs(h.tip.x - end.x) < 0.01 && Math.abs(h.tip.y - end.y) < 0.01)));
         expect(head, `${drawn === map ? "map" : "png"} ${m.id}`).toBeDefined();
         expect(head!.width).toBeGreaterThanOrEqual(m.width);
         expect(head!.width).toBeCloseTo(m.width === 1 ? 5.4 : 14.4, 6);

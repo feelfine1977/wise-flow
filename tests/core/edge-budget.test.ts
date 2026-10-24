@@ -313,8 +313,8 @@ describe("edge budget in the Canvas drawing", () => {
     const { scene, read } = watched(prepared);
     const { ctx, calls } = recorder();
     const stats = drawScene(ctx, scene, view, undefined, { cull: false, edgeBudget: 3, lodZoom: 2 });
-    // The drawn edges in list order: e1, e3 (40 each), e5 (50).
-    expect(read()).toEqual(["e1", "e3", "e5"]);
+    // The drawn edges in painting order, the widest first: e5 (50), then e1 and e3 (40 each) in list order.
+    expect(read()).toEqual(["e5", "e1", "e3"]);
     expect(stats).toMatchObject({ edges: 3, withheld: { shown: 3, total: 7 } });
     // The labels written are the three counts and the cards' names, cases and shares (a dash for each: the graph has no cases).
     expect(calls.filter((c) => c.startsWith("fillText")).map((c) => c.slice(9, -1).split(",")[0]).sort()).toEqual(["40", "40", "50", "a", "b", "c", "d", "· –", "· –", "· –", "· –", "–", "–", "–", "–"]);
@@ -344,7 +344,8 @@ describe("edge budget in the Canvas drawing", () => {
     const { scene, read } = watched(prepared);
     const state = { selection: { nodes: [], edges: ["e0"], groups: [] }, focused: "e6", highlighted: new Set(["e2"]) };
     const stats = drawScene(recorder().ctx, scene, view, state, { cull: false, edgeBudget: 0, lodZoom: 0 });
-    expect(read()).toEqual(["e0", "e6"]);
+    // Painted the widest first: e6 (30), then e0 (no count, the thinnest line).
+    expect(read()).toEqual(["e6", "e0"]);
     expect(stats.withheld).toMatchObject({ shown: 2, total: 7, highlightedNotShown: 1 });
   });
 

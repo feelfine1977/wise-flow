@@ -87,7 +87,8 @@ describe("element descriptions", () => {
     expect(large.canvas.descendants).toHaveLength(200 + 20 + 1);
     expect(large.texts[5]).toBe("Activity 5, activity (Stage 0). 15 cases.");
     expect(large.texts[200 + 4]).toBe("path Activity 4 → Activity 5. 5 transitions.");
-    expect(large.flow.edges[4].ariaLabel).toBe("path Activity 4 → Activity 5. 5 transitions.");
+    // React Flow's edges are in painting order (the widest first): the one from Activity 4 by its source.
+    expect(large.flow.edges.find((e) => e.ariaLabel?.startsWith("path Activity 4 →"))?.ariaLabel).toBe("path Activity 4 → Activity 5. 5 transitions.");
     expect(large.texts[200 + 199 + 3]).toBe("Stage 3, stage. 10 activities.");
 
     // No lookup over the nodes or edges runs per element: twice the elements, the same calls.

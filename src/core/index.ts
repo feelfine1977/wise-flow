@@ -496,6 +496,7 @@ export {
   edgeMark,
   nodeMarks,
   edgeMarks,
+  paintOrder,
   pathArrowhead,
   lineEnd,
   groupMark,

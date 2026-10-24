@@ -1015,9 +1015,16 @@ than 3 ends in a head 4 times its width (`perWidth`, rounded up: a path 8 wide
 in a head of 32, 8 long and 14.4 wide with its outline), so the head is at
 least 1.8 times as wide as its line at every width. The line ends three
 quarters of the head's length before the tip (`overhang` 3.75 of 20), inside
-the head, and the tip lies on the route's end: `pathArrowhead(width)` gives
-the head of a path (`EdgeMark.arrow`), `lineEnd(points, arrow)` where its line
-ends. The SVG export defines the marker `wf-arrow` for the head of 12 and
+the head, and the tip lies on the route's end: `pathArrowhead(width, rule)`
+gives the head of a path (`EdgeMark.arrow`), `lineEnd(points, arrow)` where its
+line ends. The rule is the theme's (`Theme.arrowhead.edge`, 0.4): the
+`instrument` preset grows the head by 5 per unit of width, so that its base is
+twice its path's width (a head of size s is 0.4 s wide), and gives a path
+thinner than 2 (`minWidth`) no head at all, its line then ending on the
+route's end; the default and print themes keep 4 and no minimum. Every
+renderer paints the paths the widest first and the thinnest on top, equal
+widths by id (`paintOrder`, 0.4; the SVG export drew them in id order), so
+that a thin path crossing a trunk stays visible. The SVG export defines the marker `wf-arrow` for the head of 12 and
 `wf-arrow-<size>` for each larger head it draws; the React Flow map defines
 `wf-edge-arrow-<size>` with the same `arrowMarker` (it used React Flow's
 `MarkerType.ArrowClosed` at 12); the Canvas map and the PNG export draw the
@@ -3091,7 +3098,8 @@ export interface NodeMark { id: string; kind: NodeKind; node: FlowNode; box: Box
   color: string; pattern: PatternId; fill: MarkPaint; stroke: { paint: MarkPaint; width: number; dash?: number[] }; band?: number;
   cue?: NodeCue; texts: ElementText[]; reconnected: boolean; outOfScope: boolean; title?: string; opacity?: number }
 export interface EdgeMark { id: string; kind: EdgeKind; edge: FlowEdge; points: XY[]; color: string; width: number; dash?: number[];
-  arrow: Arrowhead;                // the head at the route's end (`pathArrowhead(width)`); the line ends at `lineEnd(points, arrow)`
+  arrow?: Arrowhead;               // the head at the route's end (`pathArrowhead(width, theme.arrowhead.edge)`); none under the rule's minWidth (0.4); the line ends at `lineEnd(points, arrow)`
+  terminal?: "start" | "end";      // a path from a start or to an end event (`Scales.terminal`), in the terminal paint (0.4)
   backward?: boolean;              // a path against the reading direction, drawn below the flow it returns over
   texts: ElementText[]; reconnected: boolean; notEvaluated?: boolean; opacity?: number;   // opacity: line, arrowhead and label
   addedFlow?: boolean;             // opted-in host-added flow: neutral round dots; dash lengths resolved in layout units
@@ -3099,8 +3107,9 @@ export interface EdgeMark { id: string; kind: EdgeKind; edge: FlowEdge; points: 
 export interface CourseLabel { at: XY; side: XY }   // a label beside `at` on its course, on the side the unit vector `side` points to
 export interface PathCourses { positions: Positions; backward: ReadonlySet<string>; labels: ReadonlyMap<string, CourseLabel> }
 export function pathCourses(g: FlowGraph, p: Positions, o: { width: (e: FlowEdge) => number; bands?: ReadonlySet<string> }): PathCourses;
-export function pathArrowhead(width: number, rule?: Arrowhead): Arrowhead;   // the rule's size, or perWidth × width rounded up where more
-export function lineEnd(points: readonly XY[], arrow: Arrowhead): XY;        // the route's end moved back by the head's overhang
+export function pathArrowhead(width: number, rule?: Arrowhead): Arrowhead | undefined;   // the rule's size, or perWidth × width rounded up where more; none under rule.minWidth (0.4)
+export function lineEnd(points: readonly XY[], arrow: Arrowhead | undefined): XY;        // the route's end moved back by the head's overhang; the end itself without a head
+export function paintOrder(marks: readonly { width: number; id: string }[]): number[];   // the order every renderer paints paths in: the widest first, equal widths by id (0.4)
 export type BoxSide = "top" | "right" | "bottom" | "left";
 export interface GroupMark { id: string; kind: GroupKind; group: FlowGroup; box: Box; color: string; pattern: PatternId; band?: LaneBand;
   radius: number; fill: MarkFill; stroke: { paint: MarkPaint; width: number; dash?: number[]; sides?: BoxSide[] };

@@ -398,7 +398,7 @@ function drawEdge(ctx: DrawContext, e: SceneEdge, tokens: CanvasTokens, theme: T
   ctx.lineTo(end.x, end.y);
   ctx.stroke();
   ctx.setLineDash([]);
-  arrowhead(ctx, pts[pts.length - 2], end, m.arrow, color);
+  if (m.arrow) arrowhead(ctx, pts[pts.length - 2], end, m.arrow, color);
   ctx.globalAlpha = 1;
 }
 
@@ -540,6 +540,12 @@ function edgeState(scene: PreparedScene, e: SceneEdge, state: DrawState): StateS
 }
 
 const RANK: Record<HitItem["kind"], number> = { group: 0, overlay: 1, edge: 2, node: 3 };
+/** The order a scene's edges are painted in (`paintOrder`, prepared with the scene) and each edge's place in it. */
+type Painting = { order: readonly number[]; rank: ArrayLike<number> };
+
+/** The prepared painting order of the scene's edges, where it is for these edges; none otherwise (the list's order). */
+const painting = (scene: PreparedScene): Painting | undefined => (scene.edgePaint?.order.length === scene.edges.length ? scene.edgePaint : undefined);
+
 const drawingOrder = (a: HitItem, b: HitItem) => RANK[a.kind] - RANK[b.kind] || (a.index ?? -1) - (b.index ?? -1);
 const groupId = (g: SceneGroup) => g.group.id;
 const markId = (m: OverlayMark) => m.id;
@@ -572,14 +578,17 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
   // Culled: what the R-tree finds in the view, in drawing order. An index built without positions walks the lists.
   let found = cull ? scene.hit.within(visibleBox(view)).sort(drawingOrder) : undefined;
   if (found?.some((it) => it.index === undefined)) found = undefined;
-  const each = <T>(list: readonly T[], kind: HitItem["kind"], idOf: (item: T) => string, draw: (item: T, index: number) => void) => {
+  // With a painting order (`painting`), the list's items in it; otherwise in the list's order.
+  const each = <T>(list: readonly T[], kind: HitItem["kind"], idOf: (item: T) => string, draw: (item: T, index: number) => void, order?: Painting) => {
     if (!found) {
-      list.forEach(draw);
+      if (order) for (const i of order.order) draw(list[i], i);
+      else list.forEach(draw);
       return;
     }
-    // An edge has an item per segment; a replaced list is checked by id.
+    // An edge has an item per segment; a replaced list is checked by id. Ordered, an element's items stay together.
+    const items = order ? found.filter((it) => it.kind === kind && it.index !== undefined).sort((a, b) => order.rank[a.index!] - order.rank[b.index!] || a.index! - b.index!) : found;
     let last = -1;
-    for (const it of found) {
+    for (const it of items) {
       if (it.kind !== kind || it.index === undefined || it.index === last) continue;
       last = it.index;
       const item = list[it.index];
@@ -616,6 +625,7 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
   marks("below");
 
   let edges = 0;
+  // The edges in view, painted the widest first (`paintOrder`), as every renderer paints them.
   each(scene.edges, "edge", edgeId, (e, i) => {
     if (withheld && !withheld.drawn.has(i)) return;
     const id = e.edge.id;
@@ -623,7 +633,7 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
     const dimmed = !!state.bright && !state.bright.edges.has(id);
     drawEdge(ctx, e, tokens, scene.theme, selected || hovered, dimmed, edgeState(scene, e, state));
     edges++;
-  });
+  }, painting(scene));
   marks("between");
 
   let nodes = 0;

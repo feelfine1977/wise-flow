@@ -334,8 +334,12 @@ describe("the culled Canvas draw against a naive reference", () => {
         // The drawn sequence equals the reference, element for element and call for call.
         expect(got.map((v) => `${v.list}:${v.id}`), label).toEqual(want.visits.map((v) => `${v.list}:${v.id}`));
         for (const [i, v] of got.entries()) expect(v.calls, `${label}: ${v.list} ${v.id}`).toEqual(want.visits[i].calls);
-        // And it is in paint order: groups, tints, edges, arcs, nodes, the other marks, then the edges' labels; within a layer by position in the list.
-        const ranks = labels(got).map((l, i) => [got[i].list === "groups" ? 0 : got[i].list === "marks" ? { below: 1, between: 3, above: 5 }[scene.marks[got[i].index].layer] : got[i].list === "nodes" ? 4 : l.endsWith("#0") ? 2 : 6, got[i].index]);
+        // And it is in paint order: groups, tints, edges, arcs, nodes, the other marks, then the edges' labels; within a layer by
+        // position in the list, the edges' lines the widest first (`paintOrder`).
+        const ranks = labels(got).map((l, i) => {
+          const layer = got[i].list === "groups" ? 0 : got[i].list === "marks" ? { below: 1, between: 3, above: 5 }[scene.marks[got[i].index].layer] : got[i].list === "nodes" ? 4 : l.endsWith("#0") ? 2 : 6;
+          return [layer, layer === 2 ? scene.edgePaint!.rank[got[i].index] : got[i].index];
+        });
         for (let i = 1; i < ranks.length; i++) expect(ranks[i][0] > ranks[i - 1][0] || (ranks[i][0] === ranks[i - 1][0] && ranks[i][1] > ranks[i - 1][1]), `${label}: ${got[i - 1].list} ${got[i - 1].id} is painted before ${got[i].list} ${got[i].id}`).toBe(true);
         expect(culled.stats.culled, label).toBe(true);
         expect(culled.stats.withheld ? { shown: culled.stats.withheld.shown, total: culled.stats.withheld.total } : undefined, label).toEqual(want.shown === undefined ? undefined : { shown: want.shown, total: want.total });
@@ -691,9 +695,11 @@ describe("the PNG export against the reference", () => {
       expect(png.outside.join("\n").includes(block), `${label}: the export does not draw the elements as the direct draw does`).toBe(true);
       // Every element with ink once, in paint order: groups, marks below, edges, marks between, nodes, marks above, edge labels.
       const order = (v: Visit) => (v.list === "groups" ? 0 : v.list === "marks" ? { below: 1, between: 3, above: 5 }[prepared.marks[v.index].layer] : v.list === "edges" ? 2 : 4);
+      // Within a layer by position in the list; the edges the widest first (`paintOrder`).
+      const place = (v: Visit) => (v.list === "edges" ? prepared.edgePaint!.rank[v.index] : v.index);
       const inked = drawn(direct.visits);
       const lines = inked.filter((v) => v.list !== "edges" || inked.indexOf(v) === inked.findIndex((w) => w.list === "edges" && w.index === v.index));
-      for (let i = 1; i < lines.length; i++) expect(order(lines[i]) > order(lines[i - 1]) || (order(lines[i]) === order(lines[i - 1]) && lines[i].index > lines[i - 1].index), `${label}: ${lines[i - 1].list} ${lines[i - 1].id} before ${lines[i].list} ${lines[i].id}`).toBe(true);
+      for (let i = 1; i < lines.length; i++) expect(order(lines[i]) > order(lines[i - 1]) || (order(lines[i]) === order(lines[i - 1]) && place(lines[i]) > place(lines[i - 1])), `${label}: ${lines[i - 1].list} ${lines[i - 1].id} before ${lines[i].list} ${lines[i].id}`).toBe(true);
       const once = new Map<string, number>();
       for (const v of lines) once.set(keyOf(v), (once.get(keyOf(v)) ?? 0) + 1);
       expect([...once.values()].every((c) => c === 1), label).toBe(true);

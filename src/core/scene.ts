@@ -94,7 +94,7 @@ export interface FlowScene {
   marks: OverlayMark[];
   /** What each placed node looks like, in the graph's order. */
   nodeMarks: NodeMark[];
-  /** What each edge between two placed nodes looks like, in the graph's order; not the edges from a node to itself. */
+  /** What each edge between two placed nodes looks like, in the graph's order (renderers paint them in `paintOrder`); not the edges from a node to itself. */
   edgeMarks: EdgeMark[];
   /** What each placed group looks like, in the graph's order. */
   groupMarks: GroupMark[];

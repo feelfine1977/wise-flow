@@ -1,6 +1,6 @@
 /** What the two map renderers draw: React Flow elements or the Canvas map's retained scene, and their descriptions; the browser's text measure. */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { type ActivityLabelOptions, type Arrowhead, type EdgeBudget, type ElementRef, type FlowGraph, type FlowScene, type GraphIndex, type HitItem, type Locale, type Overlay, type OverlayMark, type Positions, type Readable, type ReadableRules, type Selection, type TextMeasure, budgetEdges, describeOverlay, indexGraph, markInState, readableTokens, stateStyle, zTokens } from "../core/index.js";
+import { type ActivityLabelOptions, type Arrowhead, type EdgeBudget, type ElementRef, type FlowGraph, type FlowScene, type GraphIndex, type HitItem, type Locale, type Overlay, type OverlayMark, type Positions, type Readable, type ReadableRules, type Selection, type TextMeasure, budgetEdges, paintOrder, describeOverlay, indexGraph, markInState, readableTokens, stateStyle, zTokens } from "../core/index.js";
 import { type DrawState, type PreparedScene, canvasTextMeasure } from "../canvas/index.js";
 import { retainScene } from "../canvas/scene.js";
 import { LABELS } from "../core/readable.js";
@@ -257,7 +257,9 @@ export function useFlowElements(input: FlowInput) {
   }, [enabled, scene, edgeBudget, selection, focused, highlighted, pathRule]);
   const rfEdges = useMemo<WfEdge[]>(() => {
     if (!positions || !enabled) return [];
-    return (withheld ? scene.edgeMarks.filter((_, i) => withheld.drawn.has(i)) : scene.edgeMarks).map((mark) => {
+    // Painted the widest first (`paintOrder`), as every renderer paints them: React Flow draws its edges in this order.
+    return paintOrder(scene.edgeMarks).filter((i) => !withheld || withheld.drawn.has(i)).map((i) => {
+      const mark = scene.edgeMarks[i];
       const e = mark.edge;
       const description = describeElement({ kind: "edge", id: e.id });
       const states = { selected: selection.edges.includes(e.id), focused: focused === e.id, hovered: hovered === e.id, dimmed: !!bright && !bright.edges.has(e.id) };
@@ -270,7 +272,7 @@ export function useFlowElements(input: FlowInput) {
         selected: selection.edges.includes(e.id),
         ariaLabel: description,
         // The head the map defines for its size (`MarkDefs`), as the SVG export does; it takes the colour of the path's stroke.
-        markerEnd: edgeArrowId(mark.arrow),
+        markerEnd: mark.arrow && edgeArrowId(mark.arrow),
         zIndex: hovered === e.id || focused === e.id ? zTokens.pathHovered : 0,
         data: {
           edge: e,
@@ -291,7 +293,7 @@ export function useFlowElements(input: FlowInput) {
   }, [positions, enabled, scene, describeElement, selection, hovered, focused, bright, withheld]);
   const shownBetween = useMemo(() => between.map((m) => inHover(pathRule && keptLoop(m, true) ? { ...m, minZoom: 0 } : m)), [between, inHover, pathRule]);
   // The heads the edges end in, one per size.
-  const arrows = useMemo(() => [...new Map(rfEdges.map((e) => [e.data!.mark!.arrow.size, e.data!.mark!.arrow])).values()].sort((a, b) => a.size - b.size), [rfEdges]);
+  const arrows = useMemo(() => [...new Map(rfEdges.flatMap((e) => (e.data!.mark!.arrow ? [[e.data!.mark!.arrow.size, e.data!.mark!.arrow] as const] : []))).values()].sort((a, b) => a.size - b.size), [rfEdges]);
   return { nodes: rfNodes, edges: rfEdges, between: shownBetween, withheld, arrows };
 }
 

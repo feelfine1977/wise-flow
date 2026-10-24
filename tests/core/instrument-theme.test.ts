@@ -32,7 +32,8 @@ describe("the instrument preset", () => {
     expect([instrumentTheme.stroke.eventStart, instrumentTheme.stroke.eventEnd, instrumentTheme.stroke.band, instrumentTheme.stroke.backwardStep]).toEqual([1, 1, 3, 1]);
     expect([instrumentTheme.opacity.groupFill, instrumentTheme.opacity.bandFill, instrumentTheme.opacity.bandOddFill, instrumentTheme.opacity.dimmed, instrumentTheme.opacity.dimmedPath, instrumentTheme.opacity.backward]).toEqual([0, 0.035, 0.019, 0.35, 0.25, 0.6]);
     expect([instrumentTheme.frequencyCue, instrumentTheme.text.minScreenPx]).toEqual(["none", 9]);
-    expect([instrumentTheme.arrowhead.edge.perWidth, instrumentTheme.arrowhead.edge.minWidth]).toEqual([2, 2]);
+    // A head of size s is 0.4 s wide: 5 per unit of width makes its base twice the line's width; none under 2.
+    expect([instrumentTheme.arrowhead.edge.perWidth, instrumentTheme.arrowhead.edge.minWidth]).toEqual([5, 2]);
     // The default theme is untouched by the preset.
     expect([defaultTheme.size.band, defaultTheme.radius.node, defaultTheme.frequencyCue, defaultTheme.arrowhead.edge.perWidth, defaultTheme.stroke.backwardStep, defaultTheme.opacity.backward]).toEqual([8, 4, "both", 4, 0, 1]);
   });

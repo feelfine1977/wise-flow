@@ -105,10 +105,10 @@ describe("the arrowhead rule", () => {
   });
 
   it("grows with the path: 4 times its width, rounded up, where that is more than 12", () => {
-    expect([0.5, 1, 3, 3.01, 4.51, 8].map((w) => pathArrowhead(w).size)).toEqual([12, 12, 12, 13, 19, 32]);
+    expect([0.5, 1, 3, 3.01, 4.51, 8].map((w) => pathArrowhead(w)!.size)).toEqual([12, 12, 12, 13, 19, 32]);
     expect(pathArrowhead(8)).toBe(pathArrowhead(8));
     // At 32 the head is 8 long and 12.8 wide, outlined by 1.6, its tip 6 beyond the line's end.
-    expect(arrowheadExtent(pathArrowhead(8))).toEqual({ length: 8, half: 6.4, tip: 6, outline: 1.6 });
+    expect(arrowheadExtent(pathArrowhead(8)!)).toEqual({ length: 8, half: 6.4, tip: 6, outline: 1.6 });
     // The line ends that far before the route's end, along the last segment, no further back than its start.
     expect(lineEnd([{ x: 0, y: 0 }, { x: 100, y: 0 }], pathArrowhead(8))).toEqual({ x: 94, y: 0 });
     expect(lineEnd([{ x: 0, y: 0 }, { x: 0, y: 4 }], pathArrowhead(8))).toEqual({ x: 0, y: 0 });

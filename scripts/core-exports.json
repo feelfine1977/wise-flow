@@ -344,6 +344,7 @@
     "overlayMargin",
     "overlayMarks",
     "overlaysFor",
+    "paintOrder",
     "paletteTokens",
     "palettes",
     "panelInsets",
