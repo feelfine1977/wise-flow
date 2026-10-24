@@ -235,7 +235,8 @@ function largest(card: Card, level: Exclude<ReadableLevel, "box">, theme: Theme,
   if (nameStyle) {
     // The first characters of the name, and the ellipsis where the name goes on.
     const chars = Array.from(card.name.trim());
-    const start = chars.slice(0, readableTokens.nameChars).join("") + (chars.length > readableTokens.nameChars ? "…" : "");
+    const { nameChars } = theme.readable;
+    const start = chars.slice(0, nameChars).join("") + (chars.length > nameChars ? "…" : "");
     most = Math.min(most, card.room / Math.max(1e-9, measure(start, nameStyle)));
   }
   if (numbers) {
@@ -281,18 +282,22 @@ function alike(items: readonly number[], lines: readonly string[][]): number[][]
  * part before the start. `rest` is the name after the lines kept before the
  * last.
  */
-function tellingLine(rest: string, from: number, room: number, font: { size: number; weight?: number }, measure: TextMeasure): string {
+function tellingLine(rest: string, from: number, room: number, font: { size: number; weight?: number }, measure: TextMeasure, words = false): string {
   const chars = Array.from(rest);
   const limit = Math.max(font.size, room);
-  const shown = truncateText(chars.slice(from).join(""), Math.max(font.size, limit - measure("…", font)), font, measure);
+  // By words, the telling part starts at the start of its word, and both parts end after whole words.
+  let at = from;
+  if (words) while (at > 0 && !/\s/u.test(chars[at - 1])) at--;
+  const shown = truncateText(chars.slice(at).join(""), Math.max(font.size, limit - measure("…", font)), font, measure, { words });
   let lo = 0;
-  let hi = from;
+  let hi = at;
   while (lo < hi) {
     const mid = Math.ceil((lo + hi) / 2);
     if (measure(`${chars.slice(0, mid).join("")}…${shown}`, font) <= limit + 1e-6) lo = mid;
     else hi = mid - 1;
   }
-  return `${chars.slice(0, lo).join("")}…${shown}`;
+  if (words && lo < at) while (lo > 0 && !/\s/u.test(chars[lo])) lo--;
+  return `${chars.slice(0, lo).join("").trimEnd()}…${shown}`;
 }
 
 /**
@@ -304,14 +309,22 @@ function tellingLine(rest: string, from: number, room: number, font: { size: num
  * tell it by. Names that are the same stay the same.
  */
 export function distinctLines(items: readonly NameRoom[], max: number, measure: TextMeasure, given?: readonly (readonly string[])[]): string[][] {
-  const lines = given ? given.map((l) => [...l]) : items.map((i) => wrapLines(i.name, i.room, i.font, max, measure));
+  const lines = given ? given.map((l) => [...l]) : items.map((i) => wrapLines(i.name, i.room, i.font, max, measure, { words: true }));
   const tellApart = (group: readonly number[], after: number) => {
     const rests = group.map((i) => restOf(items[i].name, lines[i].slice(0, -1)));
     const from = sharedStart(rests);
     if (from <= after || rests.every((rest) => Array.from(rest).length <= from)) return;
+    // By words first ("…invoice", never "Ve…invoice"); names that still coincide so, by characters.
     group.forEach((i, k) => {
-      lines[i][lines[i].length - 1] = tellingLine(rests[k], from, items[i].room, items[i].font, measure);
+      lines[i][lines[i].length - 1] = tellingLine(rests[k], from, items[i].room, items[i].font, measure, true);
     });
+    for (const still of alike(group, lines)) {
+      // Names that are the same stay the same.
+      if (new Set(still.map((i) => items[i].name)).size < 2) continue;
+      still.forEach((i) => {
+        lines[i][lines[i].length - 1] = tellingLine(rests[group.indexOf(i)], from, items[i].room, items[i].font, measure);
+      });
+    }
     for (const still of alike(group, lines)) tellApart(still, from);
   };
   for (const group of alike(items.map((_, i) => i), lines)) tellApart(group, 0);
@@ -338,7 +351,7 @@ const sameTexts = (a: readonly ElementText[], b: readonly ElementText[]) => a.le
  * (`NodeMark.levels`, set on the marks), from its node marks and its overlay
  * marks (`overlays`, for the pills): a level fits while every card's
  * block fits its room at the boost, a line holds the first
- * `readableTokens.nameChars` characters of every name (and the ellipsis
+ * `Theme.readable.nameChars` characters of every name (and the ellipsis
  * where the name goes on) and the number line its width, by the estimate of
  * text widths, so that the levels do not depend on the font; the lines are
  * fitted by `measure`. A level that never fits is drawn only unboosted.

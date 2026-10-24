@@ -8,6 +8,7 @@
 import { describe, expect, it } from "vitest";
 import { type FlowScene, buildScene, dashTokens, defaultTheme, instrumentTheme, themeColors, toSVG } from "../../src/index";
 import { type DrawContext, drawScene, prepareScene } from "../../src/canvas/index";
+import { describeIndexedEdge } from "../../src/core/describe";
 import { graph, positions } from "../support/terminals";
 
 const edge = (s: FlowScene, id: string) => s.edgeMarks.find((m) => m.id === id)!;
@@ -56,6 +57,22 @@ describe("terminal paths", () => {
     expect([added.addedFlow, added.terminal, added.color, added.dash]).toEqual([true, undefined, defaultTheme.color.neutral, dashTokens.addedFlow.map((n) => n * added.width)]);
     // Dots and the dashes of re-added paths stay apart: their length-to-gap ratios differ.
     expect(dashTokens.addedFlow[0] / dashTokens.addedFlow[1]).not.toBe(dashTokens.reconnectedPath[0] / dashTokens.reconnectedPath[1]);
+  });
+
+  it("include sequence flows from Start and to End that the host tags start and end, but no untagged flow", () => {
+    const host = { ...graph, edges: graph.edges.map((e) => (e.id === "start->a" ? { ...e, kind: "flow" as const, tags: ["start"] } : e.id === "e->end" ? { ...e, kind: "flow" as const, tags: ["end"] } : e.id === "d->end" ? { ...e, kind: "flow" as const } : e)) };
+    const s = buildScene(host, positions, { measure: "performance" });
+    expect([edge(s, "start->a").terminal, edge(s, "e->end").terminal, edge(s, "d->end").terminal]).toEqual(["start", "end", undefined]);
+    expect(edge(s, "start->a").color).toBe(defaultTheme.color.terminal);
+  });
+
+  it("are described in cases that start or end at their activity, not in transitions", () => {
+    const index = { nodes: new Map(graph.nodes.map((n) => [n.id, n])) };
+    const start = { ...graph.edges[0], metrics: { count: 800, cases: 800 } };
+    expect(describeIndexedEdge(start, index, "en")).toBe("path Start → Create Purchase Requisition Item. 800 cases begin with this activity.");
+    expect(describeIndexedEdge({ ...graph.edges[6], kind: "flow", tags: ["end"], metrics: { count: 600 } }, index, "de")).toBe("Sequenzfluss Clear Invoice → Ende. 600 Fälle enden mit dieser Aktivität.");
+    // A recorded path keeps its description.
+    expect(describeIndexedEdge(graph.edges[2], index, "en")).toBe("path Create Purchase Requisition Item → Record Goods Receipt. 700 cases. median lag 30 h. 20 % expectation shortfall.");
   });
 
   it("are keyed in the legend with the start and end events", () => {

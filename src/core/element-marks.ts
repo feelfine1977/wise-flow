@@ -7,7 +7,7 @@ import type { LaneBand } from "./lanes.js";
 import { type EdgeKind, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type GroupKind, type NodeKind, hasTag, metric } from "./model.js";
 import { RECONNECTED_TAG } from "./aggregate.js";
 import { indirectWay } from "./detail.js";
-import { describeTimes } from "./describe.js";
+import { describeTimes, nodeName } from "./describe.js";
 import { t } from "./strings.js";
 import { type RuleSet, type RuleState, type RuleTextRole, ruleDash, rulePaint, ruleRadius, ruleSet, ruleText, ruleTextRole, ruleWidth } from "./rules.js";
 import type { CourseLabel, PathCourses } from "./courses.js";
@@ -324,7 +324,7 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
       const size = styled(label, set, "label").size;
       const end = hasTag(node, "end");
       const glyph = eventGlyph(node);
-      const name = node.label || (glyph ? t(locale, end ? "terminal.end" : "terminal.start") : "");
+      const name = nodeName(node, locale);
       const y = box.y + box.height + space.unit * 2 + size;
       const text = fitted(write(ink(name, cx, y, label.size, { role: "label", anchor: "middle", baseline: "alphabetic", maxWidth: dimensionTokens.eventLabel, lod: "labels" })), measure);
       const texts = glyph ? [write(ink(glyph, cx, cy + 1, textTokens.eventGlyph.size, { role: "glyph", weight: textTokens.eventGlyph.weight, anchor: "middle" })), text] : [text];
@@ -349,7 +349,8 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
       const shareText = styled(textTokens.activityShare, set, "share");
       // The room the interactive map gives the texts: inside the padding and a solid outline (a dashed one is drawn over the box).
       const room = box.width - INSETS - (dash ? 0 : 2 * width);
-      const lines = wrapLines(name, room, nameText, 2, measure);
+      // A name is shortened after whole words: "Vendor creates…", never "Vendor cr…".
+      const lines = wrapLines(name, room, nameText, 2, measure, { words: true });
       const share = caseShare(node, options.total);
       const counted = labels?.showCounts !== false;
       // The texts as one block in the middle of the card above its foot.

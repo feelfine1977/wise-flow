@@ -1,5 +1,5 @@
 /** Text descriptions of map elements for ARIA labels and the table alternative. */
-import { describeEdge, describeTimes } from "../core/describe.js";
+import { describeEdge, describeTimes, nodeName } from "../core/describe.js";
 import {
   type ActivityLabelOptions,
   activityCounts,
@@ -27,7 +27,7 @@ import {
 
 export function describeNode(node: FlowNode, overlays: Overlay[], locale: Locale, groupLabel?: string, activityLabels?: ActivityLabelOptions): string {
   const parts: string[] = [];
-  parts.push(`${node.label}, ${t(locale, `kind.${node.kind}` as StringKey)}${groupLabel ? ` (${groupLabel})` : ""}`);
+  parts.push(`${nodeName(node, locale)}, ${t(locale, `kind.${node.kind}` as StringKey)}${groupLabel ? ` (${groupLabel})` : ""}`);
   const cases = metric(node, "cases", NaN);
   const share = metric(node, "share", NaN);
   if (activityLabels) {

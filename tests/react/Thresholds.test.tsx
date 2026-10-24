@@ -205,9 +205,10 @@ const summary = (failures: readonly Failure[]) => failures.slice(0, 6).map((f) =
 /** Exact count-label overlaps newly exposed by connecting paths kept beyond the budget; another overlap at these rungs fails. */
 const CONNECTING_COUNT_OVERLAPS: Record<string, string[]> = {
   "0 %": [
-    'path label "3" of change_final_invoice_indicator->clear_invoice covers path label "6,734" of create_purchase_order_item->delete_purchase_order_item',
-    'path label "3" of change_payment_term->record_goods_receipt covers path label "77,406" of create_purchase_order_item->record_goods_receipt',
-    'path label "405" of create_purchase_order_item->srm_change_was_transmitted covers path label "167" of block_purchase_order_item->__end',
+    // The same three pairs as before the paths and their labels were painted the widest first (WF-07); which of each pair lies on top changed.
+    'path label "6,734" of create_purchase_order_item->delete_purchase_order_item covers path label "3" of change_final_invoice_indicator->clear_invoice',
+    'path label "77,406" of create_purchase_order_item->record_goods_receipt covers path label "3" of change_payment_term->record_goods_receipt',
+    'path label "167" of block_purchase_order_item->__end covers path label "405" of create_purchase_order_item->srm_change_was_transmitted',
   ].sort(),
   default: ['path label "1,033" of record_goods_receipt->change_delivery_indicator covers record_service_entry_sheet'],
 };

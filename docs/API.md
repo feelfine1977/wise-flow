@@ -1253,8 +1253,10 @@ metrics `cases` and `atShown` (`terminal.statement`: "1,000 cases · 940
 label and the statement with the events' labels (see "Readable at every
 zoom").
 
-A terminal path is a follows edge from a start event or to an end event that
-the host did not add (`added-by-map`): `Scales.terminal(edge)` names it
+A terminal path is a follows edge from a start event or to an end event, or
+a sequence flow there that the host tags `start` or `end` (a BPMN model's own
+untagged flows keep their look), that the host did not add (`added-by-map`;
+`terminalOf(edge, node)`): `Scales.terminal(edge)` names it
 `"start"` or `"end"` and its mark carries `EdgeMark.terminal`. It is recorded
 history, the cases that start or end at an activity (an adapter weights it
 by them), so it is drawn solid, in the theme's `terminal` paint (light
@@ -1263,7 +1265,11 @@ the width scale every path shares, and labelled with its count alone (no
 measure's value leads it). It is not part of the measure's colour domain, is
 never "not evaluated" for lacking a measure's value, and dims with the rest.
 The legend keys it ("─ Paths from Start and to End: cases by their first and
-last activity", `legend.terminal`) beside the events' keys (▶, ■). The
+last activity", `legend.terminal`) beside the events' keys (▶, ■). Its
+accessible description counts cases, not transitions ("path Start → Create
+PO. 800 cases begin with this activity", `terminal.describeStart`,
+`terminal.describeEnd`), and an event without a label is named "Start" or
+"End" there too (`nodeName`). The
 interactive map's path carries the state `start` or `end` (see "Styling
 contract"). The opted-in host flows (`StyleSpec.addedFlowLabel` and the tag
 `added-by-map`) stay neutral round dots: they are flows the map adds, not
@@ -2994,7 +3000,8 @@ SVG and Canvas PNG exports include the canonical activity key even when the colo
 ```ts
 export type TextMeasure = (text: string, font: { size: number; weight?: number }) => number;
 export const estimateTextWidth: TextMeasure;   // 0.55 em per character, a full em for CJK, kana, Hangul, full-width forms and emoji
-export function truncateText(text: string, maxWidth: number, font: { size: number; weight?: number }, measure?: TextMeasure): string;
+export function truncateText(text: string, maxWidth: number, font: { size: number; weight?: number }, measure?: TextMeasure, options?: TruncateOptions): string;
+export interface TruncateOptions { words?: boolean }   // after whole words where one fits (0.4)
 export function wrapText(text: string, width: number, font: { size: number; weight?: number }, measure?: TextMeasure): string[];
 export function restOf(text: string, kept: readonly string[]): string;   // the rest of a text after the lines kept before the last
 export function fitText(t: MarkText, measure?: TextMeasure): string;
@@ -3031,7 +3038,14 @@ the name needs more (`wrapLines`, an internal rule over `wrapText` and
 
 `truncateText` keeps the longest start of a text that fits with an ellipsis,
 at least one character (a width over the limit by less than a millionth, a
-rounding, fits). `wrapText` puts words on lines at most `width` wide (at
+rounding, fits); with `{ words: true }` the start ends after a whole word
+("Vendor…", never "Vendor cr…"), and only where no whole word fits is the
+first word cut between characters. A card's name is shortened by words (0.4),
+on its card and at every readable level, and two names shortened alike are
+told apart by the word where they differ ("…invoice", "…debit…"; by
+characters only where words leave them alike). Chips, legend rows and figure
+texts keep the character cut. The readable ladder's name rule keeps the
+theme's `readable.nameChars` characters (8). `wrapText` puts words on lines at most `width` wide (at
 least the font's size) and breaks a word wider than a line between
 characters; `wrapActivityText(value, width, fontSize?, measure?)`,
 `activityLabelLines(node, options, width, locale?, measure?)` (the card's two

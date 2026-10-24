@@ -511,7 +511,8 @@ export interface Scales {
   notEvaluated(edge: FlowEdge): boolean;
   /**
    * A terminal path: a follows edge from a start event (`start`) or to an end
-   * event (`end`), not added by the host (`added-by-map`). It is recorded
+   * event (`end`), or a sequence flow there that the host tags `start` or
+   * `end`, not added by the host (`added-by-map`). It is recorded
    * history (the cases that start or end at an activity), drawn solid in the
    * theme's `terminal` paint whatever the measure, on the width scale of
    * every path, and is not part of the measure's colour domain.
@@ -632,6 +633,20 @@ export function pathMetricOf(edges: readonly FlowEdge[]): (name: string) => stri
   return (name) => (name === "cases" && counts ? "count" : name);
 }
 
+/**
+ * Whether an edge is a terminal path (`Scales.terminal`): a follows edge from
+ * a start event (`start`) or to an end event (`end`), or a sequence flow there
+ * that the host tags `start` or `end` (a BPMN model's own flows keep their
+ * look); never one tagged `added-by-map`. `node` looks an end up by id.
+ */
+export function terminalOf(edge: FlowEdge, node: (id: string) => FlowNode | undefined): "start" | "end" | undefined {
+  if (hasTag(edge, "added-by-map") || (edge.kind !== "follows" && edge.kind !== "flow")) return undefined;
+  const event = (id: string, tag: string) => { const n = node(id); return n?.kind === "event" && hasTag(n, tag); };
+  if (event(edge.source, "start") && (edge.kind === "follows" || hasTag(edge, "start"))) return "start";
+  if (event(edge.target, "end") && (edge.kind === "follows" || hasTag(edge, "end"))) return "end";
+  return undefined;
+}
+
 /** Build the scales of a graph for a style specification in a theme's palettes; deterministic for the same input. */
 export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, theme: Theme = defaultTheme): Scales {
   const domains: Scales["domains"] = {};
@@ -658,9 +673,8 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
   const indirect = (e: FlowEdge) => hasTag(e, INDIRECT_TAG);
   const addedFlow = (e: FlowEdge) => spec.addedFlowLabel !== undefined && hasTag(e, "added-by-map");
   // Paths from a start and to an end event are recorded history drawn apart from the measure.
-  const startEvents = new Set(graph.nodes.filter((n) => n.kind === "event" && hasTag(n, "start")).map((n) => n.id));
-  const endEvents = new Set(graph.nodes.filter((n) => n.kind === "event" && hasTag(n, "end")).map((n) => n.id));
-  const terminal = (e: FlowEdge): "start" | "end" | undefined => (e.kind !== "follows" || hasTag(e, "added-by-map") ? undefined : startEvents.has(e.source) ? "start" : endEvents.has(e.target) ? "end" : undefined);
+  const byId = new Map(graph.nodes.map((n) => [n.id, n]));
+  const terminal = (e: FlowEdge) => terminalOf(e, (id) => byId.get(id));
   // A terminal path is evaluated by its count alone: no measure colours it.
   const notEvaluated = (e: FlowEdge) => e.kind === "follows" && !addedFlow(e) && !indirect(e) && !(Number.isFinite(metric(e, pathMetric, NaN)) && (!required || terminal(e) !== undefined || Number.isFinite(metric(e, required, NaN))));
   let widthFn: (e: FlowEdge) => number = () => theme.stroke.path;

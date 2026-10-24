@@ -173,7 +173,7 @@ export type {
   ColorScheme,
   FrequencyCue,
 } from "./theme.js";
-export { checkTheme, type ThemeDeviation } from "./style.js";
+export { checkTheme, terminalOf, type ThemeDeviation } from "./style.js";
 export { readableAt, readableZoom, distinctLines } from "./readable.js";
 export type { Readable, ReadableLevel, ReadableLabel, ReadableRules, CardLevels, NameRoom } from "./readable.js";
 export { stateStyle, markInState, ruleTextRole } from "./rules.js";
@@ -462,6 +462,7 @@ export {
 
 export type {
   TextMeasure,
+  TruncateOptions,
 } from "./text.js";
 export {
   estimateTextWidth,

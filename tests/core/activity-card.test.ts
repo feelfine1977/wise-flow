@@ -171,8 +171,8 @@ describe("the name on a card", () => {
   it("ends a name longer than two lines in an ellipsis and gives it whole to hover and assistive technology", () => {
     const long: FlowGraph = { nodes: [{ id: "x", kind: "activity", label: "Vendor creates debit memo for the purchase order item after the goods receipt", metrics: { cases: 3 } }], edges: [], meta: { cases: 3 } };
     const [m] = buildScene(long, row(long)).nodeMarks;
-    // 21 characters of 7.15 fit the room of 154: the second line keeps 20 and the ellipsis.
-    expect(lines(m)).toEqual(["Vendor creates debit", "memo for the purchas…"]);
+    // 21 characters of 7.15 fit the room of 154: the second line keeps its whole words and the ellipsis.
+    expect(lines(m)).toEqual(["Vendor creates debit", "memo for the…"]);
     expect(m.title).toBe(long.nodes[0].label);
     expect(toSVG({ graph: long, positions: row(long) }, { legend: false })).toContain(`<title>${long.nodes[0].label}</title>`);
   });

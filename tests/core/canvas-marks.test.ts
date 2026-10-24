@@ -314,9 +314,10 @@ describe("Canvas node and edge marks", () => {
       name("Re-added", [416, 116.05]),
       ...number("–", "· –", 416, 130.35, 426.05),
       // Edge counts with a halo, 4 above the middle of the route; the flow edge carries its count too.
-      text("1,234", [68, 16], "11px", "center", "alphabetic"),
+      // In painting order: every path is 1 wide, so by id (a->g, s->r, start->a; g->s has no count).
       text("12", [300, 16], "11px", "center", "alphabetic"),
       text("3", [500, 74], "11px", "center", "alphabetic"),
+      text("1,234", [68, 16], "11px", "center", "alphabetic"),
     ]);
     // The constraint edge in the accent, solid, its line ending 2.25 before the route inside its head.
     expect(startingAt(drawElements(), "M364,20")).toEqual([{ op: "stroke", path: "M364,20 L382,20 L382,28 L397.75,28", color: "#b84a00", alpha: 1, width: 1, dash: [] }]);
@@ -351,9 +352,9 @@ describe("Canvas node and edge marks", () => {
     ctx.measureText = (text: string) => ({ width: text.length * (ctx.font.endsWith("Wide") ? 12 : 6) });
     const names = (family: string) => written(drawElements(undefined, 1, long, canvasTextMeasure(family, ctx))).filter((t) => t.font === font("500 13px")).map((t) => t.text);
     // The name has 154 inside the card. The narrow font: 25 a line, the second line 24 and the ellipsis. The same name in
-    // the wide font after it: 12 a line ("Change Approval" is 15), the second line 11 and the ellipsis.
+    // the wide font after it: 12 a line ("Change Approval" is 15), the second line its whole words and the ellipsis.
     expect(names("Narrow")).toEqual(["Change Approval for", "Purchase Order Item of a…", "Re-added"]);
-    expect(names("Wide")).toEqual(["Change", "Approval fo…", "Re-added"]);
+    expect(names("Wide")).toEqual(["Change", "Approval…", "Re-added"]);
   });
 
   it("cuts a label again for a width that rounds to the same whole number", () => {

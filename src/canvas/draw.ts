@@ -652,7 +652,7 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
     if (alpha !== undefined) ctx.globalAlpha = alpha;
     for (const tx of e.mark.texts) if (!tx.lod || lod[tx.lod]) drawText(ctx, scene, tx, paintOf(e.mark, s?.texts?.label ?? tx.paint, tokens), tokens);
     if (alpha !== undefined) ctx.globalAlpha = 1;
-  });
+  }, painting(scene));
   const numbers = !options.numbers && options.pathRule && readable.level === "box" ? new Map(numbered({ ...scene, activityLabels: undefined }, readable.floor, dimensionTokens.panelMaxWidth, scene.textMeasure).texts.map((n) => [n.id, n.text])) : undefined;
   const drawNumber = (tx: NumberText, links: boolean) => {
     const b = tx.box, v = visibleBox(view);

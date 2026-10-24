@@ -335,10 +335,10 @@ describe("the culled Canvas draw against a naive reference", () => {
         expect(got.map((v) => `${v.list}:${v.id}`), label).toEqual(want.visits.map((v) => `${v.list}:${v.id}`));
         for (const [i, v] of got.entries()) expect(v.calls, `${label}: ${v.list} ${v.id}`).toEqual(want.visits[i].calls);
         // And it is in paint order: groups, tints, edges, arcs, nodes, the other marks, then the edges' labels; within a layer by
-        // position in the list, the edges' lines the widest first (`paintOrder`).
+        // position in the list, the edges' lines and labels the widest first (`paintOrder`).
         const ranks = labels(got).map((l, i) => {
           const layer = got[i].list === "groups" ? 0 : got[i].list === "marks" ? { below: 1, between: 3, above: 5 }[scene.marks[got[i].index].layer] : got[i].list === "nodes" ? 4 : l.endsWith("#0") ? 2 : 6;
-          return [layer, layer === 2 ? scene.edgePaint!.rank[got[i].index] : got[i].index];
+          return [layer, layer === 2 || layer === 6 ? scene.edgePaint!.rank[got[i].index] : got[i].index];
         });
         for (let i = 1; i < ranks.length; i++) expect(ranks[i][0] > ranks[i - 1][0] || (ranks[i][0] === ranks[i - 1][0] && ranks[i][1] > ranks[i - 1][1]), `${label}: ${got[i - 1].list} ${got[i - 1].id} is painted before ${got[i].list} ${got[i].id}`).toBe(true);
         expect(culled.stats.culled, label).toBe(true);

@@ -25,3 +25,10 @@ shade darker than before.
 
 New: `LegendKeyKind` `"terminal"`; strings `terminal.start`, `terminal.end`,
 `terminal.statement`, `legend.terminal`.
+
+A sequence flow from a start or to an end event that the host tags `start` or
+`end` is a terminal path too (`terminalOf`, new), so a host that emits its
+boundary links as tagged `flow` edges gets the same look; a BPMN model's own
+untagged flows keep theirs. A terminal path's accessible description counts
+cases ("800 cases begin with this activity"), not transitions, and an event
+without a label is named "Start" or "End" in descriptions too.
