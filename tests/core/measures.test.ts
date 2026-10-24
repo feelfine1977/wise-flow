@@ -119,18 +119,18 @@ describe("the shortfall measure", () => {
   });
 
   it("draws the share short of an activity's cases in the accent of its frequency cue, which stays as long as its share of all cases", () => {
-    // Inside the outline and after the band: 180 − 8 − 1 = 171 for all cases.
+    // Inside the outline (the cards have no stage, so no band): 180 − 2 × 1 = 178 for all cases.
     const cue = (s: FlowScene, id: string) => s.nodeMarks.find((m) => m.id === id)!.cue!;
     const s = scene({ measure: "shortfall" });
-    expect([cue(s, "a").stripe!.box.width, cue(s, "a").foot!.box.width]).toEqual([171, 171]);
-    // 35 % of all cases short: 59.85 long, from the cue's start; the stripe in the accent #b84a00 at the tint's 0.18 over the paper, the foot in the accent.
+    expect([cue(s, "a").stripe!.box.width, cue(s, "a").foot!.box.width]).toEqual([178, 178]);
+    // 35 % of all cases short: 62.3 long (35 % of 178), from the cue's start; the stripe in the accent #b84a00 at the tint's 0.18 over the paper, the foot in the accent.
     const a = cue(s, "a");
     expect([a.accent!.share, a.accent!.stripe!.paint, a.accent!.foot!.paint]).toEqual([0.35, "#f2ded1", "#b84a00"]);
-    expect([a.accent!.stripe!.box.width, a.accent!.foot!.box.width]).toEqual([expect.closeTo(59.85), expect.closeTo(59.85)]);
+    expect([a.accent!.stripe!.box.width, a.accent!.foot!.box.width]).toEqual([expect.closeTo(62.3), expect.closeTo(62.3)]);
     expect([a.accent!.stripe!.box.x, a.accent!.stripe!.box.y, a.accent!.stripe!.box.height, a.accent!.foot!.box.y]).toEqual([a.stripe!.box.x, a.stripe!.box.y, a.stripe!.box.height, a.foot!.box.y]);
-    // 30 % of the half of all cases: 15 % of 171.
+    // 30 % of the half of all cases: 15 % of 178.
     expect(cue(s, "c").accent!.share).toBeCloseTo(0.15);
-    expect(cue(s, "c").accent!.foot!.box.width).toBeCloseTo(25.65);
+    expect(cue(s, "c").accent!.foot!.box.width).toBeCloseTo(26.7);
     expect(cue(s, "d").accent).toBeUndefined();
     expect(s.legend.rows.find((r) => r.kind === "key" && r.key === "shortPart")).toMatchObject({ text: "Bar in the accent: share of all cases that fall short" });
     // Print has no tints: only the foot shows the cases short.
@@ -180,7 +180,7 @@ describe("the frequency cue in every measure", () => {
     for (const measure of ["frequency", "shortfall", "performance"] as const) {
       for (const m of scene({ measure }).nodeMarks.filter((n) => n.kind === "activity")) {
         const share = m.node.metrics!.cases / 1000;
-        expect([m.cue!.share, m.cue!.stripe!.box.width, m.cue!.foot!.box.width], `${measure} ${m.id}`).toEqual([share, share * 171, share * 171]);
+        expect([m.cue!.share, m.cue!.stripe!.box.width, m.cue!.foot!.box.width], `${measure} ${m.id}`).toEqual([share, share * 178, share * 178]);
       }
     }
   });

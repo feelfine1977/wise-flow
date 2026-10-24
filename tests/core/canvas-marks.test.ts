@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type FlowNode, type Overlay, type TextMeasure, buildScene, createPositions, defaultTheme, toSVG } from "../../src/index";
+import { type FlowGraph, type FlowNode, type Overlay, type TextMeasure, buildScene, createPositions, defaultTheme, toSVG } from "../../src/index";
 import { type DrawContext, type DrawState, canvasTextMeasure, defaultTokens, drawScene, prepareScene, toPNGCanvas } from "../../src/canvas/index";
 import * as elements from "./element-kinds";
 import { graph, overlays, positions } from "./overlay-kinds";
@@ -252,8 +252,8 @@ describe("Canvas node and edge marks", () => {
       { op: "fill", path: expect.stringContaining("A796,4,4"), color: "#f6f7f9", alpha: 1 },
       { op: "stroke", path: expect.stringContaining("A796,4,4"), color: "#8c8c8c", alpha: 1, width: 1, dash: [] },
     ]);
-    // Cards: on paper with a 1 wide neutral outline and a band 8 wide in their colour; the re-added activity is dashed.
-    expect(ops.filter((o) => o.op === "fillRect" && o.color === "#8c8c8c").map((o) => o.path)).toEqual(["R100,0,8,40", "R400,0,8,56", "R400,100,8,40"]);
+    // Cards: on paper with a 1 wide neutral outline; the re-added activity is dashed. Without a stage (the neutral colour) they have no band.
+    expect(ops.filter((o) => o.op === "fillRect" && o.color === "#8c8c8c").map((o) => o.path)).toEqual([]);
     expect(startingAt(ops, "M404,0")).toEqual([
       { op: "fill", path: expect.stringContaining("A596,4,4"), color: "#ffffff", alpha: 1 },
       { op: "stroke", path: expect.stringContaining("A596,4,4"), color: "#8c94a1", alpha: 1, width: 1, dash: [] },
@@ -263,13 +263,19 @@ describe("Canvas node and edge marks", () => {
 
   it("draws a card's frequency cue inside its outline, under its band and texts", () => {
     const ops = drawElements(undefined, 1, { ...elements.graph, meta: { cases: 2468 } });
-    // 1,234 of 2,468 cases: the stripe and the foot half of the inner width 180 − 8 − 1 from the band's end.
+    // 1,234 of 2,468 cases: without a stage, no band; the stripe and the foot half of the inner width 180 − 2 × 1 from the outline.
     const card = ops.findIndex((o) => o.op === "stroke" && o.path?.startsWith("M104,0"));
-    expect(ops.slice(card + 1, card + 4)).toEqual([
-      { op: "fillRect", path: "R108,1,85.5,38", color: "#e6e8ec", alpha: 1 },
-      { op: "fillRect", path: "R108,36,85.5,3", color: "#5f6672", alpha: 1 },
-      { op: "fillRect", path: "R100,0,8,40", color: "#8c8c8c", alpha: 1 },
+    expect(ops.slice(card + 1, card + 3)).toEqual([
+      { op: "fillRect", path: "R101,1,89,38", color: "#e6e8ec", alpha: 1 },
+      { op: "fillRect", path: "R101,36,89,3", color: "#5f6672", alpha: 1 },
     ]);
+    expect(ops[card + 3]).toMatchObject({ op: "fillText", text: "Check invoice" });
+    // With a stage, from the band's end: half of 180 − 8 − 1, then the band over the cue.
+    const staged: FlowGraph = { ...elements.graph, meta: { cases: 2468 }, groups: [{ id: "g1", kind: "stage", label: "Invoice" }], nodes: elements.graph.nodes.map((n) => (n.id === "a" ? { ...n, group: "g1" } : n)) };
+    const { ctx, ops: banded } = drawingContext();
+    drawScene(ctx, prepareScene(staged, elements.positions, { style: { ...elements.style, nodeColor: { by: "group" } }, selfLoops: false, lodBySize: false }), { x: 0, y: 0, zoom: 1, width: 1000, height: 600 }, undefined, { cull: false });
+    const at = banded.findIndex((o) => o.op === "stroke" && o.path?.startsWith("M104,0"));
+    expect(banded.slice(at + 1, at + 4).map((o) => o.path)).toEqual(["R108,1,85.5,38", "R108,36,85.5,3", "R100,0,8,40"]);
   });
 
   it("takes the cue's colours of the scene's scheme where a host's tokens leave them out", () => {
@@ -279,7 +285,7 @@ describe("Canvas node and edge marks", () => {
     const cue = (tokens: typeof defaultTokens) => {
       const { ctx, ops } = drawingContext();
       drawScene(ctx, scene, { x: 0, y: 0, zoom: 1, width: 1000, height: 600 }, undefined, { cull: false, tokens });
-      return ops.filter((o) => o.op === "fillRect" && /^R108,(1|36),85.5,/.test(o.path!)).map((o) => o.color);
+      return ops.filter((o) => o.op === "fillRect" && /^R101,(1|36),89,/.test(o.path!)).map((o) => o.color);
     };
     // The dark scheme's stripe and foot.
     expect(cue(host)).toEqual(["#2c3038", "#8f96a3"]);
@@ -399,7 +405,7 @@ describe("Canvas arrowheads and pattern twins from the token table", () => {
   it("draws the 6-unit tiles of the pattern twins: lines at 0.6, a dot of radius 1 at 0.7, in the ink", () => {
     const tiles: { size: [number, number]; ops: Op[] }[] = [];
     const scene = prepareScene(elements.graph, elements.positions, { style: elements.style, selfLoops: false, lodBySize: false });
-    const nodes = scene.nodes.map((n) => (n.node.id === "a" ? { ...n, mark: { ...n.mark, pattern: "dots" as const } } : n.node.id === "s" ? { ...n, mark: { ...n.mark, pattern: "diagonal" as const } } : n));
+    const nodes = scene.nodes.map((n) => (n.node.id === "a" ? { ...n, mark: { ...n.mark, band: 8, pattern: "dots" as const } } : n.node.id === "s" ? { ...n, mark: { ...n.mark, band: 8, pattern: "diagonal" as const } } : n));
     const { ctx } = drawingContext();
     const createCanvas = (width: number, height: number) => {
       const tile = drawingContext();

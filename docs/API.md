@@ -706,6 +706,7 @@ export const shortfallStyle: StyleSpec; // width ← cases, colour ← violation
 export const diffStyle: StyleSpec;      // width ← cases, colour ← delta_violationShare on the diverging palette
 export function buildScales(g: FlowGraph, spec?: StyleSpec, theme?: Theme): Scales;   // in the theme's palettes, default `defaultTheme`
 export interface Scales { edgeWidth(e): number; edgeColor(e): string; nodeColor(n): string; nodePattern(n): PatternId;
+  nodeColored(n): boolean;         // the colour says something (a category or a value), not the neutral fallback: the card has a band (0.4)
   categorical(key): CategoricalEntry; color(value, palette, domain): string; legend: LegendItem[]; domains;
   pathMetric: string;              // the count paths are labelled with and their width reads: cases, or count
   notEvaluated(e): boolean }       // a follows edge without a value of pathMetric
@@ -1044,6 +1045,9 @@ export interface Theme {
   stroke: { [role in keyof typeof strokeTokens]: number };
   opacity: { [role in keyof typeof opacityTokens]: number };   // the tints are tint, groupFill, bandFill, bandOddFill
   space: { unit: number; steps: readonly number[] };
+  size: { band: number; shadow: string; darkShadow?: string };   // the card's stage band (8; 0 none; --wf-size-band), the panels' shadow, the dark one
+  readable: { nameChars: number };                        // a card shows its name while a line holds this many characters and "…" (8)
+  arrowhead: { edge: Arrowhead };                         // the paths' head rule: size, perWidth (4; instrument 2), minWidth (0; instrument 2)
   frequencyCue: FrequencyCue;                             // where a card shows its share of all cases; default "both"
   density: "comfortable" | "compact";                     // the renderers draw comfortable whatever it says
   minimum: { text: number; stroke: number };              // pt at the layout's own size (1 layout unit = 0.75 pt)
@@ -1052,8 +1056,10 @@ export interface Theme {
 export type FrequencyCue = "both" | "behind" | "bottom" | "none";   // the stripe behind the texts, the foot along the bottom edge
 export const defaultTheme: Theme;                          // the token table: the default look
 export const printTheme: Theme;                            // defaultTheme with printTokens over it; no dark scheme
+export const instrumentTheme: Theme;                       // defaultTheme with instrumentTokens over it: the WISE look, light and dark (0.4)
+export const instrumentTokens: { color; dark; palette; darkPalette; patterns; font; radius; size; stroke; opacity; frequencyCue; arrowhead };
 export const themePresets: Readonly<Record<ThemePreset, Theme>>;
-export type ThemePreset = "default" | "print";
+export type ThemePreset = "default" | "print" | "instrument";
 export type ThemeOverrides = /* any part of Theme, each table entry on its own */ & { preset?: ThemePreset };
 export type ThemeSetting = ThemePreset | ThemeOverrides;   // a whole Theme is a ThemeOverrides too
 export function resolveTheme(setting?: ThemeSetting, variables?: ThemeOverrides): Theme;   // preset, then variables, then the setting
@@ -1164,9 +1170,14 @@ one card that the scene resolves (`NodeMark`):
 - a box of the theme's `radius.node` (4) on the paper, outlined 1 wide
   (`stroke.node`, a stage's `stroke.stage`) in the neutral `lineStrong`, with
   no shadow; a re-added card is dashed;
-- the stage once, as the patterned band along the left edge (`band`, 8 wide,
-  in the stage's colour with its pattern twin); neither the outline nor the
-  fill takes the stage's colour;
+- the stage once, as the patterned band along the left edge (`band`, the
+  theme's `size.band` wide: 8, 6 in `instrument`, 0 for none; in the stage's
+  colour with its pattern twin); neither the outline nor the fill takes the
+  stage's colour. Only a card whose colour says something has the band
+  (`Scales.nodeColored`: its stage, or another category or value of the
+  style's `nodeColor`); a card without a stage, whose colour would be the
+  neutral fallback, has none (0.4: it had a grey band). The stylesheet reads
+  `--wf-size-band` where a card has no mark of its own;
 - the name on up to two lines (`nameLine`, `activityName`: 13 px, 500; a
   stage's name in `stageLabel`, 600), wrapped by the scene's text measure;
   a longer name ends its second line in an ellipsis, and the mark's `title`
@@ -1181,9 +1192,10 @@ one card that the scene resolves (`NodeMark`):
   missing value is "–". `activityLabels.showCounts: false` leaves the number
   line out without changing the card's size;
 - the frequency cue (`cue`): a flat stripe behind the texts and a foot 3 high
-  along the bottom edge, both from the inner left edge (after the band) and
-  as long as the share times the inner width (the box less the band and the
-  outline on the right). The stripe is `cueStripe`, on which the ink keeps
+  along the bottom edge, both from the inner left edge (after the band, or
+  inside the outline on a card without one) and as long as the share times
+  the inner width (the box less the band, or the outline, and the outline on
+  the right). The stripe is `cueStripe`, on which the ink keeps
   7 : 1, the foot `cueFoot`, 4.5 : 1 on the paper. `Theme.frequencyCue` places
   it: `"both"` (default), `"behind"` (the stripe), `"bottom"` (the foot) or
   `"none"`. A card with a share of 0, or without one (no cases, or no

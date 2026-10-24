@@ -102,7 +102,12 @@ export interface NodeMark {
   pattern: PatternId;
   fill: MarkPaint;
   stroke: { paint: MarkPaint; width: number; dash?: number[] };
-  /** Colour band of `band` width along the left edge, in `color` with its pattern twin. */
+  /**
+   * Colour band of `band` width along the left edge, in `color` with its
+   * pattern twin: on a card whose colour says something (`Scales.nodeColored`,
+   * its stage), as wide as the theme's `size.band`; none on a card without
+   * a stage or with a band of 0.
+   */
   band?: number;
   /** An activity's or a stage's frequency cue, drawn under its texts; none without a share or at a share of 0. */
   cue?: NodeCue;
@@ -163,6 +168,8 @@ interface NodeMarkOptions {
   line?: LineSpec;
   /** The metric whose share of the cases the cue draws in the accent (`StyleSpec.cueAccent`), and its stripe's and foot's paints. */
   accent?: { metric: string; stripe?: MarkPaint; foot: MarkPaint };
+  /** Whether a card carries the colour band: its colour says something (`Scales.nodeColored`). Default true. */
+  banded?: boolean;
 }
 
 /**
@@ -345,17 +352,19 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
       const title = details.length ? `${labels ? activityDescription(node, labels, locale) : name + "."} ${details.join(". ")}.` : labels ? activityDescription(node, labels, locale) : cut ? name : undefined;
       const accent = options.accent;
       const short = accent && share! * metric(node, accent.metric, NaN);
-      return mark("box", radiusTokens.node, stroke, texts, "paper", dimensionTokens.band, title, cue(box, width, share, set?.cue ?? theme.frequencyCue, short! > 0 ? [short!, accent!.stripe, accent!.foot] : undefined));
+      const band = options.banded !== false && theme.size.band > 0 ? theme.size.band : undefined;
+      return mark("box", radiusTokens.node, stroke, texts, "paper", band, title, cue(box, width, band, share, set?.cue ?? theme.frequencyCue, short! > 0 ? [short!, accent!.stripe, accent!.foot] : undefined));
     }
   }
 }
 
-/** The stripe and foot of a card's share inside its outline and after its band, where `place` puts them, and their part in the accent. */
-function cue(box: Box, stroke: number, share: number | undefined, place: Theme["frequencyCue"], accent?: [number, MarkPaint | undefined, MarkPaint]): NodeCue | undefined {
+/** The stripe and foot of a card's share inside its outline and after its band (or its outline, without one), where `place` puts them, and their part in the accent. */
+function cue(box: Box, stroke: number, band: number | undefined, share: number | undefined, place: Theme["frequencyCue"], accent?: [number, MarkPaint | undefined, MarkPaint]): NodeCue | undefined {
   if (!(share! > 0) || place === "none") return undefined;
-  const { band, cueFoot } = dimensionTokens;
+  const { cueFoot } = dimensionTokens;
+  const start = band ?? stroke;
   const parts = (of: number, stripe: MarkPaint | undefined, foot: MarkPaint) => {
-    const part = (y: number, height: number, paint: MarkPaint) => ({ box: { x: box.x + band, y, width: Math.min(1, of) * (box.width - band - stroke), height }, paint });
+    const part = (y: number, height: number, paint: MarkPaint) => ({ box: { x: box.x + start, y, width: Math.min(1, of) * (box.width - start - stroke), height }, paint });
     return {
       share: of,
       stripe: place === "bottom" || !stripe ? undefined : part(box.y + stroke, box.height - 2 * stroke, stripe),
@@ -485,7 +494,7 @@ export function nodeMarks(graph: FlowGraph, positions: Positions, scales: Scales
   return shareCounts(
     graph.nodes.flatMap((n) => {
       const box = positions.nodes[n.id];
-      return box ? [nodeMark(n, box, { color: scales.nodeColor(n), pattern: scales.nodePattern(n), locale: options.locale, activityLabels: options.activityLabels, theme: options.theme, measure: options.measure, total, outOfScope: options.outOfScope?.has(n.id), line, accent })] : [];
+      return box ? [nodeMark(n, box, { color: scales.nodeColor(n), pattern: scales.nodePattern(n), banded: scales.nodeColored(n), locale: options.locale, activityLabels: options.activityLabels, theme: options.theme, measure: options.measure, total, outOfScope: options.outOfScope?.has(n.id), line, accent })] : [];
     }),
   );
 }

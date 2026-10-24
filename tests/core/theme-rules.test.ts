@@ -151,8 +151,8 @@ describe("a theme's rules", () => {
     expect(lines([])).toEqual([["Approve the purchase", 13], ["requisition of a vendor", 13]]);
     const bigger = [{ match: { part: "node", kind: "activity" }, set: { text: { name: { size: 15 } }, cue: "bottom" } }];
     expect(lines(bigger)).toEqual([["Approve the purchase", 15], ["requisition of a ve…", 15]]);
-    // The cue only as its foot, half of 180 − 8 of band − 1 of outline long.
-    expect([card(bigger).cue!.stripe, card(bigger).cue!.foot?.box.width]).toEqual([undefined, 85.5]);
+    // The cue only as its foot, half of 180 − 2 × 1 of outline long (no stage, no band).
+    expect([card(bigger).cue!.stripe, card(bigger).cue!.foot?.box.width]).toEqual([undefined, 89]);
   });
 
   it("leave a hatch's pattern and a tint's corners as they are, and restyle a badge", () => {

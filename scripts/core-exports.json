@@ -287,6 +287,8 @@
     "hexToRgb",
     "inViewText",
     "indexGraph",
+    "instrumentTheme",
+    "instrumentTokens",
     "interpolatePalette",
     "isConnected",
     "isSelected",

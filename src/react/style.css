@@ -219,7 +219,7 @@
   left: 0;
   top: 0;
   bottom: 0;
-  width: var(--wf-node-band);
+  width: var(--wf-node-band, var(--wf-size-band));
   border-radius: var(--wf-radius-band) 0 0 var(--wf-radius-band);
   background: var(--wf-node-color, var(--wf-neutral));
 }
@@ -247,6 +247,7 @@
 }
 /* An event's label sits below its circle, shortened by the scene to its width. */
 .wf-node--event > .wf-node__label {
+  font-size: var(--wf-text-size, var(--wf-text-event-label));
   position: absolute;
   top: calc(100% + var(--wf-space-2));
   left: 50%;
@@ -291,6 +292,8 @@
   position: absolute;
   left: var(--wf-space-6);
   top: var(--wf-space-4);
+  font-size: var(--wf-text-size, var(--wf-text-group-label));
+  font-weight: var(--wf-text-weight, var(--wf-weight-group-label));
 }
 /* A box group's title keeps its place inside the dashed border the group had before its outline was drawn as its mark. */
 .wf-group:not(.wf-group--band) > .wf-group__label {
@@ -308,7 +311,7 @@
 .wf-bpmn-overlays,
 .wf-bpmn .djs-overlay svg {
   font-family: var(--wf-font);
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: tabular-nums lining-nums;
 }
 .wf-overlay-layer .wf-overlay,
 .wf-bpmn-overlays .wf-overlay {
@@ -376,7 +379,7 @@
   stroke: var(--wf-paper);
   stroke-width: var(--wf-stroke-halo);
   pointer-events: none;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 /*
@@ -419,13 +422,13 @@
 .wf-controls .wf-controls__note {
   grid-column: 1 / -1;
   margin: var(--wf-space-1) 0 0;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: tabular-nums lining-nums;
   color: var(--wf-ink-muted);
 }
 .wf-controls .wf-controls__kept {
   min-height: 0;
   padding: 0 var(--wf-space-2);
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: tabular-nums lining-nums;
 }
 .wf-controls .wf-controls__note summary {
   cursor: pointer;
@@ -609,7 +612,7 @@
 .wf-legend__range {
   display: flex;
   justify-content: space-between;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: tabular-nums lining-nums;
 }
 .wf-legend__cat {
   display: flex;
@@ -704,7 +707,7 @@
 .wf-table td.wf-num,
 .wf-table th.wf-num {
   text-align: right;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: tabular-nums lining-nums;
 }
 .wf-table .wf-table__search {
   font: inherit;
@@ -1140,7 +1143,7 @@
   font-weight: var(--wf-weight-panel-heading);
 }
 .wf-filters__count {
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: tabular-nums lining-nums;
 }
 .wf-filters__out,
 .wf-filters__none {
@@ -1174,7 +1177,7 @@
 .wf-filter-chip__marginal {
   font-size: var(--wf-text-panel-key);
   color: var(--wf-ink-muted);
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: tabular-nums lining-nums;
 }
 .wf-filter-chip__remove {
   border: none;
@@ -1304,7 +1307,7 @@
   border-right: 1px solid var(--wf-line);
   text-align: center;
   font-size: var(--wf-text-panel-note);
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: tabular-nums lining-nums;
   color: var(--wf-ink-muted);
 }
 
@@ -1369,7 +1372,7 @@
 .wf-comparison__cohort { text-align: left; white-space: normal; overflow-wrap: anywhere; }
 .wf-comparison__denominator { display: block; font-size: var(--wf-text-comparison-denominator); font-weight: var(--wf-weight-comparison-denominator); color: var(--wf-ink-muted); margin-top: 0.25rem; }
 .wf-comparison__value,
-.wf-comparison__count { display: block; font-size: var(--wf-text-comparison-value); font-variant-numeric: tabular-nums; }
+.wf-comparison__count { display: block; font-size: var(--wf-text-comparison-value); font-variant-numeric: tabular-nums lining-nums; }
 .wf-comparison__count { color: var(--wf-ink-muted); }
 .wf-comparison__unavailable { font-size: var(--wf-text-comparison-note); color: var(--wf-ink-muted); }
 .wf-comparison__bar { display: block; height: 0.375rem; margin-top: 0.4rem; background: var(--wf-line); border-radius: var(--wf-radius-comparison-bar); }
@@ -1399,19 +1402,34 @@
   white-space: pre;
   overflow: hidden;
 }
+/*
+ * The card's texts in the size and weight the scene's marks give them (`--wf-text-size`, `--wf-text-weight`); the
+ * variables of their roles are what a host reads and sets for them (`themeFromVariables`), and what a text without
+ * a mark of its own is drawn in.
+ */
 .wf-activity-name {
   line-height: var(--wf-leading-activity-name);
+  font-size: var(--wf-text-size, var(--wf-text-activity-name));
+  font-weight: var(--wf-text-weight, var(--wf-weight-activity-name));
+}
+.wf-node--stage .wf-activity-name {
+  font-size: var(--wf-text-size, var(--wf-text-stage-label));
+  font-weight: var(--wf-text-weight, var(--wf-weight-stage-label));
 }
 .wf-activity-counts {
   line-height: var(--wf-leading-activity-number);
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: tabular-nums lining-nums;
   /* Liberation Sans and Arial kern "11" even with tabular digits. */
   font-kerning: none;
 }
 .wf-activity-counts > span {
-  font-size: var(--wf-text-size);
-  font-weight: var(--wf-text-weight, var(--wf-weight-panel-plain));
+  font-size: var(--wf-text-size, var(--wf-text-activity-number));
+  font-weight: var(--wf-text-weight, var(--wf-weight-activity-number));
   color: var(--wf-text-paint);
+}
+.wf-activity-counts > .wf-activity-share {
+  font-size: var(--wf-text-size, var(--wf-text-activity-share));
+  font-weight: var(--wf-text-weight, var(--wf-weight-panel-plain));
 }
 .wf-activity-share {
   margin-left: var(--wf-space-2);

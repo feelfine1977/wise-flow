@@ -115,10 +115,11 @@ export interface ThemeDeviation {
   /**
    * `text`: text against its ground under 4.5 : 1 (ink on the frequency cue's
    * stripe under 7 : 1). `line`: a line against the paper under 3 : 1 (the
-   * cue's foot under 4.5 : 1). `rampOrder`: the path ramp of a scheme not rising in
+   * cue's foot under 4.5 : 1; the paths from a start and to an end event,
+   * `terminal`, under 1.3 : 1 on the paper or 1.05 : 1 against `line`). `rampOrder`: the path ramp of a scheme not rising in
    * contrast against the paper from stop to stop.
    * `rampStart`: its low end against the paper under 3 : 1. `textSize`,
-   * `strokeWidth`: a table entry under the theme's minimum. `color`: a colour
+   * `strokeWidth`: a table entry under the theme's minimum (a width of 0 draws nothing and is not one). `color`: a colour
    * that is not a literal. `rule`: an entry of a rule that is unknown or out
    * of range (`ruleDeviations`); the rule changes nothing, but an opacity
    * outside 0.2 to 1 is clamped to it. `measure`: a palette of a measure
@@ -152,6 +153,12 @@ const LINES: ColorToken[] = ["lineStrong", "neutral", "focus", "accent"];
 const CUE: ["text" | "line", ColorToken, ColorToken, number][] = [["text", "ink", "cueStripe", 7], ["text", "inkMuted", "cueStripe", 4.5], ["line", "cueFoot", "paper", 4.5]];
 const TEXT_CONTRAST = 4.5;
 const LINE_CONTRAST = 3;
+/**
+ * The paths from a start and to an end event (`terminal`) are pale on
+ * purpose: they stand out from the paper by 1.3 : 1 at least and are not the
+ * grey of the hairlines (`line`); their count labels carry their meaning.
+ */
+const TERMINAL: [ColorToken, number][] = [["paper", 1.3], ["line", 1.05]];
 /** Points per layout unit (a CSS pixel). */
 const PT = 0.75;
 
@@ -168,7 +175,8 @@ function over(color: string, ground?: string): string {
 /**
  * What of a theme falls short, in both schemes: text against its ground at
  * least 4.5 : 1 (ink on the frequency cue's stripe 7 : 1), lines against the
- * paper at least 3 : 1 (the cue's foot 4.5 : 1), the path ramp of the
+ * paper at least 3 : 1 (the cue's foot 4.5 : 1; the pale `terminal` 1.3 : 1,
+ * and apart from `line`), the path ramp of the
  * scheme (`palette.neutral`, in the dark scheme with `darkPalette` over it)
  * monotonic in luminance, each stop with more contrast against the paper than
  * the one before, and its low end at least 3 : 1 against it, no text size or stroke width of the tables under the
@@ -197,6 +205,7 @@ export function checkTheme(theme: Theme): ThemeDeviation[] {
     for (const [text, ground] of TEXT) check("text", `${text} on ${ground}`, c[text], c[ground], TEXT_CONTRAST);
     for (const line of LINES) check("line", `${line} on paper`, c[line], c.paper, LINE_CONTRAST);
     for (const [kind, a, b, minimum] of CUE) check(kind, `${a} on ${b}`, c[a], c[b], minimum);
+    for (const [ground, minimum] of TERMINAL) check("line", `terminal on ${ground}`, c.terminal, c[ground], minimum);
     if (ramp.length) check("rampStart", "palette.neutral", ramp[0], c.paper, LINE_CONTRAST);
     // The measures' ramps: performance from 3 : 1, the shortfall classes above the neutral colour; text keeps 7 : 1 on the cue's accent.
     const palettes = themePalettes(theme, scheme);
@@ -213,7 +222,7 @@ export function checkTheme(theme: Theme): ThemeDeviation[] {
     if (typeof size === "number" && size * PT < theme.minimum.text) out.push({ kind: "textSize", subject: `text.${role}`, value: size * PT, minimum: theme.minimum.text });
   }
   for (const [role, width] of Object.entries(theme.stroke)) {
-    if (width * PT < theme.minimum.stroke) out.push({ kind: "strokeWidth", subject: `stroke.${role}`, value: width * PT, minimum: theme.minimum.stroke });
+    if (width > 0 && width * PT < theme.minimum.stroke) out.push({ kind: "strokeWidth", subject: `stroke.${role}`, value: width * PT, minimum: theme.minimum.stroke });
   }
   return [...out, ...ruleDeviations(theme)];
 }
@@ -470,6 +479,13 @@ export interface Scales {
   nodeColor(node: FlowNode): string;
   nodePattern(node: FlowNode): PatternId;
   /**
+   * Whether a node's colour says something: it comes from the node's
+   * category (its stage, kind, layer or tag) or from its value of the node
+   * colour's metric, not from the neutral colour of a node without one. Only
+   * such a node's card carries the colour band.
+   */
+  nodeColored(node: FlowNode): boolean;
+  /**
    * Colour and pattern twin for a categorical key: assigned in stage order
    * (`StyleSpec.stages`, `meta.model.groups`, then the graph's groups and
    * keys), each key from its hashed colour to the next one free, so that no
@@ -712,6 +728,7 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
   const nodeSpec = spec.nodeColor;
   let nodeColorFn: (n: FlowNode) => string = () => neutral;
   let nodePatternFn: (n: FlowNode) => PatternId = () => "solid";
+  let nodeColoredFn: (n: FlowNode) => boolean = () => false;
   const categoricalKeys = new Set<string>();
   if (nodeSpec?.by) {
     for (const n of graph.nodes) {
@@ -726,6 +743,7 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
       const k = keyOf(n);
       return k === undefined ? "solid" : categorical(k).pattern;
     };
+    nodeColoredFn = (n) => keyOf(n) !== undefined;
   } else if (nodeSpec?.metric) {
     const palette = nodeSpec.palette ?? "sequential";
     const values = graph.nodes.map((n) => metric(n, nodeSpec.metric!, NaN));
@@ -737,6 +755,7 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
       const v = n.metrics?.[nodeSpec.metric!];
       return typeof v === "number" && Number.isFinite(v) ? color(v, palette, domain) : neutral;
     };
+    nodeColoredFn = (n) => Number.isFinite(metric(n, nodeSpec.metric!, NaN));
   }
 
   const legend: LegendItem[] = [];
@@ -766,6 +785,7 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
     edgeColor: pathColorFn,
     nodeColor: nodeColorFn,
     nodePattern: nodePatternFn,
+    nodeColored: nodeColoredFn,
     categorical,
     pathMetric,
     notEvaluated,

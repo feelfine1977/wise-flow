@@ -8,7 +8,7 @@
  * CSS variables too (`themeFromVariables`), which the React components read.
  */
 import type { ThemeRule } from "./rules.js";
-import { type ColorToken, type PatternId, type PatternLook, categoricalPatterns, colorTokens, cssVariable, darkColorTokens, darkPaletteTokens, fontTokens, minimumTokens, opacityTokens, paletteTokens, patternTokens, printTokens, radiusTokens, spaceTokens, strokeTokens, textTokens, tokenVariables } from "./tokens.js";
+import { type Arrowhead, type ColorToken, type PatternId, type PatternLook, arrowheadTokens, categoricalPatterns, colorTokens, cssVariable, darkColorTokens, darkPaletteTokens, fontTokens, instrumentTokens, minimumTokens, opacityTokens, paletteTokens, patternTokens, printTokens, radiusTokens, readableTokens, sizeTokens, spaceTokens, strokeTokens, textTokens, tokenVariables } from "./tokens.js";
 
 /** The colour scheme a scene is resolved in. */
 export type ColorScheme = "light" | "dark";
@@ -57,6 +57,17 @@ export interface Theme {
   /** Spacing: multiples of `unit` (`spaceTokens`). */
   space: Values<typeof spaceTokens>;
   /**
+   * Sizes of the marks: the width of the colour band along the left edge of
+   * a card whose activity has a stage (or another category of the node
+   * colour), 0 for none; the shadow of the panels (`--wf-shadow`), and in the
+   * dark scheme `darkShadow` where it differs (`none`: borders instead).
+   */
+  size: { readonly band: number; readonly shadow: string; readonly darkShadow?: string };
+  /** How the maps keep their names readable (`readableTokens`): a card shows its name while a line holds its first `nameChars` characters and the ellipsis. */
+  readable: { readonly nameChars: number };
+  /** The arrowhead rule of the paths (`arrowheadTokens.edge`, `pathArrowhead`): its size, how it grows with the path and the narrowest path that has one. */
+  arrowhead: { readonly edge: Arrowhead };
+  /**
    * Where an activity's card shows its frequency cue, the share of all cases:
    * a stripe `behind` its texts, a foot along its `bottom` edge, `both`, or
    * `none`.
@@ -94,6 +105,9 @@ export const defaultTheme: Theme = {
   stroke: strokeTokens,
   opacity: opacityTokens,
   space: spaceTokens,
+  size: { band: sizeTokens.band, shadow: sizeTokens.shadow },
+  readable: { nameChars: readableTokens.nameChars },
+  arrowhead: { edge: arrowheadTokens.edge },
   frequencyCue: "both",
   density: "comfortable",
   minimum: minimumTokens,
@@ -101,7 +115,7 @@ export const defaultTheme: Theme = {
 };
 
 /** The names of the presets a theme starts from. */
-export type ThemePreset = "default" | "print";
+export type ThemePreset = "default" | "print" | "instrument";
 
 /** Changes over a theme: any part of it, each table entry on its own; a list replaces the preset's list. */
 type Changes<T> = T extends readonly unknown[] ? T : T extends object ? { readonly [K in keyof T]?: Changes<T[K]> } : T;
@@ -125,8 +139,17 @@ function merge<T>(base: T, changes: unknown): T {
 /** For print: white paper, no tints, an opaque pattern on every categorical colour, ramps that start at 3 : 1 on the paper, no text under 7 pt and no stroke under 0.75 pt; no dark scheme. */
 export const printTheme: Theme = merge({ ...defaultTheme, dark: {}, darkPalette: {} }, printTokens);
 
+/**
+ * The WISE process map's look (`instrumentTokens`): ink on paper, cards with
+ * corners of 8, no frequency cue, a band of 6 only where an activity has a
+ * stage, one grey ramp of four stops, pale paths from Start and to End, heads
+ * twice their path's width and none under 2, backward paths a step thinner at
+ * 0.6, and a dark scheme with borders instead of shadows.
+ */
+export const instrumentTheme: Theme = merge(defaultTheme, instrumentTokens);
+
 /** The presets by name. */
-export const themePresets: Readonly<Record<ThemePreset, Theme>> = { default: defaultTheme, print: printTheme };
+export const themePresets: Readonly<Record<ThemePreset, Theme>> = { default: defaultTheme, print: printTheme, instrument: instrumentTheme };
 
 /** The channels of a literal colour (`#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()`): red, green and blue from 0 to 255, alpha from 0 to 1; none for anything else. */
 export function colorChannels(css: string): [number, number, number, number] | undefined {
@@ -195,6 +218,8 @@ function variableParts(theme: Theme): [string, string[]][] {
   // The names of `tokens.css` for the node's and the large radius, then every radius by its role.
   out.push(["--wf-radius", ["radius", "node"]], ["--wf-radius-lg", ["radius", "large"]]);
   for (const table of ["radius", "stroke", "opacity"] as const) for (const role of Object.keys(theme[table])) out.push([`--wf-${table}-${kebab(role)}`, [table, role]]);
+  // The card's band and the panels' shadow, as `tokens.css` names them.
+  out.push(["--wf-size-band", ["size", "band"]], ["--wf-shadow", ["size", "shadow"]]);
   return out;
 }
 
@@ -211,7 +236,7 @@ function cssValue(value: unknown, path: string[]): string {
 export function themeVariables(theme: Theme, scheme: ColorScheme = "light"): Record<string, string> {
   const colors = themeColors(theme, scheme);
   const out: Record<string, string> = {};
-  for (const [name, path] of variableParts(theme)) out[name] = cssValue(path[0] === "color" ? colors[path[1] as ColorToken] : at(theme, path), path);
+  for (const [name, path] of variableParts(theme)) out[name] = cssValue(path[0] === "color" ? colors[path[1] as ColorToken] : scheme === "dark" && path[0] === "size" && path[1] === "shadow" ? (theme.size.darkShadow ?? theme.size.shadow) : at(theme, path), path);
   // The scheme the browser draws native controls in, as tokens.css writes it.
   out["--wf-color-scheme"] = scheme;
   return out;
@@ -243,7 +268,7 @@ export function themeFromVariables(read: (name: string) => string, scheme: Color
     const given = at(defaultTheme, path);
     const value = path[0] === "color" ? color(raw) : path[0] === "font" || typeof given === "string" ? raw : /^-?\d*\.?\d+(px)?$/.test(raw) ? parseFloat(raw) : undefined;
     if (value === undefined) continue;
-    const [table, role, key] = path[0] === "color" && scheme === "dark" ? ["dark", path[1]] : path;
+    const [table, role, key] = path[0] === "color" && scheme === "dark" ? ["dark", path[1]] : scheme === "dark" && path[0] === "size" && path[1] === "shadow" ? ["size", "darkShadow"] : path;
     const entry = (out[table] ??= {});
     if (key === undefined) entry[role] = value;
     else entry[role] = { ...(entry[role] as object), [key]: value };
@@ -260,5 +285,5 @@ export function themeFromVariables(read: (name: string) => string, scheme: Color
  */
 export function markedThemeKey(theme: Theme, scheme: ColorScheme): string {
   const colors = themeColors(theme, scheme);
-  return JSON.stringify({ ...theme, color: theme.rules.length ? colors : [colors.neutral, colors.accent], dark: undefined, palette: themePalettes(theme, scheme), darkPalette: undefined, font: undefined });
+  return JSON.stringify({ ...theme, color: theme.rules.length ? colors : [colors.neutral, colors.accent, colors.terminal], dark: undefined, palette: themePalettes(theme, scheme), darkPalette: undefined, font: undefined });
 }

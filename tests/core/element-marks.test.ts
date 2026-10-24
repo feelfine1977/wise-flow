@@ -27,11 +27,11 @@ describe("node marks", () => {
         ...base, id: "start", kind: "event", box: positions.nodes.start, shape: "circle", radius: 18, stroke: { paint: "ink", width: 1 },
         texts: [text({ role: "label", text: "Start", x: 18, y: 2 + 36 + 4 + 11, size: 11, anchor: "middle", baseline: "alphabetic", maxWidth: 96, lod: "labels" })],
       },
-      // An activity's card: a 1 wide neutral outline, corners of 4, an 8 wide band, the name 16 in at 13 px medium and the
+      // An activity's card: a 1 wide neutral outline, corners of 4, no band (it has no stage), the name 16 in at 13 px medium and the
       // number line: the cases in ink and semibold, then their share, muted, 4 after them (the estimate: 5 × 0.55 × 11).
       // The graph has no cases of its log, so no share and no cue. The block of 30 lies in the 40 − 2 − 3 high middle: 2.5 below the outline.
       {
-        ...base, id: "a", kind: "activity", box: positions.nodes.a, shape: "box", radius: 4, stroke: { paint: "lineStrong", width: 1 }, band: 8,
+        ...base, id: "a", kind: "activity", box: positions.nodes.a, shape: "box", radius: 4, stroke: { paint: "lineStrong", width: 1 },
         texts: [
           text({ role: "nameLine", text: "Check invoice", x: 116, y: name(3.5), size: 13, weight: 500, baseline: "alphabetic", lod: "labels" }),
           text({ role: "countLine", text: "1,234", x: 116, y: number(3.5), size: 11, weight: 600, baseline: "alphabetic", lod: "labels" }),
@@ -45,7 +45,7 @@ describe("node marks", () => {
       },
       // A stage: the same card with a semibold name; its block lies (56 − 2 − 3 − 30) / 2 below the outline.
       {
-        ...base, id: "s", kind: "stage", box: positions.nodes.s, shape: "box", radius: 4, stroke: { paint: "lineStrong", width: 1 }, band: 8,
+        ...base, id: "s", kind: "stage", box: positions.nodes.s, shape: "box", radius: 4, stroke: { paint: "lineStrong", width: 1 },
         texts: [
           text({ role: "nameLine", text: "Payment", x: 416, y: name(11.5), size: 13, weight: 600, baseline: "alphabetic", lod: "labels" }),
           text({ role: "countLine", text: "1,500", x: 416, y: number(11.5), size: 11, weight: 600, baseline: "alphabetic", lod: "labels" }),
@@ -64,7 +64,7 @@ describe("node marks", () => {
       },
       // A re-added activity is dashed; without cases its number line shows a dash for both.
       {
-        ...base, id: "r", kind: "activity", box: positions.nodes.r, shape: "box", radius: 4, stroke: { paint: "lineStrong", width: 1, dash: [4, 3] }, band: 8, reconnected: true,
+        ...base, id: "r", kind: "activity", box: positions.nodes.r, shape: "box", radius: 4, stroke: { paint: "lineStrong", width: 1, dash: [4, 3] }, reconnected: true,
         texts: [
           text({ role: "nameLine", text: "Re-added", x: 416, y: name(103.5), size: 13, weight: 500, baseline: "alphabetic", lod: "labels" }),
           text({ role: "countLine", text: "–", x: 416, y: number(103.5), size: 11, weight: 600, baseline: "alphabetic", lod: "labels" }),

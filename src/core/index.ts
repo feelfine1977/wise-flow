@@ -149,6 +149,7 @@ export {
   readableTokens,
   viewTokens,
   designTokens,
+  instrumentTokens,
   themedColors,
 } from "./tokens.js";
 export type {
@@ -158,6 +159,7 @@ export type {
 export {
   defaultTheme,
   printTheme,
+  instrumentTheme,
   themePresets,
   resolveTheme,
   themeColors,

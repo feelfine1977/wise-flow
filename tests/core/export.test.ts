@@ -177,10 +177,10 @@ describe("toSVG node and edge marks", () => {
   const halo = 'fill="#1f1f1f" paint-order="stroke" stroke="#ffffff" stroke-width="2"';
 
   it("draws every node kind from its mark", () => {
-    const card = (x: number, y: number, w: number, h: number, dash = "") => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="#ffffff" stroke="#8c94a1" stroke-width="1"${dash}/><rect x="${x}" y="${y}" width="8" height="${h}" class="wf-band" rx="4" fill="#8c8c8c"/>`;
+    const card = (x: number, y: number, w: number, h: number, dash = "") => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="#ffffff" stroke="#8c94a1" stroke-width="1"${dash}/>`;
     const number = (x: number, y: number, count: string, share: number) => `<text x="${x}" y="${y}" font-size="11" font-weight="600" fill="#1f1f1f">${count}</text><text x="${share}" y="${y}" font-size="11" fill="#5b6270">· –</text>`;
     expect(groups(draw(), "node")).toEqual([
-      // The card: its name, then the cases and their share (none without the log's cases), the block in the middle above the foot.
+      // The card: its name, then the cases and their share (none without the log's cases), the block in the middle above the foot; no stage, no band.
       `<g class="wf-node wf-node-activity" data-id="a">${card(100, 0, 180, 40)}<text x="116" y="16.05" font-size="13" font-weight="500" fill="#1f1f1f">Check invoice</text>${number(116, 30.35, "1,234", 150.25)}</g>`,
       // The event's label sits below its circle.
       '<g class="wf-node wf-node-event" data-id="end"><circle cx="858" cy="20" r="18" fill="#ffffff" stroke="#1f1f1f" stroke-width="2"/><text x="858" y="53" font-size="11" text-anchor="middle" fill="#1f1f1f">End</text></g>',
@@ -198,8 +198,12 @@ describe("toSVG node and edge marks", () => {
   it("draws a card's frequency cue under its band and texts", () => {
     const counted = { ...elements.graph, meta: { cases: 2468 } };
     const [a] = groups(toSVG({ graph: counted, positions: elements.positions, style: elements.style }, { legend: false }), "node");
-    // 1,234 of 2,468 cases: half of the inner width 180 − 8 − 1, from the band's end; the stripe inside the outline, the foot its lowest 3.
-    expect(a).toContain('<rect x="100" y="0" width="180" height="40" rx="4" fill="#ffffff" stroke="#8c94a1" stroke-width="1"/><rect x="108" y="1" width="85.5" height="38" class="wf-cue" fill="#e6e8ec"/><rect x="108" y="36" width="85.5" height="3" class="wf-cue-foot" fill="#5f6672"/><rect x="100" y="0" width="8" height="40" class="wf-band" rx="4" fill="#8c8c8c"/>');
+    // 1,234 of 2,468 cases, no stage: half of the inner width 180 − 2 × 1 from the outline; the stripe inside the outline, the foot its lowest 3.
+    expect(a).toContain('<rect x="100" y="0" width="180" height="40" rx="4" fill="#ffffff" stroke="#8c94a1" stroke-width="1"/><rect x="101" y="1" width="89" height="38" class="wf-cue" fill="#e6e8ec"/><rect x="101" y="36" width="89" height="3" class="wf-cue-foot" fill="#5f6672"/><text');
+    // With a stage: half of 180 − 8 − 1 from the band's end, and the band over the cue.
+    const staged = { ...counted, groups: [{ id: "g1", kind: "stage" as const, label: "Invoice" }], nodes: counted.nodes.map((n) => (n.id === "a" ? { ...n, group: "g1" } : n)) };
+    const [b] = groups(toSVG({ graph: staged, positions: elements.positions, style: { ...elements.style, nodeColor: { by: "group" } } }, { legend: false }), "node");
+    expect(b).toMatch(/<rect x="108" y="1" width="85.5" height="38" class="wf-cue" fill="#e6e8ec"\/><rect x="108" y="36" width="85.5" height="3" class="wf-cue-foot" fill="#5f6672"\/><rect x="100" y="0" width="8" height="40" class="wf-band" rx="4" fill="#[0-9A-Fa-f]{6}"\/>/);
     expect(a).toContain('fill="#5b6270">· 50 %</text>');
   });
 

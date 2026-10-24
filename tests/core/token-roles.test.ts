@@ -63,6 +63,9 @@ afterEach(() => {
   saved.length = 0;
 });
 
+/** A stylesheet without the role variables it reads only as the fallback of a mark's own size and weight. */
+const markFirst = (css: string) => css.replace(/var\(--wf-text-(size|weight), var\(--wf-(text|weight)-[\w-]+\)\)/g, "");
+
 describe("the role tables", () => {
   it("hold the values drawn today", () => {
     expect(textTokens.groupLabel).toEqual(today.groupLabel);
@@ -96,7 +99,8 @@ describe("the role tables", () => {
     }
     expect(off).toEqual([]);
     // Not strokes of the scale: the range a path's width encodes its cases in, the width an arc adds for its coverage, and the pointer's width on a path.
-    expect(unscaledStrokes).toEqual(["pathMin", "pathMax", "arcCoverage", "pathHit"]);
+    // How much thinner a backward path is drawn is a step of the width scale, not a stroke of it.
+    expect(unscaledStrokes).toEqual(["pathMin", "pathMax", "arcCoverage", "pathHit", "backwardStep"]);
     expect(fontTokens.family.split(",")[0]).toBe("system-ui");
   });
 
@@ -119,7 +123,8 @@ describe("the role tables", () => {
     // The interactive map draws the group's mark, which the stylesheet no longer sizes; no group is dashed.
     const [mark] = buildScene(graph, positions).groupMarks;
     expect([mark.stroke.width, mark.stroke.dash, mark.texts[0].size, mark.texts[0].weight]).toEqual([2.75, undefined, 17, 800]);
-    expect(stylesheet).not.toMatch(/--wf-(stroke-group|text-group-label|weight-group-label)\b/);
+    // The stylesheet reads the role's variables only where a text has no size or weight of its mark (`--wf-text-size`, `--wf-text-weight`).
+    expect(markFirst(stylesheet)).not.toMatch(/--wf-(stroke-group|text-group-label|weight-group-label)\b/);
   });
 
   it("are what SVG, Canvas and the marks the interactive map draws read for an activity: its outline, radius, name and band, and the stylesheet for the band's corners", () => {
@@ -138,7 +143,7 @@ describe("the role tables", () => {
     expect([mark.stroke.width, mark.radius, mark.texts[0].size]).toEqual([2.25, 7.5, 12.5]);
     expect(rule(".wf-node")).toContain("border: var(--wf-node-stroke) solid var(--wf-node-outline);");
     expect(rule(".wf-node")).toContain("border-radius: var(--wf-node-radius);");
-    expect(stylesheet).not.toMatch(/--wf-(stroke-node|text-node-label|text-activity-name)\b/);
+    expect(markFirst(stylesheet)).not.toMatch(/--wf-(stroke-node|text-node-label|text-activity-name)\b/);
     expect(tokenVariables().light).toMatchObject({ "--wf-radius-band": "1.25px" });
     expect(rule(".wf-node__band")).toContain("border-radius: var(--wf-radius-band) 0 0 var(--wf-radius-band);");
   });

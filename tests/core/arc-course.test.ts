@@ -100,7 +100,8 @@ describe("arcs that cross no other activity", () => {
     kindsMarks: "e2b2821d4ce686715e744590eb6c71170816e78d400368cbf908ed05f2861720",
     kindsSvg: "61b5130d198250ee01a4df6909f2a55408b06d8b6252492cd4528b18900e4aed",
     rowsMarks: "cfb3de4681fd95762eb30c1b5ffcdb80c9d0e8a57b8116366250064779e3656f",
-    rowsSvg: "300ecc6fea8196351006eabe9ea516d8f2637b8f7fa2a522a5e243196724aebe",
+    // Re-recorded when cards without a stage lost their band (WF-01); with the band drawn, the digest is the one before.
+    rowsSvg: "5f0f4d56ac4f2a6486a95f6704b26e379d61841897563979dafb46e5a27adb85",
   };
 
   it("keep the marks they had", () => {

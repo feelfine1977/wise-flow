@@ -45,8 +45,13 @@ test('the table gives the stylesheet its text, radius, stroke, dash, opacity, z-
   assert.equal(light['--wf-stroke-selection'], '2px');
   assert.equal(light['--wf-dash-timeline-anchor'], '4 3');
   assert.equal(light['--wf-opacity-dimmed'], '0.35');
-  // Nodes and groups take their outlines, tints and texts from their marks, not from these.
-  for (const role of ['--wf-text-node-label', '--wf-weight-stage-label', '--wf-stroke-node', '--wf-stroke-group', '--wf-opacity-group-fill', '--wf-radius-circle']) assert.equal(light[role], undefined, role);
+  // The card's, the stage's, the group's and the event's texts have variables of their roles, which the stylesheet
+  // reads where a text has no mark of its own and a host reads and sets (the marks still give each its size).
+  assert.deepEqual(['activity-name', 'activity-number', 'activity-share', 'stage-label', 'group-label', 'event-label'].map((r) => light[`--wf-text-${r}`]), ['13px', '11px', '11px', '13px', '13px', '11px']);
+  assert.deepEqual(['activity-name', 'activity-number', 'stage-label', 'group-label'].map((r) => light[`--wf-weight-${r}`]), ['500', '600', '600', '600']);
+  assert.equal(light['--wf-size-band'], '8px');
+  // Nodes and groups take their outlines and tints from their marks, not from these.
+  for (const role of ['--wf-text-node-label', '--wf-stroke-node', '--wf-stroke-group', '--wf-opacity-group-fill', '--wf-radius-circle']) assert.equal(light[role], undefined, role);
   assert.equal(light['--wf-z-menu'], '30');
   assert.equal(light['--wf-size-side-list'], '380px');
   assert.deepEqual(Object.entries(light).filter(([k]) => k.startsWith('--wf-space-')), [['--wf-space-1', '2px'], ['--wf-space-1-5', '3px'], ['--wf-space-2', '4px'], ['--wf-space-3', '6px'], ['--wf-space-4', '8px'], ['--wf-space-5', '10px'], ['--wf-space-6', '12px'], ['--wf-space-8', '16px']]);
