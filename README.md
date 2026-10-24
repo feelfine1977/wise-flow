@@ -8,8 +8,8 @@ data, analysis, persistence and the meaning of actions.
 
 ## Install
 
-Supported development and CI runtimes: Node 22 or 24 LTS, npm. React components
-require React and React DOM 18 or later; the packed consumer is tested with the
+Supported development and CI runtimes: Node 22.12 or later, or 24 LTS, npm.
+React components require React and React DOM 18 or later; the packed consumer is tested with the
 React 18.3.1 and 19.2.8. CI covers Node 22/React 18 with Chromium and Node 24/React 19 with Chromium, Firefox and WebKit. The package is ESM with TypeScript
 declarations; CommonJS `require()` is not a supported entry point.
 

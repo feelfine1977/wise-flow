@@ -25,7 +25,7 @@ export default defineConfig({
       reporter: ["text-summary", "json-summary", "lcov", "html"],
       reportsDirectory: "coverage",
       reportOnFailure: true,
-      // Whole-source Vitest 4 AST coverage; not comparable to Vitest 2's V8 counters.
+      // Whole-source AST coverage, counted alike by Vitest 4 and 5; not comparable to Vitest 2's V8 counters.
       // The measured values rounded down; ratchet them upward as the remaining branches gain meaningful tests.
       thresholds: { statements: 93, lines: 95, branches: 84, functions: 92 },
     },

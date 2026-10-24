@@ -251,6 +251,10 @@ for (const seed of seeds(caseCount(20))) {
   WISE_SEED=17 npx vitest run tests/core/<file>.test.ts -t "<test name>"
   ```
 
+  `-t` matches the test's full name, in which Vitest joins the enclosing
+  `describe` names and the test's own with ` > `; a pattern that names a
+  suite and a test writes that separator between them.
+
 - A fault that a search finds is first shrunk and then pinned: `shrinkCase`
   in `shrink.ts` tries smaller sizes of the generated case and then
   `shrinkGraph` removes nodes, edges, groups and overlays while the predicate
@@ -315,7 +319,7 @@ decisions; every other failure fails the search (a text under 9 px was one
 until the map kept its texts readable at every zoom; now it fails). `pictureOf` draws a rung
 with its failures marked; `savePicture` (`pictures.ts`) writes it under
 `reports/thresholds/`, and the tests attach it to their report (`annotate`,
-copied to `.vitest-attachments/`). `core/thresholds.test.ts` reads the
+copied to `.vitest/attachments/`). `core/thresholds.test.ts` reads the
 Canvas drawing of every rung of the committed scenes (laid out by ELK, by
 Dagre above 500 nodes and paths) and of 20 seeds at the four magnitudes, and
 checks 200 random pairs of settings for elements that come back higher up;

@@ -30,7 +30,7 @@ matrix yet; local macOS execution does not prove Windows support.
 
 ## Coverage and test-driven changes
 
-Vitest 4 uses separate Node and jsdom projects, at most four forks at a time (the
+Vitest 5 runs separate Node and jsdom projects, at most four forks at a time (the
 hosted runners have two to four cores). `tests/core/graph-size.test.ts` holds a
 million-edge scene, about 1.9 GB per fork with coverage, so its own project runs it
 alone after the others, with a time limit of two minutes per test. Vitest's limit
@@ -50,6 +50,9 @@ The previous Vitest 2 counters are not directly comparable to Vitest 4's AST
 remapping. This change upgrades Vite to 6.4.3 and Vitest/coverage to 4.1.11 to close
 high/critical tooling advisories. Coverage was remeasured with that exact toolchain
 before setting these first gates. See [verification](VERIFICATION.md).
+Vitest and its coverage provider 5.0.5 count the same source as 4.1.12 did,
+within one hundredth of a percentage point (on Node 24: 97.9% statements,
+98.78% lines, 94.08% branches, 97.56% functions), so the floors stay.
 
 For a change:
 
@@ -109,8 +112,8 @@ incompatible uuid major via an untested override.
 
 ## Local commands and diagnostics
 
-Use Node 22 or 24; avoid accidentally running a different Node through an older
-shell PATH. Then:
+Use Node 22.18 or later, or 24 (Vitest 5 needs 22.12, the tooling tests 22.18);
+avoid accidentally running a different Node through an older shell PATH. Then:
 
 ```sh
 npm ci
@@ -190,7 +193,7 @@ manual screen-reader usability and broader host journeys remain explicit work in
 5. Distribute those tested bytes. Do not rebuild after qualification and assume
    the new bytes are identical. A `v…` tag must match package.json; CI checks it.
 
-References: [Vitest 4 migration](https://v4.vitest.dev/guide/migration.html),
+References: [Vitest 5 migration](https://vitest.dev/guide/migration.html),
 [Playwright accessibility](https://playwright.dev/docs/accessibility-testing),
 [visual comparison](https://playwright.dev/docs/test-snapshots),
 [GitHub secure workflow use](https://docs.github.com/en/actions/reference/security/secure-use).
