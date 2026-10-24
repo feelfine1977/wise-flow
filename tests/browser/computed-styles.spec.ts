@@ -104,7 +104,12 @@ import { fileURLToPath } from "node:url";
  * classes still shed their texts below the floor). Matching the existing
  * elements after removing each overview subtree, every other style is equal.
  * Selection/menu, focus, hover and filters explicitly open fitted and their
- * records stay identical. Geometry
+ * records stay identical.
+ * They were recorded once more when the map began to say the part in view:
+ * the map, lanes, paths and Canvas scenes gain the controls' note of what is
+ * in view (`p.wf-controls__note--in-view`) and the overview's spoken name of
+ * the part in view (a `span.wf-sr-only`). Matching the existing elements in
+ * every scene, no style of another element changed. Geometry
  * that depends on the fonts of the machine (widths, heights, positions) is left
  * out, so the record holds on every operating system.
  */

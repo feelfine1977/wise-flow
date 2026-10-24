@@ -58,6 +58,20 @@ async function boxes(page: Page) {
   }, v);
 }
 
+// A point of the pane, near the one preferred, where a press reaches the pane itself and not a node, group or
+// panel drawn over it: text metrics differ between platforms, so a fixed point can fall on a group's edge.
+async function emptyPoint(page: Page, preferred: { x: number; y: number }) {
+  return page.evaluate((preferred) => {
+    for (let r = 0; r <= 400; r += 10) {
+      for (const [dx, dy] of [[0, r], [0, -r], [r, 0], [-r, 0]]) {
+        const x = preferred.x + dx, y = preferred.y + dy;
+        if (document.elementFromPoint(x, y)?.classList.contains("react-flow__pane")) return { x, y };
+      }
+    }
+    throw new Error(`no empty point of the pane near ${preferred.x}, ${preferred.y}`);
+  }, preferred);
+}
+
 // React Flow rounds its DOM transform to 0.001 px: at the fixed zoom 0.75,
 // compare map coordinates within 0.005 units (less than 0.004 screen pixels).
 const COORDINATE_PRECISION = 2;
@@ -135,9 +149,10 @@ for (const renderer of ["svg", "canvas"] as const) {
     const original = await view(page);
     const pane = renderer === "svg" ? page.locator(".react-flow__pane") : page.locator(".wf-canvas-map canvas");
     const area = (await pane.boundingBox())!;
-    await page.mouse.move(area.x + 700, area.y + 750);
+    const from = renderer === "svg" ? await emptyPoint(page, { x: area.x + 700, y: area.y + 750 }) : { x: area.x + 700, y: area.y + 750 };
+    await page.mouse.move(from.x, from.y);
     await page.mouse.down();
-    await page.mouse.move(area.x + 820, area.y + 700, { steps: 4 });
+    await page.mouse.move(from.x + 120, from.y - 50, { steps: 4 });
     await page.mouse.up();
     await expect.poll(async () => (await view(page)).x).not.toBe(original.x);
     const pan = await view(page);
