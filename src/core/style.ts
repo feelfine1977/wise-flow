@@ -307,7 +307,14 @@ export interface LineSpec {
 export interface LodRules {
   /** Zoom level from which node labels are drawn. */
   labels: number;
-  edgeLabels: number;
+  /**
+   * From which zoom paths' labels are drawn, or (0.4) `{ minPx }`: a path's
+   * label is drawn while the path is at least `minPx` screen pixels wide (its
+   * width times the zoom, decided at rest), at every zoom.
+   */
+  edgeLabels: number | { minPx: number };
+  /** Every path that touches a selected activity shows its label, whatever the rule above (`label`, the default), or only as the rule says (`none`). */
+  selectedPaths?: "label" | "none";
   badges: number;
   arcs: number;
   chips: number;
@@ -339,6 +346,11 @@ export interface StyleSpec {
   nodeLine?: LineSpec;
   /** What a path's label leads with before its count; default the count alone. */
   pathLabel?: LineSpec;
+  /**
+   * A path touching a selected activity adds the share of that activity's
+   * cases it carries to its label: "112,924 · 48 %" (0.4). Default false.
+   */
+  selectedShare?: boolean;
   /**
    * Start and end events: `statement` writes under an event's label how many
    * cases start (or end) there and how many of them at an activity the map
@@ -421,11 +433,12 @@ export const diffStyle: StyleSpec = {
 };
 
 /** Which elements are visible at a zoom level. */
-export function lodAt(zoom: number, rules: Partial<LodRules> = {}): Record<keyof LodRules, boolean> {
+export function lodAt(zoom: number, rules: Partial<LodRules> = {}): Record<Exclude<keyof LodRules, "selectedPaths">, boolean> {
   const r = { ...defaultLod, ...rules };
   return {
     labels: zoom >= r.labels,
-    edgeLabels: zoom >= r.edgeLabels,
+    // By width, every zoom draws labels: each path's own width decides (`pathLabelShown`).
+    edgeLabels: typeof r.edgeLabels === "object" ? true : zoom >= r.edgeLabels,
     badges: zoom >= r.badges,
     arcs: zoom >= r.arcs,
     chips: zoom >= r.chips,
@@ -439,8 +452,22 @@ export function lodForSize(nodeCount: number, base: Partial<LodRules> = {}): Lod
   const r = { ...defaultLod, ...base };
   const factor = nodeCount > 400 ? 1.8 : nodeCount > 150 ? 1.4 : nodeCount > 60 ? 1.15 : 1;
   const out = { ...r };
-  for (const k of Object.keys(out) as (keyof LodRules)[]) out[k] = Math.min(2, r[k] * factor);
+  for (const k of Object.keys(out) as (keyof LodRules)[]) {
+    const v = r[k];
+    if (typeof v === "number") (out as Record<string, unknown>)[k] = Math.min(2, v * factor);
+  }
   return out;
+}
+
+/**
+ * Whether a path's label is drawn at a zoom: where it touches a selected
+ * activity (unless `selectedPaths` is `none`); by the rule `edgeLabels`
+ * otherwise, a zoom or the width the path must have on the screen (`minPx`).
+ */
+export function pathLabelShown(width: number, zoom: number, rules: Partial<LodRules>, touchesSelection = false): boolean {
+  if (touchesSelection && rules.selectedPaths !== "none") return true;
+  const rule = rules.edgeLabels ?? defaultLod.edgeLabels;
+  return typeof rule === "object" ? width * zoom >= rule.minPx : zoom >= rule;
 }
 
 // ---------------------------------------------------------------------------

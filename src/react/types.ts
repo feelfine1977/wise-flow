@@ -122,6 +122,12 @@ export type FollowsEdgeData = {
   mark?: EdgeMark;
   /** What the theme's rules for the edge's interactive states set (`stateStyle`). */
   state?: StateStyle;
+  /** The path touches a selected activity: drawn lifted (`EdgeMark.lift`) and labelled (0.4). */
+  touching?: boolean;
+  /** Whether its label shows: by the root's zoom class (`rule`, default), or always or never by its width on the screen or the selection (0.4). */
+  labelShown?: "rule" | "always" | "never";
+  /** The label written where it differs from the mark's: with the share of the selected activity's cases (`emphasisLabel`). */
+  labelText?: string;
 };
 
 export type WfEdge = Edge<FollowsEdgeData, "follows" | "constraint" | "flow">;

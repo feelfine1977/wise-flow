@@ -14,7 +14,7 @@ import { type MarkSvgOptions, arrowMarker, markSvg, svgMarkup } from "./mark-svg
 import { type MarkPaint, type MarkText, type OverlayMark, markArrowhead, overlayArrow } from "./overlay-marks.js";
 import { type Readable, isPill, nodeTexts, readableMark, shownReadable, titleTexts } from "./readable.js";
 import { type FlowScene, sceneOf } from "./scene.js";
-import { type Measure, type StyleSpec, lodAt, patternDefs } from "./style.js";
+import { type Measure, type StyleSpec, lodAt, pathLabelShown, patternDefs } from "./style.js";
 import { type Strings, t } from "./strings.js";
 import type { TextMeasure } from "./text.js";
 import { type ColorScheme, type ThemeSetting, resolveTheme } from "./theme.js";
@@ -175,7 +175,8 @@ function drawEdges(ctx: Ctx): string {
     const d = [...m.points.slice(0, -1), end].map((p, i) => `${i === 0 ? "M" : "L"}${num(p.x)} ${num(p.y)}`).join("");
     out.push(`<g class="wf-edge" data-id="${esc(m.id)}"${opacity(m)}><path d="${d}" fill="none" stroke="${m.color}" stroke-width="${num(m.width)}" stroke-linejoin="round"${m.addedFlow ? ' stroke-linecap="round"' : ""}${dash}${m.arrow ? ` marker-end="url(#${arrowId(m.arrow)})"` : ""}/>`);
     // Paths' labels are the first texts shed below the floor.
-    if (ctx.readable.labels.path) for (const tx of shownTexts(ctx, m.texts)) out.push(markText(ctx, m.color, m.color, tx));
+    // A path's label by its rule: a zoom, or its width at the figure's zoom (`pathLabelShown`); nothing is selected in a figure.
+    if (ctx.readable.labels.path) for (const tx of m.texts) if (tx.lod === "edgeLabels" ? pathLabelShown(m.width, ctx.lodZoom, ctx.scene.lod) : !tx.lod || ctx.lod[tx.lod]) out.push(markText(ctx, m.color, m.color, tx));
     out.push(`</g>`);
   }
   return out.join("");

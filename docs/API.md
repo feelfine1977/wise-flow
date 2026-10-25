@@ -680,6 +680,7 @@ export interface StyleSpec { edgeWidth?: ChannelSpec; edgeColor?: ColorSpec; nod
   measure?: Measure;            // the measure the style shows: the legend states its sentence
   addedFlowLabel?: true | string; // opt in for edges tagged added-by-map: default EN/DE legend words, or the host's string
   terminals?: { statement?: boolean };   // a start or an end event writes its cases and those at a shown activity under its label (0.4)
+  selectedShare?: boolean;         // a path touching a selected activity adds the share of its cases it carries: "112,924 · 48 %" (0.4)
   frequencyColorLegend?: true;  // opt in to a frequency sentence naming the actual width and alternate colour metric/classes
   nodeLine?: LineSpec;          // what an activity's number line leads with; default its cases, then their share
   pathLabel?: LineSpec;         // what a path's label leads with before its count; default the count alone
@@ -730,6 +731,11 @@ export function hexToRgb(hex: string): [number, number, number];
 export function interpolatePalette(stops: readonly string[], t: number): string;   // piecewise linear through the stops; t clamped to [0, 1]
 export function hashKey(key: string): number;   // stable 32-bit FNV-1a hash; categorical colours and pattern twins hash their keys
 export interface LodRules { labels; edgeLabels; badges; arcs; chips; hatch; selfLoops }  // minimum zoom per element
+  // 0.4: edgeLabels: number | { minPx: number } (a path's label while it is minPx screen pixels wide or more);
+  //      selectedPaths?: "label" | "none" (every path touching a selected activity shows its label; default "label")
+export function pathLabelShown(width: number, zoom: number, rules: Partial<LodRules>, touchesSelection?: boolean): boolean;   // the one rule every renderer reads (0.4)
+export function touchesSelection(mark: Pick<EdgeMark, "edge">, selected: ReadonlySet<string>): boolean;   // (0.4)
+export function emphasisLabel(mark, selected: ReadonlySet<string>, nodeOf: (id: string) => FlowNode | undefined, locale?): string | undefined;   // "112,924 · 48 %" (0.4)
 export function lodAt(zoom: number, rules?: Partial<LodRules>): Record<keyof LodRules, boolean>;
 export function lodForSize(nodeCount: number, base?: Partial<LodRules>): LodRules;
 export function patternDefs(prefix?: string, ink?: string, outOfScope?: string, look?: PatternLook): string;   // <pattern> tiles of the twins and the hatching; ink and outOfScope default to colorTokens.ink and .outOfScope, look to patternTokens
@@ -1432,6 +1438,22 @@ a CSS variable on the map's container:
 Both maps then scale and shed texts by the same rule; boxes keep the size
 the layout reserved, so paths still meet them. A host that wants smaller
 text on the screen than 9 px sets a smaller floor; 0 turns the rule off.
+
+## Paths around a selection (0.4)
+
+With `lod.edgeLabels: { minPx: 2 }` a path's label is drawn while the path
+is at least 2 screen pixels wide (its width times the zoom; the interactive
+map decides at rest, the Canvas map and the exports at their zoom); a number
+keeps the zoom rule. Every path touching a selected activity shows its label
+whatever the rule (`lod.selectedPaths`, default `"label"`; `"none"` keeps the
+rule), and with `style.selectedShare` the label adds the share of the selected
+activity's cases the path carries (`emphasisLabel`: "800 · 89 %"; "≥" before a
+lower bound), in the interactive and the Canvas map. A backward path
+(`EdgeMark.backward`) is drawn `Theme.stroke.backwardStep` thinner (never
+under `pathMin`) at `Theme.opacity.backward` while no activity it touches is
+selected, and lifted to its width, head and opacity then (`EdgeMark.lift`);
+the default theme has a step of 0 and an opacity of 1, the `instrument` preset
+1 and 0.6. Exports draw nothing selected.
 
 ## Overlays
 
@@ -3156,6 +3178,7 @@ export interface NodeMark { id: string; kind: NodeKind; node: FlowNode; box: Box
 export interface EdgeMark { id: string; kind: EdgeKind; edge: FlowEdge; points: XY[]; color: string; width: number; dash?: number[];
   arrow?: Arrowhead;               // the head at the route's end (`pathArrowhead(width, theme.arrowhead.edge)`); none under the rule's minWidth (0.4); the line ends at `lineEnd(points, arrow)`
   terminal?: "start" | "end";      // a path from a start or to an end event (`Scales.terminal`), in the terminal paint (0.4)
+  lift?: { width: number; arrow?: Arrowhead; opacity?: number };   // how it is drawn while an activity it touches is selected (0.4)
   backward?: boolean;              // a path against the reading direction, drawn below the flow it returns over
   texts: ElementText[]; reconnected: boolean; notEvaluated?: boolean; opacity?: number;   // opacity: line, arrowhead and label
   addedFlow?: boolean;             // opted-in host-added flow: neutral round dots; dash lengths resolved in layout units

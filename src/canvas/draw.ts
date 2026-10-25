@@ -1,7 +1,7 @@
 /** Drawing routines of the canvas renderer: plain 2D context calls for a scene, a viewport and a state, culled on large scenes; `canvasTextMeasure`. */
 import { keptLoop, mapEdges, selfLoopsOf } from "../core/edge-budget.js";
 import { headTriangle } from "../core/element-marks.js";
-import { type Arrowhead, type Box, type BoxSide, type XY, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type PatternLook, type Readable, type Selection, type ShownEdges, type StateStyle, type TextMeasure, type Theme, arrowheadExtent, dimensionTokens, fixedColors, hatchTokens, legendLayout, legendMetrics, budgetEdges, defaultTheme, estimateTextWidth, lineEnd, lodAt, markArrowhead, markInState, patternTwin, readableAt, readableTokens, ruleTextRole, stateStyle } from "../core/index.js";
+import { type Arrowhead, type Box, type BoxSide, type XY, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type PatternLook, type Readable, type Selection, type ShownEdges, type StateStyle, type TextMeasure, type Theme, arrowheadExtent, dimensionTokens, fixedColors, hatchTokens, legendLayout, legendMetrics, budgetEdges, defaultTheme, estimateTextWidth, lineEnd, lodAt, markArrowhead, markInState, patternTwin, pathLabelShown, touchesSelection, emphasisLabel, readableAt, readableTokens, ruleTextRole, stateStyle } from "../core/index.js";
 import { isPill, nodeTexts, readableMark, titleTexts } from "../core/readable.js";
 import { type NumberText, numbered } from "../core/figure.js";
 import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene.js";
@@ -379,8 +379,9 @@ function drawGroup(ctx: DrawContext, scene: PreparedScene, g: SceneGroup, tokens
   if (alpha !== undefined) ctx.globalAlpha = 1;
 }
 
-function drawEdge(ctx: DrawContext, e: SceneEdge, tokens: CanvasTokens, theme: Theme, highlighted: boolean, dimmed: boolean, s: StateStyle | undefined) {
-  const m = e.mark;
+function drawEdge(ctx: DrawContext, e: SceneEdge, tokens: CanvasTokens, theme: Theme, highlighted: boolean, dimmed: boolean, s: StateStyle | undefined, lifted = false) {
+  // A backward path touching a selected activity is drawn at its full width, head and opacity (`EdgeMark.lift`).
+  const m = lifted && e.mark.lift ? { ...e.mark, width: e.mark.lift.width, arrow: e.mark.lift.arrow, opacity: e.mark.lift.opacity } : e.mark;
   const pts = m.points;
   if (pts.length < 2) return;
   ctx.globalAlpha = s?.opacity ?? (dimmed ? theme.opacity.dimmedPath : (m.opacity ?? 1));
@@ -625,13 +626,15 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
   marks("below");
 
   let edges = 0;
+  // The selected activities: the paths touching them are lifted and labelled (`touchesSelection`).
+  const chosen = new Set(state.selection.nodes);
   // The edges in view, painted the widest first (`paintOrder`), as every renderer paints them.
   each(scene.edges, "edge", edgeId, (e, i) => {
     if (withheld && !withheld.drawn.has(i)) return;
     const id = e.edge.id;
     const [selected, hovered] = [state.selection.edges.includes(id), state.hovered === id];
     const dimmed = !!state.bright && !state.bright.edges.has(id);
-    drawEdge(ctx, e, tokens, scene.theme, selected || hovered, dimmed, edgeState(scene, e, state));
+    drawEdge(ctx, e, tokens, scene.theme, selected || hovered, dimmed, edgeState(scene, e, state), touchesSelection(e.mark, chosen));
     edges++;
   }, painting(scene));
   marks("between");
@@ -644,13 +647,20 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
 
   marks("above");
 
-  // Paths' labels are the first texts shed below the floor.
+  // Paths' labels are the first texts shed below the floor. A path's label is drawn by its rule (a zoom, or its width on
+  // the screen), and on every path touching a selected activity, with the share of its cases where the style asks.
+  const share = scene.style.selectedShare;
   each(scene.edges, "edge", edgeId, (e, i) => {
     if (!readable.labels.path || (withheld && !withheld.drawn.has(i)) || (state.bright && !state.bright.edges.has(e.edge.id))) return;
+    const touching = touchesSelection(e.mark, chosen);
     const s = edgeState(scene, e, state);
-    const alpha = s?.opacity ?? e.mark.opacity;
+    const alpha = s?.opacity ?? (touching && e.mark.lift ? e.mark.lift.opacity : e.mark.opacity);
     if (alpha !== undefined) ctx.globalAlpha = alpha;
-    for (const tx of e.mark.texts) if (!tx.lod || lod[tx.lod]) drawText(ctx, scene, tx, paintOf(e.mark, s?.texts?.label ?? tx.paint, tokens), tokens);
+    for (const tx of e.mark.texts) {
+      if (tx.lod === "edgeLabels" ? !pathLabelShown(e.mark.width, lodZoom, scene.lod, touching) : tx.lod && !lod[tx.lod]) continue;
+      const text = share && touching && tx.role === "count" ? emphasisLabel(e.mark, chosen, (id) => scene.nodeById.get(id)?.node, scene.locale) ?? tx.text : tx.text;
+      drawText(ctx, scene, text === tx.text ? tx : { ...tx, text }, paintOf(e.mark, s?.texts?.label ?? tx.paint, tokens), tokens);
+    }
     if (alpha !== undefined) ctx.globalAlpha = 1;
   }, painting(scene));
   const numbers = !options.numbers && options.pathRule && readable.level === "box" ? new Map(numbered({ ...scene, activityLabels: undefined }, readable.floor, dimensionTokens.panelMaxWidth, scene.textMeasure).texts.map((n) => [n.id, n.text])) : undefined;

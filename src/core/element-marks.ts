@@ -154,6 +154,13 @@ export interface EdgeMark {
   opacity?: number;
   /** A path against the reading direction, drawn below the flow it returns over (`pathCourses`). */
   backward?: boolean;
+  /**
+   * How the path is drawn while an activity it touches is selected, where
+   * that differs (0.4): a backward path is drawn a step thinner and fainter
+   * (`Theme.stroke.backwardStep`, `Theme.opacity.backward`) and lifted to its
+   * width, head and opacity here.
+   */
+  lift?: { width: number; arrow?: Arrowhead; opacity?: number };
 }
 
 interface NodeMarkOptions {
@@ -493,14 +500,19 @@ export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string;
     if (Math.abs(side.x) > Math.abs(side.y)) [at, anchor] = [{ x: p.x + side.x * gap, y: p.y + 0.35 * size }, side.x > 0 ? "start" : "end"];
     else at = { x: p.x, y: side.y > 0 ? p.y + gap + 0.8 * size : p.y - gap };
   }
+  // A backward path a step thinner and fainter, until an activity it touches is selected.
+  const step = options.backward && edge.kind === "follows" ? theme.stroke.backwardStep : 0;
+  const faint = options.backward && edge.kind === "follows" && theme.opacity.backward < 1 ? theme.opacity.backward * (set?.opacity ?? 1) : undefined;
+  const width = step > 0 ? Math.max(theme.stroke.pathMin, Number((options.width - step).toFixed(2))) : options.width;
+  const lift = width !== options.width || faint !== undefined ? { width: options.width, arrow: pathArrowhead(options.width, theme.arrowhead.edge), ...(set?.opacity !== undefined && { opacity: set.opacity }) } : undefined;
   return {
     id: edge.id,
     kind: edge.kind,
     edge,
     points,
     color: options.addedFlow ? theme.color.neutral : set?.stroke ? rulePaint(set.stroke, undefined, "value", theme.color, options.color) : options.color,
-    width: options.width,
-    arrow: pathArrowhead(options.width, theme.arrowhead.edge),
+    width,
+    arrow: pathArrowhead(width, theme.arrowhead.edge),
     dash: options.addedFlow ? dashTokens.addedFlow.map((n) => n * options.width) : ruleDash(set, reconnected || indirect ? RECONNECTED_EDGE_DASH : undefined, RECONNECTED_EDGE_DASH),
     texts: label
       ? [ruleText<ElementText>({ text: label, x: at.x, y: at.y, size, anchor, baseline: "alphabetic", paint: "ink", halo: true, role: "count", lod: "edgeLabels" }, set, "label", theme.color, options.color)]
@@ -511,7 +523,8 @@ export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string;
     ...(options.addedFlow && { addedFlow: true }),
     ...(options.terminal && { terminal: options.terminal }),
     ...(options.backward && { backward: true }),
-    ...(set?.opacity !== undefined && { opacity: set.opacity }),
+    ...((faint ?? set?.opacity) !== undefined && { opacity: faint ?? set!.opacity }),
+    ...(lift && { lift }),
   };
 }
 

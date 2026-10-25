@@ -172,7 +172,6 @@ export function placeOverlays(
   const arcCount = new Map<string, number>();
   let mapChips = 0;
   const boxOf = (id: string): Box | undefined => positions.nodes[id] ?? positions.groups[id];
-  const looped = new Set(ordered.filter((o) => o.kind === "selfLoop").map((o) => o.target));
   // A self-loop as a pill takes its label's width at the top-right corner; the badges keep left of it.
   const pills = options.selfLoop === "pill";
   const pillWidth = (o: Overlay) => Math.max(badge, measure(selfLoopLabel(o, locale) ?? "↻", fonts.badge) + 2 * pillLayout.padding);

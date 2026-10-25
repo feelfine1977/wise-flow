@@ -94,6 +94,7 @@ export {
   contrastText,
   hashKey,
   lodAt,
+  pathLabelShown,
   lodForSize,
   buildScales,
   orderedCategorical,
@@ -174,6 +175,7 @@ export type {
   FrequencyCue,
 } from "./theme.js";
 export { checkTheme, terminalOf, type ThemeDeviation } from "./style.js";
+export { emphasisLabel, touchesSelection } from "./emphasis.js";
 export { readableAt, readableZoom, distinctLines } from "./readable.js";
 export type { Readable, ReadableLevel, ReadableLabel, ReadableRules, CardLevels, NameRoom } from "./readable.js";
 export { stateStyle, markInState, ruleTextRole } from "./rules.js";

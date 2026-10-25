@@ -119,7 +119,7 @@ import {
   formatNumber,
   formatPathCount,
   formatShare,
-  gatewayGlyph, eventGlyph, terminalOf, paintOrder, createStrings,
+  gatewayGlyph, eventGlyph, terminalOf, paintOrder, createStrings, pathLabelShown, touchesSelection, emphasisLabel,
   groupMark,
   groupMarks,
   hasTag,
@@ -576,7 +576,7 @@ describe("malformed input at the core entry point", () => {
 
   it(
     "scene, marks, legend, figure and SVG export",
-    search(["buildScene", "budgetEdges", "pathsAtZoom", "nodeMarks", "edgeMarks", "nodeMark", "edgeMark", "edgeColor", "edgePoints", "routeMidpoint", "edgeLabelPoint", "gatewayGlyph", "nodeCount", "truncateText", "restOf", "distinctLines", "fitText", "estimateTextWidth", "sceneLegend", "legendItemHeight", "legendLayout", "figureFrame", "toSVG", "resolveViews", "viewsSharePositions", "stateStyle", "markInState", "ruleTextRole", "pathArrowhead", "lineEnd", "groupMark", "groupMarks", "legendOfScene", "figureCaption", "eventGlyph", "terminalOf", "paintOrder", "createStrings"], (calls, c) => {
+    search(["buildScene", "budgetEdges", "pathsAtZoom", "nodeMarks", "edgeMarks", "nodeMark", "edgeMark", "edgeColor", "edgePoints", "routeMidpoint", "edgeLabelPoint", "gatewayGlyph", "nodeCount", "truncateText", "restOf", "distinctLines", "fitText", "estimateTextWidth", "sceneLegend", "legendItemHeight", "legendLayout", "figureFrame", "toSVG", "resolveViews", "viewsSharePositions", "stateStyle", "markInState", "ruleTextRole", "pathArrowhead", "lineEnd", "groupMark", "groupMarks", "legendOfScene", "figureCaption", "eventGlyph", "terminalOf", "paintOrder", "createStrings", "pathLabelShown", "touchesSelection", "emphasisLabel"], (calls, c) => {
       const g = c.graph;
       const L = locale(c);
       const activityLabels = c.rng.chance() ? labels(c) : undefined;
@@ -651,6 +651,13 @@ describe("malformed input at the core entry point", () => {
         const order = paintOrder(s.edgeMarks);
         must(order.length === s.edgeMarks.length && new Set(order).size === order.length, c, () => `paintOrder ${order}`);
       });
+      calls.call("pathLabelShown", c, () => must(typeof pathLabelShown(junkNumber(c.rng), junkNumber(c.rng), c.rng.chance() ? { edgeLabels: { minPx: junkNumber(c.rng) } } : { edgeLabels: junkNumber(c.rng) }, c.rng.chance()) === "boolean", c, () => "pathLabelShown"));
+      const chosen = new Set(c.rng.sample(g.nodes, Math.min(2, g.nodes.length)).map((n) => n.id));
+      calls.call("touchesSelection", c, () => s.edgeMarks.forEach((m) => touchesSelection(m, chosen)));
+      calls.call("emphasisLabel", c, () => s.edgeMarks.forEach((m) => {
+        const text = emphasisLabel(m, chosen, (id) => g.nodes.find((n) => n.id === id), L);
+        must(text === undefined || readable(text), c, () => `emphasisLabel ${text}`);
+      }));
       calls.call("createStrings", c, () => {
         const say = createStrings(L, { "legend.title": junkString(c.rng), [junkString(c.rng)]: junkString(c.rng) } as never);
         must(typeof say("legend.title") === "string" && typeof say("legend.measure", { measure: junkString(c.rng) }) === "string", c, () => "createStrings");
