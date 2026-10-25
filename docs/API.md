@@ -502,6 +502,39 @@ ELK puts all events tagged `start` in the first layer and all tagged `end`
 in the last layer, in every reading direction. This includes disconnected
 events. They sit outside stage groups, before the first stage and after
 the last, with `orderStages` on or off. Without border events, layout is unchanged.
+
+With `stages: "partition"` (0.5) stages constrain the layout instead of
+wrapping it: ELK lays the graph out without compound nodes, every activity
+in the partition of its top-level stage in stage order (activities without a
+stage after the last, the start event before every partition, the end event
+after), so an activity keeps its stage's columns whatever the cohort. A path
+from a later stage back to an earlier one is laid out reversed, so the cycle
+breaker keeps the stages' order, and its route is read back the way it runs.
+The stages' boxes (`Positions.groups`) are drawn around their members with
+`GROUP_PADDING`; they do not overlap along the flow. Dagre lays the graph out
+without groups and draws the boxes the same way. The default stays
+`compound`.
+
+`FlowSceneOptions.stageView` and `ProcessMapProps.stageView` (0.5) choose how
+the stages are drawn on one layout: `bands` across the map (as `lanes:
+"stages"`), `lanes` (the same bands until lanes get headers of their own),
+`boxes` around their members (the default), or `none`, where the scene has no
+group marks and the cards are placed on their own. No view moves a card; a
+`lanes` given wins. The scene carries the view as `FlowScene.stageView`.
+
+`laneOptions` (0.5, on `FlowSceneOptions`, `ProcessMapProps` and the export
+`Scene`) sets the bands' `padding`, header space (`labelSpace`) and `gap`
+(`LaneOptions`), and: `emptyLanes` — a stage none of whose activities is in
+the graph is left out (`hide`, the default, as before), drawn as a 12 px
+labelled divider on the boundary between its neighbours in the stages' order
+(`divider`) or as a 36 px lane there (`lane`), untinted, without moving a card
+(`LaneBand.empty`); `counts` — a band's header says "5 of 15 activities" at
+its right where the group's metrics give its `activities`, "5 activities"
+("1 activity") otherwise, and a divider "none in this cohort" (`lane.count`,
+`lane.countShown`, `lane.none`; part `group-header`); `sticky` — on the map a
+stage band's name moves along the band to stay at the view's left edge while
+any part of the band is in view; exports print it once at the band's start.
+The scene carries the options as `FlowScene.laneOptions`.
 Dagre keeps its source/sink placement; it pins neither border layers nor stage
 order. Start can still sit in the middle when its target has other incoming
 paths. Provisional layouts are also unpinned. Host `positions` win;
@@ -521,6 +554,7 @@ export interface LayoutOptions {
   spacing?: { node?: number; layer?: number; group?: number };
   edgeRouting?: "ORTHOGONAL" | "POLYLINE" | "SPLINES";
   groups?: "compound" | "ignore"; orderStages?: boolean;
+  stages?: "compound" | "partition";   // 0.5: stages as ELK partitions without compounds (see below)
   elkWorkerUrl?: string | URL;          // run ELK in a Web Worker served from this URL
   dagreWorkerUrl?: string | URL;        // run Dagre in a Web Worker served from this URL
   elk?: ELK; elkOptions?: Record<string, string>; cacheKey?: string;
@@ -1030,7 +1064,21 @@ thinner than 2 (`minWidth`) no head at all, its line then ending on the
 route's end; the default and print themes keep 4 and no minimum. Every
 renderer paints the paths the widest first and the thinnest on top, equal
 widths by id (`paintOrder`, 0.4; the SVG export drew them in id order), so
-that a thin path crossing a trunk stays visible. The SVG export defines the marker `wf-arrow` for the head of 12 and
+that a thin path crossing a trunk stays visible.
+
+With `FlowSceneOptions.labelPlacement: "clear"` (0.5; default `midpoint`,
+unchanged) the scene moves paths' labels clear of the cards, the groups'
+titles, the other labels and the other paths (`placeEdgeLabels`): the widest
+paths are placed first, ties by id; a label that covers nothing stays where it
+is; else it goes to the cheapest of the candidates beside the middle of the
+route's four longest segments and in 16 px steps along them (above or below a
+horizontal segment, beside a vertical one; covering a card costs 60, a label or
+a title 40, another path 10 + 4 × its width). Where every candidate beside the
+line covers something, one 24 px further off without cover is taken and
+`EdgeMark.leader` holds a hairline from the route to the label, drawn in the
+`line` paint by every renderer; otherwise the cheapest candidate. The pass is
+deterministic and reads the scene's `TextMeasure`; `ProcessMapProps.labelPlacement`
+passes it through. The SVG export defines the marker `wf-arrow` for the head of 12 and
 `wf-arrow-<size>` for each larger head it draws; the React Flow map defines
 `wf-edge-arrow-<size>` with the same `arrowMarker` (it used React Flow's
 `MarkerType.ArrowClosed` at 12); the Canvas map and the PNG export draw the
@@ -1907,7 +1955,18 @@ export function TableAlternative(props: { graph; overlays?; scales?; locale?; se
 // A pager button that reaches the last page ("Next rows") or the first ("Previous rows") while it has the input focus
 // hands the focus to the other button, which still works there.
 export function TraceTimeline(props: { traces: Trace[]; anchor?: string; annotations?: Annotation[]; locale?;
-  width?; rowHeight?; colorKey?; onSelect?; table?: boolean }): JSX.Element;
+  width?; rowHeight?; colorKey?; onSelect?; table?: boolean;
+  orientation?: "horizontal" | "vertical"; height?: number;   // (0.5) down a ruler, one column per case; default horizontal, 640 high
+  terminals?: boolean; clusterMs?: number; timeZone?: string; stages?: readonly string[] }): JSX.Element;   // (0.5)
+// A vertical timeline (0.5) draws each case down a ruler from its first event, ticked in hours over at most two days and
+// in days otherwise; each event is a paper ring (`dimensionTokens.timelineRing` 20 across) around a dot of its colour
+// (`dimensionTokens.timelineDot` 7) with its activity beside it. `terminals` adds ▶ Start and ■ End rings at the
+// ruler's ends (`terminal.start`/`terminal.end`). With `clusterMs`, events that follow within it of the first of them
+// are one ring labelled "7 events · SRM: Created" (`timeline.cluster`, part `timeline-cluster`); clicking it selects
+// the first; the table keeps every event and adds "Elapsed (days)" and "Wait before (days)". `timeZone` (IANA) prints
+// the times in that zone as "2018-03-01 15:12" and names it in the description ("Times in Europe/Berlin."); a zone the
+// runtime does not know keeps UTC. With `stages`, the stage ids `colorKey` returns take the categorical colours in
+// that order (`orderedCategorical`), any other key the `lineStrong` colour. The horizontal timeline is unchanged.
 export function AbstractionControls(props), Legend(props), OverlayLayer(props);
 export interface LegendProps { scales?: Scales; overlays?: Overlay[]; locale?: Locale; chips?: ReactNode;
   legend?: SceneLegend;   // the rows it renders: the scene's legend; without it sceneLegend(scales, overlays)
@@ -1940,7 +1999,8 @@ export type WfEdge = Edge<FollowsEdgeData, EdgeKind>; export function groupNodeI
 // The props of each component by name (the components' signatures in this document spell them out):
 export interface AbstractionControlsProps { value: AbstractOptions; onChange; locale?; hasStages?; view?; onViewChange? }
 export interface TableAlternativeProps { graph; overlays?; scales?; locale?; selection?; onSelect?; tables?; pageSize?; className? }
-export interface TraceTimelineProps { traces: Trace[]; anchor?; annotations?; locale?; width?; rowHeight?; colorKey?; onSelect?; table?; className? }
+export interface TraceTimelineProps { traces: Trace[]; anchor?; annotations?; locale?; width?; rowHeight?; colorKey?; onSelect?; table?; className?;
+  orientation?; height?; terminals?; clusterMs?; timeZone?; stages? }   // (0.5)
 export interface TraceEvent { activity: string; canonicalId?; timestamp: string | number | Date; resource?; lifecycle?; violates?: string[] }
 export interface ContextMenuProps { x; y; title: string; subtitle?; note?; actions: MenuAction[]; locale?; onAction; onClose; returnFocusTo?;
   boundsRef?; className? }
@@ -3218,6 +3278,13 @@ export function pathCourses(g: FlowGraph, p: Positions, o: { width: (e: FlowEdge
 export function pathArrowhead(width: number, rule?: Arrowhead): Arrowhead | undefined;   // the rule's size, or perWidth × width rounded up where more; none under rule.minWidth (0.4)
 export function lineEnd(points: readonly XY[], arrow: Arrowhead | undefined): XY;        // the route's end moved back by the head's overhang; the end itself without a head
 export function paintOrder(marks: readonly { width: number; id: string }[]): number[];   // the order every renderer paints paths in: the widest first, equal widths by id (0.4)
+export type PathSegment = { kind: "line"; to: XY } | { kind: "curve"; c1: XY; c2: XY; to: XY };   // (0.5)
+export function roundedRoute(points: readonly XY[], radius: number, end?: XY): PathSegment[];   // every bend rounded, no more than half a segment (0.5)
+export interface LabelObstacles { nodes: readonly Box[]; titles: readonly Box[] }   // (0.5)
+export function placeEdgeLabels(edges: readonly EdgeMark[], obstacles: LabelObstacles, measure: TextMeasure): EdgeMark[];   // labels moved clear, widest paths first; a leader where moved off the line (0.5)
+export function segmentsPath(start: XY, segments: readonly PathSegment[], num?: (n: number) => string): string;   // SVG path data (0.5)
+// EdgeMark.path?: PathSegment[]: the route as drawn where Theme.radius.bend > 0 (0 in default and print, 8 in instrument); every renderer
+// draws its curves (cubic, close to circular arcs: the DOM map and the SVG export as `C`, the Canvas as bezierCurveTo); hit-testing keeps the polyline.
 export type BoxSide = "top" | "right" | "bottom" | "left";
 export interface GroupMark { id: string; kind: GroupKind; group: FlowGroup; box: Box; color: string; pattern: PatternId; band?: LaneBand;
   radius: number; fill: MarkFill; stroke: { paint: MarkPaint; width: number; dash?: number[]; sides?: BoxSide[] };
@@ -4232,6 +4299,7 @@ CSS written against these selectors changes only the interactive DOM map and the
 | `node-count` | the number line of a node: its cases, then their share | | |
 | `group` | a group box or lane band | `stage`, `lane`, `pool` | `selected` |
 | `group-label` | the label of a group | | |
+| `group-header` | a band's count of its activities, or an empty stage's note (`laneOptions.counts`, 0.5) | | |
 | `edge` | a path between two nodes (SVG group) | `follows`, `constraint`, `flow` | `selected`, `focused`, `hovered`, `dimmed`, `reconnected`, `start`, `end` |
 | `edge-path` | the drawn line of a path | | |
 | `edge-label` | the count label of a path | | |
@@ -4254,6 +4322,7 @@ CSS written against these selectors changes only the interactive DOM map and the
 | `path-list` | `<PathList/>` | | |
 | `timeline` | `<TraceTimeline/>`, as a chart and as a table | | |
 | `timeline-event` | an event of the timeline | | |
+| `timeline-cluster` | events of a case drawn as one ring on a vertical timeline (`clusterMs`, 0.5) | | |
 
 `docs/styling-contract.json` lists the same parts, kinds and states. A tooling
 test (`tests/tooling/styling-contract.test.mjs`) renders the fixtures of every

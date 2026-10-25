@@ -308,6 +308,29 @@
   font-size: var(--wf-text-size, var(--wf-text-group-label));
   font-weight: var(--wf-text-weight, var(--wf-weight-group-label));
 }
+/* A band's header (0.5): its name follows the view along the band (`--wf-sticky`), the count of its activities at its right. */
+.wf-group--band > .wf-group__label {
+  left: calc(var(--wf-space-6) + var(--wf-sticky, 0px));
+}
+.wf-group__header {
+  position: absolute;
+  right: var(--wf-space-6);
+  top: var(--wf-space-4);
+  font-size: var(--wf-text-size, var(--wf-text-event-label));
+  color: var(--wf-text-paint, var(--wf-ink-muted));
+  white-space: nowrap;
+}
+/* An empty stage's divider: named over its middle, its note below. */
+.wf-group--empty > .wf-group__label,
+.wf-group--empty > .wf-group__header {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.wf-group--empty > .wf-group__header {
+  top: calc(var(--wf-space-4) + var(--wf-space-6) + var(--wf-space-2));
+}
 /* A box group's title keeps its place inside the dashed border the group had before its outline was drawn as its mark. */
 .wf-group:not(.wf-group--band) > .wf-group__label {
   left: calc(var(--wf-space-6) + 1px);
@@ -383,6 +406,14 @@
 }
 
 /* Edge labels */
+/* A hairline from the route to a label the scene moved off its line (`EdgeMark.leader`). */
+.wf-edge-leader {
+  fill: none;
+  stroke: var(--wf-line);
+  stroke-width: var(--wf-stroke-leader);
+  pointer-events: none;
+}
+
 .wf-edge-label {
   font-family: var(--wf-font);
   font-size: var(--wf-text-size, var(--wf-text-path-label));
@@ -780,6 +811,20 @@
   stroke: var(--wf-paper);
   stroke-width: 1;
   cursor: pointer;
+}
+/* A vertical timeline: each event a paper ring around its stage dot, the terminals as rings with their glyph. */
+.wf-trace-timeline .wf-event--ring,
+.wf-trace-timeline .wf-terminal circle {
+  fill: var(--wf-paper);
+  stroke: var(--wf-line-strong);
+}
+.wf-trace-timeline .wf-terminal text {
+  font-size: var(--wf-text-timeline-label);
+  fill: var(--wf-ink);
+}
+.wf-trace-timeline .wf-event-label {
+  font-size: var(--wf-text-timeline-label);
+  fill: var(--wf-ink);
 }
 .wf-trace-timeline .wf-event--violates {
   stroke: var(--wf-fail);

@@ -98,6 +98,7 @@
   --wf-stroke-tab: 2px;
   --wf-stroke-icon: 2px;
   --wf-stroke-timeline-violation: 2px;
+  --wf-stroke-leader: 1px;
   --wf-dash-timeline-anchor: 4 3;
   --wf-dash-bpmn-out-of-scope: 4 3;
   --wf-opacity-dimmed: 0.35;

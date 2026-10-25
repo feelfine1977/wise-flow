@@ -158,7 +158,8 @@ export function useFlowElements(input: FlowInput) {
   const rfNodes = useMemo<(WfNode | WfGroupNode)[]>(() => {
     if (!positions || !enabled) return [];
     const groups = shown.groups ?? [];
-    const groupBox = (id: string) => positions.groups[id];
+    // With no stage drawn (`stageView: "none"`) a group is no parent: its cards are placed on their own.
+    const groupBox = (id: string) => (scene.stageView === "none" ? undefined : positions.groups[id]);
     const absOffset = (groupId: string | undefined): { x: number; y: number } => {
       const box = groupId ? groupBox(groupId) : undefined;
       return box ? { x: box.x, y: box.y } : { x: 0, y: 0 };
@@ -196,6 +197,7 @@ export function useFlowElements(input: FlowInput) {
           description,
           band: mark?.band,
           mark: mark && markInState(mark, state),
+          ...(scene.laneOptions?.sticky && mark?.band?.axis === "main" && !mark.band.empty && { sticky: true }),
           state,
         },
       });

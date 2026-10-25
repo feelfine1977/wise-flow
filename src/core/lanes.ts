@@ -2,6 +2,7 @@
 import { type Box, type EdgeRoute, type Positions, createPositions, positionsBounds, unionBoxes } from "./layout.js";
 import { type FlowGraph, type FlowGroup, type FlowNode, indexGraph } from "./model.js";
 import { routeSequenceFlows } from "./routing.js";
+import { dimensionTokens } from "./tokens.js";
 
 export type LaneMode = "stages" | "roles" | "none";
 
@@ -13,6 +14,13 @@ export interface LaneOptions {
   labelSpace?: number;
   /** Distance between stacked role lanes. Default 8. */
   gap?: number;
+  /**
+   * A stage none of whose activities is in the graph, as stage bands (0.5):
+   * left out (`hide`, the default, as before), a 12 px labelled divider
+   * where it falls between its neighbours in the stages' order (`divider`),
+   * or a 36 px lane there (`lane`). Neither moves a card.
+   */
+  emptyLanes?: "divider" | "lane" | "hide";
 }
 
 export interface LaneBand {
@@ -21,6 +29,8 @@ export interface LaneBand {
   /** Bands along the flow (stages) or across it (roles). */
   axis: "main" | "cross";
   box: Box;
+  /** A stage none of whose activities is in the graph, drawn as a divider or a narrow lane (`LaneOptions.emptyLanes`, 0.5). */
+  empty?: boolean;
 }
 
 export interface LaneResult {
@@ -319,6 +329,25 @@ function stageBands(graph: FlowGraph, positions: Positions, options: LaneOptions
     groups[it.g.id] = box;
     bands.push({ id: it.g.id, index: i, axis: "main", box });
   });
+  // Empty stages on the boundary between the stages around them in the stages' order, or at the map's end.
+  if (options.emptyLanes === "divider" || options.emptyLanes === "lane") {
+    const size = options.emptyLanes === "divider" ? dimensionTokens.laneDivider : dimensionTokens.emptyLane;
+    const placed = new Set(items.map((it) => it.g.id));
+    const stages = laneGroups(graph, "stages");
+    stages.forEach((g, order) => {
+      if (placed.has(g.id)) return;
+      const before = stages.slice(0, order).reverse().find((s) => placed.has(s.id));
+      const after = stages.slice(order + 1).find((s) => placed.has(s.id));
+      const at = before ? groups[before.id][ax.main] + groups[before.id][ax.mainSize] : after ? groups[after.id][ax.main] : mainStart;
+      const box = { x: 0, y: 0, width: 0, height: 0 } as Box;
+      box[ax.main] = at - size / 2;
+      box[ax.mainSize] = size;
+      box[ax.cross] = crossStart;
+      box[ax.crossSize] = crossSize;
+      groups[g.id] = box;
+      bands.push({ id: g.id, index: bands.length, axis: "main", box, empty: true });
+    });
+  }
   return { positions: createPositions({ nodes: positions.nodes, groups, edges: positions.edges }, positions.engine, positions.direction), bands, mode: "stages" };
 }
 

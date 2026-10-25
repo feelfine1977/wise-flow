@@ -486,6 +486,9 @@ export {
   hatchSvg,
   svgMarkup,
 } from "./mark-svg.js";
+
+export { placeEdgeLabels } from "./label-placement.js";
+export type { LabelObstacles } from "./label-placement.js";
 export type {
   SvgElement,
   MarkSvgOptions,
@@ -503,6 +506,8 @@ export {
   nodeMarks,
   edgeMarks,
   paintOrder,
+  roundedRoute,
+  segmentsPath,
   pathArrowhead,
   lineEnd,
   groupMark,
@@ -516,6 +521,7 @@ export type {
   NodeCue,
   NodeMark,
   EdgeMark,
+  PathSegment,
   GroupMark,
   BoxSide,
 } from "./element-marks.js";

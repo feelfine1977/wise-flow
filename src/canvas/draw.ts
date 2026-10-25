@@ -1,7 +1,7 @@
 /** Drawing routines of the canvas renderer: plain 2D context calls for a scene, a viewport and a state, culled on large scenes; `canvasTextMeasure`. */
 import { keptLoop, mapEdges, selfLoopsOf } from "../core/edge-budget.js";
 import { headTriangle } from "../core/element-marks.js";
-import { type Arrowhead, type Box, type BoxSide, type XY, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type PatternLook, type Readable, type Selection, type ShownEdges, type StateStyle, type TextMeasure, type Theme, arrowheadExtent, dimensionTokens, fixedColors, hatchTokens, legendLayout, legendMetrics, budgetEdges, defaultTheme, estimateTextWidth, lineEnd, lodAt, markArrowhead, markInState, patternTwin, pathLabelShown, touchesSelection, emphasisLabel, readableAt, readableTokens, ruleTextRole, stateStyle } from "../core/index.js";
+import { type Arrowhead, type Box, type BoxSide, type XY, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type PatternLook, type Readable, type Selection, type ShownEdges, type StateStyle, type TextMeasure, type Theme, arrowheadExtent, dimensionTokens, fixedColors, hatchTokens, legendLayout, legendMetrics, budgetEdges, defaultTheme, estimateTextWidth, lineEnd, lodAt, markArrowhead, markInState, patternTwin, pathLabelShown, touchesSelection, emphasisLabel, readableAt, readableTokens, ruleTextRole, stateStyle, strokeTokens } from "../core/index.js";
 import { isPill, nodeTexts, readableMark, titleTexts } from "../core/readable.js";
 import { type NumberText, numbered } from "../core/figure.js";
 import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene.js";
@@ -395,8 +395,16 @@ function drawEdge(ctx: DrawContext, e: SceneEdge, tokens: CanvasTokens, theme: T
   const end = lineEnd(pts, m.arrow);
   ctx.beginPath();
   ctx.moveTo(pts[0].x, pts[0].y);
-  for (let i = 1; i < pts.length - 1; i++) ctx.lineTo(pts[i].x, pts[i].y);
-  ctx.lineTo(end.x, end.y);
+  // Bends rounded where the theme says (`EdgeMark.path`), else the polyline.
+  if (m.path) {
+    for (const s of m.path) {
+      if (s.kind === "line") ctx.lineTo(s.to.x, s.to.y);
+      else ctx.bezierCurveTo(s.c1.x, s.c1.y, s.c2.x, s.c2.y, s.to.x, s.to.y);
+    }
+  } else {
+    for (let i = 1; i < pts.length - 1; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.lineTo(end.x, end.y);
+  }
   ctx.stroke();
   ctx.setLineDash([]);
   if (m.arrow) arrowhead(ctx, pts[pts.length - 2], end, m.arrow, color);
@@ -658,6 +666,16 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
     if (alpha !== undefined) ctx.globalAlpha = alpha;
     for (const tx of e.mark.texts) {
       if (tx.lod === "edgeLabels" ? !pathLabelShown(e.mark.width, lodZoom, scene.lod, touching) : tx.lod && !lod[tx.lod]) continue;
+      // A label the scene moved off its line, with a hairline back to the route (`EdgeMark.leader`).
+      if (e.mark.leader && tx.role === "count") {
+        const [a, b] = e.mark.leader;
+        ctx.strokeStyle = tokens.line;
+        ctx.lineWidth = strokeTokens.leader;
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      }
       const text = share && touching && tx.role === "count" ? emphasisLabel(e.mark, chosen, (id) => scene.nodeById.get(id)?.node, scene.locale) ?? tx.text : tx.text;
       drawText(ctx, scene, text === tx.text ? tx : { ...tx, text }, paintOf(e.mark, s?.texts?.label ?? tx.paint, tokens), tokens);
     }

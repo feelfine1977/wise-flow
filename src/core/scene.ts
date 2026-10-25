@@ -5,9 +5,10 @@ import { type EdgeMark, type GroupMark, type NodeMark, edgeColor, edgeMarks, edg
 import { type SceneLegend, legendOfScene } from "./figure.js";
 import type { Locale } from "./format.js";
 import { type Box, type Positions, type XY, filterPositions, finitePositions, unionBoxes } from "./layout.js";
-import { type LaneBand, type LaneMode, laneBands } from "./lanes.js";
+import { type LaneBand, type LaneMode, type LaneOptions, laneBands } from "./lanes.js";
 import { type FlowGraph, type Overlay, MAP_TARGET } from "./model.js";
 import { withFollowsSelfLoops } from "./observed-loops.js";
+import { placeEdgeLabels } from "./label-placement.js";
 import { type OverlayGeometry, type OverlayGeometryOptions, groupTitles, placeOverlays } from "./overlay-geometry.js";
 import { type OverlayMark, overlayMarks } from "./overlay-marks.js";
 import { canonicalOverlays } from "./overlays.js";
@@ -16,7 +17,7 @@ import { repositionNodes } from "./routing.js";
 import { type LodRules, type Measure, type Scales, type StyleSpec, buildScales, defaultLod, lodForSize, measureStyle } from "./style.js";
 import { type TextMeasure, estimateTextWidth } from "./text.js";
 import { type ColorScheme, type Theme, defaultTheme, themeColors, themePalettes } from "./theme.js";
-import type { Strings } from "./strings.js";
+import { type Strings, createStrings } from "./strings.js";
 import type { ColorToken } from "./tokens.js";
 
 export interface FlowSceneOptions {
@@ -33,6 +34,25 @@ export interface FlowSceneOptions {
   locale?: Locale;
   /** Draw stage or lane groups as bands (see `laneBands`). Default `none`. */
   lanes?: LaneMode;
+  /**
+   * How the stages are drawn on one layout (0.5): as bands across the map
+   * (`bands`, and `lanes` until lanes get headers of their own), as boxes
+   * around their members (`boxes`), or not at all (`none`); no view moves a
+   * card. `lanes` given wins for role lanes.
+   */
+  stageView?: "bands" | "lanes" | "boxes" | "none";
+  /**
+   * Where paths' labels sit (0.5): 4 above the middle of the route
+   * (`midpoint`, the default), or moved clear of the cards, the groups'
+   * titles, the other labels and paths (`clear`, `placeEdgeLabels`).
+   */
+  labelPlacement?: "midpoint" | "clear";
+  /**
+   * How stage and role bands are laid out and headed (0.5): `LaneOptions`
+   * without the mode, and `counts` for "5 of 15 activities" in a band's
+   * header (`groupMarks`).
+   */
+  laneOptions?: Omit<LaneOptions, "lanes"> & { counts?: boolean; sticky?: boolean };
   /**
    * Nodes moved by hand to these absolute points after the lane bands are laid
    * out; the edges are routed around them again (see `repositionNodes`).
@@ -87,6 +107,10 @@ export interface FlowScene {
   textMeasure: TextMeasure;
   /** The host's wording the scene was built with (`FlowSceneOptions.strings`). */
   strings?: Strings;
+  /** How the stages are drawn (`FlowSceneOptions.stageView`). */
+  stageView?: FlowSceneOptions["stageView"];
+  /** How the bands are laid out and headed (`FlowSceneOptions.laneOptions`). */
+  laneOptions?: FlowSceneOptions["laneOptions"];
   scales: Scales;
   /**
    * Overlays whose target (or, for arcs, both endpoints) is a node, a group or
@@ -134,7 +158,8 @@ export function sceneOf(graph: FlowGraph, givenPositions: Positions, options: Fl
   // The marks draw the neutral colour, the accent and the palettes of the scheme; every other paint they name by role.
   const marked = scheme === "light" ? theme : { ...theme, color: colors, palette: themePalettes(theme, scheme) };
   const measure = options.textMeasure ?? estimateTextWidth;
-  const laid = laneBands(graph, finitePositions(givenPositions), { lanes: options.lanes ?? "none" });
+  const view = options.stageView;
+  const laid = laneBands(graph, finitePositions(givenPositions), { ...options.laneOptions, lanes: options.lanes ?? (view === "bands" || view === "lanes" ? "stages" : "none") });
   const positions = options.moved ? finitePositions(repositionNodes(graph, laid.positions, options.moved)) : laid.positions;
   const activityLabels = options.activityLabels ? { ...options.activityLabels, references: activityReferences(graph, options.activityLabels.references) } : undefined;
   const overlays = canonicalOverlays(shownOverlays(graph, options.overlays ?? graph.overlays ?? [], options, locale));
@@ -144,7 +169,8 @@ export function sceneOf(graph: FlowGraph, givenPositions: Positions, options: Fl
   // Backward paths below the flow and opposite paths side by side; the scene's positions carry their courses, which chips keep clear of.
   const courses = pathCourses(graph, positions, { width: scales.edgeWidth, bands: new Set(laid.bands.map((b) => b.id)) });
   const routes = graph.edges.flatMap((e) => (e.kind === "constraint" || e.source === e.target ? [] : [edgePoints(courses.positions, e) ?? []]));
-  const edges = edgeMarks(graph, courses.positions, scales, locale, marked, courses);
+  const unplaced = edgeMarks(graph, courses.positions, scales, locale, marked, courses);
+  const edges = options.labelPlacement === "clear" ? placeEdgeLabels(unplaced, { nodes: Object.values(courses.positions.nodes), titles: groupTitles(graph.groups ?? [], courses.positions) }, measure) : unplaced;
   // Arc labels keep clear of the paths' counts (from their baseline up a full size).
   const counts = edges.flatMap((e) => e.texts.map((t) => {
     const width = measure(t.text, t);
@@ -154,7 +180,7 @@ export function sceneOf(graph: FlowGraph, givenPositions: Positions, options: Fl
   // Elements a hatch covers are outside the scope the host evaluates; the state resolves here and reaches every renderer.
   const outOfScope = new Set(overlays.filter((o) => o.kind === "hatch").map((o) => o.target));
   const nodes = nodeMarks(graph, positions, scales, { locale, activityLabels, theme: marked, measure, outOfScope, strings: options.strings });
-  const groups = groupMarks(graph, positions, laid.bands, scales, marked);
+  const groups = view === "none" ? [] : groupMarks(graph, positions, laid.bands, scales, marked, options.laneOptions?.counts ? { counts: true, say: createStrings(locale, options.strings), locale } : undefined);
   // A self-loop that stands for a path takes the path's colour; a tint follows the corners of what it covers.
   const byId = new Map(graph.edges.map((e) => [e.id, e]));
   const radii = new Map<string, number>([...nodes, ...groups].map((m) => [m.id, m.radius]));
@@ -189,6 +215,8 @@ export function sceneOf(graph: FlowGraph, givenPositions: Positions, options: Fl
     groupMarks: groups,
     legend: legendOfScene({ scales, marks, nodeMarks: nodes, edgeMarks: edges, locale, graph, strings: options.strings }),
     strings: options.strings,
+    ...(view && { stageView: view }),
+    ...(options.laneOptions && { laneOptions: options.laneOptions }),
     bounds: unionBoxes([courses.positions.bounds, ...marks.filter((m) => m.inMap).map((m) => m.box)]),
   };
 }

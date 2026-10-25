@@ -4,11 +4,11 @@ import { type Locale, formatCount, formatPathCount } from "./format.js";
 import { elementMetric, formatMetricValue, metricBasis } from "./metrics.js";
 import { type Box, type Positions, type XY, straightRoute } from "./layout.js";
 import type { LaneBand } from "./lanes.js";
-import { type EdgeKind, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type GroupKind, type NodeKind, hasTag, metric } from "./model.js";
+import { type EdgeKind, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type GroupKind, type NodeKind, hasTag, indexGraph, metric } from "./model.js";
 import { RECONNECTED_TAG } from "./aggregate.js";
 import { indirectWay } from "./detail.js";
 import { describeTimes, nodeName } from "./describe.js";
-import { type Strings, t } from "./strings.js";
+import { type Strings, type Translate, t } from "./strings.js";
 import { type RuleSet, type RuleState, type RuleTextRole, ruleDash, rulePaint, ruleRadius, ruleSet, ruleText, ruleTextRole, ruleWidth } from "./rules.js";
 import type { CourseLabel, PathCourses } from "./courses.js";
 import type { CardLevels } from "./readable.js";
@@ -39,6 +39,44 @@ export function routeMidpoint(points: readonly XY[]): XY {
     remaining -= lengths[i];
   }
   return points[points.length - 1];
+}
+
+/** A piece of a drawn route after its start: a straight line, or a cubic curve that rounds a bend. */
+export type PathSegment = { kind: "line"; to: XY } | { kind: "curve"; c1: XY; c2: XY; to: XY };
+
+/** The control points' share of the tangent length for a cubic curve close to a circular arc of a quarter turn. */
+const KAPPA = 0.5523;
+
+/**
+ * The route from its first point as segments, every bend rounded to `radius`
+ * (no more than half of either segment it joins): a line to where the bend
+ * starts, then a cubic curve, close to a circular arc, to where it ends; the
+ * last line to `end` (where the line stops under its head).
+ */
+export function roundedRoute(points: readonly XY[], radius: number, end: XY = points[points.length - 1]): PathSegment[] {
+  const out: PathSegment[] = [];
+  const unit = (a: XY, b: XY) => { const l = Math.hypot(b.x - a.x, b.y - a.y); return l ? { x: (b.x - a.x) / l, y: (b.y - a.y) / l, l } : undefined; };
+  for (let i = 1; i < points.length - 1; i++) {
+    const [a, c, b] = [points[i - 1], points[i], i + 1 === points.length - 1 ? end : points[i + 1]];
+    const u = unit(a, c);
+    const v = unit(c, b);
+    if (!u || !v || Math.abs(u.x * v.y - u.y * v.x) < 1e-9) {
+      out.push({ kind: "line", to: c });
+      continue;
+    }
+    const d = Math.min(radius, u.l / 2, v.l / 2);
+    const t1 = { x: c.x - u.x * d, y: c.y - u.y * d };
+    const t2 = { x: c.x + v.x * d, y: c.y + v.y * d };
+    out.push({ kind: "line", to: t1 }, { kind: "curve", c1: { x: t1.x + u.x * d * KAPPA, y: t1.y + u.y * d * KAPPA }, c2: { x: t2.x - v.x * d * KAPPA, y: t2.y - v.y * d * KAPPA }, to: t2 });
+  }
+  out.push({ kind: "line", to: end });
+  return out;
+}
+
+/** SVG path data of a route drawn from `start` along its segments (`roundedRoute`), with `num` writing each number. */
+export function segmentsPath(start: XY, segments: readonly PathSegment[], num: (n: number) => string = String): string {
+  const p = (q: XY) => `${num(q.x)} ${num(q.y)}`;
+  return `M${p(start)}${segments.map((s) => (s.kind === "line" ? `L${p(s.to)}` : `C${p(s.c1)} ${p(s.c2)} ${p(s.to)}`)).join("")}`;
 }
 
 /** Where an edge's label sits: 4 above the middle of its route. */
@@ -130,6 +168,8 @@ export interface EdgeMark {
   edge: FlowEdge;
   /** The routed points, or a straight line between the two boxes: the head's tip lies on the last; the line ends before it (`lineEnd`). */
   points: XY[];
+  /** The route as drawn from its first point where the theme rounds its bends (`Theme.radius.bend`, `roundedRoute`), ending where the line ends under its head; none: the polyline. */
+  path?: PathSegment[];
   color: string;
   width: number;
   /** The arrowhead at the end, as wide as the line needs (`pathArrowhead`); none on a path thinner than the rule's `minWidth`, whose line then ends on its route's end. */
@@ -161,6 +201,11 @@ export interface EdgeMark {
    * width, head and opacity here.
    */
   lift?: { width: number; arrow?: Arrowhead; opacity?: number };
+  /**
+   * A hairline in the theme's `line` paint from the route to its label, where
+   * the label pass moved the label off its line (0.5, `placeEdgeLabels`).
+   */
+  leader?: [XY, XY];
 }
 
 interface NodeMarkOptions {
@@ -513,6 +558,7 @@ export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string;
     color: options.addedFlow ? theme.color.neutral : set?.stroke ? rulePaint(set.stroke, undefined, "value", theme.color, options.color) : options.color,
     width,
     arrow: pathArrowhead(width, theme.arrowhead.edge),
+    ...(theme.radius.bend > 0 && points.length > 2 && { path: roundedRoute(points, theme.radius.bend, lineEnd(points, pathArrowhead(width, theme.arrowhead.edge))) }),
     dash: options.addedFlow ? dashTokens.addedFlow.map((n) => n * options.width) : ruleDash(set, reconnected || indirect ? RECONNECTED_EDGE_DASH : undefined, RECONNECTED_EDGE_DASH),
     texts: label
       ? [ruleText<ElementText>({ text: label, x: at.x, y: at.y, size, anchor, baseline: "alphabetic", paint: "ink", halo: true, role: "count", lod: "edgeLabels" }, set, "label", theme.color, options.color)]
@@ -613,7 +659,7 @@ export interface GroupMark {
 }
 
 /** What one group looks like in its box: a box outlined by a hairline, tinted as the theme's `groupFill` says (not by default), or a band outlined between the bands with a rule along its start. */
-export function groupMark(group: FlowGroup, box: Box, options: { color: string; pattern: PatternId; band?: LaneBand; theme?: Theme }): GroupMark {
+export function groupMark(group: FlowGroup, box: Box, options: { color: string; pattern: PatternId; band?: LaneBand; theme?: Theme; header?: string }): GroupMark {
   const theme = options.theme ?? defaultTheme;
   const { stroke, text, radius, opacity } = theme;
   const band = options.band;
@@ -634,22 +680,39 @@ export function groupMark(group: FlowGroup, box: Box, options: { color: string; 
     radius: band ? 0 : ruleRadius(set, radius.large, box),
     fill: {
       paint: rulePaint(set?.fill, undefined, "value", theme.color, options.color),
-      opacity: set?.fillOpacity ?? (set?.fill === undefined ? (band ? (band.index % 2 ? opacity.bandOddFill : opacity.bandFill) : opacity.groupFill) : undefined),
+      opacity: set?.fillOpacity ?? (set?.fill === undefined ? (band ? (band.empty ? 0 : band.index % 2 ? opacity.bandOddFill : opacity.bandFill) : opacity.groupFill) : undefined),
     },
     stroke: band ? { paint: paint("line"), width: ruleWidth(set, 1), sides: main ? ["left", "right"] : ["top", "bottom"] } : { paint: paint("line"), width: ruleWidth(set, stroke.group), dash: ruleDash(set, undefined, RECONNECTED_DASH) },
     rule: band && { paint: "value", width: stroke.band, side: main ? "top" : "left" },
-    texts: [ruleText(ink(group.label, box.x + 12, box.y + 22, label.size, { role: "label", baseline: "alphabetic", weight: label.weight, paint: "inkMuted" }), set, "label", theme.color, options.color)],
+    // An empty stage's divider is named over its middle; a band's header says how many of the stage's activities it shows, at its right.
+    texts: band?.empty
+      ? [ruleText(ink(group.label, box.x + box.width / 2, box.y + 22, label.size, { role: "label", baseline: "alphabetic", weight: label.weight, paint: "inkMuted", anchor: "middle" }), set, "label", theme.color, options.color), ...(options.header ? [ink(options.header, box.x + box.width / 2, box.y + 22 + text.eventLabel.size + 4, text.eventLabel.size, { role: "count", baseline: "alphabetic", paint: "inkMuted", anchor: "middle" })] : [])]
+      : [ruleText(ink(group.label, box.x + 12, box.y + 22, label.size, { role: "label", baseline: "alphabetic", weight: label.weight, paint: "inkMuted" }), set, "label", theme.color, options.color), ...(options.header ? [ink(options.header, box.x + box.width - 12, box.y + 22, text.eventLabel.size, { role: "count", baseline: "alphabetic", paint: "inkMuted", anchor: "end" })] : [])],
     chipAnchor: chipAnchor(box),
     opacity: set?.opacity,
   };
 }
 
-/** One mark per group with a box, in the graph's order; groups drawn as bands carry their band. */
-export function groupMarks(graph: FlowGraph, positions: Positions, bands: readonly LaneBand[], scales: Scales, theme: Theme = defaultTheme): GroupMark[] {
+/**
+ * One mark per group with a box, in the graph's order; groups drawn as bands
+ * carry their band. With `counts` a band's header says how many of the
+ * stage's activities the graph shows: "5 of 15 activities" where the group's
+ * metrics say how many it has (`activities`), "5 activities" otherwise, and
+ * an empty stage "none in this cohort" (0.5).
+ */
+export function groupMarks(graph: FlowGraph, positions: Positions, bands: readonly LaneBand[], scales: Scales, theme: Theme = defaultTheme, header?: { counts?: boolean; say: Translate; locale?: Locale }): GroupMark[] {
   const bandOf = new Map(bands.map((b) => [b.id, b]));
+  const idx = header?.counts ? indexGraph(graph) : undefined;
   return (graph.groups ?? []).flatMap((g) => {
     const box = positions.groups[g.id];
     const c = scales.categorical(g.id);
-    return box ? [groupMark(g, box, { color: c.color, pattern: c.pattern, band: bandOf.get(g.id), theme })] : [];
+    const band = bandOf.get(g.id);
+    let count: string | undefined;
+    if (idx && header && band) {
+      const shown = idx.allMembers(g.id).filter((n) => n.kind === "activity").length;
+      const of = metric(g, "activities", NaN);
+      count = band.empty ? header.say("lane.none") : Number.isFinite(of) ? header.say("lane.count", { shown: formatCount(shown, header.locale), of: formatCount(of, header.locale) }) : shown === 1 ? header.say("lane.countOne") : header.say("lane.countShown", { shown: formatCount(shown, header.locale) });
+    }
+    return box ? [groupMark(g, box, { color: c.color, pattern: c.pattern, band, theme, ...(count && { header: count }) })] : [];
   });
 }

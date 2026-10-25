@@ -8,16 +8,13 @@
     "command": "npm run test:visual:approve",
     "approved": "2026-10-25",
     "approvedBy": "the library writer's session, locally, on the owner's overnight instruction, after reviewing the changed images; owner review pending",
-    "sourceCommit": "0ebaae9",
+    "sourceCommit": "1307073",
     "changed": [
-      "views-grid",
-      "stage-lanes",
-      "p2p-map",
-      "stable-layout",
-      "paths-for-activity",
       "instrument-map",
       "instrument-selected",
-      "instrument-dark"
+      "instrument-dark",
+      "instrument-lanes",
+      "trace-vertical"
     ]
   },
   "linux": {
@@ -26,18 +23,15 @@
     "command": "npm ci && npm run test:visual:approve",
     "approved": "2026-10-25",
     "approvedBy": "the library writer's session, in the pinned image under amd64 emulation on an arm64 Mac, after reviewing the changed images; owner review pending",
-    "sourceCommit": "0ebaae9",
+    "sourceCommit": "1307073",
     "changed": [
-      "views-grid",
-      "stage-lanes",
-      "p2p-map",
-      "stable-layout",
-      "paths-for-activity",
       "instrument-map",
       "instrument-selected",
-      "instrument-dark"
+      "instrument-dark",
+      "instrument-lanes",
+      "trace-vertical"
     ],
-    "note": "Captured in the container image (linux/amd64 emulated on Apple silicon), not on the hosted ubuntu-24.04 runner. bpmn-from-stages did not change on either platform. The strict run passed 14 of 14 in the image after approval."
+    "note": "M2: captured in the container image (linux/amd64 emulated on Apple silicon), not on the hosted ubuntu-24.04 runner. Only the instrument images changed on either platform (rounded bends and labels moved clear; instrument-lanes and trace-vertical are new). The strict run passed 16 of 16 in the image after approval."
   },
   "screenshots": [
     {
@@ -58,27 +52,43 @@
     },
     {
       "path": "tests/visual/__screenshots__/instrument.spec.ts/instrument-dark-darwin.png",
-      "sha256": "af912d2b9a355f390ea28139473aa9e1ee5a67a0a2b2e9026a7584d930114358"
+      "sha256": "ff2ddf53b4ae11452e94611a72bbe13fa25920bc90f4491c0006470927b3790b"
     },
     {
       "path": "tests/visual/__screenshots__/instrument.spec.ts/instrument-dark-linux.png",
-      "sha256": "28720315b5ba29cc550ad5400f1e8337bff4fb24e28eea193574a20c035123dc"
+      "sha256": "cc1eafb1c00e4a02a28e66eac7a81934def08e584eff07063353b0cdfdd81ba8"
+    },
+    {
+      "path": "tests/visual/__screenshots__/instrument.spec.ts/instrument-lanes-darwin.png",
+      "sha256": "09b720162d33a2c344b063742af0e06edfe419f266988d4b63f1c6636d7545fc"
+    },
+    {
+      "path": "tests/visual/__screenshots__/instrument.spec.ts/instrument-lanes-linux.png",
+      "sha256": "841cd19eb36fdd514c6fd9af35df6fdac3d48ad35df3a5b8ea553858d91ff7c5"
     },
     {
       "path": "tests/visual/__screenshots__/instrument.spec.ts/instrument-map-darwin.png",
-      "sha256": "d4516252ce32d3498ccca6d62d049ad236b40bf7d77627f414e3f0d49c020ed0"
+      "sha256": "ab1a8a856e6c9b87e1879a78cd2ac1599d7112090f5508a2d6fb78f0e0559050"
     },
     {
       "path": "tests/visual/__screenshots__/instrument.spec.ts/instrument-map-linux.png",
-      "sha256": "58c6cb3d8024cb70c01da083c03667af071cf464af65c91697183b91d83581de"
+      "sha256": "123295f9f68f77e035591fc7917e8e83db06d7bb53c4ef3af9c210cf7ab00f6e"
     },
     {
       "path": "tests/visual/__screenshots__/instrument.spec.ts/instrument-selected-darwin.png",
-      "sha256": "f6f0c2701001a956a9ae768cc193098b04b40457020eeb395db4f547e65c9e86"
+      "sha256": "f73f558151437aed2307c85ab93ab75252c6049c768a36ccee8c053288c7ebc1"
     },
     {
       "path": "tests/visual/__screenshots__/instrument.spec.ts/instrument-selected-linux.png",
-      "sha256": "f96cb727a460ded891f532e9a7b0b3b148436a908109600fe9e53aead59f44fc"
+      "sha256": "3b6fcd834cd4ce83d5b8936d476cebea40fee7dab5e4a873d4078bbeb6ec49cb"
+    },
+    {
+      "path": "tests/visual/__screenshots__/instrument.spec.ts/trace-vertical-darwin.png",
+      "sha256": "faa0a64ba64861402f6356e93429bb325690ac42eb5cac28161f514717c0ceac"
+    },
+    {
+      "path": "tests/visual/__screenshots__/instrument.spec.ts/trace-vertical-linux.png",
+      "sha256": "2239af6e2bde9d24a6368922c55a0abcd7011a6c9b380cd4d9dc7c3e677d3495"
     },
     {
       "path": "tests/visual/__screenshots__/interaction.spec.ts/paths-for-activity-darwin.png",

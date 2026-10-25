@@ -62,6 +62,19 @@ export interface LayoutOptions {
   /** Order stage compounds along the flow direction (ELK partitioning). Default true. */
   orderStages?: boolean;
   /**
+   * How stages shape the layout (0.4, M2): as compound nodes (`compound`, the
+   * default), or as partitions (`partition`): no compound nodes, each activity
+   * in the partition of its top-level stage in stage order, activities
+   * without a stage after the last, the start event before every partition
+   * and the end event after; paths from a later stage back to an earlier one
+   * are laid out reversed, so the stages keep their order, and drawn the way
+   * they run. The stages' boxes are drawn around their members afterwards
+   * (`GROUP_PADDING`), so an activity keeps its stage's column whatever the
+   * cohort. ELK only; Dagre lays the graph out without groups and draws the
+   * boxes the same way.
+   */
+  stages?: "compound" | "partition";
+  /**
    * URL of `elkjs/lib/elk-worker.min.js` as served by the application; when given
    * and `Worker` exists, ELK runs in a Web Worker. Otherwise the bundled build runs
    * in-process (Node and browsers), where a running layout cannot be interrupted.
@@ -339,6 +352,8 @@ interface Prepared {
   nodes: FlowNode[];
   edges: FlowEdge[];
   groups: FlowGroup[];
+  /** Stages as partitions, not compounds (`LayoutOptions.stages`). */
+  partitioned: boolean;
   direction: LayoutDirection;
   useGroups: boolean;
 }
@@ -348,22 +363,64 @@ function prepare(graph: FlowGraph, o: LayoutOptions): Prepared {
   const edges = [...graph.edges].sort(byId);
   const groupIds = new Set((graph.groups ?? []).map((g) => g.id));
   const groups = (graph.groups ?? []).filter((g) => !g.parent || groupIds.has(g.parent));
+  const grouped = (o.groups ?? "compound") === "compound" && groups.length > 0;
+  const partitioned = grouped && o.stages === "partition";
   return {
     nodes,
     edges,
     groups,
+    partitioned,
     direction: o.direction ?? "RIGHT",
-    useGroups: (o.groups ?? "compound") === "compound" && groups.length > 0,
+    useGroups: grouped && !partitioned,
   };
 }
 
-function elkGraph(p: Prepared, o: LayoutOptions, partition: boolean): ElkNode {
+/** Each node's partition in stage order (`LayoutOptions.stages: "partition"`): its top-level stage's, the start event before, the end event and stage-less nodes after. */
+function partitionsOf(p: Prepared): Map<string, number> {
+  const parent = new Map(p.groups.map((g) => [g.id, g.parent]));
+  const order = new Map<string, number>();
+  p.groups.filter((g) => !g.parent && g.kind === "stage").forEach((g, i) => order.set(g.id, i));
+  const top = (id: string | undefined): string | undefined => {
+    const seen = new Set<string>();
+    while (id && parent.get(id) && !seen.has(id)) {
+      seen.add(id);
+      id = parent.get(id);
+    }
+    return id;
+  };
+  const out = new Map<string, number>();
+  for (const n of p.nodes) {
+    const border = borderLayer(n);
+    out.set(n.id, border === "FIRST_SEPARATE" ? -1 : border === "LAST_SEPARATE" ? order.size + 1 : order.get(top(n.group) ?? "") ?? order.size);
+  }
+  return out;
+}
+
+/** The boxes of the groups around their members (nested groups inside), with `GROUP_PADDING`; for a partitioned layout. */
+function groupBoxesAround(p: Prepared, nodes: Record<string, Box>): Record<string, Box> {
+  const out: Record<string, Box> = {};
+  const box = (id: string, seen = new Set<string>()): Box | undefined => {
+    if (out[id]) return out[id];
+    if (seen.has(id)) return undefined;
+    seen.add(id);
+    const inner = [...p.nodes.filter((n) => n.group === id && nodes[n.id]).map((n) => nodes[n.id]), ...p.groups.filter((g) => g.parent === id).flatMap((g) => box(g.id, seen) ?? [])];
+    if (!inner.length) return undefined;
+    let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const b of inner) [x0, y0, x1, y1] = [Math.min(x0, b.x), Math.min(y0, b.y), Math.max(x1, b.x + b.width), Math.max(y1, b.y + b.height)];
+    return (out[id] = { x: x0 - GROUP_PADDING.left, y: y0 - GROUP_PADDING.top, width: x1 - x0 + GROUP_PADDING.left + GROUP_PADDING.right, height: y1 - y0 + GROUP_PADDING.top + GROUP_PADDING.bottom });
+  };
+  for (const g of p.groups) box(g.id);
+  return out;
+}
+
+function elkGraph(p: Prepared, o: LayoutOptions, partition: boolean, reversed: ReadonlySet<string> = new Set()): ElkNode {
   const spacing = o.spacing ?? {};
   const nodeSpacing = gap(spacing.node, 28);
   const layerSpacing = gap(spacing.layer, 64);
   const idx = indexGraph({ nodes: p.nodes, edges: p.edges, groups: p.groups });
   const stageOrder = new Map<string, number>();
   p.groups.filter((g) => !g.parent && g.kind === "stage").forEach((g, i) => stageOrder.set(g.id, i));
+  const parts = p.partitioned ? partitionsOf(p) : undefined;
 
   const nodeElk = (n: FlowNode): ElkNode => {
     const s = sizeOf(n, o);
@@ -373,7 +430,9 @@ function elkGraph(p: Prepared, o: LayoutOptions, partition: boolean): ElkNode {
       layoutOptions["elk.layered.layering.layerConstraint"] = border;
       if (partition) layoutOptions["elk.partitioning.partition"] = String(border === "FIRST_SEPARATE" ? -1 : stageOrder.size);
     }
-    return { id: n.id, width: s.width, height: s.height, labels: [{ text: n.label }], ...(border ? { layoutOptions } : {}) };
+    // Partitioned by stage: every node in its stage's partition, events before and after them all.
+    if (parts) layoutOptions["elk.partitioning.partition"] = String(parts.get(n.id));
+    return { id: n.id, width: s.width, height: s.height, labels: [{ text: n.label }], ...(border || parts ? { layoutOptions } : {}) };
   };
   const childrenOf = (groupId: string | undefined): ElkNode[] => {
     const out: ElkNode[] = [];
@@ -409,18 +468,26 @@ function elkGraph(p: Prepared, o: LayoutOptions, partition: boolean): ElkNode {
     "elk.layered.cycleBreaking.strategy": "GREEDY_MODEL_ORDER",
     "elk.layered.crossingMinimization.forceNodeModelOrder": "false",
     "elk.separateConnectedComponents": "true",
-    ...(partition ? { "elk.partitioning.activate": "true" } : {}),
+    ...(partition || parts ? { "elk.partitioning.activate": "true" } : {}),
     ...(o.elkOptions ?? {}),
   };
   // Border layers span the whole map, including disconnected components.
   if (p.nodes.some(borderLayer)) rootOptions["elk.separateConnectedComponents"] = "false";
   const edges: ElkExtendedEdge[] = p.edges
     .filter((e) => e.source !== e.target)
-    .map((e) => ({ id: e.id, sources: [e.source], targets: [e.target] }));
+    // A path back to an earlier stage is laid out reversed, so the cycle breaker keeps the stages' order.
+    .map((e) => (reversed.has(e.id) ? { id: e.id, sources: [e.target], targets: [e.source] } : { id: e.id, sources: [e.source], targets: [e.target] }));
   return { id: "root", layoutOptions: rootOptions, children: childrenOf(undefined), edges };
 }
 
-function fromElk(result: ElkNode, p: Prepared): Positions {
+/** The paths of a partitioned layout from a later partition back to an earlier one, laid out reversed. */
+function backAcrossStages(p: Prepared): Set<string> {
+  if (!p.partitioned) return new Set();
+  const parts = partitionsOf(p);
+  return new Set(p.edges.filter((e) => (parts.get(e.source) ?? 0) > (parts.get(e.target) ?? 0)).map((e) => e.id));
+}
+
+function fromElk(result: ElkNode, p: Prepared, reversed: ReadonlySet<string> = new Set()): Positions {
   const nodes: Record<string, Box> = {};
   const groups: Record<string, Box> = {};
   const edges: Record<string, EdgeRoute> = {};
@@ -449,25 +516,27 @@ function fromElk(result: ElkNode, p: Prepared): Positions {
         x: pt.x + off.x,
         y: pt.y + off.y,
       }));
-      edges[e.id] = { points: pts };
+      // A reversed path's route is read back the way the path runs.
+      edges[e.id] = { points: reversed.has(e.id) ? pts.reverse() : pts };
     }
     for (const child of node.children ?? []) collectEdges(child);
   };
   collectEdges(result);
-  return createPositions({ nodes, groups, edges }, "elk", p.direction);
+  return createPositions({ nodes, groups: p.partitioned ? groupBoxesAround(p, nodes) : groups, edges }, "elk", p.direction);
 }
 
 async function layoutElk(p: Prepared, o: LayoutOptions, signal: AbortSignal, work?: Lease): Promise<Positions> {
   const ms = o.timeoutMs ?? 20000;
   const partition = (o.orderStages ?? true) && p.useGroups;
+  const reversed = backAcrossStages(p);
   const attempt = async (part: boolean) => {
     const elk = await (work ? work.get().elk() : o.elk ?? (inProcessElk ??= loadBundledCtor().then((Ctor) => new Ctor())));
     signal.throwIfAborted();
-    if (work || o.elk) return fromElk(await guard(elk.layout(elkGraph(p, o, part)), ms, signal, work?.stop), p);
+    if (work || o.elk) return fromElk(await guard(elk.layout(elkGraph(p, o, part, reversed)), ms, signal, work?.stop), p, reversed);
     const turn = inProcessTurn;
-    const run = turn.then(() => (signal.throwIfAborted(), elk.layout(elkGraph(p, o, part))));
+    const run = turn.then(() => (signal.throwIfAborted(), elk.layout(elkGraph(p, o, part, reversed))));
     inProcessTurn = run.catch(() => undefined);
-    return fromElk(await guard(run, ms, signal, undefined, turn), p);
+    return fromElk(await guard(run, ms, signal, undefined, turn), p, reversed);
   };
   try {
     return await attempt(partition);
@@ -578,7 +647,7 @@ function fromDagre({ boxes, edges: points }: DagreOutput, p: Prepared): Position
     }
   }
   for (const e of p.edges) if (points[e.id]) edges[e.id] = { points: points[e.id] };
-  return createPositions({ nodes, groups, edges }, "dagre", p.direction);
+  return createPositions({ nodes, groups: p.partitioned ? groupBoxesAround(p, nodes) : groups, edges }, "dagre", p.direction);
 }
 
 /**

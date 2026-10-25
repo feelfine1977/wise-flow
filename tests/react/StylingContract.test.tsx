@@ -126,6 +126,12 @@ describe("the styling contract", () => {
     keep(container);
   });
 
+  it("draws a band's header with the count of its activities", async () => {
+    const { container } = render(<div style={{ width: 1200, height: 600 }}><ProcessMap graph={grouped} positions={groupedPositions} lanes="stages" laneOptions={{ counts: true }} {...plain} /></div>);
+    await waitFor(() => expect(container.querySelector('[data-wf-part="group-header"]')).not.toBeNull());
+    keep(container);
+  });
+
   it("draws every group kind, selected, and the activity tooltip", async () => {
     const activityLabels = { mode: "names" as const, references: activityReferences(grouped) };
     const { container } = render(<div style={{ width: 1200, height: 600 }}><ProcessMap graph={grouped} positions={groupedPositions} selection={{ nodes: [], edges: [], groups: ["s"] }} activityLabels={activityLabels} {...plain} /></div>);
@@ -140,6 +146,8 @@ describe("the styling contract", () => {
       <>
         <FilterChips filter={{ and: [{ kind: "activity", op: "contains", activity: "a" }] }} onFilterChange={() => {}} />
         <TraceTimeline traces={traces} />
+        {/* Events within a minute of each other as one ring (0.5). */}
+        <TraceTimeline traces={[{ caseId: "c", events: [{ activity: "a", timestamp: 0 }, { activity: "b", timestamp: 1000 }, { activity: "c", timestamp: 86400000 }] }]} orientation="vertical" clusterMs={60000} terminals />
       </>,
     );
     fireEvent.mouseEnter(container.querySelector(".wf-event")!);

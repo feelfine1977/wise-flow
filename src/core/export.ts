@@ -3,7 +3,7 @@
  */
 import type { ActivityLabelOptions } from "./activity-labels.js";
 import { type EdgeBudget, type EdgeSelection, type ShownEdges, budgetEdges, keptLoop } from "./edge-budget.js";
-import { type BoxSide, type ElementText, lineEnd, paintOrder } from "./element-marks.js";
+import { type BoxSide, type ElementText, lineEnd, paintOrder, segmentsPath } from "./element-marks.js";
 import { type FigurePreset, type LegendLayout, figureFloor, figureFrame, figureHeading, figureMetrics, legendMetrics, millimetres } from "./figure.js";
 import type { Locale } from "./format.js";
 import { type Box, type Positions } from "./layout.js";
@@ -13,12 +13,12 @@ import type { OverlayGeometryOptions } from "./overlays.js";
 import { type MarkSvgOptions, arrowMarker, markSvg, svgMarkup } from "./mark-svg.js";
 import { type MarkPaint, type MarkText, type OverlayMark, markArrowhead, overlayArrow } from "./overlay-marks.js";
 import { type Readable, isPill, nodeTexts, readableMark, shownReadable, titleTexts } from "./readable.js";
-import { type FlowScene, sceneOf } from "./scene.js";
+import { type FlowScene, type FlowSceneOptions, sceneOf } from "./scene.js";
 import { type Measure, type StyleSpec, lodAt, pathLabelShown, patternDefs } from "./style.js";
 import { type Strings, t } from "./strings.js";
 import type { TextMeasure } from "./text.js";
 import { type ColorScheme, type ThemeSetting, resolveTheme } from "./theme.js";
-import { type Arrowhead, type ColorToken, arrowheadTokens, dimensionTokens, readableTokens } from "./tokens.js";
+import { type Arrowhead, type ColorToken, arrowheadTokens, dimensionTokens, readableTokens, strokeTokens } from "./tokens.js";
 
 export interface Scene {
   activityLabels?: ActivityLabelOptions;
@@ -35,6 +35,10 @@ export interface Scene {
   lanes?: LaneMode;
   /** Draw follows edges from a node to itself as self-loops. Default true. */
   selfLoops?: boolean;
+  /** As on the map (0.5): `FlowSceneOptions.stageView`, `labelPlacement` and `laneOptions`; a sticky name is printed once at its band's start. */
+  stageView?: FlowSceneOptions["stageView"];
+  labelPlacement?: FlowSceneOptions["labelPlacement"];
+  laneOptions?: FlowSceneOptions["laneOptions"];
 }
 
 export interface ExportOptions {
@@ -172,11 +176,16 @@ function drawEdges(ctx: Ctx): string {
     const dash = m.dash ? ` stroke-dasharray="${m.dash.join(" ")}"` : "";
     // The line ends inside its head, whose tip lies on the route's end.
     const end = lineEnd(m.points, m.arrow);
-    const d = [...m.points.slice(0, -1), end].map((p, i) => `${i === 0 ? "M" : "L"}${num(p.x)} ${num(p.y)}`).join("");
+    // Bends rounded where the theme says (`EdgeMark.path`), else the polyline.
+    const d = m.path ? segmentsPath(m.points[0], m.path, num) : [...m.points.slice(0, -1), end].map((p, i) => `${i === 0 ? "M" : "L"}${num(p.x)} ${num(p.y)}`).join("");
     out.push(`<g class="wf-edge" data-id="${esc(m.id)}"${opacity(m)}><path d="${d}" fill="none" stroke="${m.color}" stroke-width="${num(m.width)}" stroke-linejoin="round"${m.addedFlow ? ' stroke-linecap="round"' : ""}${dash}${m.arrow ? ` marker-end="url(#${arrowId(m.arrow)})"` : ""}/>`);
     // Paths' labels are the first texts shed below the floor.
     // A path's label by its rule: a zoom, or its width at the figure's zoom (`pathLabelShown`); nothing is selected in a figure.
-    if (ctx.readable.labels.path) for (const tx of m.texts) if (tx.lod === "edgeLabels" ? pathLabelShown(m.width, ctx.lodZoom, ctx.scene.lod) : !tx.lod || ctx.lod[tx.lod]) out.push(markText(ctx, m.color, m.color, tx));
+    if (ctx.readable.labels.path) for (const tx of m.texts) if (tx.lod === "edgeLabels" ? pathLabelShown(m.width, ctx.lodZoom, ctx.scene.lod) : !tx.lod || ctx.lod[tx.lod]) {
+      // A label the scene moved off its line, with a hairline back to the route (`EdgeMark.leader`).
+      if (m.leader && tx.role === "count") out.push(`<path class="wf-edge-leader" d="M${num(m.leader[0].x)} ${num(m.leader[0].y)}L${num(m.leader[1].x)} ${num(m.leader[1].y)}" fill="none" stroke="${ctx.colors.line}" stroke-width="${strokeTokens.leader}"/>`);
+      out.push(markText(ctx, m.color, m.color, tx));
+    }
     out.push(`</g>`);
   }
   return out.join("");
@@ -308,6 +317,9 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
     style: given.style,
     locale: given.locale,
     lanes: given.lanes,
+    stageView: given.stageView,
+    labelPlacement: given.labelPlacement,
+    laneOptions: given.laneOptions,
     activityLabels: given.activityLabels,
     selfLoops: given.selfLoops,
     overlayGeometry: options.overlayGeometry,

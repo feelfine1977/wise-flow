@@ -209,6 +209,8 @@ export const radiusTokens = {
   canvasSelection: 8,
   timelineEvent: 4,
   timelineViolation: 8,
+  /** The radius a path's bends are rounded to (0.5); 0: sharp bends. */
+  bend: 0,
 } as const;
 
 /**
@@ -237,6 +239,8 @@ export const strokeTokens = {
   canvasPathHighlight: 2,
   pathFocus: 2,
   pathHit: 14,
+  /** The hairline from a path to a label the scene moved off its line (`EdgeMark.leader`, 0.5). */
+  leader: 1,
   /**
    * How much thinner a path against the reading direction is drawn than its
    * cases give, while no activity it touches is selected (never under
@@ -364,6 +368,13 @@ export const dimensionTokens = {
   eventLabel: 96,
   /** Width the statement under a start or an end event's label is shortened to (`StyleSpec.terminals`). */
   eventStatement: 160,
+  /** The paper ring of an event on a vertical timeline (0.5), across, around its stage dot. */
+  timelineRing: 20,
+  /** A stage with no activity in the graph drawn as a divider, and as a narrow lane, across (`LaneOptions.emptyLanes`, 0.5). */
+  laneDivider: 12,
+  emptyLane: 36,
+  /** The stage dot inside an event's ring on a vertical timeline (0.5), across. */
+  timelineDot: 7,
 } as const;
 
 /** Sizes of the node and edge marks, in layout units. */
@@ -606,7 +617,7 @@ export const instrumentTokens = {
   },
   patterns: ["solid", "dots", "crosshatch", "horizontal", "grid"],
   font: { family: "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" },
-  radius: { node: 8 },
+  radius: { node: 8, bend: 8 },
   size: { band: 6, darkShadow: "none" },
   stroke: { eventEnd: 1, band: 3, backwardStep: 1 },
   opacity: { bandFill: 0.035, bandOddFill: 0.019, backward: 0.6 },
@@ -681,7 +692,7 @@ const styledRoles = {
   weight: "activityName activityNumber stageLabel groupLabel legendItem panelHeading panelLabel panelPlain comparisonTab comparisonCaption comparisonRowHeader comparisonDenominator",
   leading: "activityName activityNumber",
   radius: "band swatch control tooltip key pill filterChip legendGradient activityTooltip comparisonBar",
-  stroke: "focus selection halo filterChip tab icon timelineViolation",
+  stroke: "focus selection halo filterChip tab icon timelineViolation leader",
   dash: "timelineAnchor bpmnOutOfScope",
   opacity: "dimmed dimmedPath disabled",
   z: "comparisonRowHeader comparisonHeader comparisonCorner overlayPanel bpmnTable bpmnPanel sideList tooltip canvasTooltip bpmnNavigation menu activityTooltip",

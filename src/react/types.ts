@@ -1,6 +1,7 @@
 import type { Node, Edge } from "@xyflow/react";
 import type {
   OverlayGeometryOptions,
+  FlowSceneOptions,
   Strings,
   AbstractOptions,
   ActivityLabelOptions,
@@ -101,6 +102,8 @@ export type GroupNodeData = {
   band?: LaneBand;
   /** What the group looks like (`FlowScene.groupMarks`); resolved from the fields above without it. */
   mark?: GroupMark;
+  /** The band's name follows the view while any part of the band is in it (`laneOptions.sticky`, 0.5). */
+  sticky?: boolean;
   /** What the theme's rules for the group's interactive states set (`stateStyle`), already in `mark`. */
   state?: StateStyle;
 };
@@ -196,6 +199,23 @@ export interface ProcessMapProps {
   controls?: boolean;
   /** Show the legend panel. Default true. */
   legend?: boolean;
+  /**
+   * How the stages are drawn on the one layout (0.5): `bands`, `lanes`,
+   * `boxes` or `none` (`FlowSceneOptions.stageView`); switching never moves a
+   * card. Lay the map out with `layout.stages: "partition"` so that bands and
+   * boxes come from the same positions. `lanes` stays for role lanes.
+   */
+  stageView?: "bands" | "lanes" | "boxes" | "none";
+  /** Where paths' labels sit (0.5): `midpoint` (default) or moved `clear` of cards, titles, labels and paths (`FlowSceneOptions.labelPlacement`). */
+  labelPlacement?: "midpoint" | "clear";
+  /**
+   * How stage and role bands are laid out and headed (0.5): their padding,
+   * header space and gap (`LaneOptions`), empty stages as dividers or narrow
+   * lanes (`emptyLanes`), "5 of 15 activities" in the header (`counts`) and
+   * the stage's name kept in view while any part of its band is (`sticky`;
+   * exports print it once at the band's start).
+   */
+  laneOptions?: FlowSceneOptions["laneOptions"];
   /** The corner the legend sits in (0.4). Default `bottom-right`. The key of full activity names takes the other side. */
   legendPosition?: PanelCorner;
   /** The corner the detail panel sits in (0.4). Default `top-left`. */

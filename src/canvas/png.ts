@@ -86,7 +86,7 @@ function defaultCreateCanvas(width: number, height: number): CanvasLike {
 export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
   assertExportable(scene.graph);
   const locale = scene.locale ?? "en";
-  const prepared = prepareScene(scene.graph, scene.positions, { measure: scene.measure, style: scene.style, overlays: scene.overlays, locale, lanes: scene.lanes, selfLoops: scene.selfLoops, activityLabels: scene.activityLabels, lodBySize: false, theme: options.theme ?? "print", scheme: options.scheme, textMeasure: options.textMeasure, strings: options.strings });
+  const prepared = prepareScene(scene.graph, scene.positions, { measure: scene.measure, style: scene.style, overlays: scene.overlays, locale, lanes: scene.lanes, stageView: scene.stageView, labelPlacement: scene.labelPlacement, laneOptions: scene.laneOptions, selfLoops: scene.selfLoops, activityLabels: scene.activityLabels, lodBySize: false, theme: options.theme ?? "print", scheme: options.scheme, textMeasure: options.textMeasure, strings: options.strings });
   const tokens: CanvasTokens = { ...sceneTokens(prepared), ...(options.tokens ?? {}) };
   const { text: textTokens } = prepared.theme;
   const { edgeBudget } = options;
