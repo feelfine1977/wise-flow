@@ -24,7 +24,9 @@ function markOf(data: FollowsEdgeData, source: XY, target: XY): EdgeMark {
 const Follows = memo(function Follows(props: EdgeProps<WfEdge>) {
   const { id, data, sourceX, sourceY, targetX, targetY, markerEnd, selected } = props;
   if (!data) return null;
-  const mark = markOf(data, { x: sourceX, y: sourceY }, { x: targetX, y: targetY });
+  const own = markOf(data, { x: sourceX, y: sourceY }, { x: targetX, y: targetY });
+  // A backward path touching a selected activity at its full width and opacity (`EdgeMark.lift`).
+  const mark = data.touching && own.lift ? { ...own, width: own.lift.width, arrow: own.lift.arrow, opacity: own.lift.opacity } : own;
   const label = mark.texts[0];
   // What the theme's rules for the path's interactive states set replaces how they are drawn by default.
   const state = data.state;
@@ -37,7 +39,7 @@ const Follows = memo(function Follows(props: EdgeProps<WfEdge>) {
       id={`wf-edge-${id}`}
       className={`wf-edge wf-edge--${mark.kind}${data.hovered ? " wf-edge--hovered" : ""}${data.dimmed && state?.opacity === undefined ? " wf-edge--dimmed" : ""}${data.focused ? " wf-edge--focused" : ""}`}
       data-id={id}
-      {...part("edge", mark.kind, [selected && "selected", data.focused && "focused", data.hovered && "hovered", data.dimmed && "dimmed", mark.reconnected && "reconnected"])}
+      {...part("edge", mark.kind, [selected && "selected", data.focused && "focused", data.hovered && "hovered", data.dimmed && "dimmed", mark.reconnected && "reconnected", mark.terminal])}
       // The scene's paints as variables (a focused path at least 3 wide): the stylesheet draws the path with them, a host rule on the path overrides them.
       style={{
         ["--wf-edge-color" as string]: color,
@@ -50,16 +52,16 @@ const Follows = memo(function Follows(props: EdgeProps<WfEdge>) {
       <title>{data.description}</title>
       {/* The line ends inside its head, whose tip lies on the route's end. */}
       <BaseEdge id={id} path={polyline([...mark.points.slice(0, -1), lineEnd(mark.points, mark.arrow)])} markerEnd={markerEnd} interactionWidth={strokeTokens.pathHit} {...(mark.addedFlow && { style: { strokeLinecap: "round" as const } })} {...part("edge-path")} />
-      {label ? (
+      {label && data.labelShown !== "never" ? (
         <text
-          className="wf-edge-label wf-lod-edge-labels"
+          className={`wf-edge-label${data.labelShown === "always" ? "" : " wf-lod-edge-labels"}`}
           {...part("edge-label")}
           x={label.x}
           y={label.y}
           textAnchor="middle"
           style={{ ["--wf-text-size" as string]: `${label.size}px`, ["--wf-text-weight" as string]: label.weight, ["--wf-text-paint" as string]: paintCss(mark, state?.texts?.label ?? label.paint) }}
         >
-          {label.text}
+          {data.labelText ?? label.text}
         </text>
       ) : null}
     </g>

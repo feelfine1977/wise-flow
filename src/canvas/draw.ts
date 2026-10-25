@@ -1,7 +1,7 @@
 /** Drawing routines of the canvas renderer: plain 2D context calls for a scene, a viewport and a state, culled on large scenes; `canvasTextMeasure`. */
 import { keptLoop, mapEdges, selfLoopsOf } from "../core/edge-budget.js";
 import { headTriangle } from "../core/element-marks.js";
-import { type Arrowhead, type Box, type BoxSide, type XY, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type PatternLook, type Readable, type Selection, type ShownEdges, type StateStyle, type TextMeasure, type Theme, arrowheadExtent, dimensionTokens, fixedColors, hatchTokens, legendLayout, legendMetrics, budgetEdges, defaultTheme, estimateTextWidth, lineEnd, lodAt, markArrowhead, markInState, patternTwin, readableAt, readableTokens, ruleTextRole, stateStyle } from "../core/index.js";
+import { type Arrowhead, type Box, type BoxSide, type XY, type EdgeBudget, type EdgeSelection, type HitItem, type MarkPaint, type MarkText, type OverlayMark, type PatternId, type PatternLook, type Readable, type Selection, type ShownEdges, type StateStyle, type TextMeasure, type Theme, arrowheadExtent, dimensionTokens, fixedColors, hatchTokens, legendLayout, legendMetrics, budgetEdges, defaultTheme, estimateTextWidth, lineEnd, lodAt, markArrowhead, markInState, patternTwin, pathLabelShown, touchesSelection, emphasisLabel, readableAt, readableTokens, ruleTextRole, stateStyle } from "../core/index.js";
 import { isPill, nodeTexts, readableMark, titleTexts } from "../core/readable.js";
 import { type NumberText, numbered } from "../core/figure.js";
 import type { PreparedScene, SceneEdge, SceneGroup, SceneNode } from "./scene.js";
@@ -379,8 +379,9 @@ function drawGroup(ctx: DrawContext, scene: PreparedScene, g: SceneGroup, tokens
   if (alpha !== undefined) ctx.globalAlpha = 1;
 }
 
-function drawEdge(ctx: DrawContext, e: SceneEdge, tokens: CanvasTokens, theme: Theme, highlighted: boolean, dimmed: boolean, s: StateStyle | undefined) {
-  const m = e.mark;
+function drawEdge(ctx: DrawContext, e: SceneEdge, tokens: CanvasTokens, theme: Theme, highlighted: boolean, dimmed: boolean, s: StateStyle | undefined, lifted = false) {
+  // A backward path touching a selected activity is drawn at its full width, head and opacity (`EdgeMark.lift`).
+  const m = lifted && e.mark.lift ? { ...e.mark, width: e.mark.lift.width, arrow: e.mark.lift.arrow, opacity: e.mark.lift.opacity } : e.mark;
   const pts = m.points;
   if (pts.length < 2) return;
   ctx.globalAlpha = s?.opacity ?? (dimmed ? theme.opacity.dimmedPath : (m.opacity ?? 1));
@@ -398,7 +399,7 @@ function drawEdge(ctx: DrawContext, e: SceneEdge, tokens: CanvasTokens, theme: T
   ctx.lineTo(end.x, end.y);
   ctx.stroke();
   ctx.setLineDash([]);
-  arrowhead(ctx, pts[pts.length - 2], end, m.arrow, color);
+  if (m.arrow) arrowhead(ctx, pts[pts.length - 2], end, m.arrow, color);
   ctx.globalAlpha = 1;
 }
 
@@ -540,6 +541,12 @@ function edgeState(scene: PreparedScene, e: SceneEdge, state: DrawState): StateS
 }
 
 const RANK: Record<HitItem["kind"], number> = { group: 0, overlay: 1, edge: 2, node: 3 };
+/** The order a scene's edges are painted in (`paintOrder`, prepared with the scene) and each edge's place in it. */
+type Painting = { order: readonly number[]; rank: ArrayLike<number> };
+
+/** The prepared painting order of the scene's edges, where it is for these edges; none otherwise (the list's order). */
+const painting = (scene: PreparedScene): Painting | undefined => (scene.edgePaint?.order.length === scene.edges.length ? scene.edgePaint : undefined);
+
 const drawingOrder = (a: HitItem, b: HitItem) => RANK[a.kind] - RANK[b.kind] || (a.index ?? -1) - (b.index ?? -1);
 const groupId = (g: SceneGroup) => g.group.id;
 const markId = (m: OverlayMark) => m.id;
@@ -572,14 +579,17 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
   // Culled: what the R-tree finds in the view, in drawing order. An index built without positions walks the lists.
   let found = cull ? scene.hit.within(visibleBox(view)).sort(drawingOrder) : undefined;
   if (found?.some((it) => it.index === undefined)) found = undefined;
-  const each = <T>(list: readonly T[], kind: HitItem["kind"], idOf: (item: T) => string, draw: (item: T, index: number) => void) => {
+  // With a painting order (`painting`), the list's items in it; otherwise in the list's order.
+  const each = <T>(list: readonly T[], kind: HitItem["kind"], idOf: (item: T) => string, draw: (item: T, index: number) => void, order?: Painting) => {
     if (!found) {
-      list.forEach(draw);
+      if (order) for (const i of order.order) draw(list[i], i);
+      else list.forEach(draw);
       return;
     }
-    // An edge has an item per segment; a replaced list is checked by id.
+    // An edge has an item per segment; a replaced list is checked by id. Ordered, an element's items stay together.
+    const items = order ? found.filter((it) => it.kind === kind && it.index !== undefined).sort((a, b) => order.rank[a.index!] - order.rank[b.index!] || a.index! - b.index!) : found;
     let last = -1;
-    for (const it of found) {
+    for (const it of items) {
       if (it.kind !== kind || it.index === undefined || it.index === last) continue;
       last = it.index;
       const item = list[it.index];
@@ -616,14 +626,17 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
   marks("below");
 
   let edges = 0;
+  // The selected activities: the paths touching them are lifted and labelled (`touchesSelection`).
+  const chosen = new Set(state.selection.nodes);
+  // The edges in view, painted the widest first (`paintOrder`), as every renderer paints them.
   each(scene.edges, "edge", edgeId, (e, i) => {
     if (withheld && !withheld.drawn.has(i)) return;
     const id = e.edge.id;
     const [selected, hovered] = [state.selection.edges.includes(id), state.hovered === id];
     const dimmed = !!state.bright && !state.bright.edges.has(id);
-    drawEdge(ctx, e, tokens, scene.theme, selected || hovered, dimmed, edgeState(scene, e, state));
+    drawEdge(ctx, e, tokens, scene.theme, selected || hovered, dimmed, edgeState(scene, e, state), touchesSelection(e.mark, chosen));
     edges++;
-  });
+  }, painting(scene));
   marks("between");
 
   let nodes = 0;
@@ -634,15 +647,22 @@ export function drawScene(ctx: DrawContext, scene: PreparedScene, view: View, st
 
   marks("above");
 
-  // Paths' labels are the first texts shed below the floor.
+  // Paths' labels are the first texts shed below the floor. A path's label is drawn by its rule (a zoom, or its width on
+  // the screen), and on every path touching a selected activity, with the share of its cases where the style asks.
+  const share = scene.style.selectedShare;
   each(scene.edges, "edge", edgeId, (e, i) => {
     if (!readable.labels.path || (withheld && !withheld.drawn.has(i)) || (state.bright && !state.bright.edges.has(e.edge.id))) return;
+    const touching = touchesSelection(e.mark, chosen);
     const s = edgeState(scene, e, state);
-    const alpha = s?.opacity ?? e.mark.opacity;
+    const alpha = s?.opacity ?? (touching && e.mark.lift ? e.mark.lift.opacity : e.mark.opacity);
     if (alpha !== undefined) ctx.globalAlpha = alpha;
-    for (const tx of e.mark.texts) if (!tx.lod || lod[tx.lod]) drawText(ctx, scene, tx, paintOf(e.mark, s?.texts?.label ?? tx.paint, tokens), tokens);
+    for (const tx of e.mark.texts) {
+      if (tx.lod === "edgeLabels" ? !pathLabelShown(e.mark.width, lodZoom, scene.lod, touching) : tx.lod && !lod[tx.lod]) continue;
+      const text = share && touching && tx.role === "count" ? emphasisLabel(e.mark, chosen, (id) => scene.nodeById.get(id)?.node, scene.locale) ?? tx.text : tx.text;
+      drawText(ctx, scene, text === tx.text ? tx : { ...tx, text }, paintOf(e.mark, s?.texts?.label ?? tx.paint, tokens), tokens);
+    }
     if (alpha !== undefined) ctx.globalAlpha = 1;
-  });
+  }, painting(scene));
   const numbers = !options.numbers && options.pathRule && readable.level === "box" ? new Map(numbered({ ...scene, activityLabels: undefined }, readable.floor, dimensionTokens.panelMaxWidth, scene.textMeasure).texts.map((n) => [n.id, n.text])) : undefined;
   const drawNumber = (tx: NumberText, links: boolean) => {
     const b = tx.box, v = visibleBox(view);

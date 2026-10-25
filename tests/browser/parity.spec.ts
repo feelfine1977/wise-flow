@@ -46,6 +46,11 @@ const FIXTURES: { name: string; story: string; scheme?: ColorScheme }[] = [
   { name: "smallDark", story: "parity--small", scheme: "dark" },
   { name: "roleLanesDark", story: "parity--role-lanes", scheme: "dark" },
   { name: "kindsDark", story: "parity--element-kinds", scheme: "dark" },
+  { name: "terminals", story: "parity--terminals" },
+  { name: "terminalsDark", story: "parity--terminals", scheme: "dark" },
+  { name: "instrument", story: "parity--instrument" },
+  { name: "instrumentDark", story: "parity--instrument", scheme: "dark" },
+  { name: "instrumentTerminals", story: "parity--instrument-terminals" },
 ];
 
 interface StoryScene {
@@ -92,7 +97,7 @@ test("the DOM map, the Canvas map, the SVG export and the PNG export draw the co
     }
     // The scheme and the theme reached what was compared: the paper of an activity, the outline of the second theme.
     const activity = scene.nodeMarks.find((m) => m.kind === "activity") ?? scene.nodeMarks.find((m) => m.fill === "paper")!;
-    expect(svg.get(`node:${activity.id}`)!.props.fill, `${name}: the scheme's paper`).toBe(name === "hostVariables" ? "#fdf6e3" : scheme === "dark" ? "#16181d" : "#ffffff");
+    expect(svg.get(`node:${activity.id}`)!.props.fill, `${name}: the scheme's paper`).toBe(name === "hostVariables" ? "#fdf6e3" : scheme === "dark" ? (scene.theme.dark.paper ?? "#16181d") : "#ffffff");
     if (name === "secondTheme") expect([svg, dom].map((d) => d.get(`node:${activity.id}`)!.props.outlineWidth), `${name}: the theme's outline`).toEqual(["3", "3"]);
     // The frequency cue reached what was compared: all 1,000 cases of the small P2P on its first activity, the inner width
     // 180 − 8 − 1 long; the second theme draws only the foot, inside its outline of 3.
@@ -153,7 +158,8 @@ function rulesReached(drawings: Record<string, Drawing>) {
   for (const [renderer, d] of Object.entries(drawings)) {
     const props = (key: string, ...names: string[]) => names.map((n) => d.get(key)?.props[n]);
     expect(props("node:split", "fill", "outline"), `rules: ${renderer} by kind`).toEqual(["#fff3c4", "#8a6d00"]);
-    expect([...props("node:check", "outlineWidth", "radius", "cue", "cueFoot"), d.get("node:check")!.texts[0]], `rules: ${renderer} by tag`).toEqual(["2", "8", "none", "#5f6672 105", { text: "Check invoice", size: 13, weight: 600, paint: "#1d4ed8" }]);
+    // The activity has no stage, so no band (0.4): its cue's foot starts inside the outline.
+    expect([...props("node:check", "outlineWidth", "radius", "cue", "cueFoot"), d.get("node:check")!.texts[0]], `rules: ${renderer} by tag`).toEqual(["2", "8", "none", "#5f6672 109", { text: "Check invoice", size: 13, weight: 600, paint: "#1d4ed8" }]);
     expect([...props("edge:split->readded", "outline"), ...props("node:readded", "fill")], `rules: ${renderer} by state`).toEqual(["#b42318@0.5", "#f3f4f6@0.6"]);
   }
 }

@@ -3,7 +3,7 @@
  */
 import type { ActivityLabelOptions } from "./activity-labels.js";
 import { type EdgeBudget, type EdgeSelection, type ShownEdges, budgetEdges, keptLoop } from "./edge-budget.js";
-import { type BoxSide, type ElementText, lineEnd } from "./element-marks.js";
+import { type BoxSide, type ElementText, lineEnd, paintOrder } from "./element-marks.js";
 import { type FigurePreset, type LegendLayout, figureFloor, figureFrame, figureHeading, figureMetrics, legendMetrics, millimetres } from "./figure.js";
 import type { Locale } from "./format.js";
 import { type Box, type Positions } from "./layout.js";
@@ -14,8 +14,8 @@ import { type MarkSvgOptions, arrowMarker, markSvg, svgMarkup } from "./mark-svg
 import { type MarkPaint, type MarkText, type OverlayMark, markArrowhead, overlayArrow } from "./overlay-marks.js";
 import { type Readable, isPill, nodeTexts, readableMark, shownReadable, titleTexts } from "./readable.js";
 import { type FlowScene, sceneOf } from "./scene.js";
-import { type Measure, type StyleSpec, lodAt, patternDefs } from "./style.js";
-import { t } from "./strings.js";
+import { type Measure, type StyleSpec, lodAt, pathLabelShown, patternDefs } from "./style.js";
+import { type Strings, t } from "./strings.js";
 import type { TextMeasure } from "./text.js";
 import { type ColorScheme, type ThemeSetting, resolveTheme } from "./theme.js";
 import { type Arrowhead, type ColorToken, arrowheadTokens, dimensionTokens, readableTokens } from "./tokens.js";
@@ -82,6 +82,8 @@ export interface ExportOptions {
   scheme?: ColorScheme;
   /** What the figure's texts are measured by (see `FlowSceneOptions.textMeasure`). Default `estimateTextWidth`. */
   textMeasure?: TextMeasure;
+  /** The host's wording of some strings over the table's (`Strings`): the legend's sentence, the caption, Start and End. */
+  strings?: Strings;
   /**
    * The caption line under the map and the legend: label, cases, period,
    * filters and how much of the model is shown, from the graph's `meta`
@@ -161,8 +163,8 @@ function shownTexts(ctx: Ctx, texts: ElementText[]): ElementText[] {
 /** The marker of an arrowhead: `wf-arrow` at the rule's size, `wf-arrow-<size>` where it grew with its path. */
 const arrowId = (a: Arrowhead) => (a.size === arrowheadTokens.edge.size ? "wf-arrow" : `wf-arrow-${a.size}`);
 
-/** The edges drawn, in id order. */
-const drawnEdges = (ctx: Ctx) => ctx.scene.edgeMarks.filter((_, i) => !ctx.withheld || ctx.withheld.drawn.has(i)).sort(byId);
+/** The edges drawn, in painting order (`paintOrder`): the widest first, so that thin paths lie on top. */
+const drawnEdges = (ctx: Ctx) => paintOrder(ctx.scene.edgeMarks).filter((i) => !ctx.withheld || ctx.withheld.drawn.has(i)).map((i) => ctx.scene.edgeMarks[i]);
 
 function drawEdges(ctx: Ctx): string {
   const out: string[] = [];
@@ -171,9 +173,10 @@ function drawEdges(ctx: Ctx): string {
     // The line ends inside its head, whose tip lies on the route's end.
     const end = lineEnd(m.points, m.arrow);
     const d = [...m.points.slice(0, -1), end].map((p, i) => `${i === 0 ? "M" : "L"}${num(p.x)} ${num(p.y)}`).join("");
-    out.push(`<g class="wf-edge" data-id="${esc(m.id)}"${opacity(m)}><path d="${d}" fill="none" stroke="${m.color}" stroke-width="${num(m.width)}" stroke-linejoin="round"${m.addedFlow ? ' stroke-linecap="round"' : ""}${dash} marker-end="url(#${arrowId(m.arrow)})"/>`);
+    out.push(`<g class="wf-edge" data-id="${esc(m.id)}"${opacity(m)}><path d="${d}" fill="none" stroke="${m.color}" stroke-width="${num(m.width)}" stroke-linejoin="round"${m.addedFlow ? ' stroke-linecap="round"' : ""}${dash}${m.arrow ? ` marker-end="url(#${arrowId(m.arrow)})"` : ""}/>`);
     // Paths' labels are the first texts shed below the floor.
-    if (ctx.readable.labels.path) for (const tx of shownTexts(ctx, m.texts)) out.push(markText(ctx, m.color, m.color, tx));
+    // A path's label by its rule: a zoom, or its width at the figure's zoom (`pathLabelShown`); nothing is selected in a figure.
+    if (ctx.readable.labels.path) for (const tx of m.texts) if (tx.lod === "edgeLabels" ? pathLabelShown(m.width, ctx.lodZoom, ctx.scene.lod) : !tx.lod || ctx.lod[tx.lod]) out.push(markText(ctx, m.color, m.color, tx));
     out.push(`</g>`);
   }
   return out.join("");
@@ -293,8 +296,9 @@ function drawLegend(ctx: Ctx, width: number, layout: LegendLayout): string {
 
 /**
  * Render a scene to an SVG string. Output is deterministic for the same input:
- * elements are drawn in id order, numbers are formatted with fixed precision and
- * no time-dependent data is embedded.
+ * elements are drawn in id order (paths in painting order, the widest first
+ * and equal widths in the graph's order), numbers are formatted with fixed precision and no
+ * time-dependent data is embedded.
  */
 export function toSVG(given: Scene, options: ExportOptions = {}): string {
   assertExportable(given.graph);
@@ -310,6 +314,7 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
     theme: resolveTheme(options.theme ?? "print"),
     scheme: options.scheme,
     textMeasure: options.textMeasure,
+    strings: options.strings,
   }, true);
   const { locale, colors, theme } = scene;
   const font = options.fontFamily ?? theme.font.family;
@@ -330,7 +335,7 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
   );
   parts.push(`<defs>${patternDefs("wf-pattern", colors.patternInk, colors.outOfScope, theme.pattern)}`);
   // The rule's head, then each larger head a path drawn ends in, by size.
-  const heads = new Map([arrowheadTokens.edge, ...drawnEdges(ctx).map((m) => m.arrow).sort((a, b) => a.size - b.size)].map((a) => [arrowId(a), a]));
+  const heads = new Map([arrowheadTokens.edge, ...drawnEdges(ctx).flatMap((m) => m.arrow ?? []).sort((a, b) => a.size - b.size)].map((a) => [arrowId(a), a]));
   for (const [id, a] of heads) parts.push(svgMarkup(arrowMarker(id, a)));
   parts.push(svgMarkup(arrowMarker("wf-overlay-arrow", markArrowhead(overlayArrow))));
   parts.push(`</defs>`);

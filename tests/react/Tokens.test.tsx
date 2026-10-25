@@ -47,7 +47,8 @@ function canvasTile(pattern: PatternId) {
     return ctx;
   };
   const scene = prepareScene(graph, positions, { style, selfLoops: false, lodBySize: false });
-  const nodes = scene.nodes.map((n) => (n.node.id === "a" ? { ...n, mark: { ...n.mark, pattern } } : n));
+  // The card is given a band (it has no stage of its own) in the pattern compared.
+  const nodes = scene.nodes.map((n) => (n.node.id === "a" ? { ...n, mark: { ...n.mark, band: 8, pattern } } : n));
   const ctx = new Proxy({ createPattern: () => ({}), measureText: (s: string) => ({ width: s.length * 6 }) } as Record<string, unknown>, {
     get: (t, k: string) => (k in t ? t[k] : noop),
     set: (t, k: string, v) => { t[k] = v; return true; },

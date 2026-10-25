@@ -26,12 +26,19 @@ export const estimateTextWidth: TextMeasure = (text, font) => {
   return (narrow * 0.55 + wide) * font.size;
 };
 
+/** How a text is shortened: with `words`, only after whole words where one fits. */
+export interface TruncateOptions {
+  words?: boolean;
+}
+
 /**
  * The longest start of `text` that fits `maxWidth` with an ellipsis, at least
- * one character; the text itself when it fits. A width that exceeds
+ * one character; the text itself when it fits. With `words` the start ends
+ * after a whole word ("Vendor…", never "Vendor cr…"), and only where no whole
+ * word fits is the first cut between characters. A width that exceeds
  * `maxWidth` by less than a millionth (rounding) fits.
  */
-export function truncateText(text: string, maxWidth: number, font: { size: number; weight?: number }, measure: TextMeasure = estimateTextWidth): string {
+export function truncateText(text: string, maxWidth: number, font: { size: number; weight?: number }, measure: TextMeasure = estimateTextWidth, options: TruncateOptions = {}): string {
   const limit = maxWidth + 1e-6;
   if (measure(text, font) <= limit) return text;
   const chars = Array.from(text);
@@ -41,6 +48,13 @@ export function truncateText(text: string, maxWidth: number, font: { size: numbe
     const mid = Math.ceil((lo + hi) / 2);
     if (measure(`${chars.slice(0, mid).join("")}…`, font) <= limit) lo = mid;
     else hi = mid - 1;
+  }
+  if (options.words) {
+    // The last space at or before the cut ends the last whole word that fits (a shorter start fits too).
+    let space = Math.min(lo, chars.length - 1);
+    while (space > 0 && !/\s/u.test(chars[space])) space--;
+    const start = chars.slice(0, space).join("").trimEnd();
+    if (start) return `${start}…`;
   }
   return `${chars.slice(0, Math.max(1, lo)).join("")}…`;
 }
@@ -101,14 +115,14 @@ export function wrapText(text: string, width: number, font: { size: number; weig
 /**
  * At most `max` lines of `text` at most `width` wide (`wrapText`); when more
  * would be needed, the last line holds the rest of the text shortened with an
- * ellipsis (`truncateText`).
+ * ellipsis (`truncateText`, after whole words with `words`).
  */
-export function wrapLines(text: string, width: number, font: { size: number; weight?: number }, max: number, measure: TextMeasure = estimateTextWidth): string[] {
+export function wrapLines(text: string, width: number, font: { size: number; weight?: number }, max: number, measure: TextMeasure = estimateTextWidth, options: TruncateOptions = {}): string[] {
   const lines = wrapText(text, width, font, measure);
   if (lines.length <= max) return lines;
   const kept = lines.slice(0, max - 1);
   // An ellipsis follows the last character it shortens to, not a space.
-  return [...kept, truncateText(restOf(text, kept), Math.max(font.size, width), font, measure).replace(/\s+…$/u, "…")];
+  return [...kept, truncateText(restOf(text, kept), Math.max(font.size, width), font, measure, options).replace(/\s+…$/u, "…")];
 }
 
 /** The rest of `text`, its spaces made single, after the `kept` lines that start it (the lines before the last of `wrapLines`). */

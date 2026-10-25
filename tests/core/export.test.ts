@@ -177,13 +177,14 @@ describe("toSVG node and edge marks", () => {
   const halo = 'fill="#1f1f1f" paint-order="stroke" stroke="#ffffff" stroke-width="2"';
 
   it("draws every node kind from its mark", () => {
-    const card = (x: number, y: number, w: number, h: number, dash = "") => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="#ffffff" stroke="#8c94a1" stroke-width="1"${dash}/><rect x="${x}" y="${y}" width="8" height="${h}" class="wf-band" rx="4" fill="#8c8c8c"/>`;
+    const card = (x: number, y: number, w: number, h: number, dash = "") => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="#ffffff" stroke="#8c94a1" stroke-width="1"${dash}/>`;
     const number = (x: number, y: number, count: string, share: number) => `<text x="${x}" y="${y}" font-size="11" font-weight="600" fill="#1f1f1f">${count}</text><text x="${share}" y="${y}" font-size="11" fill="#5b6270">· –</text>`;
     expect(groups(draw(), "node")).toEqual([
-      // The card: its name, then the cases and their share (none without the log's cases), the block in the middle above the foot.
+      // The card: its name, then the cases and their share (none without the log's cases), the block in the middle above the foot; no stage, no band.
       `<g class="wf-node wf-node-activity" data-id="a">${card(100, 0, 180, 40)}<text x="116" y="16.05" font-size="13" font-weight="500" fill="#1f1f1f">Check invoice</text>${number(116, 30.35, "1,234", 150.25)}</g>`,
       // The event's label sits below its circle.
-      '<g class="wf-node wf-node-event" data-id="end"><circle cx="858" cy="20" r="18" fill="#ffffff" stroke="#1f1f1f" stroke-width="2"/><text x="858" y="53" font-size="11" text-anchor="middle" fill="#1f1f1f">End</text></g>',
+      // An end event's ■ in its circle, outlined in lineStrong.
+      '<g class="wf-node wf-node-event" data-id="end"><circle cx="858" cy="20" r="18" fill="#ffffff" stroke="#8c94a1" stroke-width="2"/><text x="858" y="25.5" font-size="15" font-weight="600" text-anchor="middle" fill="#1f1f1f">■</text><text x="858" y="53" font-size="11" text-anchor="middle" fill="#1f1f1f">End</text></g>',
       // The gateway shows its glyph, not its label; text whose middle is given sits on a baseline 0.3 × its size lower: 21 + 4.5.
       '<g class="wf-node wf-node-gateway" data-id="g"><path d="M342 -2L364 20L342 42L320 20Z" fill="#ffffff" stroke="#1f1f1f" stroke-width="1"/><text x="342" y="25.5" font-size="15" font-weight="600" text-anchor="middle" fill="#1f1f1f">+</text></g>',
       // The note is drawn as a note: surface colour, solid border, no band.
@@ -191,15 +192,19 @@ describe("toSVG node and edge marks", () => {
       `<g class="wf-node wf-node-activity" data-id="r">${card(400, 100, 180, 40, ' stroke-dasharray="4 3"')}<text x="416" y="116.05" font-size="13" font-weight="500" fill="#1f1f1f">Re-added</text>${number(416, 130.35, "–", 426.05)}</g>`,
       // The stage is the same card with a semibold name.
       `<g class="wf-node wf-node-stage" data-id="s">${card(400, 0, 200, 56)}<text x="416" y="24.05" font-size="13" font-weight="600" fill="#1f1f1f">Payment</text>${number(416, 38.35, "1,500", 450.25)}</g>`,
-      '<g class="wf-node wf-node-event" data-id="start"><circle cx="18" cy="20" r="18" fill="#ffffff" stroke="#1f1f1f" stroke-width="1"/><text x="18" y="53" font-size="11" text-anchor="middle" fill="#1f1f1f">Start</text></g>',
+      '<g class="wf-node wf-node-event" data-id="start"><circle cx="18" cy="20" r="18" fill="#ffffff" stroke="#8c94a1" stroke-width="1"/><text x="18" y="25.5" font-size="15" font-weight="600" text-anchor="middle" fill="#1f1f1f">▶</text><text x="18" y="53" font-size="11" text-anchor="middle" fill="#1f1f1f">Start</text></g>',
     ]);
   });
 
   it("draws a card's frequency cue under its band and texts", () => {
     const counted = { ...elements.graph, meta: { cases: 2468 } };
     const [a] = groups(toSVG({ graph: counted, positions: elements.positions, style: elements.style }, { legend: false }), "node");
-    // 1,234 of 2,468 cases: half of the inner width 180 − 8 − 1, from the band's end; the stripe inside the outline, the foot its lowest 3.
-    expect(a).toContain('<rect x="100" y="0" width="180" height="40" rx="4" fill="#ffffff" stroke="#8c94a1" stroke-width="1"/><rect x="108" y="1" width="85.5" height="38" class="wf-cue" fill="#e6e8ec"/><rect x="108" y="36" width="85.5" height="3" class="wf-cue-foot" fill="#5f6672"/><rect x="100" y="0" width="8" height="40" class="wf-band" rx="4" fill="#8c8c8c"/>');
+    // 1,234 of 2,468 cases, no stage: half of the inner width 180 − 2 × 1 from the outline; the stripe inside the outline, the foot its lowest 3.
+    expect(a).toContain('<rect x="100" y="0" width="180" height="40" rx="4" fill="#ffffff" stroke="#8c94a1" stroke-width="1"/><rect x="101" y="1" width="89" height="38" class="wf-cue" fill="#e6e8ec"/><rect x="101" y="36" width="89" height="3" class="wf-cue-foot" fill="#5f6672"/><text');
+    // With a stage: half of 180 − 8 − 1 from the band's end, and the band over the cue.
+    const staged = { ...counted, groups: [{ id: "g1", kind: "stage" as const, label: "Invoice" }], nodes: counted.nodes.map((n) => (n.id === "a" ? { ...n, group: "g1" } : n)) };
+    const [b] = groups(toSVG({ graph: staged, positions: elements.positions, style: { ...elements.style, nodeColor: { by: "group" } } }, { legend: false }), "node");
+    expect(b).toMatch(/<rect x="108" y="1" width="85.5" height="38" class="wf-cue" fill="#e6e8ec"\/><rect x="108" y="36" width="85.5" height="3" class="wf-cue-foot" fill="#5f6672"\/><rect x="100" y="0" width="8" height="40" class="wf-band" rx="4" fill="#[0-9A-Fa-f]{6}"\/>/);
     expect(a).toContain('fill="#5b6270">· 50 %</text>');
   });
 
@@ -212,14 +217,16 @@ describe("toSVG node and edge marks", () => {
       // A constraint edge in the accent, solid: only the re-added path is dashed.
       `<g class="wf-edge" data-id="g-&gt;s">${path("M364 20L382 20L382 28L397.75 28", "#b84a00")}</g>`,
       `<g class="wf-edge" data-id="s-&gt;r">${path("M500 56L500 97.75", "#8c8c8c", ' stroke-dasharray="6 5"')}<text x="500" y="74" font-size="11" text-anchor="middle" ${halo}>3</text></g>`,
-      `<g class="wf-edge" data-id="start-&gt;a">${path("M36 20L97.75 20", "#8c8c8c")}<text x="68" y="16" font-size="11" text-anchor="middle" ${halo}>1,234</text></g>`,
+      // The path from the start event in the terminal paint.
+      `<g class="wf-edge" data-id="start-&gt;a">${path("M36 20L97.75 20", "#c9ced6")}<text x="68" y="16" font-size="11" text-anchor="middle" ${halo}>1,234</text></g>`,
     ]);
   });
 
   it("leaves out texts below their level of detail but keeps glyphs and notes", () => {
     const far = draw(0.1);
     const texts = [...far.matchAll(/<g class="wf-(?:node|edge)[^]*?<\/g>/g)].flatMap((g) => [...g[0].matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map((t) => t[1]));
-    expect(texts).toEqual(["+", "Ask the vendor twice"]);
+    // The events' glyphs stay with the gateway's glyph.
+    expect(texts).toEqual(["■", "+", "Ask the vendor twice", "▶"]);
     const mid = draw(0.3);
     expect(mid).toContain(">Check invoice<");
     // Edge counts appear from 0.6.

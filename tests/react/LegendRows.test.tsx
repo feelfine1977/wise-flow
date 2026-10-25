@@ -115,17 +115,19 @@ describe("the legends of SVG, Canvas and React", () => {
     // The presets add badges of three glyphs (in the order of their first targets: cancel_invoice_receipt ∅,
     // clear_invoice ≥1, record_invoice_receipt ≤1), arcs (some in reverse), hatching and map-level chips; the follows
     // self-loops are on by default, the abstraction re-adds paths, and the map starts and ends with events.
-    expect(keysOf(legends.overlays.legend)).toEqual(["∅", "≥1", "≤1", "⌒", "⇐", "↻", "▨", "┄", "○", "◉"]);
+    expect(keysOf(legends.overlays.legend)).toEqual(["∅", "≥1", "≤1", "⌒", "⇐", "↻", "▨", "┄", "─", "▶", "■"]);
     expect(legends.overlays.react.chips).toBeGreaterThan(0);
-    expect(keysOf(legends.plain.legend)).toEqual(["↻", "┄", "○", "◉"]);
+    // Paths from Start and to End (─), then the start (▶) and end (■) events.
+    expect(keysOf(legends.plain.legend)).toEqual(["↻", "┄", "─", "▶", "■"]);
     expect(legends.plain.react.chips).toBe(0);
     // Without re-added paths there is no key for them.
     expect(unconnected.edges.some((e) => e.tags?.includes("reconnected"))).toBe(false);
-    expect(keysOf(legends.unconnected.legend)).toEqual(["↻", "○", "◉"]);
+    expect(keysOf(legends.unconnected.legend)).toEqual(["↻", "─", "▶", "■"]);
     // The measure with its unit and what the shares are of (the 251,734 cases of the log), then each scale's metric and unit.
     expect(legends.plain.react.texts.slice(0, 3)).toEqual(["Legend", "Frequency · cases · share of 251,734 cases", "Path width: cases (count) · whole graph"]);
-    expect(legends.plain.react.texts.slice(-8)).toEqual(["↻", "Repeated execution", "┄", "Not directly observed (re-added)", "○", "Start of the process", "◉", "End of the process"]);
-    expect(legends.unconnected.react.texts.slice(-6)).toEqual(["↻", "Repeated execution", "○", "Start of the process", "◉", "End of the process"]);
+    const terminal = ["─", "Paths from Start and to End: cases by their first and last activity", "▶", "Start of the process", "■", "End of the process"];
+    expect(legends.plain.react.texts.slice(-10)).toEqual(["↻", "Repeated execution", "┄", "Not directly observed (re-added)", ...terminal]);
+    expect(legends.unconnected.react.texts.slice(-8)).toEqual(["↻", "Repeated execution", ...terminal]);
     expect(legends.vendorGerman.svg.texts[0]).toBe("Legende");
     expect(legends.vendorGerman.react.texts).toEqual(expect.arrayContaining(["Pfadbreite: Fälle (Anzahl) · ganzer Graph", "Pfadfarbe: Fälle (Anzahl)", "Aktivitätsfarbe: Phase", "Prozessbeginn", "Prozessende"]));
     // Three width samples, written as paths are.

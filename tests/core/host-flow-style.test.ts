@@ -65,7 +65,8 @@ describe("opted-in host-added flows", () => {
     const options = { measure: "performance" as const, style: { addedFlowLabel: true as const } };
     const withValue = scene(options);
     const withoutValue = buildScene(noAccidentalValue, positions, options);
-    expect(withValue.scales.domains.edgeColor).toEqual([0, 169]);
+    // `long` starts at the start event: a terminal path (WF-02), outside the colour's domain like an added flow.
+    expect(withValue.scales.domains.edgeColor).toEqual([0, 168]);
     expect(withValue.scales.domains).toEqual(withoutValue.scales.domains);
     expect(withValue.edgeMarks).toEqual(withoutValue.edgeMarks.map((m) => m.id === "start" ? { ...m, edge: graph.edges[0] } : m));
     const unopted = scene({ measure: "performance" });
@@ -95,7 +96,9 @@ describe("frequency with optional lag colour", () => {
     const s = scene({ measure: "frequency", style });
     const paths = Object.fromEntries(s.edgeMarks.map((m) => [m.id, m]));
     expect([paths.missing.color, paths.missing.width, paths.missing.texts[0]?.text, paths.missing.notEvaluated]).toEqual(["#8c8c8c", 1, "10", undefined]);
-    expect([paths.zero.color, paths.day.color, paths.week.color, paths.long.color]).toEqual(["#8c8c8c", "#8c8c8c", "#2171b5", "#08306b"]);
+    // `day` ends at the end event and `long` starts at the start event: terminal paths in the terminal paint, whatever the colour (WF-02).
+    expect([paths.zero.color, paths.day.color, paths.week.color, paths.long.color]).toEqual(["#8c8c8c", "#c9ced6", "#2171b5", "#c9ced6"]);
+    expect([paths.day.terminal, paths.long.terminal, paths.start.terminal, paths.end.terminal]).toEqual(["end", "start", undefined, undefined]);
     expect(s.legend.keys.some((k) => k.kind === "notEvaluated")).toBe(false);
     expect(s.legend.rows.find((r) => r.kind === "swatches" && r.title.startsWith("Path colour"))).toEqual({
       kind: "swatches", title: "Path colour: median lag (min, h, d)", entries: [
@@ -153,10 +156,11 @@ it("draws the same neutral round dots and recorded classes in Canvas, SVG and PN
   drawScene(ctx, prepareScene(graph, positions, options), { x: 0, y: 0, zoom: 1, width: 1000, height: 500 }, undefined, { cull: false });
   expect(strokes).toContainEqual({ color: "#8c8c8c", width: 10, dash: [0, 30], cap: "round" });
   expect(strokes).toContainEqual({ color: "#8c8c8c", width: 2.5, dash: [0, 7.5], cap: "round" });
-  expect(strokes).toContainEqual({ color: "#08306b", width: 2, dash: [6, 5], cap: "butt" });
+  // The re-added path from the start event: a terminal path, dashed as re-added.
+  expect(strokes).toContainEqual({ color: "#c9ced6", width: 2, dash: [6, 5], cap: "butt" });
   const svg = toSVG({ graph, positions, ...options }, { theme: "default" });
   expect(svg).toMatch(/data-id="start"><path [^>]*stroke="#8c8c8c" stroke-width="10"[^>]*stroke-linecap="round" stroke-dasharray="0 30"/);
-  expect(svg).toMatch(/data-id="long"><path [^>]*stroke="#08306b" stroke-width="2"[^>]*stroke-dasharray="6 5"/);
+  expect(svg).toMatch(/data-id="long"><path [^>]*stroke="#c9ced6" stroke-width="2"[^>]*stroke-dasharray="6 5"/);
   const png = context();
   toPNGCanvas({ graph, positions, ...options }, { theme: "default", createCanvas: (width, height) => ({ width, height, getContext: () => png.ctx }) });
   expect(png.strokes).toContainEqual({ color: "#8c8c8c", width: 10, dash: [0, 30], cap: "round" });

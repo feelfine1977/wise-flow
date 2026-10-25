@@ -16,6 +16,7 @@ import { repositionNodes } from "./routing.js";
 import { type LodRules, type Measure, type Scales, type StyleSpec, buildScales, defaultLod, lodForSize, measureStyle } from "./style.js";
 import { type TextMeasure, estimateTextWidth } from "./text.js";
 import { type ColorScheme, type Theme, defaultTheme, themeColors, themePalettes } from "./theme.js";
+import type { Strings } from "./strings.js";
 import type { ColorToken } from "./tokens.js";
 
 export interface FlowSceneOptions {
@@ -60,6 +61,11 @@ export interface FlowSceneOptions {
    * the font.
    */
   textMeasure?: TextMeasure;
+  /**
+   * The host's wording of some strings over the table's (`Strings`): the
+   * legend's sentence, the caption, the events' and the marks' texts read it.
+   */
+  strings?: Strings;
 }
 
 export interface FlowScene {
@@ -79,6 +85,8 @@ export interface FlowScene {
   colors: Readonly<Record<ColorToken, string>>;
   /** What the scene's texts were measured by; the exports measure the legend and the figure with it. */
   textMeasure: TextMeasure;
+  /** The host's wording the scene was built with (`FlowSceneOptions.strings`). */
+  strings?: Strings;
   scales: Scales;
   /**
    * Overlays whose target (or, for arcs, both endpoints) is a node, a group or
@@ -94,7 +102,7 @@ export interface FlowScene {
   marks: OverlayMark[];
   /** What each placed node looks like, in the graph's order. */
   nodeMarks: NodeMark[];
-  /** What each edge between two placed nodes looks like, in the graph's order; not the edges from a node to itself. */
+  /** What each edge between two placed nodes looks like, in the graph's order (renderers paint them in `paintOrder`); not the edges from a node to itself. */
   edgeMarks: EdgeMark[];
   /** What each placed group looks like, in the graph's order. */
   groupMarks: GroupMark[];
@@ -145,7 +153,7 @@ export function sceneOf(graph: FlowGraph, givenPositions: Positions, options: Fl
   const geometry = placeOverlays(overlays, own ? filterPositions(positions, graph) : positions, { locale, ...(options.overlayGeometry ?? {}), lod }, groupTitles(graph.groups ?? [], positions), measure, theme.text, routes, counts);
   // Elements a hatch covers are outside the scope the host evaluates; the state resolves here and reaches every renderer.
   const outOfScope = new Set(overlays.filter((o) => o.kind === "hatch").map((o) => o.target));
-  const nodes = nodeMarks(graph, positions, scales, { locale, activityLabels, theme: marked, measure, outOfScope });
+  const nodes = nodeMarks(graph, positions, scales, { locale, activityLabels, theme: marked, measure, outOfScope, strings: options.strings });
   const groups = groupMarks(graph, positions, laid.bands, scales, marked);
   // A self-loop that stands for a path takes the path's colour; a tint follows the corners of what it covers.
   const byId = new Map(graph.edges.map((e) => [e.id, e]));
@@ -179,7 +187,8 @@ export function sceneOf(graph: FlowGraph, givenPositions: Positions, options: Fl
     nodeMarks: nodes,
     edgeMarks: edges,
     groupMarks: groups,
-    legend: legendOfScene({ scales, marks, nodeMarks: nodes, edgeMarks: edges, locale, graph }),
+    legend: legendOfScene({ scales, marks, nodeMarks: nodes, edgeMarks: edges, locale, graph, strings: options.strings }),
+    strings: options.strings,
     bounds: unionBoxes([courses.positions.bounds, ...marks.filter((m) => m.inMap).map((m) => m.box)]),
   };
 }

@@ -188,6 +188,13 @@ Test: `tests/core/malformed-input.test.ts` › "scene, marks, legend, figure and
 | `routeMidpoint` | `.` | Not documented. | Returns. |
 | `edgeLabelPoint` | `.` | Not documented. | Returns. |
 | `gatewayGlyph` | `.` | × unless tagged `and` or `or`. | Returns. |
+| `eventGlyph` | `.` | ▶ for an event tagged `start`, ■ for `end`, none otherwise (0.4). | Returns one of the three. |
+| `terminalOf` | `.` | `start`, `end` or none; an end the lookup does not find is no event (0.4). | Returns one of the three. |
+| `paintOrder` | `.` | Every index once, widest first; widths that are not numbers sort as they compare (0.4). | Returns a permutation of the indices. |
+| `pathLabelShown` | `.` | A width or zoom that is not a number shows no label by width, and compares as JavaScript does by zoom (0.4). | Returns a boolean. |
+| `touchesSelection` | `.` | Not documented. | Returns. |
+| `emphasisLabel` | `.` | The mark's own label where the selected activity has no cases or the path no count (0.4). | Returns a readable label or nothing. |
+| `createStrings` | `.` | A host value that is not a string, and a key the table does not know, are left out (0.4). | Returns a function that returns a string for every key. |
 | `nodeCount` | `.` | Not documented. | Returns a readable count or nothing. |
 | `truncateText` | `.` | Not documented. | Returns. |
 | `restOf` | `.` | Not documented. | Returns. |
@@ -375,6 +382,9 @@ Test: `tests/react/MalformedComponents.test.tsx` › "menus, controls, timelines
 
 | Function | Entry | Documented for invalid input | Observed |
 | --- | --- | --- | --- |
+| `insetBoxes` | `./react` | An inset that is not a positive number is no strip (0.4). | Returns. |
+| `cornerBox` | `./react` | Not documented. | Returns. |
+| `panelBoxes` | `./react` | The boxes of the panels inside the element, none outside a map (0.4). | Returns. |
 | `ContextMenu` | `./react` | Not documented. | Renders; nothing logged but React's key warnings for ids missing or repeated (findings). A position that is not finite gives React's style warning (finding). |
 | `AbstractionControls` | `./react` | Not documented. | Renders; nothing logged but React's key warnings for ids missing or repeated (findings). A threshold that is not a number gives React's `NaN` attribute warning (finding). |
 | `TraceTimeline` | `./react` | Invalid timestamps stay in the table and are left off the time axis, with an explanation. | Renders; nothing logged but React's key warnings for ids missing or repeated (findings). Two traces with one case id give React's key warning (finding). |

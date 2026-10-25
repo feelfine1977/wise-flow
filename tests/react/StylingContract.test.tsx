@@ -7,6 +7,7 @@ import { type FlowGraph, type Positions, activityReferences } from "../../src/in
 import { FilterChips, ProcessMap, TraceTimeline, type Trace } from "../../src/react/index";
 import * as kinds from "../core/element-kinds";
 import * as overlayKinds from "../core/overlay-kinds";
+import * as terminals from "../support/terminals";
 import { browserBoxes } from "./panels";
 
 /**
@@ -79,6 +80,14 @@ describe("the styling contract", () => {
     // The focus of paths dims the rest and opens the path list.
     rerender(<div style={{ width: 1200, height: 600 }}><ProcessMap graph={graph} positions={kinds.positions} style={kinds.style} focus="a" lod={everything} {...plain} /></div>);
     await waitFor(() => expect(container.querySelector('[data-wf-state~="dimmed"]')).not.toBeNull());
+    keep(container);
+  });
+
+  it("draws the paths from a start and to an end event as start and end", async () => {
+    const { container } = render(<div style={{ width: 1800, height: 600 }}><ProcessMap graph={terminals.graph} positions={terminals.positions} lod={everything} {...plain} /></div>);
+    await waitFor(() => expect(container.querySelector('[data-wf-part="edge"][data-wf-state~="end"]')).not.toBeNull());
+    expect([...container.querySelectorAll('[data-wf-part="edge"][data-wf-state~="start"]')].map((e) => e.getAttribute("data-id")).sort()).toEqual(["start->a", "start->b"]);
+    expect([...container.querySelectorAll('[data-wf-part="edge"][data-wf-state~="end"]')].map((e) => e.getAttribute("data-id")).sort()).toEqual(["d->end", "e->end"]);
     keep(container);
   });
 

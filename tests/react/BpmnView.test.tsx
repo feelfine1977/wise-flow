@@ -101,7 +101,7 @@ describe("ViewSwitcher", () => {
     const readded = base.edges.some((e) => e.tags?.includes("reconnected"));
     expect(loops || readded).toBe(true);
     expect(base.nodes.filter((n) => n.kind === "event").map((n) => n.tags)).toEqual([["start"], ["end"]]);
-    const keys = [...(loops ? ["↻"] : []), ...(readded ? ["┄"] : []), "○", "◉"];
+    const keys = [...(loops ? ["↻"] : []), ...(readded ? ["┄"] : []), "─", "▶", "■"];
     await waitFor(() => expect(container.querySelectorAll(".wf-views__legend").length).toBe(2));
     expandLegends(container);
     for (const legend of container.querySelectorAll(".wf-views__legend")) {

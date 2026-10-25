@@ -94,6 +94,7 @@ export {
   contrastText,
   hashKey,
   lodAt,
+  pathLabelShown,
   lodForSize,
   buildScales,
   orderedCategorical,
@@ -149,6 +150,7 @@ export {
   readableTokens,
   viewTokens,
   designTokens,
+  instrumentTokens,
   themedColors,
 } from "./tokens.js";
 export type {
@@ -158,6 +160,7 @@ export type {
 export {
   defaultTheme,
   printTheme,
+  instrumentTheme,
   themePresets,
   resolveTheme,
   themeColors,
@@ -171,7 +174,8 @@ export type {
   ColorScheme,
   FrequencyCue,
 } from "./theme.js";
-export { checkTheme, type ThemeDeviation } from "./style.js";
+export { checkTheme, terminalOf, type ThemeDeviation } from "./style.js";
+export { emphasisLabel, touchesSelection } from "./emphasis.js";
 export { readableAt, readableZoom, distinctLines } from "./readable.js";
 export type { Readable, ReadableLevel, ReadableLabel, ReadableRules, CardLevels, NameRoom } from "./readable.js";
 export { stateStyle, markInState, ruleTextRole } from "./rules.js";
@@ -226,6 +230,7 @@ export type {
 
 export {
   t,
+  createStrings,
   metricLabel,
   strings,
 } from "./strings.js";
@@ -251,6 +256,8 @@ export type {
 } from "./metrics.js";
 export type {
   StringKey,
+  Strings,
+  Translate,
 } from "./strings.js";
 
 export {
@@ -460,6 +467,7 @@ export {
 
 export type {
   TextMeasure,
+  TruncateOptions,
 } from "./text.js";
 export {
   estimateTextWidth,
@@ -488,11 +496,13 @@ export {
   edgeLabelPoint,
   edgePoints,
   gatewayGlyph,
+  eventGlyph,
   nodeCount,
   nodeMark,
   edgeMark,
   nodeMarks,
   edgeMarks,
+  paintOrder,
   pathArrowhead,
   lineEnd,
   groupMark,

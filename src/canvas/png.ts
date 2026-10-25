@@ -2,7 +2,7 @@
  * PNG export: the scene drawn with the canvas routines into an offscreen
  * canvas, in the same figure frame and with the same legend as `toSVG`.
  */
-import { type ColorScheme, type EdgeBudget, type FigurePreset, type Readable, type Scene, type ShownEdges, type TextMeasure, type ThemeSetting, budgetEdges, figureFrame, figureMetrics } from "../core/index.js";
+import { type ColorScheme, type EdgeBudget, type FigurePreset, type Readable, type Scene, type ShownEdges, type Strings, type TextMeasure, type ThemeSetting, budgetEdges, figureFrame, figureMetrics } from "../core/index.js";
 import { figureFloor, figureHeading, millimetres } from "../core/figure.js";
 import { type DrawContext, drawLegend, drawScene, fontOf } from "./draw.js";
 import { assertExportable } from "../core/model.js";
@@ -48,6 +48,8 @@ export interface PngOptions {
   scheme?: ColorScheme;
   /** What the figure's texts are measured by (`FlowSceneOptions.textMeasure`). Default `estimateTextWidth`. */
   textMeasure?: TextMeasure;
+  /** The host's wording of some strings over the table's (`Strings`): the legend's sentence, the caption, Start and End. */
+  strings?: Strings;
   /** Canvas factory for environments without a document (Node with a canvas package, tests). */
   createCanvas?: (width: number, height: number) => CanvasLike;
   /** Show the scene context line under the title. Default true. */
@@ -84,7 +86,7 @@ function defaultCreateCanvas(width: number, height: number): CanvasLike {
 export function toPNGCanvas(scene: Scene, options: PngOptions = {}): PngCanvas {
   assertExportable(scene.graph);
   const locale = scene.locale ?? "en";
-  const prepared = prepareScene(scene.graph, scene.positions, { measure: scene.measure, style: scene.style, overlays: scene.overlays, locale, lanes: scene.lanes, selfLoops: scene.selfLoops, activityLabels: scene.activityLabels, lodBySize: false, theme: options.theme ?? "print", scheme: options.scheme, textMeasure: options.textMeasure });
+  const prepared = prepareScene(scene.graph, scene.positions, { measure: scene.measure, style: scene.style, overlays: scene.overlays, locale, lanes: scene.lanes, selfLoops: scene.selfLoops, activityLabels: scene.activityLabels, lodBySize: false, theme: options.theme ?? "print", scheme: options.scheme, textMeasure: options.textMeasure, strings: options.strings });
   const tokens: CanvasTokens = { ...sceneTokens(prepared), ...(options.tokens ?? {}) };
   const { text: textTokens } = prepared.theme;
   const { edgeBudget } = options;

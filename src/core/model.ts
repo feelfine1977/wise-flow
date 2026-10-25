@@ -43,6 +43,12 @@ export interface FlowGroup {
   kind: GroupKind;
   label: string;
   parent?: string;
+  /**
+   * The host's exact numbers of the group as a whole (0.4): `cases`, the
+   * union of the cases that touch it, `events`, `share`. A collapsed stage
+   * takes them instead of its members' maximum, which is only a lower bound.
+   */
+  metrics?: Metrics;
 }
 
 /**

@@ -109,7 +109,7 @@ describe("hits on arcs, self-loops and gateways, where they are drawn", () => {
     expect(top(scene, 250, 20 + 4 + 4.1)).toBeUndefined();
     // Its head, 4 × 8 = 32 in a box of 20: 8 long, its tip on b's side (400), its base at 392 reaching 6.4 to each side,
     // outlined by 1.6. Outwards from a corner of its base, its outline's half (0.8) and the tolerance.
-    expect(path.arrow.size).toBe(32);
+    expect(path.arrow!.size).toBe(32);
     expect(top(scene, 392, 20 + 6.4 + 0.8 + 3.9)).toBe("edge:a->b");
     expect(top(scene, 392, 20 - 6.4 - 0.8 - 3.9)).toBe("edge:a->b");
     expect(top(scene, 392, 20 + 6.4 + 0.8 + 4.1)).toBeUndefined();

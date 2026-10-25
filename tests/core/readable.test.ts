@@ -88,10 +88,10 @@ describe("a card's levels", () => {
     expect(l.origin).toEqual({ x: 16, y: 30.5 });
     // Full at 1.2826 (16.67 px, 9.17 a character, 16 to a line): two lines, block 46 from 7.5.
     expect(lines(l.full)).toEqual([["Record Goods", 16, 20.05], ["Receipt", 16, 36.05], ["1,000", 16, 50.35], ["· 50 %", 50.25, 50.35]]);
-    // Name at 1.8438 (13.18 a character, 11 to a line): "Record", then the rest cut with the ellipsis; block 32 from 14.5.
-    expect(lines(l.name)).toEqual([["Record", 16, 27.05], ["Goods Rece…", 16, 43.05]]);
-    // Line at 2.3931 (17.11 a character): its first 8 characters and the ellipsis; block 16 from 22.5.
-    expect(lines(l.line)).toEqual([["Record G…", 16, 35.05]]);
+    // Name at 1.8438 (13.18 a character, 11 to a line): "Record", then the rest cut after whole words; block 32 from 14.5.
+    expect(lines(l.name)).toEqual([["Record", 16, 27.05], ["Goods…", 16, 43.05]]);
+    // Line at 2.3931 (17.11 a character): its first whole word and the ellipsis; block 16 from 22.5.
+    expect(lines(l.line)).toEqual([["Record…", 16, 35.05]]);
     // Each keeps the card's styles.
     expect(l.line[0]).toMatchObject({ size: 13, weight: 500, role: "nameLine", paint: "ink" });
   });
@@ -334,19 +334,20 @@ describe("names shortened alike", () => {
   const lines = (names: string[], max = 1, width = room) => distinctLines(names.map((name) => ({ name, room: width, font })), max, estimateTextWidth);
 
   it("are told apart on the last line by their start, an ellipsis and the part from the first character that differs", () => {
-    // Both are cut to "Vendor cr…". The part that differs ("invoice", "debit memo") takes the line first, cut where it does not fit, and the start what is left.
-    expect(lines(["Vendor creates invoice", "Vendor creates debit memo"])).toEqual([["Ve…invoice"], ["…debit me…"]]);
-    // Names that differ late keep most of their start.
-    expect(lines(["Vendor creates invoice A1", "Vendor creates invoice A2"])).toEqual([["Vendor c…1"], ["Vendor c…2"]]);
-    // Names that are not shortened alike are left as they are, and so are names that are the same.
-    expect(lines(["Change Price", "Change Quantity", "Change Quantity", "Pay"])).toEqual([["Change Pr…"], ["Change Qu…"], ["Change Qu…"], ["Pay"]]);
+    // Both are cut to "Vendor…" (after whole words). The word where they differ ("invoice", "debit memo") takes the line first,
+    // cut after whole words where it does not fit, and the start what is left, also after whole words: never "Ve…invoice".
+    expect(lines(["Vendor creates invoice", "Vendor creates debit memo"])).toEqual([["…invoice"], ["…debit…"]]);
+    // Names that differ late keep most of their start; the telling part starts at its word.
+    expect(lines(["Vendor creates invoice A1", "Vendor creates invoice A2"])).toEqual([["Vendor…A1"], ["Vendor…A2"]]);
+    // "Change…" alike: told apart by the word that differs; names that are the same stay the same, and a short one as it is.
+    expect(lines(["Change Price", "Change Quantity", "Change Quantity", "Pay"])).toEqual([["…Price"], ["…Quantity"], ["…Quantity"], ["Pay"]]);
     expect(lines(["Pay", "Pay"])).toEqual([["Pay"], ["Pay"]]);
   });
 
   it("are told apart again among those that still coincide, from the next character that differs", () => {
-    // A line of 8: all three are cut to "P xx 12…". From the first character that differs two still go on alike ("…345678…") and
-    // are told apart from the next one that differs, where they part; the third parts at once.
-    expect(lines(["P xx 1234567890 a", "P xx 1234567890 b", "P xx 12zzzz"], 1, 8 * 0.55 * 13)).toEqual([["P xx 1…a"], ["P xx 1…b"], ["P x…zzzz"]]);
+    // A line of 8: all three are cut alike. From the word that differs two still go on alike ("…1234567890") and are told
+    // apart from the next one that differs, where they part; the third parts at once, its telling part from its word.
+    expect(lines(["P xx 1234567890 a", "P xx 1234567890 b", "P xx 12zzzz"], 1, 8 * 0.55 * 13)).toEqual([["P xx…a"], ["P xx…b"], ["P…12zzzz"]]);
   });
 
   it("keep the lines before the last, and the cards' own two lines are told apart like each level's", () => {
@@ -356,8 +357,8 @@ describe("names shortened alike", () => {
     const [first, second] = lines([a, b], 2, 154);
     expect(first[0]).toBe("Closed after the");
     expect(second[0]).toBe(first[0]);
-    expect(first[1]).toMatch(/^second-line review .*…A$/u);
-    expect(second[1]).toMatch(/^second-line review .*…B$/u);
+    expect(first[1]).toMatch(/^second-line review.*…A$/u);
+    expect(second[1]).toMatch(/^second-line review.*…B$/u);
     const graph: FlowGraph = { nodes: [{ id: "a", kind: "activity", label: a }, { id: "b", kind: "activity", label: b }], edges: [] };
     const positions = createPositions({ nodes: { a: { x: 0, y: 0, width: 180, height: 64 }, b: { x: 0, y: 100, width: 180, height: 64 } }, groups: {}, edges: {} }, "given", "RIGHT");
     const [cardA, cardB] = buildScene(graph, positions).nodeMarks;

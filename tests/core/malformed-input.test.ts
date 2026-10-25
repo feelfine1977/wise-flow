@@ -119,7 +119,7 @@ import {
   formatNumber,
   formatPathCount,
   formatShare,
-  gatewayGlyph,
+  gatewayGlyph, eventGlyph, terminalOf, paintOrder, createStrings, pathLabelShown, touchesSelection, emphasisLabel,
   groupMark,
   groupMarks,
   hasTag,
@@ -576,7 +576,7 @@ describe("malformed input at the core entry point", () => {
 
   it(
     "scene, marks, legend, figure and SVG export",
-    search(["buildScene", "budgetEdges", "pathsAtZoom", "nodeMarks", "edgeMarks", "nodeMark", "edgeMark", "edgeColor", "edgePoints", "routeMidpoint", "edgeLabelPoint", "gatewayGlyph", "nodeCount", "truncateText", "restOf", "distinctLines", "fitText", "estimateTextWidth", "sceneLegend", "legendItemHeight", "legendLayout", "figureFrame", "toSVG", "resolveViews", "viewsSharePositions", "stateStyle", "markInState", "ruleTextRole", "pathArrowhead", "lineEnd", "groupMark", "groupMarks", "legendOfScene", "figureCaption"], (calls, c) => {
+    search(["buildScene", "budgetEdges", "pathsAtZoom", "nodeMarks", "edgeMarks", "nodeMark", "edgeMark", "edgeColor", "edgePoints", "routeMidpoint", "edgeLabelPoint", "gatewayGlyph", "nodeCount", "truncateText", "restOf", "distinctLines", "fitText", "estimateTextWidth", "sceneLegend", "legendItemHeight", "legendLayout", "figureFrame", "toSVG", "resolveViews", "viewsSharePositions", "stateStyle", "markInState", "ruleTextRole", "pathArrowhead", "lineEnd", "groupMark", "groupMarks", "legendOfScene", "figureCaption", "eventGlyph", "terminalOf", "paintOrder", "createStrings", "pathLabelShown", "touchesSelection", "emphasisLabel"], (calls, c) => {
       const g = c.graph;
       const L = locale(c);
       const activityLabels = c.rng.chance() ? labels(c) : undefined;
@@ -628,7 +628,8 @@ describe("malformed input at the core entry point", () => {
       if (!s.nodeMarks.length) calls.call("markInState", c, () => markInState(nodeMark(node, box, { color: "#000000", pattern: "solid" }), undefined));
       calls.call("ruleTextRole", c, () => ruleTextRole(c.rng.pick([undefined, "nameLine", "countLine", "share", "count", "label", junkString(c.rng)])));
       const head = calls.call("pathArrowhead", c, () => {
-        const a = pathArrowhead(junkNumber(c.rng));
+        // The default rule has no narrowest path: every width ends in a head.
+        const a = pathArrowhead(junkNumber(c.rng))!;
         must(Number.isFinite(a.size), c, () => `an arrowhead of size ${a.size}`);
         return a;
       });
@@ -644,6 +645,23 @@ describe("malformed input at the core entry point", () => {
       calls.call("routeMidpoint", c, () => routeMidpoint(points));
       calls.call("edgeLabelPoint", c, () => edgeLabelPoint(points));
       calls.call("gatewayGlyph", c, () => gatewayGlyph(node));
+      calls.call("eventGlyph", c, () => must([undefined, "▶", "■"].includes(eventGlyph(node)), c, () => `eventGlyph ${eventGlyph(node)}`));
+      calls.call("terminalOf", c, () => must([undefined, "start", "end"].includes(terminalOf(edge, (id) => g.nodes.find((n) => n.id === id))), c, () => "terminalOf"));
+      calls.call("paintOrder", c, () => {
+        const order = paintOrder(s.edgeMarks);
+        must(order.length === s.edgeMarks.length && new Set(order).size === order.length, c, () => `paintOrder ${order}`);
+      });
+      calls.call("pathLabelShown", c, () => must(typeof pathLabelShown(junkNumber(c.rng), junkNumber(c.rng), c.rng.chance() ? { edgeLabels: { minPx: junkNumber(c.rng) } } : { edgeLabels: junkNumber(c.rng) }, c.rng.chance()) === "boolean", c, () => "pathLabelShown"));
+      const chosen = new Set(c.rng.sample(g.nodes, Math.min(2, g.nodes.length)).map((n) => n.id));
+      calls.call("touchesSelection", c, () => s.edgeMarks.forEach((m) => touchesSelection(m, chosen)));
+      calls.call("emphasisLabel", c, () => s.edgeMarks.forEach((m) => {
+        const text = emphasisLabel(m, chosen, (id) => g.nodes.find((n) => n.id === id), L);
+        must(text === undefined || readable(text), c, () => `emphasisLabel ${text}`);
+      }));
+      calls.call("createStrings", c, () => {
+        const say = createStrings(L, { "legend.title": junkString(c.rng), [junkString(c.rng)]: junkString(c.rng) } as never);
+        must(typeof say("legend.title") === "string" && typeof say("legend.measure", { measure: junkString(c.rng) }) === "string", c, () => "createStrings");
+      });
       calls.call("nodeCount", c, () => must(nodeCount(node, L) === undefined || readable(nodeCount(node, L)), c, () => `nodeCount ${nodeCount(node, L)}`));
       const font = { size: junkNumber(c.rng), weight: c.rng.chance() ? junkNumber(c.rng) : undefined };
       calls.call("truncateText", c, () => truncateText(junkString(c.rng), junkNumber(c.rng), font));

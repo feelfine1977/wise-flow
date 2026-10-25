@@ -8,7 +8,7 @@ import { ANCHOR_TAG, indirectWay } from "./detail.js";
 import { type Locale, formatCount, formatNumber } from "./format.js";
 import { type FlowGraph, type Overlay, hasTag, metric } from "./model.js";
 import { canonicalOverlays, describeOverlay } from "./overlays.js";
-import { type StringKey, t } from "./strings.js";
+import { type StringKey, type Strings, t as translate } from "./strings.js";
 
 /** One statement: the short form beside a slider, the full form for its title and assistive technology. */
 export interface StatementLine {
@@ -36,6 +36,8 @@ export interface DetailStatement {
 
 export interface DetailStatementOptions {
   locale?: Locale;
+  /** The host's wording over the table's (`Strings`). */
+  strings?: Strings;
   /**
    * The marks the abstraction was given, in that order (the graph's own, then
    * those beside it), which the ids of `meta.shown.marksNotShown` count: with
@@ -54,7 +56,7 @@ function share(part: number, whole: number, locale: Locale): string {
 }
 
 /** One or several: the key for one, or the other with the count. */
-const counted = (locale: Locale, count: number, one: StringKey, many: StringKey, vars: Record<string, string> = {}) => t(locale, count === 1 ? one : many, { ...vars, count: formatCount(count, locale) });
+const counted = (locale: Locale, count: number, one: StringKey, many: StringKey, vars: Record<string, string> = {}, strings?: Strings) => translate(locale, count === 1 ? one : many, { ...vars, count: formatCount(count, locale) }, strings);
 
 /**
  * The statements of the detail sliders for a graph `abstract` returned, from
@@ -65,6 +67,8 @@ export function detailStatement(graph: FlowGraph, options: DetailStatementOption
   const shown = graph.meta?.shown;
   if (!shown) return undefined;
   const { locale = "en", labelOf = (id: string) => id } = options;
+  // The host's wording over the table's.
+  const t = (l: Locale, key: StringKey, vars: Record<string, string | number> = {}) => translate(l, key, vars, options.strings);
   const n = (v: number) => formatCount(v, locale);
   const { activities, paths, events } = shown;
   const of = (x: { shown: number; of: number }) => t(locale, "controls.kept", { shown: n(x.shown), total: n(x.of) });
@@ -77,7 +81,7 @@ export function detailStatement(graph: FlowGraph, options: DetailStatementOption
   const rarest = activities.shown <= at.activities + activities.of - (stops[stops.length - 1] ?? 0);
   const activityLine: StatementLine = {
     short: [of(activities), ...(eventShare ? [t(locale, "detail.events", { share: eventShare })] : [])].join(" · "),
-    full: `${t(locale, "detail.activities", { shown: n(activities.shown), of: n(activities.of) })}${eventShare ? t(locale, "detail.carrying", { share: eventShare }) : ""}${hidden > 0 ? (rarest ? counted(locale, hidden, "detail.rarestOne", "detail.rarest") : counted(locale, hidden, "detail.othersOne", "detail.others")) : ""}.`,
+    full: `${t(locale, "detail.activities", { shown: n(activities.shown), of: n(activities.of) })}${eventShare ? t(locale, "detail.carrying", { share: eventShare }) : ""}${hidden > 0 ? (rarest ? counted(locale, hidden, "detail.rarestOne", "detail.rarest", {}, options.strings) : counted(locale, hidden, "detail.othersOne", "detail.others", {}, options.strings)) : ""}.`,
   };
 
   const kept = shown.anchorsOnly ?? 0;
@@ -95,7 +99,7 @@ export function detailStatement(graph: FlowGraph, options: DetailStatementOption
         ? `${t(locale, "detail.pathsShown", { shown: n(paths.shown), of: n(paths.of) })}.`
         : [
             `${t(locale, "detail.paths", { shown: n(paths.shown), of: n(paths.of), frequent: n(shown.byFrequency) })}${kept ? t(locale, "detail.pathsKept", { count: n(kept) }) : ""}.`,
-            ...(shown.indirect ? [counted(locale, shown.indirect, "detail.indirectOne", "detail.indirect")] : []),
+            ...(shown.indirect ? [counted(locale, shown.indirect, "detail.indirectOne", "detail.indirect", {}, options.strings)] : []),
             ...(strongest !== undefined ? [t(locale, "detail.strongestFull", { count: n(strongest) })] : []),
           ].join(" "),
   };
@@ -104,7 +108,7 @@ export function detailStatement(graph: FlowGraph, options: DetailStatementOption
 
   const hiddenMarks = shown.marksNotShown;
   if (hiddenMarks.length) {
-    const short = counted(locale, hiddenMarks.length, "detail.marksOne", "detail.marks");
+    const short = counted(locale, hiddenMarks.length, "detail.marksOne", "detail.marks", {}, options.strings);
     // A mark's id is its kind, its target and its place among the marks given in canonical order.
     const ordered = options.marks ? canonicalOverlays([...options.marks]) : [];
     const marks = hiddenMarks.map((id) => ordered[Number(id.slice(id.lastIndexOf(":") + 1))]).filter((m): m is Overlay => !!m);
@@ -142,6 +146,7 @@ const passages = (e: FlowGraph["edges"][number]) => metric(e, "count", metric(e,
  */
 export function detailNotes(base: FlowGraph, shown: FlowGraph, options: Omit<DetailStatementOptions, "marks"> = {}): Map<string, string> {
   const { locale = "en", labelOf = (id: string) => id } = options;
+  const t = (l: Locale, key: StringKey, vars: Record<string, string | number> = {}) => translate(l, key, vars, options.strings);
   const notes = new Map<string, string[]>();
   const add = (id: string, note: string) => notes.set(id, [...(notes.get(id) ?? []), note]);
   const drawn = new Set(shown.edges.map((e) => e.id));

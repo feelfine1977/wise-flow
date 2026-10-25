@@ -115,10 +115,11 @@ export interface ThemeDeviation {
   /**
    * `text`: text against its ground under 4.5 : 1 (ink on the frequency cue's
    * stripe under 7 : 1). `line`: a line against the paper under 3 : 1 (the
-   * cue's foot under 4.5 : 1). `rampOrder`: the path ramp of a scheme not rising in
+   * cue's foot under 4.5 : 1; the paths from a start and to an end event,
+   * `terminal`, under 1.3 : 1 on the paper or 1.05 : 1 against `line`). `rampOrder`: the path ramp of a scheme not rising in
    * contrast against the paper from stop to stop.
    * `rampStart`: its low end against the paper under 3 : 1. `textSize`,
-   * `strokeWidth`: a table entry under the theme's minimum. `color`: a colour
+   * `strokeWidth`: a table entry under the theme's minimum (a width of 0 draws nothing and is not one). `color`: a colour
    * that is not a literal. `rule`: an entry of a rule that is unknown or out
    * of range (`ruleDeviations`); the rule changes nothing, but an opacity
    * outside 0.2 to 1 is clamped to it. `measure`: a palette of a measure
@@ -152,6 +153,12 @@ const LINES: ColorToken[] = ["lineStrong", "neutral", "focus", "accent"];
 const CUE: ["text" | "line", ColorToken, ColorToken, number][] = [["text", "ink", "cueStripe", 7], ["text", "inkMuted", "cueStripe", 4.5], ["line", "cueFoot", "paper", 4.5]];
 const TEXT_CONTRAST = 4.5;
 const LINE_CONTRAST = 3;
+/**
+ * The paths from a start and to an end event (`terminal`) are pale on
+ * purpose: they stand out from the paper by 1.3 : 1 at least and are not the
+ * grey of the hairlines (`line`); their count labels carry their meaning.
+ */
+const TERMINAL: [ColorToken, number][] = [["paper", 1.3], ["line", 1.05]];
 /** Points per layout unit (a CSS pixel). */
 const PT = 0.75;
 
@@ -168,7 +175,8 @@ function over(color: string, ground?: string): string {
 /**
  * What of a theme falls short, in both schemes: text against its ground at
  * least 4.5 : 1 (ink on the frequency cue's stripe 7 : 1), lines against the
- * paper at least 3 : 1 (the cue's foot 4.5 : 1), the path ramp of the
+ * paper at least 3 : 1 (the cue's foot 4.5 : 1; the pale `terminal` 1.3 : 1,
+ * and apart from `line`), the path ramp of the
  * scheme (`palette.neutral`, in the dark scheme with `darkPalette` over it)
  * monotonic in luminance, each stop with more contrast against the paper than
  * the one before, and its low end at least 3 : 1 against it, no text size or stroke width of the tables under the
@@ -197,6 +205,7 @@ export function checkTheme(theme: Theme): ThemeDeviation[] {
     for (const [text, ground] of TEXT) check("text", `${text} on ${ground}`, c[text], c[ground], TEXT_CONTRAST);
     for (const line of LINES) check("line", `${line} on paper`, c[line], c.paper, LINE_CONTRAST);
     for (const [kind, a, b, minimum] of CUE) check(kind, `${a} on ${b}`, c[a], c[b], minimum);
+    for (const [ground, minimum] of TERMINAL) check("line", `terminal on ${ground}`, c.terminal, c[ground], minimum);
     if (ramp.length) check("rampStart", "palette.neutral", ramp[0], c.paper, LINE_CONTRAST);
     // The measures' ramps: performance from 3 : 1, the shortfall classes above the neutral colour; text keeps 7 : 1 on the cue's accent.
     const palettes = themePalettes(theme, scheme);
@@ -213,7 +222,7 @@ export function checkTheme(theme: Theme): ThemeDeviation[] {
     if (typeof size === "number" && size * PT < theme.minimum.text) out.push({ kind: "textSize", subject: `text.${role}`, value: size * PT, minimum: theme.minimum.text });
   }
   for (const [role, width] of Object.entries(theme.stroke)) {
-    if (width * PT < theme.minimum.stroke) out.push({ kind: "strokeWidth", subject: `stroke.${role}`, value: width * PT, minimum: theme.minimum.stroke });
+    if (width > 0 && width * PT < theme.minimum.stroke) out.push({ kind: "strokeWidth", subject: `stroke.${role}`, value: width * PT, minimum: theme.minimum.stroke });
   }
   return [...out, ...ruleDeviations(theme)];
 }
@@ -298,7 +307,14 @@ export interface LineSpec {
 export interface LodRules {
   /** Zoom level from which node labels are drawn. */
   labels: number;
-  edgeLabels: number;
+  /**
+   * From which zoom paths' labels are drawn, or (0.4) `{ minPx }`: a path's
+   * label is drawn while the path is at least `minPx` screen pixels wide (its
+   * width times the zoom, decided at rest), at every zoom.
+   */
+  edgeLabels: number | { minPx: number };
+  /** Every path that touches a selected activity shows its label, whatever the rule above (`label`, the default), or only as the rule says (`none`). */
+  selectedPaths?: "label" | "none";
   badges: number;
   arcs: number;
   chips: number;
@@ -330,6 +346,18 @@ export interface StyleSpec {
   nodeLine?: LineSpec;
   /** What a path's label leads with before its count; default the count alone. */
   pathLabel?: LineSpec;
+  /**
+   * A path touching a selected activity adds the share of that activity's
+   * cases it carries to its label: "112,924 · 48 %" (0.4). Default false.
+   */
+  selectedShare?: boolean;
+  /**
+   * Start and end events: `statement` writes under an event's label how many
+   * cases start (or end) there and how many of them at an activity the map
+   * shows, from the event's metrics `cases` and `atShown`
+   * (`terminal.statement`: "1,000 cases · 940 (94 %) at a shown activity").
+   */
+  terminals?: { statement?: boolean };
   /**
    * The metric whose share of an activity's cases its frequency cue draws in
    * the accent, from the cue's start (`violationShare`: the cases short); the
@@ -405,11 +433,12 @@ export const diffStyle: StyleSpec = {
 };
 
 /** Which elements are visible at a zoom level. */
-export function lodAt(zoom: number, rules: Partial<LodRules> = {}): Record<keyof LodRules, boolean> {
+export function lodAt(zoom: number, rules: Partial<LodRules> = {}): Record<Exclude<keyof LodRules, "selectedPaths">, boolean> {
   const r = { ...defaultLod, ...rules };
   return {
     labels: zoom >= r.labels,
-    edgeLabels: zoom >= r.edgeLabels,
+    // By width, every zoom draws labels: each path's own width decides (`pathLabelShown`).
+    edgeLabels: typeof r.edgeLabels === "object" ? true : zoom >= r.edgeLabels,
     badges: zoom >= r.badges,
     arcs: zoom >= r.arcs,
     chips: zoom >= r.chips,
@@ -423,8 +452,22 @@ export function lodForSize(nodeCount: number, base: Partial<LodRules> = {}): Lod
   const r = { ...defaultLod, ...base };
   const factor = nodeCount > 400 ? 1.8 : nodeCount > 150 ? 1.4 : nodeCount > 60 ? 1.15 : 1;
   const out = { ...r };
-  for (const k of Object.keys(out) as (keyof LodRules)[]) out[k] = Math.min(2, r[k] * factor);
+  for (const k of Object.keys(out) as (keyof LodRules)[]) {
+    const v = r[k];
+    if (typeof v === "number") (out as Record<string, unknown>)[k] = Math.min(2, v * factor);
+  }
   return out;
+}
+
+/**
+ * Whether a path's label is drawn at a zoom: where it touches a selected
+ * activity (unless `selectedPaths` is `none`); by the rule `edgeLabels`
+ * otherwise, a zoom or the width the path must have on the screen (`minPx`).
+ */
+export function pathLabelShown(width: number, zoom: number, rules: Partial<LodRules>, touchesSelection = false): boolean {
+  if (touchesSelection && rules.selectedPaths !== "none") return true;
+  const rule = rules.edgeLabels ?? defaultLod.edgeLabels;
+  return typeof rule === "object" ? width * zoom >= rule.minPx : zoom >= rule;
 }
 
 // ---------------------------------------------------------------------------
@@ -470,6 +513,13 @@ export interface Scales {
   nodeColor(node: FlowNode): string;
   nodePattern(node: FlowNode): PatternId;
   /**
+   * Whether a node's colour says something: it comes from the node's
+   * category (its stage, kind, layer or tag) or from its value of the node
+   * colour's metric, not from the neutral colour of a node without one. Only
+   * such a node's card carries the colour band.
+   */
+  nodeColored(node: FlowNode): boolean;
+  /**
    * Colour and pattern twin for a categorical key: assigned in stage order
    * (`StyleSpec.stages`, `meta.model.groups`, then the graph's groups and
    * keys), each key from its hashed colour to the next one free, so that no
@@ -486,6 +536,15 @@ export interface Scales {
   pathMetric: string;
   /** A follows edge without a value of `pathMetric`: drawn in the line colour at the thinnest width, labelled "–". */
   notEvaluated(edge: FlowEdge): boolean;
+  /**
+   * A terminal path: a follows edge from a start event (`start`) or to an end
+   * event (`end`), or a sequence flow there that the host tags `start` or
+   * `end`, not added by the host (`added-by-map`). It is recorded
+   * history (the cases that start or end at an activity), drawn solid in the
+   * theme's `terminal` paint whatever the measure, on the width scale of
+   * every path, and is not part of the measure's colour domain.
+   */
+  terminal(edge: FlowEdge): "start" | "end" | undefined;
   /** Colour for a metric value on a named palette and domain. */
   color(value: number, palette: PaletteName, domain: number[]): string;
   legend: LegendItem[];
@@ -601,6 +660,20 @@ export function pathMetricOf(edges: readonly FlowEdge[]): (name: string) => stri
   return (name) => (name === "cases" && counts ? "count" : name);
 }
 
+/**
+ * Whether an edge is a terminal path (`Scales.terminal`): a follows edge from
+ * a start event (`start`) or to an end event (`end`), or a sequence flow there
+ * that the host tags `start` or `end` (a BPMN model's own flows keep their
+ * look); never one tagged `added-by-map`. `node` looks an end up by id.
+ */
+export function terminalOf(edge: FlowEdge, node: (id: string) => FlowNode | undefined): "start" | "end" | undefined {
+  if (hasTag(edge, "added-by-map") || (edge.kind !== "follows" && edge.kind !== "flow")) return undefined;
+  const event = (id: string, tag: string) => { const n = node(id); return n?.kind === "event" && hasTag(n, tag); };
+  if (event(edge.source, "start") && (edge.kind === "follows" || hasTag(edge, "start"))) return "start";
+  if (event(edge.target, "end") && (edge.kind === "follows" || hasTag(edge, "end"))) return "end";
+  return undefined;
+}
+
 /** Build the scales of a graph for a style specification in a theme's palettes; deterministic for the same input. */
 export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, theme: Theme = defaultTheme): Scales {
   const domains: Scales["domains"] = {};
@@ -626,7 +699,11 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
   // An indirect path has no count, as it is no path of the graph: it is not a path not evaluated.
   const indirect = (e: FlowEdge) => hasTag(e, INDIRECT_TAG);
   const addedFlow = (e: FlowEdge) => spec.addedFlowLabel !== undefined && hasTag(e, "added-by-map");
-  const notEvaluated = (e: FlowEdge) => e.kind === "follows" && !addedFlow(e) && !indirect(e) && !(Number.isFinite(metric(e, pathMetric, NaN)) && (!required || Number.isFinite(metric(e, required, NaN))));
+  // Paths from a start and to an end event are recorded history drawn apart from the measure.
+  const byId = new Map(graph.nodes.map((n) => [n.id, n]));
+  const terminal = (e: FlowEdge) => terminalOf(e, (id) => byId.get(id));
+  // A terminal path is evaluated by its count alone: no measure colours it.
+  const notEvaluated = (e: FlowEdge) => e.kind === "follows" && !addedFlow(e) && !indirect(e) && !(Number.isFinite(metric(e, pathMetric, NaN)) && (!required || terminal(e) !== undefined || Number.isFinite(metric(e, required, NaN))));
   let widthFn: (e: FlowEdge) => number = () => theme.stroke.path;
   let samples: { value: number; width: number; floor?: boolean }[] | undefined;
   const upper = widthSpec && (widthSpec.max ?? pathScaleMax(graph, widthSpec.metric));
@@ -678,7 +755,7 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
   let classes: string[] | undefined;
   if (edgeSpec?.metric) {
     const palette = edgeSpec.palette ?? "sequential";
-    const values = follows.filter((e) => !addedFlow(e)).map((e) => metric(e, edgeSpec.metric!, NaN));
+    const values = follows.filter((e) => !addedFlow(e) && terminal(e) === undefined).map((e) => metric(e, edgeSpec.metric!, NaN));
     const domain =
       edgeSpec.domain ??
       (edgeSpec.percentile !== undefined
@@ -706,12 +783,13 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
       return classes ? classes[bins!.filter((b) => v > b).length] : root ? interpolatePalette(edgeStops, root(v)) : rampColor(edgeStops, v, domain);
     };
   }
-  const pathColorFn = (e: FlowEdge) => addedFlow(e) ? neutral : (notEvaluated(e) || indirect(e) ? theme.color.line : edgeColorFn(e));
+  const pathColorFn = (e: FlowEdge) => addedFlow(e) ? neutral : notEvaluated(e) || indirect(e) ? theme.color.line : terminal(e) !== undefined ? theme.color.terminal : edgeColorFn(e);
 
   // Node colour and pattern
   const nodeSpec = spec.nodeColor;
   let nodeColorFn: (n: FlowNode) => string = () => neutral;
   let nodePatternFn: (n: FlowNode) => PatternId = () => "solid";
+  let nodeColoredFn: (n: FlowNode) => boolean = () => false;
   const categoricalKeys = new Set<string>();
   if (nodeSpec?.by) {
     for (const n of graph.nodes) {
@@ -726,6 +804,7 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
       const k = keyOf(n);
       return k === undefined ? "solid" : categorical(k).pattern;
     };
+    nodeColoredFn = (n) => keyOf(n) !== undefined;
   } else if (nodeSpec?.metric) {
     const palette = nodeSpec.palette ?? "sequential";
     const values = graph.nodes.map((n) => metric(n, nodeSpec.metric!, NaN));
@@ -737,6 +816,7 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
       const v = n.metrics?.[nodeSpec.metric!];
       return typeof v === "number" && Number.isFinite(v) ? color(v, palette, domain) : neutral;
     };
+    nodeColoredFn = (n) => Number.isFinite(metric(n, nodeSpec.metric!, NaN));
   }
 
   const legend: LegendItem[] = [];
@@ -766,9 +846,11 @@ export function buildScales(graph: FlowGraph, spec: StyleSpec = defaultStyle, th
     edgeColor: pathColorFn,
     nodeColor: nodeColorFn,
     nodePattern: nodePatternFn,
+    nodeColored: nodeColoredFn,
     categorical,
     pathMetric,
     notEvaluated,
+    terminal,
     color,
     legend,
     domains,

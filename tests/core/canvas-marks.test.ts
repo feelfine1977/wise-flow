@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type FlowNode, type Overlay, type TextMeasure, buildScene, createPositions, defaultTheme, toSVG } from "../../src/index";
+import { type FlowGraph, type FlowNode, type Overlay, type TextMeasure, buildScene, createPositions, defaultTheme, toSVG } from "../../src/index";
 import { type DrawContext, type DrawState, canvasTextMeasure, defaultTokens, drawScene, prepareScene, toPNGCanvas } from "../../src/canvas/index";
 import * as elements from "./element-kinds";
 import { graph, overlays, positions } from "./overlay-kinds";
@@ -236,10 +236,10 @@ describe("Canvas node and edge marks", () => {
 
   it("draws every node kind's outline, band and border from its mark", () => {
     const ops = drawElements();
-    // The start event: a circle of radius 18 on paper in ink, 1 wide; the end event's border is 2 wide.
+    // The start event: a circle of radius 18 on paper outlined in lineStrong, 1 wide; the end event's border is 2 wide.
     expect(ops.filter((o) => o.path === "A18,20,18")).toEqual([
       { op: "fill", path: "A18,20,18", color: "#ffffff", alpha: 1 },
-      { op: "stroke", path: "A18,20,18", color: "#1f1f1f", alpha: 1, width: 1, dash: [] },
+      { op: "stroke", path: "A18,20,18", color: "#8c94a1", alpha: 1, width: 1, dash: [] },
     ]);
     expect(ops.find((o) => o.op === "stroke" && o.path === "A858,20,18")).toMatchObject({ width: 2 });
     // The gateway: a diamond in its box.
@@ -252,8 +252,8 @@ describe("Canvas node and edge marks", () => {
       { op: "fill", path: expect.stringContaining("A796,4,4"), color: "#f6f7f9", alpha: 1 },
       { op: "stroke", path: expect.stringContaining("A796,4,4"), color: "#8c8c8c", alpha: 1, width: 1, dash: [] },
     ]);
-    // Cards: on paper with a 1 wide neutral outline and a band 8 wide in their colour; the re-added activity is dashed.
-    expect(ops.filter((o) => o.op === "fillRect" && o.color === "#8c8c8c").map((o) => o.path)).toEqual(["R100,0,8,40", "R400,0,8,56", "R400,100,8,40"]);
+    // Cards: on paper with a 1 wide neutral outline; the re-added activity is dashed. Without a stage (the neutral colour) they have no band.
+    expect(ops.filter((o) => o.op === "fillRect" && o.color === "#8c8c8c").map((o) => o.path)).toEqual([]);
     expect(startingAt(ops, "M404,0")).toEqual([
       { op: "fill", path: expect.stringContaining("A596,4,4"), color: "#ffffff", alpha: 1 },
       { op: "stroke", path: expect.stringContaining("A596,4,4"), color: "#8c94a1", alpha: 1, width: 1, dash: [] },
@@ -263,13 +263,19 @@ describe("Canvas node and edge marks", () => {
 
   it("draws a card's frequency cue inside its outline, under its band and texts", () => {
     const ops = drawElements(undefined, 1, { ...elements.graph, meta: { cases: 2468 } });
-    // 1,234 of 2,468 cases: the stripe and the foot half of the inner width 180 − 8 − 1 from the band's end.
+    // 1,234 of 2,468 cases: without a stage, no band; the stripe and the foot half of the inner width 180 − 2 × 1 from the outline.
     const card = ops.findIndex((o) => o.op === "stroke" && o.path?.startsWith("M104,0"));
-    expect(ops.slice(card + 1, card + 4)).toEqual([
-      { op: "fillRect", path: "R108,1,85.5,38", color: "#e6e8ec", alpha: 1 },
-      { op: "fillRect", path: "R108,36,85.5,3", color: "#5f6672", alpha: 1 },
-      { op: "fillRect", path: "R100,0,8,40", color: "#8c8c8c", alpha: 1 },
+    expect(ops.slice(card + 1, card + 3)).toEqual([
+      { op: "fillRect", path: "R101,1,89,38", color: "#e6e8ec", alpha: 1 },
+      { op: "fillRect", path: "R101,36,89,3", color: "#5f6672", alpha: 1 },
     ]);
+    expect(ops[card + 3]).toMatchObject({ op: "fillText", text: "Check invoice" });
+    // With a stage, from the band's end: half of 180 − 8 − 1, then the band over the cue.
+    const staged: FlowGraph = { ...elements.graph, meta: { cases: 2468 }, groups: [{ id: "g1", kind: "stage", label: "Invoice" }], nodes: elements.graph.nodes.map((n) => (n.id === "a" ? { ...n, group: "g1" } : n)) };
+    const { ctx, ops: banded } = drawingContext();
+    drawScene(ctx, prepareScene(staged, elements.positions, { style: { ...elements.style, nodeColor: { by: "group" } }, selfLoops: false, lodBySize: false }), { x: 0, y: 0, zoom: 1, width: 1000, height: 600 }, undefined, { cull: false });
+    const at = banded.findIndex((o) => o.op === "stroke" && o.path?.startsWith("M104,0"));
+    expect(banded.slice(at + 1, at + 4).map((o) => o.path)).toEqual(["R108,1,85.5,38", "R108,36,85.5,3", "R100,0,8,40"]);
   });
 
   it("takes the cue's colours of the scene's scheme where a host's tokens leave them out", () => {
@@ -279,7 +285,7 @@ describe("Canvas node and edge marks", () => {
     const cue = (tokens: typeof defaultTokens) => {
       const { ctx, ops } = drawingContext();
       drawScene(ctx, scene, { x: 0, y: 0, zoom: 1, width: 1000, height: 600 }, undefined, { cull: false, tokens });
-      return ops.filter((o) => o.op === "fillRect" && /^R108,(1|36),85.5,/.test(o.path!)).map((o) => o.color);
+      return ops.filter((o) => o.op === "fillRect" && /^R101,(1|36),89,/.test(o.path!)).map((o) => o.color);
     };
     // The dark scheme's stripe and foot.
     expect(cue(host)).toEqual(["#2c3038", "#8f96a3"]);
@@ -292,7 +298,8 @@ describe("Canvas node and edge marks", () => {
     const name = (t: string, at: [number, number], weight = "500") => text(t, at, `${weight} 13px`, "left", "alphabetic");
     const number = (count: string, share: string, x: number, y: number, after: number) => [text(count, [x, y], "600 11px", "left", "alphabetic"), text(share, [after, y], "11px", "left", "alphabetic", "#5b6270")];
     expect(written(drawElements())).toEqual([
-      // The event's label below its circle.
+      // The start event's ▶ in its circle, its label below it.
+      text("▶", [18, 21], "600 15px", "center"),
       text("Start", [18, 53], "11px", "center", "alphabetic"),
       name("Check invoice", [116, 16.05]),
       ...number("1,234", "· –", 116, 30.35, 150.25),
@@ -302,13 +309,15 @@ describe("Canvas node and edge marks", () => {
       ...number("1,500", "· –", 416, 38.35, 450.25),
       // The note's label at 11 px, as on the map.
       text("Ask the vendor twice", [656, 30], "11px"),
+      text("■", [858, 21], "600 15px", "center"),
       text("End", [858, 53], "11px", "center", "alphabetic"),
       name("Re-added", [416, 116.05]),
       ...number("–", "· –", 416, 130.35, 426.05),
       // Edge counts with a halo, 4 above the middle of the route; the flow edge carries its count too.
-      text("1,234", [68, 16], "11px", "center", "alphabetic"),
+      // In painting order: every path is 1 wide, so by id (a->g, s->r, start->a; g->s has no count).
       text("12", [300, 16], "11px", "center", "alphabetic"),
       text("3", [500, 74], "11px", "center", "alphabetic"),
+      text("1,234", [68, 16], "11px", "center", "alphabetic"),
     ]);
     // The constraint edge in the accent, solid, its line ending 2.25 before the route inside its head.
     expect(startingAt(drawElements(), "M364,20")).toEqual([{ op: "stroke", path: "M364,20 L382,20 L382,28 L397.75,28", color: "#b84a00", alpha: 1, width: 1, dash: [] }]);
@@ -322,7 +331,8 @@ describe("Canvas node and edge marks", () => {
     const scene = prepareScene(elements.graph, elements.positions, { style: elements.style, selfLoops: false, lodBySize: false, theme: { ...defaultTheme, text: { ...defaultTheme.text, minScreenPx: 0 } } });
     const { ctx, ops } = drawingContext();
     drawScene(ctx, scene, { x: 0, y: 0, zoom: 0.1, width: 1000, height: 600 }, undefined, { cull: false });
-    expect(written(ops).map((t) => t.text)).toEqual(["+", "Ask the vendor twice"]);
+    // The events' glyphs stay with the gateway's; their labels go with the level of detail at this zoom.
+    expect(written(ops).map((t) => t.text)).toEqual(["▶", "+", "Ask the vendor twice", "■"]);
   });
 
   it("writes names as the scene's measure wrapped and cut them, whatever the context measures", () => {
@@ -342,9 +352,9 @@ describe("Canvas node and edge marks", () => {
     ctx.measureText = (text: string) => ({ width: text.length * (ctx.font.endsWith("Wide") ? 12 : 6) });
     const names = (family: string) => written(drawElements(undefined, 1, long, canvasTextMeasure(family, ctx))).filter((t) => t.font === font("500 13px")).map((t) => t.text);
     // The name has 154 inside the card. The narrow font: 25 a line, the second line 24 and the ellipsis. The same name in
-    // the wide font after it: 12 a line ("Change Approval" is 15), the second line 11 and the ellipsis.
+    // the wide font after it: 12 a line ("Change Approval" is 15), the second line its whole words and the ellipsis.
     expect(names("Narrow")).toEqual(["Change Approval for", "Purchase Order Item of a…", "Re-added"]);
-    expect(names("Wide")).toEqual(["Change", "Approval fo…", "Re-added"]);
+    expect(names("Wide")).toEqual(["Change", "Approval…", "Re-added"]);
   });
 
   it("cuts a label again for a width that rounds to the same whole number", () => {
@@ -389,9 +399,10 @@ describe("Canvas arrowheads and pattern twins from the token table", () => {
     // start → a ends at (100, 20) heading right; s → r ends at (500, 100) heading down.
     const right = "M100,20 L97,22.4 L97,17.6 Z";
     const down = "M500,100 L497.6,97 L502.4,97 Z";
+    // start → a is a terminal path: its head in the terminal paint, as its line.
     expect(ops.filter((o) => o.path === right)).toEqual([
-      { op: "fill", path: right, color: "#8c8c8c", alpha: 1 },
-      { op: "stroke", path: right, color: "#8c8c8c", alpha: 1, width: 0.6, dash: [] },
+      { op: "fill", path: right, color: "#c9ced6", alpha: 1 },
+      { op: "stroke", path: right, color: "#c9ced6", alpha: 1, width: 0.6, dash: [] },
     ]);
     expect(ops.filter((o) => o.path === down).map((o) => o.op)).toEqual(["fill", "stroke"]);
   });
@@ -399,7 +410,7 @@ describe("Canvas arrowheads and pattern twins from the token table", () => {
   it("draws the 6-unit tiles of the pattern twins: lines at 0.6, a dot of radius 1 at 0.7, in the ink", () => {
     const tiles: { size: [number, number]; ops: Op[] }[] = [];
     const scene = prepareScene(elements.graph, elements.positions, { style: elements.style, selfLoops: false, lodBySize: false });
-    const nodes = scene.nodes.map((n) => (n.node.id === "a" ? { ...n, mark: { ...n.mark, pattern: "dots" as const } } : n.node.id === "s" ? { ...n, mark: { ...n.mark, pattern: "diagonal" as const } } : n));
+    const nodes = scene.nodes.map((n) => (n.node.id === "a" ? { ...n, mark: { ...n.mark, band: 8, pattern: "dots" as const } } : n.node.id === "s" ? { ...n, mark: { ...n.mark, band: 8, pattern: "diagonal" as const } } : n));
     const { ctx } = drawingContext();
     const createCanvas = (width: number, height: number) => {
       const tile = drawingContext();

@@ -1,6 +1,6 @@
 {
   "description": "Selectors of the interactive DOM map and the panels around it: every part carries data-wf-part, and where listed data-wf-kind and data-wf-state (space-separated). Removing a part, kind or state is a breaking change. See docs/API.md, section 'Styling contract'.",
-  "states": ["selected", "focused", "hovered", "dimmed", "outOfScope", "reconnected"],
+  "states": ["selected", "focused", "hovered", "dimmed", "outOfScope", "reconnected", "start", "end"],
   "parts": {
     "map": {},
     "node": { "kinds": ["activity", "stage", "gateway", "event", "note"], "states": ["selected", "focused", "hovered", "dimmed", "outOfScope", "reconnected"] },
@@ -11,7 +11,7 @@
     "node-count": {},
     "group": { "kinds": ["stage", "lane", "pool"], "states": ["selected"] },
     "group-label": {},
-    "edge": { "kinds": ["follows", "constraint", "flow"], "states": ["selected", "focused", "hovered", "dimmed", "reconnected"] },
+    "edge": { "kinds": ["follows", "constraint", "flow"], "states": ["selected", "focused", "hovered", "dimmed", "reconnected", "start", "end"] },
     "edge-path": {},
     "edge-label": {},
     "mark": { "kinds": ["badge", "chip", "arc", "selfLoop", "hatch"], "states": ["hovered"] },

@@ -31,6 +31,8 @@ export interface OverlayShape {
   label?: Box;
   /** Minimum zoom at which the shape is visible. */
   minZoom: number;
+  /** A self-loop drawn as a pill (`OverlayGeometryOptions.selfLoop`): its box is the pill, its label in the middle. */
+  pill?: true;
 }
 
 export interface OverlayGeometryOptions {
@@ -42,6 +44,14 @@ export interface OverlayGeometryOptions {
   chipHeight?: number;
   /** The language the labels are written in, which their boxes are measured in. Default `en`. */
   locale?: Locale;
+  /**
+   * How a self-loop is drawn: an arc at the card's top-right corner with its
+   * label beside it (`glyph`, the default), or one hairline pill with "↻ 17 %"
+   * in it (`pill`, 0.4), which costs the card no room of its name.
+   */
+  selfLoop?: "glyph" | "pill";
+  /** Where a self-loop's pill sits: centred on the card's top border (`border`, the default) or just inside it (`inside`). */
+  badgeAnchor?: "inside" | "border";
 }
 
 export interface OverlayGeometry {
@@ -162,7 +172,10 @@ export function placeOverlays(
   const arcCount = new Map<string, number>();
   let mapChips = 0;
   const boxOf = (id: string): Box | undefined => positions.nodes[id] ?? positions.groups[id];
-  const looped = new Set(ordered.filter((o) => o.kind === "selfLoop").map((o) => o.target));
+  // A self-loop as a pill takes its label's width at the top-right corner; the badges keep left of it.
+  const pills = options.selfLoop === "pill";
+  const pillWidth = (o: Overlay) => Math.max(badge, measure(selfLoopLabel(o, locale) ?? "↻", fonts.badge) + 2 * pillLayout.padding);
+  const loopRoom = new Map(ordered.filter((o) => o.kind === "selfLoop").map((o) => [o.target, pills ? pillWidth(o) + 4 : 22]));
   // The nodes in an R-tree, built for the first arc; the labels on the map placed so far.
   let tree: RBush<Item> | undefined;
   const within = (b: Box): Item[] =>
@@ -179,7 +192,7 @@ export function placeOverlays(
         const box = boxOf(o.target);
         if (!box) return;
         // From the top-right corner leftwards, 2 above the box; left of the self-loop where the node has one.
-        const end = badgeEnd.get(o.target) ?? box.x + box.width - (looped.has(o.target) ? 22 : 0);
+        const end = badgeEnd.get(o.target) ?? box.x + box.width - (loopRoom.get(o.target) ?? 0);
         const width = Math.max(badge, measure(badgeLabel(o, locale), fonts.badge) + 2 * pillLayout.padding);
         badgeEnd.set(o.target, end - width - 4);
         const b = clampBox({ x: end - width, y: box.y - badge - 2, width, height: badge });
@@ -193,6 +206,15 @@ export function placeOverlays(
       case "selfLoop": {
         const box = boxOf(o.target);
         if (!box) return;
+        if (pills) {
+          // One pill at the top-right corner, its middle on the top border (or just inside it).
+          const width = pillWidth(o);
+          const y = options.badgeAnchor === "inside" ? box.y + 2 : box.y - badge / 2;
+          const b = clampBox({ x: box.x + box.width - width, y, width, height: badge });
+          labels.push(b);
+          placed[index] = { id, overlay: o, kind: o.kind, ...b, labelX: b.x + b.width / 2, labelY: b.y + b.height / 2, label: b, minZoom: lod.selfLoops, pill: true };
+          return;
+        }
         const r = 14;
         const ax = box.x + box.width - 18;
         const ay = box.y + 12;
@@ -271,6 +293,7 @@ export function placeOverlays(
   // A self-loop's label right of its corner, or above the loop, or left of it, each a step higher where that is taken.
   for (const index of loops) {
     const shape = placed[index]!;
+    if (shape.pill) continue;
     const box = boxOf(shape.overlay.target)!;
     const text = selfLoopLabel(shape.overlay, locale);
     if (!text) continue;

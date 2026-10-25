@@ -80,8 +80,12 @@ const hueDistance = (a: string, b: string) => {
   return Math.min(d, 360 - d);
 };
 
-/** Paths with a count of the scene's path metric (cases, transitions where a graph gives no cases): follows edges and sequence flows. */
-const counted = (scene: FlowScene) => scene.edgeMarks.filter((m) => (m.kind === "follows" || m.kind === "flow") && Number.isFinite(m.edge.metrics?.[scene.scales.pathMetric]));
+/**
+ * Paths with a count of the scene's path metric (cases, transitions where a graph gives no cases): follows edges and
+ * sequence flows, but not the terminal paths from Start and to End, which are pale on purpose (the `terminal` paint,
+ * a hairline gated at 1.3 : 1, its count label carrying its meaning; see `terminals.test.ts`).
+ */
+const counted = (scene: FlowScene) => scene.edgeMarks.filter((m) => (m.kind === "follows" || m.kind === "flow") && !m.terminal && Number.isFinite(m.edge.metrics?.[scene.scales.pathMetric]));
 
 describe("paths in the default style", () => {
   for (const scheme of SCHEMES) {

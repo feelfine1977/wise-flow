@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type ElementText, type FlowGraph, buildScene, createPositions, edgeLabelPoint, routeMidpoint } from "../../src/index";
+import { type ElementText, type FlowGraph, buildScene, createPositions, defaultTheme, edgeLabelPoint, routeMidpoint } from "../../src/index";
 import { graph, positions, style } from "./element-kinds";
 
 const neutral = "#8c8c8c";
@@ -22,16 +22,20 @@ describe("node marks", () => {
   it("resolves one mark per placed node with shape, colours, band, border and texts", () => {
     const base = { color: neutral, pattern: "solid", fill: "paper", reconnected: false, outOfScope: false };
     expect(scene.nodeMarks.map(strip)).toEqual([
-      // A start event: a circle in its box outlined 1 wide, its label below it at 11 px, 4 below the box, cut to 96.
+      // A start event: a circle in its box outlined 1 wide in lineStrong, ▶ in its middle at 15 px semibold, its label below
+      // it at 11 px, 4 below the box, cut to 96.
       {
-        ...base, id: "start", kind: "event", box: positions.nodes.start, shape: "circle", radius: 18, stroke: { paint: "ink", width: 1 },
-        texts: [text({ role: "label", text: "Start", x: 18, y: 2 + 36 + 4 + 11, size: 11, anchor: "middle", baseline: "alphabetic", maxWidth: 96, lod: "labels" })],
+        ...base, id: "start", kind: "event", box: positions.nodes.start, shape: "circle", radius: 18, stroke: { paint: "lineStrong", width: 1 },
+        texts: [
+          text({ role: "glyph", text: "▶", x: 18, y: 21, size: 15, weight: 600, anchor: "middle" }),
+          text({ role: "label", text: "Start", x: 18, y: 2 + 36 + 4 + 11, size: 11, anchor: "middle", baseline: "alphabetic", maxWidth: 96, lod: "labels" }),
+        ],
       },
-      // An activity's card: a 1 wide neutral outline, corners of 4, an 8 wide band, the name 16 in at 13 px medium and the
+      // An activity's card: a 1 wide neutral outline, corners of 4, no band (it has no stage), the name 16 in at 13 px medium and the
       // number line: the cases in ink and semibold, then their share, muted, 4 after them (the estimate: 5 × 0.55 × 11).
       // The graph has no cases of its log, so no share and no cue. The block of 30 lies in the 40 − 2 − 3 high middle: 2.5 below the outline.
       {
-        ...base, id: "a", kind: "activity", box: positions.nodes.a, shape: "box", radius: 4, stroke: { paint: "lineStrong", width: 1 }, band: 8,
+        ...base, id: "a", kind: "activity", box: positions.nodes.a, shape: "box", radius: 4, stroke: { paint: "lineStrong", width: 1 },
         texts: [
           text({ role: "nameLine", text: "Check invoice", x: 116, y: name(3.5), size: 13, weight: 500, baseline: "alphabetic", lod: "labels" }),
           text({ role: "countLine", text: "1,234", x: 116, y: number(3.5), size: 11, weight: 600, baseline: "alphabetic", lod: "labels" }),
@@ -45,7 +49,7 @@ describe("node marks", () => {
       },
       // A stage: the same card with a semibold name; its block lies (56 − 2 − 3 − 30) / 2 below the outline.
       {
-        ...base, id: "s", kind: "stage", box: positions.nodes.s, shape: "box", radius: 4, stroke: { paint: "lineStrong", width: 1 }, band: 8,
+        ...base, id: "s", kind: "stage", box: positions.nodes.s, shape: "box", radius: 4, stroke: { paint: "lineStrong", width: 1 },
         texts: [
           text({ role: "nameLine", text: "Payment", x: 416, y: name(11.5), size: 13, weight: 600, baseline: "alphabetic", lod: "labels" }),
           text({ role: "countLine", text: "1,500", x: 416, y: number(11.5), size: 11, weight: 600, baseline: "alphabetic", lod: "labels" }),
@@ -57,14 +61,17 @@ describe("node marks", () => {
         ...base, id: "n", kind: "note", box: positions.nodes.n, shape: "box", radius: 4, fill: "surface", stroke: { paint: "value", width: 1 },
         texts: [text({ role: "label", text: "Ask the vendor twice", x: 656, y: 30, size: 11, maxWidth: 136 })],
       },
-      // An end event has a 2 wide border.
+      // An end event has a 2 wide border (1 in the instrument theme) and ■ in its middle.
       {
-        ...base, id: "end", kind: "event", box: positions.nodes.end, shape: "circle", radius: 18, stroke: { paint: "ink", width: 2 },
-        texts: [text({ role: "label", text: "End", x: 858, y: 2 + 36 + 4 + 11, size: 11, anchor: "middle", baseline: "alphabetic", maxWidth: 96, lod: "labels" })],
+        ...base, id: "end", kind: "event", box: positions.nodes.end, shape: "circle", radius: 18, stroke: { paint: "lineStrong", width: 2 },
+        texts: [
+          text({ role: "glyph", text: "■", x: 858, y: 21, size: 15, weight: 600, anchor: "middle" }),
+          text({ role: "label", text: "End", x: 858, y: 2 + 36 + 4 + 11, size: 11, anchor: "middle", baseline: "alphabetic", maxWidth: 96, lod: "labels" }),
+        ],
       },
       // A re-added activity is dashed; without cases its number line shows a dash for both.
       {
-        ...base, id: "r", kind: "activity", box: positions.nodes.r, shape: "box", radius: 4, stroke: { paint: "lineStrong", width: 1, dash: [4, 3] }, band: 8, reconnected: true,
+        ...base, id: "r", kind: "activity", box: positions.nodes.r, shape: "box", radius: 4, stroke: { paint: "lineStrong", width: 1, dash: [4, 3] }, reconnected: true,
         texts: [
           text({ role: "nameLine", text: "Re-added", x: 416, y: name(103.5), size: 13, weight: 500, baseline: "alphabetic", lod: "labels" }),
           text({ role: "countLine", text: "–", x: 416, y: number(103.5), size: 11, weight: 600, baseline: "alphabetic", lod: "labels" }),
@@ -110,7 +117,8 @@ describe("edge marks", () => {
     const arrow = { size: 12, box: 20, length: 5, width: 8, overhang: 3.75, outline: 1, perWidth: 4 };
     expect(scene.edgeMarks.map(strip)).toEqual([
       // The label sits 4 above the middle of the route.
-      { id: "start->a", kind: "follows", points: positions.edges["start->a"].points, color: neutral, width: 1, arrow, reconnected: false, texts: [count("1,234", 68, 16)] },
+      // A path from the start event is a terminal path: in the pale terminal paint, solid, labelled with its count.
+      { id: "start->a", kind: "follows", points: positions.edges["start->a"].points, color: defaultTheme.color.terminal, width: 1, arrow, reconnected: false, terminal: "start", texts: [count("1,234", 68, 16)] },
       // Without a route: a straight line between the two boxes; flow edges carry their count too.
       { id: "a->g", kind: "flow", points: [{ x: 280, y: 20 }, { x: 320, y: 20 }], color: neutral, width: 1, arrow, reconnected: false, texts: [count("12", 300, 16)] },
       // Constraint edges: in the accent, solid; without a count no label.

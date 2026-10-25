@@ -277,6 +277,14 @@ function overlayMark(s: OverlayShape, locale: Locale, theme: Theme, measure: Tex
     }
     case "selfLoop": {
       const label = selfLoopLabel(o, locale);
+      // A pill (`OverlayGeometryOptions.selfLoop`): paper outlined by a hairline in the strong line colour, "↻ 17 %" in the ink.
+      if (s.pill) return {
+        ...mark,
+        radius: s.height / 2,
+        fill: { paint: "paper" },
+        stroke: { paint: "lineStrong", width: strokeTokens.badge },
+        texts: label ? [{ text: label, x: s.x + s.width / 2, y: middle, size: textTokens.badge.size, weight: textTokens.badge.weight, anchor: "middle", baseline: "middle", paint: "ink", halo: false }] : [],
+      };
       return {
         ...mark,
         path: s.path,

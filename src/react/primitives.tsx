@@ -119,6 +119,33 @@ export function ZoomControl({ zoom, locale = "en", onZoomIn, onZoomOut, onFit, f
  * panels, React Flow's panels and the BPMN view's; the map's overview among
  * them unless `overview` is false.
  */
+/** A corner of a map, where a panel is placed. */
+export type PanelCorner = "top-left" | "top-right" | "bottom-left" | "bottom-right";
+
+/**
+ * The room a host keeps along the sides of the map (`fitInsets`), as boxes
+ * like the panels' over the area `size`: a strip of each inset's width along
+ * its side, so that the fit keeps clear of them as of a panel.
+ */
+export function insetBoxes(size: { width: number; height: number }, insets: Partial<Insets> | undefined): Box[] {
+  if (!insets) return [];
+  const { width, height } = size;
+  const at = (v: number | undefined) => (Number.isFinite(v) && v! > 0 ? v! : 0);
+  return [
+    { x: 0, y: 0, width, height: at(insets.top) },
+    { x: width - at(insets.right), y: 0, width: at(insets.right), height },
+    { x: 0, y: height - at(insets.bottom), width, height: at(insets.bottom) },
+    { x: 0, y: 0, width: at(insets.left), height },
+  ].filter((b) => b.width > 0 && b.height > 0);
+}
+
+/** The box of a panel `width` × `height` in a corner of the area `size`, `gap` from its sides. */
+export function cornerBox(corner: PanelCorner, size: { width: number; height: number }, width: number, height: number, gap: number = spaceTokens.unit * 4): Box {
+  const x = corner.endsWith("left") ? gap : size.width - width - gap;
+  const y = corner.startsWith("top") ? gap : size.height - height - gap;
+  return { x, y, width, height };
+}
+
 export function panelBoxes(area: Element, within: Element = area, overview = true): Box[] {
   const origin = area.getBoundingClientRect();
   return [...within.querySelectorAll(".wf-overlay-panel, .react-flow__panel, .wf-bpmn__panel, .wf-bpmn__navigation")]
@@ -135,8 +162,8 @@ export function panelBoxes(area: Element, within: Element = area, overview = tru
  * `spaceTokens.unit * 4` between a panel and the fitted bounds; clear of the
  * map's overview too unless `overview` is false.
  */
-export function clearOfPanels(area: Element, bounds: Box, padding: number, zoom: { minZoom?: number; maxZoom?: number } = {}, within: Element = area, overview = true): Insets {
-  return panelInsets(panelBoxes(area, within, overview), area.getBoundingClientRect(), bounds, { ...zoom, padding, gap: spaceTokens.unit * 4 });
+export function clearOfPanels(area: Element, bounds: Box, padding: number, zoom: { minZoom?: number; maxZoom?: number } = {}, within: Element = area, overview = true, extra: readonly Box[] = []): Insets {
+  return panelInsets([...panelBoxes(area, within, overview), ...extra], area.getBoundingClientRect(), bounds, { ...zoom, padding, gap: spaceTokens.unit * 4 });
 }
 
 /**
@@ -147,12 +174,12 @@ export function clearOfPanels(area: Element, bounds: Box, padding: number, zoom:
  * instead of the panels; `readable` the zoom the map opens at on the start,
  * where fitted it would be smaller (default `viewTokens.openingZoom`).
  */
-export function openingIn(area: Element, bounds: Box, nodes: readonly FlowNode[], positions: Pick<Positions, "nodes" | "direction">, options: { padding: number; minZoom?: number; maxZoom?: number; insets?: Partial<Insets>; readable?: number }): OpeningView {
+export function openingIn(area: Element, bounds: Box, nodes: readonly FlowNode[], positions: Pick<Positions, "nodes" | "direction">, options: { padding: number; minZoom?: number; maxZoom?: number; insets?: Partial<Insets>; readable?: number; extra?: readonly Box[] }): OpeningView {
   const { width, height } = area.getBoundingClientRect();
   const scale = Math.min(viewTokens.overview.width / Math.max(bounds.width, 1), viewTokens.overview.height / Math.max(bounds.height, 1));
   return openingView(bounds, { width, height }, {
     ...options,
-    panels: options.insets ? [] : panelBoxes(area, area, false),
+    panels: options.insets ? [] : [...panelBoxes(area, area, false), ...(options.extra ?? [])],
     gap: spaceTokens.unit * 4,
     start: processStart(nodes, positions),
     direction: positions.direction,

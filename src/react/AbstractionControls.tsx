@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { type AbstractOptions, type DetailPositions, type DetailStatement, type Locale, type PartInView, formatCount, formatShare, inViewText, t } from "../core/index.js";
+import { type AbstractOptions, type DetailPositions, type DetailStatement, type Locale, type PartInView, formatCount, formatShare, inViewText, type StringKey, type Strings, t as translate } from "../core/index.js";
 import { part } from "./parts.js";
 import { Button } from "./primitives.js";
 
@@ -10,6 +10,8 @@ export interface KeptCount {
 }
 
 export interface AbstractionControlsProps {
+  /** The host's wording over the library's (`Strings`): the panel's title, labels and buttons (`controls.*`, `detail.*`). */
+  strings?: Strings;
   value: AbstractOptions;
   /** Called with the detail shares when a slider moves (`activityDetail`, `pathDetail`; thresholds and `keepConnected` dropped). */
   onChange: (value: AbstractOptions) => void;
@@ -58,7 +60,9 @@ function stepTo(key: string, stops: number[], at: number): number | undefined {
  * protected deviation and the paths withheld at the zoom where there are any;
  * the stage toggle (semantic zoom) and the table toggle.
  */
-export function AbstractionControls({ value, onChange, locale = "en", hasStages = false, view, onViewChange, counts, positions, statement, drawn, inView, onHighlightKept, onAnnounce }: AbstractionControlsProps) {
+export function AbstractionControls({ value, onChange, locale = "en", hasStages = false, view, onViewChange, counts, positions, statement, drawn, inView, onHighlightKept, onAnnounce, strings }: AbstractionControlsProps) {
+  // The host's wording over the table's.
+  const t = (l: Locale, key: StringKey, vars: Record<string, string | number> = {}) => translate(l, key, vars, strings);
   const id = useId();
   const collapsed = value.collapse === "all" || (Array.isArray(value.collapse) && value.collapse.length > 0);
   // Each slider's stops and where it stands: positions by rank, otherwise the shares in per cent.

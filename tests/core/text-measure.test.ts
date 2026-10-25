@@ -152,8 +152,8 @@ describe("a scene built with a text measure", () => {
   it("shortens and wraps node labels by it, so that the SVG export, the Canvas map and the PNG export write the same", () => {
     const scene = buildScene(elements.graph, elements.positions, options);
     const texts = (id: string) => scene.nodeMarks.find((m) => m.id === id)!.texts.map((t) => t.text);
-    // A start event's label below it has 96 at 11 px: "Start" fits. The note leaves 136 at 11 px: eleven and the ellipsis.
-    expect(texts("start")).toEqual(["Start"]);
+    // A start event's ▶, then its label below it with 96 at 11 px: "Start" fits. The note leaves 136 at 11 px: eleven and the ellipsis.
+    expect(texts("start")).toEqual(["▶", "Start"]);
     expect(texts("n")).toEqual(["Ask the ven…"]);
     // The activity's name has 154 at 13 px (180 less the padding 24 and the outline 2 × 1): "Check invoice" is 169, so it wraps.
     expect(texts("a")).toEqual(["Check", "invoice", "1,234", "· –"]);
@@ -187,7 +187,7 @@ describe("a scene built with a text measure", () => {
     // A re-added activity is outlined dashed over its box: 156.
     expect(name("r")).toEqual([156, 1]);
     // An event's label has 96 below it, a note's 136.
-    const room = (id: string) => scene.nodeMarks.find((m) => m.id === id)!.texts[0].maxWidth;
+    const room = (id: string) => scene.nodeMarks.find((m) => m.id === id)!.texts.find((t) => t.role === "label")!.maxWidth;
     expect([room("start"), room("n")]).toEqual([96, 136]);
   });
 

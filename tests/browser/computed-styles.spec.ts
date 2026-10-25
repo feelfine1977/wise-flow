@@ -125,6 +125,16 @@ import { fileURLToPath } from "node:url";
  * gateways and the end event break into two lines (`tspan`s), since bpmn-js
  * now lays an external label out in the bounds its diagram interchange gives,
  * which the fixture's modeler measured a little narrower ("Paid" in 22 units).
+ * They were recorded once more for the instrument look (0.4, M1). Matched
+ * element by element: every number is drawn in `tabular-nums lining-nums` (272
+ * elements); the start and end events are outlined in `lineStrong` (18) and
+ * write ▶ or ■ in a `span.wf-node__glyph` (18 added); the 5 cards without a
+ * stage lose their `span.wf-node__band`; in the scene with a selected
+ * activity the 4 labels of the paths touching it are shown whatever the zoom
+ * rule (`text.wf-edge-label` without `wf-lod-edge-labels`); and React Flow's
+ * edges come in painting order, the widest first, so the paths without an id
+ * in their selector meet another path first (their stroke, width, head,
+ * opacity and stacking). No other style changed.
  */
 const RECORD = fileURLToPath(new URL("./computed-styles.json", import.meta.url));
 

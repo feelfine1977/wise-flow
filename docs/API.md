@@ -679,6 +679,8 @@ export interface StyleSpec { edgeWidth?: ChannelSpec; edgeColor?: ColorSpec; nod
   stages?: readonly string[];   // the host's full stage list in stage order: categorical colours follow it
   measure?: Measure;            // the measure the style shows: the legend states its sentence
   addedFlowLabel?: true | string; // opt in for edges tagged added-by-map: default EN/DE legend words, or the host's string
+  terminals?: { statement?: boolean };   // a start or an end event writes its cases and those at a shown activity under its label (0.4)
+  selectedShare?: boolean;         // a path touching a selected activity adds the share of its cases it carries: "112,924 · 48 %" (0.4)
   frequencyColorLegend?: true;  // opt in to a frequency sentence naming the actual width and alternate colour metric/classes
   nodeLine?: LineSpec;          // what an activity's number line leads with; default its cases, then their share
   pathLabel?: LineSpec;         // what a path's label leads with before its count; default the count alone
@@ -706,9 +708,11 @@ export const shortfallStyle: StyleSpec; // width ← cases, colour ← violation
 export const diffStyle: StyleSpec;      // width ← cases, colour ← delta_violationShare on the diverging palette
 export function buildScales(g: FlowGraph, spec?: StyleSpec, theme?: Theme): Scales;   // in the theme's palettes, default `defaultTheme`
 export interface Scales { edgeWidth(e): number; edgeColor(e): string; nodeColor(n): string; nodePattern(n): PatternId;
+  nodeColored(n): boolean;         // the colour says something (a category or a value), not the neutral fallback: the card has a band (0.4)
   categorical(key): CategoricalEntry; color(value, palette, domain): string; legend: LegendItem[]; domains;
   pathMetric: string;              // the count paths are labelled with and their width reads: cases, or count
-  notEvaluated(e): boolean }       // a follows edge without a value of pathMetric
+  notEvaluated(e): boolean;        // a follows edge without a value of pathMetric
+  terminal(e): "start" | "end" | undefined }   // a path from a start or to an end event, not added-by-map (0.4)
 export interface CategoricalEntry { key: string; color: string; pattern: PatternId; index: number; label?: string }   // label: the group's
 export function orderedCategorical(keys: Iterable<string>, theme?: Theme): Map<string, CategoricalEntry>;
 export type LegendItem =   // `title` is a string key for `t` (it was typed `string`)
@@ -727,6 +731,11 @@ export function hexToRgb(hex: string): [number, number, number];
 export function interpolatePalette(stops: readonly string[], t: number): string;   // piecewise linear through the stops; t clamped to [0, 1]
 export function hashKey(key: string): number;   // stable 32-bit FNV-1a hash; categorical colours and pattern twins hash their keys
 export interface LodRules { labels; edgeLabels; badges; arcs; chips; hatch; selfLoops }  // minimum zoom per element
+  // 0.4: edgeLabels: number | { minPx: number } (a path's label while it is minPx screen pixels wide or more);
+  //      selectedPaths?: "label" | "none" (every path touching a selected activity shows its label; default "label")
+export function pathLabelShown(width: number, zoom: number, rules: Partial<LodRules>, touchesSelection?: boolean): boolean;   // the one rule every renderer reads (0.4)
+export function touchesSelection(mark: Pick<EdgeMark, "edge">, selected: ReadonlySet<string>): boolean;   // (0.4)
+export function emphasisLabel(mark, selected: ReadonlySet<string>, nodeOf: (id: string) => FlowNode | undefined, locale?): string | undefined;   // "112,924 · 48 %" (0.4)
 export function lodAt(zoom: number, rules?: Partial<LodRules>): Record<keyof LodRules, boolean>;
 export function lodForSize(nodeCount: number, base?: Partial<LodRules>): LodRules;
 export function patternDefs(prefix?: string, ink?: string, outOfScope?: string, look?: PatternLook): string;   // <pattern> tiles of the twins and the hatching; ink and outOfScope default to colorTokens.ink and .outOfScope, look to patternTokens
@@ -1012,9 +1021,16 @@ than 3 ends in a head 4 times its width (`perWidth`, rounded up: a path 8 wide
 in a head of 32, 8 long and 14.4 wide with its outline), so the head is at
 least 1.8 times as wide as its line at every width. The line ends three
 quarters of the head's length before the tip (`overhang` 3.75 of 20), inside
-the head, and the tip lies on the route's end: `pathArrowhead(width)` gives
-the head of a path (`EdgeMark.arrow`), `lineEnd(points, arrow)` where its line
-ends. The SVG export defines the marker `wf-arrow` for the head of 12 and
+the head, and the tip lies on the route's end: `pathArrowhead(width, rule)`
+gives the head of a path (`EdgeMark.arrow`), `lineEnd(points, arrow)` where its
+line ends. The rule is the theme's (`Theme.arrowhead.edge`, 0.4): the
+`instrument` preset grows the head by 5 per unit of width, so that its base is
+twice its path's width (a head of size s is 0.4 s wide), and gives a path
+thinner than 2 (`minWidth`) no head at all, its line then ending on the
+route's end; the default and print themes keep 4 and no minimum. Every
+renderer paints the paths the widest first and the thinnest on top, equal
+widths by id (`paintOrder`, 0.4; the SVG export drew them in id order), so
+that a thin path crossing a trunk stays visible. The SVG export defines the marker `wf-arrow` for the head of 12 and
 `wf-arrow-<size>` for each larger head it draws; the React Flow map defines
 `wf-edge-arrow-<size>` with the same `arrowMarker` (it used React Flow's
 `MarkerType.ArrowClosed` at 12); the Canvas map and the PNG export draw the
@@ -1044,6 +1060,9 @@ export interface Theme {
   stroke: { [role in keyof typeof strokeTokens]: number };
   opacity: { [role in keyof typeof opacityTokens]: number };   // the tints are tint, groupFill, bandFill, bandOddFill
   space: { unit: number; steps: readonly number[] };
+  size: { band: number; shadow: string; darkShadow?: string };   // the card's stage band (8; 0 none; --wf-size-band), the panels' shadow, the dark one
+  readable: { nameChars: number };                        // a card shows its name while a line holds this many characters and "…" (8)
+  arrowhead: { edge: Arrowhead };                         // the paths' head rule: size, perWidth (4; instrument 2), minWidth (0; instrument 2)
   frequencyCue: FrequencyCue;                             // where a card shows its share of all cases; default "both"
   density: "comfortable" | "compact";                     // the renderers draw comfortable whatever it says
   minimum: { text: number; stroke: number };              // pt at the layout's own size (1 layout unit = 0.75 pt)
@@ -1052,8 +1071,10 @@ export interface Theme {
 export type FrequencyCue = "both" | "behind" | "bottom" | "none";   // the stripe behind the texts, the foot along the bottom edge
 export const defaultTheme: Theme;                          // the token table: the default look
 export const printTheme: Theme;                            // defaultTheme with printTokens over it; no dark scheme
+export const instrumentTheme: Theme;                       // defaultTheme with instrumentTokens over it: the WISE look, light and dark (0.4)
+export const instrumentTokens: { color; dark; palette; darkPalette; patterns; font; radius; size; stroke; opacity; frequencyCue; arrowhead };
 export const themePresets: Readonly<Record<ThemePreset, Theme>>;
-export type ThemePreset = "default" | "print";
+export type ThemePreset = "default" | "print" | "instrument";
 export type ThemeOverrides = /* any part of Theme, each table entry on its own */ & { preset?: ThemePreset };
 export type ThemeSetting = ThemePreset | ThemeOverrides;   // a whole Theme is a ThemeOverrides too
 export function resolveTheme(setting?: ThemeSetting, variables?: ThemeOverrides): Theme;   // preset, then variables, then the setting
@@ -1164,9 +1185,14 @@ one card that the scene resolves (`NodeMark`):
 - a box of the theme's `radius.node` (4) on the paper, outlined 1 wide
   (`stroke.node`, a stage's `stroke.stage`) in the neutral `lineStrong`, with
   no shadow; a re-added card is dashed;
-- the stage once, as the patterned band along the left edge (`band`, 8 wide,
-  in the stage's colour with its pattern twin); neither the outline nor the
-  fill takes the stage's colour;
+- the stage once, as the patterned band along the left edge (`band`, the
+  theme's `size.band` wide: 8, 6 in `instrument`, 0 for none; in the stage's
+  colour with its pattern twin); neither the outline nor the fill takes the
+  stage's colour. Only a card whose colour says something has the band
+  (`Scales.nodeColored`: its stage, or another category or value of the
+  style's `nodeColor`); a card without a stage, whose colour would be the
+  neutral fallback, has none (0.4: it had a grey band). The stylesheet reads
+  `--wf-size-band` where a card has no mark of its own;
 - the name on up to two lines (`nameLine`, `activityName`: 13 px, 500; a
   stage's name in `stageLabel`, 600), wrapped by the scene's text measure;
   a longer name ends its second line in an ellipsis, and the mark's `title`
@@ -1181,9 +1207,10 @@ one card that the scene resolves (`NodeMark`):
   missing value is "–". `activityLabels.showCounts: false` leaves the number
   line out without changing the card's size;
 - the frequency cue (`cue`): a flat stripe behind the texts and a foot 3 high
-  along the bottom edge, both from the inner left edge (after the band) and
-  as long as the share times the inner width (the box less the band and the
-  outline on the right). The stripe is `cueStripe`, on which the ink keeps
+  along the bottom edge, both from the inner left edge (after the band, or
+  inside the outline on a card without one) and as long as the share times
+  the inner width (the box less the band, or the outline, and the outline on
+  the right). The stripe is `cueStripe`, on which the ink keeps
   7 : 1, the foot `cueFoot`, 4.5 : 1 on the paper. `Theme.frequencyCue` places
   it: `"both"` (default), `"behind"` (the stripe), `"bottom"` (the foot) or
   `"none"`. A card with a share of 0, or without one (no cases, or no
@@ -1205,7 +1232,15 @@ is the box every renderer draws.
 
 A stage node's card shows its cases and their share; how many activities it
 holds ("4 activities") is in its description (`describeNode`), which is its
-accessible name and its hover title.
+accessible name and its hover title. Where the cases are a lower bound (a
+collapsed stage's largest member, `metricBasis` `atLeast`), the card prints
+them compactly, "≥ 211,379 · ≥ 84 %" (0.4; `MetricFormatOptions.compactBasis`),
+while descriptions, tooltips and tables keep "at least 211,379"; the legend
+explains the mark ("≥ a lower bound: …", key `atLeast`) only where a card
+carries it. A host that knows a stage's exact numbers gives them on the group
+(`FlowGroup.metrics`: `cases`, the union of the cases touching it, `events`,
+`share`); `collapseGroups` takes them instead of the bound, and the card prints
+plain numbers (the share is `cases` over `meta.cases` where none is given).
 
 Stage groups are outlined by a solid hairline (`line`, 1 wide) without a
 tint (`opacity.groupFill` 0; a theme that sets it tints them again), their
@@ -1214,6 +1249,46 @@ and 2 wide); their label sits 4 below the circle, shortened to 96
 (`dimensionTokens.eventLabel`) with the whole label as `title`. The
 interactive map draws no grid of dots behind the map unless
 `backgroundGrid` is set.
+
+### Start, End and the terminal paths (0.4)
+
+An event tagged `start` or `end` is the process's Start or End. Every
+renderer draws it as its circle outlined in `lineStrong` (`stroke.eventStart`,
+`stroke.eventEnd`: 1 and 2, 1 and 1 in `instrument`), with ▶ (`start`) or ■
+(`end`) in the ink in its middle (`ElementText` role `glyph`, text role
+`eventGlyph`, 15 px, 600; `eventGlyph(node)`) and its label below it: the
+node's own `label`, or "Start" / "End" (`terminal.start`, `terminal.end`;
+German "Beginn" / "Ende") where it has none. With
+`style.terminals.statement` the event writes, on up to two muted lines under
+its label (160 wide, `dimensionTokens.eventStatement`), how many cases start
+or end there and how many of them at an activity the map shows, from its
+metrics `cases` and `atShown` (`terminal.statement`: "1,000 cases · 940
+(94 %) at a shown activity"). The glyph is shed with the gateways' glyphs, the
+label and the statement with the events' labels (see "Readable at every
+zoom").
+
+A terminal path is a follows edge from a start event or to an end event, or
+a sequence flow there that the host tags `start` or `end` (a BPMN model's own
+untagged flows keep their look), that the host did not add (`added-by-map`;
+`terminalOf(edge, node)`): `Scales.terminal(edge)` names it
+`"start"` or `"end"` and its mark carries `EdgeMark.terminal`. It is recorded
+history, the cases that start or end at an activity (an adapter weights it
+by them), so it is drawn solid, in the theme's `terminal` paint (light
+`#c9ced6`, dark `#4b515b`; `instrument` dark `#3a4049`) in every measure, on
+the width scale every path shares, and labelled with its count alone (no
+measure's value leads it). It is not part of the measure's colour domain, is
+never "not evaluated" for lacking a measure's value, and dims with the rest.
+The legend keys it ("─ Paths from Start and to End: cases by their first and
+last activity", `legend.terminal`) beside the events' keys (▶, ■). Its
+accessible description counts cases, not transitions ("path Start → Create
+PO. 800 cases begin with this activity", `terminal.describeStart`,
+`terminal.describeEnd`), and an event without a label is named "Start" or
+"End" there too (`nodeName`). The
+interactive map's path carries the state `start` or `end` (see "Styling
+contract"). The opted-in host flows (`StyleSpec.addedFlowLabel` and the tag
+`added-by-map`) stay neutral round dots: they are flows the map adds, not
+recorded history. `checkTheme` gates `terminal` as a hairline: 1.3 : 1 on
+the paper and apart from `line`.
 
 ## Readable at every zoom
 
@@ -1364,6 +1439,22 @@ Both maps then scale and shed texts by the same rule; boxes keep the size
 the layout reserved, so paths still meet them. A host that wants smaller
 text on the screen than 9 px sets a smaller floor; 0 turns the rule off.
 
+## Paths around a selection (0.4)
+
+With `lod.edgeLabels: { minPx: 2 }` a path's label is drawn while the path
+is at least 2 screen pixels wide (its width times the zoom; the interactive
+map decides at rest, the Canvas map and the exports at their zoom); a number
+keeps the zoom rule. Every path touching a selected activity shows its label
+whatever the rule (`lod.selectedPaths`, default `"label"`; `"none"` keeps the
+rule), and with `style.selectedShare` the label adds the share of the selected
+activity's cases the path carries (`emphasisLabel`: "800 · 89 %"; "≥" before a
+lower bound), in the interactive and the Canvas map. A backward path
+(`EdgeMark.backward`) is drawn `Theme.stroke.backwardStep` thinner (never
+under `pathMin`) at `Theme.opacity.backward` while no activity it touches is
+selected, and lifted to its width, head and opacity then (`EdgeMark.lift`);
+the default theme has a step of 0 and an opacity of 1, the `instrument` preset
+1 and 0.6. Exports draw nothing selected.
+
 ## Overlays
 
 ```ts
@@ -1400,6 +1491,17 @@ run leftwards from its top-right corner, 4 apart, and start left of a
 self-loop it carries. The labels' boxes are measured in the language they
 are written in, `OverlayGeometryOptions.locale` (default `en`; `buildScene`
 passes the scene's locale).
+
+A self-loop is an arc at the card's top-right corner with its label beside
+it by default. With `OverlayGeometryOptions.selfLoop: "pill"` (0.4) it is one
+pill instead, `badgeSize` tall, outlined by a hairline in `lineStrong` on the
+paper with "↻ 17 %" in the ink at the badge's 11/600, its right end at the
+card's and its middle on the card's top border (`badgeAnchor: "border"`, the
+default) or 2 inside it (`"inside"`): it costs the name no room, the badges
+run left of it, it scales with the readable floor like the other pills
+(`OverlayShape.pill`), and every renderer draws it from its mark.
+`ProcessMapProps.overlayGeometry` passes the options to the map (compared by
+value); `buildScene`, `prepareScene` and `toSVG` take them as before.
 
 A chip of a group (a measure that belongs to a stage) is placed after the
 badges and the self-loops: in the group's title row, ending at its chip
@@ -1683,10 +1785,33 @@ export type Locale = "en" | "de";
 export function formatCount(v, locale?), formatNumber(v, decimals?, locale?), formatShare(v, locale?),
   formatDelta(v, locale?), formatHours(v, locale?), formatDays(v, locale?), formatCompact(v, locale?),
   formatPathCount(v, locale?);
-export function t(locale: Locale, key: StringKey, vars?): string;
+export function t(locale: Locale, key: StringKey, vars?, overrides?: Strings): string;   // overrides: the host's wording over the table (0.4)
+export type Strings = Partial<Record<StringKey, string>>;   // a host's wording by key, with the table's {placeholders} (0.4)
+export type Translate = (key: StringKey, vars?) => string;
+export function createStrings(locale: Locale, overrides?: Strings): Translate;   // `t` in a locale with the host's wording, as one function (0.4)
 export const strings: Record<Locale, Record<StringKey, string>>;   // the table `t` reads: every key in English and German
 export function metricLabel(locale: Locale, metric: string): string;
 ```
+
+**The host's wording (0.4).** A host words the map's sentences itself
+without forking the table: `strings` replaces a key's EN or DE text with its
+own, which takes the same `{placeholders}`; a key the table does not know and
+a value that is not a string are left out. `FlowSceneOptions.strings` (and so
+`FlowScene.strings`), `ExportOptions.strings` (`toSVG`), `PngOptions.strings`
+(`toPNG`), `PrepareOptions.strings` (`prepareScene`), `LegendProps.strings`,
+`AbstractionControlsProps.strings` and `ProcessMapProps.strings` take it; the
+scene builds its legend rows, the caption, Start and End and the marks' texts
+with it, so the strip, the expanded key, the Canvas legend and both exports
+print the same: `strings={{ "legend.measure": "Frequency · {unit}",
+"legend.shareOf": "share of {total} cases" }}` prints "Frequency · cases ·
+share of 251,734 cases". The detail panel (`controls.*`, the statements'
+`detail.*`), the descriptions of terminal paths (`terminal.describeStart`,
+`terminal.describeEnd`) and the caption's terminal sentence
+(`export.terminals`) read it too. The interactive map compares it by value, so
+an object written in place does not build the scene again. Keys whose text
+`metrics.ts` composes (a channel's title, a metric's name) are not reached.
+`ProcessMapProps.hideAttribution` (0.4, default false) hides React Flow's
+credit for a host that credits it elsewhere.
 
 The numbers follow one set of rules, in English and German:
 
@@ -2865,6 +2990,35 @@ Additions only, except the keyboard route for Enter.
   `map.instructions` names every keyboard route.
 
 
+## Changes in 0.4 against 0.3 (the instrument look)
+
+- `theme="instrument"` (`instrumentTheme`, `instrumentTokens`): the WISE look,
+  light and dark, passing `checkTheme`; `Theme.size`, `Theme.readable`,
+  `Theme.arrowhead`; colour role `terminal`.
+- A card's band only where its colour says something (`Scales.nodeColored`).
+- Start and End with ▶ / ■ and their names; terminal paths (`Scales.terminal`,
+  `terminalOf`, `EdgeMark.terminal`, contract states `start`/`end`), from
+  follows edges and from host-tagged sequence flows.
+- The host's wording (`strings`, `Strings`, `createStrings`, `t` with
+  overrides) on the scene, the map, its panels and the exports;
+  `hideAttribution`.
+- Names shortened after whole words (`TruncateOptions.words`).
+- Panel placement (`legendPosition`, `controlsPosition`, `overviewCorner`),
+  `fitInsets` added to the panels' room by default (`mode`), `minimap:
+  "overflow"`; `insetBoxes`, `cornerBox`, `panelBoxes`.
+- Labels by width on the screen (`lod.edgeLabels: { minPx }`), around a
+  selection (`lod.selectedPaths`, `style.selectedShare`, `emphasisLabel`),
+  backward paths a step thinner until selected (`EdgeMark.lift`).
+- Heads from the theme with a narrowest path (`Arrowhead.minWidth`; breaking
+  for readers of marks: `EdgeMark.arrow` is optional), paths painted the
+  widest first (`paintOrder`).
+- The self-loop as a pill on the border (`OverlayGeometryOptions.selfLoop`,
+  `badgeAnchor`; `ProcessMapProps.overlayGeometry`).
+- "≥" on a collapsed stage's card, exact host stage numbers
+  (`FlowGroup.metrics`), legend key `atLeast`.
+- Exports in the instrument look with the caption's terminal sentence; a map
+  follows `data-theme` on the nearest element around it.
+
 ## Abstraction identity and interaction notes
 
 `abstract` and `collapseGroups` preserve response `focus` and `paths` so a focused
@@ -2939,7 +3093,8 @@ SVG and Canvas PNG exports include the canonical activity key even when the colo
 ```ts
 export type TextMeasure = (text: string, font: { size: number; weight?: number }) => number;
 export const estimateTextWidth: TextMeasure;   // 0.55 em per character, a full em for CJK, kana, Hangul, full-width forms and emoji
-export function truncateText(text: string, maxWidth: number, font: { size: number; weight?: number }, measure?: TextMeasure): string;
+export function truncateText(text: string, maxWidth: number, font: { size: number; weight?: number }, measure?: TextMeasure, options?: TruncateOptions): string;
+export interface TruncateOptions { words?: boolean }   // after whole words where one fits (0.4)
 export function wrapText(text: string, width: number, font: { size: number; weight?: number }, measure?: TextMeasure): string[];
 export function restOf(text: string, kept: readonly string[]): string;   // the rest of a text after the lines kept before the last
 export function fitText(t: MarkText, measure?: TextMeasure): string;
@@ -2976,7 +3131,14 @@ the name needs more (`wrapLines`, an internal rule over `wrapText` and
 
 `truncateText` keeps the longest start of a text that fits with an ellipsis,
 at least one character (a width over the limit by less than a millionth, a
-rounding, fits). `wrapText` puts words on lines at most `width` wide (at
+rounding, fits); with `{ words: true }` the start ends after a whole word
+("Vendor…", never "Vendor cr…"), and only where no whole word fits is the
+first word cut between characters. A card's name is shortened by words (0.4),
+on its card and at every readable level, and two names shortened alike are
+told apart by the word where they differ ("…invoice", "…debit…"; by
+characters only where words leave them alike). Chips, legend rows and figure
+texts keep the character cut. The readable ladder's name rule keeps the
+theme's `readable.nameChars` characters (8). `wrapText` puts words on lines at most `width` wide (at
 least the font's size) and breaks a word wider than a line between
 characters; `wrapActivityText(value, width, fontSize?, measure?)`,
 `activityLabelLines(node, options, width, locale?, measure?)` (the card's two
@@ -3043,7 +3205,9 @@ export interface NodeMark { id: string; kind: NodeKind; node: FlowNode; box: Box
   color: string; pattern: PatternId; fill: MarkPaint; stroke: { paint: MarkPaint; width: number; dash?: number[] }; band?: number;
   cue?: NodeCue; texts: ElementText[]; reconnected: boolean; outOfScope: boolean; title?: string; opacity?: number }
 export interface EdgeMark { id: string; kind: EdgeKind; edge: FlowEdge; points: XY[]; color: string; width: number; dash?: number[];
-  arrow: Arrowhead;                // the head at the route's end (`pathArrowhead(width)`); the line ends at `lineEnd(points, arrow)`
+  arrow?: Arrowhead;               // the head at the route's end (`pathArrowhead(width, theme.arrowhead.edge)`); none under the rule's minWidth (0.4); the line ends at `lineEnd(points, arrow)`
+  terminal?: "start" | "end";      // a path from a start or to an end event (`Scales.terminal`), in the terminal paint (0.4)
+  lift?: { width: number; arrow?: Arrowhead; opacity?: number };   // how it is drawn while an activity it touches is selected (0.4)
   backward?: boolean;              // a path against the reading direction, drawn below the flow it returns over
   texts: ElementText[]; reconnected: boolean; notEvaluated?: boolean; opacity?: number;   // opacity: line, arrowhead and label
   addedFlow?: boolean;             // opted-in host-added flow: neutral round dots; dash lengths resolved in layout units
@@ -3051,8 +3215,9 @@ export interface EdgeMark { id: string; kind: EdgeKind; edge: FlowEdge; points: 
 export interface CourseLabel { at: XY; side: XY }   // a label beside `at` on its course, on the side the unit vector `side` points to
 export interface PathCourses { positions: Positions; backward: ReadonlySet<string>; labels: ReadonlyMap<string, CourseLabel> }
 export function pathCourses(g: FlowGraph, p: Positions, o: { width: (e: FlowEdge) => number; bands?: ReadonlySet<string> }): PathCourses;
-export function pathArrowhead(width: number, rule?: Arrowhead): Arrowhead;   // the rule's size, or perWidth × width rounded up where more
-export function lineEnd(points: readonly XY[], arrow: Arrowhead): XY;        // the route's end moved back by the head's overhang
+export function pathArrowhead(width: number, rule?: Arrowhead): Arrowhead | undefined;   // the rule's size, or perWidth × width rounded up where more; none under rule.minWidth (0.4)
+export function lineEnd(points: readonly XY[], arrow: Arrowhead | undefined): XY;        // the route's end moved back by the head's overhang; the end itself without a head
+export function paintOrder(marks: readonly { width: number; id: string }[]): number[];   // the order every renderer paints paths in: the widest first, equal widths by id (0.4)
 export type BoxSide = "top" | "right" | "bottom" | "left";
 export interface GroupMark { id: string; kind: GroupKind; group: FlowGroup; box: Box; color: string; pattern: PatternId; band?: LaneBand;
   radius: number; fill: MarkFill; stroke: { paint: MarkPaint; width: number; dash?: number[]; sides?: BoxSide[] };
@@ -3647,6 +3812,22 @@ In development the hook logs what `checkTheme` finds, once per finding.
 
 ## Controls and panels
 
+**Placement (0.4).** `legendPosition` (default `bottom-right`) and
+`controlsPosition` (default `top-left`) put the legend and the detail panel in
+a corner (`PanelCorner`), on the interactive and on the Canvas map; the key of
+full activity names takes the side the legend leaves. `overviewCorner` puts the
+overview in a corner. `fitInsets` is room a host keeps beside the panels — a
+drawer over the map's right side, `{ right: 300 }` — and the fit keeps clear
+of both (`mode: "add"`, the default from 0.4; `mode: "replace"` makes the
+insets the only room kept, as up to 0.3, and is what the Canvas map does in
+0.4). `panelBoxes(area)`, `insetBoxes(size, insets)` and
+`cornerBox(corner, size, width, height)` are exported from `wise-flow/react`.
+`minimap: "overflow"` shows the library's overview (the cards' outlines and
+the part in view, part `overview`) whenever part of the interactive map is
+out of view at rest, in `overviewCorner` or `top-right`, and never React
+Flow's minimap; `minimap: true` keeps React Flow's minimap; the Canvas map
+keeps its own opening overview.
+
 The DOM map, the Canvas map and the BPMN view share one zoom control and one
 set of panel primitives, styled through the tokens and carrying the data
 attributes of the styling contract.
@@ -4032,7 +4213,10 @@ The interactive DOM map (`<ProcessMap/>` with the React Flow renderer) and the
 panels around it carry data attributes a host stylesheet can select: every part
 has `data-wf-part`, and where the table lists them `data-wf-kind` and
 `data-wf-state`. The state is a space-separated list of `selected`, `focused`,
-`hovered`, `dimmed`, `outOfScope` and `reconnected`; select one with `~=`. The
+`hovered`, `dimmed`, `outOfScope` and `reconnected`, and on a terminal path
+`start` or `end` (0.4: the path from a start event or to an end event,
+`EdgeMark.terminal`; the same words as the events' tags, and like
+`reconnected` not an interactive state); select one with `~=`. The
 classes the elements had before stay; they are not part of the contract.
 
 CSS written against these selectors changes only the interactive DOM map and the panels around it. It does not change the Canvas map (used automatically above 2,000 elements), SVG or PNG exports, or the BPMN diagram. Anything that must look the same everywhere belongs in the theme or a rule.
@@ -4048,7 +4232,7 @@ CSS written against these selectors changes only the interactive DOM map and the
 | `node-count` | the number line of a node: its cases, then their share | | |
 | `group` | a group box or lane band | `stage`, `lane`, `pool` | `selected` |
 | `group-label` | the label of a group | | |
-| `edge` | a path between two nodes (SVG group) | `follows`, `constraint`, `flow` | `selected`, `focused`, `hovered`, `dimmed`, `reconnected` |
+| `edge` | a path between two nodes (SVG group) | `follows`, `constraint`, `flow` | `selected`, `focused`, `hovered`, `dimmed`, `reconnected`, `start`, `end` |
 | `edge-path` | the drawn line of a path | | |
 | `edge-label` | the count label of a path | | |
 | `mark` | a deviation mark of the map or of a legend (SVG group); a `tint` is the background of its node, and the BPMN diagram's marks carry no attributes | `badge`, `chip`, `arc`, `selfLoop`, `hatch` | `hovered` |

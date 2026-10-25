@@ -7,14 +7,14 @@ import type { LaneBand } from "./lanes.js";
 import { type EdgeKind, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type GroupKind, type NodeKind, hasTag, metric } from "./model.js";
 import { RECONNECTED_TAG } from "./aggregate.js";
 import { indirectWay } from "./detail.js";
-import { describeTimes } from "./describe.js";
-import { t } from "./strings.js";
+import { describeTimes, nodeName } from "./describe.js";
+import { type Strings, t } from "./strings.js";
 import { type RuleSet, type RuleState, type RuleTextRole, ruleDash, rulePaint, ruleRadius, ruleSet, ruleText, ruleTextRole, ruleWidth } from "./rules.js";
 import type { CourseLabel, PathCourses } from "./courses.js";
 import type { CardLevels } from "./readable.js";
 import { chipAnchor } from "./overlay-geometry.js";
 import type { MarkFill, MarkPaint, MarkText } from "./overlay-marks.js";
-import { type LineSpec, type PatternId, type Scales, tinted } from "./style.js";
+import { type LineSpec, type PatternId, type Scales, type StyleSpec, tinted } from "./style.js";
 import { type TextMeasure, estimateTextWidth, truncateText, wrapLines } from "./text.js";
 import { type Theme, defaultTheme } from "./theme.js";
 import { type Arrowhead, arrowheadExtent, arrowheadTokens, dashTokens, dimensionTokens } from "./tokens.js";
@@ -102,7 +102,12 @@ export interface NodeMark {
   pattern: PatternId;
   fill: MarkPaint;
   stroke: { paint: MarkPaint; width: number; dash?: number[] };
-  /** Colour band of `band` width along the left edge, in `color` with its pattern twin. */
+  /**
+   * Colour band of `band` width along the left edge, in `color` with its
+   * pattern twin: on a card whose colour says something (`Scales.nodeColored`,
+   * its stage), as wide as the theme's `size.band`; none on a card without
+   * a stage or with a band of 0.
+   */
   band?: number;
   /** An activity's or a stage's frequency cue, drawn under its texts; none without a share or at a share of 0. */
   cue?: NodeCue;
@@ -127,8 +132,8 @@ export interface EdgeMark {
   points: XY[];
   color: string;
   width: number;
-  /** The arrowhead at the end, as wide as the line needs (`pathArrowhead`). */
-  arrow: Arrowhead;
+  /** The arrowhead at the end, as wide as the line needs (`pathArrowhead`); none on a path thinner than the rule's `minWidth`, whose line then ends on its route's end. */
+  arrow?: Arrowhead;
   dash?: number[];
   /** The count label at `edgeLabelPoint`, where the edge has a count; "–" on a path not evaluated; "via 2 activities not shown" on an indirect path. */
   texts: ElementText[];
@@ -139,10 +144,23 @@ export interface EdgeMark {
   notEvaluated?: boolean;
   /** An opted-in, host-added flow: neutral round dots, distinct from re-added recorded paths. */
   addedFlow?: boolean;
+  /**
+   * A terminal path (`Scales.terminal`): from a start event (`start`) or to
+   * an end event (`end`), drawn solid in the theme's `terminal` paint and
+   * labelled with its count alone, whatever the measure.
+   */
+  terminal?: "start" | "end";
   /** The whole path's opacity (its line, arrowhead and label), where a theme's rule sets one. */
   opacity?: number;
   /** A path against the reading direction, drawn below the flow it returns over (`pathCourses`). */
   backward?: boolean;
+  /**
+   * How the path is drawn while an activity it touches is selected, where
+   * that differs (0.4): a backward path is drawn a step thinner and fainter
+   * (`Theme.stroke.backwardStep`, `Theme.opacity.backward`) and lifted to its
+   * width, head and opacity here.
+   */
+  lift?: { width: number; arrow?: Arrowhead; opacity?: number };
 }
 
 interface NodeMarkOptions {
@@ -163,6 +181,12 @@ interface NodeMarkOptions {
   line?: LineSpec;
   /** The metric whose share of the cases the cue draws in the accent (`StyleSpec.cueAccent`), and its stripe's and foot's paints. */
   accent?: { metric: string; stripe?: MarkPaint; foot: MarkPaint };
+  /** Whether a card carries the colour band: its colour says something (`Scales.nodeColored`). Default true. */
+  banded?: boolean;
+  /** What a start or an end event writes under its label (`StyleSpec.terminals`). */
+  terminals?: StyleSpec["terminals"];
+  /** The host's wording over the table's (`Strings`). */
+  strings?: Strings;
 }
 
 /**
@@ -181,6 +205,11 @@ function leadOf(element: FlowNode | FlowEdge, line: LineSpec, locale: Locale): s
     next: elementMetric(element, line.nextMetric ?? (line.metric.startsWith("mean") ? "meanNextHours" : "medianNextHours"), locale),
   });
   return line.format && line.format !== "value" ? t(locale, `measure.${line.format}`, { value }) : value;
+}
+
+/** Glyph of a start event (▶) and of an end event (■); none of another event. */
+export function eventGlyph(node: FlowNode): string | undefined {
+  return hasTag(node, "start") ? "▶" : hasTag(node, "end") ? "■" : undefined;
 }
 
 /** Glyph of a gateway: + for AND, ○ for OR, × otherwise. */
@@ -299,11 +328,20 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
   const line = (paint: MarkPaint, width: number) => outline(rulePaint(set?.stroke, undefined, paint, colors, options.color), ruleWidth(set, width), dash);
   switch (node.kind) {
     case "event": {
-      // The label sits below the circle, shortened to its width.
+      // A start event's ▶ and an end event's ■ in the middle of the circle; the label sits below it, shortened to its width.
       const label = textTokens.eventLabel;
       const size = styled(label, set, "label").size;
-      const text = fitted(write(ink(node.label, cx, box.y + box.height + space.unit * 2 + size, label.size, { role: "label", anchor: "middle", baseline: "alphabetic", maxWidth: dimensionTokens.eventLabel, lod: "labels" })), measure);
-      return mark("circle", Math.min(box.width, box.height) / 2, line("ink", hasTag(node, "end") ? strokeTokens.eventEnd : strokeTokens.eventStart), [text], "paper", undefined, text.text === node.label ? undefined : node.label);
+      const end = hasTag(node, "end");
+      const glyph = eventGlyph(node);
+      const name = nodeName(node, locale, options.strings);
+      const y = box.y + box.height + space.unit * 2 + size;
+      const text = fitted(write(ink(name, cx, y, label.size, { role: "label", anchor: "middle", baseline: "alphabetic", maxWidth: dimensionTokens.eventLabel, lod: "labels" })), measure);
+      const texts = glyph ? [write(ink(glyph, cx, cy + 1, textTokens.eventGlyph.size, { role: "glyph", weight: textTokens.eventGlyph.weight, anchor: "middle" })), text] : [text];
+      // The host's statement: how many cases start or end here, and how many of them at an activity the map shows.
+      const statement = glyph && options.terminals?.statement ? terminalStatement(node, locale, options.strings) : undefined;
+      // On up to three lines of its width under the label, muted.
+      if (statement) wrapLines(statement, dimensionTokens.eventStatement, label, 3, measure).forEach((l, i) => texts.push(write(ink(l, cx, y + (i + 1) * (size + space.unit * 2), label.size, { role: "label", anchor: "middle", baseline: "alphabetic", paint: "inkMuted", lod: "labels" }))));
+      return mark("circle", Math.min(box.width, box.height) / 2, line("lineStrong", end ? strokeTokens.eventEnd : strokeTokens.eventStart), texts, "paper", undefined, text.text === name && !statement ? undefined : [name, statement].filter(Boolean).join(". "));
     }
     case "gateway":
       return mark("diamond", 0, line("ink", strokeTokens.gateway), [write(ink(gatewayGlyph(node), cx, cy + 1, textTokens.gatewayGlyph.size, { role: "glyph", weight: textTokens.gatewayGlyph.weight, anchor: "middle" }))]);
@@ -320,7 +358,8 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
       const shareText = styled(textTokens.activityShare, set, "share");
       // The room the interactive map gives the texts: inside the padding and a solid outline (a dashed one is drawn over the box).
       const room = box.width - INSETS - (dash ? 0 : 2 * width);
-      const lines = wrapLines(name, room, nameText, 2, measure);
+      // A name is shortened after whole words: "Vendor creates…", never "Vendor cr…".
+      const lines = wrapLines(name, room, nameText, 2, measure, { words: true });
       const share = caseShare(node, options.total);
       const counted = labels?.showCounts !== false;
       // The texts as one block in the middle of the card above its foot.
@@ -332,11 +371,12 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
       if (counted) {
         // The measure's value leads where the style gives one, then the cases or their share.
         const lead = options.line && leadOf(node, options.line, locale);
-        const cases = elementMetric(node, "cases", locale);
+        // A lower bound (a collapsed stage's largest member) reads "≥ 211,379" on the card; descriptions say "at least".
+        const cases = formatMetricValue("cases", metric(node, "cases", NaN), locale, { basis: metricBasis(node, "cases"), compactBasis: true });
         const count = lead ?? cases;
         const y = baseline(top + lines.length * nameText.lineHeight, numberText.lineHeight, numberText.size);
         texts.push(write(ink(count, x, y, numberText.size, { role: "countLine", baseline: "alphabetic", weight: numberText.weight, lod })));
-        const shown = lead !== undefined && options.line!.then !== "share" ? cases : share === undefined ? "–" : formatMetricValue("share", share, locale, { basis: metricBasis(node, "cases") });
+        const shown = lead !== undefined && options.line!.then !== "share" ? cases : share === undefined ? "–" : formatMetricValue("share", share, locale, { basis: metricBasis(node, "cases"), compactBasis: true });
         if (options.line?.then !== "none" && options.line?.format !== "both") texts.push(write(ink(`· ${shown}`, x + measure(count, numberText) + 2 * space.unit, y, shareText.size, { role: "share", baseline: "alphabetic", weight: shareText.weight, paint: "inkMuted", lod })));
       }
       // A name shortened to two lines is given whole to hover and assistive technology.
@@ -345,17 +385,27 @@ export function nodeMark(node: FlowNode, box: Box, options: NodeMarkOptions): No
       const title = details.length ? `${labels ? activityDescription(node, labels, locale) : name + "."} ${details.join(". ")}.` : labels ? activityDescription(node, labels, locale) : cut ? name : undefined;
       const accent = options.accent;
       const short = accent && share! * metric(node, accent.metric, NaN);
-      return mark("box", radiusTokens.node, stroke, texts, "paper", dimensionTokens.band, title, cue(box, width, share, set?.cue ?? theme.frequencyCue, short! > 0 ? [short!, accent!.stripe, accent!.foot] : undefined));
+      const band = options.banded !== false && theme.size.band > 0 ? theme.size.band : undefined;
+      return mark("box", radiusTokens.node, stroke, texts, "paper", band, title, cue(box, width, band, share, set?.cue ?? theme.frequencyCue, short! > 0 ? [short!, accent!.stripe, accent!.foot] : undefined));
     }
   }
 }
 
-/** The stripe and foot of a card's share inside its outline and after its band, where `place` puts them, and their part in the accent. */
-function cue(box: Box, stroke: number, share: number | undefined, place: Theme["frequencyCue"], accent?: [number, MarkPaint | undefined, MarkPaint]): NodeCue | undefined {
+/** "1,000 cases · 940 (94 %) at a shown activity": an event's `cases` and `atShown`; none without both. */
+function terminalStatement(node: FlowNode, locale: Locale, strings?: Strings): string | undefined {
+  const cases = metric(node, "cases", NaN);
+  const atShown = metric(node, "atShown", NaN);
+  if (!Number.isFinite(cases) || !Number.isFinite(atShown)) return undefined;
+  return t(locale, "terminal.statement", { cases: formatCount(cases, locale), atShown: formatCount(atShown, locale), share: cases > 0 ? formatMetricValue("share", atShown / cases, locale) : "–" }, strings);
+}
+
+/** The stripe and foot of a card's share inside its outline and after its band (or its outline, without one), where `place` puts them, and their part in the accent. */
+function cue(box: Box, stroke: number, band: number | undefined, share: number | undefined, place: Theme["frequencyCue"], accent?: [number, MarkPaint | undefined, MarkPaint]): NodeCue | undefined {
   if (!(share! > 0) || place === "none") return undefined;
-  const { band, cueFoot } = dimensionTokens;
+  const { cueFoot } = dimensionTokens;
+  const start = band ?? stroke;
   const parts = (of: number, stripe: MarkPaint | undefined, foot: MarkPaint) => {
-    const part = (y: number, height: number, paint: MarkPaint) => ({ box: { x: box.x + band, y, width: Math.min(1, of) * (box.width - band - stroke), height }, paint });
+    const part = (y: number, height: number, paint: MarkPaint) => ({ box: { x: box.x + start, y, width: Math.min(1, of) * (box.width - start - stroke), height }, paint });
     return {
       share: of,
       stripe: place === "bottom" || !stripe ? undefined : part(box.y + stroke, box.height - 2 * stroke, stripe),
@@ -366,34 +416,38 @@ function cue(box: Box, stroke: number, share: number | undefined, place: Theme["
 }
 
 const RECONNECTED_EDGE_DASH = Object.freeze(dashTokens.reconnectedPath);
-const heads = new Map<number, Arrowhead>();
+const heads = new WeakMap<Arrowhead, Map<number, Arrowhead>>();
 
 /**
  * The arrowhead of a path `width` wide: the rule's size, or `perWidth` times
  * the width rounded up where that is more (`arrowheadTokens.edge`: 12, so a
  * path 8 wide ends in a head of 32, 14.4 wide with its outline); a width whose
- * head would not be a finite number ends in the rule's head. One frozen head
- * per size.
+ * head would not be a finite number ends in the rule's head. None on a path
+ * thinner than the rule's `minWidth` (`Theme.arrowhead`; 2 in `instrument`).
+ * One frozen head per rule and size.
  */
-export function pathArrowhead(width: number, rule: Arrowhead = arrowheadTokens.edge): Arrowhead {
+export function pathArrowhead(width: number, rule: Arrowhead = arrowheadTokens.edge): Arrowhead | undefined {
+  if (rule.minWidth! > 0 && !(width >= rule.minWidth!)) return undefined;
   const scaled = Math.ceil((rule.perWidth ?? 0) * width);
   const size = Math.max(rule.size, Number.isFinite(scaled) ? scaled : 0);
-  if (rule !== arrowheadTokens.edge) return { ...rule, size };
-  let head = heads.get(size);
-  if (!head) heads.set(size, (head = Object.freeze({ ...rule, size })));
+  let sized = heads.get(rule);
+  if (!sized) heads.set(rule, (sized = new Map()));
+  let head = sized.get(size);
+  if (!head) sized.set(size, (head = Object.freeze({ ...rule, size })));
   return head;
 }
 
 /**
  * Where the line of a route ends under its arrowhead: the route's last point
  * moved back along its last segment by the head's overhang (no further than
- * that segment's start), so that the head's tip lies on the route's end.
+ * that segment's start), so that the head's tip lies on the route's end; the
+ * route's end itself without a head.
  */
-export function lineEnd(points: readonly XY[], arrow: Arrowhead): XY {
+export function lineEnd(points: readonly XY[], arrow: Arrowhead | undefined): XY {
   const end = points[points.length - 1];
   const from = points[points.length - 2];
   const length = from ? Math.hypot(end.x - from.x, end.y - from.y) : 0;
-  if (!length) return end;
+  if (!length || !arrow) return end;
   const back = Math.min(length, arrowheadExtent(arrow).tip) / length;
   return { x: end.x - (end.x - from.x) * back, y: end.y - (end.y - from.y) * back };
 }
@@ -419,7 +473,7 @@ const NO_TEXTS: ElementText[] = Object.freeze([]) as unknown as ElementText[];
  * in full up to 99,999, then shortened; "≥" before a lower bound; "–" on a
  * path without a count; after the value `lead` gives ("12 d · 112,924").
  */
-export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string; width: number; locale?: Locale; theme?: Theme; metric?: string; notEvaluated?: boolean; addedFlow?: boolean; label?: CourseLabel; backward?: boolean; lead?: LineSpec }): EdgeMark {
+export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string; width: number; locale?: Locale; theme?: Theme; metric?: string; notEvaluated?: boolean; addedFlow?: boolean; terminal?: "start" | "end"; label?: CourseLabel; backward?: boolean; lead?: LineSpec }): EdgeMark {
   const theme = options.theme ?? defaultTheme;
   const reconnected = hasTag(edge, RECONNECTED_TAG);
   // What the theme's rules set on the path: its colour, dash, opacity and label.
@@ -432,7 +486,7 @@ export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string;
   const via = indirectWay(edge)?.hiddenActivities;
   const indirect = via !== undefined;
   // A path's count, after the measure's value where the style leads with one.
-  const lead = !options.addedFlow && options.lead && edge.kind === "follows" && Number.isFinite(count) ? leadOf(edge, options.lead, locale) : undefined;
+  const lead = !options.addedFlow && !options.terminal && options.lead && edge.kind === "follows" && Number.isFinite(count) ? leadOf(edge, options.lead, locale) : undefined;
   const label = indirect
     ? t(locale, via === 1 ? "detail.viaOne" : "detail.via", { count: formatCount(via, locale) })
     : Number.isFinite(count) ? `${lead ? `${lead} · ` : ""}${metricBasis(edge, name) === "atLeast" ? "≥" : ""}${formatPathCount(count, locale)}` : options.notEvaluated ? "–" : undefined;
@@ -446,14 +500,19 @@ export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string;
     if (Math.abs(side.x) > Math.abs(side.y)) [at, anchor] = [{ x: p.x + side.x * gap, y: p.y + 0.35 * size }, side.x > 0 ? "start" : "end"];
     else at = { x: p.x, y: side.y > 0 ? p.y + gap + 0.8 * size : p.y - gap };
   }
+  // A backward path a step thinner and fainter, until an activity it touches is selected.
+  const step = options.backward && edge.kind === "follows" ? theme.stroke.backwardStep : 0;
+  const faint = options.backward && edge.kind === "follows" && theme.opacity.backward < 1 ? theme.opacity.backward * (set?.opacity ?? 1) : undefined;
+  const width = step > 0 ? Math.max(theme.stroke.pathMin, Number((options.width - step).toFixed(2))) : options.width;
+  const lift = width !== options.width || faint !== undefined ? { width: options.width, arrow: pathArrowhead(options.width, theme.arrowhead.edge), ...(set?.opacity !== undefined && { opacity: set.opacity }) } : undefined;
   return {
     id: edge.id,
     kind: edge.kind,
     edge,
     points,
     color: options.addedFlow ? theme.color.neutral : set?.stroke ? rulePaint(set.stroke, undefined, "value", theme.color, options.color) : options.color,
-    width: options.width,
-    arrow: pathArrowhead(options.width),
+    width,
+    arrow: pathArrowhead(width, theme.arrowhead.edge),
     dash: options.addedFlow ? dashTokens.addedFlow.map((n) => n * options.width) : ruleDash(set, reconnected || indirect ? RECONNECTED_EDGE_DASH : undefined, RECONNECTED_EDGE_DASH),
     texts: label
       ? [ruleText<ElementText>({ text: label, x: at.x, y: at.y, size, anchor, baseline: "alphabetic", paint: "ink", halo: true, role: "count", lod: "edgeLabels" }, set, "label", theme.color, options.color)]
@@ -462,9 +521,21 @@ export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string;
     ...(indirect && { indirect: true }),
     ...(options.notEvaluated && { notEvaluated: true }),
     ...(options.addedFlow && { addedFlow: true }),
+    ...(options.terminal && { terminal: options.terminal }),
     ...(options.backward && { backward: true }),
-    ...(set?.opacity !== undefined && { opacity: set.opacity }),
+    ...((faint ?? set?.opacity) !== undefined && { opacity: faint ?? set!.opacity }),
+    ...(lift && { lift }),
   };
+}
+
+/**
+ * The order every renderer paints edge marks in: the widest first and the
+ * thinnest on top, so that a thin path crossing a trunk stays visible; equal
+ * widths by id, so that the order does not depend on the input's. Indices
+ * into `marks`.
+ */
+export function paintOrder(marks: readonly { width: number; id: string }[]): number[] {
+  return marks.map((_, i) => i).sort((a, b) => marks[b].width - marks[a].width || (marks[a].id < marks[b].id ? -1 : marks[a].id > marks[b].id ? 1 : a - b));
 }
 
 /** Equal count texts of the marks share one string. */
@@ -475,17 +546,17 @@ function shareCounts<M extends { texts: ElementText[] }>(marks: M[]): M[] {
 }
 
 /** One mark per node with a box, in the graph's order; `outOfScope` holds the nodes outside the scope the host evaluates. */
-export function nodeMarks(graph: FlowGraph, positions: Positions, scales: Scales, options: { locale?: Locale; activityLabels?: ActivityLabelOptions; theme?: Theme; measure?: TextMeasure; outOfScope?: ReadonlySet<string> } = {}): NodeMark[] {
+export function nodeMarks(graph: FlowGraph, positions: Positions, scales: Scales, options: { locale?: Locale; activityLabels?: ActivityLabelOptions; theme?: Theme; measure?: TextMeasure; outOfScope?: ReadonlySet<string>; strings?: Strings } = {}): NodeMark[] {
   const cases = graph.meta?.cases;
   const total = typeof cases === "number" ? cases : undefined;
-  const { nodeLine: line, cueAccent } = scales.spec;
+  const { nodeLine: line, cueAccent, terminals } = scales.spec;
   // The cases the style's metric counts are drawn in the accent of the cue: its foot in the accent, its stripe in its tint.
   const { color, opacity } = options.theme ?? defaultTheme;
   const accent = cueAccent ? { metric: cueAccent, stripe: opacity.tint > 0 ? tinted(color.accent, color.paper, opacity.tint) : undefined, foot: tinted(color.accent, color.paper, 1) } : undefined;
   return shareCounts(
     graph.nodes.flatMap((n) => {
       const box = positions.nodes[n.id];
-      return box ? [nodeMark(n, box, { color: scales.nodeColor(n), pattern: scales.nodePattern(n), locale: options.locale, activityLabels: options.activityLabels, theme: options.theme, measure: options.measure, total, outOfScope: options.outOfScope?.has(n.id), line, accent })] : [];
+      return box ? [nodeMark(n, box, { color: scales.nodeColor(n), pattern: scales.nodePattern(n), banded: scales.nodeColored(n), locale: options.locale, activityLabels: options.activityLabels, theme: options.theme, measure: options.measure, total, outOfScope: options.outOfScope?.has(n.id), line, accent, terminals, strings: options.strings })] : [];
     }),
   );
 }
@@ -501,7 +572,7 @@ export function edgeMarks(graph: FlowGraph, positions: Positions, scales: Scales
     graph.edges.flatMap((e) => {
       if (e.source === e.target && e.kind !== "flow") return [];
       const points = edgePoints(positions, e);
-      return points ? [edgeMark(e, points, { color: edgeColor(e, scales, theme), width: scales.edgeWidth(e), locale, theme, metric: scales.pathMetric, notEvaluated: scales.notEvaluated(e), addedFlow: scales.spec.addedFlowLabel !== undefined && hasTag(e, "added-by-map"), label: courses?.labels.get(e.id), backward: courses?.backward.has(e.id), lead: scales.spec.pathLabel })] : [];
+      return points ? [edgeMark(e, points, { color: edgeColor(e, scales, theme), width: scales.edgeWidth(e), locale, theme, metric: scales.pathMetric, notEvaluated: scales.notEvaluated(e), addedFlow: scales.spec.addedFlowLabel !== undefined && hasTag(e, "added-by-map"), terminal: scales.terminal(e), label: courses?.labels.get(e.id), backward: courses?.backward.has(e.id), lead: scales.spec.pathLabel })] : [];
     }),
   );
 }

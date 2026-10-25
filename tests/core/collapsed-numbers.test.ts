@@ -46,17 +46,17 @@ describe("a collapsed stage says what its numbers are", () => {
     expect(collapseGroups({ ...collapsed, groups: [{ id: "T", kind: "stage", label: "T" }], nodes: collapsed.nodes.map((n) => (n.id === "S" ? { ...n, group: "T" } : n)) }, ["T"]).nodes.find((n) => n.id === "T")!.metricBasis).toEqual({ cases: "atLeast", share: "atLeast", medianNextHours: "mean" });
   });
 
-  it("prints its cases as at least 1 on the card and in both exports", () => {
+  it("prints its cases as ≥ 1 on the card and in both exports (WF-09: compactly; descriptions say at least)", () => {
     const positions = at(["S", "X"]);
     const scene = buildScene(collapsed, positions, { selfLoops: false });
     const card = scene.nodeMarks.find((m) => m.id === "S")!.texts.find((t) => t.role === "countLine")!.text;
-    expect(card).toBe("at least 1");
-    expect(buildScene(collapsed, positions, { selfLoops: false, locale: "de" }).nodeMarks.find((m) => m.id === "S")!.texts.find((t) => t.role === "countLine")!.text).toBe("mindestens 1");
-    expect(svgTexts(toSVG({ graph: collapsed, positions, selfLoops: false }))).toContain("at least 1");
+    expect(card).toBe("≥ 1");
+    expect(buildScene(collapsed, positions, { selfLoops: false, locale: "de" }).nodeMarks.find((m) => m.id === "S")!.texts.find((t) => t.role === "countLine")!.text).toBe("≥ 1");
+    expect(svgTexts(toSVG({ graph: collapsed, positions, selfLoops: false }))).toContain("≥ 1");
     const written: string[] = [];
     const ctx = new Proxy({}, { get: (_t, key) => (key === "fillText" ? (s: string) => written.push(s) : key === "measureText" ? (s: string) => ({ width: s.length * 6 }) : key === "createLinearGradient" || key === "createPattern" ? undefined : () => undefined), set: () => true });
     toPNGCanvas({ graph: collapsed, positions, selfLoops: false }, { scale: 1, createCanvas: (w, h) => ({ width: w, height: h, getContext: () => ctx }) });
-    expect(written).toContain("at least 1");
+    expect(written).toContain("≥ 1");
     expect(prepareScene(collapsed, positions, { selfLoops: false }).nodes.find((n) => n.node.id === "S")!.meta).toBe("2 · at least 1");
   });
 
@@ -91,7 +91,7 @@ describe("a collapsed stage says what its numbers are", () => {
     expect(invoice.metrics?.cases).toBe(211379);
     const positions = at(whole.nodes.map((n) => n.id));
     const card = buildScene(whole, positions, { selfLoops: false }).nodeMarks.find((m) => m.id === "invoice")!.texts.find((t) => t.role === "countLine")!.text;
-    expect(card).toBe("at least 211,379");
+    expect(card).toBe("≥ 211,379");
     expect(svgTexts(toSVG({ graph: whole, positions, selfLoops: false }))).toContain(card);
   });
 

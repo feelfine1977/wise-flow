@@ -2,7 +2,7 @@ import { cleanup, render, waitFor } from "@testing-library/react";
 import { ReactFlow, ReactFlowProvider } from "@xyflow/react";
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
-import { type FlowGraph, defaultTheme, edgeMark, nodeMark } from "../../src/index";
+import { type FlowGraph, type StyleSpec, defaultTheme, edgeMark, nodeMark } from "../../src/index";
 import { type WfEdge, type WfNode, ProcessMap, edgeTypes, nodeTypes } from "../../src/react/index";
 import { graph, positions, style } from "../core/element-kinds";
 
@@ -11,10 +11,10 @@ afterEach(cleanup);
 /** What a node writes at a zoom of 1: its name's lines and its number line (a card's own block of texts), or its label. */
 const texts = (el: Element) => [...el.querySelectorAll(".wf-node__label, .wf-copy--plain > .wf-activity-name > span, .wf-copy--plain > .wf-activity-counts > span")].map((e) => e.textContent);
 
-async function map(given: FlowGraph = graph) {
+async function map(given: FlowGraph = graph, styled: StyleSpec = style) {
   const { container } = render(
     <div style={{ width: 1000, height: 400 }}>
-      <ProcessMap graph={given} positions={positions} style={style} renderer="svg" controls={false} legend={false} fitView={false} selfLoops={false} contextMenu={false} pathList={false} />
+      <ProcessMap graph={given} positions={positions} style={styled} renderer="svg" controls={false} legend={false} fitView={false} selfLoops={false} contextMenu={false} pathList={false} />
     </div>,
   );
   await waitFor(() => expect(container.querySelectorAll("g.wf-edge")).toHaveLength(4));
@@ -118,8 +118,8 @@ describe("the look of nodes and groups, from their marks", () => {
     // A stage's card outlined 1 wide; its name semibold.
     expect(look("s")[2]).toBe("1px");
     expect(style(node("s").querySelector(".wf-activity-name")!)).toEqual(["13px", "600", "var(--wf-ink)"]);
-    // Events: circles of radius 18 in the ink, the start outlined 1 wide and the end 2.
-    expect(look("start")).toEqual(["var(--wf-paper)", "var(--wf-ink)", "1px", "18px"]);
+    // Events: circles of radius 18 outlined in lineStrong, the start 1 wide and the end 2.
+    expect(look("start")).toEqual(["var(--wf-paper)", "var(--wf-line-strong)", "1px", "18px"]);
     expect(look("end")[2]).toBe("2px");
     expect(node("a").querySelector(".wf-node__outline")).toBeNull();
     // A gateway's diamond: no border, the shape in its 44 box, outlined 1 in the ink; the glyph at 15, semibold.
@@ -149,14 +149,19 @@ describe("the look of nodes and groups, from their marks", () => {
 
   it("draws a card's frequency cue where the mark puts it, inside the border, in the cue's colours", async () => {
     const { node } = await map({ ...graph, meta: { cases: 2468 } });
-    // 1,234 of 2,468 cases: half of the inner width 171, from the band's end (108) less the border (100 + 1); the foot the lowest 3 inside it.
+    // 1,234 of 2,468 cases, no stage and so no band: half of the inner width 178, from inside the border (100 + 1); the foot the lowest 3 inside it.
     const [stripe, foot] = [...node("a").querySelectorAll(".wf-node__cue")] as HTMLElement[];
     const at = (el: HTMLElement) => [el.style.left, el.style.top, el.style.width, el.style.height, el.style.background, el.getAttribute("data-wf-part")];
-    expect(at(stripe)).toEqual(["7px", "0px", "85.5px", "38px", "var(--wf-cue-stripe)", "node-cue"]);
-    expect(at(foot)).toEqual(["7px", "35px", "85.5px", "3px", "var(--wf-cue-foot)", "node-cue-foot"]);
+    expect(at(stripe)).toEqual(["0px", "0px", "89px", "38px", "var(--wf-cue-stripe)", "node-cue"]);
+    expect(at(foot)).toEqual(["0px", "35px", "89px", "3px", "var(--wf-cue-foot)", "node-cue-foot"]);
     expect(texts(node("a"))).toEqual(["Check invoice", "1,234", "· 50 %"]);
-    // Under the band and the texts.
-    expect([...node("a").children].map((c) => c.className.split(" ")[0]).filter((c) => c.startsWith("wf-"))).toEqual(["wf-node__cue", "wf-node__cue", "wf-node__band", "wf-activity-copy", "wf-activity-copy", "wf-activity-copy", "wf-activity-copy"]);
+    // Under the texts; no band.
+    expect([...node("a").children].map((c) => c.className.split(" ")[0]).filter((c) => c.startsWith("wf-"))).toEqual(["wf-node__cue", "wf-node__cue", "wf-activity-copy", "wf-activity-copy", "wf-activity-copy", "wf-activity-copy"]);
+    // With a stage: half of 171 from the band's end (108) less the border, under the band.
+    const staged = await map({ ...graph, meta: { cases: 2468 }, groups: [{ id: "g1", kind: "stage", label: "Invoice" }], nodes: graph.nodes.map((n) => (n.id === "a" ? { ...n, group: "g1" } : n)) }, { nodeColor: { by: "group" } });
+    const [banded] = [...staged.node("a").querySelectorAll(".wf-node__cue")] as HTMLElement[];
+    expect(at(banded).slice(0, 3)).toEqual(["7px", "0px", "85.5px"]);
+    expect([...staged.node("a").children].map((c) => c.className.split(" ")[0]).filter((c) => c.startsWith("wf-")).slice(0, 3)).toEqual(["wf-node__cue", "wf-node__cue", "wf-node__band"]);
   });
 
   it("draws a second theme's outline, radius and text size", async () => {

@@ -4,11 +4,12 @@ import { constraintItems, globalScene } from "../fixtures/bpic2019";
 import { p2pStages, withSceneMetrics } from "../fixtures/p2p_stages";
 import { liteFromStages } from "../src/bpmn/index";
 import { textMeasures } from "../fixtures/text-measures";
-import { type ActivityLabelOptions, type FlowGraph, type LaneMode, type Locale, type Measure, type Overlay, type Positions, type Theme, type StyleSpec, abstract, activityNodeSize, constraintOverlays, defaultTheme, layout, overlaysFor } from "../src/index";
+import { type ActivityLabelOptions, type FlowGraph, type LaneMode, type Locale, type Measure, type Overlay, type Positions, type Theme, type StyleSpec, abstract, activityNodeSize, constraintOverlays, defaultTheme, instrumentTheme, layout, overlaysFor } from "../src/index";
 import { useFlowTheme } from "../src/react/index";
 import { ProcessMap } from "./maps";
 import { timedGraph, timedPositions, timedStyle } from "../tests/support/activity-times";
 import { flowLoop } from "../tests/support/flow-loop";
+import { graph as terminals } from "../tests/support/terminals";
 import { catalogueGraph, examples, rawKinds } from "./Overlays.stories";
 
 /**
@@ -127,6 +128,11 @@ const scenes: Record<string, () => Omit<ParityScene, "positions"> & { variables?
   shortfall: () => ({ ...scenes.small(), mapMeasure: "shortfall" }),
   performance: () => ({ ...scenes.global(), mapMeasure: "performance" }),
   namesGerman: () => ({ graph: global, overlays: overlaysFor(constraintItems(), { graph: global }), activityLabels: { mode: "names", references: {} }, locale: "de", measure: "wide" }),
+  // Start and End with their glyphs and statements, the terminal paths in their paint and a host-added flow (WF-02).
+  terminals: () => ({ graph: terminals, overlays: [], style: { addedFlowLabel: true, terminals: { statement: true } } }),
+  // The instrument look on BPIC global and on the terminals (WF-10).
+  instrument: () => ({ ...scenes.global(), theme: instrumentTheme }),
+  instrumentTerminals: () => ({ ...scenes.terminals(), theme: instrumentTheme, mapMeasure: "performance" }),
 };
 
 function Parity({ name }: { name: string }) {
@@ -231,6 +237,9 @@ export const Performance: StoryObj = { name: "BPIC global in the performance mea
 export const NamesGerman: StoryObj = { name: "BPIC global with activity names in German, measured wide", render: () => <Parity name="namesGerman" /> };
 
 export const ModelLoop: StoryObj = { name: "model flow with a self-loop", render: () => <Parity name="modelLoop" /> };
+export const Terminals: StoryObj = { name: "Start, End and the terminal paths", render: () => <Parity name="terminals" /> };
+export const Instrument: StoryObj = { name: "BPIC global in the instrument theme", render: () => <Parity name="instrument" /> };
+export const InstrumentTerminals: StoryObj = { name: "Start, End and the terminal paths in the instrument theme, performance", render: () => <Parity name="instrumentTerminals" /> };
 
 
 function TimedParity({ format, direction, renderer = "svg" }: { renderer?: "svg" | "canvas"; format: "fromPrev" | "toNext" | "both"; direction: "RIGHT" | "DOWN" }) {

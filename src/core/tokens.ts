@@ -34,6 +34,12 @@ export const colorTokens = {
   outOfScope: "#b0b0b0",
   /** Deviations: badges, chips, constraint arcs and their labels, the one hue of the map. Text in it reaches 4.5 : 1 on the paper. */
   accent: "#b84a00",
+  /**
+   * Paths from a start event and to an end event (`Scales.terminal`): pale,
+   * a hairline-class role like `line`, never a measure's colour; their count
+   * label and the events' glyphs carry their meaning.
+   */
+  terminal: "#c9ced6",
   // Hotspot types and gate states (Okabe–Ito).
   severity: "#D55E00",
   mechanism: "#0072B2",
@@ -58,6 +64,8 @@ export const darkColorTokens: Partial<Record<ColorToken, string>> = {
   selection: "rgba(86, 180, 233, 0.22)",
   hover: "rgba(255, 255, 255, 0.07)",
   accent: "#ff8c42",
+  /** Apart from the dark hairlines (1.32 : 1) and from the paper (2.22 : 1). */
+  terminal: "#4b515b",
   /** Darker than the surface, so that no control of the dark scheme is lighter than the panels it sits on. */
   pressed: "#0b1f2e",
   onPressed: "#ececec",
@@ -117,6 +125,8 @@ export const textTokens = {
   /** @deprecated No longer read: an activity's card writes its cases in `activityNumber`. */
   nodeCount: { size: 11 },
   eventLabel: { size: 11 },
+  /** The ▶ of a start event and the ■ of an end event, in the middle of its circle. */
+  eventGlyph: { size: 15, weight: 600 },
   gatewayGlyph: { size: 15, weight: 600 },
   noteLabel: { size: 11 },
   /** An activity's name on its card, on up to two lines. */
@@ -227,6 +237,12 @@ export const strokeTokens = {
   canvasPathHighlight: 2,
   pathFocus: 2,
   pathHit: 14,
+  /**
+   * How much thinner a path against the reading direction is drawn than its
+   * cases give, while no activity it touches is selected (never under
+   * `pathMin`); 0 draws it at its width.
+   */
+  backwardStep: 0,
   /** Every constraint arc, whatever its coverage. */
   arc: 1,
   /** Read by nothing: an arc's width no longer shows its coverage. */
@@ -247,7 +263,7 @@ export const strokeTokens = {
 } as const;
 
 /** The strokes of the table that are not drawn at a width of the scale (see `strokeTokens`). */
-export const unscaledStrokes = ["pathMin", "pathMax", "arcCoverage", "pathHit"] as const;
+export const unscaledStrokes = ["pathMin", "pathMax", "arcCoverage", "pathHit", "backwardStep"] as const;
 
 /**
  * Dash patterns by meaning, in layout units. A dash means "not directly
@@ -280,6 +296,8 @@ export const opacityTokens = {
   bandFill: 0.06,
   bandOddFill: 0.02,
   groupStroke: 0.5,
+  /** A path against the reading direction while no activity it touches is selected (`strokeTokens.backwardStep`); 1 draws it as any path. */
+  backward: 1,
   legendRule: 0.4,
   timelineGrid: 0.4,
 } as const;
@@ -344,6 +362,8 @@ export const dimensionTokens = {
   cueFoot: 3,
   /** Width an event's label below its circle is shortened to. */
   eventLabel: 96,
+  /** Width the statement under a start or an end event's label is shortened to (`StyleSpec.terminals`). */
+  eventStatement: 160,
 } as const;
 
 /** Sizes of the node and edge marks, in layout units. */
@@ -386,6 +406,8 @@ export interface Arrowhead {
   overhang: number;
   outline: number;
   perWidth?: number;
+  /** The narrowest path that ends in a head: a thinner one ends on its route's end without one. Default 0, every path. */
+  minWidth?: number;
 }
 
 /**
@@ -555,6 +577,43 @@ export const printTokens = {
   text: { minFigurePt: 7 },
 } as const satisfies Record<string, unknown> & { patterns: readonly PatternId[] };
 
+/**
+ * What the `instrument` theme changes in the table: an exact, quiet look of
+ * ink on paper. Cards with corners of 8 and no frequency cue, a band of 6
+ * only on an activity with a stage, one grey path ramp of four stops whose
+ * palest has 3 : 1 on the paper (the paler grey draws the paths from a start
+ * and to an end event, `terminal`), blues for the performance measure, the
+ * categorical colours without yellow (each keeping its pattern twin), Inter
+ * where the page has it, end events outlined as thin as start events, a lane's
+ * rule 3 wide and tints of 3.5 and 1.9 %, heads whose base is twice their path's
+ * width (a head of size s is 0.4 s wide: `perWidth` 5) and none on a path under 2, paths against the reading direction a step
+ * thinner at 0.6, and in the dark scheme borders instead of shadows. Values
+ * of the prompt that fail `checkTheme` are moved to the nearest that passes:
+ * the ramps start at `#8c94a1` and `#6b747f`, the dark `lineStrong` is
+ * `#5e6672` (3.07 : 1), and text on the dark accent is dark.
+ */
+export const instrumentTokens = {
+  color: { paper: "#ffffff", surface: "#f7f8fa", ink: "#1a1d21", inkMuted: "#5c6470", line: "#d9dde3", lineStrong: "#8c94a1", focus: "#2456c4", selection: "rgba(36, 86, 196, 0.14)", neutral: "#8c94a1", terminal: "#c9ced6" },
+  dark: { paper: "#15181c", surface: "#0f1114", ink: "#e6e9ee", inkMuted: "#9aa3ae", line: "#2a2f36", lineStrong: "#5e6672", focus: "#6ea0ff", onFocus: "#15181c", selection: "rgba(110, 160, 255, 0.22)", neutral: "#6b747f", terminal: "#3a4049" },
+  palette: {
+    neutral: ["#8c94a1", "#5f6873", "#3a4049", "#1a1d21"],
+    performance: ["#cfe0f5", "#7fb0e0", "#2f6fb5", "#0b3d7a"],
+    categorical: ["#0072B2", "#009E73", "#CC79A7", "#56B4E9", "#999999"],
+  },
+  darkPalette: {
+    neutral: ["#6b747f", "#a3acb7", "#cfd2d6", "#e6e9ee"],
+    performance: ["#1e3a5f", "#2f6fb5", "#7fb0e0", "#bcd7f5"],
+  },
+  patterns: ["solid", "dots", "crosshatch", "horizontal", "grid"],
+  font: { family: "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" },
+  radius: { node: 8 },
+  size: { band: 6, darkShadow: "none" },
+  stroke: { eventEnd: 1, band: 3, backwardStep: 1 },
+  opacity: { bandFill: 0.035, bandOddFill: 0.019, backward: 0.6 },
+  frequencyCue: "none",
+  arrowhead: { edge: { ...arrowheadTokens.edge, perWidth: 5, minWidth: 2 } },
+} as const satisfies Record<string, unknown> & { patterns: readonly PatternId[] };
+
 /** The table as one object. */
 export const designTokens = {
   color: colorTokens,
@@ -581,6 +640,7 @@ export const designTokens = {
   view: viewTokens,
   rule: ruleTokens,
   print: printTokens,
+  instrument: instrumentTokens,
 } as const;
 
 /** Colours with a CSS variable: the ones a stylesheet or the Canvas renderer reads. */
@@ -617,15 +677,15 @@ type Listed<T extends Record<keyof StyledRoles, string>> = { [P in keyof StyledR
 
 /** The roles the stylesheet reads, by variable prefix. */
 const styledRoles = {
-  text: "pathLabel legendItem legendValue attribution panel panelHeading panelTitle panelNote panelLabel panelKey panelSymbol tooltip activityTooltip timelineAxis timelineLabel timelineNote comparisonValue comparisonNote comparisonDenominator",
-  weight: "legendItem panelHeading panelLabel panelPlain comparisonTab comparisonCaption comparisonRowHeader comparisonDenominator",
+  text: "activityName activityNumber activityShare stageLabel groupLabel eventLabel pathLabel legendItem legendValue attribution panel panelHeading panelTitle panelNote panelLabel panelKey panelSymbol tooltip activityTooltip timelineAxis timelineLabel timelineNote comparisonValue comparisonNote comparisonDenominator",
+  weight: "activityName activityNumber stageLabel groupLabel legendItem panelHeading panelLabel panelPlain comparisonTab comparisonCaption comparisonRowHeader comparisonDenominator",
   leading: "activityName activityNumber",
   radius: "band swatch control tooltip key pill filterChip legendGradient activityTooltip comparisonBar",
   stroke: "focus selection halo filterChip tab icon timelineViolation",
   dash: "timelineAnchor bpmnOutOfScope",
   opacity: "dimmed dimmedPath disabled",
   z: "comparisonRowHeader comparisonHeader comparisonCorner overlayPanel bpmnTable bpmnPanel sideList tooltip canvasTooltip bpmnNavigation menu activityTooltip",
-  size: "mapMinHeight viewMapMinHeight handle panelMaxWidth controlLabel controlOutput legendSwatchWidth legendSwatchHeight legendSample legendGlyph legendGradient searchMinWidth tableSwatch tooltipMaxWidth canvasTooltipMaxWidth activityTooltipMaxWidth bpmnTableTop watermarkClearance sideList menuMinWidth menuMaxWidth filterChipMinHeight zoomButtonWidth zoomButtonHeight cueFoot icon sliderTrack sliderThumb",
+  size: "band mapMinHeight viewMapMinHeight handle panelMaxWidth controlLabel controlOutput legendSwatchWidth legendSwatchHeight legendSample legendGlyph legendGradient searchMinWidth tableSwatch tooltipMaxWidth canvasTooltipMaxWidth activityTooltipMaxWidth bpmnTableTop watermarkClearance sideList menuMinWidth menuMaxWidth filterChipMinHeight zoomButtonWidth zoomButtonHeight cueFoot icon sliderTrack sliderThumb",
 } as const;
 
 /** The CSS variables of `tokens.css`: all of them in the light scheme, the ones that change in the dark scheme. */

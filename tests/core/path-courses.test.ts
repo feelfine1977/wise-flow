@@ -165,7 +165,7 @@ describe("two paths in opposite directions between the same activities", () => {
     expect(back.points.map((p) => p.x)).toEqual([354.19, 354.19]);
     // Each label beside its own line, on its own side: before the left line, after the right one.
     expect([there.texts[0].anchor, back.texts[0].anchor]).toEqual(["end", "start"]);
-    expect([there.arrow.size, back.arrow.size]).toEqual([29, 18]);
+    expect([there.arrow!.size, back.arrow!.size]).toEqual([29, 18]);
   });
 });
 

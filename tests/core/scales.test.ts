@@ -28,10 +28,14 @@ describe("buildScales", () => {
     const strongest = globalScene.edges.reduce((m, e) => ((e.metrics?.cases ?? 0) > (m.metrics?.cases ?? 0) ? e : m));
     expect(s.edgeWidth(strongest)).toBe(8);
     expect(s.pathMetric).toBe("cases");
-    // Colour by the cases too, on the neutral ramp: the weakest path at its light end, the strongest at its dark end.
-    const weakest = globalScene.edges.reduce((m, e) => ((e.metrics?.cases ?? Infinity) < (m.metrics?.cases ?? Infinity) ? e : m));
+    // Colour by the cases too, on the neutral ramp: the weakest path at its light end, the strongest recorded one at its
+    // dark end. The strongest of all starts the process: a terminal path, in the terminal paint and not in the ramp's domain.
+    const recorded = globalScene.edges.filter((e) => !s.terminal(e));
+    const weakest = recorded.reduce((m, e) => ((e.metrics?.cases ?? Infinity) < (m.metrics?.cases ?? Infinity) ? e : m));
+    const heaviest = recorded.reduce((m, e) => ((e.metrics?.cases ?? 0) > (m.metrics?.cases ?? 0) ? e : m));
     expect(s.edgeColor(weakest)).toBe("#8c8c8c");
-    expect(s.edgeColor(strongest)).toBe("#141414");
+    expect(s.edgeColor(heaviest)).toBe("#141414");
+    expect([s.terminal(strongest), s.edgeColor(strongest)]).toEqual(["start", "#c9ced6"]);
     expect(s.edgeColor({ id: "x", kind: "follows", source: "a", target: "b", metrics: { cases: 1 } })).toBe("#8c8c8c");
     // A path without cases is not evaluated: the line colour at the thinnest width.
     const bare = { id: "x", kind: "follows" as const, source: "a", target: "b" };

@@ -171,8 +171,8 @@ describe("the name on a card", () => {
   it("ends a name longer than two lines in an ellipsis and gives it whole to hover and assistive technology", () => {
     const long: FlowGraph = { nodes: [{ id: "x", kind: "activity", label: "Vendor creates debit memo for the purchase order item after the goods receipt", metrics: { cases: 3 } }], edges: [], meta: { cases: 3 } };
     const [m] = buildScene(long, row(long)).nodeMarks;
-    // 21 characters of 7.15 fit the room of 154: the second line keeps 20 and the ellipsis.
-    expect(lines(m)).toEqual(["Vendor creates debit", "memo for the purchas…"]);
+    // 21 characters of 7.15 fit the room of 154: the second line keeps its whole words and the ellipsis.
+    expect(lines(m)).toEqual(["Vendor creates debit", "memo for the…"]);
     expect(m.title).toBe(long.nodes[0].label);
     expect(toSVG({ graph: long, positions: row(long) }, { legend: false })).toContain(`<title>${long.nodes[0].label}</title>`);
   });
@@ -188,10 +188,11 @@ describe("the label of an event", () => {
       edges: [],
     };
     const [start, end] = buildScene(graph, row(graph)).nodeMarks;
-    // 4 below the 36 high circle, the baseline 11 lower; centred on it.
-    expect([start.shape, start.texts[0].text, start.texts[0].x, start.texts[0].y, start.texts[0].anchor, start.title]).toEqual(["circle", "Start", 18, 36 + 4 + 11, "middle", undefined]);
+    // The glyph in the circle, then the label: 4 below the 36 high circle, the baseline 11 lower; centred on it.
+    const [startLabel, endLabel] = [start, end].map((m) => m.texts.find((t) => t.role === "label")!);
+    expect([start.shape, startLabel.text, startLabel.x, startLabel.y, startLabel.anchor, start.title]).toEqual(["circle", "Start", 18, 36 + 4 + 11, "middle", undefined]);
     // 96 at 11 px by the estimate (6.05 each) holds 14 characters and the ellipsis.
-    expect([end.texts[0].text, end.texts[0].maxWidth, end.title]).toEqual(["Purchase order…", 96, graph.nodes[1].label]);
+    expect([endLabel.text, endLabel.maxWidth, end.title]).toEqual(["Purchase order…", 96, graph.nodes[1].label]);
   });
 });
 
