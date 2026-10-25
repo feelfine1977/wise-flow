@@ -175,6 +175,14 @@ Playwright Chromium, and writes `artifacts/bench/bench.json` and `bench.md`
 beside the numbers measured before the repairs and the latency targets. How to
 run and read it is in [tests](../tests/README.md#benchmark).
 
+For 0.4 (the instrument look: the instrument preset, terminal paths, the
+host's wording, word-aware names, panel placement, path emphasis, the loop pill
+and the painting order) the emitted library JavaScript measured 229,991 bytes
+gzipped against the budget of 224,000; `libraryJavaScriptGzipBytes` is raised
+to 232,000, the measured size and a margin under 1 %. The tarball, which also
+carries the longer API document, measured 1,348,164 bytes against 1,326,000;
+`tarballBytes` is raised to 1,352,000.
+
 Budgets in [scripts/budgets.json](../scripts/budgets.json) are initial regression
 limits, not load-time promises. The consumer total includes lazy BPMN/modeler and
 ELK assets; it is **not initial page download size**. Runtime latency, memory,
