@@ -1,6 +1,6 @@
 {
   "name": "wise-flow",
-  "version": "0.6.0-rc.0",
+  "version": "0.6.0-rc.1",
   "description": "Process-flow visualisation: headless core (graph model, abstraction, stable layouts, scales, constraint overlays, selection and paths, filter clauses, lanes, hit-testing, SVG export, named views) with a React renderer (context menu, path list, filter chips), a Canvas renderer with PNG export and a BPMN 2.0 bridge (BPMN-lite, export, import, bpmn-js view)",
   "type": "module",
   "exports": {
