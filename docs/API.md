@@ -532,7 +532,7 @@ labelled divider on the boundary between its neighbours in the stages' order
 (`LaneBand.empty`; after `abstract()` such a stage is only there with
 `AbstractOptions.keepEmptyStages`, 0.6); `counts` — a band's header says "5 of 15 activities" at
 its right where the group's metrics give its `activities`, "5 activities"
-("1 activity") otherwise, and a divider "none in this cohort" (`lane.count`,
+("1 activity") otherwise ("1 of 1 activity" for a stage of one, `lane.countOfOne`), and a divider "none in this cohort" (`lane.count`,
 `lane.countShown`, `lane.none`; part `group-header`); `sticky` — on the map a
 stage band's name moves along the band to stay at the view's left edge while
 any part of the band is in view; exports print it once at the band's start.

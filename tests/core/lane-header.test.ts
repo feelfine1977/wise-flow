@@ -55,6 +55,13 @@ describe("band headers", () => {
     expect(svg.split("2 von 5 Aktivitäten").length - 1).toBe(1);
   });
 
+  it("count one activity in the singular, in English and in German", () => {
+    const one: FlowGraph = { ...graph, groups: graph.groups!.map((g) => (g.id === "s3" ? { ...g, metrics: { activities: 1 } } : g)) };
+    const header = (locale: "en" | "de") => buildScene(one, positions, { lanes: "stages", locale, laneOptions: { counts: true } }).groupMarks.find((m) => m.id === "s3")!.texts[1].text;
+    expect(header("en")).toBe("1 of 1 activity");
+    expect(header("de")).toBe("1 von 1 Aktivität");
+  });
+
   it("are not drawn without `counts`", () => {
     const scene = buildScene(graph, positions, { lanes: "stages" });
     expect(scene.groupMarks.every((m) => m.texts.length === 1)).toBe(true);
