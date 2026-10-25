@@ -34,6 +34,13 @@ export interface FlowSceneOptions {
   /** Draw stage or lane groups as bands (see `laneBands`). Default `none`. */
   lanes?: LaneMode;
   /**
+   * How the stages are drawn on one layout (0.5): as bands across the map
+   * (`bands`, and `lanes` until lanes get headers of their own), as boxes
+   * around their members (`boxes`), or not at all (`none`); no view moves a
+   * card. `lanes` given wins for role lanes.
+   */
+  stageView?: "bands" | "lanes" | "boxes" | "none";
+  /**
    * Nodes moved by hand to these absolute points after the lane bands are laid
    * out; the edges are routed around them again (see `repositionNodes`).
    */
@@ -87,6 +94,8 @@ export interface FlowScene {
   textMeasure: TextMeasure;
   /** The host's wording the scene was built with (`FlowSceneOptions.strings`). */
   strings?: Strings;
+  /** How the stages are drawn (`FlowSceneOptions.stageView`). */
+  stageView?: FlowSceneOptions["stageView"];
   scales: Scales;
   /**
    * Overlays whose target (or, for arcs, both endpoints) is a node, a group or
@@ -134,7 +143,8 @@ export function sceneOf(graph: FlowGraph, givenPositions: Positions, options: Fl
   // The marks draw the neutral colour, the accent and the palettes of the scheme; every other paint they name by role.
   const marked = scheme === "light" ? theme : { ...theme, color: colors, palette: themePalettes(theme, scheme) };
   const measure = options.textMeasure ?? estimateTextWidth;
-  const laid = laneBands(graph, finitePositions(givenPositions), { lanes: options.lanes ?? "none" });
+  const view = options.stageView;
+  const laid = laneBands(graph, finitePositions(givenPositions), { lanes: options.lanes ?? (view === "bands" || view === "lanes" ? "stages" : "none") });
   const positions = options.moved ? finitePositions(repositionNodes(graph, laid.positions, options.moved)) : laid.positions;
   const activityLabels = options.activityLabels ? { ...options.activityLabels, references: activityReferences(graph, options.activityLabels.references) } : undefined;
   const overlays = canonicalOverlays(shownOverlays(graph, options.overlays ?? graph.overlays ?? [], options, locale));
@@ -154,7 +164,7 @@ export function sceneOf(graph: FlowGraph, givenPositions: Positions, options: Fl
   // Elements a hatch covers are outside the scope the host evaluates; the state resolves here and reaches every renderer.
   const outOfScope = new Set(overlays.filter((o) => o.kind === "hatch").map((o) => o.target));
   const nodes = nodeMarks(graph, positions, scales, { locale, activityLabels, theme: marked, measure, outOfScope, strings: options.strings });
-  const groups = groupMarks(graph, positions, laid.bands, scales, marked);
+  const groups = view === "none" ? [] : groupMarks(graph, positions, laid.bands, scales, marked);
   // A self-loop that stands for a path takes the path's colour; a tint follows the corners of what it covers.
   const byId = new Map(graph.edges.map((e) => [e.id, e]));
   const radii = new Map<string, number>([...nodes, ...groups].map((m) => [m.id, m.radius]));
@@ -189,6 +199,7 @@ export function sceneOf(graph: FlowGraph, givenPositions: Positions, options: Fl
     groupMarks: groups,
     legend: legendOfScene({ scales, marks, nodeMarks: nodes, edgeMarks: edges, locale, graph, strings: options.strings }),
     strings: options.strings,
+    ...(view && { stageView: view }),
     bounds: unionBoxes([courses.positions.bounds, ...marks.filter((m) => m.inMap).map((m) => m.box)]),
   };
 }

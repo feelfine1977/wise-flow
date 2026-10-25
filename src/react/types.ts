@@ -196,6 +196,13 @@ export interface ProcessMapProps {
   controls?: boolean;
   /** Show the legend panel. Default true. */
   legend?: boolean;
+  /**
+   * How the stages are drawn on the one layout (0.5): `bands`, `lanes`,
+   * `boxes` or `none` (`FlowSceneOptions.stageView`); switching never moves a
+   * card. Lay the map out with `layout.stages: "partition"` so that bands and
+   * boxes come from the same positions. `lanes` stays for role lanes.
+   */
+  stageView?: "bands" | "lanes" | "boxes" | "none";
   /** The corner the legend sits in (0.4). Default `bottom-right`. The key of full activity names takes the other side. */
   legendPosition?: PanelCorner;
   /** The corner the detail panel sits in (0.4). Default `top-left`. */

@@ -514,6 +514,13 @@ The stages' boxes (`Positions.groups`) are drawn around their members with
 `GROUP_PADDING`; they do not overlap along the flow. Dagre lays the graph out
 without groups and draws the boxes the same way. The default stays
 `compound`.
+
+`FlowSceneOptions.stageView` and `ProcessMapProps.stageView` (0.5) choose how
+the stages are drawn on one layout: `bands` across the map (as `lanes:
+"stages"`), `lanes` (the same bands until lanes get headers of their own),
+`boxes` around their members (the default), or `none`, where the scene has no
+group marks and the cards are placed on their own. No view moves a card; a
+`lanes` given wins. The scene carries the view as `FlowScene.stageView`.
 Dagre keeps its source/sink placement; it pins neither border layers nor stage
 order. Start can still sit in the middle when its target has other incoming
 paths. Provisional layouts are also unpinned. Host `positions` win;

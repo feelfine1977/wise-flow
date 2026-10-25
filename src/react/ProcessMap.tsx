@@ -110,7 +110,8 @@ function ProcessMapInner(props: ProcessMapProps) {
     onInView,
     opening = "readable",
     minPathPx = viewTokens.pathPx,
-    lanes = "none",
+    stageView,
+    lanes: lanesGiven,
     pathList = true,
     contextMenu = true,
     renderer = "auto",
@@ -126,6 +127,8 @@ function ProcessMapInner(props: ProcessMapProps) {
     overviewCorner,
     children,
   } = props;
+  // Stage bands where the stage view asks for them; the given lanes otherwise (role lanes, or stages as before).
+  const lanes = lanesGiven ?? (stageView === "bands" || stageView === "lanes" ? "stages" : "none");
   // A host's insets: room kept beside the panels (`add`, the default), or the only room kept (`replace`).
   const insetsGiven = fitInsets?.mode === "replace" ? fitInsets : undefined;
   const insetsAdded = fitInsets && fitInsets.mode !== "replace" ? fitInsets : undefined;
@@ -204,7 +207,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   const [manual, setManual] = useState<{ key: ProcessMapProps["layoutResetKey"]; points: Record<string, XY> }>({ key: layoutResetKey, points: {} });
   // The shown graph's marks, the given ones among them; the scene keeps those it can place and adds the follows self-loops.
   const { scene, positions, laidPositions } = useMapScene(shown, arrival.positions, manual.key === layoutResetKey ? manual.points : NO_MOVES, {
-    style, locale, lanes, activityLabels, selfLoops, lod: props.lod, theme: markedTheme, scheme: look.scheme, textMeasure, strings, overlayGeometry,
+    style, locale, lanes, activityLabels, selfLoops, lod: props.lod, theme: markedTheme, scheme: look.scheme, textMeasure, strings, overlayGeometry, stageView,
   });
   const { scales, overlays, geometry } = scene;
   // What the detail sliders show, in words, and what the tooltips add: the labels of elements not shown are the graph's before the sliders.
