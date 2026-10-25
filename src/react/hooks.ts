@@ -205,17 +205,27 @@ export function useArrival(positions: Positions | undefined, provisional: boolea
   }
   useEffect(() => {
     if (!arrival.from || progress >= 1) return;
+    // Progress only rises within one arrival: a late frame never undoes what an earlier one or the clock reached.
+    let arrived = false;
     let start: number | undefined;
     const step = (now: number) => {
+      if (arrived) return;
       start ??= now;
       const t = Math.min(1, (now - start) / ARRIVAL_MS);
-      setProgress(t);
+      setProgress((was) => Math.max(was, t));
       if (t < 1) frame = requestAnimationFrame(step);
+      else arrived = true;
     };
     let frame = requestAnimationFrame(step);
-    // A browser that gives no frames (a window in the background, a busy machine) still arrives, by the clock.
-    const done = setTimeout(() => setProgress(1), ARRIVAL_MS + ARRIVAL_SLACK_MS);
+    // A browser that gives no frames (a window in the background, a busy machine) still arrives, by the clock;
+    // a frame it queued and gives out later does nothing.
+    const done = setTimeout(() => {
+      arrived = true;
+      cancelAnimationFrame(frame);
+      setProgress(1);
+    }, ARRIVAL_MS + ARRIVAL_SLACK_MS);
     return () => {
+      arrived = true;
       cancelAnimationFrame(frame);
       clearTimeout(done);
     };
