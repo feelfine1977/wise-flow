@@ -8,13 +8,9 @@
     "command": "npm run test:visual:approve",
     "approved": "2026-10-25",
     "approvedBy": "the library writer's session, locally, on the owner's overnight instruction, after reviewing the changed images; owner review pending",
-    "sourceCommit": "1307073",
+    "sourceCommit": "57cab28",
     "changed": [
-      "instrument-map",
-      "instrument-selected",
-      "instrument-dark",
-      "instrument-lanes",
-      "trace-vertical"
+      "instrument-thumbnail"
     ]
   },
   "linux": {
@@ -23,15 +19,11 @@
     "command": "npm ci && npm run test:visual:approve",
     "approved": "2026-10-25",
     "approvedBy": "the library writer's session, in the pinned image under amd64 emulation on an arm64 Mac, after reviewing the changed images; owner review pending",
-    "sourceCommit": "1307073",
+    "sourceCommit": "57cab28",
     "changed": [
-      "instrument-map",
-      "instrument-selected",
-      "instrument-dark",
-      "instrument-lanes",
-      "trace-vertical"
+      "instrument-thumbnail"
     ],
-    "note": "M2: captured in the container image (linux/amd64 emulated on Apple silicon), not on the hosted ubuntu-24.04 runner. Only the instrument images changed on either platform (rounded bends and labels moved clear; instrument-lanes and trace-vertical are new). The strict run passed 16 of 16 in the image after approval."
+    "note": "M3: captured in the container image (linux/amd64 emulated on Apple silicon), not on the hosted ubuntu-24.04 runner. Only instrument-thumbnail is new; no other image changed on either platform. The strict run passed 17 of 17 in the image after approval."
   },
   "screenshots": [
     {
@@ -81,6 +73,14 @@
     {
       "path": "tests/visual/__screenshots__/instrument.spec.ts/instrument-selected-linux.png",
       "sha256": "3b6fcd834cd4ce83d5b8936d476cebea40fee7dab5e4a873d4078bbeb6ec49cb"
+    },
+    {
+      "path": "tests/visual/__screenshots__/instrument.spec.ts/instrument-thumbnail-darwin.png",
+      "sha256": "0068f85013de42f29119255a5c594b231480fd2c8bf052c9fb918dff8e61e2db"
+    },
+    {
+      "path": "tests/visual/__screenshots__/instrument.spec.ts/instrument-thumbnail-linux.png",
+      "sha256": "7ebd112c9815f84a3e6130571d402989c321500237b3d03f6880840e3d64099d"
     },
     {
       "path": "tests/visual/__screenshots__/instrument.spec.ts/trace-vertical-darwin.png",
