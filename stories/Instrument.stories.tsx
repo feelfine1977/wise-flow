@@ -30,6 +30,8 @@ const look = {
   layout,
   minimap: "overflow" as const,
   lod: { edgeLabels: { minPx: 2 } },
+  // A measure named: its style with these entries over it (a style alone would replace the default's width and colour).
+  measure: "frequency" as const,
   style: { selectedShare: true, terminals: { statement: false } },
   overlayGeometry: { selfLoop: "pill" as const, badgeAnchor: "border" as const },
   minZoom: { readable: "name" as const },
