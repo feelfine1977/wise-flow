@@ -8,6 +8,7 @@ import { describeIndexedEdge } from "../core/describe.js";
 import { FIRST_STEP, keptLoop, mapEdges } from "../core/edge-budget.js";
 import { describeGroup, describeNode } from "./describe.js";
 import { coverBackground } from "./marks.js";
+import { cardHandles } from "./handles.js";
 import { GROUP_PREFIX } from "./map-pointer.js";
 import type { WfEdge, WfGroupNode, WfNode } from "./types.js";
 
@@ -219,6 +220,8 @@ export function useFlowElements(input: FlowInput) {
         parentId: parentGroup ? GROUP_PREFIX + parentGroup : undefined,
         width: box.width,
         height: box.height,
+        // Its paths drawn from its size and these handles, not from a measurement of the DOM that may not land (#39).
+        handles: cardHandles(positions.direction, box.width, box.height),
         draggable: nodesDraggable === true && n.kind === "activity",
         selected: selection.nodes.includes(n.id),
         // Keep activity copy above ordinary and hovered routes, including grouped graphs.

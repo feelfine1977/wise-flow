@@ -1999,6 +1999,11 @@ export type ActivityNodeData = { node; color; pattern; hatched; direction; focus
 export type FollowsEdgeData = { edge; route?; width; color; label?; reconnected; hovered; dimmed; focused; description; mark?: EdgeMark };
 // The React Flow elements of the map, and the id of a group's compound node there.
 export type WfNode = Node<ActivityNodeData, NodeKind>; export type WfGroupNode = Node<GroupNodeData, "wfGroup">;
+// Each card the map hands React Flow carries its size and its two handles as data (`handles`, 0.6): the target
+// handle on the side paths enter for the layout's direction, the source handle on the side they leave, each
+// `dimensionTokens.handle` across, centred on the side, where the stylesheet draws them. React Flow draws a
+// card's paths from these without waiting for a DOM measurement, which a measurement that never lands (a card
+// replaced before it was laid out) could withhold for good (Workbench #39); a later measurement gives the same bounds.
 export type WfEdge = Edge<FollowsEdgeData, EdgeKind>; export function groupNodeId(groupId: string): string;
 // The props of each component by name (the components' signatures in this document spell them out):
 export interface AbstractionControlsProps { value: AbstractOptions; onChange; locale?; hasStages?; view?; onViewChange? }
