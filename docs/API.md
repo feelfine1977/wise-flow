@@ -215,6 +215,7 @@ export interface AbstractOptions {
   minEdgeShare?: number;        // follows edges below this relative strength are removed
   minNodeShare?: number;        // activities and stages below this relative strength are removed
   keepConnected?: boolean;      // default true
+  keepEmptyStages?: boolean;    // (0.6) keep top-level stage groups with no member left, for `laneOptions.emptyLanes`; default false (dropped, as before)
   collapse?: string[] | "all" | false;   // stage groups → one stage node each
   edgeMetric?: string;          // default count, then cases, then share
   nodeMetric?: string;          // default cases, then events, then share
@@ -528,7 +529,8 @@ group marks and the cards are placed on their own. No view moves a card; a
 the graph is left out (`hide`, the default, as before), drawn as a 12 px
 labelled divider on the boundary between its neighbours in the stages' order
 (`divider`) or as a 36 px lane there (`lane`), untinted, without moving a card
-(`LaneBand.empty`); `counts` — a band's header says "5 of 15 activities" at
+(`LaneBand.empty`; after `abstract()` such a stage is only there with
+`AbstractOptions.keepEmptyStages`, 0.6); `counts` — a band's header says "5 of 15 activities" at
 its right where the group's metrics give its `activities`, "5 activities"
 ("1 activity") otherwise, and a divider "none in this cohort" (`lane.count`,
 `lane.countShown`, `lane.none`; part `group-header`); `sticky` — on the map a

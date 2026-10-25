@@ -34,6 +34,13 @@ export interface AbstractOptions {
    * context from activities still on the map. Default `true`.
    */
   keepConnected?: boolean;
+  /**
+   * Keep the top-level stage groups none of whose activities is left (0.6),
+   * so that stage bands can draw them as dividers or narrow lanes
+   * (`LaneOptions.emptyLanes`). Default false: a group without a member left
+   * is dropped, as before.
+   */
+  keepEmptyStages?: boolean;
   /** Group ids to collapse into one stage node each; `"all"` collapses every stage group. */
   collapse?: string[] | "all" | false;
   /** Metric that measures edge strength. Default: `count`, then `cases`, then `share`. */
@@ -773,7 +780,7 @@ export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowG
     usedGroups.add(own.id);
     for (const g of baseIdx.ancestors(own.id, "group")) usedGroups.add(g.id);
   }
-  const groups = (base.groups ?? []).filter((g) => usedGroups.has(g.id));
+  const groups = (base.groups ?? []).filter((g) => usedGroups.has(g.id) || (options.keepEmptyStages && g.kind === "stage" && !g.parent));
   const survives = (id: unknown) => typeof id === "string" && (nodeSet.has(id) || usedGroups.has(id));
   const isShown = (o: Overlay) =>
     o.kind === "arc" && o.payload?.source !== undefined && o.payload?.target !== undefined
