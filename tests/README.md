@@ -11,7 +11,7 @@ The executable CI contract and release procedure are in [docs/CI.md](../docs/CI.
 | `tooling/` | Negative checks for architecture boundaries, the source lint, workflow policies, artifact budgets and the benchmark's report; the core entry point's built declarations against `scripts/core-exports.json`, deprecations and every exported name of the four entry points against `docs/API.md`; the token table and its generated `tokens.css`; the styling contract against the rendered fixtures and the API document; the emitted JavaScript without comments, the declarations with their documentation comments, and their maps; the table of invalid input against the entry points; the package's name `wise-flow` in the manifest, the lockfile and every changeset, Changesets' public access, and the former name only in the changeset and the migration note that give it; the processors a run at the hosted runners' size is pinned to and the tests it reports as tight | `npm run test:tooling` |
 | `package/` | Separate consumer of the actual npm tarball; NodeNext types and real browser assets/lifecycle | `npm run test:package` |
 | `browser/` | Production Storybook accessibility and keyboard tests, the map's paint order, host stylesheets against the styling contract and the cascade layer, the computed styles of the map and its panels against their record (only the elements inside the library's roots), the outline and fill of an activity's card when hovered, selected, focused and out of scope, the detail panel (fewer activities and paths drawn at each step of "Activities" to the left, "Paths" in place), the texts of the DOM map at least 9 px on the screen at every zoom its zoom control steps through, the controls (no panel over an activity at the fitted zoom, the dark scheme's panels, controls and table cells and its pattern ink, the controls' accessibility and names in English and German, and every form control's text, border and outline colour a token in every state and both schemes), and the parity of the four renderers, in a real browser | `npm run storybook:build` then `npm run test:browser` |
-| `visual/` | Eleven behavior checks including six screenshots, the large Canvas scene and the fonts the map is drawn in | `npm run test:visual` |
+| `visual/` | Fourteen behavior checks including nine screenshots (three of the instrument look), the large Canvas scene and the fonts the map is drawn in | `npm run test:visual` |
 | `bench/` | The benchmark: times on large and dense inputs in Node and in Chromium, beside the numbers measured before the repairs and the targets; not a gate | `npm run bench` |
 
 `npm run check` runs lint, typecheck, architecture/workflow guards, tooling tests
@@ -438,7 +438,7 @@ not automatically approved snapshots.
 The origin of the current reference images is recorded in
 [visual/baseline-provenance.json](visual/baseline-provenance.json): the source
 commit, the date of the owner's approval, the macOS version and the container
-image the Linux images were captured in, and the SHA-256 of all twelve files.
+image the Linux images were captured in, and the SHA-256 of all eighteen files.
 The Linux images are captured in that container, and GitHub's strict job runs
 in the same container (`check:workflows` compares the two digests), so an image
 approved locally is checked on GitHub where it was made.

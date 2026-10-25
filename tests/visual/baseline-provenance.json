@@ -6,34 +6,38 @@
   "darwin": {
     "os": "macOS 26.6.2, arm64",
     "command": "npm run test:visual:approve",
-    "approved": "2026-10-24",
-    "approvedBy": "repository owner, after comparing the approved and the new images of the six changed scenes",
-    "sourceCommit": "5729358",
+    "approved": "2026-10-25",
+    "approvedBy": "the library writer's session, locally, on the owner's overnight instruction, after reviewing the changed images; owner review pending",
+    "sourceCommit": "0ebaae9",
     "changed": [
       "views-grid",
       "stage-lanes",
       "p2p-map",
       "stable-layout",
       "paths-for-activity",
-      "bpmn-from-stages"
+      "instrument-map",
+      "instrument-selected",
+      "instrument-dark"
     ]
   },
   "linux": {
     "image": "mcr.microsoft.com/playwright@sha256:d65108d1a8095d8b0c4a5e32bf1807a40a5ce90ff0c78473e1116b1c243235e8",
     "platform": "linux/amd64, Ubuntu 24.04",
     "command": "npm ci && npm run test:visual:approve",
-    "approved": "2026-10-24",
-    "approvedBy": "repository owner, after comparing the approved and the new images of the six changed scenes",
-    "sourceCommit": "5729358",
+    "approved": "2026-10-25",
+    "approvedBy": "the library writer's session, in the pinned image under amd64 emulation on an arm64 Mac, after reviewing the changed images; owner review pending",
+    "sourceCommit": "0ebaae9",
     "changed": [
       "views-grid",
       "stage-lanes",
       "p2p-map",
       "stable-layout",
       "paths-for-activity",
-      "bpmn-from-stages"
+      "instrument-map",
+      "instrument-selected",
+      "instrument-dark"
     ],
-    "note": "Captured in the container image, not on the hosted ubuntu-24.04 runner. The first hosted strict run decides whether these images hold there."
+    "note": "Captured in the container image (linux/amd64 emulated on Apple silicon), not on the hosted ubuntu-24.04 runner. bpmn-from-stages did not change on either platform. The strict run passed 14 of 14 in the image after approval."
   },
   "screenshots": [
     {
@@ -46,43 +50,67 @@
     },
     {
       "path": "tests/visual/__screenshots__/bpmn.spec.ts/views-grid-darwin.png",
-      "sha256": "508cc6bbb6656f9f83c497e94914f09a9214051f52e2f1cc9261cb25990d0ff9"
+      "sha256": "e2c8efa8675f51802ad22cfa6153ab3dbdfe38e619b46b52e425ed26f063e31a"
     },
     {
       "path": "tests/visual/__screenshots__/bpmn.spec.ts/views-grid-linux.png",
-      "sha256": "3d415c4b143b0be33d10278fcf7461561c1b8f46cb9c8ed6630b41394708fefc"
+      "sha256": "3a94ebf7bee051404fcff62e1d3e94fff95bdc5809ae7dec8456a4aa1f0c3309"
+    },
+    {
+      "path": "tests/visual/__screenshots__/instrument.spec.ts/instrument-dark-darwin.png",
+      "sha256": "af912d2b9a355f390ea28139473aa9e1ee5a67a0a2b2e9026a7584d930114358"
+    },
+    {
+      "path": "tests/visual/__screenshots__/instrument.spec.ts/instrument-dark-linux.png",
+      "sha256": "28720315b5ba29cc550ad5400f1e8337bff4fb24e28eea193574a20c035123dc"
+    },
+    {
+      "path": "tests/visual/__screenshots__/instrument.spec.ts/instrument-map-darwin.png",
+      "sha256": "d4516252ce32d3498ccca6d62d049ad236b40bf7d77627f414e3f0d49c020ed0"
+    },
+    {
+      "path": "tests/visual/__screenshots__/instrument.spec.ts/instrument-map-linux.png",
+      "sha256": "58c6cb3d8024cb70c01da083c03667af071cf464af65c91697183b91d83581de"
+    },
+    {
+      "path": "tests/visual/__screenshots__/instrument.spec.ts/instrument-selected-darwin.png",
+      "sha256": "f6f0c2701001a956a9ae768cc193098b04b40457020eeb395db4f547e65c9e86"
+    },
+    {
+      "path": "tests/visual/__screenshots__/instrument.spec.ts/instrument-selected-linux.png",
+      "sha256": "f96cb727a460ded891f532e9a7b0b3b148436a908109600fe9e53aead59f44fc"
     },
     {
       "path": "tests/visual/__screenshots__/interaction.spec.ts/paths-for-activity-darwin.png",
-      "sha256": "4da645340b1365f01cffdd39009596ed48cb48137defc2f5bf0438cfe6f7b7f6"
+      "sha256": "a811dc76fe085a705550f6440e608c6752918dab85635f5d5123443e1804b24f"
     },
     {
       "path": "tests/visual/__screenshots__/interaction.spec.ts/paths-for-activity-linux.png",
-      "sha256": "44c2f0263bda01713eee616f97528d066e0da630bbd0e7088e2b5714f4dd0434"
+      "sha256": "0eb11b3e18461ae87355e8ad27c68dd523fc19d46b21728bb11871510f07f3a6"
     },
     {
       "path": "tests/visual/__screenshots__/interaction.spec.ts/stage-lanes-darwin.png",
-      "sha256": "cc3879dd264c8265e51e66d70b58473ebdc6f96d7f53616efcd0745484e90eac"
+      "sha256": "ac215674f23a13eba9a74704edbe7e00ce292d64e6878cc309b5dd467f308086"
     },
     {
       "path": "tests/visual/__screenshots__/interaction.spec.ts/stage-lanes-linux.png",
-      "sha256": "3e2dc5c8e1bffee95f866f119cb0ec6c73c01fcb5b6b4738f9579ea6ad4480fe"
+      "sha256": "8f8e9125da68b770178b1792a6dfcf33ae5364775b4a62fb889f5742b6ede109"
     },
     {
       "path": "tests/visual/__screenshots__/p2p.spec.ts/p2p-map-darwin.png",
-      "sha256": "1fe12e4c0fb6ebb2bdfc124ec4ce88d03d6da3739c157283d735beec4e94b146"
+      "sha256": "fc93f95dfbcd0bbcef59baa190c4bf245ac18bbf96bcd1026f2440d09007d90e"
     },
     {
       "path": "tests/visual/__screenshots__/p2p.spec.ts/p2p-map-linux.png",
-      "sha256": "01c7d8c493649e720026fe282ef61831819bd88229356aa5142a8fab367824aa"
+      "sha256": "803cf0bd978226f5ab3d9658334feb4c8a1be93aab65cc6576631f7d7cb5cab6"
     },
     {
       "path": "tests/visual/__screenshots__/p2p.spec.ts/stable-layout-darwin.png",
-      "sha256": "4537fffbeac68731afcb2f32db138964353a0c01695a802ce10fabfd22f10d70"
+      "sha256": "faae61f3c9a9b4c65469a3c14aad0f2475b9fa2f4e1d43b79e0526334a8ceab9"
     },
     {
       "path": "tests/visual/__screenshots__/p2p.spec.ts/stable-layout-linux.png",
-      "sha256": "5da4ef3ccb7abc2817f9cdef6a509729ed8a3a2374e9b00f58406ae6d60698bb"
+      "sha256": "4c9ea987ddbe1c9631c2bd8594fe71d58097fe23d40b9dc71a424406cfe7f1ea"
     }
   ]
 }
