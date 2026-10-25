@@ -10,7 +10,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { globalScene } from "../../fixtures/bpic2019";
-import { type Box, type FlowGraph, type Positions, abstract, layout, routeFaults } from "../../src/index";
+import { type Box, type FlowGraph, type Positions, abstract, buildScene, layout, routeFaults } from "../../src/index";
 
 const OPTIONS = { edgeRouting: "ORTHOGONAL", direction: "RIGHT", stages: "partition", orderStages: true } as const;
 
@@ -57,4 +57,24 @@ describe("stage partitions on the BPI log (#39)", () => {
     expect((await layout({ ...shown, groups: [], nodes: shown.nodes.map(({ group: _g, ...n }) => n) }, OPTIONS)).stages).toBeUndefined();
     expect((await layout(shown, { ...OPTIONS, stages: "compound" })).stages).toBe("compound");
   }, 60_000);
+
+  // The grid of detail settings a person reaches with the two sliders, drawn: every path's mark leaves its source card and
+  // reaches its target card, as the map, the Canvas map and the exports draw it.
+  const onBorder = (p: { x: number; y: number }, b: Box, tol: number) => p.x >= b.x - tol && p.x <= b.x + b.width + tol && p.y >= b.y - tol && p.y <= b.y + b.height + tol;
+  for (const activityDetail of [0.2, 0.45, 0.6, 0.8, 1]) {
+    it(`activities ${activityDetail}, paths 0 / 0.12 / 0.5: every drawn path attached at both ends, none behind a card`, async () => {
+      for (const pathDetail of [0, 0.12, 0.5]) {
+        const shown = abstract(globalScene, { activityDetail, pathDetail, collapse: false });
+        const positions = await layout(shown, OPTIONS);
+        expect(positions.engine, `paths ${pathDetail}`).toBe("elk");
+        const scene = buildScene(shown, positions);
+        const detached = scene.edgeMarks.filter((m) => m.edge.source !== m.edge.target).filter((m) => {
+          const s = positions.nodes[m.edge.source], t = positions.nodes[m.edge.target];
+          return !onBorder(m.points[0], s, 2) || !onBorder(m.points[m.points.length - 1], t, 2);
+        });
+        expect(detached.map((m) => m.id), `paths ${pathDetail}`).toEqual([]);
+        expect(routeFaults(shown, positions), `paths ${pathDetail}`).toEqual([]);
+      }
+    }, 120_000);
+  }
 });
