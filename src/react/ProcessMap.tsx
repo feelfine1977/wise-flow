@@ -1,6 +1,5 @@
 import {
   Background,
-  MiniMap,
   Panel,
   ReactFlow,
   ReactFlowProvider,
@@ -13,14 +12,14 @@ import {
   type OnNodesChange,
 } from "@xyflow/react";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { type AbstractOptions, type Box, type ElementRef, type FlowGraph, type Insets, type PartInView, type Positions, type Readable, type XY, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, detailNotes, detailStatement, dimensionTokens, elementPoint, fitViewport, formatCount, lodAt, measureStyle, partInView, readableAt, readableZoom, spaceTokens, strokeTokens, t, themeColors, viewTokens } from "../core/index.js";
+import { type AbstractOptions, type Box, type ElementRef, type FlowGraph, type Insets, type PartInView, type Positions, type Readable, type XY, LayoutUnavailableError, activityNodeSize, activityReferences, coversGraph, detailNotes, detailStatement, dimensionTokens, elementPoint, fitViewport, formatCount, lodAt, measureStyle, partInView, readableAt, readableZoom, spaceTokens, t, themeColors, viewTokens } from "../core/index.js";
 import { isPath } from "../core/detail.js";
 import { type MapContext, mapEmphasis, menuHeading } from "../core/map-controller.js";
 import { markedThemeKey, themeStyle } from "../core/theme.js";
 import { ActivityTooltip } from "./ActivityTooltip.js";
 import { ActivityKey, MapNumbers, useMapNumbers } from "./MapNumbers.js";
 import { AbstractionControls } from "./AbstractionControls.js";
-import { CanvasMap, type CanvasMapHandle, EdgeNote } from "./CanvasMap.js";
+import { CanvasMap, type CanvasMapHandle, EdgeNote, OverviewThumbnail } from "./CanvasMap.js";
 import { MenuView } from "./ContextMenu.js";
 import { type MapScreen, useMapController } from "./controller.js";
 import { describeMap } from "./describe.js";
@@ -29,7 +28,7 @@ import { FilterChips } from "./FilterChips.js";
 import { PathsNotShown, useArrival, useEdgesShown, useEdgesShownAcross, useFlowGraph, useMapScene, usePrefersReducedMotion, useStableLayout } from "./hooks.js";
 import { Legend } from "./Legend.js";
 import { useMenuActions } from "./map-actions.js";
-import { edgeArrowId, grownTextSize, readableClasses, readableSizes, useCanvasElements, useElementDescriptions, useFlowElements, useTextMeasure } from "./map-elements.js";
+import { edgeArrowId, grownTextSize, readableClasses, readableSizes, useCanvasElements, useElementDescriptions, useFlowElements, useTextMeasure, useThumbnailScene } from "./map-elements.js";
 import { GROUP_PREFIX, canvasPointer, flowPointer, overlayPointer } from "./map-pointer.js";
 import { MarkDefs, MarkFigure } from "./marks.js";
 import { PatternTheme } from "./patterns.js";
@@ -545,10 +544,13 @@ function ProcessMapInner(props: ProcessMapProps) {
   const area = flowStore.getState();
   const overviewScale = Math.min(viewTokens.overview.width / Math.max(scene.bounds.width, 1), viewTokens.overview.height / Math.max(scene.bounds.height, 1));
   const overviewSize = { width: Math.max(1, Math.round(scene.bounds.width * overviewScale)), height: Math.max(1, Math.round(scene.bounds.height * overviewScale)) };
-  const overflowing = minimap === "overflow" && view !== "table" && !useCanvas && !!shownPart && !shownPart.whole;
+  // `true` is kept as another name of `"overflow"` (0.6): the library draws no React Flow minimap.
+  const overflowing = (minimap === "overflow" || minimap === true || minimap === "thumbnail") && view !== "table" && !useCanvas && !!shownPart && !shownPart.whole;
   const overviewAt = flowOverview
     ? (overviewCorner ? cornerBox(overviewCorner, area, flowOverview.width, flowOverview.height) : flowOverview)
     : overflowing && area.width > 0 ? cornerBox(overviewCorner ?? "top-right", area, overviewSize.width, overviewSize.height) : undefined;
+  // The scene drawn into the overview, once per scene (`minimap: "thumbnail"`).
+  const thumbnailScene = useThumbnailScene(scene, minimap === "thumbnail" && !!positions);
   const lodClasses = [
     lod.labels ? "wf-lod--labels" : "",
     lod.edgeLabels ? "wf-lod--edge-labels" : "",
@@ -746,7 +748,6 @@ function ProcessMapInner(props: ProcessMapProps) {
                     }}
                   />
                 </Panel>
-                {minimap === true ? <MiniMap pannable zoomable nodeStrokeWidth={strokeTokens.minimapNode} /> : null}
                 {positions ? (
                   <OverlayLayer
                     marks={flow.between}
@@ -778,6 +779,7 @@ function ProcessMapInner(props: ProcessMapProps) {
                   at={overviewAt}
                   locale={locale}
                   inView={shownPart}
+                  {...(thumbnailScene && overviewAt && { thumbnail: <OverviewThumbnail scene={thumbnailScene} bounds={scene.bounds} width={overviewAt.width} height={overviewAt.height} /> })}
                   onMove={(p) => {
                     userMove();
                     void rf.setCenter(p.x, p.y, { zoom: rf.getViewport().zoom });

@@ -412,3 +412,8 @@ export function useCanvasElements(input: CanvasInput) {
   );
   return { scene: canvasScene, state: canvasState, descendants: canvasDescendants, describe: describeHit, bounded };
 }
+
+/** The scene retained for the Canvas drawer while `on` (the overview's thumbnail, `minimap: "thumbnail"`), once per scene. */
+export function useThumbnailScene(scene: FlowScene, on: boolean): PreparedScene | undefined {
+  return useMemo(() => (on ? retainScene(scene) : undefined), [on, scene]);
+}

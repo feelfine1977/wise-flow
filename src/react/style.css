@@ -26,9 +26,6 @@
 .wf-process-map .react-flow__attribution a {
   color: var(--wf-ink-muted);
 }
-.wf-process-map .react-flow__minimap {
-  background: var(--wf-paper);
-}
 /* The browser draws the native controls (sliders, check boxes, search fields, scroll bars) in the scheme of the tokens. */
 .wf-process-map,
 .wf-panel,
@@ -1338,6 +1335,16 @@
 }
 .wf-overview svg {
   display: block;
+  width: 100%;
+  height: 100%;
+}
+.wf-overview__thumbnail + svg {
+  position: relative;
+}
+/* The scene drawn small under the part in view (`minimap: "thumbnail"`). */
+.wf-overview__thumbnail {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
 }

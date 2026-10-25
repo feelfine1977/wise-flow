@@ -202,6 +202,12 @@ export interface MapOverviewProps {
   onMove: (centre: XY) => void;
   /** What the view shows of the map, said to assistive technology with the overview. */
   inView?: PartInView;
+  /**
+   * What to draw instead of the cards' silhouettes (0.6, `minimap:
+   * "thumbnail"`): the scene drawn small (`OverviewThumbnail`), filling the
+   * overview's box.
+   */
+  thumbnail?: ReactNode;
 }
 
 /** The arrow keys move the view by a tenth of what is in view. */
@@ -213,7 +219,7 @@ const ARROWS: Record<string, number[]> = { ArrowLeft: [-0.1, 0], ArrowRight: [0.
  * or a drag centres the view on the point under the pointer; the arrow keys
  * move it.
  */
-export function MapOverview({ bounds, nodes, view, area, at, locale = "en", onMove, inView }: MapOverviewProps) {
+export function MapOverview({ bounds, nodes, view, area, at, locale = "en", onMove, inView, thumbnail }: MapOverviewProps) {
   const hint = useId();
   const shownId = useId();
   const drag = useRef(false);
@@ -265,8 +271,9 @@ export function MapOverview({ bounds, nodes, view, area, at, locale = "en", onMo
           {inViewText(inView, locale)}
         </span>
       ) : null}
+      {thumbnail ?? null}
       <svg viewBox={`${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}`} preserveAspectRatio="none" aria-hidden="true" focusable="false">
-        <path className="wf-overview__nodes" d={Object.values(nodes).map((b) => `M${b.x} ${b.y}h${b.width}v${b.height}h${-b.width}z`).join("")} />
+        {thumbnail ? null : <path className="wf-overview__nodes" d={Object.values(nodes).map((b) => `M${b.x} ${b.y}h${b.width}v${b.height}h${-b.width}z`).join("")} />}
         <rect className="wf-overview__view" {...shown} data-testid="wf-overview-view" />
       </svg>
     </div>

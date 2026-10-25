@@ -38,13 +38,14 @@ const look = {
   labelPlacement: "clear" as const,
 };
 
-function InstrumentMap({ selected, scheme, lanes }: { selected?: string; scheme?: "dark"; lanes?: boolean }) {
+function InstrumentMap({ selected, scheme, lanes, thumbnail }: { selected?: string; scheme?: "dark"; lanes?: boolean; thumbnail?: boolean }) {
   const [abstraction, setAbstraction] = useState<AbstractOptions>(WHOLE_LOG_DETAIL);
   const [selection, setSelection] = useState<Selection>({ nodes: selected ? [selected] : [], edges: [], groups: [] });
   return (
     <div data-theme={scheme} style={{ height: "100vh", width: "100vw", background: scheme === "dark" ? "#0f1114" : "#f7f8fa" }}>
       <ProcessMap
         {...look}
+        {...(thumbnail && { minimap: "thumbnail" as const })}
         {...(lanes && { layout: { ...layout, stages: "partition" as const }, stageView: "bands" as const, laneOptions: { counts: true, sticky: true, emptyLanes: "divider" as const } })}
         graph={globalScene}
         abstraction={abstraction}
@@ -64,6 +65,9 @@ export const Selected: Story = { name: "selected", render: () => <InstrumentMap 
 
 /** Stages as bands on the partitioned layout: each header with its count, its name kept in view, empty stages as dividers. */
 export const Lanes: Story = { name: "lanes", render: () => <InstrumentMap lanes /> };
+
+/** The overview drawn as a thumbnail of the scene: bands, paths and cards, with the part in view. */
+export const Thumbnail: Story = { name: "thumbnail", render: () => <InstrumentMap lanes thumbnail /> };
 
 /** The same map pinned to the dark scheme by `data-theme` on its container. */
 export const Dark: Story = { name: "dark", render: () => <InstrumentMap scheme="dark" /> };

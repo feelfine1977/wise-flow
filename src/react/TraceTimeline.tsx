@@ -61,6 +61,12 @@ export interface TraceTimelineProps {
    * the table keeps every event. Default none.
    */
   clusterMs?: number;
+  /**
+   * How events are drawn as one ring (0.6): within `clusterMs` of the first
+   * of a run (`window`, the default), or in the same calendar minute in
+   * `timeZone` (`minute`, `clusterMs` not read), as a table's "same minute".
+   */
+  clusterBy?: "window" | "minute";
   /** The IANA zone the times are printed in, named in the description (0.5). Default UTC. */
   timeZone?: string;
   /**
@@ -126,17 +132,27 @@ function colorFor(key: string): string {
 
 const DAY = 86400000;
 const HOUR = 3600000;
+const MINUTE = 60000;
 
 function days(ms: number, locale: Locale): string {
   return Number.isFinite(ms) ? formatNumber(ms / DAY, 1, locale) : "–";
 }
 
-/** Runs of a case's events, in their order, that start within `clusterMs` of their first; every event its own without it. */
-export function eventClusters(times: readonly number[], clusterMs?: number): number[][] {
+/**
+ * Runs of a case's events, in their order, that start within `clusterMs` of
+ * their first, or, with `key`, that follow one another with the same key (a
+ * calendar minute); every event its own without either.
+ */
+export function eventClusters(times: readonly number[], clusterMs?: number, key?: (ms: number) => string): number[][] {
   const out: number[][] = [];
   times.forEach((ms, i) => {
     const run = out[out.length - 1];
     const first = run ? times[run[0]] : NaN;
+    if (key) {
+      if (run && Number.isFinite(ms) && Number.isFinite(first) && key(ms) === key(times[run[run.length - 1]])) run.push(i);
+      else out.push([i]);
+      return;
+    }
     if (run && clusterMs !== undefined && clusterMs > 0 && Number.isFinite(ms) && Number.isFinite(first) && ms >= first && ms - first <= clusterMs) run.push(i);
     else out.push([i]);
   });
@@ -147,7 +163,7 @@ export function eventClusters(times: readonly number[], clusterMs?: number): num
  * Events per case on a time axis, optionally aligned at an anchor activity,
  * with violated constraints marked on the events and spans annotated.
  */
-export function TraceTimeline({ traces, anchor, annotations = [], locale = "en", width = 900, rowHeight = 28, colorKey, onSelect, table = false, className, orientation = "horizontal", height: givenHeight, terminals = false, clusterMs, timeZone: givenZone, stages }: TraceTimelineProps) {
+export function TraceTimeline({ traces, anchor, annotations = [], locale = "en", width = 900, rowHeight = 28, colorKey, onSelect, table = false, className, orientation = "horizontal", height: givenHeight, terminals = false, clusterMs, clusterBy = "window", timeZone: givenZone, stages }: TraceTimelineProps) {
   const id = useId();
   const [hover, setHover] = useState<{ caseId: string; index: number; event: TraceEvent; at?: { x: number; y: number } } | null>(null);
   const keyOf = colorKey ?? ((e: TraceEvent) => e.canonicalId ?? e.activity);
@@ -262,9 +278,12 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
     const lo = placed.length ? least(placed) : 0;
     const span = placed.length ? greatest(placed) - lo || HOUR : DAY;
     const y = scaleLinear().domain([0, span]).range([V_TOP + end, height - V_BOTTOM - end]);
-    // Ticks in hours from the first event over at most two days, else in days.
-    const unit = span <= 2 * DAY ? HOUR : DAY;
+    // Ticks from the first event in minutes over at most two hours, in hours over at most two days, else in days;
+    // a step under one in as many decimals as it needs.
+    const unit = span <= 2 * HOUR ? MINUTE : span <= 2 * DAY ? HOUR : DAY;
     const ticks = scaleLinear().domain([0, span / unit]).ticks(8);
+    const step = ticks.length > 1 ? ticks[1] - ticks[0] : 1;
+    const digits = step < 1 ? Math.min(3, Math.ceil(-Math.log10(step) - 1e-9)) : 0;
     const column = Math.max(V_COLUMN, (width - V_FIRST) / Math.max(1, rows.length));
     const enter = (caseId: string, index: number, event: TraceEvent, at: { x: number; y: number }) => setHover({ caseId, index, event, at });
     return (
@@ -277,14 +296,14 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
               <g key={tick} transform={`translate(${V_RULER} ${y(tick * unit)})`}>
                 <line x2={width - V_RULER} strokeOpacity={opacityTokens.timelineGrid} />
                 <text x={-8} y={4} textAnchor="end">
-                  {`${formatNumber(tick, 0, locale)} ${t(locale, unit === HOUR ? "timeline.hours" : "timeline.days")}`}
+                  {`${formatNumber(tick, Number.isInteger(tick) ? 0 : digits, locale)} ${t(locale, tick === 1 ? (unit === MINUTE ? "timeline.minute" : unit === HOUR ? "timeline.hour" : "timeline.day") : unit === MINUTE ? "timeline.minutes" : unit === HOUR ? "timeline.hours" : "timeline.days")}`}
                 </text>
               </g>
             ))}
           </g>
           {rows.map((row, r) => {
             const x = V_FIRST + r * column;
-            const runs = eventClusters(row.times, clusterMs);
+            const runs = clusterBy === "minute" ? eventClusters(row.times, undefined, formatAt) : eventClusters(row.times, clusterMs);
             // Each ring at its time, moved down where it would touch the ring before it (same-day events), and the whole run back up where that passes the ruler's end.
             const ys = row.times.map((ms) => y(ms - lo));
             const firsts = runs.map((run) => run[0]).filter((i) => Number.isFinite(row.times[i]));

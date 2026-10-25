@@ -225,11 +225,13 @@ export interface ProcessMapProps {
   /**
    * An overview of the map: `"overflow"` (0.4) shows the library's overview
    * of card outlines with the part in view whenever part of the map is out of
-   * view at rest, and never React Flow's minimap; `true` shows React Flow's
-   * minimap (kept for compatibility); default false: only while the map
-   * opens on its start.
+   * view at rest; `"thumbnail"` (0.6) shows it then as the scene itself drawn
+   * small (bands, paths and cards, redrawn when the scene changes); `true`
+   * is another name of `"overflow"` (0.6; it showed React Flow's minimap,
+   * which the library no longer draws; deprecated); default false: only
+   * while the map opens on its start. Interactive (DOM) map only.
    */
-  minimap?: boolean | "overflow";
+  minimap?: boolean | "overflow" | "thumbnail";
   /** Draw a grid of dots behind the interactive map. Default false. */
   backgroundGrid?: boolean;
   /** `svg` renders on React Flow, `canvas` on the Canvas renderer; `auto` (default) picks canvas above `canvasThreshold` elements. */

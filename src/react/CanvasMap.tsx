@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { type Box, type EdgeBudget, type HitItem, type Insets, type Locale, type PartInView, type Readable, type ShownEdges, type ThemeSetting, type XY, elementPoint, formatCount, t, themeColors, viewTokens } from "../core/index.js";
-import { CanvasRenderer, type DrawState, type PreparedScene, type Viewport } from "../canvas/index.js";
+import { CanvasRenderer, type DrawState, type PreparedScene, type Viewport, drawScene, emptyState } from "../canvas/index.js";
 import { sceneTokens } from "../canvas/tokens.js";
 import { PathsNotShown, useEdgesShown } from "./hooks.js";
 import { part } from "./parts.js";
@@ -455,3 +455,20 @@ export const CanvasMap = forwardRef<CanvasMapHandle, CanvasMapProps>(function Ca
     </div>
   );
 });
+
+/** The scene drawn once into a canvas the overview (`minimap: "thumbnail"`)'s size, its bounds filling it. */
+export function OverviewThumbnail({ scene, bounds, width, height }: { scene: PreparedScene; bounds: Box; width: number; height: number }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    const ctx = canvas?.getContext?.("2d");
+    if (!canvas || !ctx || width <= 0 || height <= 0) return;
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    const zoom = Math.min(width / Math.max(bounds.width, 1), height / Math.max(bounds.height, 1));
+    drawScene(ctx, scene, { x: -bounds.x * zoom, y: -bounds.y * zoom, zoom, width, height }, emptyState, { cull: false });
+  }, [scene, bounds.x, bounds.y, bounds.width, bounds.height, width, height]);
+  return <canvas ref={ref} className="wf-overview__thumbnail" aria-hidden="true" data-testid="wf-overview-thumbnail" />;
+}

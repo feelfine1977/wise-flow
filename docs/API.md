@@ -215,6 +215,7 @@ export interface AbstractOptions {
   minEdgeShare?: number;        // follows edges below this relative strength are removed
   minNodeShare?: number;        // activities and stages below this relative strength are removed
   keepConnected?: boolean;      // default true
+  keepEmptyStages?: boolean;    // (0.6) keep top-level stage groups with no member left, for `laneOptions.emptyLanes`; default false (dropped, as before)
   collapse?: string[] | "all" | false;   // stage groups → one stage node each
   edgeMetric?: string;          // default count, then cases, then share
   nodeMetric?: string;          // default cases, then events, then share
@@ -528,7 +529,8 @@ group marks and the cards are placed on their own. No view moves a card; a
 the graph is left out (`hide`, the default, as before), drawn as a 12 px
 labelled divider on the boundary between its neighbours in the stages' order
 (`divider`) or as a 36 px lane there (`lane`), untinted, without moving a card
-(`LaneBand.empty`); `counts` — a band's header says "5 of 15 activities" at
+(`LaneBand.empty`; after `abstract()` such a stage is only there with
+`AbstractOptions.keepEmptyStages`, 0.6); `counts` — a band's header says "5 of 15 activities" at
 its right where the group's metrics give its `activities`, "5 activities"
 ("1 activity") otherwise, and a divider "none in this cohort" (`lane.count`,
 `lane.countShown`, `lane.none`; part `group-header`); `sticky` — on the map a
@@ -976,7 +978,7 @@ export const radiusTokens: { node: 4; large: 8; band; swatch; control; tooltip; 
   activityTooltip; comparisonBar; tint; hatch; chip; canvasSelection; timelineEvent; timelineViolation };
 export const strokeTokens: { node; stage; eventStart; eventEnd; gateway; note; focus; selection; canvasSelection; group;
   canvasGroupSelected; band; halo; path; pathMin; pathMax; canvasPathHighlight; pathFocus; pathHit; arc; arcCoverage; pill;
-  selfLoop; badge; chip; filterChip; legendGradient; tab; timelineSpan; timelineViolation; minimapNode };   // arcCoverage is read by nothing
+  selfLoop; badge; chip; filterChip; legendGradient; tab; timelineSpan; timelineViolation; minimapNode };   // arcCoverage, and minimapNode since 0.6, are read by nothing
 export const dashTokens: { reconnectedNode; reconnectedPath; note; constraint; group; reverseArc; timelineAnchor; bpmnOutOfScope };  // readonly number arrays; note, constraint, group and reverseArc are read by nothing
 export const opacityTokens: { dimmed; dimmedPath; disabled; tint; hatch; arc; groupFill; bandFill; bandOddFill; groupStroke; legendRule; timelineGrid };
 export const spaceTokens: { unit: 2; steps: readonly [1, 1.5, 2, 3, 4, 5, 6, 8] };
@@ -1957,13 +1959,15 @@ export function TableAlternative(props: { graph; overlays?; scales?; locale?; se
 export function TraceTimeline(props: { traces: Trace[]; anchor?: string; annotations?: Annotation[]; locale?;
   width?; rowHeight?; colorKey?; onSelect?; table?: boolean;
   orientation?: "horizontal" | "vertical"; height?: number;   // (0.5) down a ruler, one column per case; default horizontal, 640 high
-  terminals?: boolean; clusterMs?: number; timeZone?: string; stages?: readonly string[] }): JSX.Element;   // (0.5)
-// A vertical timeline (0.5) draws each case down a ruler from its first event, ticked in hours over at most two days and
-// in days otherwise; each event is a paper ring (`dimensionTokens.timelineRing` 20 across) around a dot of its colour
+  terminals?: boolean; clusterMs?: number; timeZone?: string; stages?: readonly string[];   // (0.5)
+  clusterBy?: "window" | "minute" }): JSX.Element;   // (0.6)
+// A vertical timeline (0.5) draws each case down a ruler from its first event, ticked in minutes over at most two hours
+// (0.6), in hours over at most two days and in days otherwise, a fractional step with its decimals ("0.5 hours", 0.6), one unit in the singular ("1 hour", 0.6); each event is a paper ring (`dimensionTokens.timelineRing` 20 across) around a dot of its colour
 // (`dimensionTokens.timelineDot` 7) with its activity beside it. `terminals` adds ▶ Start and ■ End rings at the
 // ruler's ends (`terminal.start`/`terminal.end`). With `clusterMs`, events that follow within it of the first of them
 // are one ring labelled "7 events · SRM: Created" (`timeline.cluster`, part `timeline-cluster`); clicking it selects
-// the first; the table keeps every event and adds "Elapsed (days)" and "Wait before (days)". `timeZone` (IANA) prints
+// the first; with `clusterBy: "minute"` (0.6) the events of one calendar minute in `timeZone` instead, as a table's
+// "same minute" column (`clusterMs` not read); the table keeps every event and adds "Elapsed (days)" and "Wait before (days)". `timeZone` (IANA) prints
 // the times in that zone as "2018-03-01 15:12" and names it in the description ("Times in Europe/Berlin."); a zone the
 // runtime does not know keeps UTC. With `stages`, the stage ids `colorKey` returns take the categorical colours in
 // that order (`orderedCategorical`), any other key the `lineStrong` colour. The horizontal timeline is unchanged.
@@ -2000,7 +2004,8 @@ export type WfEdge = Edge<FollowsEdgeData, EdgeKind>; export function groupNodeI
 export interface AbstractionControlsProps { value: AbstractOptions; onChange; locale?; hasStages?; view?; onViewChange? }
 export interface TableAlternativeProps { graph; overlays?; scales?; locale?; selection?; onSelect?; tables?; pageSize?; className? }
 export interface TraceTimelineProps { traces: Trace[]; anchor?; annotations?; locale?; width?; rowHeight?; colorKey?; onSelect?; table?; className?;
-  orientation?; height?; terminals?; clusterMs?; timeZone?; stages? }   // (0.5)
+  orientation?; height?; terminals?; clusterMs?; timeZone?; stages?;   // (0.5)
+  clusterBy? }   // (0.6)
 export interface TraceEvent { activity: string; canonicalId?; timestamp: string | number | Date; resource?; lifecycle?; violates?: string[] }
 export interface ContextMenuProps { x; y; title: string; subtitle?; note?; actions: MenuAction[]; locale?; onAction; onClose; returnFocusTo?;
   boundsRef?; className? }
@@ -3891,9 +3896,15 @@ insets the only room kept, as up to 0.3, and is what the Canvas map does in
 `cornerBox(corner, size, width, height)` are exported from `wise-flow/react`.
 `minimap: "overflow"` shows the library's overview (the cards' outlines and
 the part in view, part `overview`) whenever part of the interactive map is
-out of view at rest, in `overviewCorner` or `top-right`, and never React
-Flow's minimap; `minimap: true` keeps React Flow's minimap; the Canvas map
-keeps its own opening overview.
+out of view at rest, in `overviewCorner` or `top-right`.
+`minimap: "thumbnail"` (0.6) shows the same overview, at the same times,
+as the scene itself drawn small through the Canvas drawer (bands, paths and
+cards; `MapOverviewProps.thumbnail`), redrawn when the scene or the
+overview's size changes, never while the view pans. The library no longer
+draws React Flow's minimap: `minimap: true` is another name of `"overflow"`
+(deprecated; it showed React Flow's minimap up to 0.5), and no
+`.react-flow__minimap` remains in its stylesheet. The Canvas map keeps its
+own opening overview.
 
 The DOM map, the Canvas map and the BPMN view share one zoom control and one
 set of panel primitives, styled through the tokens and carrying the data

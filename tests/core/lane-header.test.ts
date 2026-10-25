@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type FlowGraph, type Positions, buildScene, laneBands, toSVG } from "../../src/core/index.js";
+import { type FlowGraph, type Positions, abstract, buildScene, laneBands, toSVG } from "../../src/core/index.js";
 
 // Three stages in order; the middle one has none of its activities in this cohort.
 const graph: FlowGraph = {
@@ -59,4 +59,32 @@ describe("band headers", () => {
     const scene = buildScene(graph, positions, { lanes: "stages" });
     expect(scene.groupMarks.every((m) => m.texts.length === 1)).toBe(true);
   });
+});
+
+describe("empty stages after abstraction (WF-16 follow-up)", () => {
+  // Three stages, each with one activity; abstraction removes the weak ones.
+  const three = (weak: string[]): FlowGraph => ({
+    nodes: ["s1", "s2", "s3"].map((g, i) => ({ id: `n${i}`, kind: "activity" as const, label: `N${i}`, group: g, metrics: { cases: weak.includes(g) ? 1 : 100 } })),
+    edges: [{ id: "e01", kind: "follows", source: "n0", target: "n1", metrics: { cases: 1 } }, { id: "e12", kind: "follows", source: "n1", target: "n2", metrics: { cases: 1 } }],
+    groups: ["s1", "s2", "s3"].map((id) => ({ id, kind: "stage" as const, label: id.toUpperCase(), metrics: { activities: 1 } })),
+  });
+  const shown = (weak: string[], keepEmptyStages?: boolean) => abstract(three(weak), { minNodeShare: 0.5, keepConnected: false, ...(keepEmptyStages && { keepEmptyStages }) });
+  const at = (g: FlowGraph): Positions => ({ nodes: Object.fromEntries(g.nodes.map((n) => [n.id, box(Number(n.id.slice(1)) * 300)])), groups: {}, edges: {}, bounds: { x: 0, y: 0, width: 800, height: 40 }, engine: "given", direction: "RIGHT" });
+
+  it("drops a stage with no member left by default, as before", () => {
+    expect(shown(["s2"]).groups!.map((g) => g.id)).toEqual(["s1", "s3"]);
+  });
+
+  for (const [name, weak] of [["middle", ["s2"]], ["first and last", ["s1", "s3"]]] as const) {
+    it(`keeps an empty ${name} stage with keepEmptyStages and draws it as a labelled divider`, () => {
+      const g = shown([...weak], true);
+      expect(g.groups!.map((x) => x.id)).toEqual(["s1", "s2", "s3"]);
+      const scene = buildScene(g, at(g), { lanes: "stages", laneOptions: { counts: true, emptyLanes: "divider" } });
+      for (const id of weak) {
+        const mark = scene.groupMarks.find((m) => m.id === id)!;
+        expect(mark.band?.empty).toBe(true);
+        expect(mark.texts.map((t) => t.text)).toEqual([id.toUpperCase(), "none in this cohort"]);
+      }
+    });
+  }
 });
