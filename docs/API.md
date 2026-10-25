@@ -516,6 +516,17 @@ The stages' boxes (`Positions.groups`) are drawn around their members with
 without groups and draws the boxes the same way. The default stays
 `compound`.
 
+ELK's partitions are kept only where they hold (0.6, Workbench #39): ELK lays
+them out, no route passes behind a card it does not join (`routeFaults`), and
+every partition comes after the one before it along the flow. Otherwise, and
+where ELK throws on them (on the BPI 2019 log it threw a NullPointerException
+for some detail settings, and 0.5 then fell back to Dagre without saying so,
+with diagonal routes through cards), the stages are laid out once more by ELK
+as compound nodes, never handed to Dagre for that. `Positions.stages` says how
+ELK laid the stages out: `partition`, or `compound` (asked for, or instead of
+partitions); none without stages or from another engine. Key a degraded
+state on `positions.engine !== "elk"`.
+
 `FlowSceneOptions.stageView` and `ProcessMapProps.stageView` (0.5) choose how
 the stages are drawn on one layout: `bands` across the map (as `lanes:
 "stages"`), `lanes` (the same bands until lanes get headers of their own),
@@ -549,6 +560,7 @@ export interface Positions {
   nodes: Record<string, Box>; groups: Record<string, Box>; edges: Record<string, EdgeRoute>;
   bounds: Box; engine: "elk" | "dagre" | "di" | "given" | "provisional"; direction: "RIGHT" | "DOWN" | "LEFT" | "UP";
   final?: boolean;   // no layout replaces them: the provisional arrangement useStableLayout keeps when the layout is unavailable
+  stages?: "partition" | "compound";   // how ELK laid out the stages (0.6); none without stages or from another engine
 }
 export interface LayoutOptions {
   engine?: "elk" | "dagre" | "auto";   // auto (default): ELK, Dagre on failure or timeout
@@ -3291,6 +3303,7 @@ export function paintOrder(marks: readonly { width: number; id: string }[]): num
 export type PathSegment = { kind: "line"; to: XY } | { kind: "curve"; c1: XY; c2: XY; to: XY };   // (0.5)
 export function roundedRoute(points: readonly XY[], radius: number, end?: XY): PathSegment[];   // every bend rounded, no more than half a segment (0.5)
 export interface LabelObstacles { nodes: readonly Box[]; titles: readonly Box[] }   // (0.5)
+export function routeFaults(graph: FlowGraph, positions: Positions): string[];   // routes crossing a card other than their own ends, "edge behind node" (0.6)
 export function placeEdgeLabels(edges: readonly EdgeMark[], obstacles: LabelObstacles, measure: TextMeasure): EdgeMark[];   // labels moved clear, widest paths first; a leader where moved off the line (0.5)
 export function segmentsPath(start: XY, segments: readonly PathSegment[], num?: (n: number) => string): string;   // SVG path data (0.5)
 // EdgeMark.path?: PathSegment[]: the route as drawn where Theme.radius.bend > 0 (0 in default and print, 8 in instrument); every renderer
