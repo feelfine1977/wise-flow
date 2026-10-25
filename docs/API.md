@@ -2990,6 +2990,35 @@ Additions only, except the keyboard route for Enter.
   `map.instructions` names every keyboard route.
 
 
+## Changes in 0.4 against 0.3 (the instrument look)
+
+- `theme="instrument"` (`instrumentTheme`, `instrumentTokens`): the WISE look,
+  light and dark, passing `checkTheme`; `Theme.size`, `Theme.readable`,
+  `Theme.arrowhead`; colour role `terminal`.
+- A card's band only where its colour says something (`Scales.nodeColored`).
+- Start and End with ▶ / ■ and their names; terminal paths (`Scales.terminal`,
+  `terminalOf`, `EdgeMark.terminal`, contract states `start`/`end`), from
+  follows edges and from host-tagged sequence flows.
+- The host's wording (`strings`, `Strings`, `createStrings`, `t` with
+  overrides) on the scene, the map, its panels and the exports;
+  `hideAttribution`.
+- Names shortened after whole words (`TruncateOptions.words`).
+- Panel placement (`legendPosition`, `controlsPosition`, `overviewCorner`),
+  `fitInsets` added to the panels' room by default (`mode`), `minimap:
+  "overflow"`; `insetBoxes`, `cornerBox`, `panelBoxes`.
+- Labels by width on the screen (`lod.edgeLabels: { minPx }`), around a
+  selection (`lod.selectedPaths`, `style.selectedShare`, `emphasisLabel`),
+  backward paths a step thinner until selected (`EdgeMark.lift`).
+- Heads from the theme with a narrowest path (`Arrowhead.minWidth`; breaking
+  for readers of marks: `EdgeMark.arrow` is optional), paths painted the
+  widest first (`paintOrder`).
+- The self-loop as a pill on the border (`OverlayGeometryOptions.selfLoop`,
+  `badgeAnchor`; `ProcessMapProps.overlayGeometry`).
+- "≥" on a collapsed stage's card, exact host stage numbers
+  (`FlowGroup.metrics`), legend key `atLeast`.
+- Exports in the instrument look with the caption's terminal sentence; a map
+  follows `data-theme` on the nearest element around it.
+
 ## Abstraction identity and interaction notes
 
 `abstract` and `collapseGroups` preserve response `focus` and `paths` so a focused
