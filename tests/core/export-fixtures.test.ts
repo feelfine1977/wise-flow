@@ -162,17 +162,25 @@ const observed: Variant = {
  * The vendor's and `plain` are the same.
  */
 
+// Recorded once more for 0.4 (M1 "instrument look"), against the output at f8c45d4 compared group by group: only
+// these changed. Paths from the start event and to the end event are terminal paths in the terminal paint (seven of
+// the global maps', five of the vendor's), colour only; the recorded paths take the grey of their cases over a colour
+// domain without the terminal paths (26 of the default theme's, 27 of print's), colour only; every renderer paints the
+// paths the widest first, so the edge groups come in that order; the start and end events are outlined in lineStrong
+// with ▶ and ■ in their middle; the legend lists the keys of the terminal paths (─) and the events (▶, ■); the caption
+// adds what the terminal paths count; in the narrow print figures the key of numbered names moves down under the
+// taller legend. The observed self-loops of `observed` take their paths' new colour. Nothing else changed.
 // Supplied activity times now appear in node titles. Compared with the preceding
 // output: scene marks are identical except titles, SVG is byte-identical after
 // removing titles, and all recorded Canvas operations are identical.
 const before: Record<string, string> = {
-  overlays: "15e36458034f2e8229722dc314ede9dd629dd384babbb11f9e8b38a132fa4fea",
-  stagesGerman: "918f1827751a9c485057468d7136da820b57c4721c2912392febedcad51ef6b9",
-  vendor: "e2431f93ed0d40538d9e9f4b93d1497b1d43f8fcc6324dd00e3a7d732893df01",
-  unfiltered: "8503153cad5b7d9a0382b8c42f882251c5699dc80071f375573d726d80986f18",
-  plain: "10d9f9a55c69bf13e9e8392f41f6e616dd76a6ce8c53bb0a421324561877bb88",
+  overlays: "78b3ba779437523cf4f815a0b30a265e43c8b3161cf8a91ad00e974e2cf4291b",
+  stagesGerman: "2072787b63c5726a3553310efedb9b46887f799733843bad9276e823d6f5be80",
+  vendor: "bfebcdae010a6c2388409e77a43aa3dedee8173836d27e801c59036380e41bf3",
+  unfiltered: "c5ae8088019cee71f424c6dd4347b100406fa03e3fa16d23b61edf7ebde129d5",
+  plain: "28992010e352e2927fbe9fe7255f75e6aeae2d2a499f42309183bd6d7ca76c28",
 };
-const beforeObserved = "7c1510a3b92b08b95b3445b795c3c727f4333458a62533d7fd10508507fd1cb4";
+const beforeObserved = "a9e23da4d644af079aac3b770e4eaa59d25e74124ca19b9d90ee6e0f704474e8";
 
 /**
  * SHA-256 of `toSVG` for each variant without a theme, which draws the print
@@ -190,11 +198,11 @@ const beforeObserved = "7c1510a3b92b08b95b3445b795c3c727f4333458a62533d7fd105085
 // Fractional font sizes are serialized to twelve decimal places. Only the references
 // and boosted deviation texts in the two narrow figures differ; all other SVG bytes are unchanged.
 const printed: Record<string, string> = {
-  overlays: "808aaaf06d29e33ad91c1ba37593a8903cb7abd3c76849db86eb3dda30bb3e7b",
-  stagesGerman: "254171209f8d386f5fc4469de3fe5776ec29cb577297acbc8161814c33694bf2",
-  vendor: "8dffbac929fa670aa32c9da111cbaf91eb560caf3a378cedcba296488e45b382",
-  unfiltered: "f9c6675937c37d3b9a0b42d9b9de9125be3b4bf83007b2e18e0bef43c4706888",
-  plain: "70911ef8686f2aa17d961af06effe4ca9c0547380e492f171c7f89acbe3373c0",
+  overlays: "f469226a7b6c2cda29b4644515dbb2e6d2ab94c94c9812467fd7e3851ed5dbe3",
+  stagesGerman: "d369e09679f90c52ec085c87acd5555fd45d32074ed60ae6827befe287dbc584",
+  vendor: "b309092023bd82a5cd8379cbc303b0e0d74d15b95c248d2253def49687d8eeea",
+  unfiltered: "af7a1022641ecfb7564f5e5dd3b7b43ed1226f371c181840885682130280f721",
+  plain: "c752268bed8e3c92e66a0cffac4465ef47ad3a34c14d274c71b9ca89f8c3c9a6",
 };
 
 describe("toSVG on the committed fixtures", () => {

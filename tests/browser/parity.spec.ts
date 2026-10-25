@@ -46,6 +46,11 @@ const FIXTURES: { name: string; story: string; scheme?: ColorScheme }[] = [
   { name: "smallDark", story: "parity--small", scheme: "dark" },
   { name: "roleLanesDark", story: "parity--role-lanes", scheme: "dark" },
   { name: "kindsDark", story: "parity--element-kinds", scheme: "dark" },
+  { name: "terminals", story: "parity--terminals" },
+  { name: "terminalsDark", story: "parity--terminals", scheme: "dark" },
+  { name: "instrument", story: "parity--instrument" },
+  { name: "instrumentDark", story: "parity--instrument", scheme: "dark" },
+  { name: "instrumentTerminals", story: "parity--instrument-terminals" },
 ];
 
 interface StoryScene {

@@ -173,13 +173,16 @@ function exported(fixture: Fixture, scene: Partial<Scene>, options: PngOptions):
  * PNG, one of the unfiltered map and of its German PNG; the vendor's are the
  * same.
  */
+// Recorded once more for 0.4 (M1 "instrument look"), with the SVG export's digests (see export-fixtures.test.ts): the
+// terminal paths in their paint, the recorded paths over a colour domain without them, the paths and their labels
+// painted the widest first, the events' outlines and glyphs, the legend's new keys and the caption's sentence.
 const before = {
-  mapGlobalStages: "294ba885012debce13000c92749af21800324b9b2460fbfb48d7fe4df5358904",
-  mapVendorIds: "07d774d42b584c749d7d9132ba3e1eec5865aab2da10ba7f38993be036d44de2",
-  mapUnfiltered: "d34c1f251e644e6062bfadb89327faa56fc3b544b19866dd9283b0066c07b6df",
-  pngGlobalTitle: "39ddfa73a6d927671550d3ebfebc3a4bd08c785b91849a187f18b3faf730850c",
-  pngVendorIds: "86cc5e853bb0e41385ce1b06c835d88418636a7d442a1d4fafb3f0847e7d7104",
-  pngUnfilteredGerman: "041afba1271b7eb5104bb35a0691ae291325d2359719f0cbe7e7457d87c6236b",
+  mapGlobalStages: "62248c2defb5b82383502634252f6bda64fd7ae06ba8f4a95518215a26c76d5f",
+  mapVendorIds: "015d6426ebd3f33dfee3cb3b38732bd161a84c417c9c027e18d9455ae349d46c",
+  mapUnfiltered: "157059aec2c63f8e6d637d49862300f8a2112ed1b6558b67c4fc5056841d8c0b",
+  pngGlobalTitle: "8238a39dda6463625eccdf3b5e390db35ffec552a525bd30d0f46c8fdad23373",
+  pngVendorIds: "9272d09ad06747f420e7af8595fa6dc0abcf5eef18aa1902d7f052f9b9399a8f",
+  pngUnfilteredGerman: "b259273cef1e77b5819f3c941441a4ec977551f16f7470cc3513d18bfb5c6740",
 };
 
 /**
@@ -224,10 +227,10 @@ const before = {
  * code block by block, element by element.
  */
 const culledBefore = {
-  culledGlobal: "6cdf6decddd9eee9accb2ef1adcecffd1490975d526ca4158d9006ebcf9a79d4",
-  culledGlobalStages: "ae4336f3de55d2e322847918c0ce27731258ab9ab2f40346cb9e1cb1f655e053",
-  culledVendorIds: "3fe0e2f24c26e3a88cf1311cb7ef0ab75af35ec3bb5f446de5b8f051b52ba98a",
-  culledUnfiltered: "dbbdda743b5146900446259bb21eb307379ee22b6bc2336650ce6aee1582884f",
+  culledGlobal: "ec413696428227494fca97e7c3381a40ac5f97d4216024fbd2c73e098db1d0a7",
+  culledGlobalStages: "47f24ce2c2175fd2ddaef6adb06cfd1ccbc4172fcd68fadf65396ef27684292c",
+  culledVendorIds: "b258a035146ebc5e6061483fb60060fbe6b4e6b4a946a1c651748b8f4287644c",
+  culledUnfiltered: "d14e2615bf0f24d06b4ce370f40f55731ad2c94dabc4c2ef46d1a439085c8357",
 };
 
 /**
@@ -253,16 +256,16 @@ const culledBefore = {
  * at their sizes.
  */
 const readableDrawn = {
-  mapGlobalStages: "125d781b161efbba593b1d2f1c65c50f0559392f9be1528e027b823914874bf4",
-  mapVendorIds: "60dfa0d7dac902bd79c36b0fd0b871ff645989a5e3a19b5f603edbb57fa74c14",
-  mapUnfiltered: "896af22cb14903a080ef9bc4ea43c939c9db305059a273f785acf0db13cd7a93",
-  pngGlobalTitle: "35efbfaa8d3f702fd03b45d986b30e432cb75b01fff46140c07b61a474ff4bcb",
-  pngVendorIds: "383c0766dabd578f808eeb48d120f88690cd9fbe4c01d75cf6c800858c876626",
-  pngUnfilteredGerman: "c5343c8c06299d2c333c5fae47461a0259f1d343e8d6a70892892d440803bc10",
-  culledGlobal: "ae0c790a38caac18c7469849170b4fd8c7a8699d9d649bea35987fd293d6967e",
-  culledGlobalStages: "fef0535748d88f5aca1d041668416dd16763f8c82de88dd1290f2af9bbf47a73",
-  culledVendorIds: "a3ae85712e3191a62bb35114a17b9e7a833c48f5938eb6ac7d4b58d842810d5c",
-  culledUnfiltered: "1a7c5d646f79395d0a298c41856f2cc5c1118700488627eedbaab4e694a665df",
+  mapGlobalStages: "d1aac984b857b34f09bb149a379b296e2a677bb22775a231d682a6fb90f1edd2",
+  mapVendorIds: "b41dfcd1e544fba746186a89cc8d72f5c5195d50e30a45201f22623518361b2a",
+  mapUnfiltered: "129397a2cc848616f379d7b4653d0925c902c976d1bccc32f074a18d4a4f5b8e",
+  pngGlobalTitle: "485ff1431a1921f7eb89d166f74522c868f7091f36c1412fd3863d3ce277e732",
+  pngVendorIds: "ba9bee1189a65d8b0d56b03adf18fc761aaf1789b8a3d3a2fe13bf975c429877",
+  pngUnfilteredGerman: "6e335940b62eb3fe32ea0e05f7d414393fa0d37329ace8a7c78ce4e513abf394",
+  culledGlobal: "bfbbf480f7153c572c0ff5b4cfb095ad6fbfe64562429158143c46636495b06e",
+  culledGlobalStages: "15e63c03a6b1b655b681245f81e94e3904416edcb2fbf8d37bef492a6b6b8d11",
+  culledVendorIds: "9e673342bc2f4e8790ac8f8bb755d78a8990ac43486c067ddf97249bac755aa4",
+  culledUnfiltered: "e13260bf50507bdada0b464751d44cf2518681769cde261ec4282f75fecca018",
 };
 
 const strips = {
