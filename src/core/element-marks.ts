@@ -711,7 +711,8 @@ export function groupMarks(graph: FlowGraph, positions: Positions, bands: readon
     if (idx && header && band) {
       const shown = idx.allMembers(g.id).filter((n) => n.kind === "activity").length;
       const of = metric(g, "activities", NaN);
-      count = band.empty ? header.say("lane.none") : Number.isFinite(of) ? header.say(of === 1 ? "lane.countOfOne" : "lane.count", { shown: formatCount(shown, header.locale), of: formatCount(of, header.locale) }) : shown === 1 ? header.say("lane.countOne") : header.say("lane.countShown", { shown: formatCount(shown, header.locale) });
+      const hidden = metric(g, "hiddenActivities", 0);
+      count = band.empty ? (hidden > 0 ? (hidden === 1 ? header.say("lane.hiddenByDetailOne") : header.say("lane.hiddenByDetail", { count: formatCount(hidden, header.locale) })) : header.say("lane.none")) : Number.isFinite(of) ? header.say(of === 1 ? "lane.countOfOne" : "lane.count", { shown: formatCount(shown, header.locale), of: formatCount(of, header.locale) }) : shown === 1 ? header.say("lane.countOne") : header.say("lane.countShown", { shown: formatCount(shown, header.locale) });
     }
     return box ? [groupMark(g, box, { color: c.color, pattern: c.pattern, band, theme, ...(count && { header: count }) })] : [];
   });

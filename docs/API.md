@@ -530,7 +530,7 @@ the graph is left out (`hide`, the default, as before), drawn as a 12 px
 labelled divider on the boundary between its neighbours in the stages' order
 (`divider`) or as a 36 px lane there (`lane`), untinted, without moving a card
 (`LaneBand.empty`; after `abstract()` such a stage is only there with
-`AbstractOptions.keepEmptyStages`, 0.6); `counts` — a band's header says "5 of 15 activities" at
+`AbstractOptions.keepEmptyStages`, 0.6, which sets `metrics.hiddenActivities` on a stage whose activities the detail left out; its divider then reads "2 activities not shown at this detail", `lane.hiddenByDetail`); `counts` — a band's header says "5 of 15 activities" at
 its right where the group's metrics give its `activities`, "5 activities"
 ("1 activity") otherwise ("1 of 1 activity" for a stage of one, `lane.countOfOne`), and a divider "none in this cohort" (`lane.count`,
 `lane.countShown`, `lane.none`; part `group-header`); `sticky` — on the map a
