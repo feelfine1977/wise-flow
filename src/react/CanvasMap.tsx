@@ -470,5 +470,5 @@ export function OverviewThumbnail({ scene, bounds, width, height }: { scene: Pre
     const zoom = Math.min(width / Math.max(bounds.width, 1), height / Math.max(bounds.height, 1));
     drawScene(ctx, scene, { x: -bounds.x * zoom, y: -bounds.y * zoom, zoom, width, height }, emptyState, { cull: false });
   }, [scene, bounds.x, bounds.y, bounds.width, bounds.height, width, height]);
-  return <canvas ref={ref} className="wf-overview__thumbnail" style={{ width, height }} aria-hidden="true" data-testid="wf-overview-thumbnail" />;
+  return <canvas ref={ref} className="wf-overview__thumbnail" aria-hidden="true" data-testid="wf-overview-thumbnail" />;
 }
