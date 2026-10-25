@@ -2,7 +2,8 @@
 "wise-flow": minor
 ---
 
-`TraceTimeline`: `clusterBy: "minute"` draws the events of one calendar
+WF-19b, `TraceTimeline`: `clusterBy: "minute"` draws the events of one calendar
 minute (in `timeZone`) as one ring, as a table's "same minute" column; a
 vertical ruler under two hours is ticked in minutes, and a fractional tick
-step is written with its decimals ("0.5 hours").
+step is written with its decimals ("0.5 hours"); one unit is written in the
+singular ("1 hour", DE "1 Stunde").

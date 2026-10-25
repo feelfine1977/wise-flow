@@ -1960,7 +1960,7 @@ export function TraceTimeline(props: { traces: Trace[]; anchor?: string; annotat
   terminals?: boolean; clusterMs?: number; timeZone?: string; stages?: readonly string[];   // (0.5)
   clusterBy?: "window" | "minute" }): JSX.Element;   // (0.6)
 // A vertical timeline (0.5) draws each case down a ruler from its first event, ticked in minutes over at most two hours
-// (0.6), in hours over at most two days and in days otherwise, a fractional step with its decimals ("0.5 hours", 0.6); each event is a paper ring (`dimensionTokens.timelineRing` 20 across) around a dot of its colour
+// (0.6), in hours over at most two days and in days otherwise, a fractional step with its decimals ("0.5 hours", 0.6), one unit in the singular ("1 hour", 0.6); each event is a paper ring (`dimensionTokens.timelineRing` 20 across) around a dot of its colour
 // (`dimensionTokens.timelineDot` 7) with its activity beside it. `terminals` adds ▶ Start and ■ End rings at the
 // ruler's ends (`terminal.start`/`terminal.end`). With `clusterMs`, events that follow within it of the first of them
 // are one ring labelled "7 events · SRM: Created" (`timeline.cluster`, part `timeline-cluster`); clicking it selects

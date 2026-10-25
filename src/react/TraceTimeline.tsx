@@ -296,7 +296,7 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
               <g key={tick} transform={`translate(${V_RULER} ${y(tick * unit)})`}>
                 <line x2={width - V_RULER} strokeOpacity={opacityTokens.timelineGrid} />
                 <text x={-8} y={4} textAnchor="end">
-                  {`${formatNumber(tick, digits, locale)} ${t(locale, unit === MINUTE ? "timeline.minutes" : unit === HOUR ? "timeline.hours" : "timeline.days")}`}
+                  {`${formatNumber(tick, Number.isInteger(tick) ? 0 : digits, locale)} ${t(locale, tick === 1 ? (unit === MINUTE ? "timeline.minute" : unit === HOUR ? "timeline.hour" : "timeline.day") : unit === MINUTE ? "timeline.minutes" : unit === HOUR ? "timeline.hours" : "timeline.days")}`}
                 </text>
               </g>
             ))}

@@ -52,6 +52,8 @@ describe("clusters by calendar minute and short rulers", () => {
     const labels = [...container.querySelectorAll(".wf-axis text")].map((t) => t.textContent);
     expect(new Set(labels).size).toBe(labels.length);
     expect(labels).toContain("0.5 hours");
+    expect(labels).toContain("1 hour");
+    expect(labels).not.toContain("1 hours");
   });
 });
 
