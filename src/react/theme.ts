@@ -5,8 +5,8 @@
  * changes; the map, the Canvas map and a host's export read what it resolves.
  */
 import { type RefObject, useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { type ColorScheme, type Theme, type ThemeOverrides, type ThemeSetting, checkTheme, resolveTheme } from "../core/index.js";
-import { colorChannels, defaultTheme, themeFromVariables, themeVariables } from "../core/theme.js";
+import { type ColorScheme, type Theme, type ThemeOverrides, type ThemeSetting, checkTheme, defaultTheme, resolveTheme } from "../core/index.js";
+import { colorChannels, themeFromVariables, themeVariables } from "../core/theme.js";
 
 /** A theme resolved in a page, and the colour scheme it is drawn in there. */
 export interface FlowTheme {

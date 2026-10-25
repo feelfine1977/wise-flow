@@ -7,7 +7,6 @@
 import { describe, expect, it } from "vitest";
 import { smallP2P } from "../../fixtures/p2p_small";
 import { type FlowGraph, buildScene, collapseGroups, createPositions, defaultNodeSize, metricBasis } from "../../src/index";
-import { describeNode } from "../../src/react/describe";
 
 function row(graph: FlowGraph) {
   let x = 0;
@@ -24,11 +23,11 @@ const numbers = (g: FlowGraph, id: string) => buildScene(g, row(g)).nodeMarks.fi
 describe("a collapsed stage", () => {
   const collapsed = collapseGroups(smallP2P, ["receipt"]);
 
-  it("prints its lower bound compactly on the card and in full in its description", () => {
+  it("prints its lower bound compactly on the card", () => {
     expect(metricBasis(collapsed.nodes.find((n) => n.id === "receipt")!, "cases")).toBe("atLeast");
     // Record Goods Receipt (900) is the stage's largest member: at least 900 cases, 90 % of 1,000.
     expect(numbers(collapsed, "receipt")).toEqual(["≥ 900", "· ≥ 90 %"]);
-    expect(describeNode(collapsed.nodes.find((n) => n.id === "receipt")!, [], "en")).toContain("at least 900 cases");
+    // Its description keeps "at least" (tests/react/CollapsedNumbers.test.tsx).
   });
 
   it("keys the lower bound in the legend only where a card carries it", () => {
