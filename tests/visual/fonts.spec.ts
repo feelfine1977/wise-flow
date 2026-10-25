@@ -72,6 +72,6 @@ test("the map's text is drawn in the lane's own font, bold where bold and with d
     expect(widths[0]).toBe(widths[1]);
     expect(widths[2]).toBe(widths[1]);
   }
-  await expect(counts).toHaveCSS("font-variant-numeric", "tabular-nums");
+  await expect(counts).toHaveCSS("font-variant-numeric", "lining-nums tabular-nums");
   await expect(counts).toHaveCSS("font-kerning", "none");
 });

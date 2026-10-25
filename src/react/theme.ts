@@ -6,7 +6,7 @@
  */
 import { type RefObject, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { type ColorScheme, type Theme, type ThemeOverrides, type ThemeSetting, checkTheme, resolveTheme } from "../core/index.js";
-import { colorChannels, themeFromVariables } from "../core/theme.js";
+import { colorChannels, defaultTheme, themeFromVariables, themeVariables } from "../core/theme.js";
 
 /** A theme resolved in a page, and the colour scheme it is drawn in there. */
 export interface FlowTheme {
@@ -27,6 +27,14 @@ function liveScheme(doc: Document | undefined, element?: Element | null): ColorS
   const set = doc?.documentElement.getAttribute("data-theme");
   if (set === "dark" || set === "light") return set;
   return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+/** Two values of a variable alike: the same text, or the same colour however it is written (a build may shorten `#ffffff` to `#fff`). */
+function sameValue(a: string, b: string | undefined): boolean {
+  if (b === undefined) return false;
+  if (a.trim() === b) return true;
+  const [x, y] = [colorChannels(a.trim()), colorChannels(b)];
+  return !!x && !!y && x.every((v, i) => Math.abs(v - y[i]) < 1e-6);
 }
 
 let probe: CanvasRenderingContext2D | null | undefined;
@@ -139,7 +147,9 @@ export function useTheme(host: RefObject<Element | null>, setting?: ThemeSetting
         else inline.setProperty(name, String(own));
       }
       const style = getComputedStyle(element);
-      const variables = themeFromVariables((name) => style.getPropertyValue(name), scheme, cssColor);
+      // Pinned to the other scheme, the variables `tokens.css` sets for the page's scheme are not the host's.
+      const page = pinned ? themeVariables(defaultTheme, liveScheme(element.ownerDocument)) : undefined;
+      const variables = themeFromVariables((name) => { const v = style.getPropertyValue(name); return page && sameValue(v, page[name]) ? "" : v; }, scheme, cssColor);
       if (aside?.names.length) {
         inline.cssText = saved;
         observer?.takeRecords();

@@ -111,12 +111,12 @@
 .wf-process-map.wf-text--box .wf-activity-copy,
 .wf-process-map.wf-text--box .wf-group__label,
 .wf-process-map.wf-text-hide-path .wf-edge-label,
-.wf-process-map.wf-text-hide-loop .wf-selfloop > text,
+.wf-process-map.wf-text-hide-loop .wf-selfloop > path ~ text,
 .wf-process-map.wf-text-hide-event .wf-node--event > .wf-node__label,
 .wf-process-map.wf-text-hide-glyph .wf-node--gateway > .wf-node__label,
 .wf-process-map.wf-text-hide-glyph .wf-node--event > .wf-node__glyph,
 .wf-process-map.wf-text-hide-note .wf-node--note > .wf-node__label,
-.wf-process-map.wf-text-hide-pills :is(.wf-pill-row, .wf-marks .wf-chip, .wf-arc-pill) {
+.wf-process-map.wf-text-hide-pills :is(.wf-pill-row, .wf-marks .wf-chip, .wf-arc-pill, .wf-selfloop:has(> rect)) {
   display: none;
 }
 .wf-copy--full {
@@ -136,7 +136,8 @@
 .wf-process-map:is(:not(.wf-text--plain), .wf-text-grow) .wf-group__label {
   transform-origin: 0 100%;
 }
-.wf-process-map:is(:not(.wf-text--plain), .wf-text-grow) :is(.wf-pill-row, .wf-marks .wf-chip, .wf-arc-pill) {
+/* A self-loop drawn as a pill (a rect, no path) is a pill too. */
+.wf-process-map:is(:not(.wf-text--plain), .wf-text-grow) :is(.wf-pill-row, .wf-marks .wf-chip, .wf-arc-pill, .wf-selfloop:has(> rect)) {
   transform-box: fill-box;
   transform-origin: center;
   transform: scale(max(1, calc(var(--wf-text-floor, 0) / var(--wf-pill-size, 1))));
