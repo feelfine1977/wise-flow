@@ -22,6 +22,39 @@ describe("eventClusters", () => {
   });
 });
 
+describe("clusters by calendar minute and short rulers", () => {
+  const short = { caseId: "m", events: [
+    { activity: "a", timestamp: at("2018-03-01T10:00:45Z") },
+    { activity: "b", timestamp: at("2018-03-01T10:01:15Z") },
+    { activity: "c", timestamp: at("2018-03-01T10:01:50Z") },
+    { activity: "d", timestamp: at("2018-03-01T10:50:00Z") },
+  ] };
+
+  it("folds events of the same calendar minute, not of a sliding window", () => {
+    const window = render(<TraceTimeline traces={[short]} orientation="vertical" clusterMs={60000} />);
+    expect(window.container.querySelector('[data-wf-part="timeline-cluster"]')!.textContent).toContain("2 events · a");
+    window.unmount();
+    const { container } = render(<TraceTimeline traces={[short]} orientation="vertical" clusterBy="minute" timeZone="Europe/Berlin" />);
+    expect(container.querySelector('[data-wf-part="timeline-cluster"]')!.textContent).toContain("2 events · b");
+    expect(container.querySelectorAll(".wf-event--ring")).toHaveLength(3);
+  });
+
+  it("ticks a case under two hours in minutes", () => {
+    const { container } = render(<TraceTimeline traces={[short]} orientation="vertical" />);
+    const labels = [...container.querySelectorAll(".wf-axis text")].map((t) => t.textContent);
+    expect(labels[0]).toBe("0 minutes");
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+
+  it("writes a fractional step with its decimals", () => {
+    const hour = { caseId: "h", events: [{ activity: "a", timestamp: at("2018-03-01T10:00:00Z") }, { activity: "b", timestamp: at("2018-03-01T13:00:00Z") }] };
+    const { container } = render(<TraceTimeline traces={[hour]} orientation="vertical" />);
+    const labels = [...container.querySelectorAll(".wf-axis text")].map((t) => t.textContent);
+    expect(new Set(labels).size).toBe(labels.length);
+    expect(labels).toContain("0.5 hours");
+  });
+});
+
 describe("TraceTimeline, vertical", () => {
   it("draws one ring for the events of the same minute, labelled with their count and the first activity", () => {
     const { container } = render(<TraceTimeline traces={[trace]} orientation="vertical" clusterMs={60000} />);

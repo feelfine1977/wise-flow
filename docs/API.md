@@ -1957,13 +1957,15 @@ export function TableAlternative(props: { graph; overlays?; scales?; locale?; se
 export function TraceTimeline(props: { traces: Trace[]; anchor?: string; annotations?: Annotation[]; locale?;
   width?; rowHeight?; colorKey?; onSelect?; table?: boolean;
   orientation?: "horizontal" | "vertical"; height?: number;   // (0.5) down a ruler, one column per case; default horizontal, 640 high
-  terminals?: boolean; clusterMs?: number; timeZone?: string; stages?: readonly string[] }): JSX.Element;   // (0.5)
-// A vertical timeline (0.5) draws each case down a ruler from its first event, ticked in hours over at most two days and
-// in days otherwise; each event is a paper ring (`dimensionTokens.timelineRing` 20 across) around a dot of its colour
+  terminals?: boolean; clusterMs?: number; timeZone?: string; stages?: readonly string[];   // (0.5)
+  clusterBy?: "window" | "minute" }): JSX.Element;   // (0.6)
+// A vertical timeline (0.5) draws each case down a ruler from its first event, ticked in minutes over at most two hours
+// (0.6), in hours over at most two days and in days otherwise, a fractional step with its decimals ("0.5 hours", 0.6); each event is a paper ring (`dimensionTokens.timelineRing` 20 across) around a dot of its colour
 // (`dimensionTokens.timelineDot` 7) with its activity beside it. `terminals` adds ▶ Start and ■ End rings at the
 // ruler's ends (`terminal.start`/`terminal.end`). With `clusterMs`, events that follow within it of the first of them
 // are one ring labelled "7 events · SRM: Created" (`timeline.cluster`, part `timeline-cluster`); clicking it selects
-// the first; the table keeps every event and adds "Elapsed (days)" and "Wait before (days)". `timeZone` (IANA) prints
+// the first; with `clusterBy: "minute"` (0.6) the events of one calendar minute in `timeZone` instead, as a table's
+// "same minute" column (`clusterMs` not read); the table keeps every event and adds "Elapsed (days)" and "Wait before (days)". `timeZone` (IANA) prints
 // the times in that zone as "2018-03-01 15:12" and names it in the description ("Times in Europe/Berlin."); a zone the
 // runtime does not know keeps UTC. With `stages`, the stage ids `colorKey` returns take the categorical colours in
 // that order (`orderedCategorical`), any other key the `lineStrong` colour. The horizontal timeline is unchanged.
@@ -2000,7 +2002,8 @@ export type WfEdge = Edge<FollowsEdgeData, EdgeKind>; export function groupNodeI
 export interface AbstractionControlsProps { value: AbstractOptions; onChange; locale?; hasStages?; view?; onViewChange? }
 export interface TableAlternativeProps { graph; overlays?; scales?; locale?; selection?; onSelect?; tables?; pageSize?; className? }
 export interface TraceTimelineProps { traces: Trace[]; anchor?; annotations?; locale?; width?; rowHeight?; colorKey?; onSelect?; table?; className?;
-  orientation?; height?; terminals?; clusterMs?; timeZone?; stages? }   // (0.5)
+  orientation?; height?; terminals?; clusterMs?; timeZone?; stages?;   // (0.5)
+  clusterBy? }   // (0.6)
 export interface TraceEvent { activity: string; canonicalId?; timestamp: string | number | Date; resource?; lifecycle?; violates?: string[] }
 export interface ContextMenuProps { x; y; title: string; subtitle?; note?; actions: MenuAction[]; locale?; onAction; onClose; returnFocusTo?;
   boundsRef?; className? }
