@@ -382,6 +382,9 @@ Test: `tests/react/MalformedComponents.test.tsx` › "menus, controls, timelines
 
 | Function | Entry | Documented for invalid input | Observed |
 | --- | --- | --- | --- |
+| `insetBoxes` | `./react` | An inset that is not a positive number is no strip (0.4). | Returns. |
+| `cornerBox` | `./react` | Not documented. | Returns. |
+| `panelBoxes` | `./react` | The boxes of the panels inside the element, none outside a map (0.4). | Returns. |
 | `ContextMenu` | `./react` | Not documented. | Renders; nothing logged but React's key warnings for ids missing or repeated (findings). A position that is not finite gives React's style warning (finding). |
 | `AbstractionControls` | `./react` | Not documented. | Renders; nothing logged but React's key warnings for ids missing or repeated (findings). A threshold that is not a number gives React's `NaN` attribute warning (finding). |
 | `TraceTimeline` | `./react` | Invalid timestamps stay in the table and are left off the time axis, with an explanation. | Renders; nothing logged but React's key warnings for ids missing or repeated (findings). Two traces with one case id give React's key warning (finding). |

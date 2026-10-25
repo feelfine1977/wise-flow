@@ -43,6 +43,7 @@ import type {
   ThemeSetting,
 } from "../core/index.js";
 import { emptySelection } from "../core/index.js";
+import type { PanelCorner } from "./primitives.js";
 
 export type { Selection };
 export { emptySelection };
@@ -195,7 +196,20 @@ export interface ProcessMapProps {
   controls?: boolean;
   /** Show the legend panel. Default true. */
   legend?: boolean;
-  minimap?: boolean;
+  /** The corner the legend sits in (0.4). Default `bottom-right`. The key of full activity names takes the other side. */
+  legendPosition?: PanelCorner;
+  /** The corner the detail panel sits in (0.4). Default `top-left`. */
+  controlsPosition?: PanelCorner;
+  /** The corner the map's overview opens in (0.4). Default: a corner no panel takes, `top-right` with `minimap: "overflow"`. */
+  overviewCorner?: PanelCorner;
+  /**
+   * An overview of the map: `"overflow"` (0.4) shows the library's overview
+   * of card outlines with the part in view whenever part of the map is out of
+   * view at rest, and never React Flow's minimap; `true` shows React Flow's
+   * minimap (kept for compatibility); default false: only while the map
+   * opens on its start.
+   */
+  minimap?: boolean | "overflow";
   /** Draw a grid of dots behind the interactive map. Default false. */
   backgroundGrid?: boolean;
   /** `svg` renders on React Flow, `canvas` on the Canvas renderer; `auto` (default) picks canvas above `canvasThreshold` elements. */
@@ -294,7 +308,14 @@ export interface ProcessMapProps {
    * (the abstraction panel, the legend, the zoom control, notes and a host's
    * React Flow panels), so that none covers an activity.
    */
-  fitInsets?: Partial<Insets>;
+  fitInsets?: Partial<Insets> & {
+    /**
+     * `add` (0.4, the default): the insets are room the host keeps beside the
+     * panels (a drawer over the map's right side), and the fit keeps clear of
+     * both; `replace`: they are the only room kept, as up to 0.3.
+     */
+    mode?: "add" | "replace";
+  };
   /**
    * The smallest zoom of the map, which no fit, opening, wheel or button goes
    * below: a number (default 0.05), or `{ readable: level }`, the smallest zoom

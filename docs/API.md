@@ -3783,6 +3783,22 @@ In development the hook logs what `checkTheme` finds, once per finding.
 
 ## Controls and panels
 
+**Placement (0.4).** `legendPosition` (default `bottom-right`) and
+`controlsPosition` (default `top-left`) put the legend and the detail panel in
+a corner (`PanelCorner`), on the interactive and on the Canvas map; the key of
+full activity names takes the side the legend leaves. `overviewCorner` puts the
+overview in a corner. `fitInsets` is room a host keeps beside the panels — a
+drawer over the map's right side, `{ right: 300 }` — and the fit keeps clear
+of both (`mode: "add"`, the default from 0.4; `mode: "replace"` makes the
+insets the only room kept, as up to 0.3, and is what the Canvas map does in
+0.4). `panelBoxes(area)`, `insetBoxes(size, insets)` and
+`cornerBox(corner, size, width, height)` are exported from `wise-flow/react`.
+`minimap: "overflow"` shows the library's overview (the cards' outlines and
+the part in view, part `overview`) whenever part of the interactive map is
+out of view at rest, in `overviewCorner` or `top-right`, and never React
+Flow's minimap; `minimap: true` keeps React Flow's minimap; the Canvas map
+keeps its own opening overview.
+
 The DOM map, the Canvas map and the BPMN view share one zoom control and one
 set of panel primitives, styled through the tokens and carrying the data
 attributes of the styling contract.

@@ -37,7 +37,7 @@ import { nodeTypes } from "./nodes.js";
 import { OverlayLayer } from "./OverlayLayer.js";
 import { part } from "./parts.js";
 import { PathList } from "./PathList.js";
-import { MapOverview, ZoomControl, clearOfPanels, openingIn } from "./primitives.js";
+import { MapOverview, ZoomControl, clearOfPanels, cornerBox, insetBoxes, openingIn } from "./primitives.js";
 import { TableAlternative } from "./TableAlternative.js";
 import { type Written, useTheme } from "./theme.js";
 import { type BringIntoView, type ProcessMapProps, type Selection, type WfEdge, type WfGroupNode, type WfNode } from "./types.js";
@@ -121,8 +121,14 @@ function ProcessMapInner(props: ProcessMapProps) {
     describedLimit = DEFAULT_DESCRIBED_LIMIT,
     edgeBudget = "adaptive",
     hideAttribution = false,
+    legendPosition = "bottom-right",
+    controlsPosition = "top-left",
+    overviewCorner,
     children,
   } = props;
+  // A host's insets: room kept beside the panels (`add`, the default), or the only room kept (`replace`).
+  const insetsGiven = fitInsets?.mode === "replace" ? fitInsets : undefined;
+  const insetsAdded = fitInsets && fitInsets.mode !== "replace" ? fitInsets : undefined;
   // The host's wording, kept by value so that an object written in place does not build the scene again.
   const stringsKey = JSON.stringify(props.strings ?? null);
   const strings = useMemo(() => props.strings, [stringsKey]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -421,15 +427,16 @@ function ProcessMapInner(props: ProcessMapProps) {
     moved.current = false;
     const opens = open && opening !== "fit" && !fittedByPerson.current;
     const readable = opens ? Math.max(viewTokens.openingZoom, floor) : floor;
-    const opened = drawn.current ? openingIn(main, bounds, shown.nodes, drawn.current, { padding: FLOW_FIT_PADDING, ...zoomRange, insets: insets ?? fitInsets, readable }) : undefined;
+    const extra = insets ? [] : insetBoxes({ width, height }, insetsAdded);
+    const opened = drawn.current ? openingIn(main, bounds, shown.nodes, drawn.current, { padding: FLOW_FIT_PADDING, ...zoomRange, insets: insets ?? insetsGiven, readable, extra }) : undefined;
     if (opened && !opened.fitted) {
       setFlowOverview(opened.overview);
       return void rf.setViewport(opened, { duration });
     }
     if (open) setFlowOverview(undefined);
-    const clear = insets ?? fitInsets ?? clearOfPanels(main, bounds, FLOW_FIT_PADDING, zoomRange, main, !open);
+    const clear = insets ?? insetsGiven ?? clearOfPanels(main, bounds, FLOW_FIT_PADDING, zoomRange, main, !open, extra);
     void rf.setViewport(fitViewport(bounds, { width, height }, { padding: FLOW_FIT_PADDING, insets: clear, ...zoomRange }), { duration });
-  }, [rf, flowStore, reducedMotion, fitInsets, opening, shown, floor, zoomRange]);
+  }, [rf, flowStore, reducedMotion, insetsGiven, insetsAdded, opening, shown, floor, zoomRange]);
   useLayoutEffect(() => {
     const box = anchor && positions?.nodes[anchor.id];
     if (!anchor || !box || (!arrival.moving && arrival.positions !== anchor.to)) return;
@@ -527,6 +534,15 @@ function ProcessMapInner(props: ProcessMapProps) {
   const liveId = useId();
   const description = useMemo(() => describeMap(shown, overlays, locale), [shown, overlays, locale]);
   const legendMarks = scene.marks.filter((m) => !m.inMap);
+  // The overview: where the map opened on its start (in the host's corner where it names one), and with
+  // `minimap: "overflow"` whenever part of the map is out of view at rest, in the overview's size and the map's shape.
+  const area = flowStore.getState();
+  const overviewScale = Math.min(viewTokens.overview.width / Math.max(scene.bounds.width, 1), viewTokens.overview.height / Math.max(scene.bounds.height, 1));
+  const overviewSize = { width: Math.max(1, Math.round(scene.bounds.width * overviewScale)), height: Math.max(1, Math.round(scene.bounds.height * overviewScale)) };
+  const overflowing = minimap === "overflow" && view !== "table" && !useCanvas && !!shownPart && !shownPart.whole;
+  const overviewAt = flowOverview
+    ? (overviewCorner ? cornerBox(overviewCorner, area, flowOverview.width, flowOverview.height) : flowOverview)
+    : overflowing && area.width > 0 ? cornerBox(overviewCorner ?? "top-right", area, overviewSize.width, overviewSize.height) : undefined;
   const lodClasses = [
     lod.labels ? "wf-lod--labels" : "",
     lod.edgeLabels ? "wf-lod--edge-labels" : "",
@@ -661,8 +677,8 @@ function ProcessMapInner(props: ProcessMapProps) {
                   onEdgesShown={canvasShown}
                   theme={look.theme}
                 >
-                  {controlsElement ? <div className="wf-overlay-panel wf-overlay-panel--top-left">{controlsElement}</div> : null}
-                  {legendElement ? <div className="wf-overlay-panel wf-overlay-panel--bottom-right">{legendElement}</div> : null}
+                  {controlsElement ? <div className={`wf-overlay-panel wf-overlay-panel--${controlsPosition}`}>{controlsElement}</div> : null}
+                  {legendElement ? <div className={`wf-overlay-panel wf-overlay-panel--${legendPosition}`}>{legendElement}</div> : null}
                   {statusElement ? <div className="wf-overlay-panel wf-overlay-panel--top-right">{statusElement}</div> : null}
                   {children}
                 </CanvasMap>
@@ -724,7 +740,7 @@ function ProcessMapInner(props: ProcessMapProps) {
                     }}
                   />
                 </Panel>
-                {minimap ? <MiniMap pannable zoomable nodeStrokeWidth={strokeTokens.minimapNode} /> : null}
+                {minimap === true ? <MiniMap pannable zoomable nodeStrokeWidth={strokeTokens.minimapNode} /> : null}
                 {positions ? (
                   <OverlayLayer
                     marks={flow.between}
@@ -735,8 +751,8 @@ function ProcessMapInner(props: ProcessMapProps) {
                     {...overlayHandlers}
                   />
                 ) : null}
-                {controlsElement ? <Panel position="top-left">{controlsElement}</Panel> : null}
-                {legendElement ? <Panel position="bottom-right">{legendElement}</Panel> : null}
+                {controlsElement ? <Panel position={controlsPosition}>{controlsElement}</Panel> : null}
+                {legendElement ? <Panel position={legendPosition}>{legendElement}</Panel> : null}
                 {statusElement ? <Panel position="top-right">{statusElement}</Panel> : null}
                 {flow.withheld ? (
                   <Panel position="bottom-center">
@@ -746,14 +762,14 @@ function ProcessMapInner(props: ProcessMapProps) {
                 {children}
                 <ViewportPortal><MapNumbers numbers={numbers} /></ViewportPortal>
               </ReactFlow>
-              <ActivityKey numbers={numbers} locale={locale} />
-              {flowOverview && positions ? (
+              <ActivityKey numbers={numbers} locale={locale} side={legendPosition.endsWith("right") ? "left" : "right"} />
+              {overviewAt && positions ? (
                 <MapOverview
                   bounds={scene.bounds}
                   nodes={positions.nodes}
                   view={{ x: rfX, y: rfY, zoom: rfZoom }}
                   area={flowStore.getState()}
-                  at={flowOverview}
+                  at={overviewAt}
                   locale={locale}
                   inView={shownPart}
                   onMove={(p) => {

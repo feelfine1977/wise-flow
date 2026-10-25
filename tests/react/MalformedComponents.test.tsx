@@ -46,6 +46,9 @@ import {
   describeNode,
   groupNodeId,
   midpoint,
+  insetBoxes,
+  cornerBox,
+  panelBoxes,
   useFlowGraph,
   useOverlays,
   useFlowTheme,
@@ -189,8 +192,12 @@ describe("malformed input at the components of wise-flow/react", () => {
       calls.call("describeMap", c, () => must(!c.accepted || readable(describeMap(g, g.overlays ?? [], locale)), c, () => `describeMap: ${describeMap(g, g.overlays ?? [], locale)}`));
       calls.call("groupNodeId", c, () => groupNodeId(junkString(c.rng)));
       calls.call("midpoint", c, () => midpoint(c.rng.pick([[], [{ x: junkNumber(c.rng), y: 0 }], [{ x: 0, y: 0 }, { x: 10, y: junkNumber(c.rng) }]])));
+      const size = { width: junkNumber(c.rng), height: junkNumber(c.rng) };
+      calls.call("insetBoxes", c, () => insetBoxes(size, c.rng.chance() ? { top: junkNumber(c.rng), right: junkNumber(c.rng) } : undefined));
+      calls.call("cornerBox", c, () => cornerBox(c.rng.pick(["top-left", "top-right", "bottom-left", "bottom-right"] as const), size, junkNumber(c.rng), junkNumber(c.rng)));
+      calls.call("panelBoxes", c, () => panelBoxes(document.body));
     });
-    expect(calls.ranAtLeast(["ContextMenu", "AbstractionControls", "TraceTimeline", "FlowComparison", "useFlowGraph", "ZoomControl", "useFlowTheme", "useStableLayout", "useOverlays", "describeNode", "describeEdge", "describeGroup", "describeMap", "groupNodeId", "midpoint"], CASES.length)).toEqual([]);
+    expect(calls.ranAtLeast(["ContextMenu", "AbstractionControls", "TraceTimeline", "FlowComparison", "useFlowGraph", "ZoomControl", "useFlowTheme", "useStableLayout", "useOverlays", "describeNode", "describeEdge", "describeGroup", "describeMap", "groupNodeId", "midpoint", "insetBoxes", "cornerBox", "panelBoxes"], CASES.length)).toEqual([]);
     expect(calls.unknown({}), "plain errors").toEqual([]);
   }, SEARCH_TIMEOUT);
 });

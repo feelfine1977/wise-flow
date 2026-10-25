@@ -18,9 +18,9 @@ export function MapNumbers({ numbers }: { numbers: ReturnType<typeof useMapNumbe
   ) : null;
 }
 
-export function ActivityKey({ numbers, locale }: { numbers: ReturnType<typeof useMapNumbers>; locale: FlowScene["locale"] }) {
+export function ActivityKey({ numbers, locale, side = "right" }: { numbers: ReturnType<typeof useMapNumbers>; locale: FlowScene["locale"]; /** The side of the map the key sits on: the one the legend does not take. */ side?: "left" | "right" }) {
   return numbers ? (
-    <div className="wf-overlay-panel wf-overlay-panel--bottom-right wf-activity-key-panel">
+    <div className={`wf-overlay-panel wf-overlay-panel--bottom-${side} wf-activity-key-panel`}>
       <Panel part="activity-key" className="wf-activity-key" role="region" aria-label={t(locale, "export.numbers")} tabIndex={0} onKeyDown={(e) => e.stopPropagation()}>
         {numbers.lines.map((line, i) => <div key={i}>{i ? line : t(locale, "export.numbers")}</div>)}
       </Panel>
