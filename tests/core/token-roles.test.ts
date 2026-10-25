@@ -93,7 +93,8 @@ describe("the role tables", () => {
         if (style.weight !== undefined && ![400, 500, 600].includes(style.weight)) off.push(`text.${role}.weight ${style.weight}`);
       }
       // A full radius: a pill's (999, which a mark resolves to half its height) or a circle's.
-      for (const [role, r] of Object.entries(theme.radius)) if (![4, 8, 999, "50%"].includes(r)) off.push(`radius.${role} ${r}`);
+      // The bends of a path: 0, sharp, or a radius of the scale (`radius.bend`).
+      for (const [role, r] of Object.entries(theme.radius)) if (![4, 8, 999, "50%"].includes(r) && !(role === "bend" && r === 0)) off.push(`radius.${role} ${r}`);
       const ranges: readonly string[] = unscaledStrokes;
       for (const [role, w] of Object.entries(theme.stroke)) if (!ranges.includes(role) && ![1, 2].includes(w)) off.push(`stroke.${role} ${w}`);
     }

@@ -209,6 +209,8 @@ export const radiusTokens = {
   canvasSelection: 8,
   timelineEvent: 4,
   timelineViolation: 8,
+  /** The radius a path's bends are rounded to (0.5); 0: sharp bends. */
+  bend: 0,
 } as const;
 
 /**
@@ -606,7 +608,7 @@ export const instrumentTokens = {
   },
   patterns: ["solid", "dots", "crosshatch", "horizontal", "grid"],
   font: { family: "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" },
-  radius: { node: 8 },
+  radius: { node: 8, bend: 8 },
   size: { band: 6, darkShadow: "none" },
   stroke: { eventEnd: 1, band: 3, backwardStep: 1 },
   opacity: { bandFill: 0.035, bandOddFill: 0.019, backward: 0.6 },

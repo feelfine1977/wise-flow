@@ -395,8 +395,16 @@ function drawEdge(ctx: DrawContext, e: SceneEdge, tokens: CanvasTokens, theme: T
   const end = lineEnd(pts, m.arrow);
   ctx.beginPath();
   ctx.moveTo(pts[0].x, pts[0].y);
-  for (let i = 1; i < pts.length - 1; i++) ctx.lineTo(pts[i].x, pts[i].y);
-  ctx.lineTo(end.x, end.y);
+  // Bends rounded where the theme says (`EdgeMark.path`), else the polyline.
+  if (m.path) {
+    for (const s of m.path) {
+      if (s.kind === "line") ctx.lineTo(s.to.x, s.to.y);
+      else ctx.bezierCurveTo(s.c1.x, s.c1.y, s.c2.x, s.c2.y, s.to.x, s.to.y);
+    }
+  } else {
+    for (let i = 1; i < pts.length - 1; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.lineTo(end.x, end.y);
+  }
   ctx.stroke();
   ctx.setLineDash([]);
   if (m.arrow) arrowhead(ctx, pts[pts.length - 2], end, m.arrow, color);

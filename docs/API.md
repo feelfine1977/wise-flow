@@ -3231,6 +3231,11 @@ export function pathCourses(g: FlowGraph, p: Positions, o: { width: (e: FlowEdge
 export function pathArrowhead(width: number, rule?: Arrowhead): Arrowhead | undefined;   // the rule's size, or perWidth × width rounded up where more; none under rule.minWidth (0.4)
 export function lineEnd(points: readonly XY[], arrow: Arrowhead | undefined): XY;        // the route's end moved back by the head's overhang; the end itself without a head
 export function paintOrder(marks: readonly { width: number; id: string }[]): number[];   // the order every renderer paints paths in: the widest first, equal widths by id (0.4)
+export type PathSegment = { kind: "line"; to: XY } | { kind: "curve"; c1: XY; c2: XY; to: XY };   // (0.5)
+export function roundedRoute(points: readonly XY[], radius: number, end?: XY): PathSegment[];   // every bend rounded, no more than half a segment (0.5)
+export function segmentsPath(start: XY, segments: readonly PathSegment[], num?: (n: number) => string): string;   // SVG path data (0.5)
+// EdgeMark.path?: PathSegment[]: the route as drawn where Theme.radius.bend > 0 (0 in default and print, 8 in instrument); every renderer
+// draws its curves (cubic, close to circular arcs: the DOM map and the SVG export as `C`, the Canvas as bezierCurveTo); hit-testing keeps the polyline.
 export type BoxSide = "top" | "right" | "bottom" | "left";
 export interface GroupMark { id: string; kind: GroupKind; group: FlowGroup; box: Box; color: string; pattern: PatternId; band?: LaneBand;
   radius: number; fill: MarkFill; stroke: { paint: MarkPaint; width: number; dash?: number[]; sides?: BoxSide[] };

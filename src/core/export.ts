@@ -3,7 +3,7 @@
  */
 import type { ActivityLabelOptions } from "./activity-labels.js";
 import { type EdgeBudget, type EdgeSelection, type ShownEdges, budgetEdges, keptLoop } from "./edge-budget.js";
-import { type BoxSide, type ElementText, lineEnd, paintOrder } from "./element-marks.js";
+import { type BoxSide, type ElementText, lineEnd, paintOrder, segmentsPath } from "./element-marks.js";
 import { type FigurePreset, type LegendLayout, figureFloor, figureFrame, figureHeading, figureMetrics, legendMetrics, millimetres } from "./figure.js";
 import type { Locale } from "./format.js";
 import { type Box, type Positions } from "./layout.js";
@@ -172,7 +172,8 @@ function drawEdges(ctx: Ctx): string {
     const dash = m.dash ? ` stroke-dasharray="${m.dash.join(" ")}"` : "";
     // The line ends inside its head, whose tip lies on the route's end.
     const end = lineEnd(m.points, m.arrow);
-    const d = [...m.points.slice(0, -1), end].map((p, i) => `${i === 0 ? "M" : "L"}${num(p.x)} ${num(p.y)}`).join("");
+    // Bends rounded where the theme says (`EdgeMark.path`), else the polyline.
+    const d = m.path ? segmentsPath(m.points[0], m.path, num) : [...m.points.slice(0, -1), end].map((p, i) => `${i === 0 ? "M" : "L"}${num(p.x)} ${num(p.y)}`).join("");
     out.push(`<g class="wf-edge" data-id="${esc(m.id)}"${opacity(m)}><path d="${d}" fill="none" stroke="${m.color}" stroke-width="${num(m.width)}" stroke-linejoin="round"${m.addedFlow ? ' stroke-linecap="round"' : ""}${dash}${m.arrow ? ` marker-end="url(#${arrowId(m.arrow)})"` : ""}/>`);
     // Paths' labels are the first texts shed below the floor.
     // A path's label by its rule: a zoom, or its width at the figure's zoom (`pathLabelShown`); nothing is selected in a figure.

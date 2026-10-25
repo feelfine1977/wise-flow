@@ -41,6 +41,44 @@ export function routeMidpoint(points: readonly XY[]): XY {
   return points[points.length - 1];
 }
 
+/** A piece of a drawn route after its start: a straight line, or a cubic curve that rounds a bend. */
+export type PathSegment = { kind: "line"; to: XY } | { kind: "curve"; c1: XY; c2: XY; to: XY };
+
+/** The control points' share of the tangent length for a cubic curve close to a circular arc of a quarter turn. */
+const KAPPA = 0.5523;
+
+/**
+ * The route from its first point as segments, every bend rounded to `radius`
+ * (no more than half of either segment it joins): a line to where the bend
+ * starts, then a cubic curve, close to a circular arc, to where it ends; the
+ * last line to `end` (where the line stops under its head).
+ */
+export function roundedRoute(points: readonly XY[], radius: number, end: XY = points[points.length - 1]): PathSegment[] {
+  const out: PathSegment[] = [];
+  const unit = (a: XY, b: XY) => { const l = Math.hypot(b.x - a.x, b.y - a.y); return l ? { x: (b.x - a.x) / l, y: (b.y - a.y) / l, l } : undefined; };
+  for (let i = 1; i < points.length - 1; i++) {
+    const [a, c, b] = [points[i - 1], points[i], i + 1 === points.length - 1 ? end : points[i + 1]];
+    const u = unit(a, c);
+    const v = unit(c, b);
+    if (!u || !v || Math.abs(u.x * v.y - u.y * v.x) < 1e-9) {
+      out.push({ kind: "line", to: c });
+      continue;
+    }
+    const d = Math.min(radius, u.l / 2, v.l / 2);
+    const t1 = { x: c.x - u.x * d, y: c.y - u.y * d };
+    const t2 = { x: c.x + v.x * d, y: c.y + v.y * d };
+    out.push({ kind: "line", to: t1 }, { kind: "curve", c1: { x: t1.x + u.x * d * KAPPA, y: t1.y + u.y * d * KAPPA }, c2: { x: t2.x - v.x * d * KAPPA, y: t2.y - v.y * d * KAPPA }, to: t2 });
+  }
+  out.push({ kind: "line", to: end });
+  return out;
+}
+
+/** SVG path data of a route drawn from `start` along its segments (`roundedRoute`), with `num` writing each number. */
+export function segmentsPath(start: XY, segments: readonly PathSegment[], num: (n: number) => string = String): string {
+  const p = (q: XY) => `${num(q.x)} ${num(q.y)}`;
+  return `M${p(start)}${segments.map((s) => (s.kind === "line" ? `L${p(s.to)}` : `C${p(s.c1)} ${p(s.c2)} ${p(s.to)}`)).join("")}`;
+}
+
 /** Where an edge's label sits: 4 above the middle of its route. */
 export function edgeLabelPoint(points: readonly XY[]): XY {
   const mid = routeMidpoint(points);
@@ -130,6 +168,8 @@ export interface EdgeMark {
   edge: FlowEdge;
   /** The routed points, or a straight line between the two boxes: the head's tip lies on the last; the line ends before it (`lineEnd`). */
   points: XY[];
+  /** The route as drawn from its first point where the theme rounds its bends (`Theme.radius.bend`, `roundedRoute`), ending where the line ends under its head; none: the polyline. */
+  path?: PathSegment[];
   color: string;
   width: number;
   /** The arrowhead at the end, as wide as the line needs (`pathArrowhead`); none on a path thinner than the rule's `minWidth`, whose line then ends on its route's end. */
@@ -513,6 +553,7 @@ export function edgeMark(edge: FlowEdge, points: XY[], options: { color: string;
     color: options.addedFlow ? theme.color.neutral : set?.stroke ? rulePaint(set.stroke, undefined, "value", theme.color, options.color) : options.color,
     width,
     arrow: pathArrowhead(width, theme.arrowhead.edge),
+    ...(theme.radius.bend > 0 && points.length > 2 && { path: roundedRoute(points, theme.radius.bend, lineEnd(points, pathArrowhead(width, theme.arrowhead.edge))) }),
     dash: options.addedFlow ? dashTokens.addedFlow.map((n) => n * options.width) : ruleDash(set, reconnected || indirect ? RECONNECTED_EDGE_DASH : undefined, RECONNECTED_EDGE_DASH),
     texts: label
       ? [ruleText<ElementText>({ text: label, x: at.x, y: at.y, size, anchor, baseline: "alphabetic", paint: "ink", halo: true, role: "count", lod: "edgeLabels" }, set, "label", theme.color, options.color)]

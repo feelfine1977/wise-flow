@@ -503,6 +503,8 @@ export {
   nodeMarks,
   edgeMarks,
   paintOrder,
+  roundedRoute,
+  segmentsPath,
   pathArrowhead,
   lineEnd,
   groupMark,
@@ -516,6 +518,7 @@ export type {
   NodeCue,
   NodeMark,
   EdgeMark,
+  PathSegment,
   GroupMark,
   BoxSide,
 } from "./element-marks.js";

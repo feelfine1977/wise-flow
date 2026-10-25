@@ -1,6 +1,6 @@
 import { BaseEdge, type EdgeProps } from "@xyflow/react";
 import { memo } from "react";
-import { type EdgeMark, type XY, edgeMark, lineEnd, routeMidpoint, strokeTokens } from "../core/index.js";
+import { type EdgeMark, type XY, edgeMark, lineEnd, routeMidpoint, segmentsPath, strokeTokens } from "../core/index.js";
 import { paintCss } from "./marks.js";
 import { part } from "./parts.js";
 import type { FollowsEdgeData, WfEdge } from "./types.js";
@@ -51,7 +51,7 @@ const Follows = memo(function Follows(props: EdgeProps<WfEdge>) {
     >
       <title>{data.description}</title>
       {/* The line ends inside its head, whose tip lies on the route's end. */}
-      <BaseEdge id={id} path={polyline([...mark.points.slice(0, -1), lineEnd(mark.points, mark.arrow)])} markerEnd={markerEnd} interactionWidth={strokeTokens.pathHit} {...(mark.addedFlow && { style: { strokeLinecap: "round" as const } })} {...part("edge-path")} />
+      <BaseEdge id={id} path={mark.path ? segmentsPath(mark.points[0], mark.path) : polyline([...mark.points.slice(0, -1), lineEnd(mark.points, mark.arrow)])} markerEnd={markerEnd} interactionWidth={strokeTokens.pathHit} {...(mark.addedFlow && { style: { strokeLinecap: "round" as const } })} {...part("edge-path")} />
       {label && data.labelShown !== "never" ? (
         <text
           className={`wf-edge-label${data.labelShown === "always" ? "" : " wf-lod-edge-labels"}`}
