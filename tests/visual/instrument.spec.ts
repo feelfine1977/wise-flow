@@ -54,3 +54,10 @@ test("trace timeline draws a single case down a vertical ruler with the SRM minu
   await expect(page.locator('[data-wf-part="timeline-cluster"]')).toContainText("7 events · SRM: Created");
   await expect(page).toHaveScreenshot("trace-vertical.png", { fullPage: false });
 });
+
+test("instrument thumbnail draws the scene into the overview instead of card outlines", async ({ page }) => {
+  await openStory(page, "instrument--thumbnail");
+  await expect(page.locator('[data-testid="wf-overview-thumbnail"]')).toBeVisible();
+  await expect(page.locator(".react-flow__minimap")).toHaveCount(0);
+  await expect(page).toHaveScreenshot("instrument-thumbnail.png", { fullPage: false });
+});

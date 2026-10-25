@@ -51,8 +51,33 @@ describe("the overview with minimap overflow", () => {
     await waitFor(() => expect(container.querySelector('[data-wf-part="overview"]')).toBeNull(), { timeout: 3000 });
   });
 
-  it("keeps React Flow's minimap where the host asks for it with true", async () => {
-    const { container } = render(<div style={{ width: 1200, height: 600 }}><ProcessMap graph={smallP2P} positions={positions} renderer="svg" minimap /></div>);
-    await waitFor(() => expect(container.querySelector(".react-flow__minimap")).not.toBeNull());
+  it("reads true as overflow (0.6): no React Flow minimap, the library's overview while part of the map is out of view", async () => {
+    const { container } = render(<div style={{ width: 1200, height: 600 }}><ProcessMap graph={smallP2P} positions={positions} renderer="svg" minimap opening="fit" fitView={false}><ViewSetter /></ProcessMap></div>);
+    await waitFor(() => expect(container.querySelectorAll("g.wf-edge").length).toBeGreaterThan(3));
+    expect(container.querySelector(".react-flow__minimap")).toBeNull();
+    act(() => setView({ x: 0, y: 0, zoom: 2 }));
+    await waitFor(() => expect(container.querySelector('[data-wf-part="overview"]')).not.toBeNull(), { timeout: 3000 });
+  });
+
+  it("draws the scene into the overview as a thumbnail, once per scene and not per pan", async () => {
+    const draws: string[] = [];
+    // A recording 2D context: every fill and stroke the drawer makes.
+    const ctx = new Proxy({}, { get: (_t, key) => (key === "measureText" ? () => ({ width: 10 }) : key === "canvas" ? {} : (...args: unknown[]) => void (typeof key === "string" && (key === "fill" || key === "stroke" || key === "fillRect") && draws.push(key), args)), set: () => true });
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function () { return ctx as never; } as never;
+    try {
+      const { container } = render(<div style={{ width: 1200, height: 600 }}><ProcessMap graph={smallP2P} positions={positions} renderer="svg" minimap="thumbnail" opening="fit" fitView={false}><ViewSetter /></ProcessMap></div>);
+      await waitFor(() => expect(container.querySelectorAll("g.wf-edge").length).toBeGreaterThan(3));
+      act(() => setView({ x: 0, y: 0, zoom: 2 }));
+      await waitFor(() => expect(container.querySelector('[data-testid="wf-overview-thumbnail"]')).not.toBeNull(), { timeout: 3000 });
+      expect(container.querySelector(".wf-overview__nodes")).toBeNull();
+      await waitFor(() => expect(draws.length).toBeGreaterThan(0));
+      const once = draws.length;
+      act(() => setView({ x: -40, y: 0, zoom: 2 }));
+      await waitFor(() => expect(container.querySelector('[data-testid="wf-overview-view"]')!.getAttribute("x")).toBe("20"));
+      expect(draws.length).toBe(once);
+    } finally {
+      HTMLCanvasElement.prototype.getContext = original;
+    }
   });
 });

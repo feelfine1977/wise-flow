@@ -26,9 +26,6 @@
 .wf-process-map .react-flow__attribution a {
   color: var(--wf-ink-muted);
 }
-.wf-process-map .react-flow__minimap {
-  background: var(--wf-paper);
-}
 /* The browser draws the native controls (sliders, check boxes, search fields, scroll bars) in the scheme of the tokens. */
 .wf-process-map,
 .wf-panel,

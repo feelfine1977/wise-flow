@@ -976,7 +976,7 @@ export const radiusTokens: { node: 4; large: 8; band; swatch; control; tooltip; 
   activityTooltip; comparisonBar; tint; hatch; chip; canvasSelection; timelineEvent; timelineViolation };
 export const strokeTokens: { node; stage; eventStart; eventEnd; gateway; note; focus; selection; canvasSelection; group;
   canvasGroupSelected; band; halo; path; pathMin; pathMax; canvasPathHighlight; pathFocus; pathHit; arc; arcCoverage; pill;
-  selfLoop; badge; chip; filterChip; legendGradient; tab; timelineSpan; timelineViolation; minimapNode };   // arcCoverage is read by nothing
+  selfLoop; badge; chip; filterChip; legendGradient; tab; timelineSpan; timelineViolation; minimapNode };   // arcCoverage, and minimapNode since 0.6, are read by nothing
 export const dashTokens: { reconnectedNode; reconnectedPath; note; constraint; group; reverseArc; timelineAnchor; bpmnOutOfScope };  // readonly number arrays; note, constraint, group and reverseArc are read by nothing
 export const opacityTokens: { dimmed; dimmedPath; disabled; tint; hatch; arc; groupFill; bandFill; bandOddFill; groupStroke; legendRule; timelineGrid };
 export const spaceTokens: { unit: 2; steps: readonly [1, 1.5, 2, 3, 4, 5, 6, 8] };
@@ -3891,9 +3891,15 @@ insets the only room kept, as up to 0.3, and is what the Canvas map does in
 `cornerBox(corner, size, width, height)` are exported from `wise-flow/react`.
 `minimap: "overflow"` shows the library's overview (the cards' outlines and
 the part in view, part `overview`) whenever part of the interactive map is
-out of view at rest, in `overviewCorner` or `top-right`, and never React
-Flow's minimap; `minimap: true` keeps React Flow's minimap; the Canvas map
-keeps its own opening overview.
+out of view at rest, in `overviewCorner` or `top-right`.
+`minimap: "thumbnail"` (0.6) shows the same overview, at the same times,
+as the scene itself drawn small through the Canvas drawer (bands, paths and
+cards; `MapOverviewProps.thumbnail`), redrawn when the scene or the
+overview's size changes, never while the view pans. The library no longer
+draws React Flow's minimap: `minimap: true` is another name of `"overflow"`
+(deprecated; it showed React Flow's minimap up to 0.5), and no
+`.react-flow__minimap` remains in its stylesheet. The Canvas map keeps its
+own opening overview.
 
 The DOM map, the Canvas map and the BPMN view share one zoom control and one
 set of panel primitives, styled through the tokens and carrying the data
