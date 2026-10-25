@@ -502,6 +502,18 @@ ELK puts all events tagged `start` in the first layer and all tagged `end`
 in the last layer, in every reading direction. This includes disconnected
 events. They sit outside stage groups, before the first stage and after
 the last, with `orderStages` on or off. Without border events, layout is unchanged.
+
+With `stages: "partition"` (0.5) stages constrain the layout instead of
+wrapping it: ELK lays the graph out without compound nodes, every activity
+in the partition of its top-level stage in stage order (activities without a
+stage after the last, the start event before every partition, the end event
+after), so an activity keeps its stage's columns whatever the cohort. A path
+from a later stage back to an earlier one is laid out reversed, so the cycle
+breaker keeps the stages' order, and its route is read back the way it runs.
+The stages' boxes (`Positions.groups`) are drawn around their members with
+`GROUP_PADDING`; they do not overlap along the flow. Dagre lays the graph out
+without groups and draws the boxes the same way. The default stays
+`compound`.
 Dagre keeps its source/sink placement; it pins neither border layers nor stage
 order. Start can still sit in the middle when its target has other incoming
 paths. Provisional layouts are also unpinned. Host `positions` win;
@@ -521,6 +533,7 @@ export interface LayoutOptions {
   spacing?: { node?: number; layer?: number; group?: number };
   edgeRouting?: "ORTHOGONAL" | "POLYLINE" | "SPLINES";
   groups?: "compound" | "ignore"; orderStages?: boolean;
+  stages?: "compound" | "partition";   // 0.5: stages as ELK partitions without compounds (see below)
   elkWorkerUrl?: string | URL;          // run ELK in a Web Worker served from this URL
   dagreWorkerUrl?: string | URL;        // run Dagre in a Web Worker served from this URL
   elk?: ELK; elkOptions?: Record<string, string>; cacheKey?: string;
