@@ -114,11 +114,12 @@ describe("start and end events", () => {
     // On up to two lines of 160 under the label, muted.
     const statement = node(s, "start").texts.slice(2);
     expect(statement.map((t) => [t.role, t.paint])).toEqual([["label", "inkMuted"], ["label", "inkMuted"]]);
-    expect(statement.map((t) => t.text).join(" ")).toBe("1,000 cases · 940 (94 %) at a shown activity");
+    // The share keeps its sign on its line: a no-break space between them (0.6).
+    expect(statement.map((t) => t.text).join(" ")).toBe("1,000 cases · 940 (94\u00a0%) at a shown activity");
     expect(statement[0].y).toBeGreaterThan(node(s, "start").texts[1].y);
     expect(statement[1].y).toBeGreaterThan(statement[0].y);
     const de = buildScene(graph, positions, { locale: "de", style: { terminals: { statement: true } } });
-    expect(node(de, "end").texts.slice(2).map((t) => t.text).join(" ")).toBe("1.000 Fälle · 900 (90 %) an einer gezeigten Aktivität");
+    expect(node(de, "end").texts.slice(2).map((t) => t.text).join(" ")).toBe("1.000 Fälle · 900 (90\u00a0%) an einer gezeigten Aktivität");
   });
 
   it("are drawn alike by the SVG export and the Canvas map", () => {

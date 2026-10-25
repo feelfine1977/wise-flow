@@ -441,7 +441,7 @@ function terminalStatement(node: FlowNode, locale: Locale, strings?: Strings): s
   const cases = metric(node, "cases", NaN);
   const atShown = metric(node, "atShown", NaN);
   if (!Number.isFinite(cases) || !Number.isFinite(atShown)) return undefined;
-  return t(locale, "terminal.statement", { cases: formatCount(cases, locale), atShown: formatCount(atShown, locale), share: cases > 0 ? formatMetricValue("share", atShown / cases, locale) : "–" }, strings);
+  return t(locale, "terminal.statement", { cases: formatCount(cases, locale), atShown: formatCount(atShown, locale), share: cases > 0 ? formatMetricValue("share", atShown / cases, locale).replace(" %", "\u00a0%") : "–" }, strings);
 }
 
 /** The stripe and foot of a card's share inside its outline and after its band (or its outline, without one), where `place` puts them, and their part in the accent. */
