@@ -284,7 +284,18 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
           </g>
           {rows.map((row, r) => {
             const x = V_FIRST + r * column;
+            const runs = eventClusters(row.times, clusterMs);
+            // Each ring at its time, moved down where it would touch the ring before it (same-day events), and the whole run back up where that passes the ruler's end.
             const ys = row.times.map((ms) => y(ms - lo));
+            const firsts = runs.map((run) => run[0]).filter((i) => Number.isFinite(row.times[i]));
+            firsts.forEach((i, k) => {
+              if (k > 0) ys[i] = Math.max(ys[i], ys[firsts[k - 1]] + 2 * ring + V_GAP / 4);
+            });
+            const over = firsts.length ? ys[firsts[firsts.length - 1]] - y(span) : 0;
+            if (over > 0) for (let k = firsts.length - 1; k >= 0; k--) {
+              const i = firsts[k];
+              ys[i] = k === firsts.length - 1 ? ys[i] - over : Math.min(ys[i], ys[firsts[k + 1]] - 2 * ring - V_GAP / 4);
+            }
             const shown = ys.filter((_, i) => Number.isFinite(row.times[i]));
             const [top, bottom] = terminals ? [V_TOP + ring, height - V_BOTTOM - ring] : [least(shown), greatest(shown)];
             return (
@@ -302,7 +313,7 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
                       </g>
                     ))
                   : null}
-                {eventClusters(row.times, clusterMs).map((run) => {
+                {runs.map((run) => {
                   const i = run[0];
                   if (!Number.isFinite(row.times[i])) return null;
                   const e = row.trace.events[i];

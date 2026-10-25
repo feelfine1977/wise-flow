@@ -43,7 +43,7 @@ describe("band headers", () => {
     const scene = buildScene(graph, positions, { lanes: "stages", laneOptions: { counts: true, emptyLanes: "divider" } });
     const header = (id: string) => scene.groupMarks.find((m) => m.id === id)!.texts.find((t) => t.role === "count")?.text;
     expect(header("s1")).toBe("2 of 5 activities");
-    expect(header("s3")).toBe("1 activities");
+    expect(header("s3")).toBe("1 activity");
     expect(header("s2")).toBe("none in this cohort");
     expect(scene.groupMarks.find((m) => m.id === "s2")!.fill.opacity).toBe(0);
   });

@@ -31,6 +31,12 @@ describe("TraceTimeline, vertical", () => {
     expect(container.querySelectorAll('[data-wf-part="timeline-cluster"]')).toHaveLength(1);
   });
 
+  it("moves a ring down where it would touch the one before it, keeping their order", () => {
+    const { container } = render(<TraceTimeline traces={[trace]} orientation="vertical" clusterMs={60000} />);
+    const ys = [...container.querySelectorAll(".wf-event--ring")].map((c) => Number(c.getAttribute("cy")));
+    ys.slice(1).forEach((y, i) => expect(y - ys[i]).toBeGreaterThanOrEqual(20));
+  });
+
   it("ticks in days from the first event over a long case, in hours over a short one", () => {
     const long = render(<TraceTimeline traces={[trace]} orientation="vertical" />);
     expect(long.container.querySelector(".wf-axis text")!.textContent).toBe("0 days");
