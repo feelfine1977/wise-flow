@@ -392,3 +392,13 @@ describe("the theme of a map", () => {
     }
   });
 });
+
+describe("a map pinned to a scheme by an element around it (WF-10)", () => {
+  it("draws dark inside data-theme=dark on a light page, and follows the page again once the attribute goes", async () => {
+    const { container } = render(<div data-theme="dark" style={{ width: 800, height: 400 }}><ProcessMap graph={{ nodes: [{ id: "a", kind: "activity", label: "A" }], edges: [] }} positions={{ nodes: { a: { x: 0, y: 0, width: 180, height: 64 } }, groups: {}, edges: {}, bounds: { x: 0, y: 0, width: 180, height: 64 }, engine: "given", direction: "RIGHT" }} theme="instrument" renderer="svg" controls={false} legend={false} /></div>);
+    const map = () => container.querySelector<HTMLElement>(".wf-process-map")!;
+    await waitFor(() => expect(map().style.getPropertyValue("--wf-paper")).toBe("#15181c"));
+    act(() => (container.firstElementChild as HTMLElement).removeAttribute("data-theme"));
+    await waitFor(() => expect(map().style.getPropertyValue("--wf-paper")).toBe("#ffffff"));
+  });
+});

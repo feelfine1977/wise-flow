@@ -12,10 +12,18 @@ import { colorChannels, themeFromVariables } from "../core/theme.js";
 export interface FlowTheme {
   theme: Theme;
   scheme: ColorScheme;
+  /** An element around the map pins it to a scheme other than the page's (`data-theme`, 0.4): the map writes the scheme's variables itself. */
+  pinned?: boolean;
 }
 
-/** The scheme `tokens.css` draws in: `data-theme` on the document's root, otherwise the system's preference. */
-function liveScheme(doc: Document | undefined): ColorScheme {
+/**
+ * The scheme `tokens.css` draws in: `data-theme` on the nearest element
+ * around the map that has one (0.4: a host can pin one map), on the
+ * document's root, otherwise the system's preference.
+ */
+function liveScheme(doc: Document | undefined, element?: Element | null): ColorScheme {
+  const pinned = element?.closest?.("[data-theme]")?.getAttribute("data-theme");
+  if (pinned === "dark" || pinned === "light") return pinned;
   const set = doc?.documentElement.getAttribute("data-theme");
   if (set === "dark" || set === "light") return set;
   return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
@@ -82,6 +90,7 @@ const warned = new Set<string>();
 
 interface Read {
   scheme: ColorScheme;
+  pinned?: boolean;
   variables?: ThemeOverrides;
   key: string;
 }
@@ -119,7 +128,8 @@ export function useTheme(host: RefObject<Element | null>, setting?: ThemeSetting
     if (!element) return;
     const observer = typeof MutationObserver !== "undefined" ? new MutationObserver(() => update()) : undefined;
     const update = () => {
-      const scheme = liveScheme(element.ownerDocument);
+      const scheme = liveScheme(element.ownerDocument, element);
+      const pinned = scheme !== liveScheme(element.ownerDocument);
       const aside = written?.current;
       const inline = element.style;
       const saved = inline?.cssText;
@@ -136,7 +146,7 @@ export function useTheme(host: RefObject<Element | null>, setting?: ThemeSetting
       }
       const json = JSON.stringify(variables);
       const key = json === "{}" ? "" : json;
-      setRead((previous) => (previous.scheme === scheme && previous.key === key ? previous : { scheme, variables: key ? variables : undefined, key }));
+      setRead((previous) => (previous.scheme === scheme && previous.key === key && !!previous.pinned === pinned ? previous : { scheme, variables: key ? variables : undefined, key, ...(pinned && { pinned }) }));
     };
     update();
     for (let el: Element | null = element; el; el = el.parentElement) observer?.observe(el, { attributes: true, attributeFilter: ["class", "style", "data-theme"] });
@@ -157,5 +167,5 @@ export function useTheme(host: RefObject<Element | null>, setting?: ThemeSetting
     warned.add(key);
     console.warn("wise-flow: the theme falls short of checkTheme", found);
   }, [theme]);
-  return useMemo(() => ({ theme, scheme: read.scheme }), [theme, read.scheme]);
+  return useMemo(() => ({ theme, scheme: read.scheme, ...(read.pinned && { pinned: true }) }), [theme, read.scheme, read.pinned]);
 }

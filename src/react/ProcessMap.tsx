@@ -147,7 +147,8 @@ function ProcessMapInner(props: ProcessMapProps) {
   const look = useTheme(containerRef, props.theme, written);
   const markedKey = useMemo(() => markedThemeKey(look.theme, look.scheme), [look]);
   const markedTheme = useMemo(() => look.theme, [markedKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  const themed = useMemo(() => (props.theme !== undefined ? themeStyle(look.theme, look.scheme) : undefined), [props.theme !== undefined, look]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Given a theme, or pinned to a scheme other than the page's by an element around it, the map writes the variables itself.
+  const themed = useMemo(() => (props.theme !== undefined || look.pinned ? themeStyle(look.theme, look.scheme) : undefined), [props.theme !== undefined, look]); // eslint-disable-line react-hooks/exhaustive-deps
   written.current = themed && { names: Object.keys(themed), own: containerStyle as Record<string, unknown> | undefined };
   // The pattern twins of the activities and the legend are drawn in the theme's pattern ink of the scheme, as its \`pattern\` says.
   const patternTheme = useMemo(() => ({ ink: themeColors(look.theme, look.scheme).patternInk, look: look.theme.pattern }), [look]);
