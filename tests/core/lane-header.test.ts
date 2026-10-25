@@ -55,6 +55,13 @@ describe("band headers", () => {
     expect(svg.split("2 von 5 Aktivitäten").length - 1).toBe(1);
   });
 
+  it("count one activity in the singular, in English and in German", () => {
+    const one: FlowGraph = { ...graph, groups: graph.groups!.map((g) => (g.id === "s3" ? { ...g, metrics: { activities: 1 } } : g)) };
+    const header = (locale: "en" | "de") => buildScene(one, positions, { lanes: "stages", locale, laneOptions: { counts: true } }).groupMarks.find((m) => m.id === "s3")!.texts[1].text;
+    expect(header("en")).toBe("1 of 1 activity");
+    expect(header("de")).toBe("1 von 1 Aktivität");
+  });
+
   it("are not drawn without `counts`", () => {
     const scene = buildScene(graph, positions, { lanes: "stages" });
     expect(scene.groupMarks.every((m) => m.texts.length === 1)).toBe(true);
@@ -62,6 +69,27 @@ describe("band headers", () => {
 });
 
 describe("empty stages after abstraction (WF-16 follow-up)", () => {
+  it("say how many activities the detail hides, in German too, and \"none in this cohort\" for a stage with none in the model", () => {
+    const g: FlowGraph = {
+      nodes: [
+        { id: "a", kind: "activity", label: "A", group: "s1", metrics: { cases: 100 } },
+        { id: "b", kind: "activity", label: "B", group: "s2", metrics: { cases: 1 } },
+        { id: "c", kind: "activity", label: "C", group: "s2", metrics: { cases: 1 } },
+        { id: "d", kind: "activity", label: "D", group: "s4", metrics: { cases: 100 } },
+      ],
+      edges: [],
+      groups: ["s1", "s2", "s3", "s4"].map((id) => ({ id, kind: "stage" as const, label: id.toUpperCase() })),
+    };
+    const shownG = abstract(g, { minNodeShare: 0.5, keepConnected: false, keepEmptyStages: true });
+    expect(shownG.groups!.find((x) => x.id === "s2")!.metrics?.hiddenActivities).toBe(2);
+    expect(shownG.groups!.find((x) => x.id === "s3")!.metrics?.hiddenActivities).toBeUndefined();
+    const p: Positions = { nodes: { a: box(0), d: box(600) }, groups: {}, edges: {}, bounds: { x: 0, y: 0, width: 700, height: 40 }, engine: "given", direction: "RIGHT" };
+    const header = (id: string, locale: "en" | "de" = "en") => buildScene(shownG, p, { lanes: "stages", locale, laneOptions: { counts: true, emptyLanes: "divider" } }).groupMarks.find((m) => m.id === id)!.texts[1].text;
+    expect(header("s2")).toBe("2 activities not shown at this detail");
+    expect(header("s2", "de")).toBe("2 Aktivitäten bei dieser Detailstufe nicht gezeigt");
+    expect(header("s3")).toBe("none in this cohort");
+  });
+
   // Three stages, each with one activity; abstraction removes the weak ones.
   const three = (weak: string[]): FlowGraph => ({
     nodes: ["s1", "s2", "s3"].map((g, i) => ({ id: `n${i}`, kind: "activity" as const, label: `N${i}`, group: g, metrics: { cases: weak.includes(g) ? 1 : 100 } })),
@@ -83,7 +111,8 @@ describe("empty stages after abstraction (WF-16 follow-up)", () => {
       for (const id of weak) {
         const mark = scene.groupMarks.find((m) => m.id === id)!;
         expect(mark.band?.empty).toBe(true);
-        expect(mark.texts.map((t) => t.text)).toEqual([id.toUpperCase(), "none in this cohort"]);
+        // Its activity is in the model, left out at this detail.
+        expect(mark.texts.map((t) => t.text)).toEqual([id.toUpperCase(), "1 activity not shown at this detail"]);
       }
     });
   }

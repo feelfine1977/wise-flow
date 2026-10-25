@@ -59,6 +59,9 @@ export function truncateText(text: string, maxWidth: number, font: { size: numbe
   return `${chars.slice(0, Math.max(1, lo)).join("")}…`;
 }
 
+/** Where a line may break: a run of white space other than the no-break spaces (U+00A0, U+202F), which keep a number with its unit. */
+const BREAKS = /[^\S\u00a0\u202f]+/u;
+
 /**
  * Lines of `text` at most `width` wide (at least the font's size): words in
  * order, a word wider than a line broken between characters. The measure is
@@ -83,7 +86,7 @@ export function wrapText(text: string, width: number, font: { size: number; weig
     }
     return fit;
   };
-  const words = text.trim().split(/\s+/u);
+  const words = text.trim().split(BREAKS);
   const lines: string[] = [];
   let line = "";
   for (let w = 0; w < words.length; w++) {
@@ -127,7 +130,7 @@ export function wrapLines(text: string, width: number, font: { size: number; wei
 
 /** The rest of `text`, its spaces made single, after the `kept` lines that start it (the lines before the last of `wrapLines`). */
 export function restOf(text: string, kept: readonly string[]): string {
-  const words = text.trim().split(/\s+/u).join(" ");
+  const words = text.trim().split(BREAKS).join(" ");
   return words.slice(kept.reduce((at, line) => words.indexOf(line, at) + line.length, 0)).trimStart();
 }
 

@@ -37,8 +37,9 @@ export interface AbstractOptions {
   /**
    * Keep the top-level stage groups none of whose activities is left (0.6),
    * so that stage bands can draw them as dividers or narrow lanes
-   * (`LaneOptions.emptyLanes`). Default false: a group without a member left
-   * is dropped, as before.
+   * (`LaneOptions.emptyLanes`), with `metrics.hiddenActivities` where the
+   * abstraction left out activities it has (0.6). Default false: a group
+   * without a member left is dropped, as before.
    */
   keepEmptyStages?: boolean;
   /** Group ids to collapse into one stage node each; `"all"` collapses every stage group. */
@@ -780,7 +781,19 @@ export function abstract(graph: FlowGraph, options: AbstractOptions = {}): FlowG
     usedGroups.add(own.id);
     for (const g of baseIdx.ancestors(own.id, "group")) usedGroups.add(g.id);
   }
-  const groups = (base.groups ?? []).filter((g) => usedGroups.has(g.id) || (options.keepEmptyStages && g.kind === "stage" && !g.parent));
+  // An empty stage kept for the bands says how many of its activities the abstraction left out (`hiddenActivities`): none means the cohort has none.
+  const inModel = new Map<string, number>();
+  if (options.keepEmptyStages) for (const n of base.nodes) {
+    const own = isActivity(n) && n.group ? baseIdx.groups.get(n.group) : undefined;
+    if (!own) continue;
+    for (const g of [own, ...baseIdx.ancestors(own.id, "group")]) inModel.set(g.id, (inModel.get(g.id) ?? 0) + 1);
+  }
+  const groups = (base.groups ?? []).flatMap((g) => {
+    if (usedGroups.has(g.id)) return [g];
+    if (!options.keepEmptyStages || g.kind !== "stage" || g.parent) return [];
+    const hidden = inModel.get(g.id) ?? 0;
+    return [hidden > 0 ? { ...g, metrics: { ...(g.metrics ?? {}), hiddenActivities: hidden } } : g];
+  });
   const survives = (id: unknown) => typeof id === "string" && (nodeSet.has(id) || usedGroups.has(id));
   const isShown = (o: Overlay) =>
     o.kind === "arc" && o.payload?.source !== undefined && o.payload?.target !== undefined
