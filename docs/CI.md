@@ -183,6 +183,12 @@ to 232,000, the measured size and a margin under 1 %. The tarball, which also
 carries the longer API document, measured 1,348,164 bytes against 1,326,000;
 `tarballBytes` is raised to 1,352,000.
 
+For 0.5 (partitioned stages, stage views, rounded bends, the label pass, lane
+headers and the vertical trace timeline) the library JavaScript measured
+236,791 bytes gzipped against 232,000; `libraryJavaScriptGzipBytes` is raised
+to 239,000. The tarball measured 1,367,824 bytes against 1,352,000;
+`tarballBytes` is raised to 1,380,000. Both margins stay under 1 %.
+
 Budgets in [scripts/budgets.json](../scripts/budgets.json) are initial regression
 limits, not load-time promises. The consumer total includes lazy BPMN/modeler and
 ELK assets; it is **not initial page download size**. Runtime latency, memory,
