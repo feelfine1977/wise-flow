@@ -164,6 +164,8 @@ export function usePrefersReducedMotion(): boolean {
 
 /** Milliseconds a layout takes to move into the place of a provisional arrangement. */
 const ARRIVAL_MS = 300;
+// How much longer than the animation an arrival waits for its last frame.
+const ARRIVAL_SLACK_MS = 100;
 
 interface Arrival {
   /** The positions to draw; on the way from the provisional arrangement to the layout while `moving`. */
@@ -189,7 +191,8 @@ function between(from: Positions, to: Positions, t: number): Positions {
 /**
  * Positions as drawn: a layout that replaces a provisional arrangement moves
  * there over a short time, or at once when `still` (reduced motion); any other
- * change is drawn at once.
+ * change is drawn at once. The move ends by the clock where the browser gives
+ * no animation frames (0.6), so the map's status never stays "pending".
  */
 export function useArrival(positions: Positions | undefined, provisional: boolean, still: boolean): Arrival {
   const [arrival, setArrival] = useState<{ to?: Positions; provisional: boolean; from?: Positions; count: number }>({ to: positions, provisional, count: 0 });
@@ -210,7 +213,12 @@ export function useArrival(positions: Positions | undefined, provisional: boolea
       if (t < 1) frame = requestAnimationFrame(step);
     };
     let frame = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(frame);
+    // A browser that gives no frames (a window in the background, a busy machine) still arrives, by the clock.
+    const done = setTimeout(() => setProgress(1), ARRIVAL_MS + ARRIVAL_SLACK_MS);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(done);
+    };
   }, [arrival]); // eslint-disable-line react-hooks/exhaustive-deps
   return { positions: drawn, moving: progress < 1, count: arrival.count };
 }
