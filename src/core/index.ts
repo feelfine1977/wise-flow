@@ -488,6 +488,7 @@ export {
 } from "./mark-svg.js";
 
 export { placeEdgeLabels } from "./label-placement.js";
+export { routeFaults } from "./route-faults.js";
 export type { LabelObstacles } from "./label-placement.js";
 export type {
   SvgElement,

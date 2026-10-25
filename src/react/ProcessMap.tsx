@@ -358,9 +358,12 @@ function ProcessMapInner(props: ProcessMapProps) {
   const listening = !!tellShown;
   useEffect(() => reportShown(mapShown ? flow.withheld : undefined, scene.edgeMarks), [flow.withheld, scene, reportShown, listening, mapShown]);
   // React Flow draws new nodes a commit later; until then the layout is not in place.
+  // React Flow's nodes are the map's own array once it has drawn them, or (where React Flow handed back a new array)
+  // the same nodes at the same places: either way the layout is in place, whatever the array's identity.
   const laidBy = useRef(new WeakMap<object, Positions | undefined>()).current;
   laidBy.set(flow.nodes, laidPositions);
-  const flowBehind = useStore((s) => view !== "table" && !useCanvas && laidBy.get(s.nodes) !== laidPositions);
+  const flowNodes = flow.nodes;
+  const flowBehind = useStore((s) => view !== "table" && !useCanvas && laidBy.get(s.nodes) !== laidPositions && !sameNodes(s.nodes, flowNodes));
   // A limit below one is one: the element the keyboard is on is always listed.
   const limit = Math.max(1, describedLimit);
   const canvas = useCanvasElements({ enabled: useCanvas, scene, graph: shown, positions, descriptions, selection, hovered, focused, bright, locale, activityLabels, highlighted, limit });
@@ -796,6 +799,11 @@ function ProcessMapInner(props: ProcessMapProps) {
     </div>
   );
   return <PatternTheme.Provider value={patternTheme}>{map}</PatternTheme.Provider>;
+}
+
+/** Whether two node lists hold the same nodes at the same places, in the same order. */
+function sameNodes(a: readonly { id: string; position: XY }[], b: readonly { id: string; position: XY }[]): boolean {
+  return a.length === b.length && a.every((n, i) => n.id === b[i].id && n.position.x === b[i].position.x && n.position.y === b[i].position.y);
 }
 
 /**

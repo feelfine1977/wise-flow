@@ -1,7 +1,8 @@
-import { Handle, Position, type NodeProps, useStore } from "@xyflow/react";
+import { Handle, type NodeProps, useStore } from "@xyflow/react";
 import { memo, useContext } from "react";
 import { type Box, type BoxSide, type ElementText, type GroupMark, type LayoutDirection, type MarkPaint, type NodeMark, type Overlay, type StateStyle, type SvgElement, defaultNodeSize, groupMark, hasTag, nodeMark } from "../core/index.js";
 import { ElementMarks, MARK_IDS, MarkFigure, mapMark, marksAtOrigin, paintCss, svgReact } from "./marks.js";
+import { handleSides } from "./handles.js";
 import { part } from "./parts.js";
 import { PatternSwatch, PatternTheme } from "./patterns.js";
 import type { ActivityNodeData, GroupNodeData, WfGroupNode, WfNode } from "./types.js";
@@ -12,14 +13,8 @@ function carried(data: { marks?: ActivityNodeData["marks"]; origin?: ActivityNod
 }
 
 function handles(direction: LayoutDirection) {
-  const [target, source] =
-    direction === "DOWN"
-      ? [Position.Top, Position.Bottom]
-      : direction === "UP"
-        ? [Position.Bottom, Position.Top]
-        : direction === "LEFT"
-          ? [Position.Right, Position.Left]
-          : [Position.Left, Position.Right];
+  // The same sides as the handles the map hands React Flow as data (`cardHandles`).
+  const { target, source } = handleSides(direction);
   return (
     <>
       <Handle type="target" position={target} isConnectable={false} />

@@ -189,6 +189,12 @@ headers and the vertical trace timeline) the library JavaScript measured
 to 239,000. The tarball measured 1,367,824 bytes against 1,352,000;
 `tarballBytes` is raised to 1,380,000. Both margins stay under 1 %.
 
+For 0.6 (the overview thumbnail, the trace timeline's minute clusters, the
+cards' handles as data and the compound fallback of stage partitions with its
+route check) the library JavaScript measured 239,165 bytes gzipped against
+239,000; `libraryJavaScriptGzipBytes` is raised to 241,000. The tarball
+(1,374,190 bytes) stays under 1,380,000.
+
 Budgets in [scripts/budgets.json](../scripts/budgets.json) are initial regression
 limits, not load-time promises. The consumer total includes lazy BPMN/modeler and
 ELK assets; it is **not initial page download size**. Runtime latency, memory,

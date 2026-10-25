@@ -1,6 +1,7 @@
 /** Layout: ELK and Dagre, in workers or in-process, Dagre as fallback; a layout runs while somebody waits for it. */
 import type { ELK, ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api.js";
 import * as dagreModule from "@dagrejs/dagre";
+import { routeFaults } from "./route-faults.js";
 import { type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, byId, indexGraph } from "./model.js";
 import { borderLayer, layoutInputKey, resolvedSizes } from "./layout-key.js";
 import { nodeSizeTokens } from "./tokens.js";
@@ -43,6 +44,13 @@ export interface Positions {
   direction: LayoutDirection;
   /** No layout replaces them: the provisional arrangement `useStableLayout` keeps when the layout is unavailable. */
   final?: boolean;
+  /**
+   * How ELK laid out the stages (0.6): as partitions (`LayoutOptions.stages:
+   * "partition"`), or as compound nodes, asked for or instead of partitions
+   * that ELK could not lay out or that put a route behind a card or stages out
+   * of order. None without stages or from another engine.
+   */
+  stages?: "partition" | "compound";
 }
 
 export interface NodeSize {
@@ -525,7 +533,47 @@ function fromElk(result: ElkNode, p: Prepared, reversed: ReadonlySet<string> = n
   return createPositions({ nodes, groups: p.partitioned ? groupBoxesAround(p, nodes) : groups, edges }, "elk", p.direction);
 }
 
+/**
+ * ELK's layout, saying how it laid out the stages (`Positions.stages`). Stage
+ * partitions are kept only where ELK lays them out and they hold: no route
+ * behind a card it does not join (`routeFaults`) and the partitions in order
+ * along the flow. Otherwise, or where ELK throws on them, the stages are laid
+ * out once more as compound nodes, never handed to another engine for that.
+ */
 async function layoutElk(p: Prepared, o: LayoutOptions, signal: AbortSignal, work?: Lease): Promise<Positions> {
+  const staged = p.groups.some((g) => g.kind === "stage");
+  if (p.partitioned) {
+    try {
+      const positions = await layoutElkOnce(p, o, signal, work);
+      if (partitionsHold(p, positions)) return { ...positions, stages: "partition" };
+    } catch (err) {
+      if (err instanceof LayoutTimeout || signal.aborted) throw err;
+    }
+    return { ...(await layoutElkOnce({ ...p, partitioned: false, useGroups: true }, o, signal, work)), stages: "compound" };
+  }
+  const positions = await layoutElkOnce(p, o, signal, work);
+  return p.useGroups && staged ? { ...positions, stages: "compound" } : positions;
+}
+
+/** Whether a partitioned layout holds: no route behind a card, and every partition after the one before it along the flow. */
+function partitionsHold(p: Prepared, positions: Positions): boolean {
+  if (routeFaults({ nodes: p.nodes, edges: p.edges }, positions).length) return false;
+  const parts = partitionsOf(p);
+  const along = p.direction === "DOWN" || p.direction === "UP" ? (b: Box) => [b.y, b.y + b.height] : (b: Box) => [b.x, b.x + b.width];
+  const reverse = p.direction === "LEFT" || p.direction === "UP";
+  const extents = new Map<number, [number, number]>();
+  for (const [id, part] of parts) {
+    const box = positions.nodes[id];
+    if (!box) continue;
+    const [lo, hi] = along(box);
+    const was = extents.get(part);
+    extents.set(part, was ? [Math.min(was[0], lo), Math.max(was[1], hi)] : [lo, hi]);
+  }
+  const ordered = [...extents.entries()].sort(([a], [b]) => a - b).map(([, e]) => e);
+  return ordered.slice(1).every((e, i) => (reverse ? e[1] <= ordered[i][0] : e[0] >= ordered[i][1]));
+}
+
+async function layoutElkOnce(p: Prepared, o: LayoutOptions, signal: AbortSignal, work?: Lease): Promise<Positions> {
   const ms = o.timeoutMs ?? 20000;
   const partition = (o.orderStages ?? true) && p.useGroups;
   const reversed = backAcrossStages(p);

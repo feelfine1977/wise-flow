@@ -382,6 +382,7 @@
     "resolveViews",
     "restOf",
     "roundedRoute",
+    "routeFaults",
     "routeMidpoint",
     "routeSequenceFlows",
     "ruleTextRole",
