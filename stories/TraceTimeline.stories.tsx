@@ -46,7 +46,7 @@ const meta: Meta<typeof TraceTimeline> = {
   title: "Trace timeline",
   component: TraceTimeline,
   parameters: { layout: "padded" },
-  excludeStories: ["traces", "annotations"],
+  excludeStories: ["traces", "annotations", "singleCase"],
   args: { traces, annotations, width: 1000, locale: "en" },
   argTypes: { locale: { control: "radio", options: ["en", "de"] } },
 };
@@ -62,3 +62,27 @@ export const Anchored: Story = { name: "Aligned at goods receipt", args: { ancho
 
 /** Table alternative of the timeline. */
 export const Table: Story = { name: "Table alternative", args: { table: true, anchor: "record_goods_receipt" } };
+
+const at = (d: number, h: number, m = 0, s = 0) => new Date(Date.UTC(2018, 2, 1 + d, h, m, s)).toISOString();
+
+/** One purchase order item with 13 events; seven SRM events in the same minute (15:12 in Berlin). */
+export const singleCase: Trace = {
+  caseId: "4507000123_00010",
+  events: [
+    { activity: "Create Purchase Requisition Item", canonicalId: "pr", timestamp: at(0, 7, 40) },
+    { activity: "Create Purchase Order Item", canonicalId: "po", timestamp: at(0, 13, 5) },
+    ...Array.from({ length: 7 }, (_, i) => ({ activity: i === 0 ? "SRM: Created" : "SRM: Change was Transmitted", canonicalId: "srm", timestamp: at(0, 14, 12, i * 6) })),
+    { activity: "Record Goods Receipt", canonicalId: "gr", timestamp: at(12, 8) },
+    { activity: "Record Invoice Receipt", canonicalId: "ir", timestamp: at(31, 10) },
+    { activity: "Remove Payment Block", canonicalId: "block", timestamp: at(40, 9) },
+    { activity: "Clear Invoice", canonicalId: "clear", timestamp: at(59, 16) },
+  ],
+};
+
+const stageOf = (e: { canonicalId?: string }) => (e.canonicalId === "pr" || e.canonicalId === "po" || e.canonicalId === "srm" ? "order" : e.canonicalId === "gr" ? "receipt" : e.canonicalId === "block" ? "none" : "invoice");
+
+/** The single-case Trace view: down a ruler from Start to End, the SRM minute as one ring, times in Berlin, stages coloured in order. */
+export const SingleCaseVertical: Story = {
+  name: "Single case, vertical",
+  args: { traces: [singleCase], annotations: [], orientation: "vertical", width: 520, height: 640, terminals: true, clusterMs: 60000, timeZone: "Europe/Berlin", colorKey: stageOf, stages: ["order", "receipt", "invoice"] },
+};

@@ -368,6 +368,10 @@ export const dimensionTokens = {
   eventLabel: 96,
   /** Width the statement under a start or an end event's label is shortened to (`StyleSpec.terminals`). */
   eventStatement: 160,
+  /** The paper ring of an event on a vertical timeline (0.5), across, around its stage dot. */
+  timelineRing: 20,
+  /** The stage dot inside an event's ring on a vertical timeline (0.5), across. */
+  timelineDot: 7,
 } as const;
 
 /** Sizes of the node and edge marks, in layout units. */

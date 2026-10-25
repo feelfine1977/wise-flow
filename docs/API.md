@@ -1941,7 +1941,18 @@ export function TableAlternative(props: { graph; overlays?; scales?; locale?; se
 // A pager button that reaches the last page ("Next rows") or the first ("Previous rows") while it has the input focus
 // hands the focus to the other button, which still works there.
 export function TraceTimeline(props: { traces: Trace[]; anchor?: string; annotations?: Annotation[]; locale?;
-  width?; rowHeight?; colorKey?; onSelect?; table?: boolean }): JSX.Element;
+  width?; rowHeight?; colorKey?; onSelect?; table?: boolean;
+  orientation?: "horizontal" | "vertical"; height?: number;   // (0.5) down a ruler, one column per case; default horizontal, 640 high
+  terminals?: boolean; clusterMs?: number; timeZone?: string; stages?: readonly string[] }): JSX.Element;   // (0.5)
+// A vertical timeline (0.5) draws each case down a ruler from its first event, ticked in hours over at most two days and
+// in days otherwise; each event is a paper ring (`dimensionTokens.timelineRing` 20 across) around a dot of its colour
+// (`dimensionTokens.timelineDot` 7) with its activity beside it. `terminals` adds ▶ Start and ■ End rings at the
+// ruler's ends (`terminal.start`/`terminal.end`). With `clusterMs`, events that follow within it of the first of them
+// are one ring labelled "7 events · SRM: Created" (`timeline.cluster`, part `timeline-cluster`); clicking it selects
+// the first; the table keeps every event and adds "Elapsed (days)" and "Wait before (days)". `timeZone` (IANA) prints
+// the times in that zone as "2018-03-01 15:12" and names it in the description ("Times in Europe/Berlin."); a zone the
+// runtime does not know keeps UTC. With `stages`, the stage ids `colorKey` returns take the categorical colours in
+// that order (`orderedCategorical`), any other key the `lineStrong` colour. The horizontal timeline is unchanged.
 export function AbstractionControls(props), Legend(props), OverlayLayer(props);
 export interface LegendProps { scales?: Scales; overlays?: Overlay[]; locale?: Locale; chips?: ReactNode;
   legend?: SceneLegend;   // the rows it renders: the scene's legend; without it sceneLegend(scales, overlays)
@@ -1974,7 +1985,8 @@ export type WfEdge = Edge<FollowsEdgeData, EdgeKind>; export function groupNodeI
 // The props of each component by name (the components' signatures in this document spell them out):
 export interface AbstractionControlsProps { value: AbstractOptions; onChange; locale?; hasStages?; view?; onViewChange? }
 export interface TableAlternativeProps { graph; overlays?; scales?; locale?; selection?; onSelect?; tables?; pageSize?; className? }
-export interface TraceTimelineProps { traces: Trace[]; anchor?; annotations?; locale?; width?; rowHeight?; colorKey?; onSelect?; table?; className? }
+export interface TraceTimelineProps { traces: Trace[]; anchor?; annotations?; locale?; width?; rowHeight?; colorKey?; onSelect?; table?; className?;
+  orientation?; height?; terminals?; clusterMs?; timeZone?; stages? }   // (0.5)
 export interface TraceEvent { activity: string; canonicalId?; timestamp: string | number | Date; resource?; lifecycle?; violates?: string[] }
 export interface ContextMenuProps { x; y; title: string; subtitle?; note?; actions: MenuAction[]; locale?; onAction; onClose; returnFocusTo?;
   boundsRef?; className? }
@@ -4295,6 +4307,7 @@ CSS written against these selectors changes only the interactive DOM map and the
 | `path-list` | `<PathList/>` | | |
 | `timeline` | `<TraceTimeline/>`, as a chart and as a table | | |
 | `timeline-event` | an event of the timeline | | |
+| `timeline-cluster` | events of a case drawn as one ring on a vertical timeline (`clusterMs`, 0.5) | | |
 
 `docs/styling-contract.json` lists the same parts, kinds and states. A tooling
 test (`tests/tooling/styling-contract.test.mjs`) renders the fixtures of every

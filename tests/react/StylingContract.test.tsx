@@ -140,6 +140,8 @@ describe("the styling contract", () => {
       <>
         <FilterChips filter={{ and: [{ kind: "activity", op: "contains", activity: "a" }] }} onFilterChange={() => {}} />
         <TraceTimeline traces={traces} />
+        {/* Events within a minute of each other as one ring (0.5). */}
+        <TraceTimeline traces={[{ caseId: "c", events: [{ activity: "a", timestamp: 0 }, { activity: "b", timestamp: 1000 }, { activity: "c", timestamp: 86400000 }] }]} orientation="vertical" clusterMs={60000} terminals />
       </>,
     );
     fireEvent.mouseEnter(container.querySelector(".wf-event")!);
