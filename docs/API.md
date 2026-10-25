@@ -1050,7 +1050,21 @@ thinner than 2 (`minWidth`) no head at all, its line then ending on the
 route's end; the default and print themes keep 4 and no minimum. Every
 renderer paints the paths the widest first and the thinnest on top, equal
 widths by id (`paintOrder`, 0.4; the SVG export drew them in id order), so
-that a thin path crossing a trunk stays visible. The SVG export defines the marker `wf-arrow` for the head of 12 and
+that a thin path crossing a trunk stays visible.
+
+With `FlowSceneOptions.labelPlacement: "clear"` (0.5; default `midpoint`,
+unchanged) the scene moves paths' labels clear of the cards, the groups'
+titles, the other labels and the other paths (`placeEdgeLabels`): the widest
+paths are placed first, ties by id; a label that covers nothing stays where it
+is; else it goes to the cheapest of the candidates beside the middle of the
+route's four longest segments and in 16 px steps along them (above or below a
+horizontal segment, beside a vertical one; covering a card costs 60, a label or
+a title 40, another path 10 + 4 × its width). Where every candidate beside the
+line covers something, one 24 px further off without cover is taken and
+`EdgeMark.leader` holds a hairline from the route to the label, drawn in the
+`line` paint by every renderer; otherwise the cheapest candidate. The pass is
+deterministic and reads the scene's `TextMeasure`; `ProcessMapProps.labelPlacement`
+passes it through. The SVG export defines the marker `wf-arrow` for the head of 12 and
 `wf-arrow-<size>` for each larger head it draws; the React Flow map defines
 `wf-edge-arrow-<size>` with the same `arrowMarker` (it used React Flow's
 `MarkerType.ArrowClosed` at 12); the Canvas map and the PNG export draw the
@@ -3240,6 +3254,8 @@ export function lineEnd(points: readonly XY[], arrow: Arrowhead | undefined): XY
 export function paintOrder(marks: readonly { width: number; id: string }[]): number[];   // the order every renderer paints paths in: the widest first, equal widths by id (0.4)
 export type PathSegment = { kind: "line"; to: XY } | { kind: "curve"; c1: XY; c2: XY; to: XY };   // (0.5)
 export function roundedRoute(points: readonly XY[], radius: number, end?: XY): PathSegment[];   // every bend rounded, no more than half a segment (0.5)
+export interface LabelObstacles { nodes: readonly Box[]; titles: readonly Box[] }   // (0.5)
+export function placeEdgeLabels(edges: readonly EdgeMark[], obstacles: LabelObstacles, measure: TextMeasure): EdgeMark[];   // labels moved clear, widest paths first; a leader where moved off the line (0.5)
 export function segmentsPath(start: XY, segments: readonly PathSegment[], num?: (n: number) => string): string;   // SVG path data (0.5)
 // EdgeMark.path?: PathSegment[]: the route as drawn where Theme.radius.bend > 0 (0 in default and print, 8 in instrument); every renderer
 // draws its curves (cubic, close to circular arcs: the DOM map and the SVG export as `C`, the Canvas as bezierCurveTo); hit-testing keeps the polyline.

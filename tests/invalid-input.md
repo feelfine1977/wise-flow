@@ -191,6 +191,7 @@ Test: `tests/core/malformed-input.test.ts` › "scene, marks, legend, figure and
 | `eventGlyph` | `.` | ▶ for an event tagged `start`, ■ for `end`, none otherwise (0.4). | Returns one of the three. |
 | `terminalOf` | `.` | `start`, `end` or none; an end the lookup does not find is no event (0.4). | Returns one of the three. |
 | `paintOrder` | `.` | Every index once, widest first; widths that are not numbers sort as they compare (0.4). | Returns a permutation of the indices. |
+| `placeEdgeLabels` | `.` | Marks with routes or texts that are not finite keep their labels; a box that is not finite covers nothing (0.5). | Returns one mark per mark. |
 | `roundedRoute` | `.` | A radius that is not a positive number rounds nothing to a curve of zero length (0.5). | Returns. |
 | `segmentsPath` | `.` | Not documented. | Returns. |
 | `pathLabelShown` | `.` | A width or zoom that is not a number shows no label by width, and compares as JavaScript does by zoom (0.4). | Returns a boolean. |

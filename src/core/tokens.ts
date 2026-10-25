@@ -239,6 +239,8 @@ export const strokeTokens = {
   canvasPathHighlight: 2,
   pathFocus: 2,
   pathHit: 14,
+  /** The hairline from a path to a label the scene moved off its line (`EdgeMark.leader`, 0.5). */
+  leader: 1,
   /**
    * How much thinner a path against the reading direction is drawn than its
    * cases give, while no activity it touches is selected (never under
@@ -683,7 +685,7 @@ const styledRoles = {
   weight: "activityName activityNumber stageLabel groupLabel legendItem panelHeading panelLabel panelPlain comparisonTab comparisonCaption comparisonRowHeader comparisonDenominator",
   leading: "activityName activityNumber",
   radius: "band swatch control tooltip key pill filterChip legendGradient activityTooltip comparisonBar",
-  stroke: "focus selection halo filterChip tab icon timelineViolation",
+  stroke: "focus selection halo filterChip tab icon timelineViolation leader",
   dash: "timelineAnchor bpmnOutOfScope",
   opacity: "dimmed dimmedPath disabled",
   z: "comparisonRowHeader comparisonHeader comparisonCorner overlayPanel bpmnTable bpmnPanel sideList tooltip canvasTooltip bpmnNavigation menu activityTooltip",

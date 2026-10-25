@@ -201,6 +201,11 @@ export interface EdgeMark {
    * width, head and opacity here.
    */
   lift?: { width: number; arrow?: Arrowhead; opacity?: number };
+  /**
+   * A hairline in the theme's `line` paint from the route to its label, where
+   * the label pass moved the label off its line (0.5, `placeEdgeLabels`).
+   */
+  leader?: [XY, XY];
 }
 
 interface NodeMarkOptions {

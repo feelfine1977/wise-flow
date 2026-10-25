@@ -383,6 +383,14 @@
 }
 
 /* Edge labels */
+/* A hairline from the route to a label the scene moved off its line (`EdgeMark.leader`). */
+.wf-edge-leader {
+  fill: none;
+  stroke: var(--wf-line);
+  stroke-width: var(--wf-stroke-leader);
+  pointer-events: none;
+}
+
 .wf-edge-label {
   font-family: var(--wf-font);
   font-size: var(--wf-text-size, var(--wf-text-path-label));

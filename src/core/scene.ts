@@ -8,6 +8,7 @@ import { type Box, type Positions, type XY, filterPositions, finitePositions, un
 import { type LaneBand, type LaneMode, laneBands } from "./lanes.js";
 import { type FlowGraph, type Overlay, MAP_TARGET } from "./model.js";
 import { withFollowsSelfLoops } from "./observed-loops.js";
+import { placeEdgeLabels } from "./label-placement.js";
 import { type OverlayGeometry, type OverlayGeometryOptions, groupTitles, placeOverlays } from "./overlay-geometry.js";
 import { type OverlayMark, overlayMarks } from "./overlay-marks.js";
 import { canonicalOverlays } from "./overlays.js";
@@ -40,6 +41,12 @@ export interface FlowSceneOptions {
    * card. `lanes` given wins for role lanes.
    */
   stageView?: "bands" | "lanes" | "boxes" | "none";
+  /**
+   * Where paths' labels sit (0.5): 4 above the middle of the route
+   * (`midpoint`, the default), or moved clear of the cards, the groups'
+   * titles, the other labels and paths (`clear`, `placeEdgeLabels`).
+   */
+  labelPlacement?: "midpoint" | "clear";
   /**
    * Nodes moved by hand to these absolute points after the lane bands are laid
    * out; the edges are routed around them again (see `repositionNodes`).
@@ -154,7 +161,8 @@ export function sceneOf(graph: FlowGraph, givenPositions: Positions, options: Fl
   // Backward paths below the flow and opposite paths side by side; the scene's positions carry their courses, which chips keep clear of.
   const courses = pathCourses(graph, positions, { width: scales.edgeWidth, bands: new Set(laid.bands.map((b) => b.id)) });
   const routes = graph.edges.flatMap((e) => (e.kind === "constraint" || e.source === e.target ? [] : [edgePoints(courses.positions, e) ?? []]));
-  const edges = edgeMarks(graph, courses.positions, scales, locale, marked, courses);
+  const unplaced = edgeMarks(graph, courses.positions, scales, locale, marked, courses);
+  const edges = options.labelPlacement === "clear" ? placeEdgeLabels(unplaced, { nodes: Object.values(courses.positions.nodes), titles: groupTitles(graph.groups ?? [], courses.positions) }, measure) : unplaced;
   // Arc labels keep clear of the paths' counts (from their baseline up a full size).
   const counts = edges.flatMap((e) => e.texts.map((t) => {
     const width = measure(t.text, t);

@@ -18,7 +18,7 @@ import { type Measure, type StyleSpec, lodAt, pathLabelShown, patternDefs } from
 import { type Strings, t } from "./strings.js";
 import type { TextMeasure } from "./text.js";
 import { type ColorScheme, type ThemeSetting, resolveTheme } from "./theme.js";
-import { type Arrowhead, type ColorToken, arrowheadTokens, dimensionTokens, readableTokens } from "./tokens.js";
+import { type Arrowhead, type ColorToken, arrowheadTokens, dimensionTokens, readableTokens, strokeTokens } from "./tokens.js";
 
 export interface Scene {
   activityLabels?: ActivityLabelOptions;
@@ -177,7 +177,11 @@ function drawEdges(ctx: Ctx): string {
     out.push(`<g class="wf-edge" data-id="${esc(m.id)}"${opacity(m)}><path d="${d}" fill="none" stroke="${m.color}" stroke-width="${num(m.width)}" stroke-linejoin="round"${m.addedFlow ? ' stroke-linecap="round"' : ""}${dash}${m.arrow ? ` marker-end="url(#${arrowId(m.arrow)})"` : ""}/>`);
     // Paths' labels are the first texts shed below the floor.
     // A path's label by its rule: a zoom, or its width at the figure's zoom (`pathLabelShown`); nothing is selected in a figure.
-    if (ctx.readable.labels.path) for (const tx of m.texts) if (tx.lod === "edgeLabels" ? pathLabelShown(m.width, ctx.lodZoom, ctx.scene.lod) : !tx.lod || ctx.lod[tx.lod]) out.push(markText(ctx, m.color, m.color, tx));
+    if (ctx.readable.labels.path) for (const tx of m.texts) if (tx.lod === "edgeLabels" ? pathLabelShown(m.width, ctx.lodZoom, ctx.scene.lod) : !tx.lod || ctx.lod[tx.lod]) {
+      // A label the scene moved off its line, with a hairline back to the route (`EdgeMark.leader`).
+      if (m.leader && tx.role === "count") out.push(`<path class="wf-edge-leader" d="M${num(m.leader[0].x)} ${num(m.leader[0].y)}L${num(m.leader[1].x)} ${num(m.leader[1].y)}" fill="none" stroke="${ctx.colors.line}" stroke-width="${strokeTokens.leader}"/>`);
+      out.push(markText(ctx, m.color, m.color, tx));
+    }
     out.push(`</g>`);
   }
   return out.join("");

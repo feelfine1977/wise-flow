@@ -203,6 +203,8 @@ export interface ProcessMapProps {
    * boxes come from the same positions. `lanes` stays for role lanes.
    */
   stageView?: "bands" | "lanes" | "boxes" | "none";
+  /** Where paths' labels sit (0.5): `midpoint` (default) or moved `clear` of cards, titles, labels and paths (`FlowSceneOptions.labelPlacement`). */
+  labelPlacement?: "midpoint" | "clear";
   /** The corner the legend sits in (0.4). Default `bottom-right`. The key of full activity names takes the other side. */
   legendPosition?: PanelCorner;
   /** The corner the detail panel sits in (0.4). Default `top-left`. */

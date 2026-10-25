@@ -35,6 +35,7 @@ const look = {
   style: { selectedShare: true, terminals: { statement: false } },
   overlayGeometry: { selfLoop: "pill" as const, badgeAnchor: "border" as const },
   minZoom: { readable: "name" as const },
+  labelPlacement: "clear" as const,
 };
 
 function InstrumentMap({ selected, scheme }: { selected?: string; scheme?: "dark" }) {

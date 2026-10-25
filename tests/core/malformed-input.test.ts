@@ -119,7 +119,7 @@ import {
   formatNumber,
   formatPathCount,
   formatShare,
-  gatewayGlyph, eventGlyph, terminalOf, paintOrder, createStrings, pathLabelShown, touchesSelection, emphasisLabel, roundedRoute, segmentsPath,
+  gatewayGlyph, eventGlyph, terminalOf, paintOrder, createStrings, pathLabelShown, touchesSelection, emphasisLabel, roundedRoute, segmentsPath, placeEdgeLabels,
   groupMark,
   groupMarks,
   hasTag,
@@ -576,7 +576,7 @@ describe("malformed input at the core entry point", () => {
 
   it(
     "scene, marks, legend, figure and SVG export",
-    search(["buildScene", "budgetEdges", "pathsAtZoom", "nodeMarks", "edgeMarks", "nodeMark", "edgeMark", "edgeColor", "edgePoints", "routeMidpoint", "edgeLabelPoint", "gatewayGlyph", "nodeCount", "truncateText", "restOf", "distinctLines", "fitText", "estimateTextWidth", "sceneLegend", "legendItemHeight", "legendLayout", "figureFrame", "toSVG", "resolveViews", "viewsSharePositions", "stateStyle", "markInState", "ruleTextRole", "pathArrowhead", "lineEnd", "groupMark", "groupMarks", "legendOfScene", "figureCaption", "eventGlyph", "terminalOf", "paintOrder", "createStrings", "pathLabelShown", "touchesSelection", "emphasisLabel", "roundedRoute", "segmentsPath"], (calls, c) => {
+    search(["buildScene", "budgetEdges", "pathsAtZoom", "nodeMarks", "edgeMarks", "nodeMark", "edgeMark", "edgeColor", "edgePoints", "routeMidpoint", "edgeLabelPoint", "gatewayGlyph", "nodeCount", "truncateText", "restOf", "distinctLines", "fitText", "estimateTextWidth", "sceneLegend", "legendItemHeight", "legendLayout", "figureFrame", "toSVG", "resolveViews", "viewsSharePositions", "stateStyle", "markInState", "ruleTextRole", "pathArrowhead", "lineEnd", "groupMark", "groupMarks", "legendOfScene", "figureCaption", "eventGlyph", "terminalOf", "paintOrder", "createStrings", "pathLabelShown", "touchesSelection", "emphasisLabel", "roundedRoute", "segmentsPath", "placeEdgeLabels"], (calls, c) => {
       const g = c.graph;
       const L = locale(c);
       const activityLabels = c.rng.chance() ? labels(c) : undefined;
@@ -660,6 +660,10 @@ describe("malformed input at the core entry point", () => {
       }));
       const rounded = calls.call("roundedRoute", c, () => roundedRoute(points.length ? points : [{ x: 0, y: 0 }], junkNumber(c.rng)));
       calls.call("segmentsPath", c, () => segmentsPath(points[0] ?? { x: 0, y: 0 }, rounded ?? []));
+      calls.call("placeEdgeLabels", c, () => {
+        const placed = placeEdgeLabels(s.edgeMarks, { nodes: Object.values(c.positions.nodes), titles: [] }, (text) => text.length * junkNumber(c.rng));
+        must(placed.length === s.edgeMarks.length, c, () => `placeEdgeLabels ${placed.length}`);
+      });
       calls.call("createStrings", c, () => {
         const say = createStrings(L, { "legend.title": junkString(c.rng), [junkString(c.rng)]: junkString(c.rng) } as never);
         must(typeof say("legend.title") === "string" && typeof say("legend.measure", { measure: junkString(c.rng) }) === "string", c, () => "createStrings");

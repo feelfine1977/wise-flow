@@ -486,6 +486,9 @@ export {
   hatchSvg,
   svgMarkup,
 } from "./mark-svg.js";
+
+export { placeEdgeLabels } from "./label-placement.js";
+export type { LabelObstacles } from "./label-placement.js";
 export type {
   SvgElement,
   MarkSvgOptions,

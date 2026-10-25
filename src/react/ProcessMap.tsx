@@ -111,6 +111,7 @@ function ProcessMapInner(props: ProcessMapProps) {
     opening = "readable",
     minPathPx = viewTokens.pathPx,
     stageView,
+    labelPlacement,
     lanes: lanesGiven,
     pathList = true,
     contextMenu = true,
@@ -207,7 +208,7 @@ function ProcessMapInner(props: ProcessMapProps) {
   const [manual, setManual] = useState<{ key: ProcessMapProps["layoutResetKey"]; points: Record<string, XY> }>({ key: layoutResetKey, points: {} });
   // The shown graph's marks, the given ones among them; the scene keeps those it can place and adds the follows self-loops.
   const { scene, positions, laidPositions } = useMapScene(shown, arrival.positions, manual.key === layoutResetKey ? manual.points : NO_MOVES, {
-    style, locale, lanes, activityLabels, selfLoops, lod: props.lod, theme: markedTheme, scheme: look.scheme, textMeasure, strings, overlayGeometry, stageView,
+    style, locale, lanes, activityLabels, selfLoops, lod: props.lod, theme: markedTheme, scheme: look.scheme, textMeasure, strings, overlayGeometry, stageView, labelPlacement,
   });
   const { scales, overlays, geometry } = scene;
   // What the detail sliders show, in words, and what the tooltips add: the labels of elements not shown are the graph's before the sliders.
