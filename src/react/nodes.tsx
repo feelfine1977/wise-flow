@@ -1,6 +1,6 @@
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { Handle, Position, type NodeProps, useStore } from "@xyflow/react";
 import { memo, useContext } from "react";
-import { type BoxSide, type ElementText, type GroupMark, type LayoutDirection, type MarkPaint, type NodeMark, type Overlay, type StateStyle, type SvgElement, defaultNodeSize, groupMark, hasTag, nodeMark } from "../core/index.js";
+import { type Box, type BoxSide, type ElementText, type GroupMark, type LayoutDirection, type MarkPaint, type NodeMark, type Overlay, type StateStyle, type SvgElement, defaultNodeSize, groupMark, hasTag, nodeMark } from "../core/index.js";
 import { ElementMarks, MARK_IDS, MarkFigure, mapMark, marksAtOrigin, paintCss, svgReact } from "./marks.js";
 import { part } from "./parts.js";
 import { PatternSwatch, PatternTheme } from "./patterns.js";
@@ -288,15 +288,26 @@ function groupLook(m: GroupMark, tint: string | undefined, state?: StateStyle): 
   return out;
 }
 
+/** How far a band's name moves along it to stay at the view's left edge while the band is partly in view (`laneOptions.sticky`). */
+function useStickyShift(box: Box | undefined): number {
+  const left = useStore((s) => (box ? -s.transform[0] / s.transform[2] : 0));
+  return box ? Math.max(0, Math.min(left - box.x, box.width - STICKY_ROOM)) : 0;
+}
+
+// The room a sticky name keeps at the band's end.
+const STICKY_ROOM = 160;
+
 const Group = memo(function Group({ id, data, selected, width, height }: NodeProps<WfGroupNode>) {
   const mark = groupMarkOf(data, width, height);
   const band = mark.band;
   const title = mark.texts[0];
+  const header = mark.texts.find((t) => t.role === "count");
+  const shift = useStickyShift(data.sticky ? mark.box : undefined);
   return (
     <div
       id={`wf-group-${id}`}
-      className={`wf-group${data.tint ? " wf-group--tinted" : ""}${selected ? " wf-group--selected" : ""}${band ? ` wf-group--band wf-group--band-${band.axis}${band.index % 2 ? " wf-group--band-odd" : ""}` : ""}`}
-      style={groupLook(mark, data.tint, data.state)}
+      className={`wf-group${data.tint ? " wf-group--tinted" : ""}${selected ? " wf-group--selected" : ""}${band ? ` wf-group--band wf-group--band-${band.axis}${band.index % 2 ? " wf-group--band-odd" : ""}${band.empty ? " wf-group--empty" : ""}` : ""}`}
+      style={{ ...groupLook(mark, data.tint, data.state), ...(shift > 0 && { ["--wf-sticky" as string]: px(shift) }) }}
       title={data.description}
       data-kind="group"
       data-band={band ? band.axis : undefined}
@@ -306,6 +317,11 @@ const Group = memo(function Group({ id, data, selected, width, height }: NodePro
       {title ? (
         <span className="wf-group__label" style={textLook(title, mark, true)} {...part("group-label")}>
           {title.text}
+        </span>
+      ) : null}
+      {header ? (
+        <span className="wf-group__header" style={textLook(header, mark)} {...part("group-header")}>
+          {header.text}
         </span>
       ) : null}
       {carried(data)}

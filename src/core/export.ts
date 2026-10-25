@@ -13,7 +13,7 @@ import type { OverlayGeometryOptions } from "./overlays.js";
 import { type MarkSvgOptions, arrowMarker, markSvg, svgMarkup } from "./mark-svg.js";
 import { type MarkPaint, type MarkText, type OverlayMark, markArrowhead, overlayArrow } from "./overlay-marks.js";
 import { type Readable, isPill, nodeTexts, readableMark, shownReadable, titleTexts } from "./readable.js";
-import { type FlowScene, sceneOf } from "./scene.js";
+import { type FlowScene, type FlowSceneOptions, sceneOf } from "./scene.js";
 import { type Measure, type StyleSpec, lodAt, pathLabelShown, patternDefs } from "./style.js";
 import { type Strings, t } from "./strings.js";
 import type { TextMeasure } from "./text.js";
@@ -35,6 +35,10 @@ export interface Scene {
   lanes?: LaneMode;
   /** Draw follows edges from a node to itself as self-loops. Default true. */
   selfLoops?: boolean;
+  /** As on the map (0.5): `FlowSceneOptions.stageView`, `labelPlacement` and `laneOptions`; a sticky name is printed once at its band's start. */
+  stageView?: FlowSceneOptions["stageView"];
+  labelPlacement?: FlowSceneOptions["labelPlacement"];
+  laneOptions?: FlowSceneOptions["laneOptions"];
 }
 
 export interface ExportOptions {
@@ -313,6 +317,9 @@ export function toSVG(given: Scene, options: ExportOptions = {}): string {
     style: given.style,
     locale: given.locale,
     lanes: given.lanes,
+    stageView: given.stageView,
+    labelPlacement: given.labelPlacement,
+    laneOptions: given.laneOptions,
     activityLabels: given.activityLabels,
     selfLoops: given.selfLoops,
     overlayGeometry: options.overlayGeometry,

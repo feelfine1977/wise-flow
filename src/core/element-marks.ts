@@ -4,11 +4,11 @@ import { type Locale, formatCount, formatPathCount } from "./format.js";
 import { elementMetric, formatMetricValue, metricBasis } from "./metrics.js";
 import { type Box, type Positions, type XY, straightRoute } from "./layout.js";
 import type { LaneBand } from "./lanes.js";
-import { type EdgeKind, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type GroupKind, type NodeKind, hasTag, metric } from "./model.js";
+import { type EdgeKind, type FlowEdge, type FlowGraph, type FlowGroup, type FlowNode, type GroupKind, type NodeKind, hasTag, indexGraph, metric } from "./model.js";
 import { RECONNECTED_TAG } from "./aggregate.js";
 import { indirectWay } from "./detail.js";
 import { describeTimes, nodeName } from "./describe.js";
-import { type Strings, t } from "./strings.js";
+import { type Strings, type Translate, t } from "./strings.js";
 import { type RuleSet, type RuleState, type RuleTextRole, ruleDash, rulePaint, ruleRadius, ruleSet, ruleText, ruleTextRole, ruleWidth } from "./rules.js";
 import type { CourseLabel, PathCourses } from "./courses.js";
 import type { CardLevels } from "./readable.js";
@@ -659,7 +659,7 @@ export interface GroupMark {
 }
 
 /** What one group looks like in its box: a box outlined by a hairline, tinted as the theme's `groupFill` says (not by default), or a band outlined between the bands with a rule along its start. */
-export function groupMark(group: FlowGroup, box: Box, options: { color: string; pattern: PatternId; band?: LaneBand; theme?: Theme }): GroupMark {
+export function groupMark(group: FlowGroup, box: Box, options: { color: string; pattern: PatternId; band?: LaneBand; theme?: Theme; header?: string }): GroupMark {
   const theme = options.theme ?? defaultTheme;
   const { stroke, text, radius, opacity } = theme;
   const band = options.band;
@@ -680,22 +680,39 @@ export function groupMark(group: FlowGroup, box: Box, options: { color: string; 
     radius: band ? 0 : ruleRadius(set, radius.large, box),
     fill: {
       paint: rulePaint(set?.fill, undefined, "value", theme.color, options.color),
-      opacity: set?.fillOpacity ?? (set?.fill === undefined ? (band ? (band.index % 2 ? opacity.bandOddFill : opacity.bandFill) : opacity.groupFill) : undefined),
+      opacity: set?.fillOpacity ?? (set?.fill === undefined ? (band ? (band.empty ? 0 : band.index % 2 ? opacity.bandOddFill : opacity.bandFill) : opacity.groupFill) : undefined),
     },
     stroke: band ? { paint: paint("line"), width: ruleWidth(set, 1), sides: main ? ["left", "right"] : ["top", "bottom"] } : { paint: paint("line"), width: ruleWidth(set, stroke.group), dash: ruleDash(set, undefined, RECONNECTED_DASH) },
     rule: band && { paint: "value", width: stroke.band, side: main ? "top" : "left" },
-    texts: [ruleText(ink(group.label, box.x + 12, box.y + 22, label.size, { role: "label", baseline: "alphabetic", weight: label.weight, paint: "inkMuted" }), set, "label", theme.color, options.color)],
+    // An empty stage's divider is named over its middle; a band's header says how many of the stage's activities it shows, at its right.
+    texts: band?.empty
+      ? [ruleText(ink(group.label, box.x + box.width / 2, box.y + 22, label.size, { role: "label", baseline: "alphabetic", weight: label.weight, paint: "inkMuted", anchor: "middle" }), set, "label", theme.color, options.color), ...(options.header ? [ink(options.header, box.x + box.width / 2, box.y + 22 + text.eventLabel.size + 4, text.eventLabel.size, { role: "count", baseline: "alphabetic", paint: "inkMuted", anchor: "middle" })] : [])]
+      : [ruleText(ink(group.label, box.x + 12, box.y + 22, label.size, { role: "label", baseline: "alphabetic", weight: label.weight, paint: "inkMuted" }), set, "label", theme.color, options.color), ...(options.header ? [ink(options.header, box.x + box.width - 12, box.y + 22, text.eventLabel.size, { role: "count", baseline: "alphabetic", paint: "inkMuted", anchor: "end" })] : [])],
     chipAnchor: chipAnchor(box),
     opacity: set?.opacity,
   };
 }
 
-/** One mark per group with a box, in the graph's order; groups drawn as bands carry their band. */
-export function groupMarks(graph: FlowGraph, positions: Positions, bands: readonly LaneBand[], scales: Scales, theme: Theme = defaultTheme): GroupMark[] {
+/**
+ * One mark per group with a box, in the graph's order; groups drawn as bands
+ * carry their band. With `counts` a band's header says how many of the
+ * stage's activities the graph shows: "5 of 15 activities" where the group's
+ * metrics say how many it has (`activities`), "5 activities" otherwise, and
+ * an empty stage "none in this cohort" (0.5).
+ */
+export function groupMarks(graph: FlowGraph, positions: Positions, bands: readonly LaneBand[], scales: Scales, theme: Theme = defaultTheme, header?: { counts?: boolean; say: Translate; locale?: Locale }): GroupMark[] {
   const bandOf = new Map(bands.map((b) => [b.id, b]));
+  const idx = header?.counts ? indexGraph(graph) : undefined;
   return (graph.groups ?? []).flatMap((g) => {
     const box = positions.groups[g.id];
     const c = scales.categorical(g.id);
-    return box ? [groupMark(g, box, { color: c.color, pattern: c.pattern, band: bandOf.get(g.id), theme })] : [];
+    const band = bandOf.get(g.id);
+    let count: string | undefined;
+    if (idx && header && band) {
+      const shown = idx.allMembers(g.id).filter((n) => n.kind === "activity").length;
+      const of = metric(g, "activities", NaN);
+      count = band.empty ? header.say("lane.none") : Number.isFinite(of) ? header.say("lane.count", { shown: formatCount(shown, header.locale), of: formatCount(of, header.locale) }) : header.say("lane.countShown", { shown: formatCount(shown, header.locale) });
+    }
+    return box ? [groupMark(g, box, { color: c.color, pattern: c.pattern, band, theme, ...(count && { header: count }) })] : [];
   });
 }

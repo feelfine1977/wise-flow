@@ -197,6 +197,7 @@ export function useFlowElements(input: FlowInput) {
           description,
           band: mark?.band,
           mark: mark && markInState(mark, state),
+          ...(scene.laneOptions?.sticky && mark?.band?.axis === "main" && !mark.band.empty && { sticky: true }),
           state,
         },
       });

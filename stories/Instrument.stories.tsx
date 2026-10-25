@@ -38,12 +38,20 @@ const look = {
   labelPlacement: "clear" as const,
 };
 
-function InstrumentMap({ selected, scheme }: { selected?: string; scheme?: "dark" }) {
+function InstrumentMap({ selected, scheme, lanes }: { selected?: string; scheme?: "dark"; lanes?: boolean }) {
   const [abstraction, setAbstraction] = useState<AbstractOptions>(WHOLE_LOG_DETAIL);
   const [selection, setSelection] = useState<Selection>({ nodes: selected ? [selected] : [], edges: [], groups: [] });
   return (
     <div data-theme={scheme} style={{ height: "100vh", width: "100vw", background: scheme === "dark" ? "#0f1114" : "#f7f8fa" }}>
-      <ProcessMap {...look} graph={globalScene} abstraction={abstraction} onAbstractionChange={setAbstraction} selection={selection} onSelect={setSelection} />
+      <ProcessMap
+        {...look}
+        {...(lanes && { layout: { ...layout, stages: "partition" as const }, stageView: "bands" as const, laneOptions: { counts: true, sticky: true, emptyLanes: "divider" as const } })}
+        graph={globalScene}
+        abstraction={abstraction}
+        onAbstractionChange={setAbstraction}
+        selection={selection}
+        onSelect={setSelection}
+      />
     </div>
   );
 }
@@ -53,6 +61,9 @@ export const Map: Story = { name: "map", render: () => <InstrumentMap /> };
 
 /** Record Goods Receipt selected: every path touching it labelled with the share of its cases. */
 export const Selected: Story = { name: "selected", render: () => <InstrumentMap selected="record_goods_receipt" /> };
+
+/** Stages as bands on the partitioned layout: each header with its count, its name kept in view, empty stages as dividers. */
+export const Lanes: Story = { name: "lanes", render: () => <InstrumentMap lanes /> };
 
 /** The same map pinned to the dark scheme by `data-theme` on its container. */
 export const Dark: Story = { name: "dark", render: () => <InstrumentMap scheme="dark" /> };

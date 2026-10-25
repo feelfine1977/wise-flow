@@ -370,6 +370,9 @@ export const dimensionTokens = {
   eventStatement: 160,
   /** The paper ring of an event on a vertical timeline (0.5), across, around its stage dot. */
   timelineRing: 20,
+  /** A stage with no activity in the graph drawn as a divider, and as a narrow lane, across (`LaneOptions.emptyLanes`, 0.5). */
+  laneDivider: 12,
+  emptyLane: 36,
   /** The stage dot inside an event's ring on a vertical timeline (0.5), across. */
   timelineDot: 7,
 } as const;

@@ -11,6 +11,7 @@
     "node-count": {},
     "group": { "kinds": ["stage", "lane", "pool"], "states": ["selected"] },
     "group-label": {},
+    "group-header": {},
     "edge": { "kinds": ["follows", "constraint", "flow"], "states": ["selected", "focused", "hovered", "dimmed", "reconnected", "start", "end"] },
     "edge-path": {},
     "edge-label": {},

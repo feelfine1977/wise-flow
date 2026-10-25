@@ -521,6 +521,20 @@ the stages are drawn on one layout: `bands` across the map (as `lanes:
 `boxes` around their members (the default), or `none`, where the scene has no
 group marks and the cards are placed on their own. No view moves a card; a
 `lanes` given wins. The scene carries the view as `FlowScene.stageView`.
+
+`laneOptions` (0.5, on `FlowSceneOptions`, `ProcessMapProps` and the export
+`Scene`) sets the bands' `padding`, header space (`labelSpace`) and `gap`
+(`LaneOptions`), and: `emptyLanes` — a stage none of whose activities is in
+the graph is left out (`hide`, the default, as before), drawn as a 12 px
+labelled divider on the boundary between its neighbours in the stages' order
+(`divider`) or as a 36 px lane there (`lane`), untinted, without moving a card
+(`LaneBand.empty`); `counts` — a band's header says "5 of 15 activities" at
+its right where the group's metrics give its `activities`, "5 activities"
+otherwise, and a divider "none in this cohort" (`lane.count`,
+`lane.countShown`, `lane.none`; part `group-header`); `sticky` — on the map a
+stage band's name moves along the band to stay at the view's left edge while
+any part of the band is in view; exports print it once at the band's start.
+The scene carries the options as `FlowScene.laneOptions`.
 Dagre keeps its source/sink placement; it pins neither border layers nor stage
 order. Start can still sit in the middle when its target has other incoming
 paths. Provisional layouts are also unpinned. Host `positions` win;
@@ -4285,6 +4299,7 @@ CSS written against these selectors changes only the interactive DOM map and the
 | `node-count` | the number line of a node: its cases, then their share | | |
 | `group` | a group box or lane band | `stage`, `lane`, `pool` | `selected` |
 | `group-label` | the label of a group | | |
+| `group-header` | a band's count of its activities, or an empty stage's note (`laneOptions.counts`, 0.5) | | |
 | `edge` | a path between two nodes (SVG group) | `follows`, `constraint`, `flow` | `selected`, `focused`, `hovered`, `dimmed`, `reconnected`, `start`, `end` |
 | `edge-path` | the drawn line of a path | | |
 | `edge-label` | the count label of a path | | |

@@ -1,6 +1,7 @@
 /** Retained geometry of a scene for the canvas renderer, with the R-tree for hits and culling. Pure; runs in Node. */
 import {
   type ActivityLabelOptions,
+  type FlowSceneOptions,
   type Strings,
   type ColorScheme,
   type GroupMark,
@@ -118,6 +119,10 @@ export interface PreparedScene extends FlowScene {
 
 export interface PrepareOptions {
   activityLabels?: ActivityLabelOptions;
+  /** As on the map (0.5, `FlowSceneOptions`). */
+  stageView?: FlowSceneOptions["stageView"];
+  labelPlacement?: FlowSceneOptions["labelPlacement"];
+  laneOptions?: FlowSceneOptions["laneOptions"];
   /** The measure the map shows (see `FlowSceneOptions.measure`). */
   measure?: Measure;
   style?: StyleSpec;
@@ -209,6 +214,9 @@ export function prepareScene(graph: FlowGraph, givenPositions: Positions, option
     style: options.style,
     locale: options.locale,
     lanes: options.bands ? "none" : options.lanes,
+    stageView: options.stageView,
+    labelPlacement: options.labelPlacement,
+    laneOptions: options.laneOptions,
     activityLabels: options.activityLabels,
     selfLoops: options.selfLoops,
     lod: options.lod,

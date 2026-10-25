@@ -116,7 +116,7 @@ export function useOverlays(
   return useMemo(() => (items ? overlaysFor(items, options) : []), [items, options?.graph, options?.locale, options?.outOfScopeMinShare]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
-type MapSceneOptions = Pick<FlowSceneOptions, "style" | "locale" | "lanes" | "activityLabels" | "selfLoops" | "lod" | "theme" | "scheme" | "textMeasure" | "strings" | "overlayGeometry" | "stageView" | "labelPlacement">;
+type MapSceneOptions = Pick<FlowSceneOptions, "style" | "locale" | "lanes" | "activityLabels" | "selfLoops" | "lod" | "theme" | "scheme" | "textMeasure" | "strings" | "overlayGeometry" | "stageView" | "labelPlacement" | "laneOptions">;
 
 interface MapScene {
   /** Built on empty positions while none are known. */
@@ -133,11 +133,11 @@ const NO_POSITIONS = createPositions({ nodes: {}, groups: {}, edges: {} }, "give
  * Its marks are the graph's: the abstraction has already chosen those it shows.
  */
 export function useMapScene(graph: FlowGraph, source: Positions | undefined, moved: Readonly<Record<string, XY>>, options: MapSceneOptions): MapScene {
-  const { style, locale, lanes, activityLabels, selfLoops, lod, theme, scheme, textMeasure, strings, overlayGeometry, stageView, labelPlacement } = options;
+  const { style, locale, lanes, activityLabels, selfLoops, lod, theme, scheme, textMeasure, strings, overlayGeometry, stageView, labelPlacement, laneOptions } = options;
   const filtered = useMemo(() => source && filterPositions(source, graph), [source, graph]);
   const sceneOptions = useMemo<FlowSceneOptions>(
-    () => ({ style, locale, lanes, activityLabels, selfLoops, lod, theme, scheme, textMeasure, strings, overlayGeometry, stageView, labelPlacement, lodBySize: true }),
-    [style, locale, lanes, activityLabels, selfLoops, lod, theme, scheme, textMeasure, strings, overlayGeometry, stageView, labelPlacement],
+    () => ({ style, locale, lanes, activityLabels, selfLoops, lod, theme, scheme, textMeasure, strings, overlayGeometry, stageView, labelPlacement, laneOptions, lodBySize: true }),
+    [style, locale, lanes, activityLabels, selfLoops, lod, theme, scheme, textMeasure, strings, overlayGeometry, stageView, labelPlacement, laneOptions],
   );
   const laid = useMemo(() => buildScene(graph, filtered ?? NO_POSITIONS, sceneOptions), [graph, filtered, sceneOptions]);
   const hasMoves = filtered !== undefined && Object.keys(moved).length > 0;

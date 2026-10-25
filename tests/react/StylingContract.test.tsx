@@ -126,6 +126,12 @@ describe("the styling contract", () => {
     keep(container);
   });
 
+  it("draws a band's header with the count of its activities", async () => {
+    const { container } = render(<div style={{ width: 1200, height: 600 }}><ProcessMap graph={grouped} positions={groupedPositions} lanes="stages" laneOptions={{ counts: true }} {...plain} /></div>);
+    await waitFor(() => expect(container.querySelector('[data-wf-part="group-header"]')).not.toBeNull());
+    keep(container);
+  });
+
   it("draws every group kind, selected, and the activity tooltip", async () => {
     const activityLabels = { mode: "names" as const, references: activityReferences(grouped) };
     const { container } = render(<div style={{ width: 1200, height: 600 }}><ProcessMap graph={grouped} positions={groupedPositions} selection={{ nodes: [], edges: [], groups: ["s"] }} activityLabels={activityLabels} {...plain} /></div>);
