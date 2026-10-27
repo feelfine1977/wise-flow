@@ -1987,7 +1987,7 @@ export function TraceTimeline(props: { traces: Trace[]; anchor?: string; annotat
 // keeps the colour it would otherwise have. The callback must not throw. An explicit-colour mark has a strong outline
 // against the paper. Hosts must also convey the colour's meaning in text. A vertical cluster selects its first
 // event; when at least one event has an explicit colour and resolved colours differ, a neutral dot and a
-// mixed-colours label are shown. Its visible label, title and tooltip include the cluster's violations; when
+// mixed-colours label are shown. The visible label marks violations with `!`; the title and tooltip list them. When
 // `onSelect` is supplied, its keyboard-accessible ring also has that description. Without `onSelect`, use the
 // table for individual events and their violations; the SVG is a single image.
 // A hovered or focused event is tracked by its event object as well as case and index, so replacing that object
