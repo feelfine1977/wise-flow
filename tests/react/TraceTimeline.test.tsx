@@ -78,7 +78,7 @@ describe("TraceTimeline", () => {
     expect(container.textContent).not.toContain("mixed colours");
   });
 
-  it("clears a vertical tooltip when a cluster's colour or geometry changes", () => {
+  it("updates a vertical tooltip when a cluster changes and keeps it on equivalent parent renders", () => {
     const data: Trace[] = [{ caseId: "c", events: [
       { activity: "First", timestamp: "2026-01-01T00:00:00Z" },
       { activity: "Second", timestamp: "2026-01-01T00:00:20Z" },
@@ -90,10 +90,14 @@ describe("TraceTimeline", () => {
     fireEvent.mouseEnter(container.querySelector(".wf-event--ring")!);
     expect(screen.getByRole("status").textContent).toContain("mixed colours");
     rerender(<TraceTimeline {...props} eventColor={same} />);
-    expect(screen.queryByRole("status")).toBeNull();
-    fireEvent.mouseEnter(container.querySelector(".wf-event--ring")!);
     expect(screen.getByRole("status").textContent).not.toContain("mixed colours");
+    rerender(<TraceTimeline {...props} eventColor={() => "#112233"} />);
+    expect(screen.getByRole("status").textContent).toContain("First");
     rerender(<TraceTimeline {...props} eventColor={same} clusterBy="window" />);
+    expect(screen.getByRole("status").textContent).not.toContain("2 events");
+    fireEvent.mouseEnter(container.querySelectorAll(".wf-event--ring")[1]);
+    expect(screen.getByRole("status").textContent).toContain("Second");
+    rerender(<TraceTimeline {...props} eventColor={same} />);
     expect(screen.queryByRole("status")).toBeNull();
   });
   it.each(["horizontal", "vertical"] as const)("uses explicit event colours in the %s timeline while leaving unknown events at their default", (orientation) => {
