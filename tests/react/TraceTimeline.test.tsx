@@ -56,13 +56,26 @@ describe("TraceTimeline", () => {
     const onSelect = vi.fn();
     const { container } = render(<TraceTimeline traces={data} orientation="vertical" clusterBy={clusterBy} clusterMs={60000} eventColor={(e) => e.activity === "First" ? "#112233" : "#aabbcc"} onSelect={onSelect} />);
     expect(container.querySelectorAll(".wf-event-dot")).toHaveLength(1);
-    expect(container.querySelector(".wf-event-dot")?.getAttribute("fill")).not.toBe("#112233");
-    expect(container.textContent).toContain("mixed colours");
+    expect(container.querySelector(".wf-event-dot")?.getAttribute("fill")).toBe("var(--wf-line-strong)");
+    expect(container.textContent).toContain("2 events · First · mixed colours");
     expect(container.querySelector(".wf-event--ring")?.getAttribute("aria-label")).toContain("deadline");
     fireEvent.mouseEnter(container.querySelector(".wf-event--ring")!);
     expect(screen.getByRole("status").textContent).toContain("deadline");
     fireEvent.click(container.querySelector(".wf-event--ring")!);
     expect(onSelect).toHaveBeenCalledWith("c", 0);
+  });
+
+  it("an all-undefined colour callback leaves a mixed-stage cluster unchanged", () => {
+    const data: Trace[] = [{ caseId: "c", events: [
+      { activity: "First", canonicalId: "a", timestamp: "2026-01-01T00:00:00Z" },
+      { activity: "Second", canonicalId: "b", timestamp: "2026-01-01T00:00:20Z" },
+    ] }];
+    const props = { traces: data, orientation: "vertical" as const, clusterBy: "minute" as const, stages: ["a", "b"] };
+    const { container, rerender } = render(<TraceTimeline {...props} />);
+    const initial = container.querySelector(".wf-event-dot")?.getAttribute("fill");
+    rerender(<TraceTimeline {...props} eventColor={() => undefined} />);
+    expect(container.querySelector(".wf-event-dot")?.getAttribute("fill")).toBe(initial);
+    expect(container.textContent).not.toContain("mixed colours");
   });
   it.each(["horizontal", "vertical"] as const)("uses explicit event colours in the %s timeline while leaving unknown events at their default", (orientation) => {
     const colors = ["#112233", "#223344", "#334455", "#445566", "#556677", "#667788", "#778899", "#8899aa"];

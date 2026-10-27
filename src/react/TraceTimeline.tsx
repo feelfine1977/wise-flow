@@ -346,8 +346,8 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
                   if (!Number.isFinite(row.times[i])) return null;
                   const e = row.trace.events[i];
                   const paints = run.map((j) => fillOf(row.trace.events[j]));
-                  const mixed = Boolean(eventColor) && new Set(paints.map((paint) => paint.color.toLowerCase())).size > 1;
-                  const paint = mixed ? { color: colorTokens.lineStrong, explicit: true } : paints[0];
+                  const mixed = paints.some((paint) => paint.explicit) && new Set(paints.map((paint) => paint.color.toLowerCase())).size > 1;
+                  const paint = mixed ? { color: "var(--wf-line-strong)", explicit: true } : paints[0];
                   const cy = ys[i];
                   const violates = run.some((j) => (row.trace.events[j].violates ?? []).length > 0);
                   const label = (run.length > 1 ? t(locale, "timeline.cluster", { count: formatNumber(run.length, 0, locale), activity: e.activity }) : e.activity) + (mixed ? ` · ${t(locale, "timeline.mixedColours")}` : "");
