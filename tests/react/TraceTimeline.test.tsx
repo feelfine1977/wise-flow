@@ -28,6 +28,36 @@ function eventAt(container: HTMLElement, index: number) {
 }
 
 describe("TraceTimeline", () => {
+  it("falls back for invalid explicit colours and gives valid colours precedence over a custom key", () => {
+    const data: Trace[] = [{ caseId: "c", events: [
+      { activity: "First", timestamp: 0 }, { activity: "Second", timestamp: 3600000, violates: ["rule"] },
+      { activity: "Third", timestamp: 7200000 },
+    ] }];
+    const props = { traces: data, colorKey: () => "known", stages: ["known"] };
+    const { container, rerender } = render(<TraceTimeline {...props} />);
+    const fills = () => [...container.querySelectorAll(".wf-event")].map((dot) => dot.getAttribute("fill"));
+    const baseline = fills();
+    rerender(<TraceTimeline {...props} eventColor={(event) => event.activity === "First" ? "" : event.activity === "Second" ? "#f0f0f0" : "var(--unsafe)"} />);
+    expect(fills()).toEqual([baseline[0], "#f0f0f0", baseline[2]]);
+    expect(container.querySelector(".wf-event--violates")?.parentElement?.textContent).toContain("!");
+    rerender(<TraceTimeline traces={data} eventColor={() => undefined} />);
+    const defaultFills = fills();
+    rerender(<TraceTimeline traces={data} />);
+    expect(fills()).toEqual(defaultFills);
+  });
+
+  it.each(["window", "minute"] as const)("a %s cluster uses its first event's explicit colour and selection", (clusterBy) => {
+    const data: Trace[] = [{ caseId: "c", events: [
+      { activity: "First", timestamp: "2026-01-01T00:00:00Z" },
+      { activity: "Second", timestamp: "2026-01-01T00:00:20Z" },
+    ] }];
+    const onSelect = vi.fn();
+    const { container } = render(<TraceTimeline traces={data} orientation="vertical" clusterBy={clusterBy} clusterMs={60000} eventColor={(e) => e.activity === "First" ? "#112233" : "#aabbcc"} onSelect={onSelect} />);
+    expect(container.querySelectorAll(".wf-event-dot")).toHaveLength(1);
+    expect(container.querySelector(".wf-event-dot")?.getAttribute("fill")).toBe("#112233");
+    fireEvent.click(container.querySelector(".wf-event--ring")!);
+    expect(onSelect).toHaveBeenCalledWith("c", 0);
+  });
   it.each(["horizontal", "vertical"] as const)("uses explicit event colours in the %s timeline while leaving unknown events at their default", (orientation) => {
     const colors = ["#112233", "#223344", "#334455", "#445566", "#556677", "#667788", "#778899", "#8899aa"];
     const events = colors.map((_, i) => ({ activity: "Same activity", canonicalId: `stage-${i}`, timestamp: Date.UTC(2026, 0, 1, i) }));

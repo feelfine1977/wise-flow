@@ -40,7 +40,10 @@ export interface TraceTimelineProps {
   rowHeight?: number;
   /** Colour events by activity (default) or by a key of your own. */
   colorKey?: (event: TraceEvent) => string;
-  /** Optional explicit colour for an event; undefined keeps the usual stage or activity palette. */
+  /**
+   * Optional opaque #rrggbb colour overriding colorKey and stages. Undefined or an invalid value keeps
+   * the usual palette. A vertical cluster shows its first event's colour; the table retains every event.
+   */
   eventColor?: (event: TraceEvent) => string | undefined;
   onSelect?: (caseId: string, eventIndex: number) => void;
   /** Show the table alternative instead of the drawing. */
@@ -175,7 +178,7 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
   const stageColors = useMemo(() => (stages ? orderedCategorical(stages) : undefined), [stages]);
   const fillOf = (e: TraceEvent) => {
     const explicit = eventColor?.(e);
-    if (explicit !== undefined) return explicit;
+    if (typeof explicit === "string" && /^#[0-9a-f]{6}$/i.test(explicit)) return explicit;
     const key = keyOf(e);
     return stageColors ? stageColors.get(key)?.color ?? colorTokens.lineStrong : colorFor(key);
   };
