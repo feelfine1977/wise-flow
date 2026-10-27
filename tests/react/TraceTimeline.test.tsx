@@ -39,7 +39,9 @@ describe("TraceTimeline", () => {
     const baseline = fills();
     rerender(<TraceTimeline {...props} eventColor={(event) => event.activity === "First" ? "" : event.activity === "Second" ? "#f0f0f0" : "var(--unsafe)"} />);
     expect(fills()).toEqual([baseline[0], "#f0f0f0", baseline[2]]);
+    expect(container.querySelectorAll(".wf-event--explicit")).toHaveLength(1);
     expect(container.querySelector(".wf-event--violates")?.parentElement?.textContent).toContain("!");
+    expect(container.querySelector(".wf-event--violates")?.parentElement?.querySelector("text")?.getAttribute("fill")).toBe("#000000");
     rerender(<TraceTimeline traces={data} eventColor={() => undefined} />);
     const defaultFills = fills();
     rerender(<TraceTimeline traces={data} />);
@@ -69,6 +71,7 @@ describe("TraceTimeline", () => {
     const after = [...container.querySelectorAll(selector)].map((e) => e.getAttribute("fill"));
     expect(after.slice(0, colors.length)).toEqual(colors);
     expect(after.at(-1)).toBe(before.at(-1));
+    expect(container.querySelectorAll(orientation === "vertical" ? ".wf-event-dot--explicit" : ".wf-event--explicit")).toHaveLength(colors.length);
   });
   it("renders an empty cohort and shows event times in UTC on hover", () => {
     const { container, rerender } = render(<TraceTimeline traces={[]} />);

@@ -809,6 +809,12 @@
   stroke-width: 1;
   cursor: pointer;
 }
+/* Keep an explicitly chosen light or dark colour visible on the paper in either scheme. */
+.wf-trace-timeline .wf-event--explicit,
+.wf-trace-timeline .wf-event-dot--explicit {
+  stroke: var(--wf-line-strong);
+  stroke-width: 1;
+}
 /* A vertical timeline: each event a paper ring around its stage dot, the terminals as rings with their glyph. */
 .wf-trace-timeline .wf-event--ring,
 .wf-trace-timeline .wf-terminal circle {

@@ -1984,7 +1984,9 @@ export function TraceTimeline(props: { traces: Trace[]; anchor?: string; annotat
 // runtime does not know keeps UTC. With `stages`, the stage ids `colorKey` returns take the categorical colours in
 // that order (`orderedCategorical`), any other key the `lineStrong` colour. Both orientations use these colours.
 // `eventColor` overrides `colorKey`/`stages` with an opaque #rrggbb colour per event; undefined or an invalid colour
-// keeps the palette. A cluster shows its first event's colour and selects that event; the table retains every event.
+// keeps the colour it would otherwise have. The callback must not throw. An explicit-colour mark has a strong outline
+// against the paper. A vertical cluster shows its first event's colour and selects that event; its violation mark
+// covers the whole cluster, and the table retains every event.
 export function AbstractionControls(props), Legend(props), OverlayLayer(props);
 export interface LegendProps { scales?: Scales; overlays?: Overlay[]; locale?: Locale; chips?: ReactNode;
   legend?: SceneLegend;   // the rows it renders: the scene's legend; without it sceneLegend(scales, overlays)

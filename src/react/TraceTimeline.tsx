@@ -42,7 +42,8 @@ export interface TraceTimelineProps {
   colorKey?: (event: TraceEvent) => string;
   /**
    * Optional opaque #rrggbb colour overriding colorKey and stages. Undefined or an invalid value keeps
-   * the usual palette. A vertical cluster shows its first event's colour; the table retains every event.
+   * the colour it would otherwise have. The callback must not throw. A vertical cluster shows its first
+   * event's colour; the table retains every event.
    */
   eventColor?: (event: TraceEvent) => string | undefined;
   onSelect?: (caseId: string, eventIndex: number) => void;
@@ -178,9 +179,9 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
   const stageColors = useMemo(() => (stages ? orderedCategorical(stages) : undefined), [stages]);
   const fillOf = (e: TraceEvent) => {
     const explicit = eventColor?.(e);
-    if (typeof explicit === "string" && /^#[0-9a-f]{6}$/i.test(explicit)) return explicit;
+    if (typeof explicit === "string" && /^#[0-9a-f]{6}$/i.test(explicit)) return { color: explicit, explicit: true };
     const key = keyOf(e);
-    return stageColors ? stageColors.get(key)?.color ?? colorTokens.lineStrong : colorFor(key);
+    return { color: stageColors ? stageColors.get(key)?.color ?? colorTokens.lineStrong : colorFor(key), explicit: false };
   };
   const vertical = orientation === "vertical";
 
@@ -343,6 +344,7 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
                   const i = run[0];
                   if (!Number.isFinite(row.times[i])) return null;
                   const e = row.trace.events[i];
+                  const paint = fillOf(e);
                   const cy = ys[i];
                   const violates = run.some((j) => (row.trace.events[j].violates ?? []).length > 0);
                   const label = run.length > 1 ? t(locale, "timeline.cluster", { count: formatNumber(run.length, 0, locale), activity: e.activity }) : e.activity;
@@ -366,7 +368,7 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
                         onClick={() => onSelect?.(row.trace.caseId, i)}
                         onKeyDown={(event) => selectWithKeyboard(event, row.trace.caseId, i)}
                       />
-                      <circle className="wf-event-dot" cx={x} cy={cy} r={dimensionTokens.timelineDot / 2} fill={fillOf(e)} pointerEvents="none" />
+                      <circle className={`wf-event-dot${paint.explicit ? " wf-event-dot--explicit" : ""}`} cx={x} cy={cy} r={dimensionTokens.timelineDot / 2} fill={paint.color} pointerEvents="none" />
                       <text className="wf-event-label" x={x + ring + 8} y={cy + 4} pointerEvents="none">
                         {label}
                       </text>
@@ -434,13 +436,14 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
               })}
               {row.trace.events.map((e, i) => {
                 if (!Number.isFinite(row.times[i])) return null;
-                const fill = fillOf(e);
+                const paint = fillOf(e);
+                const fill = paint.color;
                 const violates = (e.violates ?? []).length > 0;
                 return (
                   <g key={i}>
                     <title>{describeEvent(e, row.times[i], locale, timeZone)}</title>
                     <circle
-                      className={`wf-event${violates ? " wf-event--violates" : ""}`}
+                      className={`wf-event${violates ? " wf-event--violates" : ""}${paint.explicit ? " wf-event--explicit" : ""}`}
                       {...part("timeline-event")}
                       cx={xs[i]}
                       cy={cy}
