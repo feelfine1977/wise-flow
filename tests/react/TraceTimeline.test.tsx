@@ -99,6 +99,8 @@ describe("TraceTimeline", () => {
     expect(screen.getByRole("status").textContent).toContain("Second");
     rerender(<TraceTimeline {...props} eventColor={same} />);
     expect(screen.queryByRole("status")).toBeNull();
+    rerender(<TraceTimeline {...props} eventColor={same} clusterBy="window" />);
+    expect(screen.queryByRole("status")).toBeNull();
   });
   it.each(["horizontal", "vertical"] as const)("uses explicit event colours in the %s timeline while leaving unknown events at their default", (orientation) => {
     const colors = ["#112233", "#223344", "#334455", "#445566", "#556677", "#667788", "#778899", "#8899aa"];

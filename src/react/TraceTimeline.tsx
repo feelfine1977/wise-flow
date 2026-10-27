@@ -199,8 +199,15 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
   // Index alone cannot identify an event after a cohort or trace replacement.
   const hoveredRow = hover ? rows.find((row) => row.trace.caseId === hover.caseId && row.trace.events[hover.index] === hover.event) : undefined;
   useEffect(() => {
-    if (hover && (!hoveredRow || table)) setHover(null);
-  }, [hover, hoveredRow, table]);
+    if (!hover) return;
+    if (!hoveredRow || table) { setHover(null); return; }
+    if (vertical) {
+      const runs = clusterBy === "minute"
+        ? eventClusters(hoveredRow.times, undefined, (ms) => formatTime(ms, timeZone))
+        : eventClusters(hoveredRow.times, clusterMs);
+      if (!runs.some((run) => run[0] === hover.index && Number.isFinite(hoveredRow.times[run[0]]))) setHover(null);
+    }
+  }, [hover, hoveredRow, table, vertical, clusterBy, clusterMs, timeZone]);
 
   const domain = useMemo(() => {
     if (anchor) {
@@ -351,9 +358,9 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
                   const paint = mixed ? { color: "var(--wf-line-strong)", explicit: true } : paints[0];
                   const cy = ys[i];
                   const violates = run.some((j) => (row.trace.events[j].violates ?? []).length > 0);
-                  const label = (run.length > 1 ? t(locale, "timeline.cluster", { count: formatNumber(run.length, 0, locale), activity: e.activity }) : e.activity) + (mixed ? ` · ${t(locale, "timeline.mixedColours")}` : "");
                   const violations = [...new Set(run.flatMap((j) => row.trace.events[j].violates ?? []))];
-                  const details = run.length > 1 ? `${label}\n${formatAt(row.times[i])}${violations.length ? `\n${t(locale, "timeline.violates")}: ${violations.join(", ")}` : ""}` : describeEvent(e, row.times[i], locale, timeZone);
+                  const label = (run.length > 1 ? t(locale, "timeline.cluster", { count: formatNumber(run.length, 0, locale), activity: e.activity }) : e.activity) + (mixed ? ` · ${t(locale, "timeline.mixedColours")}` : "") + (violations.length ? ` · ${t(locale, "timeline.violates")}: ${violations.join(", ")}` : "");
+                  const details = run.length > 1 ? `${label}\n${formatAt(row.times[i])}` : describeEvent(e, row.times[i], locale, timeZone);
                   const said = `${row.trace.caseId}: ${details}`;
                   if (hoveredRow === row && hover?.index === i) liveTooltip = { x, y: cy, description: details };
                   return (
