@@ -1986,7 +1986,8 @@ export function TraceTimeline(props: { traces: Trace[]; anchor?: string; annotat
 // `eventColor` overrides `colorKey`/`stages` with an opaque #rrggbb colour per event; undefined or an invalid colour
 // keeps the colour it would otherwise have. The callback must not throw. An explicit-colour mark has a strong outline
 // against the paper. Hosts must also convey the colour's meaning in text. A vertical cluster selects its first
-// event; with eventColor, different event colours produce a neutral dot and a mixed-colours label. Its violation
+// event; when at least one event has an explicit colour and resolved colours differ, a neutral dot and a
+// mixed-colours label are shown. Its violation
 // mark, accessible description and tooltip cover the whole cluster, and the table retains every event.
 export function AbstractionControls(props), Legend(props), OverlayLayer(props);
 export interface LegendProps { scales?: Scales; overlays?: Overlay[]; locale?: Locale; chips?: ReactNode;

@@ -43,8 +43,8 @@ export interface TraceTimelineProps {
   /**
    * Optional opaque #rrggbb colour overriding colorKey and stages. Undefined or an invalid value keeps
    * the colour it would otherwise have. The callback must not throw. A vertical cluster shows its first
-   * event's colour unless a cluster has mixed colours; the table retains every event. Hosts must also
-   * convey the meaning of colours in text.
+   * event's colour unless at least one colour is explicit and the cluster's colours differ; the table
+   * retains every event. Hosts must also convey the meaning of colours in text.
    */
   eventColor?: (event: TraceEvent) => string | undefined;
   onSelect?: (caseId: string, eventIndex: number) => void;
@@ -201,6 +201,11 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
   useEffect(() => {
     if (hover && (!hoveredRow || table)) setHover(null);
   }, [hover, hoveredRow, table]);
+  // A vertical tooltip captures cluster text and coordinates. Discard it when the inputs to clustering,
+  // colour or layout change, including when its ring ceases to be the first event in the cluster.
+  useEffect(() => {
+    if (vertical) setHover(null);
+  }, [vertical, traces, anchor, locale, width, rowHeight, givenHeight, givenZone, terminals, clusterMs, clusterBy, stages, colorKey, eventColor]);
 
   const domain = useMemo(() => {
     if (anchor) {
