@@ -28,6 +28,95 @@ function eventAt(container: HTMLElement, index: number) {
 }
 
 describe("TraceTimeline", () => {
+  it("falls back for invalid explicit colours and gives valid colours precedence over a custom key", () => {
+    const data: Trace[] = [{ caseId: "c", events: [
+      { activity: "First", timestamp: 0 }, { activity: "Second", timestamp: 3600000, violates: ["rule"] },
+      { activity: "Third", timestamp: 7200000 },
+    ] }];
+    const props = { traces: data, colorKey: () => "known", stages: ["known"] };
+    const { container, rerender } = render(<TraceTimeline {...props} />);
+    const fills = () => [...container.querySelectorAll(".wf-event")].map((dot) => dot.getAttribute("fill"));
+    const baseline = fills();
+    rerender(<TraceTimeline {...props} eventColor={(event) => event.activity === "First" ? "" : event.activity === "Second" ? "#f0f0f0" : "var(--unsafe)"} />);
+    expect(fills()).toEqual([baseline[0], "#f0f0f0", baseline[2]]);
+    expect(container.querySelectorAll(".wf-event--explicit")).toHaveLength(1);
+    expect(container.querySelector(".wf-event--violates")?.parentElement?.textContent).toContain("!");
+    expect(container.querySelector(".wf-event--violates")?.parentElement?.querySelector("text")?.getAttribute("fill")).toBe("#000000");
+    rerender(<TraceTimeline traces={data} eventColor={() => undefined} />);
+    const defaultFills = fills();
+    rerender(<TraceTimeline traces={data} />);
+    expect(fills()).toEqual(defaultFills);
+  });
+
+  it.each(["window", "minute"] as const)("a %s cluster marks mixed colours and later violations, and selects its first event", (clusterBy) => {
+    const data: Trace[] = [{ caseId: "c", events: [
+      { activity: "First", timestamp: "2026-01-01T00:00:00Z" },
+      { activity: "Second", timestamp: "2026-01-01T00:00:20Z", violates: ["deadline"] },
+    ] }];
+    const onSelect = vi.fn();
+    const { container } = render(<TraceTimeline traces={data} orientation="vertical" clusterBy={clusterBy} clusterMs={60000} eventColor={(e) => e.activity === "First" ? "#112233" : "#aabbcc"} onSelect={onSelect} />);
+    expect(container.querySelectorAll(".wf-event-dot")).toHaveLength(1);
+    expect(container.querySelector(".wf-event-dot")?.getAttribute("fill")).toBe("var(--wf-line-strong)");
+    expect(container.textContent).toContain("2 events · First · mixed colours");
+    expect(container.querySelector(".wf-event-label")?.textContent).toContain(" · !");
+    expect(container.querySelector(".wf-event-label")?.textContent).not.toContain("deadline");
+    expect(container.querySelector(".wf-event--ring")?.getAttribute("aria-label")).toContain("deadline");
+    fireEvent.mouseEnter(container.querySelector(".wf-event--ring")!);
+    expect(screen.getByRole("status").textContent).toContain("deadline");
+    fireEvent.click(container.querySelector(".wf-event--ring")!);
+    expect(onSelect).toHaveBeenCalledWith("c", 0);
+  });
+
+  it("an all-undefined colour callback leaves a mixed-stage cluster unchanged", () => {
+    const data: Trace[] = [{ caseId: "c", events: [
+      { activity: "First", canonicalId: "a", timestamp: "2026-01-01T00:00:00Z" },
+      { activity: "Second", canonicalId: "b", timestamp: "2026-01-01T00:00:20Z" },
+    ] }];
+    const props = { traces: data, orientation: "vertical" as const, clusterBy: "minute" as const, stages: ["a", "b"] };
+    const { container, rerender } = render(<TraceTimeline {...props} />);
+    const initial = container.querySelector(".wf-event-dot")?.getAttribute("fill");
+    rerender(<TraceTimeline {...props} eventColor={() => undefined} />);
+    expect(container.querySelector(".wf-event-dot")?.getAttribute("fill")).toBe(initial);
+    expect(container.textContent).not.toContain("mixed colours");
+  });
+
+  it("updates a vertical tooltip when a cluster changes and keeps it on equivalent parent renders", () => {
+    const data: Trace[] = [{ caseId: "c", events: [
+      { activity: "First", timestamp: "2026-01-01T00:00:00Z" },
+      { activity: "Second", timestamp: "2026-01-01T00:00:20Z" },
+    ] }];
+    const mixed = (e: TraceEvent) => e.activity === "First" ? "#112233" : "#aabbcc";
+    const same = () => "#112233";
+    const props = { traces: data, orientation: "vertical" as const, clusterBy: "minute" as const };
+    const { container, rerender } = render(<TraceTimeline {...props} eventColor={mixed} />);
+    fireEvent.mouseEnter(container.querySelector(".wf-event--ring")!);
+    expect(screen.getByRole("status").textContent).toContain("mixed colours");
+    rerender(<TraceTimeline {...props} eventColor={same} />);
+    expect(screen.getByRole("status").textContent).not.toContain("mixed colours");
+    rerender(<TraceTimeline {...props} eventColor={() => "#112233"} />);
+    expect(screen.getByRole("status").textContent).toContain("First");
+    rerender(<TraceTimeline {...props} eventColor={same} clusterBy="window" />);
+    expect(screen.getByRole("status").textContent).not.toContain("2 events");
+    fireEvent.mouseEnter(container.querySelectorAll(".wf-event--ring")[1]);
+    expect(screen.getByRole("status").textContent).toContain("Second");
+    rerender(<TraceTimeline {...props} eventColor={same} />);
+    expect(screen.queryByRole("status")).toBeNull();
+    rerender(<TraceTimeline {...props} eventColor={same} clusterBy="window" />);
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+  it.each(["horizontal", "vertical"] as const)("uses explicit event colours in the %s timeline while leaving unknown events at their default", (orientation) => {
+    const colors = ["#112233", "#223344", "#334455", "#445566", "#556677", "#667788", "#778899", "#8899aa"];
+    const events = colors.map((_, i) => ({ activity: "Same activity", canonicalId: `stage-${i}`, timestamp: Date.UTC(2026, 0, 1, i) }));
+    const cases = [{ caseId: "c1", events: [...events, { activity: "Unmapped", timestamp: Date.UTC(2026, 0, 2) }] }];
+    const { container, rerender } = render(<TraceTimeline traces={cases} orientation={orientation} stages={events.map((e) => e.canonicalId)} />);
+    const selector = orientation === "vertical" ? ".wf-event-dot" : ".wf-event";
+    const before = [...container.querySelectorAll(selector)].map((e) => e.getAttribute("fill"));
+    rerender(<TraceTimeline traces={cases} orientation={orientation} stages={events.map((e) => e.canonicalId)} eventColor={(event) => colors[events.findIndex((e) => e.canonicalId === event.canonicalId)]} />);
+    const after = [...container.querySelectorAll(selector)].map((e) => e.getAttribute("fill"));
+    expect(after.slice(0, colors.length)).toEqual(colors);
+    expect(after.at(-1)).toBe(before.at(-1));
+    expect(container.querySelectorAll(orientation === "vertical" ? ".wf-event-dot--explicit" : ".wf-event--explicit")).toHaveLength(colors.length);
+  });
   it("renders an empty cohort and shows event times in UTC on hover", () => {
     const { container, rerender } = render(<TraceTimeline traces={[]} />);
     expect(screen.getByRole("img").textContent).toContain("0");

@@ -1969,7 +1969,7 @@ export function TableAlternative(props: { graph; overlays?; scales?; locale?; se
 // A pager button that reaches the last page ("Next rows") or the first ("Previous rows") while it has the input focus
 // hands the focus to the other button, which still works there.
 export function TraceTimeline(props: { traces: Trace[]; anchor?: string; annotations?: Annotation[]; locale?;
-  width?; rowHeight?; colorKey?; onSelect?; table?: boolean;
+  width?; rowHeight?; colorKey?; eventColor?: (event: TraceEvent) => string | undefined; onSelect?; table?: boolean;
   orientation?: "horizontal" | "vertical"; height?: number;   // (0.5) down a ruler, one column per case; default horizontal, 640 high
   terminals?: boolean; clusterMs?: number; timeZone?: string; stages?: readonly string[];   // (0.5)
   clusterBy?: "window" | "minute" }): JSX.Element;   // (0.6)
@@ -1982,7 +1982,16 @@ export function TraceTimeline(props: { traces: Trace[]; anchor?: string; annotat
 // "same minute" column (`clusterMs` not read); the table keeps every event and adds "Elapsed (days)" and "Wait before (days)". `timeZone` (IANA) prints
 // the times in that zone as "2018-03-01 15:12" and names it in the description ("Times in Europe/Berlin."); a zone the
 // runtime does not know keeps UTC. With `stages`, the stage ids `colorKey` returns take the categorical colours in
-// that order (`orderedCategorical`), any other key the `lineStrong` colour. The horizontal timeline is unchanged.
+// that order (`orderedCategorical`), any other key the `lineStrong` colour. Both orientations use these colours.
+// `eventColor` overrides `colorKey`/`stages` with an opaque #rrggbb colour per event; undefined or an invalid colour
+// keeps the colour it would otherwise have. The callback must not throw. An explicit-colour mark has a strong outline
+// against the paper. Hosts must also convey the colour's meaning in text. A vertical cluster selects its first
+// event; when at least one event has an explicit colour and resolved colours differ, a neutral dot and a
+// mixed-colours label are shown. The visible label marks violations with `!`; the title and tooltip list them. When
+// `onSelect` is supplied, its keyboard-accessible ring also has that description. Without `onSelect`, use the
+// table for individual events and their violations; the SVG is a single image.
+// A hovered or focused event is tracked by its event object as well as case and index, so replacing that object
+// clears its tooltip. Hosts that re-render the same events should preserve their object identities.
 export function AbstractionControls(props), Legend(props), OverlayLayer(props);
 export interface LegendProps { scales?: Scales; overlays?: Overlay[]; locale?: Locale; chips?: ReactNode;
   legend?: SceneLegend;   // the rows it renders: the scene's legend; without it sceneLegend(scales, overlays)
@@ -2020,7 +2029,7 @@ export type WfEdge = Edge<FollowsEdgeData, EdgeKind>; export function groupNodeI
 // The props of each component by name (the components' signatures in this document spell them out):
 export interface AbstractionControlsProps { value: AbstractOptions; onChange; locale?; hasStages?; view?; onViewChange? }
 export interface TableAlternativeProps { graph; overlays?; scales?; locale?; selection?; onSelect?; tables?; pageSize?; className? }
-export interface TraceTimelineProps { traces: Trace[]; anchor?; annotations?; locale?; width?; rowHeight?; colorKey?; onSelect?; table?; className?;
+export interface TraceTimelineProps { traces: Trace[]; anchor?; annotations?; locale?; width?; rowHeight?; colorKey?; eventColor?; onSelect?; table?; className?;
   orientation?; height?; terminals?; clusterMs?; timeZone?; stages?;   // (0.5)
   clusterBy? }   // (0.6)
 export interface TraceEvent { activity: string; canonicalId?; timestamp: string | number | Date; resource?; lifecycle?; violates?: string[] }

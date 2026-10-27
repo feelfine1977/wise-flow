@@ -40,6 +40,13 @@ export interface TraceTimelineProps {
   rowHeight?: number;
   /** Colour events by activity (default) or by a key of your own. */
   colorKey?: (event: TraceEvent) => string;
+  /**
+   * Optional opaque #rrggbb colour overriding colorKey and stages. Undefined or an invalid value keeps
+   * the colour it would otherwise have. The callback must not throw. A vertical cluster shows its first
+   * event's colour unless at least one colour is explicit and the cluster's colours differ; the table
+   * retains every event. Hosts must also convey the meaning of colours in text.
+   */
+  eventColor?: (event: TraceEvent) => string | undefined;
   onSelect?: (caseId: string, eventIndex: number) => void;
   /** Show the table alternative instead of the drawing. */
   table?: boolean;
@@ -163,17 +170,19 @@ export function eventClusters(times: readonly number[], clusterMs?: number, key?
  * Events per case on a time axis, optionally aligned at an anchor activity,
  * with violated constraints marked on the events and spans annotated.
  */
-export function TraceTimeline({ traces, anchor, annotations = [], locale = "en", width = 900, rowHeight = 28, colorKey, onSelect, table = false, className, orientation = "horizontal", height: givenHeight, terminals = false, clusterMs, clusterBy = "window", timeZone: givenZone, stages }: TraceTimelineProps) {
+export function TraceTimeline({ traces, anchor, annotations = [], locale = "en", width = 900, rowHeight = 28, colorKey, eventColor, onSelect, table = false, className, orientation = "horizontal", height: givenHeight, terminals = false, clusterMs, clusterBy = "window", timeZone: givenZone, stages }: TraceTimelineProps) {
   const id = useId();
-  const [hover, setHover] = useState<{ caseId: string; index: number; event: TraceEvent; at?: { x: number; y: number } } | null>(null);
+  const [hover, setHover] = useState<{ caseId: string; index: number; event: TraceEvent } | null>(null);
   const keyOf = colorKey ?? ((e: TraceEvent) => e.canonicalId ?? e.activity);
   const timeZone = knownZone(givenZone) ? givenZone : undefined;
   const formatAt = (ms: number) => formatTime(ms, timeZone);
   // Stages in their order take the palette's colours; a key that is no stage the strong line colour.
   const stageColors = useMemo(() => (stages ? orderedCategorical(stages) : undefined), [stages]);
   const fillOf = (e: TraceEvent) => {
+    const explicit = eventColor?.(e);
+    if (typeof explicit === "string" && /^#[0-9a-f]{6}$/i.test(explicit)) return { color: explicit, explicit: true };
     const key = keyOf(e);
-    return stageColors ? stageColors.get(key)?.color ?? colorTokens.lineStrong : colorFor(key);
+    return { color: stageColors ? stageColors.get(key)?.color ?? colorTokens.lineStrong : colorFor(key), explicit: false };
   };
   const vertical = orientation === "vertical";
 
@@ -190,8 +199,15 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
   // Index alone cannot identify an event after a cohort or trace replacement.
   const hoveredRow = hover ? rows.find((row) => row.trace.caseId === hover.caseId && row.trace.events[hover.index] === hover.event) : undefined;
   useEffect(() => {
-    if (hover && (!hoveredRow || table)) setHover(null);
-  }, [hover, hoveredRow, table]);
+    if (!hover) return;
+    if (!hoveredRow || table) { setHover(null); return; }
+    if (vertical) {
+      const runs = clusterBy === "minute"
+        ? eventClusters(hoveredRow.times, undefined, (ms) => formatTime(ms, timeZone))
+        : eventClusters(hoveredRow.times, clusterMs);
+      if (!runs.some((run) => run[0] === hover.index && Number.isFinite(hoveredRow.times[run[0]]))) setHover(null);
+    }
+  }, [hover, hoveredRow, table, vertical, clusterBy, clusterMs, timeZone]);
 
   const domain = useMemo(() => {
     if (anchor) {
@@ -285,7 +301,8 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
     const step = ticks.length > 1 ? ticks[1] - ticks[0] : 1;
     const digits = step < 1 ? Math.min(3, Math.ceil(-Math.log10(step) - 1e-9)) : 0;
     const column = Math.max(V_COLUMN, (width - V_FIRST) / Math.max(1, rows.length));
-    const enter = (caseId: string, index: number, event: TraceEvent, at: { x: number; y: number }) => setHover({ caseId, index, event, at });
+    let liveTooltip: { x: number; y: number; description: string } | undefined;
+    const enter = (caseId: string, index: number, event: TraceEvent) => setHover({ caseId, index, event });
     return (
       <div className={`wf-trace-timeline wf-trace-timeline--vertical${className ? ` ${className}` : ""}`} {...part("timeline")} style={{ position: "relative", width }}>
         <svg width={width} height={height} role={onSelect ? "group" : "img"} aria-labelledby={`${id}-desc`}>
@@ -336,10 +353,17 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
                   const i = run[0];
                   if (!Number.isFinite(row.times[i])) return null;
                   const e = row.trace.events[i];
+                  const paints = run.map((j) => fillOf(row.trace.events[j]));
+                  const mixed = paints.some((paint) => paint.explicit) && new Set(paints.map((paint) => paint.color.toLowerCase())).size > 1;
+                  const paint = mixed ? { color: "var(--wf-line-strong)", explicit: true } : paints[0];
                   const cy = ys[i];
                   const violates = run.some((j) => (row.trace.events[j].violates ?? []).length > 0);
-                  const label = run.length > 1 ? t(locale, "timeline.cluster", { count: formatNumber(run.length, 0, locale), activity: e.activity }) : e.activity;
-                  const said = `${row.trace.caseId}: ${run.length > 1 ? `${label}\n${formatAt(row.times[i])}` : describeEvent(e, row.times[i], locale, timeZone)}`;
+                  const violations = [...new Set(run.flatMap((j) => row.trace.events[j].violates ?? []))];
+                  const summary = (run.length > 1 ? t(locale, "timeline.cluster", { count: formatNumber(run.length, 0, locale), activity: e.activity }) : e.activity) + (mixed ? ` · ${t(locale, "timeline.mixedColours")}` : "");
+                  const label = summary + (violations.length ? " · !" : "");
+                  const details = run.length > 1 ? `${summary}\n${formatAt(row.times[i])}${violations.length ? `\n${t(locale, "timeline.violates")}: ${violations.join(", ")}` : ""}` : describeEvent(e, row.times[i], locale, timeZone);
+                  const said = `${row.trace.caseId}: ${details}`;
+                  if (hoveredRow === row && hover?.index === i) liveTooltip = { x, y: cy, description: details };
                   return (
                     <g key={i} {...(run.length > 1 && part("timeline-cluster"))}>
                       <title>{said}</title>
@@ -352,14 +376,14 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
                         role={onSelect ? "button" : undefined}
                         aria-label={onSelect ? said : undefined}
                         tabIndex={onSelect ? 0 : undefined}
-                        onMouseEnter={() => enter(row.trace.caseId, i, e, { x, y: cy })}
+                        onMouseEnter={() => enter(row.trace.caseId, i, e)}
                         onMouseLeave={() => setHover(null)}
-                        onFocus={() => enter(row.trace.caseId, i, e, { x, y: cy })}
+                        onFocus={() => enter(row.trace.caseId, i, e)}
                         onBlur={() => setHover(null)}
                         onClick={() => onSelect?.(row.trace.caseId, i)}
                         onKeyDown={(event) => selectWithKeyboard(event, row.trace.caseId, i)}
                       />
-                      <circle className="wf-event-dot" cx={x} cy={cy} r={dimensionTokens.timelineDot / 2} fill={fillOf(e)} pointerEvents="none" />
+                      <circle className={`wf-event-dot${paint.explicit ? " wf-event-dot--explicit" : ""}`} cx={x} cy={cy} r={dimensionTokens.timelineDot / 2} fill={paint.color} pointerEvents="none" />
                       <text className="wf-event-label" x={x + ring + 8} y={cy + 4} pointerEvents="none">
                         {label}
                       </text>
@@ -371,9 +395,9 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
           })}
         </svg>
         {unplacedEvents > 0 ? <p>{t(locale, "timeline.unplaced", { count: unplacedEvents })}</p> : null}
-        {hover && hoveredRow && hover.at ? (
-          <div className="wf-tooltip" {...part("tooltip")} style={{ left: Math.min(hover.at.x + 2 * ring, width - 200), top: hover.at.y + ring }} role="status">
-            {describeEvent(hover.event, hoveredRow.times[hover.index], locale, timeZone)}
+        {liveTooltip ? (
+          <div className="wf-tooltip" {...part("tooltip")} style={{ left: Math.min(liveTooltip.x + 2 * ring, width - 200), top: liveTooltip.y + ring }} role="status">
+            {liveTooltip.description}
           </div>
         ) : null}
       </div>
@@ -427,13 +451,14 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
               })}
               {row.trace.events.map((e, i) => {
                 if (!Number.isFinite(row.times[i])) return null;
-                const fill = fillOf(e);
+                const paint = fillOf(e);
+                const fill = paint.color;
                 const violates = (e.violates ?? []).length > 0;
                 return (
                   <g key={i}>
                     <title>{describeEvent(e, row.times[i], locale, timeZone)}</title>
                     <circle
-                      className={`wf-event${violates ? " wf-event--violates" : ""}`}
+                      className={`wf-event${violates ? " wf-event--violates" : ""}${paint.explicit ? " wf-event--explicit" : ""}`}
                       {...part("timeline-event")}
                       cx={xs[i]}
                       cy={cy}
