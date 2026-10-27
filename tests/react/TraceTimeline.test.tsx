@@ -58,6 +58,8 @@ describe("TraceTimeline", () => {
     expect(container.querySelectorAll(".wf-event-dot")).toHaveLength(1);
     expect(container.querySelector(".wf-event-dot")?.getAttribute("fill")).toBe("var(--wf-line-strong)");
     expect(container.textContent).toContain("2 events · First · mixed colours");
+    expect(container.querySelector(".wf-event-label")?.textContent).toContain(" · !");
+    expect(container.querySelector(".wf-event-label")?.textContent).not.toContain("deadline");
     expect(container.querySelector(".wf-event--ring")?.getAttribute("aria-label")).toContain("deadline");
     fireEvent.mouseEnter(container.querySelector(".wf-event--ring")!);
     expect(screen.getByRole("status").textContent).toContain("deadline");

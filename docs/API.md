@@ -1990,6 +1990,8 @@ export function TraceTimeline(props: { traces: Trace[]; anchor?: string; annotat
 // mixed-colours label are shown. Its visible label, title and tooltip include the cluster's violations; when
 // `onSelect` is supplied, its keyboard-accessible ring also has that description. Without `onSelect`, use the
 // table for individual events and their violations; the SVG is a single image.
+// A hovered or focused event is tracked by its event object as well as case and index, so replacing that object
+// clears its tooltip. Hosts that re-render the same events should preserve their object identities.
 export function AbstractionControls(props), Legend(props), OverlayLayer(props);
 export interface LegendProps { scales?: Scales; overlays?: Overlay[]; locale?: Locale; chips?: ReactNode;
   legend?: SceneLegend;   // the rows it renders: the scene's legend; without it sceneLegend(scales, overlays)

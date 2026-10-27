@@ -359,8 +359,9 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
                   const cy = ys[i];
                   const violates = run.some((j) => (row.trace.events[j].violates ?? []).length > 0);
                   const violations = [...new Set(run.flatMap((j) => row.trace.events[j].violates ?? []))];
-                  const label = (run.length > 1 ? t(locale, "timeline.cluster", { count: formatNumber(run.length, 0, locale), activity: e.activity }) : e.activity) + (mixed ? ` · ${t(locale, "timeline.mixedColours")}` : "") + (violations.length ? ` · ${t(locale, "timeline.violates")}: ${violations.join(", ")}` : "");
-                  const details = run.length > 1 ? `${label}\n${formatAt(row.times[i])}` : describeEvent(e, row.times[i], locale, timeZone);
+                  const summary = (run.length > 1 ? t(locale, "timeline.cluster", { count: formatNumber(run.length, 0, locale), activity: e.activity }) : e.activity) + (mixed ? ` · ${t(locale, "timeline.mixedColours")}` : "");
+                  const label = summary + (violations.length ? " · !" : "");
+                  const details = run.length > 1 ? `${summary}\n${formatAt(row.times[i])}${violations.length ? `\n${t(locale, "timeline.violates")}: ${violations.join(", ")}` : ""}` : describeEvent(e, row.times[i], locale, timeZone);
                   const said = `${row.trace.caseId}: ${details}`;
                   if (hoveredRow === row && hover?.index === i) liveTooltip = { x, y: cy, description: details };
                   return (
