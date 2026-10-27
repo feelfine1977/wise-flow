@@ -48,15 +48,19 @@ describe("TraceTimeline", () => {
     expect(fills()).toEqual(defaultFills);
   });
 
-  it.each(["window", "minute"] as const)("a %s cluster uses its first event's explicit colour and selection", (clusterBy) => {
+  it.each(["window", "minute"] as const)("a %s cluster marks mixed colours and later violations, and selects its first event", (clusterBy) => {
     const data: Trace[] = [{ caseId: "c", events: [
       { activity: "First", timestamp: "2026-01-01T00:00:00Z" },
-      { activity: "Second", timestamp: "2026-01-01T00:00:20Z" },
+      { activity: "Second", timestamp: "2026-01-01T00:00:20Z", violates: ["deadline"] },
     ] }];
     const onSelect = vi.fn();
     const { container } = render(<TraceTimeline traces={data} orientation="vertical" clusterBy={clusterBy} clusterMs={60000} eventColor={(e) => e.activity === "First" ? "#112233" : "#aabbcc"} onSelect={onSelect} />);
     expect(container.querySelectorAll(".wf-event-dot")).toHaveLength(1);
-    expect(container.querySelector(".wf-event-dot")?.getAttribute("fill")).toBe("#112233");
+    expect(container.querySelector(".wf-event-dot")?.getAttribute("fill")).not.toBe("#112233");
+    expect(container.textContent).toContain("mixed colours");
+    expect(container.querySelector(".wf-event--ring")?.getAttribute("aria-label")).toContain("deadline");
+    fireEvent.mouseEnter(container.querySelector(".wf-event--ring")!);
+    expect(screen.getByRole("status").textContent).toContain("deadline");
     fireEvent.click(container.querySelector(".wf-event--ring")!);
     expect(onSelect).toHaveBeenCalledWith("c", 0);
   });
