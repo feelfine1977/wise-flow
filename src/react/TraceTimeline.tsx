@@ -40,6 +40,8 @@ export interface TraceTimelineProps {
   rowHeight?: number;
   /** Colour events by activity (default) or by a key of your own. */
   colorKey?: (event: TraceEvent) => string;
+  /** Optional explicit colour for an event; undefined keeps the usual stage or activity palette. */
+  eventColor?: (event: TraceEvent) => string | undefined;
   onSelect?: (caseId: string, eventIndex: number) => void;
   /** Show the table alternative instead of the drawing. */
   table?: boolean;
@@ -163,7 +165,7 @@ export function eventClusters(times: readonly number[], clusterMs?: number, key?
  * Events per case on a time axis, optionally aligned at an anchor activity,
  * with violated constraints marked on the events and spans annotated.
  */
-export function TraceTimeline({ traces, anchor, annotations = [], locale = "en", width = 900, rowHeight = 28, colorKey, onSelect, table = false, className, orientation = "horizontal", height: givenHeight, terminals = false, clusterMs, clusterBy = "window", timeZone: givenZone, stages }: TraceTimelineProps) {
+export function TraceTimeline({ traces, anchor, annotations = [], locale = "en", width = 900, rowHeight = 28, colorKey, eventColor, onSelect, table = false, className, orientation = "horizontal", height: givenHeight, terminals = false, clusterMs, clusterBy = "window", timeZone: givenZone, stages }: TraceTimelineProps) {
   const id = useId();
   const [hover, setHover] = useState<{ caseId: string; index: number; event: TraceEvent; at?: { x: number; y: number } } | null>(null);
   const keyOf = colorKey ?? ((e: TraceEvent) => e.canonicalId ?? e.activity);
@@ -172,6 +174,8 @@ export function TraceTimeline({ traces, anchor, annotations = [], locale = "en",
   // Stages in their order take the palette's colours; a key that is no stage the strong line colour.
   const stageColors = useMemo(() => (stages ? orderedCategorical(stages) : undefined), [stages]);
   const fillOf = (e: TraceEvent) => {
+    const explicit = eventColor?.(e);
+    if (explicit !== undefined) return explicit;
     const key = keyOf(e);
     return stageColors ? stageColors.get(key)?.color ?? colorTokens.lineStrong : colorFor(key);
   };

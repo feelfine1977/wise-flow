@@ -28,6 +28,18 @@ function eventAt(container: HTMLElement, index: number) {
 }
 
 describe("TraceTimeline", () => {
+  it.each(["horizontal", "vertical"] as const)("uses explicit event colours in the %s timeline while leaving unknown events at their default", (orientation) => {
+    const colors = ["#112233", "#223344", "#334455", "#445566", "#556677", "#667788", "#778899", "#8899aa"];
+    const events = colors.map((_, i) => ({ activity: "Same activity", canonicalId: `stage-${i}`, timestamp: Date.UTC(2026, 0, 1, i) }));
+    const cases = [{ caseId: "c1", events: [...events, { activity: "Unmapped", timestamp: Date.UTC(2026, 0, 2) }] }];
+    const { container, rerender } = render(<TraceTimeline traces={cases} orientation={orientation} stages={events.map((e) => e.canonicalId)} />);
+    const selector = orientation === "vertical" ? ".wf-event-dot" : ".wf-event";
+    const before = [...container.querySelectorAll(selector)].map((e) => e.getAttribute("fill"));
+    rerender(<TraceTimeline traces={cases} orientation={orientation} stages={events.map((e) => e.canonicalId)} eventColor={(event) => colors[events.findIndex((e) => e.canonicalId === event.canonicalId)]} />);
+    const after = [...container.querySelectorAll(selector)].map((e) => e.getAttribute("fill"));
+    expect(after.slice(0, colors.length)).toEqual(colors);
+    expect(after.at(-1)).toBe(before.at(-1));
+  });
   it("renders an empty cohort and shows event times in UTC on hover", () => {
     const { container, rerender } = render(<TraceTimeline traces={[]} />);
     expect(screen.getByRole("img").textContent).toContain("0");
